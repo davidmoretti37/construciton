@@ -392,6 +392,7 @@ export const getSelectedLanguage = async () => {
 export const hasSelectedLanguage = async () => {
   try {
     const language = await getSelectedLanguage();
+    console.log('Checking language selection - current language:', language);
     return language !== null && language !== '';
   } catch (error) {
     console.error('Error checking language selection:', error);

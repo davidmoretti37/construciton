@@ -55,6 +55,17 @@ function AppContent() {
         hasSelectedLanguage(),
         isOnboarded()
       ]);
+
+      console.log('=== APP FLOW DEBUG ===');
+      console.log('Has language selected:', langSelected);
+      console.log('Is onboarded:', onboarded);
+      console.log('Will show:',
+        !langSelected ? 'Language Selection' :
+        !onboarded ? 'Onboarding (Welcome Screen)' :
+        'Main App'
+      );
+      console.log('=====================');
+
       setLanguageSelected(langSelected);
       setUserOnboarded(onboarded);
     } catch (error) {
