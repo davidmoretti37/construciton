@@ -60,17 +60,26 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('🚪 LOGOUT: Starting logout process...');
+
               // Sign out from Supabase
+              console.log('🚪 LOGOUT: Calling supabase.auth.signOut()...');
               const { error } = await supabase.auth.signOut();
-              if (error) throw error;
+              if (error) {
+                console.error('🚪 LOGOUT ERROR:', error);
+                throw error;
+              }
+              console.log('🚪 LOGOUT: Supabase signOut successful');
 
               // Clear all AsyncStorage data for complete reset
+              console.log('🚪 LOGOUT: Clearing AsyncStorage...');
               await AsyncStorage.clear();
+              console.log('🚪 LOGOUT: AsyncStorage cleared');
 
-              console.log('Logged out successfully - app reset complete');
+              console.log('✅ LOGOUT COMPLETE - App should now show LOGIN screen');
               // App.js will handle navigation to login screen via auth state listener
             } catch (error) {
-              console.error('Error logging out:', error);
+              console.error('❌ LOGOUT FAILED:', error);
               Alert.alert('Error', 'Failed to logout. Please try again.');
             }
           },

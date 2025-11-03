@@ -19,6 +19,19 @@ function AppContent() {
   const [userOnboarded, setUserOnboarded] = useState(false);
 
   useEffect(() => {
+    console.log('🚀 APP STARTING...');
+    console.log('🚀 Checking Supabase connection...');
+
+    // Verify Supabase is configured
+    supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('❌ SUPABASE ERROR:', error.message);
+        } else {
+          console.log('✅ Supabase connected successfully');
+        }
+      });
+
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
