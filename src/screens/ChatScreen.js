@@ -89,52 +89,7 @@ export default function ChatScreen({ navigation }) {
         quickSuggestions: aiResponse.quickSuggestions || [],
       };
 
-      // CARD DEDUPLICATION: Check if we should update existing card instead of creating new one
-      const hasProjectCard = aiMessage.visualElements?.some(el => el.type === 'project-card');
-      let didUpdate = false;
-
-      if (hasProjectCard) {
-        const newProjectCard = aiMessage.visualElements.find(el => el.type === 'project-card');
-        const newProjectId = newProjectCard?.data?.id;
-
-        // Find the last non-user message with a project-card
-        setMessages((prev) => {
-          const messages = [...prev];
-
-          for (let i = messages.length - 1; i >= 0; i--) {
-            const message = messages[i];
-            if (!message.isUser && message.visualElements) {
-              const existingCardIndex = message.visualElements.findIndex(el => el.type === 'project-card');
-
-              if (existingCardIndex !== -1) {
-                const existingProjectId = message.visualElements[existingCardIndex].data?.id;
-
-                // If same project ID, UPDATE the existing card instead of creating new one
-                if (existingProjectId === newProjectId) {
-                  didUpdate = true;
-
-                  // Update existing message
-                  message.visualElements[existingCardIndex].data = newProjectCard.data;
-                  message.text = aiMessage.text;
-                  message.actions = aiMessage.actions;
-                  message.timestamp = new Date();
-
-                  return messages;
-                }
-
-                // Different project or first card - break and create new message
-                break;
-              }
-            }
-          }
-
-          // No existing card found or different project - add new message
-          return [...messages, aiMessage];
-        });
-      } else {
-        // No project card - add message normally
-        setMessages((prev) => [...prev, aiMessage]);
-      }
+      setMessages((prev) => [...prev, aiMessage]);
 
       // Update conversation history for context in next messages
       setConversationHistory((prev) => [
@@ -665,15 +620,15 @@ export default function ChatScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: Colors.background }]}>
       <SafeAreaView style={styles.safeArea}>
-        {/* Top Bar */}
+      {/* Top Bar */}
         <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
           <TouchableOpacity
             style={styles.settingsButton}
             onPress={() => navigation.navigate('Settings')}
           >
             <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
+      </View>
 
       {/* Chat Messages and Input Area */}
       <KeyboardAvoidingView
@@ -697,28 +652,28 @@ export default function ChatScreen({ navigation }) {
             </View>
           ) : (
             <>
-              {messages.map((message) => (
+          {messages.map((message) => (
                 <View key={message.id} style={styles.messageContainer}>
                   {/* Text bubble */}
-                  <View
-                    style={[
-                      styles.messageBubble,
+            <View
+              style={[
+                styles.messageBubble,
                       message.isUser
                         ? { backgroundColor: Colors.primaryBlue }
                         : { backgroundColor: Colors.lightGray },
-                      message.isUser ? styles.userMessage : styles.aiMessage,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.messageText,
+                message.isUser ? styles.userMessage : styles.aiMessage,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.messageText,
                         message.isUser
                           ? { color: Colors.white }
                           : { color: Colors.primaryText },
-                      ]}
-                    >
+                ]}
+              >
                       {typeof message.text === 'string' ? message.text : JSON.stringify(message.text)}
-                    </Text>
+              </Text>
                   </View>
 
                   {/* Visual Elements */}
@@ -749,8 +704,8 @@ export default function ChatScreen({ navigation }) {
                       ))}
                     </View>
                   )}
-                </View>
-              ))}
+            </View>
+          ))}
 
               {/* AI Thinking Loader */}
               {isAIThinking && (
@@ -765,7 +720,7 @@ export default function ChatScreen({ navigation }) {
         {/* AI Input Component - Moves up with keyboard */}
         <View style={styles.inputWrapper}>
           <AIInputWithSearch
-            placeholder="Search the web..."
+              placeholder="Type a message..."
             onSubmit={handleSend}
             onFileSelect={handleFileSelect}
             onCameraPress={handleCameraOpen}
@@ -796,7 +751,7 @@ export default function ChatScreen({ navigation }) {
         onConfirm={handleJobNameConfirm}
         projectData={currentProject}
       />
-      </SafeAreaView>
+    </SafeAreaView>
     </View>
   );
 }

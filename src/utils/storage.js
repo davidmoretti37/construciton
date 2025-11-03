@@ -425,11 +425,12 @@ export const saveProject = async (projectData) => {
     const dbProject = {
       user_id: userId,
       name: projectData.name,
-      client: projectData.client,
+      client: projectData.client || projectData.name || 'Unknown Client', // Fallback to name or Unknown if missing
       // New financial model
       contract_amount: projectData.contractAmount || 0,
       income_collected: projectData.incomeCollected || 0,
       expenses: projectData.expenses || 0,
+      extras: projectData.extras || [],
       // Legacy fields (for backward compatibility)
       budget: projectData.budget || projectData.contractAmount || 0,
       spent: projectData.spent || projectData.expenses || 0,
@@ -645,6 +646,7 @@ const transformProjectFromDB = (dbProject) => {
     incomeCollected: incomeCollected,
     expenses: expenses,
     profit: incomeCollected - expenses, // Calculated field
+    extras: dbProject.extras || [],
     // Legacy fields (kept for backward compatibility)
     budget: contractAmount,
     spent: expenses,

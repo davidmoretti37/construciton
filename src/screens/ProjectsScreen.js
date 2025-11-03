@@ -9,13 +9,15 @@ import {
   SafeAreaView,
   RefreshControl,
   ActivityIndicator,
+  Modal,
+  TextInput as RNTextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjects } from '../utils/storage';
 import { ProjectCard } from '../components/ChatVisuals';
-import EditProjectModal from '../components/EditProjectModal';
 
 export default function ProjectsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -26,13 +28,20 @@ export default function ProjectsScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
 
-  // Fetch projects on mount
-  useEffect(() => {
-    loadProjects();
-  }, []);
+  const closeEdit = () => {
+    setEditOpen(false);
+    setEditing(null);
+  };
+
+  // Reload projects whenever screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProjects();
+    }, [])
+  );
 
   const loadProjects = async () => {
     try {
@@ -80,21 +89,16 @@ export default function ProjectsScreen({ navigation }) {
   });
 
   const handleProjectAction = (action) => {
-    console.log('Project action:', action);
-
-    if (action.type === 'view-project') {
-      // Find the project by ID
+    if (!action) return;
+    if (action.type === 'view-project' && action.data?.projectId) {
       const project = projects.find(p => p.id === action.data.projectId);
       if (project) {
-        setSelectedProject(project);
-        setShowEditModal(true);
+        setEditing({ ...project });
+        setEditOpen(true);
       }
+      return;
     }
-  };
-
-  const handleProjectSave = (savedProject) => {
-    // Reload projects to get the updated data
-    loadProjects();
+    console.log('Project action:', action);
   };
 
   return (
@@ -186,14 +190,100 @@ export default function ProjectsScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+      {/* Simple Edit Modal */}
+      <Modal visible={editOpen} transparent animationType="slide" onRequestClose={closeEdit}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: Colors.white }]}>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Edit Project</Text>
+            {editing && (
+              <View>
+                <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Name</Text>
+                <RNTextInput
+                  style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                  placeholder="Project name"
+                  placeholderTextColor={Colors.placeholderText}
+                  value={editing.name}
+                  onChangeText={(t) => setEditing((e) => ({ ...e, name: t }))}
+                />
 
-      {/* Edit Project Modal */}
-      <EditProjectModal
-        visible={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        projectData={selectedProject}
-        onSave={handleProjectSave}
-      />
+                <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Client</Text>
+                <RNTextInput
+                  style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                  placeholder="Client"
+                  placeholderTextColor={Colors.placeholderText}
+                  value={editing.client || ''}
+                  onChangeText={(t) => setEditing((e) => ({ ...e, client: t }))}
+                />
+
+                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Budget</Text>
+                    <RNTextInput
+                      style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                      keyboardType="numeric"
+                      value={String(editing.budget ?? 0)}
+                      onChangeText={(t) => setEditing((e) => ({ ...e, budget: t.replace(/[^0-9.]/g, '') }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Spent</Text>
+                    <RNTextInput
+                      style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                      keyboardType="numeric"
+                      value={String(editing.spent ?? 0)}
+                      onChangeText={(t) => setEditing((e) => ({ ...e, spent: t.replace(/[^0-9.]/g, '') }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Complete %</Text>
+                    <RNTextInput
+                      style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                      keyboardType="numeric"
+                      value={String(editing.percentComplete ?? 0)}
+                      onChangeText={(t) => setEditing((e) => ({ ...e, percentComplete: t.replace(/[^0-9]/g, '') }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Status</Text>
+                    <RNTextInput
+                      style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                      placeholder="on-track / behind / completed"
+                      placeholderTextColor={Colors.placeholderText}
+                      value={editing.status || ''}
+                      onChangeText={(t) => setEditing((e) => ({ ...e, status: t }))}
+                    />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.lg }}>
+                  <TouchableOpacity style={[styles.modalButton, { backgroundColor: Colors.lightGray }]} onPress={closeEdit}>
+                    <Text style={[styles.modalButtonText, { color: Colors.primaryText }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: Colors.primaryBlue }]}
+                    onPress={() => {
+                      // Local update only; persistence to Supabase could be added here
+                      setProjects((prev) => prev.map((p) => (p.id === editing.id ? {
+                        ...p,
+                        ...editing,
+                        budget: Number(editing.budget) || 0,
+                        spent: Number(editing.spent) || 0,
+                        percentComplete: Math.max(0, Math.min(100, Number(editing.percentComplete) || 0)),
+                      } : p)));
+                      closeEdit();
+                    }}
+                  >
+                    <Text style={[styles.modalButtonText, { color: Colors.white }]}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -410,5 +500,40 @@ const styles = StyleSheet.create({
     color: LightColors.secondaryText,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  modalCard: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+  },
+  modalTitle: {
+    fontSize: FontSizes.subheader,
+    fontWeight: '600',
+    marginBottom: Spacing.md,
+  },
+  inputLabel: {
+    fontSize: FontSizes.small,
+    marginBottom: 4,
+    marginTop: Spacing.sm,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  modalButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  modalButtonText: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
   },
 });

@@ -14,13 +14,13 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 
 const AIInputWithSearch = ({
-  placeholder = 'Search the web...',
+  placeholder = 'Type a message...',
   onSubmit,
   onFileSelect,
   onCameraPress,
 }) => {
   const [value, setValue] = useState('');
-  const [showSearch, setShowSearch] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
   const buttonWidth = useSharedValue(80);
   const textOpacity = useSharedValue(1);
 
@@ -28,7 +28,7 @@ const AIInputWithSearch = ({
     if (value.trim()) {
       const textToSend = value.trim();
       setValue(''); // Clear immediately
-      onSubmit?.(textToSend, showSearch);
+      onSubmit?.(textToSend, false);
     }
   };
 
@@ -93,25 +93,7 @@ const AIInputWithSearch = ({
               />
             </TouchableOpacity>
 
-            {/* Search Toggle Button */}
-            <TouchableOpacity onPress={toggleSearch} activeOpacity={0.8}>
-              <Animated.View
-                style={[
-                  styles.searchButton,
-                  showSearch && styles.searchButtonActive,
-                  animatedButtonStyle,
-                ]}
-              >
-                <Ionicons
-                  name="globe-outline"
-                  size={16}
-                  color={showSearch ? '#0EA5E9' : 'rgba(0, 0, 0, 0.4)'}
-                />
-                <Animated.Text style={[styles.searchText, animatedTextStyle]}>
-                  Search
-                </Animated.Text>
-              </Animated.View>
-            </TouchableOpacity>
+            {/* Search toggle removed per requirement */}
           </View>
 
           {/* Right Side - Send Button */}

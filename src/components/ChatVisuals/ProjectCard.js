@@ -25,14 +25,19 @@ export default function ProjectCard({ data, onAction }) {
     lastActivity = ''
   } = data;
 
+  // Extras/Additions support
+  const extras = data.extras || [];
+  const extrasTotal = extras.reduce((sum, extra) => sum + (extra.amount || 0), 0);
+
   // New financial model - properly read from data object with fallbacks
-  const contractAmount = data.contractAmount || data.budget || 0;
+  const baseContractAmount = data.contractAmount || data.budget || 0;
+  const contractAmount = baseContractAmount + extrasTotal; // Total includes extras
   const incomeCollected = data.incomeCollected || 0;
   const expenses = data.expenses || data.spent || 0;
   const profit = incomeCollected - expenses;
 
   // Legacy fields
-  const budget = data.budget || contractAmount;
+  const budget = data.budget || baseContractAmount;
   const spent = data.spent || expenses;
 
   // Debug logging to see what values we're getting
@@ -100,7 +105,7 @@ export default function ProjectCard({ data, onAction }) {
         );
       } else {
         return (
-          <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
+          <Text style={[styles.footerText, { color: Colors.primaryText }]}>
             {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
           </Text>
         );
@@ -140,7 +145,7 @@ export default function ProjectCard({ data, onAction }) {
         );
       } else {
         return (
-          <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
+          <Text style={[styles.footerText, { color: Colors.primaryText }]}>
             {diffDays} {diffDays === 1 ? 'day' : 'days'} left
           </Text>
         );
@@ -160,7 +165,7 @@ export default function ProjectCard({ data, onAction }) {
       <View style={styles.header}>
         <View style={styles.titleContainer}>
           <Text style={[styles.projectName, { color: Colors.primaryText }]}>{name}</Text>
-          {client && <Text style={[styles.clientName, { color: Colors.secondaryText }]}>{client}</Text>}
+          {client && <Text style={[styles.clientName, { color: Colors.primaryText }]}>{client}</Text>}
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '20' }]}>
           <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
@@ -180,41 +185,71 @@ export default function ProjectCard({ data, onAction }) {
             ]}
           />
         </View>
-        <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
+        <Text style={[styles.progressText, { color: Colors.primaryText }]}>
           {percentComplete}% complete
         </Text>
+      </View>
+
+      {/* Days Remaining */}
+      <View style={styles.daysRemainingSection}>
+        {renderTimeline()}
       </View>
 
       {/* Financial Section */}
       <View style={styles.financialSection}>
         {/* Contract Amount Header */}
         <View style={styles.financialRow}>
-          <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>
-            Contract Amount
+          <Text style={[styles.financialLabel, { color: Colors.primaryText }]}>
+            {extras.length > 0 ? 'Total Contract Amount' : 'Contract Amount'}
           </Text>
           <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
             ${(contractAmount || 0).toLocaleString()}
           </Text>
         </View>
 
+        {/* Extras/Additions Breakdown */}
+        {extras.length > 0 && (
+          <View style={styles.extrasContainer}>
+            <Text style={[styles.extrasHeader, { color: Colors.primaryText }]}>
+              • Base Contract: ${baseContractAmount.toLocaleString()}
+            </Text>
+            {extras.map((extra, index) => (
+              <Text key={index} style={[styles.extrasItem, { color: Colors.primaryText }]}>
+                • {extra.description || 'Additional Work'}: ${(extra.amount || 0).toLocaleString()}
+                {extra.daysAdded ? ` (+${extra.daysAdded} days)` : ''}
+              </Text>
+            ))}
+          </View>
+        )}
+
         {/* Financial Progress Bar showing Income (Green), Expenses (Red), Pending (Grey) */}
         {contractAmount > 0 && (
           <View style={styles.compoundProgressContainer}>
+            {/* Legend */}
+            <View style={styles.progressLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
+                <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
+                  Expenses: <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: FontSizes.medium }}>${(expenses || 0).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round((expenses / contractAmount) * 100)}%)</Text>
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+                <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
+                  Net Available: <Text style={{ color: '#22C55E', fontWeight: '700', fontSize: FontSizes.medium }}>${Math.max(0, (incomeCollected || 0) - (expenses || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(Math.max(0, (incomeCollected - expenses) / contractAmount) * 100)}%)</Text>
+                </Text>
+              </View>
+              <View style={[styles.legendItem, { alignItems: 'center' }]}>
+                <View style={{ width: 8, marginRight: 6 }} />
+                <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small, flex: 1 }]}>
+                  Pending: <Text style={{ color: '#9CA3AF', fontWeight: '700', fontSize: FontSizes.medium }}>${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)</Text>
+                </Text>
+              </View>
+            </View>
+
             {/* Main Progress Bar */}
             <View style={[styles.compoundProgressBg, { borderWidth: 1, borderColor: '#E5E5E5' }]}>
-              {/* Green: Income Collected */}
-              {incomeCollected > 0 && (
-                <View
-                  style={[
-                    styles.incomeBar,
-                    {
-                      backgroundColor: '#22C55E', // Bright green
-                      width: `${Math.min((incomeCollected / contractAmount) * 100, 100)}%`
-                    }
-                  ]}
-                />
-              )}
-              {/* Red: Expenses */}
+              {/* Red: Expenses (Fixed - shows as % of total budget) */}
               {expenses > 0 && (
                 <View
                   style={[
@@ -226,38 +261,30 @@ export default function ProjectCard({ data, onAction }) {
                   ]}
                 />
               )}
-              {/* Grey: Remaining (fills the rest automatically) */}
-              <View
-                style={[
-                  styles.remainingBar,
-                  {
-                    backgroundColor: '#D1D5DB', // Light grey
-                    flex: 1
-                  }
-                ]}
-              />
-            </View>
-
-            {/* Legend */}
-            <View style={styles.progressLegend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
-                <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
-                  Collected: ${(incomeCollected || 0).toLocaleString()} ({Math.round((incomeCollected / contractAmount) * 100)}%)
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
-                <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
-                  Expenses: ${(expenses || 0).toLocaleString()} ({Math.round((expenses / contractAmount) * 100)}%)
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Colors.lightGray, borderWidth: 1, borderColor: Colors.border }]} />
-                <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
-                  Pending: ${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString()} ({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)
-                </Text>
-              </View>
+              {/* Green: Net Profit (Income - Expenses) */}
+              {(incomeCollected - expenses) > 0 && (
+                <View
+                  style={[
+                    styles.incomeBar,
+                    {
+                      backgroundColor: '#22C55E', // Bright green
+                      width: `${Math.min(((incomeCollected - expenses) / contractAmount) * 100, 100)}%`
+                    }
+                  ]}
+                />
+              )}
+              {/* Grey: Pending/Uncollected */}
+              {(contractAmount - incomeCollected) > 0 && (
+                <View
+                  style={[
+                    styles.remainingBar,
+                    {
+                      backgroundColor: '#D1D5DB', // Light grey
+                      width: `${Math.min(((contractAmount - incomeCollected) / contractAmount) * 100, 100)}%`
+                    }
+                  ]}
+                />
+              )}
             </View>
           </View>
         )}
@@ -265,7 +292,7 @@ export default function ProjectCard({ data, onAction }) {
         {/* Profit Display */}
         <View style={styles.profitContainer}>
           <View style={styles.financialRow}>
-            <Text style={[styles.financialLabel, { color: Colors.secondaryText, fontWeight: '600' }]}>
+            <Text style={[styles.financialLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
               Current Profit
             </Text>
             <Text
@@ -283,23 +310,16 @@ export default function ProjectCard({ data, onAction }) {
         </View>
       </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        {Array.isArray(workers) && workers.length > 0 && (
+      {/* Footer - Workers only */}
+      {Array.isArray(workers) && workers.length > 0 && (
+        <View style={styles.footer}>
           <View style={styles.workersSection}>
-            <Ionicons name="people-outline" size={14} color={Colors.secondaryText} />
-            <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
+            <Ionicons name="people-outline" size={14} color={Colors.primaryText} />
+            <Text style={[styles.footerText, { color: Colors.primaryText }]}>
               {workers.join(', ')}
             </Text>
           </View>
-        )}
-        {renderTimeline()}
-      </View>
-
-      {lastActivity && typeof lastActivity === 'string' && lastActivity.trim() && (
-        <Text style={[styles.lastActivity, { color: Colors.secondaryText }]}>
-          Last activity: {lastActivity}
-        </Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -349,8 +369,15 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: FontSizes.tiny,
   },
+  daysRemainingSection: {
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
   financialSection: {
     marginBottom: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
   },
   financialRow: {
     flexDirection: 'row',
@@ -365,6 +392,19 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     fontWeight: '600',
   },
+  extrasContainer: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+    paddingLeft: Spacing.sm,
+  },
+  extrasHeader: {
+    fontSize: FontSizes.tiny,
+    marginBottom: 2,
+  },
+  extrasItem: {
+    fontSize: FontSizes.tiny,
+    marginBottom: 2,
+  },
   compoundProgressContainer: {
     marginTop: Spacing.sm,
     marginBottom: Spacing.sm,
@@ -374,7 +414,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: 'hidden',
     flexDirection: 'row',
-    marginBottom: Spacing.sm,
+    marginTop: Spacing.sm,
   },
   incomeBar: {
     height: 12,
