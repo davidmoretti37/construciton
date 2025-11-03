@@ -1,11 +1,10 @@
 -- Migration: Add language column to profiles table
 -- Run this if you already have an existing profiles table
 
--- Add language column with default value 'en'
+-- Add language column (NULL by default, user must select)
 ALTER TABLE public.profiles
-ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'en';
+ADD COLUMN IF NOT EXISTS language TEXT;
 
--- Update existing rows to have default language if they don't have one
+-- Clear language for all existing users so they must select it
 UPDATE public.profiles
-SET language = 'en'
-WHERE language IS NULL OR language = '';
+SET language = NULL;

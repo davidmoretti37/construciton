@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   business_email TEXT,
   trades TEXT[] DEFAULT '{}',
   pricing JSONB DEFAULT '{}'::jsonb,
-  language TEXT DEFAULT 'en',
+  language TEXT,
   is_onboarded BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
