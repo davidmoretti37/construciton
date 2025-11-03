@@ -8,16 +8,28 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import ThemeSwitch from '../components/ThemeSwitch';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function WorkersScreen() {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarTitle}>Workers</Text>
+      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => console.log('Settings pressed')}
+        >
+          <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
+        </TouchableOpacity>
+        <View style={styles.spacer} />
+        <ThemeSwitch />
         <TouchableOpacity style={styles.addWorkerButton}>
-          <Text style={styles.addWorkerText}>+ Add Worker</Text>
+          <Text style={[styles.addWorkerText, { color: Colors.primaryBlue }]}>+ Add Worker</Text>
         </TouchableOpacity>
       </View>
 
@@ -35,7 +47,7 @@ export default function WorkersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: LightColors.background,
   },
   topBar: {
     height: 60,
@@ -43,21 +55,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: LightColors.border,
   },
-  topBarTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.primaryText,
+  settingsButton: {
+    padding: Spacing.sm,
+  },
+  spacer: {
+    flex: 1,
+  },
+  emptySpace: {
+    flex: 1,
   },
   addWorkerButton: {
     padding: Spacing.sm,
   },
   addWorkerText: {
     fontSize: FontSizes.body,
-    color: Colors.primaryBlue,
+    color: LightColors.primaryBlue,
     fontWeight: '600',
   },
   content: {
@@ -74,7 +90,7 @@ const styles = StyleSheet.create({
   workerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
@@ -87,33 +103,33 @@ const styles = StyleSheet.create({
   activeWorker: {
     backgroundColor: '#F0FDF4',
     borderWidth: 1,
-    borderColor: Colors.successGreen,
+    borderColor: LightColors.successGreen,
   },
   statusDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.successGreen,
+    backgroundColor: LightColors.successGreen,
     marginRight: Spacing.md,
   },
   offStatus: {
-    backgroundColor: Colors.secondaryText,
+    backgroundColor: LightColors.secondaryText,
   },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.primaryBlue,
+    backgroundColor: LightColors.primaryBlue,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
   },
   inactiveAvatar: {
-    backgroundColor: Colors.secondaryText,
+    backgroundColor: LightColors.secondaryText,
   },
   avatarText: {
     fontSize: FontSizes.body,
-    color: Colors.white,
+    color: LightColors.white,
     fontWeight: '600',
   },
   workerInfo: {
@@ -122,17 +138,17 @@ const styles = StyleSheet.create({
   workerName: {
     fontSize: FontSizes.body,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: 2,
   },
   workerProject: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginBottom: 2,
   },
   workerTime: {
     fontSize: FontSizes.tiny,
-    color: Colors.placeholderText,
+    color: LightColors.placeholderText,
   },
   emptyState: {
     flex: 1,
@@ -143,13 +159,13 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: FontSizes.subheader,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   emptyStateSubtext: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
   },

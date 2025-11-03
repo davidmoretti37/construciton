@@ -8,17 +8,25 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import ThemeSwitch from '../components/ThemeSwitch';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function HomeScreen() {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarTitle}>Dashboard</Text>
-        <TouchableOpacity style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={24} color={Colors.secondaryText} />
+      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => console.log('Settings pressed')}
+        >
+          <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
+        <ThemeSwitch />
       </View>
 
       <ScrollView style={styles.content}>
@@ -90,7 +98,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: LightColors.background,
   },
   topBar: {
     height: 60,
@@ -98,14 +106,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: LightColors.border,
   },
-  topBarTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.primaryText,
+  emptySpace: {
+    flex: 1,
   },
   settingsButton: {
     padding: Spacing.sm,
@@ -115,19 +121,19 @@ const styles = StyleSheet.create({
   },
   welcomeSection: {
     padding: Spacing.xl,
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: LightColors.border,
   },
   welcomeText: {
     fontSize: FontSizes.header,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   dateText: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
   },
   statsRow: {
     flexDirection: 'row',
@@ -136,7 +142,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     alignItems: 'center',
@@ -150,12 +156,12 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: FontSizes.large,
     fontWeight: 'bold',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   statLabel: {
     fontSize: FontSizes.tiny,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'center',
   },
   section: {
@@ -164,11 +170,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.subheader,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.md,
   },
   card: {
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     shadowColor: '#000',
@@ -180,38 +186,38 @@ const styles = StyleSheet.create({
   incomeAmount: {
     fontSize: FontSizes.header,
     fontWeight: 'bold',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   budgetText: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginBottom: Spacing.md,
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: Colors.lightGray,
+    backgroundColor: LightColors.lightGray,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: Spacing.xs,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: Colors.primaryBlue,
+    backgroundColor: LightColors.primaryBlue,
   },
   percentageText: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'right',
   },
   statItem: {
     fontSize: FontSizes.body,
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.sm,
   },
   activityItem: {
     flexDirection: 'row',
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -225,7 +231,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.lightGray,
+    backgroundColor: LightColors.lightGray,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -236,28 +242,28 @@ const styles = StyleSheet.create({
   activityTitle: {
     fontSize: FontSizes.body,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: 2,
   },
   activityProject: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginBottom: 2,
   },
   activityTime: {
     fontSize: FontSizes.tiny,
-    color: Colors.placeholderText,
+    color: LightColors.placeholderText,
   },
   viewAllButton: {
     marginTop: Spacing.md,
   },
   viewAllText: {
     fontSize: FontSizes.small,
-    color: Colors.primaryBlue,
+    color: LightColors.primaryBlue,
     fontWeight: '500',
   },
   projectCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
@@ -270,12 +276,12 @@ const styles = StyleSheet.create({
   projectName: {
     fontSize: FontSizes.subheader,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   projectBudget: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginBottom: Spacing.md,
   },
   projectFooter: {
@@ -286,7 +292,7 @@ const styles = StyleSheet.create({
   },
   projectWorkers: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
   },
   projectStatus: {
     fontSize: FontSizes.small,
@@ -294,7 +300,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'center',
     paddingVertical: Spacing.lg,
   },

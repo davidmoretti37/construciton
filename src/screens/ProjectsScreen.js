@@ -9,16 +9,28 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import ThemeSwitch from '../components/ThemeSwitch';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function ProjectsScreen() {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarTitle}>Projects</Text>
+      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => console.log('Settings pressed')}
+        >
+          <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
+        </TouchableOpacity>
+        <View style={styles.spacer} />
+        <ThemeSwitch />
         <TouchableOpacity style={styles.newProjectButton}>
-          <Text style={styles.newProjectText}>+ New Project</Text>
+          <Text style={[styles.newProjectText, { color: Colors.primaryBlue }]}>+ New Project</Text>
         </TouchableOpacity>
       </View>
 
@@ -64,7 +76,7 @@ export default function ProjectsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: LightColors.background,
   },
   topBar: {
     height: 60,
@@ -72,33 +84,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: LightColors.border,
   },
-  topBarTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.primaryText,
+  settingsButton: {
+    padding: Spacing.sm,
+  },
+  spacer: {
+    flex: 1,
+  },
+  emptySpace: {
+    flex: 1,
   },
   newProjectButton: {
     padding: Spacing.sm,
   },
   newProjectText: {
     fontSize: FontSizes.body,
-    color: Colors.primaryBlue,
+    color: LightColors.primaryBlue,
     fontWeight: '600',
   },
   searchSection: {
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     padding: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: LightColors.border,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.lightGray,
+    backgroundColor: LightColors.lightGray,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -108,7 +124,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: Spacing.sm,
     fontSize: FontSizes.body,
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
   },
   filterChips: {
     flexDirection: 'row',
@@ -118,19 +134,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.pill,
-    backgroundColor: Colors.lightGray,
+    backgroundColor: LightColors.lightGray,
   },
   activeChip: {
-    backgroundColor: Colors.primaryBlue,
+    backgroundColor: LightColors.primaryBlue,
   },
   chipText: {
     fontSize: FontSizes.small,
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     fontWeight: '500',
   },
   activeChipText: {
     fontSize: FontSizes.small,
-    color: Colors.white,
+    color: LightColors.white,
     fontWeight: '500',
   },
   content: {
@@ -138,7 +154,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   projectCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -151,12 +167,12 @@ const styles = StyleSheet.create({
   projectName: {
     fontSize: FontSizes.subheader,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   clientName: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginBottom: Spacing.md,
   },
   budgetSection: {
@@ -164,23 +180,23 @@ const styles = StyleSheet.create({
   },
   budgetText: {
     fontSize: FontSizes.body,
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: Colors.lightGray,
+    backgroundColor: LightColors.lightGray,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: Spacing.xs,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: Colors.primaryBlue,
+    backgroundColor: LightColors.primaryBlue,
   },
   percentageText: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'right',
   },
   workersSection: {
@@ -196,21 +212,21 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.primaryBlue,
+    backgroundColor: LightColors.primaryBlue,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: -8,
     borderWidth: 2,
-    borderColor: Colors.white,
+    borderColor: LightColors.white,
   },
   avatarText: {
     fontSize: FontSizes.tiny,
-    color: Colors.white,
+    color: LightColors.white,
     fontWeight: '600',
   },
   workerCount: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginLeft: Spacing.md,
   },
   projectFooter: {
@@ -235,7 +251,7 @@ const styles = StyleSheet.create({
   },
   lastActivity: {
     fontSize: FontSizes.tiny,
-    color: Colors.placeholderText,
+    color: LightColors.placeholderText,
   },
   emptyState: {
     flex: 1,
@@ -246,13 +262,13 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: FontSizes.subheader,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   emptyStateSubtext: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
   },

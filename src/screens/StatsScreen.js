@@ -8,19 +8,26 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import ThemeSwitch from '../components/ThemeSwitch';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function StatsScreen() {
   const [selectedRange, setSelectedRange] = useState('monthly');
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarTitle}>Statistics</Text>
-        <TouchableOpacity style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={24} color={Colors.secondaryText} />
+      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => console.log('Settings pressed')}
+        >
+          <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
+        <ThemeSwitch />
       </View>
 
       {/* Toggle Buttons */}
@@ -138,7 +145,7 @@ export default function StatsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: LightColors.background,
   },
   topBar: {
     height: 60,
@@ -146,43 +153,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  topBarTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.primaryText,
+    borderBottomColor: LightColors.border,
   },
   settingsButton: {
     padding: Spacing.sm,
   },
+  emptySpace: {
+    flex: 1,
+  },
   toggleSection: {
     flexDirection: 'row',
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     padding: Spacing.lg,
     gap: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: LightColors.border,
   },
   toggleButton: {
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.pill,
-    backgroundColor: Colors.lightGray,
+    backgroundColor: LightColors.lightGray,
     alignItems: 'center',
   },
   activeToggle: {
-    backgroundColor: Colors.primaryBlue,
+    backgroundColor: LightColors.primaryBlue,
   },
   toggleText: {
     fontSize: FontSizes.body,
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     fontWeight: '500',
   },
   activeToggleText: {
-    color: Colors.white,
+    color: LightColors.white,
   },
   content: {
     flex: 1,
@@ -193,11 +198,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.subheader,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.md,
   },
   card: {
-    backgroundColor: Colors.white,
+    backgroundColor: LightColors.white,
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     shadowColor: '#000',
@@ -209,28 +214,28 @@ const styles = StyleSheet.create({
   incomeAmount: {
     fontSize: FontSizes.large,
     fontWeight: 'bold',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   budgetText: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginBottom: Spacing.md,
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: Colors.lightGray,
+    backgroundColor: LightColors.lightGray,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: Spacing.xs,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: Colors.primaryBlue,
+    backgroundColor: LightColors.primaryBlue,
   },
   percentageText: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'right',
     marginBottom: Spacing.lg,
   },
@@ -249,13 +254,13 @@ const styles = StyleSheet.create({
   },
   breakdownLabel: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     marginRight: Spacing.sm,
   },
   breakdownValue: {
     fontSize: FontSizes.body,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
   },
   statsRow: {
     flexDirection: 'row',
@@ -264,7 +269,7 @@ const styles = StyleSheet.create({
   },
   statItem: {
     fontSize: FontSizes.body,
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
   },
   projectProgressItem: {
     marginBottom: Spacing.lg,
@@ -272,24 +277,24 @@ const styles = StyleSheet.create({
   projectProgressName: {
     fontSize: FontSizes.body,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     marginBottom: Spacing.xs,
   },
   projectProgressValue: {
     fontSize: FontSizes.small,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'right',
   },
   totalHours: {
     fontSize: FontSizes.header,
     fontWeight: 'bold',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
     textAlign: 'center',
     marginBottom: Spacing.xs,
   },
   totalLabel: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'center',
     marginBottom: Spacing.xl,
   },
@@ -303,16 +308,16 @@ const styles = StyleSheet.create({
   },
   hoursWorker: {
     fontSize: FontSizes.body,
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
   },
   hoursValue: {
     fontSize: FontSizes.body,
     fontWeight: '600',
-    color: Colors.primaryText,
+    color: LightColors.primaryText,
   },
   emptyText: {
     fontSize: FontSizes.body,
-    color: Colors.secondaryText,
+    color: LightColors.secondaryText,
     textAlign: 'center',
     paddingVertical: Spacing.md,
   },
