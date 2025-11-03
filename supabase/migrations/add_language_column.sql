@@ -5,6 +5,7 @@
 ALTER TABLE public.profiles
 ADD COLUMN IF NOT EXISTS language TEXT;
 
--- Clear language for all existing users so they must select it
+-- IMPORTANT: Clear language for ALL users so they must select it
+-- This ensures everyone sees the language selection screen
 UPDATE public.profiles
 SET language = NULL;
