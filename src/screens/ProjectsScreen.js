@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
-import ThemeSwitch from '../components/ThemeSwitch';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjects } from '../utils/storage';
 import { ProjectCard } from '../components/ChatVisuals';
+import EditProjectModal from '../components/EditProjectModal';
 
 export default function ProjectsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -26,6 +26,8 @@ export default function ProjectsScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   // Fetch projects on mount
   useEffect(() => {
@@ -79,7 +81,20 @@ export default function ProjectsScreen({ navigation }) {
 
   const handleProjectAction = (action) => {
     console.log('Project action:', action);
-    // TODO: Handle project actions (view, edit, etc.)
+
+    if (action.type === 'view-project') {
+      // Find the project by ID
+      const project = projects.find(p => p.id === action.data.projectId);
+      if (project) {
+        setSelectedProject(project);
+        setShowEditModal(true);
+      }
+    }
+  };
+
+  const handleProjectSave = (savedProject) => {
+    // Reload projects to get the updated data
+    loadProjects();
   };
 
   return (
@@ -93,7 +108,6 @@ export default function ProjectsScreen({ navigation }) {
           <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={styles.spacer} />
-        <ThemeSwitch />
         <TouchableOpacity style={styles.newProjectButton}>
           <Text style={[styles.newProjectText, { color: Colors.primaryBlue }]}>+ New Project</Text>
         </TouchableOpacity>
@@ -172,6 +186,14 @@ export default function ProjectsScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Edit Project Modal */}
+      <EditProjectModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        projectData={selectedProject}
+        onSave={handleProjectSave}
+      />
     </SafeAreaView>
   );
 }

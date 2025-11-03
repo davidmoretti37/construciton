@@ -31,7 +31,7 @@ const LANGUAGE_NAMES = {
 };
 
 export default function SettingsScreen({ navigation }) {
-  const { isDark = false } = useTheme() || {};
+  const { isDark = false, toggleTheme } = useTheme() || {};
   const Colors = getColors(isDark);
 
   const [userProfile, setUserProfile] = useState(null);
@@ -208,6 +208,23 @@ export default function SettingsScreen({ navigation }) {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
+              <Ionicons name={isDark ? "moon" : "sunny-outline"} size={24} color={Colors.primaryBlue} />
+            </View>
+            <View style={styles.itemContent}>
+              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>Appearance</Text>
+              <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>
+                {isDark ? 'Dark Mode' : 'Light Mode'}
+              </Text>
+            </View>
+            <Ionicons name={isDark ? "toggle" : "toggle-outline"} size={32} color={Colors.primaryBlue} />
           </TouchableOpacity>
         </View>
 

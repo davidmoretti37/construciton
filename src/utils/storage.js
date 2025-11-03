@@ -420,8 +420,13 @@ export const saveProject = async (projectData) => {
       user_id: userId,
       name: projectData.name,
       client: projectData.client,
-      budget: projectData.budget || 0,
-      spent: projectData.spent || 0,
+      // New financial model
+      contract_amount: projectData.contractAmount || 0,
+      income_collected: projectData.incomeCollected || 0,
+      expenses: projectData.expenses || 0,
+      // Legacy fields (for backward compatibility)
+      budget: projectData.budget || projectData.contractAmount || 0,
+      spent: projectData.spent || projectData.expenses || 0,
       percent_complete: projectData.percentComplete || 0,
       status: projectData.status || 'draft',
       workers: projectData.workers || [],
@@ -567,16 +572,36 @@ export const deleteProject = async (projectId) => {
  * @returns {object} App format project
  */
 const transformProjectFromDB = (dbProject) => {
+  // Parse daysRemaining as a number, handling null/undefined
+  let daysRemaining = null;
+  if (dbProject.days_remaining !== null && dbProject.days_remaining !== undefined) {
+    daysRemaining = parseInt(dbProject.days_remaining);
+    if (isNaN(daysRemaining)) {
+      daysRemaining = null;
+    }
+  }
+
+  // Parse new financial fields, with fallback to legacy fields
+  const contractAmount = parseFloat(dbProject.contract_amount) || parseFloat(dbProject.budget) || 0;
+  const incomeCollected = parseFloat(dbProject.income_collected) || 0;
+  const expenses = parseFloat(dbProject.expenses) || parseFloat(dbProject.spent) || 0;
+
   return {
     id: dbProject.id,
     name: dbProject.name,
     client: dbProject.client,
-    budget: parseFloat(dbProject.budget) || 0,
-    spent: parseFloat(dbProject.spent) || 0,
+    // New financial model
+    contractAmount: contractAmount,
+    incomeCollected: incomeCollected,
+    expenses: expenses,
+    profit: incomeCollected - expenses, // Calculated field
+    // Legacy fields (kept for backward compatibility)
+    budget: contractAmount,
+    spent: expenses,
     percentComplete: dbProject.percent_complete || 0,
     status: dbProject.status || 'draft',
     workers: dbProject.workers || [],
-    daysRemaining: dbProject.days_remaining,
+    daysRemaining: daysRemaining,
     lastActivity: dbProject.last_activity || 'No activity',
     location: dbProject.location,
     startDate: dbProject.start_date,
@@ -612,6 +637,12 @@ export const transformScreenshotToProject = (screenshotData) => {
     id: `temp-${Date.now()}`, // Temporary ID until saved
     name: projectName,
     client: client || 'Unknown Client',
+    // New financial model
+    contractAmount: budget || 0, // Screenshot budget becomes contract amount
+    incomeCollected: 0,
+    expenses: 0,
+    profit: 0,
+    // Legacy fields (for backward compatibility)
     budget: budget || 0,
     spent: 0,
     percentComplete: 0,

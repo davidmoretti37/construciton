@@ -8,17 +8,22 @@ export default function ProjectCard({ data, onAction }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
 
+  if (!data) {
+    console.error('ProjectCard: No data provided');
+    return null;
+  }
+
   const {
     id,
-    name,
-    client,
-    budget,
-    spent,
+    name = 'Unnamed Project',
+    client = '',
+    budget = 0,
+    spent = 0,
     percentComplete = 0,
-    status = 'active',
+    status = 'draft',
     workers = [],
-    daysRemaining,
-    lastActivity
+    daysRemaining = null,
+    lastActivity = ''
   } = data;
 
   const getStatusColor = () => {
@@ -51,6 +56,79 @@ export default function ProjectCard({ data, onAction }) {
     if (onAction) {
       onAction({ label: 'View Details', type: 'view-project', data: { projectId: id } });
     }
+  };
+
+  const renderTimeline = () => {
+    // If daysRemaining is a number, use it
+    if (typeof daysRemaining === 'number') {
+      if (daysRemaining === 0) {
+        return (
+          <View style={styles.timelineContainer}>
+            <Ionicons name="flag" size={14} color={Colors.warning} />
+            <Text style={[styles.footerText, { color: Colors.warning, fontWeight: '600' }]}>
+              Due today
+            </Text>
+          </View>
+        );
+      } else if (daysRemaining < 0) {
+        return (
+          <View style={styles.timelineContainer}>
+            <Ionicons name="alert-circle" size={14} color={Colors.error} />
+            <Text style={[styles.footerText, { color: Colors.error, fontWeight: '600' }]}>
+              {Math.abs(daysRemaining)} days overdue
+            </Text>
+          </View>
+        );
+      } else {
+        return (
+          <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
+            {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
+          </Text>
+        );
+      }
+    }
+
+    // If no daysRemaining but we have an endDate, show it
+    if (data.endDate) {
+      // Parse date as local time to avoid timezone issues
+      const [year, month, day] = data.endDate.split('-');
+      const endDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      endDate.setHours(0, 0, 0, 0);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const diffTime = endDate - today;
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) {
+        return (
+          <View style={styles.timelineContainer}>
+            <Ionicons name="flag" size={14} color={Colors.warning} />
+            <Text style={[styles.footerText, { color: Colors.warning, fontWeight: '600' }]}>
+              Due today
+            </Text>
+          </View>
+        );
+      } else if (diffDays < 0) {
+        return (
+          <View style={styles.timelineContainer}>
+            <Ionicons name="alert-circle" size={14} color={Colors.error} />
+            <Text style={[styles.footerText, { color: Colors.error, fontWeight: '600' }]}>
+              {Math.abs(diffDays)} days overdue
+            </Text>
+          </View>
+        );
+      } else {
+        return (
+          <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
+            {diffDays} {diffDays === 1 ? 'day' : 'days'} left
+          </Text>
+        );
+      }
+    }
+
+    return null;
   };
 
   return (
@@ -93,10 +171,10 @@ export default function ProjectCard({ data, onAction }) {
         <View style={styles.budgetRow}>
           <Text style={[styles.budgetLabel, { color: Colors.secondaryText }]}>Budget</Text>
           <Text style={[styles.budgetValue, { color: Colors.primaryText }]}>
-            ${spent?.toLocaleString()} / ${budget?.toLocaleString()}
+            ${(spent || 0).toLocaleString()} / ${(budget || 0).toLocaleString()}
           </Text>
         </View>
-        {budget && spent && (
+        {budget > 0 && (
           <Text style={[styles.budgetPercentage, { color: Colors.secondaryText }]}>
             {Math.round((spent / budget) * 100)}% spent
           </Text>
@@ -105,7 +183,7 @@ export default function ProjectCard({ data, onAction }) {
 
       {/* Footer */}
       <View style={styles.footer}>
-        {workers && workers.length > 0 && (
+        {Array.isArray(workers) && workers.length > 0 && (
           <View style={styles.workersSection}>
             <Ionicons name="people-outline" size={14} color={Colors.secondaryText} />
             <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
@@ -113,14 +191,10 @@ export default function ProjectCard({ data, onAction }) {
             </Text>
           </View>
         )}
-        {daysRemaining !== undefined && (
-          <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
-            {daysRemaining > 0 ? `${daysRemaining} days left` : 'Due today'}
-          </Text>
-        )}
+        {renderTimeline()}
       </View>
 
-      {lastActivity && (
+      {lastActivity && typeof lastActivity === 'string' && lastActivity.trim() && (
         <Text style={[styles.lastActivity, { color: Colors.secondaryText }]}>
           Last activity: {lastActivity}
         </Text>
@@ -201,6 +275,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.xs,
     flex: 1,
+  },
+  timelineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   footerText: {
     fontSize: FontSizes.tiny,

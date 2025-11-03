@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
-import ThemeSwitch from '../components/ThemeSwitch';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function WorkersScreen({ navigation }) {
@@ -27,7 +26,6 @@ export default function WorkersScreen({ navigation }) {
           <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={styles.spacer} />
-        <ThemeSwitch />
         <TouchableOpacity style={styles.addWorkerButton}>
           <Text style={[styles.addWorkerText, { color: Colors.primaryBlue }]}>+ Add Worker</Text>
         </TouchableOpacity>

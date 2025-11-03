@@ -26,8 +26,9 @@ const AIInputWithSearch = ({
 
   const handleSubmit = () => {
     if (value.trim()) {
-      onSubmit?.(value, showSearch);
-      setValue('');
+      const textToSend = value.trim();
+      setValue(''); // Clear immediately
+      onSubmit?.(textToSend, showSearch);
     }
   };
 

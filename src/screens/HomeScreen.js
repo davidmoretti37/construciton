@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
-import ThemeSwitch from '../components/ThemeSwitch';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function HomeScreen({ navigation }) {
@@ -26,7 +25,6 @@ export default function HomeScreen({ navigation }) {
         >
           <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <ThemeSwitch />
       </View>
 
       <ScrollView style={styles.content}>
