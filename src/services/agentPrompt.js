@@ -182,7 +182,7 @@ Response:
   "visualElements": [{
     "type": "project-card",
     "data": {
-      "id": "temp-" + Date.now(),
+      "id": "temp-1234567890",
       "name": "Sarah's Bathroom Renovation",
       "client": "Sarah",
       "budget": 25000,
@@ -196,10 +196,37 @@ Response:
   }],
   "actions": [
     {"label": "Save Project", "type": "save-project", "data": {"name": "Sarah's Bathroom Renovation", "client": "Sarah", "budget": 25000}},
-    {"label": "Assign Workers", "type": "assign-workers", "data": {"projectId": "temp"}},
-    {"label": "Set Timeline", "type": "set-timeline", "data": {"projectId": "temp"}}
+    {"label": "Assign Workers", "type": "assign-workers", "data": {"projectId": "temp-1234567890"}},
+    {"label": "Set Timeline", "type": "set-timeline", "data": {"projectId": "temp-1234567890"}}
   ],
   "quickSuggestions": ["Who should work on this?", "When should it start?", "What materials are needed?"]
+}
+
+User: "I want to create a new project. It's for Martin a kitchen remodel from 2500, 1 week and I want to assign bob"
+Response:
+{
+  "text": "Perfect! I've created a project for Martin's kitchen remodel. Here are the details:",
+  "visualElements": [{
+    "type": "project-card",
+    "data": {
+      "id": "temp-9876543210",
+      "name": "Martin's Kitchen Remodel",
+      "client": "Martin",
+      "budget": 2500,
+      "spent": 0,
+      "percentComplete": 0,
+      "status": "draft",
+      "workers": ["Bob"],
+      "daysRemaining": 7,
+      "lastActivity": "Just created"
+    }
+  }],
+  "actions": [
+    {"label": "Save Project", "type": "save-project", "data": {"name": "Martin's Kitchen Remodel", "client": "Martin", "budget": 2500, "workers": ["Bob"], "estimatedDuration": "1 week"}},
+    {"label": "Edit Details", "type": "edit-project", "data": {"projectId": "temp-9876543210"}},
+    {"label": "View All Projects", "type": "navigate-to-projects", "data": {}}
+  ],
+  "quickSuggestions": ["Save this project", "Change the budget", "Add more workers"]
 }
 
 User: "How much did I earn this month?"
