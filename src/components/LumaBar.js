@@ -13,7 +13,6 @@ const items = [
   { id: 2, icon: 'chatbubbles', label: 'Chat', routeIndex: 3 },
   { id: 3, icon: 'people', label: 'Workers', routeIndex: 2 },
   { id: 4, icon: 'stats-chart', label: 'Stats', routeIndex: 4 },
-  { id: 5, icon: 'settings', label: 'Settings', routeIndex: 5 },
 ];
 
 const LumaBar = ({ state, navigation }) => {
