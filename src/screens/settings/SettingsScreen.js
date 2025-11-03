@@ -11,16 +11,31 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getUserProfile } from '../../utils/storage';
+import { getUserProfile, getSelectedLanguage } from '../../utils/storage';
 import { getTradeById } from '../../constants/trades';
 import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Language display names
+const LANGUAGE_NAMES = {
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+  pt: 'Português',
+  it: 'Italiano',
+  zh: '中文',
+  ja: '日本語',
+  ko: '한국어',
+  ar: 'العربية',
+};
 
 export default function SettingsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
 
   const [userProfile, setUserProfile] = useState(null);
+  const [currentLanguage, setCurrentLanguage] = useState('en');
 
   useEffect(() => {
     loadProfile();
@@ -36,6 +51,10 @@ export default function SettingsScreen({ navigation }) {
   const loadProfile = async () => {
     const profile = await getUserProfile();
     setUserProfile(profile);
+
+    // Load current language
+    const language = await getSelectedLanguage();
+    setCurrentLanguage(language || 'en');
   };
 
   const handleEditBusinessInfo = () => {
@@ -44,6 +63,10 @@ export default function SettingsScreen({ navigation }) {
 
   const handleEditPricing = (tradeId) => {
     navigation.navigate('EditPricing', { tradeId });
+  };
+
+  const handleChangeLanguage = () => {
+    navigation.navigate('ChangeLanguage');
   };
 
   const handleLogout = async () => {
@@ -164,6 +187,28 @@ export default function SettingsScreen({ navigation }) {
               </Text>
             </View>
           )}
+        </View>
+
+        {/* App Settings Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>APP SETTINGS</Text>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+            onPress={handleChangeLanguage}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
+              <Ionicons name="language-outline" size={24} color={Colors.primaryBlue} />
+            </View>
+            <View style={styles.itemContent}>
+              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>Language</Text>
+              <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>
+                {LANGUAGE_NAMES[currentLanguage] || 'English'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </TouchableOpacity>
         </View>
 
         {/* App Info Section */}
