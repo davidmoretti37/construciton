@@ -21,11 +21,15 @@ function AppContent() {
   useEffect(() => {
     checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔄 AUTH STATE CHANGE:', event);
+      console.log('🔄 New session:', session ? 'LOGGED IN' : 'LOGGED OUT');
+
       setSession(session);
       if (session) {
         checkLanguageAndOnboarding();
       } else {
+        console.log('🔄 Clearing all state - should show login');
         setLanguageSelected(false);
         setUserOnboarded(false);
         setLoading(false);
@@ -38,12 +42,16 @@ function AppContent() {
   const checkAuth = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('🔐 AUTH CHECK - Session:', session ? 'LOGGED IN' : 'NOT LOGGED IN');
+      console.log('🔐 User ID:', session?.user?.id || 'NONE');
       setSession(session);
       if (session) {
         await checkLanguageAndOnboarding();
+      } else {
+        console.log('🔐 No session found - should show LOGIN screen');
       }
     } catch (error) {
-      console.error('Error checking auth:', error);
+      console.error('❌ Error checking auth:', error);
     } finally {
       setLoading(false);
     }
@@ -97,22 +105,31 @@ function AppContent() {
   }
 
   const getNavigator = () => {
+    console.log('📱 NAVIGATION DECISION:');
+    console.log('   Session:', session ? 'YES' : 'NO');
+    console.log('   Language Selected:', languageSelected ? 'YES' : 'NO');
+    console.log('   Onboarded:', userOnboarded ? 'YES' : 'NO');
+
     // Not authenticated → Show login/signup
     if (!session) {
+      console.log('   ➡️ Showing: LOGIN SCREEN');
       return <AuthNavigator />;
     }
 
     // Authenticated but no language selected → Show language selection
     if (!languageSelected) {
+      console.log('   ➡️ Showing: LANGUAGE SELECTION');
       return <LanguageSelectionScreen onLanguageSelected={handleLanguageSelected} />;
     }
 
     // Language selected but not onboarded → Show onboarding
     if (!userOnboarded) {
+      console.log('   ➡️ Showing: ONBOARDING (Welcome Screen)');
       return <OnboardingNavigator onComplete={handleOnboardingComplete} />;
     }
 
     // Fully set up → Show main app
+    console.log('   ➡️ Showing: MAIN APP');
     return <BottomTabNavigator />;
   };
 
