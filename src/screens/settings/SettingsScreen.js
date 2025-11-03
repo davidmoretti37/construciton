@@ -14,6 +14,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { getUserProfile } from '../../utils/storage';
 import { getTradeById } from '../../constants/trades';
 import { supabase } from '../../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -48,7 +49,7 @@ export default function SettingsScreen({ navigation }) {
   const handleLogout = async () => {
     Alert.alert(
       'Logout',
-      'Are you sure you want to logout?',
+      'Are you sure you want to logout? This will reset the app and you\'ll need to sign in again.',
       [
         {
           text: 'Cancel',
@@ -59,8 +60,14 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Sign out from Supabase
               const { error } = await supabase.auth.signOut();
               if (error) throw error;
+
+              // Clear all AsyncStorage data for complete reset
+              await AsyncStorage.clear();
+
+              console.log('Logged out successfully - app reset complete');
               // App.js will handle navigation to login screen via auth state listener
             } catch (error) {
               console.error('Error logging out:', error);
