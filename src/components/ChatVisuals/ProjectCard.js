@@ -13,18 +13,37 @@ export default function ProjectCard({ data, onAction }) {
     return null;
   }
 
+  // Extract all fields from data
   const {
     id,
     name = 'Unnamed Project',
     client = '',
-    budget = 0,
-    spent = 0,
     percentComplete = 0,
     status = 'draft',
     workers = [],
     daysRemaining = null,
     lastActivity = ''
   } = data;
+
+  // New financial model - properly read from data object with fallbacks
+  const contractAmount = data.contractAmount || data.budget || 0;
+  const incomeCollected = data.incomeCollected || 0;
+  const expenses = data.expenses || data.spent || 0;
+  const profit = incomeCollected - expenses;
+
+  // Legacy fields
+  const budget = data.budget || contractAmount;
+  const spent = data.spent || expenses;
+
+  // Debug logging to see what values we're getting
+  console.log('ProjectCard data:', {
+    name,
+    contractAmount,
+    incomeCollected,
+    expenses,
+    profit,
+    rawData: data
+  });
 
   const getStatusColor = () => {
     switch (status) {
@@ -166,19 +185,102 @@ export default function ProjectCard({ data, onAction }) {
         </Text>
       </View>
 
-      {/* Budget */}
-      <View style={styles.budgetSection}>
-        <View style={styles.budgetRow}>
-          <Text style={[styles.budgetLabel, { color: Colors.secondaryText }]}>Budget</Text>
-          <Text style={[styles.budgetValue, { color: Colors.primaryText }]}>
-            ${(spent || 0).toLocaleString()} / ${(budget || 0).toLocaleString()}
+      {/* Financial Section */}
+      <View style={styles.financialSection}>
+        {/* Contract Amount Header */}
+        <View style={styles.financialRow}>
+          <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>
+            Contract Amount
+          </Text>
+          <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
+            ${(contractAmount || 0).toLocaleString()}
           </Text>
         </View>
-        {budget > 0 && (
-          <Text style={[styles.budgetPercentage, { color: Colors.secondaryText }]}>
-            {Math.round((spent / budget) * 100)}% spent
-          </Text>
+
+        {/* Financial Progress Bar showing Income (Green), Expenses (Red), Pending (Grey) */}
+        {contractAmount > 0 && (
+          <View style={styles.compoundProgressContainer}>
+            {/* Main Progress Bar */}
+            <View style={[styles.compoundProgressBg, { borderWidth: 1, borderColor: '#E5E5E5' }]}>
+              {/* Green: Income Collected */}
+              {incomeCollected > 0 && (
+                <View
+                  style={[
+                    styles.incomeBar,
+                    {
+                      backgroundColor: '#22C55E', // Bright green
+                      width: `${Math.min((incomeCollected / contractAmount) * 100, 100)}%`
+                    }
+                  ]}
+                />
+              )}
+              {/* Red: Expenses */}
+              {expenses > 0 && (
+                <View
+                  style={[
+                    styles.expensesBar,
+                    {
+                      backgroundColor: '#EF4444', // Bright red
+                      width: `${Math.min((expenses / contractAmount) * 100, 100)}%`
+                    }
+                  ]}
+                />
+              )}
+              {/* Grey: Remaining (fills the rest automatically) */}
+              <View
+                style={[
+                  styles.remainingBar,
+                  {
+                    backgroundColor: '#D1D5DB', // Light grey
+                    flex: 1
+                  }
+                ]}
+              />
+            </View>
+
+            {/* Legend */}
+            <View style={styles.progressLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+                <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
+                  Collected: ${(incomeCollected || 0).toLocaleString()} ({Math.round((incomeCollected / contractAmount) * 100)}%)
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
+                <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
+                  Expenses: ${(expenses || 0).toLocaleString()} ({Math.round((expenses / contractAmount) * 100)}%)
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.lightGray, borderWidth: 1, borderColor: Colors.border }]} />
+                <Text style={[styles.legendText, { color: Colors.secondaryText }]}>
+                  Pending: ${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString()} ({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)
+                </Text>
+              </View>
+            </View>
+          </View>
         )}
+
+        {/* Profit Display */}
+        <View style={styles.profitContainer}>
+          <View style={styles.financialRow}>
+            <Text style={[styles.financialLabel, { color: Colors.secondaryText, fontWeight: '600' }]}>
+              Current Profit
+            </Text>
+            <Text
+              style={[
+                styles.financialValue,
+                {
+                  color: profit >= 0 ? Colors.success : Colors.error,
+                  fontWeight: '700'
+                }
+              ]}
+            >
+              ${(profit || 0).toLocaleString()} {profit >= 0 ? '✅' : '⚠️'}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Footer */}
@@ -247,23 +349,63 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: FontSizes.tiny,
   },
-  budgetSection: {
+  financialSection: {
     marginBottom: Spacing.md,
   },
-  budgetRow: {
+  financialRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  budgetLabel: {
+  financialLabel: {
     fontSize: FontSizes.small,
   },
-  budgetValue: {
+  financialValue: {
     fontSize: FontSizes.small,
     fontWeight: '600',
   },
-  budgetPercentage: {
+  compoundProgressContainer: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  compoundProgressBg: {
+    height: 12,
+    borderRadius: 6,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    marginBottom: Spacing.sm,
+  },
+  incomeBar: {
+    height: 12,
+  },
+  expensesBar: {
+    height: 12,
+  },
+  remainingBar: {
+    height: 12,
+  },
+  progressLegend: {
+    gap: 4,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
     fontSize: FontSizes.tiny,
+  },
+  profitContainer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
   },
   footer: {
     flexDirection: 'row',

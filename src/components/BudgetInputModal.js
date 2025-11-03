@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -19,26 +18,29 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
 
-  const [budget, setBudget] = useState(projectData?.budget?.toString() || '');
+  const [contractAmount, setContractAmount] = useState(
+    projectData?.contractAmount?.toString() || projectData?.budget?.toString() || ''
+  );
 
   const handleConfirm = () => {
-    const budgetValue = parseFloat(budget);
+    const contractValue = parseFloat(contractAmount);
 
-    if (!budget || isNaN(budgetValue) || budgetValue <= 0) {
-      Alert.alert('Invalid Budget', 'Please enter a valid budget amount greater than 0.');
+    // Simple validation without alert popup
+    if (!contractAmount || isNaN(contractValue) || contractValue <= 0) {
       return;
     }
 
     onConfirm({
-      budget: budgetValue,
+      contractAmount: contractValue,
+      budget: contractValue, // Legacy field for compatibility
     });
 
-    setBudget('');
+    setContractAmount('');
     onClose();
   };
 
   const handleClose = () => {
-    setBudget('');
+    setContractAmount('');
     onClose();
   };
 
@@ -49,10 +51,10 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
     return numValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
   };
 
-  const handleBudgetChange = (text) => {
+  const handleContractAmountChange = (text) => {
     // Remove all non-numeric characters except decimal point
     const cleaned = text.replace(/[^0-9.]/g, '');
-    setBudget(cleaned);
+    setContractAmount(cleaned);
   };
 
   return (
@@ -80,7 +82,7 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
             {/* Header */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: Colors.primaryText }]}>
-                Set Project Budget
+                Set Contract Amount
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color={Colors.secondaryText} />
@@ -101,14 +103,17 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
               </View>
             )}
 
-            {/* Budget Input */}
+            {/* Contract Amount Input */}
             <View style={styles.inputSection}>
               <View style={styles.inputLabel}>
                 <Ionicons name="cash-outline" size={20} color={Colors.primaryBlue} />
                 <Text style={[styles.labelText, { color: Colors.primaryText }]}>
-                  Budget Amount
+                  Contract Amount
                 </Text>
               </View>
+              <Text style={[styles.helperText, { color: Colors.secondaryText, marginBottom: Spacing.sm }]}>
+                Total value of the contract with the client
+              </Text>
 
               <View style={[styles.inputContainer, { borderColor: Colors.border }]}>
                 <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
@@ -116,16 +121,16 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
                   style={[styles.input, { color: Colors.primaryText }]}
                   placeholder="0.00"
                   placeholderTextColor={Colors.secondaryText}
-                  value={budget}
-                  onChangeText={handleBudgetChange}
+                  value={contractAmount}
+                  onChangeText={handleContractAmountChange}
                   keyboardType="decimal-pad"
                   autoFocus
                 />
               </View>
 
-              {budget && !isNaN(parseFloat(budget)) && (
+              {contractAmount && !isNaN(parseFloat(contractAmount)) && (
                 <Text style={[styles.formattedAmount, { color: Colors.secondaryText }]}>
-                  ${formatCurrency(budget)}
+                  ${formatCurrency(contractAmount)}
                 </Text>
               )}
             </View>
@@ -145,15 +150,15 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
                   styles.button,
                   styles.confirmButton,
                   {
-                    backgroundColor: !budget || isNaN(parseFloat(budget)) ? Colors.border : Colors.primaryBlue,
-                    opacity: !budget || isNaN(parseFloat(budget)) ? 0.5 : 1,
+                    backgroundColor: !contractAmount || isNaN(parseFloat(contractAmount)) ? Colors.border : Colors.primaryBlue,
+                    opacity: !contractAmount || isNaN(parseFloat(contractAmount)) ? 0.5 : 1,
                   }
                 ]}
                 onPress={handleConfirm}
-                disabled={!budget || isNaN(parseFloat(budget))}
+                disabled={!contractAmount || isNaN(parseFloat(contractAmount))}
               >
                 <Text style={[styles.buttonText, { color: Colors.white }]}>
-                  Set Budget
+                  Set Contract Amount
                 </Text>
               </TouchableOpacity>
             </View>
@@ -220,6 +225,9 @@ const styles = StyleSheet.create({
   labelText: {
     fontSize: FontSizes.body,
     fontWeight: '500',
+  },
+  helperText: {
+    fontSize: FontSizes.small,
   },
   inputContainer: {
     flexDirection: 'row',

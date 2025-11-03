@@ -415,6 +415,12 @@ export const saveProject = async (projectData) => {
       return null;
     }
 
+    // Auto-calculate completion percentage from dates
+    const autoPercentComplete = calculateTimeBasedCompletion(
+      projectData.startDate || null,
+      projectData.endDate || null
+    );
+
     // Transform app format to database format
     const dbProject = {
       user_id: userId,
@@ -427,7 +433,7 @@ export const saveProject = async (projectData) => {
       // Legacy fields (for backward compatibility)
       budget: projectData.budget || projectData.contractAmount || 0,
       spent: projectData.spent || projectData.expenses || 0,
-      percent_complete: projectData.percentComplete || 0,
+      percent_complete: autoPercentComplete, // Auto-calculated from dates
       status: projectData.status || 'draft',
       workers: projectData.workers || [],
       days_remaining: projectData.daysRemaining || null,
@@ -567,6 +573,47 @@ export const deleteProject = async (projectId) => {
 };
 
 /**
+ * Calculate time-based completion percentage
+ * @param {string} startDate - Project start date (YYYY-MM-DD)
+ * @param {string} endDate - Project end date (YYYY-MM-DD)
+ * @returns {number} Completion percentage (0-100)
+ */
+const calculateTimeBasedCompletion = (startDate, endDate) => {
+  if (!startDate || !endDate) return 0;
+
+  try {
+    // Parse start date
+    const [startYear, startMonth, startDay] = startDate.split('-');
+    const start = new Date(parseInt(startYear), parseInt(startMonth) - 1, parseInt(startDay));
+    start.setHours(0, 0, 0, 0);
+
+    // Parse end date
+    const [endYear, endMonth, endDay] = endDate.split('-');
+    const end = new Date(parseInt(endYear), parseInt(endMonth) - 1, parseInt(endDay));
+    end.setHours(0, 0, 0, 0);
+
+    // Get today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Calculate total days and elapsed days
+    const totalDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    const elapsedDays = Math.round((today - start) / (1000 * 60 * 60 * 24));
+
+    // Handle edge cases
+    if (totalDays <= 0) return 0; // Invalid date range
+    if (elapsedDays <= 0) return 0; // Project hasn't started yet
+    if (elapsedDays >= totalDays) return 100; // Project deadline has passed
+
+    // Calculate percentage
+    return Math.round((elapsedDays / totalDays) * 100);
+  } catch (error) {
+    console.error('Error calculating time-based completion:', error);
+    return 0;
+  }
+};
+
+/**
  * Transform project from database format to app format
  * @param {object} dbProject - Project from database
  * @returns {object} App format project
@@ -586,6 +633,9 @@ const transformProjectFromDB = (dbProject) => {
   const incomeCollected = parseFloat(dbProject.income_collected) || 0;
   const expenses = parseFloat(dbProject.expenses) || parseFloat(dbProject.spent) || 0;
 
+  // Auto-calculate completion percentage based on time (days elapsed / total days)
+  const percentComplete = calculateTimeBasedCompletion(dbProject.start_date, dbProject.end_date);
+
   return {
     id: dbProject.id,
     name: dbProject.name,
@@ -598,7 +648,7 @@ const transformProjectFromDB = (dbProject) => {
     // Legacy fields (kept for backward compatibility)
     budget: contractAmount,
     spent: expenses,
-    percentComplete: dbProject.percent_complete || 0,
+    percentComplete: percentComplete, // Auto-calculated from dates
     status: dbProject.status || 'draft',
     workers: dbProject.workers || [],
     daysRemaining: daysRemaining,

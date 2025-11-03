@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -22,9 +21,14 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
 
   const [name, setName] = useState('');
   const [client, setClient] = useState('');
+  // New financial model
+  const [contractAmount, setContractAmount] = useState('');
+  const [incomeCollected, setIncomeCollected] = useState('');
+  const [expenses, setExpenses] = useState('');
+  // Legacy fields (for backward compatibility)
   const [budget, setBudget] = useState('');
   const [spent, setSpent] = useState('');
-  const [percentComplete, setPercentComplete] = useState('');
+  // percentComplete is now auto-calculated from dates, no manual input needed
   const [status, setStatus] = useState('draft');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -33,9 +37,14 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
     if (projectData) {
       setName(projectData.name || '');
       setClient(projectData.client || '');
-      setBudget(projectData.budget?.toString() || '0');
-      setSpent(projectData.spent?.toString() || '0');
-      setPercentComplete(projectData.percentComplete?.toString() || '0');
+      // New financial model fields (with fallback to legacy)
+      setContractAmount((projectData.contractAmount || projectData.budget || 0).toString());
+      setIncomeCollected((projectData.incomeCollected || 0).toString());
+      setExpenses((projectData.expenses || projectData.spent || 0).toString());
+      // Legacy fields
+      setBudget((projectData.budget || projectData.contractAmount || 0).toString());
+      setSpent((projectData.spent || projectData.expenses || 0).toString());
+      // percentComplete is auto-calculated, no need to set it
       setStatus(projectData.status || 'draft');
       setStartDate(projectData.startDate || '');
       setEndDate(projectData.endDate || '');
@@ -63,26 +72,33 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
   };
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Error', 'Project name is required');
-      return;
-    }
-
-    if (!client.trim()) {
-      Alert.alert('Error', 'Client name is required');
+    // Simple validation without alerts
+    if (!name.trim() || !client.trim()) {
       return;
     }
 
     // Calculate daysRemaining if endDate is set
     const daysRemaining = endDate ? calculateDaysRemaining(startDate, endDate) : projectData.daysRemaining;
 
+    // Parse financial values
+    const contractAmountValue = parseFloat(contractAmount) || 0;
+    const incomeCollectedValue = parseFloat(incomeCollected) || 0;
+    const expensesValue = parseFloat(expenses) || 0;
+    const profitValue = incomeCollectedValue - expensesValue;
+
     const updatedProject = {
       ...projectData,
       name: name.trim(),
       client: client.trim(),
-      budget: parseFloat(budget) || 0,
-      spent: parseFloat(spent) || 0,
-      percentComplete: parseInt(percentComplete) || 0,
+      // New financial model
+      contractAmount: contractAmountValue,
+      incomeCollected: incomeCollectedValue,
+      expenses: expensesValue,
+      profit: profitValue,
+      // Legacy fields (for backward compatibility)
+      budget: contractAmountValue,
+      spent: expensesValue,
+      // percentComplete will be auto-calculated in saveProject() from dates
       status,
       startDate: startDate || null,
       endDate: endDate || null,
@@ -93,38 +109,44 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
     try {
       const saved = await saveProject(updatedProject);
       if (saved) {
-        Alert.alert('Success', 'Project updated successfully!');
         onSave && onSave(saved);
         onClose();
-      } else {
-        Alert.alert('Error', 'Failed to update project');
       }
     } catch (error) {
       console.error('Error saving project:', error);
-      Alert.alert('Error', 'Failed to update project');
     }
   };
 
-  const handleBudgetChange = (text) => {
+  const handleContractAmountChange = (text) => {
     // Only allow numbers and decimal point
     const cleaned = text.replace(/[^0-9.]/g, '');
-    setBudget(cleaned);
+    setContractAmount(cleaned);
+    setBudget(cleaned); // Keep legacy in sync
+  };
+
+  const handleIncomeCollectedChange = (text) => {
+    // Only allow numbers and decimal point
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    setIncomeCollected(cleaned);
+  };
+
+  const handleExpensesChange = (text) => {
+    // Only allow numbers and decimal point
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    setExpenses(cleaned);
+    setSpent(cleaned); // Keep legacy in sync
+  };
+
+  // Legacy handlers (for backward compatibility)
+  const handleBudgetChange = (text) => {
+    handleContractAmountChange(text);
   };
 
   const handleSpentChange = (text) => {
-    // Only allow numbers and decimal point
-    const cleaned = text.replace(/[^0-9.]/g, '');
-    setSpent(cleaned);
+    handleExpensesChange(text);
   };
 
-  const handlePercentChange = (text) => {
-    // Only allow numbers
-    const cleaned = text.replace(/[^0-9]/g, '');
-    const num = parseInt(cleaned) || 0;
-    if (num <= 100) {
-      setPercentComplete(cleaned);
-    }
-  };
+  // percentComplete is now auto-calculated from dates, no manual input needed
 
   return (
     <Modal
@@ -171,45 +193,78 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
               />
             </View>
 
-            {/* Budget */}
+            {/* Contract Amount */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Budget ($)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>Contract Amount ($)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
                 placeholder="0.00"
                 placeholderTextColor={Colors.placeholderText}
-                value={budget}
-                onChangeText={handleBudgetChange}
+                value={contractAmount}
+                onChangeText={handleContractAmountChange}
                 keyboardType="decimal-pad"
               />
+              <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
+                Total value of the contract with the client
+              </Text>
             </View>
 
-            {/* Amount Spent */}
+            {/* Income Collected */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Amount Spent ($)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>Income Collected ($)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
                 placeholder="0.00"
                 placeholderTextColor={Colors.placeholderText}
-                value={spent}
-                onChangeText={handleSpentChange}
+                value={incomeCollected}
+                onChangeText={handleIncomeCollectedChange}
                 keyboardType="decimal-pad"
               />
+              <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
+                Money received from client so far
+              </Text>
             </View>
 
-            {/* Percent Complete */}
+            {/* Expenses */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Progress (%)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>Expenses ($)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="0"
+                placeholder="0.00"
                 placeholderTextColor={Colors.placeholderText}
-                value={percentComplete}
-                onChangeText={handlePercentChange}
-                keyboardType="number-pad"
-                maxLength={3}
+                value={expenses}
+                onChangeText={handleExpensesChange}
+                keyboardType="decimal-pad"
               />
+              <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
+                Materials, workers, and other costs
+              </Text>
             </View>
+
+            {/* Calculated Profit (Read-only display) */}
+            {(incomeCollected || expenses) && (
+              <View style={[styles.inputGroup, styles.profitDisplay]}>
+                <Text style={[styles.label, { color: Colors.primaryText, fontWeight: '700' }]}>
+                  Current Profit
+                </Text>
+                <Text style={[
+                  styles.profitValue,
+                  {
+                    color: (parseFloat(incomeCollected) || 0) - (parseFloat(expenses) || 0) >= 0
+                      ? Colors.success
+                      : Colors.error
+                  }
+                ]}>
+                  ${((parseFloat(incomeCollected) || 0) - (parseFloat(expenses) || 0)).toLocaleString()}
+                  {(parseFloat(incomeCollected) || 0) - (parseFloat(expenses) || 0) >= 0 ? ' ✅' : ' ⚠️'}
+                </Text>
+                <Text style={[styles.helperText, { color: Colors.secondaryText, marginTop: 4 }]}>
+                  Calculated: Income Collected - Expenses
+                </Text>
+              </View>
+            )}
+
+            {/* Progress % is now auto-calculated from Start Date and End Date */}
 
             {/* Start Date */}
             <View style={styles.inputGroup}>
@@ -374,5 +429,17 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: FontSizes.body,
     fontWeight: '600',
+  },
+  profitDisplay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  profitValue: {
+    fontSize: FontSizes.header,
+    fontWeight: '700',
+    marginTop: Spacing.xs,
   },
 });

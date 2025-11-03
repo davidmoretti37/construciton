@@ -133,7 +133,7 @@ export const getProjectContext = async () => {
       // Workers (empty for now - to be added later)
       workers: [],
 
-      // Stats (calculated from real project data)
+      // Stats (calculated from real project data using new financial model)
       stats: {
         activeProjects: projects.filter(p => ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)).length,
         completedThisMonth: projects.filter(p => {
@@ -144,9 +144,18 @@ export const getProjectContext = async () => {
         }).length,
         totalWorkers: 0, // To be implemented when workers feature is added
         workersOnSiteToday: 0, // To be implemented when workers feature is added
-        monthlyIncome: projects.filter(p => p.status === 'completed').reduce((sum, p) => sum + p.budget, 0),
-        monthlyBudget: projects.reduce((sum, p) => sum + p.budget, 0),
-        pendingPayments: projects.reduce((sum, p) => sum + (p.budget - p.spent), 0),
+
+        // New financial model calculations
+        totalIncomeCollected: projects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0),
+        totalExpenses: projects.reduce((sum, p) => sum + (p.expenses || 0), 0),
+        totalProfit: projects.reduce((sum, p) => sum + ((p.incomeCollected || 0) - (p.expenses || 0)), 0),
+        totalContractValue: projects.reduce((sum, p) => sum + (p.contractAmount || p.budget || 0), 0),
+        pendingCollection: projects.reduce((sum, p) => sum + ((p.contractAmount || p.budget || 0) - (p.incomeCollected || 0)), 0),
+
+        // Legacy fields (for backward compatibility)
+        monthlyIncome: projects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0),
+        monthlyBudget: projects.reduce((sum, p) => sum + (p.contractAmount || p.budget || 0), 0),
+        pendingPayments: projects.reduce((sum, p) => sum + ((p.contractAmount || p.budget || 0) - (p.incomeCollected || 0)), 0),
         hoursThisMonth: 0, // To be implemented when time tracking is added
       },
 
