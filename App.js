@@ -5,80 +5,17 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
-import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
-import { isOnboarded } from './src/utils/storage';
-
-// TEMPORARY: Authentication disabled for testing
-// To enable auth, uncomment the auth-related code below
-
-function AppContent() {
-  const { isDark = false } = useTheme() || {};
-  const [loading, setLoading] = useState(true);
-  const [userOnboarded, setUserOnboarded] = useState(false);
-
-  useEffect(() => {
-    checkOnboardingStatus();
-  }, []);
-
-  const checkOnboardingStatus = async () => {
-    try {
-      const onboarded = await isOnboarded();
-      setUserOnboarded(onboarded);
-    } catch (error) {
-      console.error('Error checking onboarding status:', error);
-      setUserOnboarded(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
-    );
-  }
-
-  const handleOnboardingComplete = () => {
-    setUserOnboarded(true);
-  };
-
-  const handleSignOut = () => {
-    setUserOnboarded(false);
-  };
-
-  return (
-    <NavigationContainer>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      {userOnboarded ? (
-        <BottomTabNavigator onSignOut={handleSignOut} />
-      ) : (
-        <OnboardingNavigator onComplete={handleOnboardingComplete} />
-      )}
-    </NavigationContainer>
-  );
-}
-
-export default function App() {
-  return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
-  );
-}
-
-/*
-AUTHENTICATION CODE (Currently Disabled)
-To enable Supabase authentication, replace App.js with this:
-
 import AuthNavigator from './src/navigation/AuthNavigator';
+import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { isOnboarded, hasSelectedLanguage, saveLanguage } from './src/utils/storage';
 import { supabase } from './src/lib/supabase';
 
 function AppContent() {
   const { isDark = false } = useTheme() || {};
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
+  const [languageSelected, setLanguageSelected] = useState(false);
   const [userOnboarded, setUserOnboarded] = useState(false);
 
   useEffect(() => {
@@ -87,8 +24,9 @@ function AppContent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        checkOnboardingStatus();
+        checkLanguageAndOnboarding();
       } else {
+        setLanguageSelected(false);
         setUserOnboarded(false);
         setLoading(false);
       }
@@ -102,7 +40,7 @@ function AppContent() {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       if (session) {
-        await checkOnboardingStatus();
+        await checkLanguageAndOnboarding();
       }
     } catch (error) {
       console.error('Error checking auth:', error);
@@ -111,9 +49,59 @@ function AppContent() {
     }
   };
 
+  const checkLanguageAndOnboarding = async () => {
+    try {
+      const [langSelected, onboarded] = await Promise.all([
+        hasSelectedLanguage(),
+        isOnboarded()
+      ]);
+      setLanguageSelected(langSelected);
+      setUserOnboarded(onboarded);
+    } catch (error) {
+      console.error('Error checking language and onboarding:', error);
+      setLanguageSelected(false);
+      setUserOnboarded(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLanguageSelected = async (languageId) => {
+    const success = await saveLanguage(languageId);
+    if (success) {
+      setLanguageSelected(true);
+    }
+  };
+
+  const handleOnboardingComplete = () => {
+    setUserOnboarded(true);
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
+
   const getNavigator = () => {
-    if (!session) return <AuthNavigator />;
-    if (!userOnboarded) return <OnboardingNavigator onComplete={handleOnboardingComplete} />;
+    // Not authenticated → Show login/signup
+    if (!session) {
+      return <AuthNavigator />;
+    }
+
+    // Authenticated but no language selected → Show language selection
+    if (!languageSelected) {
+      return <LanguageSelectionScreen onLanguageSelected={handleLanguageSelected} />;
+    }
+
+    // Language selected but not onboarded → Show onboarding
+    if (!userOnboarded) {
+      return <OnboardingNavigator onComplete={handleOnboardingComplete} />;
+    }
+
+    // Fully set up → Show main app
     return <BottomTabNavigator />;
   };
 
@@ -124,4 +112,11 @@ function AppContent() {
     </NavigationContainer>
   );
 }
-*/
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}

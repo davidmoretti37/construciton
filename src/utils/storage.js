@@ -320,3 +320,81 @@ export const getAllPricing = async () => {
     return {};
   }
 };
+
+// ============================================================
+// Language Management
+// ============================================================
+
+/**
+ * Save selected language to Supabase
+ * @param {string} languageId - Language ID (e.g., 'en', 'es')
+ * @returns {Promise<boolean>} Success status
+ */
+export const saveLanguage = async (languageId) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return false;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ language: languageId })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error saving language:', error);
+      return false;
+    }
+
+    console.log('Language saved successfully:', languageId);
+    return true;
+  } catch (error) {
+    console.error('Error saving language:', error);
+    return false;
+  }
+};
+
+/**
+ * Get selected language from Supabase
+ * @returns {Promise<string|null>} Language ID or null
+ */
+export const getSelectedLanguage = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('language')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error getting language:', error);
+      return null;
+    }
+
+    return data?.language || null;
+  } catch (error) {
+    console.error('Error getting language:', error);
+    return null;
+  }
+};
+
+/**
+ * Check if language has been selected
+ * @returns {Promise<boolean>} Language selection status
+ */
+export const hasSelectedLanguage = async () => {
+  try {
+    const language = await getSelectedLanguage();
+    return language !== null && language !== '';
+  } catch (error) {
+    console.error('Error checking language selection:', error);
+    return false;
+  }
+};
