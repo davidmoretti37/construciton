@@ -61,16 +61,10 @@ export default function SignupScreen({ navigation }) {
       if (error) throw error;
 
       if (data.user) {
-        Alert.alert(
-          'Success!',
-          'Your account has been created. Please check your email to verify your account.',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('Login'),
-            },
-          ]
-        );
+        console.log('✅ Signup successful:', data.user.email);
+        // With email confirmation disabled, user is automatically logged in
+        // App.js will detect the session and navigate to language selection
+        // No need to show alert or navigate manually
       }
     } catch (error) {
       console.error('Signup error:', error);
