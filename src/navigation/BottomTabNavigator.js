@@ -8,9 +8,6 @@ import WorkersScreen from '../screens/WorkersScreen';
 import ChatScreen from '../screens/ChatScreen';
 import StatsScreen from '../screens/StatsScreen';
 
-// Import navigators
-import SettingsNavigator from './SettingsNavigator';
-
 // Import custom tab bar
 import LumaBar from '../components/LumaBar';
 
@@ -30,7 +27,6 @@ export default function BottomTabNavigator() {
       <Tab.Screen name="Workers" component={WorkersScreen} />
       <Tab.Screen name="Chat" component={ChatScreen} />
       <Tab.Screen name="Stats" component={StatsScreen} />
-      <Tab.Screen name="Settings" component={SettingsNavigator} />
     </Tab.Navigator>
   );
 }

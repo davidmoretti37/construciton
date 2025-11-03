@@ -399,3 +399,230 @@ export const hasSelectedLanguage = async () => {
     return false;
   }
 };
+
+// ===== PROJECT MANAGEMENT FUNCTIONS =====
+
+/**
+ * Save or update a project in Supabase
+ * @param {object} projectData - Project data object
+ * @returns {Promise<object|null>} Saved project or null if error
+ */
+export const saveProject = async (projectData) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    // Transform app format to database format
+    const dbProject = {
+      user_id: userId,
+      name: projectData.name,
+      client: projectData.client,
+      budget: projectData.budget || 0,
+      spent: projectData.spent || 0,
+      percent_complete: projectData.percentComplete || 0,
+      status: projectData.status || 'draft',
+      workers: projectData.workers || [],
+      days_remaining: projectData.daysRemaining || null,
+      last_activity: projectData.lastActivity || 'Just created',
+      location: projectData.location || null,
+      start_date: projectData.startDate || null,
+      end_date: projectData.endDate || null,
+      task_description: projectData.taskDescription || null,
+      estimated_duration: projectData.estimatedDuration || null,
+    };
+
+    // If project has an ID, update it; otherwise insert new
+    let result;
+    if (projectData.id && !projectData.id.startsWith('temp-')) {
+      const { data, error } = await supabase
+        .from('projects')
+        .update(dbProject)
+        .eq('id', projectData.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      result = data;
+    } else {
+      const { data, error } = await supabase
+        .from('projects')
+        .insert(dbProject)
+        .select()
+        .single();
+
+      if (error) throw error;
+      result = data;
+    }
+
+    console.log('Project saved successfully:', result.id);
+    return transformProjectFromDB(result);
+  } catch (error) {
+    console.error('Error saving project:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch all projects for the current user
+ * @returns {Promise<array>} Array of projects
+ */
+export const fetchProjects = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.log('No user logged in');
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching projects:', error);
+      return [];
+    }
+
+    // Transform each project from DB format to app format
+    return (data || []).map(transformProjectFromDB);
+  } catch (error) {
+    console.error('Error loading projects:', error);
+    return [];
+  }
+};
+
+/**
+ * Get a single project by ID
+ * @param {string} projectId - Project ID
+ * @returns {Promise<object|null>} Project object or null
+ */
+export const getProject = async (projectId) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching project:', error);
+      return null;
+    }
+
+    return transformProjectFromDB(data);
+  } catch (error) {
+    console.error('Error loading project:', error);
+    return null;
+  }
+};
+
+/**
+ * Delete a project by ID
+ * @param {string} projectId - Project ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const deleteProject = async (projectId) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return false;
+    }
+
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error deleting project:', error);
+      return false;
+    }
+
+    console.log('Project deleted successfully:', projectId);
+    return true;
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    return false;
+  }
+};
+
+/**
+ * Transform project from database format to app format
+ * @param {object} dbProject - Project from database
+ * @returns {object} App format project
+ */
+const transformProjectFromDB = (dbProject) => {
+  return {
+    id: dbProject.id,
+    name: dbProject.name,
+    client: dbProject.client,
+    budget: parseFloat(dbProject.budget) || 0,
+    spent: parseFloat(dbProject.spent) || 0,
+    percentComplete: dbProject.percent_complete || 0,
+    status: dbProject.status || 'draft',
+    workers: dbProject.workers || [],
+    daysRemaining: dbProject.days_remaining,
+    lastActivity: dbProject.last_activity || 'No activity',
+    location: dbProject.location,
+    startDate: dbProject.start_date,
+    endDate: dbProject.end_date,
+    taskDescription: dbProject.task_description,
+    estimatedDuration: dbProject.estimated_duration,
+    createdAt: dbProject.created_at,
+    updatedAt: dbProject.updated_at,
+  };
+};
+
+/**
+ * Transform screenshot analysis data to project format
+ * @param {object} screenshotData - Data from screenshot analysis
+ * @returns {object} Project format object ready to save
+ */
+export const transformScreenshotToProject = (screenshotData) => {
+  const { worker, location, date, time, task, budget, client, estimatedDuration } = screenshotData;
+
+  // Generate project name from client and task
+  let projectName = '';
+  if (client && task) {
+    projectName = `${client}'s ${task}`;
+  } else if (client) {
+    projectName = `${client} Project`;
+  } else if (task) {
+    projectName = task;
+  } else {
+    projectName = 'New Project';
+  }
+
+  return {
+    id: `temp-${Date.now()}`, // Temporary ID until saved
+    name: projectName,
+    client: client || 'Unknown Client',
+    budget: budget || 0,
+    spent: 0,
+    percentComplete: 0,
+    status: 'draft',
+    workers: worker ? [worker] : [],
+    daysRemaining: null,
+    lastActivity: 'Just created',
+    location: location || null,
+    startDate: date || new Date().toISOString().split('T')[0],
+    endDate: null,
+    taskDescription: task || null,
+    estimatedDuration: estimatedDuration || null,
+  };
+};

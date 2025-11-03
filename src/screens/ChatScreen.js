@@ -22,7 +22,7 @@ import { sendMessageToAI, getProjectContext, analyzeScreenshot, formatProjectCon
 import { ProjectCard, WorkerList, BudgetChart, PhotoGallery, EstimatePreview } from '../components/ChatVisuals';
 import { formatEstimate } from '../utils/estimateFormatter';
 import { sendEstimateViaSMS, sendEstimateViaWhatsApp, isValidPhoneNumber } from '../utils/messaging';
-import { getUserProfile } from '../utils/storage';
+import { getUserProfile, saveProject, transformScreenshotToProject } from '../utils/storage';
 
 export default function ChatScreen({ navigation }) {
   const [messages, setMessages] = useState([]);
@@ -237,6 +237,14 @@ export default function ChatScreen({ navigation }) {
         // TODO: Navigate to create project screen
         break;
 
+      case 'save-project':
+        await handleSaveProject(action.data);
+        break;
+
+      case 'create-project-from-screenshot':
+        await handleCreateProjectFromScreenshot(action.data);
+        break;
+
       case 'send-estimate-sms':
       case 'send-estimate-whatsapp':
         await handleSendEstimate(action);
@@ -294,6 +302,88 @@ export default function ChatScreen({ navigation }) {
     } catch (error) {
       console.error('Error sending estimate:', error);
       Alert.alert('Error', 'Failed to send estimate. Please try again.');
+    }
+  };
+
+  const handleSaveProject = async (projectData) => {
+    try {
+      // Show confirmation before saving
+      Alert.alert(
+        'Save Project',
+        `Create project "${projectData.name}" for ${projectData.client}?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Save',
+            onPress: async () => {
+              const savedProject = await saveProject(projectData);
+              if (savedProject) {
+                Alert.alert('Success', 'Project saved successfully!');
+
+                // Add AI confirmation message
+                const confirmationMessage = {
+                  id: Date.now().toString(),
+                  text: `✅ Project "${savedProject.name}" has been created and saved. You can find it in your Projects tab.`,
+                  isUser: false,
+                  timestamp: new Date(),
+                  visualElements: [],
+                  actions: [
+                    { label: 'View Projects', type: 'navigate-to-projects', data: {} }
+                  ],
+                  quickSuggestions: ['Show all my projects', 'Create another project']
+                };
+                setMessages((prev) => [...prev, confirmationMessage]);
+              } else {
+                Alert.alert('Error', 'Failed to save project. Please try again.');
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error saving project:', error);
+      Alert.alert('Error', 'Failed to save project. Please try again.');
+    }
+  };
+
+  const handleCreateProjectFromScreenshot = async (screenshotData) => {
+    try {
+      // Transform screenshot data to project format
+      const projectData = transformScreenshotToProject(screenshotData);
+
+      // Save the project
+      const savedProject = await saveProject(projectData);
+      if (savedProject) {
+        Alert.alert('Success', 'Project created from screenshot!');
+
+        // Add AI confirmation message with the project card
+        const confirmationMessage = {
+          id: Date.now().toString(),
+          text: `✅ I've created a project from the screenshot. Here's what I extracted:`,
+          isUser: false,
+          timestamp: new Date(),
+          visualElements: [
+            {
+              type: 'project-card',
+              data: savedProject
+            }
+          ],
+          actions: [
+            { label: 'Edit Project', type: 'edit-project', data: { projectId: savedProject.id } },
+            { label: 'View All Projects', type: 'navigate-to-projects', data: {} }
+          ],
+          quickSuggestions: ['Add more details', 'Create another project']
+        };
+        setMessages((prev) => [...prev, confirmationMessage]);
+      } else {
+        Alert.alert('Error', 'Failed to create project. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating project from screenshot:', error);
+      Alert.alert('Error', 'Failed to create project. Please try again.');
     }
   };
 

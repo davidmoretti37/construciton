@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
-import BottomTabNavigator from './src/navigation/BottomTabNavigator';
+import MainNavigator from './src/navigation/MainNavigator';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
@@ -143,7 +143,7 @@ function AppContent() {
 
     // Fully set up → Show main app
     console.log('   ➡️ Showing: MAIN APP');
-    return <BottomTabNavigator />;
+    return <MainNavigator />;
   };
 
   return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,80 @@ import {
   TouchableOpacity,
   TextInput,
   SafeAreaView,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import ThemeSwitch from '../components/ThemeSwitch';
 import { useTheme } from '../contexts/ThemeContext';
+import { fetchProjects } from '../utils/storage';
+import { ProjectCard } from '../components/ChatVisuals';
 
-export default function ProjectsScreen() {
+export default function ProjectsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('All');
+
+  // Fetch projects on mount
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  const loadProjects = async () => {
+    try {
+      setLoading(true);
+      const fetchedProjects = await fetchProjects();
+      setProjects(fetchedProjects);
+    } catch (error) {
+      console.error('Error loading projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadProjects();
+    setRefreshing(false);
+  }, []);
+
+  // Filter projects based on search query and filter
+  const filteredProjects = projects.filter(project => {
+    // Apply filter
+    if (selectedFilter !== 'All') {
+      const filterMap = {
+        'Active': ['active', 'on-track', 'behind', 'over-budget'],
+        'Completed': ['completed'],
+        'Archived': ['archived'],
+      };
+      if (!filterMap[selectedFilter]?.includes(project.status)) {
+        return false;
+      }
+    }
+
+    // Apply search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        project.name.toLowerCase().includes(query) ||
+        project.client.toLowerCase().includes(query) ||
+        project.location?.toLowerCase().includes(query)
+      );
+    }
+
+    return true;
+  });
+
+  const handleProjectAction = (action) => {
+    console.log('Project action:', action);
+    // TODO: Handle project actions (view, edit, etc.)
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
@@ -23,7 +88,7 @@ export default function ProjectsScreen() {
       <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
         <TouchableOpacity
           style={styles.settingsButton}
-          onPress={() => console.log('Settings pressed')}
+          onPress={() => navigation.navigate('Settings')}
         >
           <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
@@ -42,32 +107,70 @@ export default function ProjectsScreen() {
             style={styles.searchInput}
             placeholder="Search projects..."
             placeholderTextColor={Colors.placeholderText}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
         </View>
 
         <View style={styles.filterChips}>
-          <TouchableOpacity style={[styles.chip, styles.activeChip]}>
-            <Text style={styles.activeChipText}>All</Text>
+          <TouchableOpacity
+            style={[styles.chip, selectedFilter === 'All' && styles.activeChip]}
+            onPress={() => setSelectedFilter('All')}
+          >
+            <Text style={selectedFilter === 'All' ? styles.activeChipText : styles.chipText}>All</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chip}>
-            <Text style={styles.chipText}>Active</Text>
+          <TouchableOpacity
+            style={[styles.chip, selectedFilter === 'Active' && styles.activeChip]}
+            onPress={() => setSelectedFilter('Active')}
+          >
+            <Text style={selectedFilter === 'Active' ? styles.activeChipText : styles.chipText}>Active</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chip}>
-            <Text style={styles.chipText}>Completed</Text>
+          <TouchableOpacity
+            style={[styles.chip, selectedFilter === 'Completed' && styles.activeChip]}
+            onPress={() => setSelectedFilter('Completed')}
+          >
+            <Text style={selectedFilter === 'Completed' ? styles.activeChipText : styles.chipText}>Completed</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chip}>
-            <Text style={styles.chipText}>Archived</Text>
+          <TouchableOpacity
+            style={[styles.chip, selectedFilter === 'Archived' && styles.activeChip]}
+            onPress={() => setSelectedFilter('Archived')}
+          >
+            <Text style={selectedFilter === 'Archived' ? styles.activeChipText : styles.chipText}>Archived</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Projects List */}
-      <ScrollView style={styles.content}>
-        <View style={styles.emptyState}>
-          <Ionicons name="folder-outline" size={64} color={Colors.secondaryText} />
-          <Text style={styles.emptyStateText}>No projects yet</Text>
-          <Text style={styles.emptyStateSubtext}>Create your first project to get started</Text>
-        </View>
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primaryBlue} />
+            <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading projects...</Text>
+          </View>
+        ) : filteredProjects.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="folder-outline" size={64} color={Colors.secondaryText} />
+            <Text style={[styles.emptyStateText, { color: Colors.primaryText }]}>
+              {searchQuery || selectedFilter !== 'All' ? 'No projects found' : 'No projects yet'}
+            </Text>
+            <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
+              {searchQuery || selectedFilter !== 'All'
+                ? 'Try adjusting your search or filter'
+                : 'Create your first project to get started'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.projectsList}>
+            {filteredProjects.map((project) => (
+              <ProjectCard key={project.id} data={project} onAction={handleProjectAction} />
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -252,6 +355,20 @@ const styles = StyleSheet.create({
   lastActivity: {
     fontSize: FontSizes.tiny,
     color: LightColors.placeholderText,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    fontSize: FontSizes.body,
+    color: LightColors.secondaryText,
+    marginTop: Spacing.md,
+  },
+  projectsList: {
+    gap: Spacing.md,
   },
   emptyState: {
     flex: 1,

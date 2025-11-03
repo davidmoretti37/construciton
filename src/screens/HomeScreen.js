@@ -12,7 +12,7 @@ import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../con
 import ThemeSwitch from '../components/ThemeSwitch';
 import { useTheme } from '../contexts/ThemeContext';
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -22,7 +22,7 @@ export default function HomeScreen() {
       <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
         <TouchableOpacity
           style={styles.settingsButton}
-          onPress={() => console.log('Settings pressed')}
+          onPress={() => navigation.navigate('Settings')}
         >
           <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>

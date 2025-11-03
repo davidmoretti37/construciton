@@ -83,12 +83,13 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
  * @returns {Promise<object>} - Project context object
  */
 export const getProjectContext = async () => {
-  // Import getUserProfile inside the function to avoid circular dependencies
-  const { getUserProfile } = require('../utils/storage');
+  // Import functions inside to avoid circular dependencies
+  const { getUserProfile, fetchProjects } = require('../utils/storage');
   const { getTradeById } = require('../constants/trades');
 
   try {
     const userProfile = await getUserProfile();
+    const projects = await fetchProjects();
 
     // Format pricing for AI readability
     const formattedPricing = {};
@@ -125,22 +126,27 @@ export const getProjectContext = async () => {
       services: userProfile.trades || [],
       pricing: formattedPricing,
 
-      // Projects (empty for now - to be added later)
-      projects: [],
+      // Projects (fetched from database)
+      projects: projects || [],
 
       // Workers (empty for now - to be added later)
       workers: [],
 
-      // Stats
+      // Stats (calculated from real project data)
       stats: {
-        activeProjects: 0,
-        completedThisMonth: 0,
-        totalWorkers: 0,
-        workersOnSiteToday: 0,
-        monthlyIncome: 0,
-        monthlyBudget: 0,
-        pendingPayments: 0,
-        hoursThisMonth: 0,
+        activeProjects: projects.filter(p => ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)).length,
+        completedThisMonth: projects.filter(p => {
+          if (p.status !== 'completed') return false;
+          const completedDate = new Date(p.updatedAt);
+          const now = new Date();
+          return completedDate.getMonth() === now.getMonth() && completedDate.getFullYear() === now.getFullYear();
+        }).length,
+        totalWorkers: 0, // To be implemented when workers feature is added
+        workersOnSiteToday: 0, // To be implemented when workers feature is added
+        monthlyIncome: projects.filter(p => p.status === 'completed').reduce((sum, p) => sum + p.budget, 0),
+        monthlyBudget: projects.reduce((sum, p) => sum + p.budget, 0),
+        pendingPayments: projects.reduce((sum, p) => sum + (p.budget - p.spent), 0),
+        hoursThisMonth: 0, // To be implemented when time tracking is added
       },
 
       // Alerts
