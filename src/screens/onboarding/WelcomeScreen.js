@@ -1,11 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import AnimatedText from '../../components/AnimatedText';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../../lib/supabase';
 
 export default function WelcomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -15,39 +13,8 @@ export default function WelcomeScreen({ navigation }) {
     navigation.navigate('TradeSelection');
   };
 
-  const handleDevLogout = async () => {
-    Alert.alert(
-      'Dev Logout',
-      'This will log you out and clear all data so you can test the sign-in flow. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await supabase.auth.signOut();
-              await AsyncStorage.clear();
-              console.log('Dev logout complete - reloading...');
-            } catch (error) {
-              console.error('Dev logout error:', error);
-            }
-          },
-        },
-      ]
-    );
-  };
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      {/* DEV: Logout button in top-right corner */}
-      <TouchableOpacity
-        style={styles.devLogoutButton}
-        onPress={handleDevLogout}
-      >
-        <Ionicons name="log-out-outline" size={24} color={Colors.error} />
-      </TouchableOpacity>
-
       <View style={styles.content}>
         {/* Icon */}
         <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
@@ -127,13 +94,6 @@ export default function WelcomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  devLogoutButton: {
-    position: 'absolute',
-    top: Spacing.xl,
-    right: Spacing.xl,
-    zIndex: 999,
-    padding: Spacing.sm,
   },
   content: {
     flex: 1,
