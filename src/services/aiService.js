@@ -16,6 +16,16 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
       historyLength: conversationHistory.length,
     });
 
+    // DIAGNOSTIC LOGGING - See what data is actually being sent to AI
+    console.log('📊 ==== PROJECT CONTEXT BEING SENT TO AI ====');
+    console.log('📊 Projects count:', projectContext?.projects?.length || 0);
+    console.log('📊 Projects data:', JSON.stringify(projectContext?.projects || [], null, 2));
+    console.log('📊 Stats:', JSON.stringify(projectContext?.stats || {}, null, 2));
+    console.log('📊 Total Expenses:', projectContext?.stats?.totalExpenses);
+    console.log('📊 Total Income Collected:', projectContext?.stats?.totalIncomeCollected);
+    console.log('📊 Total Profit:', projectContext?.stats?.totalProfit);
+    console.log('📊 ==========================================');
+
     // Build messages array with system prompt, history, and new message
     const messages = [
       {
@@ -38,10 +48,10 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
         'X-Title': 'Construction Manager',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-3.5-turbo',
+        model: 'openai/gpt-4o-mini', // Reliable and proven - Qwen 2.5 7B was hanging/timing out
         messages: messages,
-        max_tokens: 1000,
-        temperature: 0.7,
+        max_tokens: 1500, // Increased from 1000 to prevent truncation of complex responses
+        temperature: 0.5, // Lowered from 0.7 to reduce hallucinations
         response_format: { type: "json_object" }, // Force JSON responses
       }),
     });
@@ -56,9 +66,18 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
     if (data.choices && data.choices[0]) {
       const content = data.choices[0].message.content;
 
+      // DIAGNOSTIC - See what AI actually returned
+      console.log('🤖 ==== AI RAW RESPONSE ====');
+      console.log('🤖 Raw content:', content);
+      console.log('🤖 ===========================');
+
       // Try to parse as JSON, fallback to plain text if it fails
       try {
         const parsed = JSON.parse(content);
+        console.log('🤖 ==== AI PARSED RESPONSE ====');
+        console.log('🤖 Parsed text:', parsed.text);
+        console.log('🤖 Visual elements:', parsed.visualElements?.length || 0);
+        console.log('🤖 ==============================');
         return parsed;
       } catch (parseError) {
         console.warn('AI response was not JSON, wrapping in text-only format:', parseError);
@@ -146,7 +165,19 @@ export const getProjectContext = async () => {
         workersOnSiteToday: 0, // To be implemented when workers feature is added
 
         // New financial model calculations
-        totalIncomeCollected: projects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0),
+        totalIncomeCollected: projects.reduce((sum, p) => {
+          // DIAGNOSTIC: Log each project's contribution to catch income+expenses bug
+          const income = p.incomeCollected || 0;
+          const expenses = p.expenses || 0;
+          console.log(`💰 ${p.name}: income=$${income}, expenses=$${expenses}`);
+
+          // VALIDATION: Warn if income looks suspicious (might include expenses)
+          if (income > 0 && expenses > 0 && Math.abs(income - (expenses + p.profit || 0)) < 1) {
+            console.warn(`⚠️ ${p.name}: incomeCollected (${income}) might incorrectly include expenses!`);
+          }
+
+          return sum + income;
+        }, 0),
         totalExpenses: projects.reduce((sum, p) => sum + (p.expenses || 0), 0),
         totalProfit: projects.reduce((sum, p) => sum + ((p.incomeCollected || 0) - (p.expenses || 0)), 0),
         totalContractValue: projects.reduce((sum, p) => sum + (p.contractAmount || p.budget || 0), 0),

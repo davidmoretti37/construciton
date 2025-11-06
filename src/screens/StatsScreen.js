@@ -82,7 +82,7 @@ export default function StatsScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Income Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>

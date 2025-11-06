@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
@@ -21,6 +22,8 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
 
   const [name, setName] = useState('');
   const [client, setClient] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [aiResponsesEnabled, setAiResponsesEnabled] = useState(true);
   // New financial model
   const [contractAmount, setContractAmount] = useState('');
   const [incomeCollected, setIncomeCollected] = useState('');
@@ -29,7 +32,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
   const [budget, setBudget] = useState('');
   const [spent, setSpent] = useState('');
   // percentComplete is now auto-calculated from dates, no manual input needed
-  const [status, setStatus] = useState('draft');
+  const [status, setStatus] = useState('active');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -37,6 +40,8 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
     if (projectData) {
       setName(projectData.name || '');
       setClient(projectData.client || '');
+      setClientPhone(projectData.clientPhone || '');
+      setAiResponsesEnabled(projectData.aiResponsesEnabled !== false); // Default to true
       // New financial model fields (with fallback to legacy)
       setContractAmount((projectData.contractAmount || projectData.budget || 0).toString());
       setIncomeCollected((projectData.incomeCollected || 0).toString());
@@ -45,7 +50,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
       setBudget((projectData.budget || projectData.contractAmount || 0).toString());
       setSpent((projectData.spent || projectData.expenses || 0).toString());
       // percentComplete is auto-calculated, no need to set it
-      setStatus(projectData.status || 'draft');
+      setStatus(projectData.status || 'active');
       setStartDate(projectData.startDate || '');
       setEndDate(projectData.endDate || '');
     }
@@ -90,6 +95,8 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
       ...projectData,
       name: name.trim(),
       client: client.trim(),
+      clientPhone: clientPhone.trim() || null,
+      aiResponsesEnabled: aiResponsesEnabled,
       // New financial model
       contractAmount: contractAmountValue,
       incomeCollected: incomeCollectedValue,
@@ -192,6 +199,41 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
                 onChangeText={setClient}
               />
             </View>
+
+            {/* Client Phone Number */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>Client Phone Number</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
+                placeholder="+1 555 123 4567"
+                placeholderTextColor={Colors.placeholderText}
+                value={clientPhone}
+                onChangeText={setClientPhone}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+              />
+              <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
+                For SMS/WhatsApp updates (include country code)
+              </Text>
+            </View>
+
+            {/* AI Auto-Response Toggle */}
+            {clientPhone.trim().length > 0 && (
+              <View style={[styles.inputGroup, styles.toggleRow]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.label, { color: Colors.primaryText }]}>Enable AI Auto-Responses</Text>
+                  <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
+                    AI will respond to routine client questions automatically
+                  </Text>
+                </View>
+                <Switch
+                  value={aiResponsesEnabled}
+                  onValueChange={setAiResponsesEnabled}
+                  trackColor={{ false: Colors.border, true: Colors.primaryBlue }}
+                  thumbColor={aiResponsesEnabled ? Colors.white : Colors.secondaryText}
+                />
+              </View>
+            )}
 
             {/* Contract Amount */}
             <View style={styles.inputGroup}>
@@ -441,5 +483,14 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.header,
     fontWeight: '700',
     marginTop: Spacing.xs,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
   },
 });

@@ -31,7 +31,7 @@ export default function WorkersScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={styles.emptyState}>
           <Ionicons name="people-outline" size={64} color={Colors.secondaryText} />
           <Text style={styles.emptyStateText}>No workers yet</Text>

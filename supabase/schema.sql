@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
   income_collected NUMERIC(10, 2) DEFAULT 0, -- Money actually received from client
   expenses NUMERIC(10, 2) DEFAULT 0,         -- Materials, workers, and other costs
   percent_complete INTEGER DEFAULT 0 CHECK (percent_complete >= 0 AND percent_complete <= 100),
-  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'on-track', 'behind', 'over-budget', 'completed', 'archived')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('draft', 'active', 'on-track', 'behind', 'over-budget', 'completed', 'archived')),
   workers TEXT[] DEFAULT '{}',
   days_remaining INTEGER,
   last_activity TEXT,

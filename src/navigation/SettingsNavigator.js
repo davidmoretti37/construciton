@@ -4,6 +4,7 @@ import SettingsScreen from '../screens/settings/SettingsScreen';
 import EditBusinessInfoScreen from '../screens/settings/EditBusinessInfoScreen';
 import EditPricingScreen from '../screens/settings/EditPricingScreen';
 import ChangeLanguageScreen from '../screens/settings/ChangeLanguageScreen';
+import TwilioSetupScreen from '../screens/settings/TwilioSetupScreen';
 
 const Stack = createStackNavigator();
 
@@ -30,6 +31,10 @@ export default function SettingsNavigator() {
       <Stack.Screen
         name="ChangeLanguage"
         component={ChangeLanguageScreen}
+      />
+      <Stack.Screen
+        name="TwilioSetup"
+        component={TwilioSetupScreen}
       />
     </Stack.Navigator>
   );

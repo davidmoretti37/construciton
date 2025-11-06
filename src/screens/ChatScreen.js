@@ -18,14 +18,14 @@ import AIInputWithSearch from '../components/AIInputWithSearch';
 import AnimatedText from '../components/AnimatedText';
 import { useTheme } from '../contexts/ThemeContext';
 import { sendMessageToAI, getProjectContext, analyzeScreenshot, formatProjectConfirmation } from '../services/aiService';
-import { ProjectCard, WorkerList, BudgetChart, PhotoGallery, EstimatePreview } from '../components/ChatVisuals';
+import { ProjectCard, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, ProjectSelector, ExpenseCard, ProjectOverview } from '../components/ChatVisuals';
 import { formatEstimate } from '../utils/estimateFormatter';
 import { sendEstimateViaSMS, sendEstimateViaWhatsApp, isValidPhoneNumber } from '../utils/messaging';
-import { getUserProfile, saveProject, transformScreenshotToProject } from '../utils/storage';
+import { getUserProfile, saveProject, transformScreenshotToProject, getProject } from '../utils/storage';
 import TimelinePickerModal from '../components/TimelinePickerModal';
 import BudgetInputModal from '../components/BudgetInputModal';
 import JobNameInputModal from '../components/JobNameInputModal';
-import { MessageLoading } from '../components/MessageLoading';
+import OrbitalLoader from '../components/OrbitalLoader';
 
 export default function ChatScreen({ navigation }) {
   const [messages, setMessages] = useState([]);
@@ -289,6 +289,10 @@ export default function ChatScreen({ navigation }) {
       case 'send-estimate-sms':
       case 'send-estimate-whatsapp':
         await handleSendEstimate(action);
+        break;
+
+      case 'select-project':
+        await handleSelectProject(action.data);
         break;
 
       default:
@@ -600,10 +604,78 @@ export default function ChatScreen({ navigation }) {
     setCurrentProject(updatedProject);
   };
 
+  const handleSelectProject = async (data) => {
+    try {
+      const { projectId, pendingUpdate } = data;
+
+      // Get the full project data
+      const project = await getProject(projectId);
+      if (!project) {
+        Alert.alert('Error', 'Could not load project details. Please try again.');
+        return;
+      }
+
+      // Merge the pending financial update with the project
+      const updatedProject = {
+        ...project,
+        incomeCollected: (project.incomeCollected || 0) + (pendingUpdate.incomeCollected || 0),
+        expenses: (project.expenses || 0) + (pendingUpdate.expenses || 0),
+      };
+
+      // Recalculate profit
+      updatedProject.profit = updatedProject.incomeCollected - updatedProject.expenses;
+
+      // Also update legacy fields
+      updatedProject.spent = updatedProject.expenses;
+
+      // Replace the project-selector message with updated project card
+      setMessages((prev) => {
+        const messages = [...prev];
+
+        // Find the last message with a project-selector
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const message = messages[i];
+          if (!message.isUser && message.visualElements) {
+            const selectorIndex = message.visualElements.findIndex(el => el.type === 'project-selector');
+
+            if (selectorIndex !== -1) {
+              // Update the message to show the selected project with financial update applied
+              message.text = `✅ Updated ${project.name}!\n\nCollected: +$${(pendingUpdate.incomeCollected || 0).toLocaleString()}\nExpenses: +$${(pendingUpdate.expenses || 0).toLocaleString()}\nNew Profit: $${updatedProject.profit.toLocaleString()}`;
+
+              // Replace project-selector with project-card
+              message.visualElements = [{
+                type: 'project-card',
+                data: updatedProject
+              }];
+
+              // Add "Update Project" button to save changes
+              message.actions = [
+                {
+                  label: 'Update Project',
+                  type: 'save-project',
+                  data: updatedProject
+                }
+              ];
+
+              break;
+            }
+          }
+        }
+
+        return messages;
+      });
+    } catch (error) {
+      console.error('Error selecting project:', error);
+      Alert.alert('Error', 'Failed to update project. Please try again.');
+    }
+  };
+
   const renderVisualElement = (element, index) => {
     switch (element.type) {
       case 'project-card':
         return <ProjectCard key={index} data={element.data} onAction={handleAction} />;
+      case 'project-selector':
+        return <ProjectSelector key={index} data={element.data} onAction={handleAction} />;
       case 'worker-list':
         return <WorkerList key={index} data={element.data} />;
       case 'budget-chart':
@@ -612,6 +684,10 @@ export default function ChatScreen({ navigation }) {
         return <PhotoGallery key={index} data={element.data} onAction={handleAction} />;
       case 'estimate-preview':
         return <EstimatePreview key={index} data={element.data} onAction={handleAction} />;
+      case 'expense-card':
+        return <ExpenseCard key={index} data={element.data} />;
+      case 'project-overview':
+        return <ProjectOverview key={index} data={element.data} onAction={handleAction} />;
       default:
         return null;
     }
@@ -639,7 +715,7 @@ export default function ChatScreen({ navigation }) {
         <ScrollView
           ref={scrollViewRef}
           style={[styles.chatArea, { backgroundColor: Colors.background }]}
-          contentContainerStyle={styles.chatContent}
+          contentContainerStyle={[styles.chatContent, { paddingBottom: 120 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
         >
@@ -710,21 +786,23 @@ export default function ChatScreen({ navigation }) {
               {/* AI Thinking Loader */}
               {isAIThinking && (
                 <View style={styles.loaderContainer}>
-                  <MessageLoading />
+                  <OrbitalLoader size={32} />
                 </View>
               )}
             </>
           )}
         </ScrollView>
 
-        {/* AI Input Component - Moves up with keyboard */}
-        <View style={styles.inputWrapper}>
+        {/* AI Input Component - Moves up with keyboard with shadow */}
+        <View style={styles.inputWrapperShadow}>
+          <View style={styles.inputWrapper}>
           <AIInputWithSearch
               placeholder="Type a message..."
             onSubmit={handleSend}
             onFileSelect={handleFileSelect}
             onCameraPress={handleCameraOpen}
           />
+          </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -780,9 +858,18 @@ const styles = StyleSheet.create({
   chatArea: {
     flex: 1,
   },
+  inputWrapperShadow: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -5,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 15,
+  },
   chatContent: {
     padding: Spacing.lg,
-    paddingBottom: 100, // Extra padding for last message visibility
   },
   messageContainer: {
     marginBottom: Spacing.lg,

@@ -11,13 +11,17 @@ import {
   ActivityIndicator,
   Modal,
   TextInput as RNTextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjects } from '../utils/storage';
+import { fetchProjects, saveProject } from '../utils/storage';
 import { ProjectCard } from '../components/ChatVisuals';
+import TimelinePickerModal from '../components/TimelinePickerModal';
+import ConversationsSection from '../components/ConversationsSection';
 
 export default function ProjectsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -30,10 +34,161 @@ export default function ProjectsScreen({ navigation }) {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProject, setNewProject] = useState({
+    name: '',
+    client: '',
+    contractAmount: '',
+    incomeCollected: '',
+    expenses: '',
+    percentComplete: '0',
+    status: 'active',
+    startDate: null,
+    endDate: null,
+  });
+  const [saving, setSaving] = useState(false);
+  const [showNewProjectTimeline, setShowNewProjectTimeline] = useState(false);
+  const [showEditTimeline, setShowEditTimeline] = useState(false);
 
   const closeEdit = () => {
     setEditOpen(false);
     setEditing(null);
+  };
+
+  const closeNewProject = () => {
+    setNewProjectOpen(false);
+    setNewProject({
+      name: '',
+      client: '',
+      contractAmount: '',
+      incomeCollected: '',
+      expenses: '',
+      percentComplete: '0',
+      status: 'active',
+      startDate: null,
+      endDate: null,
+    });
+  };
+
+  const handleNewProjectTimelineConfirm = (timelineData) => {
+    setNewProject((prev) => ({
+      ...prev,
+      startDate: timelineData.startDate,
+      endDate: timelineData.endDate,
+      daysRemaining: timelineData.daysRemaining,
+      estimatedDuration: timelineData.estimatedDuration,
+    }));
+    setShowNewProjectTimeline(false);
+  };
+
+  const handleEditTimelineConfirm = (timelineData) => {
+    setEditing((prev) => ({
+      ...prev,
+      startDate: timelineData.startDate,
+      endDate: timelineData.endDate,
+      daysRemaining: timelineData.daysRemaining,
+      estimatedDuration: timelineData.estimatedDuration,
+    }));
+    setShowEditTimeline(false);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not set';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const handleSaveNewProject = async () => {
+    try {
+      // Validation
+      if (!newProject.name.trim()) {
+        alert('Please enter a project name');
+        return;
+      }
+      if (!newProject.client.trim()) {
+        alert('Please enter a client name');
+        return;
+      }
+
+      setSaving(true);
+
+      const projectData = {
+        name: newProject.name.trim(),
+        client: newProject.client.trim(),
+        contractAmount: Number(newProject.contractAmount) || 0,
+        incomeCollected: Number(newProject.incomeCollected) || 0,
+        expenses: Number(newProject.expenses) || 0,
+        percentComplete: Math.max(0, Math.min(100, Number(newProject.percentComplete) || 0)),
+        status: newProject.status || 'active',
+        budget: Number(newProject.contractAmount) || 0, // Legacy field
+        spent: Number(newProject.expenses) || 0, // Legacy field
+        profit: (Number(newProject.incomeCollected) || 0) - (Number(newProject.expenses) || 0),
+        extras: [],
+        startDate: newProject.startDate,
+        endDate: newProject.endDate,
+        daysRemaining: newProject.daysRemaining,
+        estimatedDuration: newProject.estimatedDuration,
+      };
+
+      const savedProject = await saveProject(projectData);
+
+      if (savedProject) {
+        // Reload projects list
+        await loadProjects();
+        closeNewProject();
+      } else {
+        alert('Failed to save project. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving new project:', error);
+      alert('Failed to save project. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      setSaving(true);
+
+      const projectData = {
+        id: editing.id,
+        name: editing.name,
+        client: editing.client,
+        contractAmount: Number(editing.contractAmount) || Number(editing.budget) || 0,
+        incomeCollected: Number(editing.incomeCollected) || 0,
+        expenses: Number(editing.expenses) || Number(editing.spent) || 0,
+        percentComplete: Math.max(0, Math.min(100, Number(editing.percentComplete) || 0)),
+        status: editing.status,
+        budget: Number(editing.budget) || 0,
+        spent: Number(editing.spent) || 0,
+        profit: (Number(editing.incomeCollected) || 0) - (Number(editing.expenses) || Number(editing.spent) || 0),
+        extras: editing.extras || [],
+        startDate: editing.startDate,
+        endDate: editing.endDate,
+        daysRemaining: editing.daysRemaining,
+        estimatedDuration: editing.estimatedDuration,
+      };
+
+      const savedProject = await saveProject(projectData);
+
+      if (savedProject) {
+        // Reload projects list
+        await loadProjects();
+        closeEdit();
+      } else {
+        alert('Failed to update project. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error updating project:', error);
+      alert('Failed to update project. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Reload projects whenever screen comes into focus
@@ -112,7 +267,7 @@ export default function ProjectsScreen({ navigation }) {
           <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={styles.spacer} />
-        <TouchableOpacity style={styles.newProjectButton}>
+        <TouchableOpacity style={styles.newProjectButton} onPress={() => setNewProjectOpen(true)}>
           <Text style={[styles.newProjectText, { color: Colors.primaryBlue }]}>+ New Project</Text>
         </TouchableOpacity>
       </View>
@@ -161,6 +316,7 @@ export default function ProjectsScreen({ navigation }) {
       {/* Projects List */}
       <ScrollView
         style={styles.content}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -192,11 +348,15 @@ export default function ProjectsScreen({ navigation }) {
       </ScrollView>
       {/* Simple Edit Modal */}
       <Modal visible={editOpen} transparent animationType="slide" onRequestClose={closeEdit}>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalBackdrop}
+        >
           <View style={[styles.modalCard, { backgroundColor: Colors.white }]}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Edit Project</Text>
             {editing && (
-              <View>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View>
                 <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Name</Text>
                 <RNTextInput
                   style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
@@ -215,23 +375,66 @@ export default function ProjectsScreen({ navigation }) {
                   onChangeText={(t) => setEditing((e) => ({ ...e, client: t }))}
                 />
 
+                <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Client Phone</Text>
+                <RNTextInput
+                  style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                  placeholder="+1 555 123 4567"
+                  placeholderTextColor={Colors.placeholderText}
+                  value={editing.clientPhone || ''}
+                  onChangeText={(t) => setEditing((e) => ({ ...e, clientPhone: t }))}
+                  keyboardType="phone-pad"
+                />
+
+                <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Contract Amount</Text>
+                <RNTextInput
+                  style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                  keyboardType="numeric"
+                  value={String(editing.contractAmount ?? editing.budget ?? 0)}
+                  onChangeText={(t) => setEditing((e) => ({ ...e, contractAmount: t.replace(/[^0-9.]/g, ''), budget: t.replace(/[^0-9.]/g, '') }))}
+                />
+
+                <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Timeline</Text>
+                <TouchableOpacity
+                  style={[styles.timelineButton, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}
+                  onPress={() => setShowEditTimeline(true)}
+                >
+                  <Ionicons name="calendar-outline" size={20} color={Colors.primaryBlue} />
+                  <View style={{ flex: 1 }}>
+                    {editing.startDate && editing.endDate ? (
+                      <View>
+                        <Text style={[styles.timelineText, { color: Colors.primaryText }]}>
+                          {formatDate(editing.startDate)} - {formatDate(editing.endDate)}
+                        </Text>
+                        <Text style={[styles.timelineSubtext, { color: Colors.secondaryText }]}>
+                          {editing.daysRemaining} days
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.timelinePlaceholder, { color: Colors.placeholderText }]}>
+                        Set project timeline
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+                </TouchableOpacity>
+
                 <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Budget</Text>
+                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Income Collected</Text>
                     <RNTextInput
                       style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
                       keyboardType="numeric"
-                      value={String(editing.budget ?? 0)}
-                      onChangeText={(t) => setEditing((e) => ({ ...e, budget: t.replace(/[^0-9.]/g, '') }))}
+                      value={String(editing.incomeCollected ?? 0)}
+                      onChangeText={(t) => setEditing((e) => ({ ...e, incomeCollected: t.replace(/[^0-9.]/g, '') }))}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Spent</Text>
+                    <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Expenses</Text>
                     <RNTextInput
                       style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
                       keyboardType="numeric"
-                      value={String(editing.spent ?? 0)}
-                      onChangeText={(t) => setEditing((e) => ({ ...e, spent: t.replace(/[^0-9.]/g, '') }))}
+                      value={String(editing.expenses ?? editing.spent ?? 0)}
+                      onChangeText={(t) => setEditing((e) => ({ ...e, expenses: t.replace(/[^0-9.]/g, ''), spent: t.replace(/[^0-9.]/g, '') }))}
                     />
                   </View>
                 </View>
@@ -258,32 +461,194 @@ export default function ProjectsScreen({ navigation }) {
                   </View>
                 </View>
 
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.lg }}>
-                  <TouchableOpacity style={[styles.modalButton, { backgroundColor: Colors.lightGray }]} onPress={closeEdit}>
-                    <Text style={[styles.modalButtonText, { color: Colors.primaryText }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButton, { backgroundColor: Colors.primaryBlue }]}
-                    onPress={() => {
-                      // Local update only; persistence to Supabase could be added here
-                      setProjects((prev) => prev.map((p) => (p.id === editing.id ? {
-                        ...p,
-                        ...editing,
-                        budget: Number(editing.budget) || 0,
-                        spent: Number(editing.spent) || 0,
-                        percentComplete: Math.max(0, Math.min(100, Number(editing.percentComplete) || 0)),
-                      } : p)));
-                      closeEdit();
-                    }}
-                  >
-                    <Text style={[styles.modalButtonText, { color: Colors.white }]}>Save</Text>
-                  </TouchableOpacity>
+                {/* Client Messages Section */}
+                {editing.clientPhone && (
+                  <View style={{ marginTop: Spacing.lg }}>
+                    <ConversationsSection
+                      projectId={editing.id}
+                      clientPhone={editing.clientPhone}
+                    />
+                  </View>
+                )}
+
+                </View>
+              </ScrollView>
+            )}
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.lg, paddingTop: Spacing.md }}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: Colors.lightGray }]}
+                onPress={closeEdit}
+                disabled={saving}
+              >
+                <Text style={[styles.modalButtonText, { color: Colors.primaryText }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: Colors.primaryBlue, opacity: saving ? 0.6 : 1 }]}
+                onPress={handleSaveEdit}
+                disabled={saving}
+              >
+                <Text style={[styles.modalButtonText, { color: Colors.white }]}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* New Project Modal */}
+      <Modal visible={newProjectOpen} transparent animationType="slide" onRequestClose={closeNewProject}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalBackdrop}
+        >
+          <View style={[styles.modalCard, { backgroundColor: Colors.white }]}>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>New Project</Text>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View>
+              <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Project Name *</Text>
+              <RNTextInput
+                style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                placeholder="e.g., Kitchen Remodel"
+                placeholderTextColor={Colors.placeholderText}
+                value={newProject.name}
+                onChangeText={(t) => setNewProject((p) => ({ ...p, name: t }))}
+              />
+
+              <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Client Name *</Text>
+              <RNTextInput
+                style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                placeholder="Client name"
+                placeholderTextColor={Colors.placeholderText}
+                value={newProject.client}
+                onChangeText={(t) => setNewProject((p) => ({ ...p, client: t }))}
+              />
+
+              <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Contract Amount</Text>
+              <RNTextInput
+                style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                placeholder="0"
+                keyboardType="numeric"
+                placeholderTextColor={Colors.placeholderText}
+                value={newProject.contractAmount}
+                onChangeText={(t) => setNewProject((p) => ({ ...p, contractAmount: t.replace(/[^0-9.]/g, '') }))}
+              />
+
+              <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Timeline</Text>
+              <TouchableOpacity
+                style={[styles.timelineButton, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}
+                onPress={() => setShowNewProjectTimeline(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color={Colors.primaryBlue} />
+                <View style={{ flex: 1 }}>
+                  {newProject.startDate && newProject.endDate ? (
+                    <View>
+                      <Text style={[styles.timelineText, { color: Colors.primaryText }]}>
+                        {formatDate(newProject.startDate)} - {formatDate(newProject.endDate)}
+                      </Text>
+                      <Text style={[styles.timelineSubtext, { color: Colors.secondaryText }]}>
+                        {newProject.daysRemaining} days
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.timelinePlaceholder, { color: Colors.placeholderText }]}>
+                      Set project timeline
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Income Collected</Text>
+                  <RNTextInput
+                    style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    placeholderTextColor={Colors.placeholderText}
+                    value={newProject.incomeCollected}
+                    onChangeText={(t) => setNewProject((p) => ({ ...p, incomeCollected: t.replace(/[^0-9.]/g, '') }))}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Expenses</Text>
+                  <RNTextInput
+                    style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    placeholderTextColor={Colors.placeholderText}
+                    value={newProject.expenses}
+                    onChangeText={(t) => setNewProject((p) => ({ ...p, expenses: t.replace(/[^0-9.]/g, '') }))}
+                  />
                 </View>
               </View>
-            )}
+
+              <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Complete %</Text>
+                  <RNTextInput
+                    style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    placeholderTextColor={Colors.placeholderText}
+                    value={newProject.percentComplete}
+                    onChangeText={(t) => setNewProject((p) => ({ ...p, percentComplete: t.replace(/[^0-9]/g, '') }))}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Status</Text>
+                  <RNTextInput
+                    style={[styles.modalInput, { borderColor: Colors.border, color: Colors.primaryText }]}
+                    placeholder="active"
+                    placeholderTextColor={Colors.placeholderText}
+                    value={newProject.status}
+                    onChangeText={(t) => setNewProject((p) => ({ ...p, status: t }))}
+                  />
+                </View>
+              </View>
+
+              </View>
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.lg, paddingTop: Spacing.md }}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: Colors.lightGray }]}
+                onPress={closeNewProject}
+                disabled={saving}
+              >
+                <Text style={[styles.modalButtonText, { color: Colors.primaryText }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: Colors.primaryBlue, opacity: saving ? 0.6 : 1 }]}
+                onPress={handleSaveNewProject}
+                disabled={saving}
+              >
+                <Text style={[styles.modalButtonText, { color: Colors.white }]}>
+                  {saving ? 'Creating...' : 'Create Project'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
+
+      {/* Timeline Picker for New Project */}
+      <TimelinePickerModal
+        visible={showNewProjectTimeline}
+        onClose={() => setShowNewProjectTimeline(false)}
+        onConfirm={handleNewProjectTimelineConfirm}
+        projectData={newProject}
+      />
+
+      {/* Timeline Picker for Edit */}
+      <TimelinePickerModal
+        visible={showEditTimeline}
+        onClose={() => setShowEditTimeline(false)}
+        onConfirm={handleEditTimelineConfirm}
+        projectData={editing}
+      />
     </SafeAreaView>
   );
 }
@@ -367,6 +732,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Spacing.lg,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   projectCard: {
     backgroundColor: LightColors.white,
@@ -510,6 +878,7 @@ const styles = StyleSheet.create({
   modalCard: {
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
+    maxHeight: '80%',
   },
   modalTitle: {
     fontSize: FontSizes.subheader,
@@ -535,5 +904,25 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: FontSizes.body,
     fontWeight: '600',
+  },
+  timelineButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  timelineText: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+  },
+  timelineSubtext: {
+    fontSize: FontSizes.tiny,
+    marginTop: 2,
+  },
+  timelinePlaceholder: {
+    fontSize: FontSizes.small,
   },
 });

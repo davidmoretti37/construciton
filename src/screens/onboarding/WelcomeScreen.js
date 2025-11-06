@@ -5,7 +5,7 @@ import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/the
 import { useTheme } from '../../contexts/ThemeContext';
 import AnimatedText from '../../components/AnimatedText';
 
-export default function WelcomeScreen({ navigation }) {
+export default function WelcomeScreen({ navigation, onGoBack }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
 
@@ -13,8 +13,25 @@ export default function WelcomeScreen({ navigation }) {
     navigation.navigate('TradeSelection');
   };
 
+  const handleGoBack = () => {
+    if (onGoBack) {
+      onGoBack();
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+      {/* Back Button */}
+      {onGoBack && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleGoBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+        </TouchableOpacity>
+      )}
+
       <View style={styles.content}>
         {/* Icon */}
         <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
@@ -26,7 +43,7 @@ export default function WelcomeScreen({ navigation }) {
           <AnimatedText
             text="Welcome to Construction Manager"
             delay={40}
-            style={[styles.title, { color: Colors.primaryText }]}
+            textStyle={[styles.title, { color: Colors.primaryText }]}
           />
           <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
             Let's set up your business so you can start sending estimates instantly
@@ -95,6 +112,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  backButton: {
+    position: 'absolute',
+    top: Spacing.xxl,
+    left: Spacing.lg,
+    zIndex: 10,
+    padding: Spacing.sm,
+  },
   content: {
     flex: 1,
     padding: Spacing.xl,
@@ -114,7 +138,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxl,
   },
   title: {
-    fontSize: FontSizes.large,
+    fontSize: FontSizes.header,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: Spacing.md,

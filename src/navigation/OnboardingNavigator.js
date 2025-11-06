@@ -10,16 +10,18 @@ import CompletionScreen from '../screens/onboarding/CompletionScreen';
 
 const Stack = createStackNavigator();
 
-export default function OnboardingNavigator({ onComplete }) {
+export default function OnboardingNavigator({ onComplete, onGoBack }) {
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
         gestureEnabled: false, // Disable swipe back during onboarding
       }}
-      screenProps={{ onComplete }}
+      screenProps={{ onComplete, onGoBack }}
     >
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Welcome">
+        {(props) => <WelcomeScreen {...props} onGoBack={onGoBack} />}
+      </Stack.Screen>
       <Stack.Screen name="TradeSelection" component={TradeSelectionScreen} />
       <Stack.Screen name="BusinessInfo" component={BusinessInfoScreen} />
       <Stack.Screen name="PricingSetup" component={PricingSetupScreen} />

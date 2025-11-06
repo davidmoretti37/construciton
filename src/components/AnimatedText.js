@@ -8,7 +8,7 @@ import Animated, {
   withSequence,
 } from 'react-native-reanimated';
 
-const AnimatedChar = ({ char, index, delay = 50 }) => {
+const AnimatedChar = ({ char, index, delay = 50, textStyle = {} }) => {
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
 
@@ -34,7 +34,7 @@ const AnimatedChar = ({ char, index, delay = 50 }) => {
   });
 
   return (
-    <Animated.Text style={[styles.char, animatedStyle]}>
+    <Animated.Text style={[styles.char, textStyle, animatedStyle]}>
       {char}
     </Animated.Text>
   );
@@ -56,6 +56,7 @@ const AnimatedText = ({
             char={char === ' ' ? '\u00A0' : char}
             index={index}
             delay={delay}
+            textStyle={textStyle}
           />
         ))}
       </View>

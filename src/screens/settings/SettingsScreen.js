@@ -128,7 +128,7 @@ export default function SettingsScreen({ navigation }) {
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Settings</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {/* Business Info Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>BUSINESS</Text>
@@ -148,6 +148,35 @@ export default function SettingsScreen({ navigation }) {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Client Messaging Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>CLIENT MESSAGING</Text>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+            onPress={() => navigation.navigate('TwilioSetup')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: Colors.success + '20' }]}>
+              <Ionicons name="chatbubbles-outline" size={24} color={Colors.success} />
+            </View>
+            <View style={styles.itemContent}>
+              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>SMS/WhatsApp Setup</Text>
+              <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>
+                {userProfile.businessPhoneNumber
+                  ? `Configured: ${userProfile.businessPhoneNumber}`
+                  : 'Not configured - Tap to set up'
+                }
+              </Text>
+            </View>
+            <Ionicons
+              name={userProfile.businessPhoneNumber ? "checkmark-circle" : "chevron-forward"}
+              size={20}
+              color={userProfile.businessPhoneNumber ? Colors.success : Colors.secondaryText}
+            />
           </TouchableOpacity>
         </View>
 

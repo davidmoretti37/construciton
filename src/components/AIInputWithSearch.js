@@ -1,17 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   Text,
+  Platform,
+  Alert,
 } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  withRepeat,
+  withSequence,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
+import { DEEPGRAM_API_KEY } from '@env';
+import OrbitalLoader from './OrbitalLoader';
 
 const AIInputWithSearch = ({
   placeholder = 'Type a message...',
@@ -21,14 +29,23 @@ const AIInputWithSearch = ({
 }) => {
   const [value, setValue] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [recording, setRecording] = useState(null);
   const buttonWidth = useSharedValue(80);
   const textOpacity = useSharedValue(1);
+  const microphoneScale = useSharedValue(1);
+  const pressScale = useSharedValue(1);
+  const pressShadow = useSharedValue(1);
 
   const handleSubmit = () => {
     if (value.trim()) {
       const textToSend = value.trim();
-      setValue(''); // Clear immediately
       onSubmit?.(textToSend, false);
+      // Clear input in next tick to ensure proper state update
+      setTimeout(() => {
+        setValue('');
+      }, 0);
     }
   };
 
@@ -42,6 +59,159 @@ const AIInputWithSearch = ({
     textOpacity.value = withTiming(newState ? 1 : 0, {
       duration: 150,
     });
+  };
+
+  // Setup audio permissions
+  useEffect(() => {
+    (async () => {
+      await Audio.requestPermissionsAsync();
+    })();
+  }, []);
+
+  const startRecording = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Microphone Permission Required',
+          'Please enable microphone access to use voice input.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+
+      setRecording(recording);
+      setIsRecording(true);
+
+      // Animate microphone
+      microphoneScale.value = withRepeat(
+        withSequence(
+          withTiming(1.2, { duration: 500 }),
+          withTiming(1, { duration: 500 })
+        ),
+        -1,
+        true
+      );
+
+      console.log('Recording started');
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      Alert.alert('Error', 'Could not start recording. Please try again.');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+
+    try {
+      console.log('Stopping recording...');
+      setIsRecording(false);
+      microphoneScale.value = withTiming(1, { duration: 200 });
+
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecording(null);
+
+      console.log('Recording stopped, URI:', uri);
+
+      if (uri) {
+        await transcribeAudio(uri);
+      }
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      Alert.alert('Error', 'Could not stop recording.');
+    }
+  };
+
+  const transcribeAudio = async (audioUri) => {
+    try {
+      setIsTranscribing(true);
+
+      console.log('Starting transcription for:', audioUri);
+
+      // Check if API key is configured
+      if (!DEEPGRAM_API_KEY || DEEPGRAM_API_KEY === 'YOUR_DEEPGRAM_API_KEY_HERE') {
+        Alert.alert(
+          'API Key Required',
+          'Please add your Deepgram API key to .env file. Get a free key at https://console.deepgram.com/signup',
+          [{ text: 'OK' }]
+        );
+        setIsTranscribing(false);
+        return;
+      }
+
+      // Read audio file as base64
+      const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Convert base64 to binary buffer
+      const binaryString = atob(base64Audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      console.log('Sending to Deepgram API...');
+
+      // Call Deepgram API for transcription
+      const response = await fetch(
+        'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=en',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+            'Content-Type': 'audio/m4a',
+          },
+          body: bytes.buffer,
+        }
+      );
+
+      console.log('Deepgram API response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Deepgram API error:', errorText);
+        throw new Error(`Transcription failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+
+      console.log('Transcribed text:', text);
+
+      if (text.trim()) {
+        // Auto-send the transcribed text
+        console.log('Auto-sending transcribed text:', text);
+        setIsTranscribing(false);
+        onSubmit?.(text, false);
+        // Clear input is handled by onSubmit in parent
+      } else {
+        Alert.alert('No Speech', 'Could not detect speech. Please try again.');
+        setIsTranscribing(false);
+      }
+    } catch (error) {
+      console.error('Transcription error:', error);
+      setIsTranscribing(false);
+      Alert.alert('Error', 'Could not transcribe audio. Please type instead.');
+    }
+  };
+
+  const handleMicrophonePress = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   };
 
   // Animated button style
@@ -60,9 +230,39 @@ const AIInputWithSearch = ({
     };
   });
 
+  // Animated microphone style
+  const animatedMicrophoneStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: microphoneScale.value }],
+    };
+  });
+
+  // Animated input wrapper style (press animation)
+  const animatedWrapperStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: pressScale.value }],
+      shadowOpacity: 0.25 * pressShadow.value,
+      shadowRadius: 50 * pressShadow.value,
+    };
+  });
+
+  const handlePressIn = () => {
+    pressScale.value = withTiming(0.98, { duration: 100 });
+    pressShadow.value = withTiming(0.5, { duration: 100 });
+  };
+
+  const handlePressOut = () => {
+    pressScale.value = withTiming(1, { duration: 150 });
+    pressShadow.value = withTiming(1, { duration: 150 });
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.inputWrapper}>
+      <Animated.View
+        style={[styles.inputWrapper, animatedWrapperStyle]}
+        onTouchStart={handlePressIn}
+        onTouchEnd={handlePressOut}
+      >
         {/* Text Input Area */}
         <TextInput
           style={styles.textInput}
@@ -96,23 +296,69 @@ const AIInputWithSearch = ({
             {/* Search toggle removed per requirement */}
           </View>
 
-          {/* Right Side - Send Button */}
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              value.trim() && styles.sendButtonActive,
-            ]}
-            onPress={value.trim() ? handleSubmit : onCameraPress}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={value.trim() ? 'send' : 'camera'}
-              size={18}
-              color={value.trim() ? '#0EA5E9' : 'rgba(0, 0, 0, 0.4)'}
-            />
-          </TouchableOpacity>
+          {/* Right Side - Action Buttons */}
+          <View style={styles.rightControls}>
+            {/* Show microphone and camera when no text */}
+            {!value.trim() && !isTranscribing && (
+              <>
+                <Animated.View style={animatedMicrophoneStyle}>
+                  <TouchableOpacity
+                    style={[
+                      styles.iconButton,
+                      isRecording && styles.recordingButton,
+                    ]}
+                    onPress={handleMicrophonePress}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isRecording ? 'mic' : 'mic-outline'}
+                      size={18}
+                      color={isRecording ? '#EF4444' : 'rgba(0, 0, 0, 0.4)'}
+                    />
+                  </TouchableOpacity>
+                </Animated.View>
+
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={onCameraPress}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="camera"
+                    size={18}
+                    color="rgba(0, 0, 0, 0.4)"
+                  />
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Show transcribing indicator */}
+            {isTranscribing && (
+              <View style={styles.transcribingContainer}>
+                <OrbitalLoader size={32} color="#0EA5E9" />
+              </View>
+            )}
+
+            {/* Show send button when there's text */}
+            {value.trim() && !isTranscribing && (
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  styles.sendButtonActive,
+                ]}
+                onPress={handleSubmit}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="send"
+                  size={18}
+                  color="#0EA5E9"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 };
@@ -130,13 +376,11 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 16,
     },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.15)',
+    shadowOpacity: 0.25,
+    shadowRadius: 50,
+    elevation: 50,
   },
   textInput: {
     paddingHorizontal: 16,
@@ -161,6 +405,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  rightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   iconButton: {
     width: 32,
     height: 32,
@@ -168,6 +417,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  recordingButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+  },
+  transcribingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
   },
   searchButton: {
     height: 32,

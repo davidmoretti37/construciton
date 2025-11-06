@@ -74,13 +74,13 @@ export default function BudgetChart({ data }) {
         <View style={styles.paymentRow}>
           <View style={styles.paymentItem}>
             <View style={styles.iconContainer}>
-              <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+              <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
             </View>
             <View>
               <Text style={[styles.paymentLabel, { color: Colors.secondaryText }]}>
                 Collected
               </Text>
-              <Text style={[styles.paymentValue, { color: Colors.primaryText }]}>
+              <Text style={[styles.paymentValue, { color: '#22C55E', fontWeight: '700' }]}>
                 {formatCurrency(collected)}
               </Text>
             </View>
@@ -88,13 +88,13 @@ export default function BudgetChart({ data }) {
 
           <View style={styles.paymentItem}>
             <View style={styles.iconContainer}>
-              <Ionicons name="time-outline" size={20} color={Colors.warning} />
+              <Ionicons name="time-outline" size={20} color="#9CA3AF" />
             </View>
             <View>
               <Text style={[styles.paymentLabel, { color: Colors.secondaryText }]}>
                 Pending
               </Text>
-              <Text style={[styles.paymentValue, { color: Colors.primaryText }]}>
+              <Text style={[styles.paymentValue, { color: '#9CA3AF', fontWeight: '700' }]}>
                 {formatCurrency(pending)}
               </Text>
             </View>
@@ -108,7 +108,7 @@ export default function BudgetChart({ data }) {
           style={[
             styles.collectedBar,
             {
-              backgroundColor: Colors.success,
+              backgroundColor: '#22C55E',
               flex: collected / (collected + pending) || 0
             }
           ]}
@@ -117,7 +117,7 @@ export default function BudgetChart({ data }) {
           style={[
             styles.pendingBar,
             {
-              backgroundColor: Colors.warning,
+              backgroundColor: '#D1D5DB',
               flex: pending / (collected + pending) || 0
             }
           ]}
