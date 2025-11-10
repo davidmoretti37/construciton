@@ -28,6 +28,7 @@ const AIInputWithSearch = ({
   onCameraPress,
 }) => {
   const [value, setValue] = useState('');
+  const [inputKey, setInputKey] = useState(0); // Force re-render key
   const [showSearch, setShowSearch] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -42,10 +43,9 @@ const AIInputWithSearch = ({
     if (value.trim()) {
       const textToSend = value.trim();
       onSubmit?.(textToSend, false);
-      // Clear input in next tick to ensure proper state update
-      setTimeout(() => {
-        setValue('');
-      }, 0);
+      // Clear input and force re-render
+      setValue('');
+      setInputKey(prev => prev + 1);
     }
   };
 
@@ -265,6 +265,7 @@ const AIInputWithSearch = ({
       >
         {/* Text Input Area */}
         <TextInput
+          key={inputKey}
           style={styles.textInput}
           placeholder={placeholder}
           placeholderTextColor="rgba(0, 0, 0, 0.4)"

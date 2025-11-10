@@ -190,6 +190,11 @@ export const updateTradePricing = async (tradeId, pricing) => {
   try {
     const profile = await getUserProfile();
 
+    // Ensure pricing object exists
+    if (!profile.pricing) {
+      profile.pricing = {};
+    }
+
     if (!profile.pricing[tradeId]) {
       profile.pricing[tradeId] = {};
     }
@@ -873,5 +878,445 @@ export const getUnhandledConversationCount = async (projectId) => {
   } catch (error) {
     console.error('Error getting unhandled conversation count:', error);
     return 0;
+  }
+};
+
+// ===================================================================
+// ESTIMATES FUNCTIONS
+// ===================================================================
+
+/**
+ * Save a new estimate to the database
+ * @param {object} estimateData - Estimate data
+ * @returns {Promise<object|null>} Created estimate or null
+ */
+export const saveEstimate = async (estimateData) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('estimates')
+      .insert({
+        user_id: userId,
+        client_name: estimateData.client || estimateData.clientName,
+        client_phone: estimateData.clientPhone,
+        client_email: estimateData.clientEmail,
+        client_address: estimateData.clientAddress,
+        project_name: estimateData.projectName,
+        items: estimateData.items || [],
+        subtotal: estimateData.subtotal || 0,
+        tax_rate: estimateData.taxRate || 0,
+        tax_amount: estimateData.taxAmount || 0,
+        total: estimateData.total || 0,
+        valid_until: estimateData.validUntil || null,
+        payment_terms: estimateData.paymentTerms || 'Net 30',
+        notes: estimateData.notes || '',
+        status: 'draft'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving estimate:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in saveEstimate:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch all estimates for current user
+ * @param {object} filters - Optional filters (status, dateRange, etc.)
+ * @returns {Promise<array>} Array of estimates
+ */
+export const fetchEstimates = async (filters = {}) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.log('No user logged in');
+      return [];
+    }
+
+    let query = supabase
+      .from('estimates')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    // Apply filters
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters.clientName) {
+      query = query.ilike('client_name', `%${filters.clientName}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching estimates:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchEstimates:', error);
+    return [];
+  }
+};
+
+/**
+ * Get a single estimate by ID
+ * @param {string} estimateId - Estimate ID
+ * @returns {Promise<object|null>} Estimate or null
+ */
+export const getEstimate = async (estimateId) => {
+  try {
+    const { data, error } = await supabase
+      .from('estimates')
+      .select('*')
+      .eq('id', estimateId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching estimate:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getEstimate:', error);
+    return null;
+  }
+};
+
+/**
+ * Update estimate status
+ * @param {string} estimateId - Estimate ID
+ * @param {string} status - New status ('draft', 'sent', 'accepted', 'rejected')
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateEstimateStatus = async (estimateId, status) => {
+  try {
+    const updateData = { status };
+
+    // Set timestamp based on status
+    if (status === 'sent') {
+      updateData.sent_date = new Date().toISOString();
+    } else if (status === 'accepted') {
+      updateData.accepted_date = new Date().toISOString();
+    } else if (status === 'rejected') {
+      updateData.rejected_date = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from('estimates')
+      .update(updateData)
+      .eq('id', estimateId);
+
+    if (error) {
+      console.error('Error updating estimate status:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updateEstimateStatus:', error);
+    return false;
+  }
+};
+
+/**
+ * Delete an estimate
+ * @param {string} estimateId - Estimate ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const deleteEstimate = async (estimateId) => {
+  try {
+    const { error } = await supabase
+      .from('estimates')
+      .delete()
+      .eq('id', estimateId);
+
+    if (error) {
+      console.error('Error deleting estimate:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteEstimate:', error);
+    return false;
+  }
+};
+
+// ===================================================================
+// INVOICES FUNCTIONS
+// ===================================================================
+
+/**
+ * Create invoice from an estimate
+ * @param {string} estimateId - Estimate ID to convert
+ * @returns {Promise<object|null>} Created invoice or null
+ */
+export const createInvoiceFromEstimate = async (estimateId) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    // Fetch the estimate
+    const { data: estimate, error: fetchError } = await supabase
+      .from('estimates')
+      .select('*')
+      .eq('id', estimateId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !estimate) {
+      console.error('Error fetching estimate:', fetchError);
+      return null;
+    }
+
+    // Calculate due date (30 days from now)
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+
+    // Create invoice
+    const { data: invoice, error: createError } = await supabase
+      .from('invoices')
+      .insert({
+        user_id: userId,
+        estimate_id: estimateId,
+        client_name: estimate.client_name,
+        client_phone: estimate.client_phone,
+        client_email: estimate.client_email,
+        client_address: estimate.client_address,
+        project_name: estimate.project_name,
+        items: estimate.items,
+        subtotal: estimate.subtotal,
+        tax_rate: estimate.tax_rate,
+        tax_amount: estimate.tax_amount,
+        total: estimate.total,
+        due_date: dueDate.toISOString().split('T')[0],
+        payment_terms: estimate.payment_terms,
+        notes: estimate.notes,
+        status: 'unpaid'
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating invoice:', createError);
+      return null;
+    }
+
+    // Update estimate status to 'accepted'
+    await updateEstimateStatus(estimateId, 'accepted');
+
+    return invoice;
+  } catch (error) {
+    console.error('Error in createInvoiceFromEstimate:', error);
+    return null;
+  }
+};
+
+/**
+ * Create a standalone invoice (not from estimate)
+ * @param {object} invoiceData - Invoice data
+ * @returns {Promise<object|null>} Created invoice or null
+ */
+export const saveInvoice = async (invoiceData) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert({
+        user_id: userId,
+        client_name: invoiceData.client || invoiceData.clientName,
+        client_phone: invoiceData.clientPhone,
+        client_email: invoiceData.clientEmail,
+        client_address: invoiceData.clientAddress,
+        project_name: invoiceData.projectName,
+        items: invoiceData.items || [],
+        subtotal: invoiceData.subtotal || 0,
+        tax_rate: invoiceData.taxRate || 0,
+        tax_amount: invoiceData.taxAmount || 0,
+        total: invoiceData.total || 0,
+        due_date: invoiceData.dueDate,
+        payment_terms: invoiceData.paymentTerms || 'Net 30',
+        notes: invoiceData.notes || '',
+        status: 'unpaid'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving invoice:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in saveInvoice:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch all invoices for current user
+ * @param {object} filters - Optional filters (status, dateRange, etc.)
+ * @returns {Promise<array>} Array of invoices
+ */
+export const fetchInvoices = async (filters = {}) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.log('No user logged in');
+      return [];
+    }
+
+    let query = supabase
+      .from('invoices')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    // Apply filters
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters.clientName) {
+      query = query.ilike('client_name', `%${filters.clientName}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching invoices:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchInvoices:', error);
+    return [];
+  }
+};
+
+/**
+ * Get a single invoice by ID
+ * @param {string} invoiceId - Invoice ID
+ * @returns {Promise<object|null>} Invoice or null
+ */
+export const getInvoice = async (invoiceId) => {
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching invoice:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getInvoice:', error);
+    return null;
+  }
+};
+
+/**
+ * Mark invoice as paid
+ * @param {string} invoiceId - Invoice ID
+ * @param {number} amount - Payment amount
+ * @param {string} paymentMethod - Payment method ('cash', 'check', 'credit_card', etc.)
+ * @returns {Promise<boolean>} Success status
+ */
+export const markInvoiceAsPaid = async (invoiceId, amount, paymentMethod = null) => {
+  try {
+    const { data: invoice, error: fetchError } = await supabase
+      .from('invoices')
+      .select('total, amount_paid')
+      .eq('id', invoiceId)
+      .single();
+
+    if (fetchError || !invoice) {
+      console.error('Error fetching invoice:', fetchError);
+      return false;
+    }
+
+    const newAmountPaid = (invoice.amount_paid || 0) + amount;
+    const status = newAmountPaid >= invoice.total ? 'paid' : 'partial';
+
+    const updateData = {
+      amount_paid: newAmountPaid,
+      status,
+      payment_method: paymentMethod
+    };
+
+    if (status === 'paid') {
+      updateData.paid_date = new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from('invoices')
+      .update(updateData)
+      .eq('id', invoiceId);
+
+    if (updateError) {
+      console.error('Error updating invoice payment:', updateError);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in markInvoiceAsPaid:', error);
+    return false;
+  }
+};
+
+/**
+ * Update invoice PDF URL
+ * @param {string} invoiceId - Invoice ID
+ * @param {string} pdfUrl - PDF URL from Supabase storage
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateInvoicePDF = async (invoiceId, pdfUrl) => {
+  try {
+    const { error } = await supabase
+      .from('invoices')
+      .update({ pdf_url: pdfUrl })
+      .eq('id', invoiceId);
+
+    if (error) {
+      console.error('Error updating invoice PDF:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updateInvoicePDF:', error);
+    return false;
   }
 };
