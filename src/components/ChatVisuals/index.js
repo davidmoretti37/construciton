@@ -1,4 +1,5 @@
 export { default as ProjectCard } from './ProjectCard';
+export { default as ProjectPreview } from './ProjectPreview';
 export { default as WorkerList } from './WorkerList';
 export { default as BudgetChart } from './BudgetChart';
 export { default as PhotoGallery } from './PhotoGallery';
@@ -8,3 +9,4 @@ export { default as InvoicePreview } from './InvoicePreview';
 export { default as ProjectSelector } from './ProjectSelector';
 export { default as ExpenseCard } from './ExpenseCard';
 export { default as ProjectOverview } from './ProjectOverview';
+export { default as PhaseOverview } from './PhaseOverview';

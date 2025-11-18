@@ -1,12 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import PhaseTimeline from '../PhaseTimeline';
 
 export default function ProjectCard({ data, onAction }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
+  const [expandedPhases, setExpandedPhases] = useState({});
+
+  const togglePhaseExpansion = (phaseId) => {
+    setExpandedPhases(prev => ({
+      ...prev,
+      [phaseId]: !prev[phaseId]
+    }));
+  };
 
   if (!data) {
     console.error('ProjectCard: No data provided');
@@ -17,51 +26,46 @@ export default function ProjectCard({ data, onAction }) {
   const {
     id,
     name = 'Unnamed Project',
-    client = '',
     percentComplete = 0,
     status = 'draft',
     workers = [],
     daysRemaining = null,
-    lastActivity = ''
+    lastActivity = '',
+    phases = [],
+    hasPhases = false
   } = data;
 
-  // Extras/Additions support
+  // Extras/Additions support (for history display only)
   const extras = data.extras || [];
-  const extrasTotal = extras.reduce((sum, extra) => sum + (extra.amount || 0), 0);
+  const baseContract = data.baseContract || 0;
 
-  // New financial model - properly read from data object with fallbacks
-  const baseContractAmount = data.contractAmount || data.budget || 0;
-  const contractAmount = baseContractAmount + extrasTotal; // Total includes extras
+  // New financial model - contractAmount is ALREADY calculated by database (base + extras)
+  // DO NOT add extras again here!
+  const contractAmount = data.contractAmount || data.budget || 0;
   const incomeCollected = data.incomeCollected || 0;
   const expenses = data.expenses || data.spent || 0;
   const profit = incomeCollected - expenses;
 
   // Legacy fields
-  const budget = data.budget || baseContractAmount;
+  const budget = data.budget || contractAmount;
   const spent = data.spent || expenses;
-
-  // Debug logging to see what values we're getting
-  console.log('ProjectCard data:', {
-    name,
-    contractAmount,
-    incomeCollected,
-    expenses,
-    profit,
-    rawData: data
-  });
 
   const getStatusColor = () => {
     switch (status) {
       case 'on-track':
-        return Colors.success;
+        return '#10B981'; // Green
       case 'behind':
-        return Colors.warning;
+        return '#F59E0B'; // Orange
       case 'over-budget':
-        return Colors.error;
+        return '#EF4444'; // Red
       default:
-        return Colors.primaryBlue;
+        return '#3B82F6'; // Blue
     }
   };
+
+  // Calculate progress values
+  const progressWidth = Math.min(percentComplete, 100);
+  const progressColor = getStatusColor();
 
   const getStatusIcon = () => {
     switch (status) {
@@ -165,30 +169,151 @@ export default function ProjectCard({ data, onAction }) {
       <View style={styles.header}>
         <View style={styles.titleContainer}>
           <Text style={[styles.projectName, { color: Colors.primaryText }]}>{name}</Text>
-          {client && <Text style={[styles.clientName, { color: Colors.primaryText }]}>{client}</Text>}
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '20' }]}>
           <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
         </View>
       </View>
 
-      {/* Progress Bar */}
-      <View style={styles.progressSection}>
-        <View style={[styles.progressBarBg, { backgroundColor: Colors.lightGray }]}>
-          <View
-            style={[
-              styles.progressBarFill,
-              {
-                backgroundColor: getStatusColor(),
-                width: `${Math.min(percentComplete, 100)}%`
-              }
-            ]}
-          />
+      {/* Payment Structure Badge */}
+      {data.payment_structure && (
+        <View style={styles.paymentBadgeContainer}>
+          <View style={[styles.paymentBadge, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue + '30' }]}>
+            <Ionicons
+              name={data.payment_structure === 'per_phase' ? 'layers-outline' : 'wallet-outline'}
+              size={14}
+              color={Colors.primaryBlue}
+            />
+            <Text style={[styles.paymentBadgeText, { color: Colors.primaryBlue }]}>
+              {data.payment_structure === 'per_phase' ? 'Pay per phase' : 'Pay in full'}
+            </Text>
+          </View>
         </View>
-        <Text style={[styles.progressText, { color: Colors.primaryText }]}>
-          {percentComplete}% complete
-        </Text>
-      </View>
+      )}
+
+      {/* Timeline Progress Bar - Show phases if available, otherwise simple bar */}
+      {hasPhases && phases && phases.length > 0 ? (
+        <View style={styles.progressSection}>
+          <PhaseTimeline phases={phases} compact={true} />
+
+          {/* Expandable Phase Details */}
+          <View style={styles.phasesContainer}>
+            {phases.map((phase, index) => {
+              const isExpanded = expandedPhases[phase.id || index];
+              const hasPayment = data.payment_structure === 'per_phase' && phase.payment_amount;
+              const hasTasks = phase.tasks && phase.tasks.length > 0;
+
+              return (
+                <View key={phase.id || index} style={styles.phaseCard}>
+                  {/* Phase Header - Clickable to expand/collapse */}
+                  <TouchableOpacity
+                    style={styles.phaseHeader}
+                    onPress={() => togglePhaseExpansion(phase.id || index)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.phaseHeaderLeft}>
+                      <Ionicons
+                        name={isExpanded ? "chevron-down" : "chevron-forward"}
+                        size={20}
+                        color={Colors.primaryBlue}
+                      />
+                      <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
+                        {phase.name}
+                      </Text>
+                    </View>
+                    <View style={styles.phaseHeaderRight}>
+                      {hasPayment && (
+                        <Text style={[styles.phasePayment, { color: Colors.primaryBlue }]}>
+                          ${phase.payment_amount.toLocaleString()}
+                        </Text>
+                      )}
+                      <Text style={[styles.phaseProgress, { color: Colors.secondaryText }]}>
+                        {phase.completion_percentage || 0}%
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Expandable Content */}
+                  {isExpanded && (
+                    <View style={styles.phaseContent}>
+                      {/* Progress Bar */}
+                      <View style={styles.phaseProgressBar}>
+                        <View style={[styles.phaseProgressBg, { backgroundColor: Colors.lightGray }]}>
+                          <View
+                            style={[
+                              styles.phaseProgressFill,
+                              {
+                                backgroundColor: Colors.primaryBlue,
+                                width: `${phase.completion_percentage || 0}%`
+                              }
+                            ]}
+                          />
+                        </View>
+                      </View>
+
+                      {/* Phase Dates */}
+                      {phase.start_date && phase.end_date && (
+                        <View style={styles.phaseDates}>
+                          <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
+                          <Text style={[styles.phaseDateText, { color: Colors.secondaryText }]}>
+                            {new Date(phase.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {' → '}
+                            {new Date(phase.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Tasks Checklist */}
+                      {hasTasks && (
+                        <View style={styles.tasksContainer}>
+                          <Text style={[styles.tasksHeader, { color: Colors.primaryText }]}>
+                            Tasks:
+                          </Text>
+                          {phase.tasks.map((task, taskIndex) => (
+                            <View key={taskIndex} style={styles.taskItem}>
+                              <Ionicons
+                                name={task.completed ? "checkmark-circle" : "ellipse-outline"}
+                                size={18}
+                                color={task.completed ? Colors.success : Colors.lightGray}
+                              />
+                              <Text style={[
+                                styles.taskText,
+                                {
+                                  color: task.completed ? Colors.secondaryText : Colors.primaryText,
+                                  textDecorationLine: task.completed ? 'line-through' : 'none'
+                                }
+                              ]}>
+                                {task.name}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.progressSection}>
+          <View style={[styles.progressBarBg, { backgroundColor: '#E5E7EB' }]}>
+            <View
+              style={[
+                styles.progressBarFill,
+                {
+                  backgroundColor: getStatusColor(),
+                  width: `${Math.min(percentComplete, 100)}%`
+                }
+              ]}
+            />
+          </View>
+          <Text style={[styles.progressText, { color: Colors.primaryText }]}>
+            {percentComplete}% complete {!data.startDate || !data.endDate ? '(no timeline)' : ''}
+          </Text>
+        </View>
+      )}
 
       {/* Days Remaining */}
       <View style={styles.daysRemainingSection}>
@@ -211,7 +336,7 @@ export default function ProjectCard({ data, onAction }) {
         {extras.length > 0 && (
           <View style={styles.extrasContainer}>
             <Text style={[styles.extrasHeader, { color: Colors.primaryText }]}>
-              • Base Contract: ${baseContractAmount.toLocaleString()}
+              • Base Contract: ${baseContract.toLocaleString()}
             </Text>
             {extras.map((extra, index) => (
               <Text key={index} style={[styles.extrasItem, { color: Colors.primaryText }]}>
@@ -222,9 +347,8 @@ export default function ProjectCard({ data, onAction }) {
           </View>
         )}
 
-        {/* Financial Progress Bar showing Income (Green), Expenses (Red), Pending (Grey) */}
-        {contractAmount > 0 && (
-          <View style={styles.compoundProgressContainer}>
+        {/* Financial Progress Bar showing Income (Green), Expenses (Red), Pending (Grey) - Always show */}
+        <View style={styles.compoundProgressContainer}>
             {/* Legend */}
             <View style={styles.progressLegend}>
               <View style={styles.legendItem}>
@@ -287,7 +411,6 @@ export default function ProjectCard({ data, onAction }) {
               )}
             </View>
           </View>
-        )}
 
         {/* Profit Display */}
         <View style={styles.profitContainer}>
@@ -368,6 +491,24 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: FontSizes.tiny,
+  },
+  paymentBadgeContainer: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    gap: 4,
+  },
+  paymentBadgeText: {
+    fontSize: FontSizes.tiny,
+    fontWeight: '600',
   },
   daysRemainingSection: {
     marginBottom: Spacing.md,
@@ -469,5 +610,90 @@ const styles = StyleSheet.create({
   lastActivity: {
     fontSize: FontSizes.tiny,
     marginTop: Spacing.xs,
+  },
+  // Expandable Phase Styles
+  phasesContainer: {
+    marginTop: Spacing.md,
+  },
+  phaseCard: {
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  phaseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.md,
+    backgroundColor: '#F9FAFB',
+  },
+  phaseHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  phaseName: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  phaseHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  phasePayment: {
+    fontSize: FontSizes.body,
+    fontWeight: '700',
+  },
+  phaseProgress: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+  },
+  phaseContent: {
+    padding: Spacing.md,
+    paddingTop: Spacing.sm,
+  },
+  phaseProgressBar: {
+    marginBottom: Spacing.sm,
+  },
+  phaseProgressBg: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  phaseProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  phaseDates: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  phaseDateText: {
+    fontSize: FontSizes.tiny,
+  },
+  tasksContainer: {
+    marginTop: Spacing.sm,
+  },
+  tasksHeader: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+    marginBottom: Spacing.xs,
+  },
+  taskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  taskText: {
+    fontSize: FontSizes.small,
+    flex: 1,
   },
 });

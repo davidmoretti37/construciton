@@ -18,7 +18,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 export default function BusinessInfoScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
-  const { selectedTrades } = route.params;
+  const { selectedTrades, phasesTemplate } = route.params;
 
   const [businessName, setBusinessName] = useState('');
   const [phone, setPhone] = useState('');
@@ -37,6 +37,7 @@ export default function BusinessInfoScreen({ navigation, route }) {
 
     navigation.navigate('PricingSetup', {
       selectedTrades,
+      phasesTemplate,
       businessInfo: {
         name: businessName.trim(),
         phone: phone.trim(),

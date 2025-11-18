@@ -4,6 +4,7 @@ import {
   Text,
   Modal,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ScrollView,
 } from 'react-native';
@@ -93,10 +94,14 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
       transparent
       animationType="slide"
       onRequestClose={handleClose}
+      statusBarTranslucent
+      hardwareAccelerated
     >
-      <View style={styles.overlay}>
-        <View style={[styles.modalContainer, { backgroundColor: Colors.white }]}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+      <TouchableWithoutFeedback onPress={handleClose}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.modalContainer, { backgroundColor: Colors.white }]}>
+              <ScrollView showsVerticalScrollIndicator={false}>
             {/* Header */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: Colors.primaryText }]}>
@@ -210,8 +215,10 @@ export default function TimelinePickerModal({ visible, onClose, onConfirm, proje
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -221,6 +228,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    zIndex: 9999,
+    elevation: 10,
   },
   modalContainer: {
     borderTopLeftRadius: 20,

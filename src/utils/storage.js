@@ -19,7 +19,7 @@ const DEFAULT_PROFILE = {
  * Get current user ID from Supabase auth
  * @returns {Promise<string|null>} User ID or null
  */
-const getCurrentUserId = async () => {
+export const getCurrentUserId = async () => {
   const { data: { user } } = await supabase.auth.getUser();
   return user?.id || null;
 };
@@ -61,6 +61,7 @@ export const getUserProfile = async () => {
       },
       trades: data.trades || [],
       pricing: data.pricing || {},
+      phasesTemplate: data.phases_template || null,
     };
   } catch (error) {
     console.error('Error loading user profile:', error);
@@ -91,6 +92,7 @@ export const saveUserProfile = async (profile) => {
         business_email: profile.businessInfo?.email || '',
         trades: profile.trades || [],
         pricing: profile.pricing || {},
+        phases_template: profile.phasesTemplate || null,
         is_onboarded: profile.isOnboarded || false,
       });
 
@@ -250,6 +252,100 @@ export const isOnboarded = async () => {
     return profile.isOnboarded === true;
   } catch (error) {
     console.error('Error checking onboarding status:', error);
+    return false;
+  }
+};
+
+/**
+ * Check if user needs feature updates (missing new fields)
+ * @returns {Promise<object>} Object with needsUpdate flag and missing features
+ */
+export const needsFeatureUpdate = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { needsUpdate: false, missingFeatures: [] };
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role, is_onboarded, phases_template')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error checking feature updates:', error);
+      return { needsUpdate: false, missingFeatures: [] };
+    }
+
+    // Only check for owner accounts that are onboarded
+    if (data?.role !== 'owner' || !data?.is_onboarded) {
+      return { needsUpdate: false, missingFeatures: [] };
+    }
+
+    const missingFeatures = [];
+
+    // Check if missing phases_template
+    if (!data.phases_template) {
+      missingFeatures.push('phases_template');
+    }
+
+    // Add more feature checks here in the future
+    // if (!data.some_new_feature) {
+    //   missingFeatures.push('some_new_feature');
+    // }
+
+    return {
+      needsUpdate: missingFeatures.length > 0,
+      missingFeatures,
+    };
+  } catch (error) {
+    console.error('Error checking feature updates:', error);
+    return { needsUpdate: false, missingFeatures: [] };
+  }
+};
+
+/**
+ * Mark feature update as complete by incrementing migration version
+ * @returns {Promise<boolean>} Success status
+ */
+export const markFeatureUpdateComplete = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return false;
+    }
+
+    // Increment migration version
+    const { data, error: fetchError } = await supabase
+      .from('profiles')
+      .select('migration_version')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching migration version:', fetchError);
+      return false;
+    }
+
+    const currentVersion = data?.migration_version || 0;
+    const newVersion = currentVersion + 1;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ migration_version: newVersion })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error updating migration version:', error);
+      return false;
+    }
+
+    console.log(`✅ Feature update complete (v${newVersion})`);
+    return true;
+  } catch (error) {
+    console.error('Error marking feature update complete:', error);
     return false;
   }
 };
@@ -420,43 +516,65 @@ export const saveProject = async (projectData) => {
       return null;
     }
 
+    // Extract schedule dates if provided
+    const startDate = projectData.startDate || projectData.schedule?.startDate || null;
+    const endDate = projectData.endDate || projectData.schedule?.estimatedEndDate || null;
+
     // Auto-calculate completion percentage from dates
-    const autoPercentComplete = calculateTimeBasedCompletion(
-      projectData.startDate || null,
-      projectData.endDate || null
-    );
+    const autoPercentComplete = calculateTimeBasedCompletion(startDate, endDate);
+
+    // Calculate budget from phases or lineItems if not provided
+    let calculatedBudget = projectData.budget || projectData.baseContract || projectData.contractAmount || 0;
+
+    if (projectData.phases && projectData.phases.length > 0) {
+      // Calculate total from phase budgets
+      calculatedBudget = projectData.phases.reduce((sum, phase) => {
+        return sum + (parseFloat(phase.budget) || 0);
+      }, 0);
+    } else if (projectData.lineItems && projectData.lineItems.length > 0) {
+      // Calculate total from line items
+      calculatedBudget = projectData.lineItems.reduce((sum, item) => {
+        return sum + (parseFloat(item.total) || 0);
+      }, 0);
+    } else if (projectData.total) {
+      // Use total if provided
+      calculatedBudget = parseFloat(projectData.total) || 0;
+    }
 
     // Transform app format to database format
     const dbProject = {
       user_id: userId,
-      name: projectData.name,
-      client: projectData.client || projectData.name || 'Unknown Client', // Fallback to name or Unknown if missing
-      client_phone: projectData.clientPhone || null,
+      name: projectData.projectName || projectData.name || `${projectData.client} - Project`,
+      client_phone: projectData.phone || projectData.clientPhone || null,
+      client_email: projectData.email || projectData.clientEmail || null,
+      location: projectData.location || null,
       ai_responses_enabled: projectData.aiResponsesEnabled !== false, // Default to true
-      // New financial model
-      contract_amount: projectData.contractAmount || 0,
+      // New financial model with extras support
+      base_contract: calculatedBudget,
+      extras: projectData.extras || [],
+      // contract_amount is auto-calculated by database trigger (base_contract + sum of extras)
       income_collected: projectData.incomeCollected || 0,
       expenses: projectData.expenses || 0,
-      extras: projectData.extras || [],
       // Legacy fields (for backward compatibility)
-      budget: projectData.budget || projectData.contractAmount || 0,
+      budget: calculatedBudget,
       spent: projectData.spent || projectData.expenses || 0,
       percent_complete: autoPercentComplete, // Auto-calculated from dates
-      status: projectData.status || 'active',
+      status: projectData.status || 'draft',
       workers: projectData.workers || [],
       days_remaining: projectData.daysRemaining || null,
       last_activity: projectData.lastActivity || 'Just created',
-      location: projectData.location || null,
-      start_date: projectData.startDate || null,
-      end_date: projectData.endDate || null,
-      task_description: projectData.taskDescription || null,
+      start_date: startDate,
+      end_date: endDate,
+      task_description: projectData.scope?.description || projectData.taskDescription || null,
       estimated_duration: projectData.estimatedDuration || null,
+      // Indicate if project has phases
+      has_phases: !!(projectData.phases && projectData.phases.length > 0),
     };
 
     // If project has an ID, update it; otherwise insert new
     let result;
     if (projectData.id && !projectData.id.startsWith('temp-')) {
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('projects')
         .update(dbProject)
         .eq('id', projectData.id)
@@ -477,7 +595,14 @@ export const saveProject = async (projectData) => {
       result = data;
     }
 
-    console.log('Project saved successfully:', result.id);
+    console.log('✅ Project saved successfully:', result.id);
+
+    // Save phases if provided
+    if (projectData.phases && projectData.phases.length > 0) {
+      console.log('💾 Saving project phases...');
+      await saveProjectPhases(result.id, projectData.phases, projectData.schedule);
+    }
+
     return transformProjectFromDB(result);
   } catch (error) {
     console.error('Error saving project:', error);
@@ -508,8 +633,20 @@ export const fetchProjects = async () => {
       return [];
     }
 
-    // Transform each project from DB format to app format
-    return (data || []).map(transformProjectFromDB);
+    // Transform each project and fetch phases if hasPhases is true
+    const projects = await Promise.all((data || []).map(async (project) => {
+      const transformed = transformProjectFromDB(project);
+
+      // Fetch phases if project has them
+      if (transformed.hasPhases) {
+        const phases = await fetchProjectPhases(transformed.id);
+        transformed.phases = phases || [];
+      }
+
+      return transformed;
+    }));
+
+    return projects;
   } catch (error) {
     console.error('Error loading projects:', error);
     return [];
@@ -637,30 +774,67 @@ const transformProjectFromDB = (dbProject) => {
   }
 
   // Parse new financial fields, with fallback to legacy fields
+  // contract_amount is auto-calculated by DB trigger (base_contract + extras)
   const contractAmount = parseFloat(dbProject.contract_amount) || parseFloat(dbProject.budget) || 0;
+  const baseContract = parseFloat(dbProject.base_contract) || contractAmount;
   const incomeCollected = parseFloat(dbProject.income_collected) || 0;
   const expenses = parseFloat(dbProject.expenses) || parseFloat(dbProject.spent) || 0;
+  const extras = dbProject.extras || [];
 
   // Auto-calculate completion percentage based on time (days elapsed / total days)
   const percentComplete = calculateTimeBasedCompletion(dbProject.start_date, dbProject.end_date);
 
+  // Calculate status based on progress and financials
+  const calculateStatus = () => {
+    const storedStatus = dbProject.status || 'active';
+
+    // Only allowed DB statuses: draft, active, completed, archived
+    // Dynamic statuses (on-track, behind, over-budget) are calculated in the app, not stored in DB
+    if (['draft', 'active', 'completed', 'archived'].includes(storedStatus)) {
+      return storedStatus;
+    }
+
+    // If stored status is invalid (old data), default to active
+    return 'active';
+  };
+
+  // Calculate display status (includes dynamic statuses for UI)
+  const calculateDisplayStatus = () => {
+    const baseStatus = calculateStatus();
+
+    // If project is not active, return the base status
+    if (baseStatus !== 'active') {
+      return baseStatus;
+    }
+
+    // For active projects, calculate dynamic status based on timeline and budget
+    const isOverBudget = expenses > contractAmount;
+    const isBehind = daysRemaining !== null && daysRemaining < 0;
+
+    // Priority: over-budget > behind > on-track
+    if (isOverBudget) return 'over-budget';
+    if (isBehind) return 'behind';
+    return 'on-track';
+  };
+
   return {
     id: dbProject.id,
     name: dbProject.name,
-    client: dbProject.client,
+    client: dbProject.client, // Client name
     clientPhone: dbProject.client_phone,
     aiResponsesEnabled: dbProject.ai_responses_enabled !== false, // Default to true
-    // New financial model
-    contractAmount: contractAmount,
+    // New financial model with extras support
+    baseContract: baseContract,
+    contractAmount: contractAmount, // This includes base + extras (auto-calculated by DB)
+    extras: extras, // Keep extras array for history tracking
     incomeCollected: incomeCollected,
     expenses: expenses,
     profit: incomeCollected - expenses, // Calculated field
-    extras: dbProject.extras || [],
     // Legacy fields (kept for backward compatibility)
     budget: contractAmount,
     spent: expenses,
     percentComplete: percentComplete, // Auto-calculated from dates
-    status: dbProject.status || 'active',
+    status: calculateDisplayStatus(), // Display status (includes dynamic statuses like on-track, behind, over-budget)
     workers: dbProject.workers || [],
     daysRemaining: daysRemaining,
     lastActivity: dbProject.last_activity || 'No activity',
@@ -669,6 +843,7 @@ const transformProjectFromDB = (dbProject) => {
     endDate: dbProject.end_date,
     taskDescription: dbProject.task_description,
     estimatedDuration: dbProject.estimated_duration,
+    hasPhases: dbProject.has_phases || false, // Whether project uses phases
     createdAt: dbProject.created_at,
     updatedAt: dbProject.updated_at,
   };
@@ -680,24 +855,14 @@ const transformProjectFromDB = (dbProject) => {
  * @returns {object} Project format object ready to save
  */
 export const transformScreenshotToProject = (screenshotData) => {
-  const { worker, location, date, time, task, budget, client, estimatedDuration } = screenshotData;
+  const { worker, location, date, time, task, budget, estimatedDuration } = screenshotData;
 
-  // Generate project name from client and task
-  let projectName = '';
-  if (client && task) {
-    projectName = `${client}'s ${task}`;
-  } else if (client) {
-    projectName = `${client} Project`;
-  } else if (task) {
-    projectName = task;
-  } else {
-    projectName = 'New Project';
-  }
+  // Use task as project name
+  const projectName = task || 'New Project';
 
   return {
     id: `temp-${Date.now()}`, // Temporary ID until saved
     name: projectName,
-    client: client || 'Unknown Client',
     // New financial model
     contractAmount: budget || 0, // Screenshot budget becomes contract amount
     incomeCollected: 0,
@@ -902,12 +1067,16 @@ export const saveEstimate = async (estimateData) => {
       .from('estimates')
       .insert({
         user_id: userId,
-        client_name: estimateData.client || estimateData.clientName,
-        client_phone: estimateData.clientPhone,
-        client_email: estimateData.clientEmail,
-        client_address: estimateData.clientAddress,
+        project_id: estimateData.projectId || null,
+        client_name: estimateData.client?.name || estimateData.client || estimateData.clientName,
+        client_phone: estimateData.client?.phone || estimateData.clientPhone,
+        client_email: estimateData.client?.email || estimateData.clientEmail,
+        client_address: estimateData.client?.address || estimateData.clientAddress,
         project_name: estimateData.projectName,
-        items: estimateData.items || [],
+        items: estimateData.lineItems || estimateData.items || [],
+        phases: estimateData.phases || [],
+        schedule: estimateData.schedule || {},
+        scope: estimateData.scope || {},
         subtotal: estimateData.subtotal || 0,
         tax_rate: estimateData.taxRate || 0,
         tax_amount: estimateData.taxAmount || 0,
@@ -925,9 +1094,342 @@ export const saveEstimate = async (estimateData) => {
       return null;
     }
 
+    // If estimate has projectId, update the project with estimate data
+    if (estimateData.projectId && data) {
+      const mergeMode = estimateData.mergeWithProject === true;
+      const overrideMode = estimateData.overrideProject === true || !mergeMode; // Default to override
+
+      console.log('📊 Updating project with estimate data:', estimateData.projectId);
+      console.log('📊 Mode:', mergeMode ? 'MERGE' : 'OVERRIDE');
+      console.log('📊 Estimate data being used for update:', {
+        total: estimateData.total,
+        hasPhases: estimateData.phases?.length > 0,
+        phasesCount: estimateData.phases?.length || 0,
+        hasSchedule: !!estimateData.schedule,
+        hasScope: !!estimateData.scope
+      });
+
+      try {
+        // Get existing project data if merging
+        let existingProject = null;
+        if (mergeMode) {
+          const { data: proj } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', estimateData.projectId)
+            .single();
+          existingProject = proj;
+          console.log('📊 Existing project for merge:', existingProject);
+        }
+
+        const updateData = {};
+
+        // Budget: Override or Add
+        if (mergeMode && existingProject) {
+          updateData.budget = (existingProject.budget || 0) + (estimateData.total || 0);
+          console.log('📊 Merging budgets:', existingProject.budget, '+', estimateData.total, '=', updateData.budget);
+        } else {
+          updateData.budget = estimateData.total;
+          console.log('📊 Overriding budget:', estimateData.total);
+        }
+
+        // Dates: Always use latest estimate dates (override)
+        if (estimateData.schedule && estimateData.schedule.startDate) {
+          updateData.start_date = estimateData.schedule.startDate;
+          console.log('📊 Setting start_date:', estimateData.schedule.startDate);
+        }
+
+        if (estimateData.schedule && estimateData.schedule.estimatedEndDate) {
+          updateData.end_date = estimateData.schedule.estimatedEndDate;
+          console.log('📊 Setting end_date:', estimateData.schedule.estimatedEndDate);
+        }
+
+        // Description: Append if merging, replace if overriding
+        if (estimateData.scope && estimateData.scope.description) {
+          if (mergeMode && existingProject && existingProject.task_description) {
+            updateData.task_description = existingProject.task_description + '\n\n' + estimateData.scope.description;
+            console.log('📊 Appending to task_description');
+          } else {
+            updateData.task_description = estimateData.scope.description;
+            console.log('📊 Overriding task_description:', estimateData.scope.description);
+          }
+        }
+
+        console.log('📊 Final update data for project:', updateData);
+
+        const { data: updatedProject, error: projectError } = await supabase
+          .from('projects')
+          .update(updateData)
+          .eq('id', estimateData.projectId)
+          .select();
+
+        if (projectError) {
+          console.error('❌ Error updating project with estimate data:', projectError);
+          console.error('❌ Update data that failed:', updateData);
+          // Don't fail the estimate save if project update fails
+        } else {
+          console.log('✅ Project updated successfully with estimate data');
+          console.log('✅ Updated project:', updatedProject);
+        }
+
+        // Phases: Merge (append) or Override (replace)
+        if (estimateData.phases && Array.isArray(estimateData.phases) && estimateData.phases.length > 0) {
+          // 🔧 CRITICAL FIX: Map phase schedule dates to phases
+          if (estimateData.schedule?.phaseSchedule && Array.isArray(estimateData.schedule.phaseSchedule)) {
+            console.log('📊 Mapping phase schedule dates to phases...');
+            estimateData.phases = estimateData.phases.map((phase, index) => {
+              // Try to find matching phase schedule by name
+              const phaseSchedule = estimateData.schedule.phaseSchedule.find(
+                ps => ps.phaseName === phase.name ||
+                      ps.phaseName === `${phase.name} Phase` ||
+                      ps.phaseName?.toLowerCase() === phase.name?.toLowerCase()
+              ) || estimateData.schedule.phaseSchedule[index]; // Fallback to index match
+
+              if (phaseSchedule) {
+                console.log(`  ✅ Mapped dates for ${phase.name}:`, {
+                  startDate: phaseSchedule.startDate,
+                  endDate: phaseSchedule.endDate
+                });
+                return {
+                  ...phase,
+                  startDate: phaseSchedule.startDate || phase.startDate,
+                  endDate: phaseSchedule.endDate || phase.endDate
+                };
+              }
+              return phase;
+            });
+          }
+
+          // 🔧 Associate line items (services) with phases based on budget
+          if (estimateData.lineItems && Array.isArray(estimateData.lineItems) && estimateData.lineItems.length > 0) {
+            console.log('📊 Distributing', estimateData.lineItems.length, 'services across phases...');
+
+            // Calculate total phase budget
+            const totalPhaseBudget = estimateData.phases.reduce((sum, p) => sum + (p.budget || 0), 0);
+
+            if (totalPhaseBudget > 0) {
+              // Distribute services proportionally based on phase budget
+              estimateData.phases = estimateData.phases.map(phase => {
+                const phaseRatio = (phase.budget || 0) / totalPhaseBudget;
+                const phaseServices = [];
+
+                // Assign services to phase (simplified: distribute by budget ratio)
+                estimateData.lineItems.forEach(item => {
+                  const itemTotal = item.total || 0;
+                  // If this item fits within the phase budget ratio, add it
+                  if (itemTotal <= (phase.budget || 0) * 1.5) {  // 1.5x tolerance
+                    phaseServices.push(item);
+                  }
+                });
+
+                console.log(`  ✅ Assigned ${phaseServices.length} services to ${phase.name}`);
+                return {
+                  ...phase,
+                  services: phaseServices.length > 0 ? phaseServices : []
+                };
+              });
+            } else {
+              // If no phase budgets, assign all services to first phase
+              if (estimateData.phases.length > 0) {
+                estimateData.phases[0].services = estimateData.lineItems;
+                console.log(`  ✅ Assigned all ${estimateData.lineItems.length} services to ${estimateData.phases[0].name}`);
+              }
+            }
+          }
+
+          console.log('📊 Full phases data from estimate:', JSON.stringify(estimateData.phases, null, 2));
+          estimateData.phases.forEach((phase, idx) => {
+            console.log(`📊 Phase ${idx} - ${phase.name}:`, {
+              hasTasks: !!phase.tasks,
+              tasksCount: phase.tasks?.length || 0,
+              tasks: phase.tasks,
+              hasStartDate: !!phase.startDate,
+              hasEndDate: !!phase.endDate,
+              hasBudget: !!phase.budget,
+              servicesCount: phase.services?.length || 0
+            });
+          });
+
+          if (mergeMode) {
+            // Get existing phases and append new ones
+            const { data: existingPhases } = await supabase
+              .from('project_phases')
+              .select('*')
+              .eq('project_id', estimateData.projectId)
+              .order('order_index');
+
+            const startIndex = existingPhases?.length || 0;
+            const phasesToAdd = estimateData.phases.map((phase, idx) => ({
+              ...phase,
+              order_index: startIndex + idx
+            }));
+
+            console.log('📊 Merging phases - adding', phasesToAdd.length, 'new phases to', startIndex, 'existing');
+
+            const phasesToInsert = phasesToAdd.map((phase, index) => ({
+              project_id: estimateData.projectId,
+              name: phase.name,
+              order_index: phase.order_index,
+              planned_days: phase.plannedDays || phase.defaultDays || 5,
+              start_date: phase.startDate || null,
+              end_date: phase.endDate || null,
+              completion_percentage: phase.completionPercentage || 0,
+              status: phase.status || 'not_started',
+              time_extensions: phase.timeExtensions || [],
+              tasks: phase.tasks || [],
+              budget: phase.budget || 0,  // Save phase budget
+              services: phase.services || [],  // Save services associated with phase
+            }));
+
+            const { error: insertError } = await supabase
+              .from('project_phases')
+              .insert(phasesToInsert);
+
+            if (insertError) {
+              console.error('❌ Failed to merge phases:', insertError);
+            } else {
+              console.log('✅ Phases merged successfully');
+            }
+          } else {
+            // Override mode - replace all phases
+            console.log('📊 Overriding phases - replacing with', estimateData.phases.length, 'new phases');
+            const phasesSaved = await saveProjectPhases(estimateData.projectId, estimateData.phases);
+            if (phasesSaved) {
+              console.log('✅ Phases overridden successfully');
+            } else {
+              console.error('❌ Failed to override phases');
+            }
+          }
+        }
+      } catch (projectUpdateError) {
+        console.error('❌ Exception in project update:', projectUpdateError);
+        // Don't fail the estimate save if project update fails
+      }
+    }
+
     return data;
   } catch (error) {
     console.error('Error in saveEstimate:', error);
+    return null;
+  }
+};
+
+/**
+ * Update an existing estimate with new data
+ * @param {object} estimateData - Updated estimate data (must include id or estimateId)
+ * @returns {Promise<object|null>} Updated estimate or null
+ */
+export const updateEstimate = async (estimateData) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    const estimateId = estimateData.id || estimateData.estimateId;
+    if (!estimateId) {
+      console.error('No estimate ID provided');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('estimates')
+      .update({
+        project_id: estimateData.projectId || null,
+        client_name: estimateData.client?.name || estimateData.client || estimateData.clientName,
+        client_phone: estimateData.client?.phone || estimateData.clientPhone,
+        client_email: estimateData.client?.email || estimateData.clientEmail,
+        client_address: estimateData.client?.address || estimateData.clientAddress,
+        project_name: estimateData.projectName,
+        items: estimateData.lineItems || estimateData.items || [],
+        phases: estimateData.phases || [],
+        schedule: estimateData.schedule || {},
+        scope: estimateData.scope || {},
+        subtotal: estimateData.subtotal || 0,
+        tax_rate: estimateData.taxRate || 0,
+        tax_amount: estimateData.taxAmount || 0,
+        total: estimateData.total || 0,
+        valid_until: estimateData.validUntil || null,
+        payment_terms: estimateData.paymentTerms || 'Net 30',
+        notes: estimateData.notes || '',
+      })
+      .eq('id', estimateId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating estimate:', error);
+      return null;
+    }
+
+    // If estimate has projectId, update the project with the new estimate data
+    if (estimateData.projectId && data) {
+      console.log('📊 Updating project with updated estimate data:', estimateData.projectId);
+      console.log('📊 Estimate data being used for update:', {
+        total: estimateData.total,
+        hasPhases: estimateData.phases?.length > 0,
+        phasesCount: estimateData.phases?.length || 0,
+        hasSchedule: !!estimateData.schedule,
+        hasScope: !!estimateData.scope
+      });
+
+      try {
+        const updateData = {
+          budget: estimateData.total
+        };
+
+        if (estimateData.schedule && estimateData.schedule.startDate) {
+          updateData.start_date = estimateData.schedule.startDate;
+          console.log('📊 Adding start_date:', estimateData.schedule.startDate);
+        }
+
+        if (estimateData.schedule && estimateData.schedule.estimatedEndDate) {
+          updateData.end_date = estimateData.schedule.estimatedEndDate;
+          console.log('📊 Adding end_date:', estimateData.schedule.estimatedEndDate);
+        }
+
+        if (estimateData.scope && estimateData.scope.description) {
+          updateData.task_description = estimateData.scope.description;
+          console.log('📊 Adding task_description:', estimateData.scope.description);
+        }
+
+        console.log('📊 Final update data for project:', updateData);
+
+        const { data: updatedProject, error: projectError } = await supabase
+          .from('projects')
+          .update(updateData)
+          .eq('id', estimateData.projectId)
+          .select();
+
+        if (projectError) {
+          console.error('❌ Error updating project with estimate data:', projectError);
+          console.error('❌ Update data that failed:', updateData);
+          // Don't fail the estimate update if project update fails
+        } else {
+          console.log('✅ Project updated successfully with estimate data');
+          console.log('✅ Updated project:', updatedProject);
+        }
+
+        // Save phases to project_phases table if they exist
+        if (estimateData.phases && Array.isArray(estimateData.phases) && estimateData.phases.length > 0) {
+          console.log('📊 Saving phases to project_phases table:', estimateData.phases.length);
+          const phasesSaved = await saveProjectPhases(estimateData.projectId, estimateData.phases);
+          if (phasesSaved) {
+            console.log('✅ Phases saved successfully');
+          } else {
+            console.error('❌ Failed to save phases');
+          }
+        }
+      } catch (projectUpdateError) {
+        console.error('❌ Exception in project update:', projectUpdateError);
+        // Don't fail the estimate update if project update fails
+      }
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in updateEstimate:', error);
     return null;
   }
 };
@@ -1317,6 +1819,1675 @@ export const updateInvoicePDF = async (invoiceId, pdfUrl) => {
     return true;
   } catch (error) {
     console.error('Error in updateInvoicePDF:', error);
+    return false;
+  }
+};
+
+// =====================================================
+// PROJECT PHASES FUNCTIONS
+// =====================================================
+
+/**
+ * Save project phases to database
+ * @param {string} projectId - Project ID
+ * @param {Array<object>} phases - Array of phase objects
+ * @param {object} schedule - Optional schedule object with phaseSchedule array
+ * @returns {Promise<boolean>} Success status
+ */
+export const saveProjectPhases = async (projectId, phases, schedule = null) => {
+  try {
+    // Delete existing phases for this project
+    const { error: deleteError } = await supabase
+      .from('project_phases')
+      .delete()
+      .eq('project_id', projectId);
+
+    if (deleteError) {
+      console.error('Error deleting old phases:', deleteError);
+      return false;
+    }
+
+    // If no phases, just update has_phases to false
+    if (!phases || phases.length === 0) {
+      await supabase
+        .from('projects')
+        .update({ has_phases: false })
+        .eq('id', projectId);
+      return true;
+    }
+
+    // Insert new phases
+    const phasesToInsert = phases.map((phase, index) => {
+      // Try to find matching schedule entry
+      const phaseScheduleEntry = schedule?.phaseSchedule?.find(
+        ps => ps.phaseName === phase.name
+      );
+
+      return {
+        project_id: projectId,
+        name: phase.name,
+        order_index: index,
+        planned_days: phase.plannedDays || phase.defaultDays || 5,
+        start_date: phase.startDate || phaseScheduleEntry?.startDate || null,
+        end_date: phase.endDate || phaseScheduleEntry?.endDate || null,
+        completion_percentage: phase.completionPercentage || 0,
+        status: phase.status || 'not_started',
+        time_extensions: phase.timeExtensions || [],
+        tasks: phase.tasks || [],
+        budget: phase.budget || 0,  // Save phase budget
+        services: phase.services || [],  // Save services associated with phase
+      };
+    });
+
+    const { error: insertError } = await supabase
+      .from('project_phases')
+      .insert(phasesToInsert);
+
+    if (insertError) {
+      console.error('Error inserting phases:', insertError);
+      return false;
+    }
+
+    // Update project has_phases flag
+    await supabase
+      .from('projects')
+      .update({ has_phases: true })
+      .eq('id', projectId);
+
+    console.log(`✅ Saved ${phases.length} phases for project ${projectId}`);
+    return true;
+  } catch (error) {
+    console.error('Error in saveProjectPhases:', error);
+    return false;
+  }
+};
+
+/**
+ * Fetch all phases for a project
+ * @param {string} projectId - Project ID
+ * @returns {Promise<Array>} Array of phase objects
+ */
+export const fetchProjectPhases = async (projectId) => {
+  try {
+    const { data, error } = await supabase
+      .from('project_phases')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('order_index', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching project phases:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchProjectPhases:', error);
+    return [];
+  }
+};
+
+/**
+ * Update a single phase's progress
+ * @param {string} phaseId - Phase ID
+ * @param {number} percentage - Completion percentage (0-100)
+ * @returns {Promise<boolean>} Success status
+ */
+export const updatePhaseProgress = async (phaseId, percentage) => {
+  try {
+    const updateData = {
+      completion_percentage: Math.min(100, Math.max(0, percentage)),
+    };
+
+    // If 100%, mark as completed
+    if (percentage >= 100) {
+      updateData.status = 'completed';
+      updateData.actual_end_date = new Date().toISOString().split('T')[0];
+    } else if (percentage > 0) {
+      // If started but not completed, mark as in_progress
+      if (updateData.status === 'not_started') {
+        updateData.status = 'in_progress';
+        updateData.actual_start_date = new Date().toISOString().split('T')[0];
+      }
+    }
+
+    const { error } = await supabase
+      .from('project_phases')
+      .update(updateData)
+      .eq('id', phaseId);
+
+    if (error) {
+      console.error('Error updating phase progress:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updatePhaseProgress:', error);
+    return false;
+  }
+};
+
+/**
+ * Extend a phase timeline by adding extra days
+ * @param {string} phaseId - Phase ID
+ * @param {number} extraDays - Number of days to add
+ * @param {string} reason - Reason for extension
+ * @returns {Promise<boolean>} Success status
+ */
+export const extendPhaseTimeline = async (phaseId, extraDays, reason = '') => {
+  try {
+    // Fetch current phase data
+    const { data: phase, error: fetchError } = await supabase
+      .from('project_phases')
+      .select('*')
+      .eq('id', phaseId)
+      .single();
+
+    if (fetchError || !phase) {
+      console.error('Error fetching phase:', fetchError);
+      return false;
+    }
+
+    // Add extension to time_extensions array
+    const timeExtensions = phase.time_extensions || [];
+    timeExtensions.push({
+      days: extraDays,
+      reason,
+      dateAdded: new Date().toISOString().split('T')[0],
+    });
+
+    // Calculate new end date
+    let newEndDate = phase.end_date;
+    if (newEndDate) {
+      const endDate = new Date(newEndDate);
+      endDate.setDate(endDate.getDate() + extraDays);
+      newEndDate = endDate.toISOString().split('T')[0];
+    }
+
+    // Update phase
+    const { error: updateError } = await supabase
+      .from('project_phases')
+      .update({
+        time_extensions: timeExtensions,
+        end_date: newEndDate,
+        planned_days: phase.planned_days + extraDays,
+      })
+      .eq('id', phaseId);
+
+    if (updateError) {
+      console.error('Error extending phase timeline:', updateError);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in extendPhaseTimeline:', error);
+    return false;
+  }
+};
+
+/**
+ * Calculate phase status based on dates and progress
+ * @param {object} phase - Phase object
+ * @returns {string} Status ('not_started', 'in_progress', 'completed', 'behind')
+ */
+export const calculatePhaseStatus = (phase) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // If completed
+  if (phase.status === 'completed' || phase.completion_percentage === 100) {
+    return 'completed';
+  }
+
+  // If not started
+  if (phase.status === 'not_started' && !phase.actual_start_date) {
+    return 'not_started';
+  }
+
+  // If in progress
+  if (phase.status === 'in_progress' || phase.actual_start_date) {
+    // Check if behind schedule
+    if (phase.end_date) {
+      const endDate = new Date(phase.end_date);
+      endDate.setHours(0, 0, 0, 0);
+      if (today > endDate) {
+        return 'behind';
+      }
+    }
+    return 'in_progress';
+  }
+
+  return phase.status || 'not_started';
+};
+
+/**
+ * Update phase dates (start and/or end)
+ * @param {string} phaseId - Phase ID
+ * @param {object} dates - Object with startDate and/or endDate
+ * @returns {Promise<boolean>} Success status
+ */
+export const updatePhaseDates = async (phaseId, dates) => {
+  try {
+    const updateData = {};
+
+    if (dates.startDate) {
+      updateData.start_date = dates.startDate;
+    }
+
+    if (dates.endDate) {
+      updateData.end_date = dates.endDate;
+    }
+
+    // Calculate planned_days if both dates provided
+    if (dates.startDate && dates.endDate) {
+      const start = new Date(dates.startDate);
+      const end = new Date(dates.endDate);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      updateData.planned_days = diffDays;
+    }
+
+    const { error } = await supabase
+      .from('project_phases')
+      .update(updateData)
+      .eq('id', phaseId);
+
+    if (error) {
+      console.error('Error updating phase dates:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updatePhaseDates:', error);
+    return false;
+  }
+};
+
+/**
+ * Mark phase as started
+ * @param {string} phaseId - Phase ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const startPhase = async (phaseId) => {
+  try {
+    const { error } = await supabase
+      .from('project_phases')
+      .update({
+        status: 'in_progress',
+        actual_start_date: new Date().toISOString().split('T')[0],
+      })
+      .eq('id', phaseId);
+
+    if (error) {
+      console.error('Error starting phase:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in startPhase:', error);
+    return false;
+  }
+};
+
+/**
+ * Mark phase as completed
+ * @param {string} phaseId - Phase ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const completePhase = async (phaseId) => {
+  try {
+    const { error } = await supabase
+      .from('project_phases')
+      .update({
+        status: 'completed',
+        completion_percentage: 100,
+        actual_end_date: new Date().toISOString().split('T')[0],
+      })
+      .eq('id', phaseId);
+
+    if (error) {
+      console.error('Error completing phase:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in completePhase:', error);
+    return false;
+  }
+};
+
+// ============================================================
+// PHASE TASKS MANAGEMENT
+// ============================================================
+
+/**
+ * Add task to phase
+ * @param {string} phaseId - Phase ID
+ * @param {string} taskDescription - Task description
+ * @param {number} order - Task order index
+ * @returns {Promise<object|null>} Updated phase or null
+ */
+export const addTaskToPhase = async (phaseId, taskDescription, order) => {
+  try {
+    // Get current phase
+    const { data: phase, error: fetchError } = await supabase
+      .from('project_phases')
+      .select('tasks')
+      .eq('id', phaseId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Create new task
+    const newTask = {
+      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      description: taskDescription,
+      order: order || (phase.tasks?.length || 0) + 1,
+      completed: false,
+      completed_by: null,
+      completed_date: null,
+      photo_url: null,
+    };
+
+    // Add task to tasks array
+    const updatedTasks = [...(phase.tasks || []), newTask];
+
+    // Update phase
+    const { data, error } = await supabase
+      .from('project_phases')
+      .update({ tasks: updatedTasks })
+      .eq('id', phaseId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error adding task to phase:', error);
+    return null;
+  }
+};
+
+/**
+ * Update phase task
+ * @param {string} phaseId - Phase ID
+ * @param {string} taskId - Task ID
+ * @param {object} updates - Task updates (description, completed, etc.)
+ * @returns {Promise<object|null>} Updated phase or null
+ */
+export const updatePhaseTask = async (phaseId, taskId, updates) => {
+  try {
+    // Get current phase
+    const { data: phase, error: fetchError } = await supabase
+      .from('project_phases')
+      .select('tasks')
+      .eq('id', phaseId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Update the specific task
+    const updatedTasks = (phase.tasks || []).map(task =>
+      task.id === taskId ? { ...task, ...updates } : task
+    );
+
+    // Update phase
+    const { data, error } = await supabase
+      .from('project_phases')
+      .update({ tasks: updatedTasks })
+      .eq('id', phaseId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error updating phase task:', error);
+    return null;
+  }
+};
+
+/**
+ * Mark task as complete
+ * @param {string} phaseId - Phase ID
+ * @param {string} taskId - Task ID
+ * @param {string} workerId - Worker who completed the task
+ * @param {string} photoUrl - Optional photo URL
+ * @returns {Promise<object|null>} Updated phase or null
+ */
+export const markTaskComplete = async (phaseId, taskId, workerId = null, photoUrl = null) => {
+  try {
+    const updates = {
+      completed: true,
+      completed_by: workerId,
+      completed_date: new Date().toISOString(),
+      photo_url: photoUrl,
+    };
+
+    const updatedPhase = await updatePhaseTask(phaseId, taskId, updates);
+    return updatedPhase;
+  } catch (error) {
+    console.error('Error marking task complete:', error);
+    return null;
+  }
+};
+
+/**
+ * Calculate phase progress from tasks (0-100%)
+ * Note: Database trigger also does this automatically
+ * @param {string} phaseId - Phase ID
+ * @returns {Promise<number>} Completion percentage
+ */
+export const calculatePhaseProgressFromTasks = async (phaseId) => {
+  try {
+    const { data: phase, error } = await supabase
+      .from('project_phases')
+      .select('tasks, completion_percentage')
+      .eq('id', phaseId)
+      .single();
+
+    if (error) throw error;
+
+    const tasks = phase.tasks || [];
+    if (tasks.length === 0) {
+      return phase.completion_percentage || 0;
+    }
+
+    const completedTasks = tasks.filter(task => task.completed).length;
+    const percentage = Math.round((completedTasks / tasks.length) * 100);
+
+    return percentage;
+  } catch (error) {
+    console.error('Error calculating phase progress:', error);
+    return 0;
+  }
+};
+
+// ============================================================
+// DAILY REPORTS MANAGEMENT
+// ============================================================
+
+/**
+ * Save daily report
+ * @param {string} workerId - Worker ID
+ * @param {string} projectId - Project ID
+ * @param {string} phaseId - Phase ID (optional)
+ * @param {array} photos - Array of photo URLs
+ * @param {array} completedStepIds - Array of completed task IDs
+ * @param {string} notes - Report notes
+ * @returns {Promise<object|null>} Saved report or null
+ */
+export const saveDailyReport = async (workerId, projectId, phaseId, photos, completedStepIds, notes) => {
+  try {
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) throw new Error('User not authenticated');
+
+    const reportData = {
+      worker_id: workerId,
+      project_id: projectId,
+      phase_id: phaseId || null,
+      report_date: new Date().toISOString().split('T')[0],
+      photos: photos || [],
+      completed_steps: completedStepIds || [],
+      notes: notes || '',
+    };
+
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .insert(reportData)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Mark tasks as completed
+    if (phaseId && completedStepIds && completedStepIds.length > 0) {
+      for (const taskId of completedStepIds) {
+        await markTaskComplete(phaseId, taskId, workerId, photos[0] || null);
+      }
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error saving daily report:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch daily reports for a project
+ * @param {string} projectId - Project ID
+ * @param {object} filters - Optional filters (workerId, phaseId, startDate, endDate)
+ * @returns {Promise<array>} Array of reports
+ */
+export const fetchDailyReports = async (projectId, filters = {}) => {
+  try {
+    let query = supabase
+      .from('daily_reports')
+      .select('*, workers(*)')
+      .eq('project_id', projectId)
+      .order('report_date', { ascending: false });
+
+    if (filters.workerId) {
+      query = query.eq('worker_id', filters.workerId);
+    }
+
+    if (filters.phaseId) {
+      query = query.eq('phase_id', filters.phaseId);
+    }
+
+    if (filters.startDate) {
+      query = query.gte('report_date', filters.startDate);
+    }
+
+    if (filters.endDate) {
+      query = query.lte('report_date', filters.endDate);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching daily reports:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch worker's daily reports for a specific date
+ * @param {string} workerId - Worker ID
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @returns {Promise<array>} Array of reports
+ */
+export const fetchWorkerDailyReports = async (workerId, date) => {
+  try {
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .select('*, projects(*), project_phases(*)')
+      .eq('worker_id', workerId)
+      .eq('report_date', date)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching worker daily reports:', error);
+    return [];
+  }
+};
+
+// ============================================================
+// PAYMENT STRUCTURE MANAGEMENT
+// ============================================================
+
+/**
+ * Update project payment structure
+ * @param {string} projectId - Project ID
+ * @param {string} paymentStructure - 'full' or 'per_phase'
+ * @param {string} paymentTerms - Payment terms text
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateProjectPaymentStructure = async (projectId, paymentStructure, paymentTerms = null) => {
+  try {
+    const { error } = await supabase
+      .from('projects')
+      .update({
+        payment_structure: paymentStructure,
+        payment_terms: paymentTerms,
+      })
+      .eq('id', projectId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error updating project payment structure:', error);
+    return false;
+  }
+};
+
+/**
+ * Save phase payment amount
+ * @param {string} phaseId - Phase ID
+ * @param {number} amount - Payment amount
+ * @returns {Promise<boolean>} Success status
+ */
+export const savePhasePaymentAmount = async (phaseId, amount) => {
+  try {
+    const { error } = await supabase
+      .from('project_phases')
+      .update({ payment_amount: amount })
+      .eq('id', phaseId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error saving phase payment amount:', error);
+    return false;
+  }
+};
+
+/**
+ * Validate phase payments sum to contract amount
+ * @param {array} phases - Array of phases with payment_amount
+ * @param {number} contractAmount - Total contract amount
+ * @returns {object} Validation result {isValid, totalPhasePayments, difference}
+ */
+export const validatePhasePayments = (phases, contractAmount) => {
+  const totalPhasePayments = phases.reduce((sum, phase) => {
+    return sum + (parseFloat(phase.payment_amount) || 0);
+  }, 0);
+
+  const difference = contractAmount - totalPhasePayments;
+  const isValid = Math.abs(difference) < 0.01; // Allow minor rounding differences
+
+  return {
+    isValid,
+    totalPhasePayments,
+    contractAmount,
+    difference,
+  };
+};
+
+// ============================================================================
+// WORKER MANAGEMENT FUNCTIONS
+// ============================================================================
+
+/**
+ * Create a new worker
+ * @param {object} workerData - Worker information
+ * @returns {Promise<object>} Created worker or null
+ */
+export const createWorker = async (workerData) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('workers')
+      .insert({
+        owner_id: userId,
+        full_name: workerData.fullName || workerData.full_name,
+        phone: workerData.phone,
+        email: workerData.email,
+        trade: workerData.trade,
+        hourly_rate: workerData.hourlyRate || workerData.hourly_rate || 0,
+        payment_type: workerData.paymentType || workerData.payment_type || 'hourly',
+        daily_rate: workerData.dailyRate || workerData.daily_rate || 0,
+        weekly_salary: workerData.weeklySalary || workerData.weekly_salary || 0,
+        project_rate: workerData.projectRate || workerData.project_rate || 0,
+        status: workerData.status || 'pending',
+        is_onboarded: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating worker:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in createWorker:', error);
+    return null;
+  }
+};
+
+/**
+ * Update worker information
+ * @param {string} workerId - Worker ID
+ * @param {object} updates - Fields to update
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateWorker = async (workerId, updates) => {
+  try {
+    const { error } = await supabase
+      .from('workers')
+      .update({
+        full_name: updates.fullName || updates.full_name,
+        phone: updates.phone,
+        email: updates.email,
+        trade: updates.trade,
+        hourly_rate: updates.hourlyRate || updates.hourly_rate,
+        payment_type: updates.paymentType || updates.payment_type,
+        daily_rate: updates.dailyRate || updates.daily_rate,
+        weekly_salary: updates.weeklySalary || updates.weekly_salary,
+        project_rate: updates.projectRate || updates.project_rate,
+        status: updates.status,
+      })
+      .eq('id', workerId);
+
+    if (error) {
+      console.error('Error updating worker:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updateWorker:', error);
+    return false;
+  }
+};
+
+/**
+ * Get all workers for the current owner
+ * @returns {Promise<array>} Array of workers
+ */
+export const fetchWorkers = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+      .from('workers')
+      .select('*')
+      .eq('owner_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching workers:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchWorkers:', error);
+    return [];
+  }
+};
+
+/**
+ * Get worker by ID
+ * @param {string} workerId - Worker ID
+ * @returns {Promise<object|null>} Worker data
+ */
+export const getWorker = async (workerId) => {
+  try {
+    const { data, error } = await supabase
+      .from('workers')
+      .select('*')
+      .eq('id', workerId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching worker:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getWorker:', error);
+    return null;
+  }
+};
+
+/**
+ * Delete a worker
+ * @param {string} workerId - Worker ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const deleteWorker = async (workerId) => {
+  try {
+    const { error } = await supabase
+      .from('workers')
+      .delete()
+      .eq('id', workerId);
+
+    if (error) {
+      console.error('Error deleting worker:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteWorker:', error);
+    return false;
+  }
+};
+
+// ============================================================================
+// WORKER ASSIGNMENT FUNCTIONS
+// ============================================================================
+
+/**
+ * Assign worker to a project
+ * @param {string} workerId - Worker ID
+ * @param {string} projectId - Project ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const assignWorkerToProject = async (workerId, projectId) => {
+  try {
+    const { error } = await supabase
+      .from('project_assignments')
+      .insert({
+        worker_id: workerId,
+        project_id: projectId,
+      });
+
+    if (error) {
+      console.error('Error assigning worker to project:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in assignWorkerToProject:', error);
+    return false;
+  }
+};
+
+/**
+ * Assign worker to a specific phase
+ * @param {string} workerId - Worker ID
+ * @param {string} phaseId - Phase ID
+ * @param {object} options - Additional options (notes, assignedBy)
+ * @returns {Promise<boolean>} Success status
+ */
+export const assignWorkerToPhase = async (workerId, phaseId, options = {}) => {
+  try {
+    const userId = await getCurrentUserId();
+
+    const { error } = await supabase
+      .from('phase_assignments')
+      .insert({
+        worker_id: workerId,
+        phase_id: phaseId,
+        notes: options.notes,
+        assigned_by: options.assignedBy || userId,
+      });
+
+    if (error) {
+      console.error('Error assigning worker to phase:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in assignWorkerToPhase:', error);
+    return false;
+  }
+};
+
+/**
+ * Remove worker from a project
+ * @param {string} workerId - Worker ID
+ * @param {string} projectId - Project ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const removeWorkerFromProject = async (workerId, projectId) => {
+  try {
+    const { error } = await supabase
+      .from('project_assignments')
+      .delete()
+      .eq('worker_id', workerId)
+      .eq('project_id', projectId);
+
+    if (error) {
+      console.error('Error removing worker from project:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in removeWorkerFromProject:', error);
+    return false;
+  }
+};
+
+/**
+ * Remove worker from a phase
+ * @param {string} workerId - Worker ID
+ * @param {string} phaseId - Phase ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const removeWorkerFromPhase = async (workerId, phaseId) => {
+  try {
+    const { error } = await supabase
+      .from('phase_assignments')
+      .delete()
+      .eq('worker_id', workerId)
+      .eq('phase_id', phaseId);
+
+    if (error) {
+      console.error('Error removing worker from phase:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in removeWorkerFromPhase:', error);
+    return false;
+  }
+};
+
+/**
+ * Get all workers assigned to a project
+ * @param {string} projectId - Project ID
+ * @returns {Promise<array>} Array of workers
+ */
+export const getProjectWorkers = async (projectId) => {
+  try {
+    const { data, error } = await supabase
+      .from('project_assignments')
+      .select(`
+        *,
+        workers:worker_id (
+          id,
+          full_name,
+          phone,
+          email,
+          trade,
+          hourly_rate,
+          status
+        )
+      `)
+      .eq('project_id', projectId);
+
+    if (error) {
+      console.error('Error fetching project workers:', error);
+      return [];
+    }
+
+    return data?.map(assignment => assignment.workers) || [];
+  } catch (error) {
+    console.error('Error in getProjectWorkers:', error);
+    return [];
+  }
+};
+
+/**
+ * Get all workers assigned to a specific phase
+ * @param {string} phaseId - Phase ID
+ * @returns {Promise<array>} Array of workers with assignment details
+ */
+export const getPhaseWorkers = async (phaseId) => {
+  try {
+    // NOTE: Phase-level worker assignments are not implemented yet
+    // Workers are assigned at the project level only
+    // Return empty array for now
+    console.log('⚠️ Phase-level worker assignments not implemented yet. Use project-level assignments.');
+    return [];
+
+    /* TODO: Implement phase_assignments table if needed
+    const { data, error } = await supabase
+      .from('phase_assignments')
+      .select(`
+        *,
+        workers:worker_id (
+          id,
+          full_name,
+          phone,
+          email,
+          trade,
+          hourly_rate,
+          status
+        )
+      `)
+      .eq('phase_id', phaseId);
+
+    if (error) {
+      console.error('Error fetching phase workers:', error);
+      return [];
+    }
+
+    return data?.map(assignment => ({
+      ...assignment.workers,
+      assignmentNotes: assignment.notes,
+      assignedAt: assignment.assigned_at,
+    })) || [];
+    */
+  } catch (error) {
+    console.error('Error in getPhaseWorkers:', error);
+    return [];
+  }
+};
+
+/**
+ * Get all assignments for a worker
+ * @param {string} workerId - Worker ID
+ * @returns {Promise<object>} Object with projects and phases arrays
+ */
+export const getWorkerAssignments = async (workerId) => {
+  try {
+    // Get project assignments
+    const { data: projectData, error: projectError } = await supabase
+      .from('project_assignments')
+      .select(`
+        *,
+        projects:project_id (
+          id,
+          name,
+          client,
+          location,
+          start_date,
+          end_date,
+          status,
+          contract_amount
+        )
+      `)
+      .eq('worker_id', workerId);
+
+    if (projectError) {
+      console.error('Error fetching project assignments:', projectError);
+    }
+
+    // Get phase assignments
+    const { data: phaseData, error: phaseError } = await supabase
+      .from('phase_assignments')
+      .select(`
+        *,
+        project_phases:phase_id (
+          id,
+          name,
+          start_date,
+          end_date,
+          status,
+          completion_percentage,
+          budget,
+          project_id,
+          projects:project_id (
+            id,
+            name,
+            client
+          )
+        )
+      `)
+      .eq('worker_id', workerId);
+
+    if (phaseError) {
+      console.error('Error fetching phase assignments:', phaseError);
+    }
+
+    return {
+      projects: projectData?.map(a => a.projects) || [],
+      phases: phaseData?.map(a => ({
+        ...a.project_phases,
+        assignmentNotes: a.notes,
+        assignedAt: a.assigned_at,
+      })) || [],
+    };
+  } catch (error) {
+    console.error('Error in getWorkerAssignments:', error);
+    return { projects: [], phases: [] };
+  }
+};
+
+// ============================================================================
+// TIME TRACKING FUNCTIONS
+// ============================================================================
+
+/**
+ * Clock in a worker
+ * @param {string} workerId - Worker ID
+ * @param {string} projectId - Project ID
+ * @param {object} location - Location coordinates {latitude, longitude}
+ * @returns {Promise<object|null>} Time tracking record
+ */
+export const clockIn = async (workerId, projectId, location = null) => {
+  try {
+    const { data, error } = await supabase
+      .from('time_tracking')
+      .insert({
+        worker_id: workerId,
+        project_id: projectId,
+        clock_in: new Date().toISOString(),
+        location_lat: location?.latitude,
+        location_lng: location?.longitude,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error clocking in:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in clockIn:', error);
+    return null;
+  }
+};
+
+/**
+ * Clock out a worker
+ * @param {string} timeTrackingId - Time tracking record ID
+ * @param {string} notes - Optional notes
+ * @returns {Promise<boolean>} Success status
+ */
+export const clockOut = async (timeTrackingId, notes = null) => {
+  try {
+    const { error } = await supabase
+      .from('time_tracking')
+      .update({
+        clock_out: new Date().toISOString(),
+        notes: notes,
+      })
+      .eq('id', timeTrackingId);
+
+    if (error) {
+      console.error('Error clocking out:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in clockOut:', error);
+    return false;
+  }
+};
+
+/**
+ * Get current active time tracking session for a worker
+ * @param {string} workerId - Worker ID
+ * @returns {Promise<object|null>} Active time tracking record
+ */
+export const getActiveClockIn = async (workerId) => {
+  try {
+    const { data, error } = await supabase
+      .from('time_tracking')
+      .select(`
+        *,
+        projects:project_id (
+          id,
+          name
+        )
+      `)
+      .eq('worker_id', workerId)
+      .is('clock_out', null)
+      .order('clock_in', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No active session
+        return null;
+      }
+      console.error('Error fetching active clock-in:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getActiveClockIn:', error);
+    return null;
+  }
+};
+
+/**
+ * Get worker timesheet for a date range
+ * @param {string} workerId - Worker ID
+ * @param {object} dateRange - {startDate, endDate} in ISO format
+ * @returns {Promise<array>} Array of time tracking records
+ */
+export const getWorkerTimesheet = async (workerId, dateRange = null) => {
+  try {
+    let query = supabase
+      .from('time_tracking')
+      .select(`
+        *,
+        projects:project_id (
+          id,
+          name,
+          client
+        )
+      `)
+      .eq('worker_id', workerId)
+      .order('clock_in', { ascending: false });
+
+    if (dateRange) {
+      if (dateRange.startDate) {
+        query = query.gte('clock_in', dateRange.startDate);
+      }
+      if (dateRange.endDate) {
+        query = query.lte('clock_in', dateRange.endDate);
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching timesheet:', error);
+      return [];
+    }
+
+    // Calculate hours for each entry
+    return data?.map(entry => {
+      let hours = 0;
+      if (entry.clock_in && entry.clock_out) {
+        const clockIn = new Date(entry.clock_in);
+        const clockOut = new Date(entry.clock_out);
+        hours = (clockOut - clockIn) / (1000 * 60 * 60); // Convert to hours
+
+        // Subtract break time if exists
+        if (entry.break_start && entry.break_end) {
+          const breakStart = new Date(entry.break_start);
+          const breakEnd = new Date(entry.break_end);
+          const breakHours = (breakEnd - breakStart) / (1000 * 60 * 60);
+          hours -= breakHours;
+        }
+      }
+
+      return {
+        ...entry,
+        hours: parseFloat(hours.toFixed(2)),
+      };
+    }) || [];
+  } catch (error) {
+    console.error('Error in getWorkerTimesheet:', error);
+    return [];
+  }
+};
+
+/**
+ * Get worker time stats for a project
+ * @param {string} workerId - Worker ID
+ * @param {string} projectId - Project ID
+ * @returns {Promise<object>} Time stats {totalHours, entries}
+ */
+export const getWorkerProjectHours = async (workerId, projectId) => {
+  try {
+    const { data, error } = await supabase
+      .from('time_tracking')
+      .select('*')
+      .eq('worker_id', workerId)
+      .eq('project_id', projectId)
+      .not('clock_out', 'is', null);
+
+    if (error) {
+      console.error('Error fetching project hours:', error);
+      return { totalHours: 0, entries: [] };
+    }
+
+    let totalHours = 0;
+    const entries = data?.map(entry => {
+      const clockIn = new Date(entry.clock_in);
+      const clockOut = new Date(entry.clock_out);
+      let hours = (clockOut - clockIn) / (1000 * 60 * 60);
+
+      if (entry.break_start && entry.break_end) {
+        const breakStart = new Date(entry.break_start);
+        const breakEnd = new Date(entry.break_end);
+        hours -= (breakEnd - breakStart) / (1000 * 60 * 60);
+      }
+
+      totalHours += hours;
+
+      return {
+        ...entry,
+        hours: parseFloat(hours.toFixed(2)),
+      };
+    }) || [];
+
+    return {
+      totalHours: parseFloat(totalHours.toFixed(2)),
+      entries,
+    };
+  } catch (error) {
+    console.error('Error in getWorkerProjectHours:', error);
+    return { totalHours: 0, entries: [] };
+  }
+};
+
+
+// =====================================================
+// WORKER SCHEDULING FUNCTIONS
+// =====================================================
+
+/**
+ * Get all workers with today's clock-in records grouped by project
+ * @returns {Promise<object>} Object with unassigned workers and workers grouped by project
+ */
+export const getTodaysWorkersSchedule = async () => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Get all workers for this owner
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data: allWorkers, error: workersError } = await supabase
+      .from('workers')
+      .select('*')
+      .eq('owner_id', user.id)
+      .eq('status', 'active');
+
+    if (workersError) throw workersError;
+
+    // Get all time tracking records for today
+    const { data: todayClockIns, error: clockInsError } = await supabase
+      .from('time_tracking')
+      .select(`
+        *,
+        projects:project_id (
+          id,
+          name
+        )
+      `)
+      .gte('clock_in', today.toISOString())
+      .lt('clock_in', tomorrow.toISOString())
+      .order('clock_in', { ascending: false });
+
+    if (clockInsError) throw clockInsError;
+
+    // Create a map of worker_id to their clock-in records
+    const workerClockIns = {};
+    todayClockIns?.forEach(clockIn => {
+      if (!workerClockIns[clockIn.worker_id]) {
+        workerClockIns[clockIn.worker_id] = [];
+      }
+      workerClockIns[clockIn.worker_id].push(clockIn);
+    });
+
+    // Separate workers into unassigned and grouped by project
+    const unassignedWorkers = [];
+    const projectGroups = {};
+
+    allWorkers?.forEach(worker => {
+      const clockIns = workerClockIns[worker.id];
+
+      if (!clockIns || clockIns.length === 0) {
+        // Worker hasn't clocked in today
+        unassignedWorkers.push(worker);
+      } else {
+        // Get the most recent clock-in
+        const latestClockIn = clockIns[0];
+
+        // Check if still clocked in
+        const isActive = !latestClockIn.clock_out;
+
+        const workerWithClockIn = {
+          ...worker,
+          latestClockIn,
+          isActive,
+          clockInTime: latestClockIn.clock_in,
+          hoursWorked: latestClockIn.clock_out
+            ? (new Date(latestClockIn.clock_out) - new Date(latestClockIn.clock_in)) / (1000 * 60 * 60)
+            : (new Date() - new Date(latestClockIn.clock_in)) / (1000 * 60 * 60)
+        };
+
+        const projectId = latestClockIn.project_id;
+        const projectName = latestClockIn.projects?.name || 'Unknown Project';
+
+        if (!projectGroups[projectId]) {
+          projectGroups[projectId] = {
+            projectId,
+            projectName,
+            workers: []
+          };
+        }
+
+        projectGroups[projectId].workers.push(workerWithClockIn);
+      }
+    });
+
+    return {
+      unassignedWorkers,
+      projectGroups: Object.values(projectGroups),
+      totalWorkers: allWorkers?.length || 0,
+      clockedInCount: Object.keys(workerClockIns).length
+    };
+  } catch (error) {
+    console.error('Error getting today\'s workers schedule:', error);
+    return {
+      unassignedWorkers: [],
+      projectGroups: [],
+      totalWorkers: 0,
+      clockedInCount: 0
+    };
+  }
+};
+
+/**
+ * Get worker clock-in history
+ * @param {string} workerId - Worker ID
+ * @param {number} limit - Number of records to return (default 30)
+ * @returns {Promise<array>} Array of clock-in records
+ */
+export const getWorkerClockInHistory = async (workerId, limit = 30) => {
+  try {
+    const { data, error } = await supabase
+      .from('time_tracking')
+      .select(`
+        *,
+        projects:project_id (
+          id,
+          name
+        )
+      `)
+      .eq('worker_id', workerId)
+      .order('clock_in', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    // Calculate hours for each entry
+    const historyWithHours = data?.map(entry => ({
+      ...entry,
+      hoursWorked: entry.clock_out
+        ? (new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60)
+        : null
+    })) || [];
+
+    return historyWithHours;
+  } catch (error) {
+    console.error('Error getting worker clock-in history:', error);
+    return [];
+  }
+};
+
+/**
+ * Get worker stats for current week and month
+ * @param {string} workerId - Worker ID
+ * @returns {Promise<object>} Stats object with week/month hours
+ */
+export const getWorkerStats = async (workerId) => {
+  try {
+    const now = new Date();
+
+    // Start of current week (Sunday)
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Start of current month
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const { data, error } = await supabase
+      .from('time_tracking')
+      .select('*')
+      .eq('worker_id', workerId)
+      .not('clock_out', 'is', null) // Only completed sessions
+      .gte('clock_in', startOfMonth.toISOString());
+
+    if (error) throw error;
+
+    let weekHours = 0;
+    let monthHours = 0;
+    const projectHours = {};
+
+    data?.forEach(entry => {
+      const hours = (new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60);
+      const clockInDate = new Date(entry.clock_in);
+
+      if (clockInDate >= startOfWeek) {
+        weekHours += hours;
+      }
+      monthHours += hours;
+
+      // Track hours per project
+      const projectId = entry.project_id;
+      if (!projectHours[projectId]) {
+        projectHours[projectId] = 0;
+      }
+      projectHours[projectId] += hours;
+    });
+
+    // Find most worked project
+    let mostWorkedProject = null;
+    let maxHours = 0;
+    Object.entries(projectHours).forEach(([projectId, hours]) => {
+      if (hours > maxHours) {
+        maxHours = hours;
+        mostWorkedProject = projectId;
+      }
+    });
+
+    return {
+      weekHours: Math.round(weekHours * 100) / 100,
+      monthHours: Math.round(monthHours * 100) / 100,
+      mostWorkedProjectId: mostWorkedProject,
+      mostWorkedProjectHours: Math.round(maxHours * 100) / 100
+    };
+  } catch (error) {
+    console.error('Error getting worker stats:', error);
+    return {
+      weekHours: 0,
+      monthHours: 0,
+      mostWorkedProjectId: null,
+      mostWorkedProjectHours: 0
+    };
+  }
+};
+
+// ============================================================================
+// WORKER INVITE FUNCTIONS
+// ============================================================================
+
+/**
+ * Get pending invites for a worker by email
+ * @param {string} workerEmail - Worker's email address
+ * @returns {Promise<array>} Array of pending invites with owner info
+ */
+export const getPendingInvites = async (workerEmail) => {
+  try {
+    console.log('getPendingInvites - Querying with email:', workerEmail);
+
+    // Debug: Check ALL workers with this email regardless of status
+    const { data: allWorkers } = await supabase
+      .from('workers')
+      .select('*')
+      .eq('email', workerEmail);
+
+    console.log('DEBUG - All workers with this email:', allWorkers);
+
+    // First get pending worker invites
+    const { data: workers, error: workersError } = await supabase
+      .from('workers')
+      .select('*')
+      .eq('email', workerEmail)
+      .eq('status', 'pending')
+      .is('user_id', null);
+
+    console.log('getPendingInvites - Workers query result:', { workers, workersError });
+
+    if (workersError) {
+      console.error('Error getting pending invites:', workersError);
+      return [];
+    }
+
+    if (!workers || workers.length === 0) {
+      console.log('No pending invites found - checking all pending workers...');
+      const { data: allPending } = await supabase
+        .from('workers')
+        .select('*')
+        .eq('status', 'pending');
+      console.log('All pending workers in system:', allPending);
+      return [];
+    }
+
+    // Get owner info for each invite
+    const invitesWithOwners = await Promise.all(
+      workers.map(async (worker) => {
+        const { data: owner } = await supabase
+          .from('profiles')
+          .select('id, full_name, company_name')
+          .eq('id', worker.owner_id)
+          .single();
+
+        return {
+          ...worker,
+          owner: owner || null
+        };
+      })
+    );
+
+    console.log('getPendingInvites - Final result:', invitesWithOwners);
+
+    return invitesWithOwners;
+  } catch (error) {
+    console.error('Error in getPendingInvites:', error);
+    return [];
+  }
+};
+
+/**
+ * Accept a worker invite
+ * @param {string} workerId - Worker record ID
+ * @param {string} userId - Authenticated user's ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const acceptInvite = async (workerId, userId) => {
+  try {
+    const { error } = await supabase
+      .from('workers')
+      .update({
+        user_id: userId,
+        status: 'active'
+      })
+      .eq('id', workerId)
+      .eq('status', 'pending')
+      .is('user_id', null);
+
+    if (error) {
+      console.error('Error accepting invite:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in acceptInvite:', error);
+    return false;
+  }
+};
+
+/**
+ * Reject a worker invite
+ * @param {string} workerId - Worker record ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const rejectInvite = async (workerId) => {
+  try {
+    const { error } = await supabase
+      .from('workers')
+      .update({
+        status: 'rejected'
+      })
+      .eq('id', workerId)
+      .eq('status', 'pending')
+      .is('user_id', null);
+
+    if (error) {
+      console.error('Error rejecting invite:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in rejectInvite:', error);
     return false;
   }
 };

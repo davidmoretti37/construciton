@@ -306,7 +306,7 @@ export default function SettingsScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* Bottom Padding */}
-        <View style={{ height: 100 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );

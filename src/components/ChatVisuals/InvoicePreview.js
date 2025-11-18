@@ -65,27 +65,15 @@ export default function InvoicePreview({ data, onAction }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handleGeneratePDF = () => {
+  const handlePreviewPDF = () => {
     if (onAction) {
-      onAction({ label: 'Generate PDF', type: 'generate-invoice-pdf', data });
+      onAction({ label: 'Preview PDF', type: 'preview-invoice-pdf', data });
     }
   };
 
-  const handleDownloadPDF = () => {
+  const handleShareInvoice = () => {
     if (onAction) {
-      onAction({ label: 'Download PDF', type: 'download-invoice-pdf', data: { ...data, pdfUrl } });
-    }
-  };
-
-  const handleSendEmail = () => {
-    if (onAction) {
-      onAction({ label: 'Send Email', type: 'send-invoice-email', data });
-    }
-  };
-
-  const handleMarkPaid = () => {
-    if (onAction) {
-      onAction({ label: 'Mark as Paid', type: 'mark-invoice-paid', data });
+      onAction({ label: 'Share Invoice', type: 'share-invoice-pdf', data: { ...data, pdfUrl } });
     }
   };
 
@@ -198,47 +186,22 @@ export default function InvoicePreview({ data, onAction }) {
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
-        {pdfUrl ? (
-          <>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
-              onPress={handleDownloadPDF}
-            >
-              <Ionicons name="download-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Download PDF</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.secondaryButton, { borderColor: Colors.primaryBlue }]}
-              onPress={handleSendEmail}
-            >
-              <Ionicons name="mail-outline" size={18} color={Colors.primaryBlue} />
-              <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>Email</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
-            onPress={handleGeneratePDF}
-          >
-            <Ionicons name="document-text-outline" size={18} color="#fff" />
-            <Text style={styles.buttonText}>Generate PDF</Text>
-          </TouchableOpacity>
-        )}
-        {status !== 'paid' && status !== 'cancelled' && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.successButton, { backgroundColor: '#22C55E' }]}
-            onPress={handleMarkPaid}
-          >
-            <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-            <Text style={styles.buttonText}>Mark Paid</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
+          onPress={handlePreviewPDF}
+        >
+          <Ionicons name="eye-outline" size={18} color="#fff" />
+          <Text style={styles.buttonText}>Preview PDF</Text>
+        </TouchableOpacity>
 
-      {/* Footer */}
-      <Text style={[styles.footerNote, { color: Colors.secondaryText }]}>
-        {pdfUrl ? 'PDF ready to download' : 'Generate PDF to send to client'}
-      </Text>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.successButton, { backgroundColor: '#22C55E' }]}
+          onPress={handleShareInvoice}
+        >
+          <Ionicons name="share-outline" size={18} color="#fff" />
+          <Text style={styles.buttonText}>Send Invoice</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

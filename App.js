@@ -12,9 +12,10 @@ import ClientOnboardingNavigator from './src/navigation/ClientOnboardingNavigato
 import AuthNavigator from './src/navigation/AuthNavigator';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
 import RoleSelectionScreen from './src/screens/auth/RoleSelectionScreen';
+import PhaseTemplateSetupScreen from './src/screens/onboarding/PhaseTemplateSetupScreen';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import { isOnboarded, hasSelectedLanguage, saveLanguage } from './src/utils/storage';
+import { isOnboarded, hasSelectedLanguage, saveLanguage, needsFeatureUpdate } from './src/utils/storage';
 import { supabase } from './src/lib/supabase';
 
 function AppContent() {
@@ -23,6 +24,7 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [languageSelected, setLanguageSelected] = useState(false);
   const [userOnboarded, setUserOnboarded] = useState(false);
+  const [needsUpdate, setNeedsUpdate] = useState(false);
 
   useEffect(() => {
     console.log('🚀 APP STARTING...');
@@ -74,29 +76,35 @@ function AppContent() {
 
   const checkLanguageAndOnboarding = async () => {
     try {
-      const [langSelected, onboarded] = await Promise.all([
+      const [langSelected, onboarded, updateStatus] = await Promise.all([
         hasSelectedLanguage(),
-        isOnboarded()
+        isOnboarded(),
+        needsFeatureUpdate()
       ]);
 
       console.log('=== APP FLOW DEBUG ===');
       console.log('Has language selected:', langSelected);
       console.log('Has role:', role);
       console.log('Is onboarded:', onboarded);
+      console.log('Needs feature update:', updateStatus.needsUpdate);
+      console.log('Missing features:', updateStatus.missingFeatures);
       console.log('Will show:',
         !langSelected ? 'Language Selection' :
         !role ? 'Role Selection' :
         !onboarded ? `${role} Onboarding` :
+        updateStatus.needsUpdate ? 'Feature Update' :
         `${role} Main App`
       );
       console.log('=====================');
 
       setLanguageSelected(langSelected);
       setUserOnboarded(onboarded);
+      setNeedsUpdate(updateStatus.needsUpdate);
     } catch (error) {
       console.error('Error checking language and onboarding:', error);
       setLanguageSelected(false);
       setUserOnboarded(false);
+      setNeedsUpdate(false);
     } finally {
       setLoading(false);
     }
@@ -117,6 +125,12 @@ function AppContent() {
 
   const handleOnboardingComplete = () => {
     setUserOnboarded(true);
+  };
+
+  const handleFeatureUpdateComplete = async () => {
+    console.log('✅ Feature update completed');
+    setNeedsUpdate(false);
+    await checkLanguageAndOnboarding();
   };
 
   const handleGoBackToRoleSelection = async () => {
@@ -141,6 +155,7 @@ function AppContent() {
     console.log('   Role:', role || 'NONE');
     console.log('   Language Selected:', languageSelected ? 'YES' : 'NO');
     console.log('   Onboarded:', userOnboarded ? 'YES' : 'NO');
+    console.log('   Needs Update:', needsUpdate ? 'YES' : 'NO');
 
     // Not authenticated → Show login/signup
     if (!session) {
@@ -172,6 +187,12 @@ function AppContent() {
         console.log('   ➡️ Showing: CLIENT ONBOARDING');
         return <ClientOnboardingNavigator onComplete={handleOnboardingComplete} />;
       }
+    }
+
+    // Onboarded but needs feature update → Show update screen
+    if (needsUpdate && role === 'owner') {
+      console.log('   ➡️ Showing: FEATURE UPDATE (Phase Template Setup)');
+      return <PhaseTemplateSetupScreen onComplete={handleFeatureUpdateComplete} isUpdate={true} />;
     }
 
     // Fully set up → Show role-specific main app

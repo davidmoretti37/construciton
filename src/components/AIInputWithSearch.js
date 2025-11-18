@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   TextInput,
@@ -26,6 +26,7 @@ const AIInputWithSearch = ({
   onSubmit,
   onFileSelect,
   onCameraPress,
+  onPopulateInput, // New prop to expose setValue to parent
 }) => {
   const [value, setValue] = useState('');
   const [inputKey, setInputKey] = useState(0); // Force re-render key
@@ -33,14 +34,33 @@ const AIInputWithSearch = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recording, setRecording] = useState(null);
+  const inputRef = useRef(null);
   const buttonWidth = useSharedValue(80);
   const textOpacity = useSharedValue(1);
   const microphoneScale = useSharedValue(1);
   const pressScale = useSharedValue(1);
   const pressShadow = useSharedValue(1);
 
+  // Expose setValue and focus function to parent component via callback
+  useEffect(() => {
+    if (onPopulateInput) {
+      const populateFunction = (text) => {
+        console.log('populateFunction called with text:', text);
+        setValue(text);
+        // Focus the input after populating
+        setTimeout(() => {
+          console.log('Attempting to focus input');
+          inputRef.current?.focus();
+        }, 100);
+      };
+      console.log('Setting up populateFunction in parent');
+      onPopulateInput(populateFunction);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
   const handleSubmit = () => {
-    if (value.trim()) {
+    if (value && value.trim()) {
       const textToSend = value.trim();
       onSubmit?.(textToSend, false);
       // Clear input and force re-render
@@ -265,6 +285,7 @@ const AIInputWithSearch = ({
       >
         {/* Text Input Area */}
         <TextInput
+          ref={inputRef}
           key={inputKey}
           style={styles.textInput}
           placeholder={placeholder}
@@ -300,7 +321,7 @@ const AIInputWithSearch = ({
           {/* Right Side - Action Buttons */}
           <View style={styles.rightControls}>
             {/* Show microphone and camera when no text */}
-            {!value.trim() && !isTranscribing && (
+            {!(value && value.trim()) && !isTranscribing && (
               <>
                 <Animated.View style={animatedMicrophoneStyle}>
                   <TouchableOpacity
@@ -341,7 +362,7 @@ const AIInputWithSearch = ({
             )}
 
             {/* Show send button when there's text */}
-            {value.trim() && !isTranscribing && (
+            {value && value.trim() && !isTranscribing && (
               <TouchableOpacity
                 style={[
                   styles.sendButton,

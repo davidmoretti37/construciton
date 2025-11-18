@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -20,6 +21,7 @@ import { getUserProfile, updateBusinessInfo } from '../../utils/storage';
 export default function EditBusinessInfoScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -205,7 +207,14 @@ export default function EditBusinessInfoScreen({ navigation }) {
         </ScrollView>
 
         {/* Save Button */}
-        <View style={[styles.footer, { backgroundColor: Colors.background, borderTopColor: Colors.border }]}>
+        <View style={[
+          styles.footer,
+          {
+            backgroundColor: Colors.background,
+            borderTopColor: Colors.border,
+            paddingBottom: Math.max(insets.bottom + 20, 36),
+          }
+        ]}>
           <TouchableOpacity
             style={[styles.saveButton, {
               backgroundColor: Colors.primaryBlue,

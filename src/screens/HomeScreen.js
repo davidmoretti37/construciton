@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   RefreshControl,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,6 +16,7 @@ import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../con
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjects } from '../utils/storage';
 import { ProjectCard } from '../components/ChatVisuals';
+import ProjectDetailView from '../components/ProjectDetailView';
 
 export default function HomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -23,6 +25,12 @@ export default function HomeScreen({ navigation }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showProjectsModal, setShowProjectsModal] = useState(false);
+  const [modalProjects, setModalProjects] = useState([]);
+  const [modalTitle, setModalTitle] = useState('');
+  const [showAllActiveProjects, setShowAllActiveProjects] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [showProjectDetail, setShowProjectDetail] = useState(false);
 
   // Load projects when screen comes into focus
   useFocusEffect(
@@ -49,6 +57,30 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(false);
   }, []);
 
+  const handleStatCardPress = (type) => {
+    let filteredProjects = [];
+    let title = '';
+
+    switch (type) {
+      case 'active':
+        filteredProjects = activeProjects;
+        title = 'Active Projects';
+        break;
+      case 'onsite':
+        filteredProjects = onSiteProjects;
+        title = 'On-Site Projects';
+        break;
+      case 'attention':
+        filteredProjects = needAttentionProjects;
+        title = 'Projects Needing Attention';
+        break;
+    }
+
+    setModalProjects(filteredProjects);
+    setModalTitle(title);
+    setShowProjectsModal(true);
+  };
+
   // Calculate Quick Stats
   const activeProjects = projects.filter(p =>
     ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)
@@ -58,7 +90,7 @@ export default function HomeScreen({ navigation }) {
     p.workers && p.workers.length > 0
   ).length;
 
-  const needAttentionCount = projects.filter(p => {
+  const needAttentionProjects = projects.filter(p => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -73,8 +105,37 @@ export default function HomeScreen({ navigation }) {
       isOverdue = endDate < today && (p.percentComplete || 0) < 100;
     }
 
-    return isBehindSchedule || isOverBudget || hasLowCashFlow || isOverdue;
-  }).length;
+    const needsAttention = isBehindSchedule || isOverBudget || hasLowCashFlow || isOverdue;
+
+    // Store attention reasons on the project object for display
+    if (needsAttention) {
+      p.attentionReasons = [];
+      if (isBehindSchedule) {
+        if (p.status === 'behind') {
+          p.attentionReasons.push('Behind Schedule');
+        } else if (p.daysRemaining !== null && p.daysRemaining < 7) {
+          p.attentionReasons.push(`Only ${p.daysRemaining} days remaining`);
+        }
+      }
+      if (isOverBudget) {
+        const over = (p.expenses || 0) - (p.contractAmount || 0);
+        p.attentionReasons.push(`Over budget by $${over.toLocaleString()}`);
+      }
+      if (hasLowCashFlow) {
+        const unpaid = (p.expenses || 0) - (p.incomeCollected || 0);
+        p.attentionReasons.push(`Unpaid expenses: $${unpaid.toLocaleString()}`);
+      }
+      if (isOverdue) {
+        p.attentionReasons.push('Project is overdue');
+      }
+    }
+
+    return needsAttention;
+  });
+
+  const onSiteProjects = projects.filter(p => p.workers && p.workers.length > 0);
+
+  const needAttentionCount = needAttentionProjects.length;
 
   // Calculate This Month income (projects created/updated this month)
   const thisMonth = new Date().getMonth();
@@ -121,21 +182,25 @@ export default function HomeScreen({ navigation }) {
   // Handle project card actions
   const handleProjectAction = (action) => {
     if (action && action.type === 'view-project' && action.data?.projectId) {
-      // Navigate to project details or Projects screen
-      navigation.navigate('Projects');
+      const project = projects.find(p => p.id === action.data.projectId);
+      if (project) {
+        setSelectedProject(project);
+        setShowProjectDetail(true);
+      }
     }
+  };
+
+  const handleProjectEdit = () => {
+    // Close detail view and navigate to Projects screen for editing
+    setShowProjectDetail(false);
+    navigation.navigate('Projects');
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
-        </TouchableOpacity>
+        {/* Settings removed - now in More tab */}
       </View>
 
       <ScrollView
@@ -160,20 +225,32 @@ export default function HomeScreen({ navigation }) {
           <>
             {/* Quick Stats Cards */}
             <View style={styles.statsRow}>
-              <View style={[styles.statCard, { borderLeftColor: Colors.primaryBlue }]}>
+              <TouchableOpacity
+                style={[styles.statCard, { borderLeftColor: Colors.primaryBlue }]}
+                onPress={() => handleStatCardPress('active')}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.statNumber}>{activeProjects.length}</Text>
                 <Text style={styles.statLabel}>Active Projects</Text>
-              </View>
+              </TouchableOpacity>
 
-              <View style={[styles.statCard, { borderLeftColor: Colors.successGreen }]}>
+              <TouchableOpacity
+                style={[styles.statCard, { borderLeftColor: Colors.successGreen }]}
+                onPress={() => handleStatCardPress('onsite')}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.statNumber}>{onSiteCount}</Text>
                 <Text style={styles.statLabel}>On-Site</Text>
-              </View>
+              </TouchableOpacity>
 
-              <View style={[styles.statCard, { borderLeftColor: Colors.warningOrange }]}>
+              <TouchableOpacity
+                style={[styles.statCard, { borderLeftColor: Colors.warningOrange }]}
+                onPress={() => handleStatCardPress('attention')}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.statNumber}>{needAttentionCount}</Text>
                 <Text style={styles.statLabel}>Need Attention</Text>
-              </View>
+              </TouchableOpacity>
             </View>
           </>
         )}
@@ -286,16 +363,28 @@ export default function HomeScreen({ navigation }) {
                 </View>
               ) : (
                 <>
-                  {activeProjects.slice(0, 3).map((project) => (
+                  {(showAllActiveProjects ? activeProjects : activeProjects.slice(0, 3)).map((project) => (
                     <ProjectCard key={project.id} data={project} onAction={handleProjectAction} />
                   ))}
-                  {activeProjects.length > 3 && (
+                  {activeProjects.length > 3 && !showAllActiveProjects && (
                     <TouchableOpacity
                       style={styles.viewAllButton}
-                      onPress={() => navigation.navigate('Projects')}
+                      onPress={() => setShowAllActiveProjects(true)}
                     >
+                      <Ionicons name="chevron-down" size={20} color={Colors.primaryBlue} />
                       <Text style={[styles.viewAllText, { color: Colors.primaryBlue }]}>
                         View {activeProjects.length - 3} more project{activeProjects.length - 3 === 1 ? '' : 's'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {showAllActiveProjects && activeProjects.length > 3 && (
+                    <TouchableOpacity
+                      style={styles.viewAllButton}
+                      onPress={() => setShowAllActiveProjects(false)}
+                    >
+                      <Ionicons name="chevron-up" size={20} color={Colors.primaryBlue} />
+                      <Text style={[styles.viewAllText, { color: Colors.primaryBlue }]}>
+                        Show Less
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -305,6 +394,80 @@ export default function HomeScreen({ navigation }) {
           </>
         )}
       </ScrollView>
+
+      {/* Projects Modal */}
+      <Modal
+        visible={showProjectsModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowProjectsModal(false)}
+      >
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
+          {/* Modal Header */}
+          <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowProjectsModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={28} color={Colors.primaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{modalTitle}</Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          {/* Modal Content */}
+          <ScrollView
+            style={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {modalProjects.length === 0 ? (
+              <View style={styles.emptyModalState}>
+                <Ionicons name="folder-open-outline" size={64} color={Colors.secondaryText} />
+                <Text style={[styles.emptyModalText, { color: Colors.secondaryText }]}>
+                  No projects found
+                </Text>
+              </View>
+            ) : (
+              modalProjects.map((project) => (
+                <View key={project.id}>
+                  <ProjectCard
+                    data={project}
+                    onAction={(action) => {
+                      setShowProjectsModal(false);
+                      handleProjectAction(action);
+                    }}
+                  />
+                  {project.attentionReasons && project.attentionReasons.length > 0 && (
+                    <View style={[styles.attentionReasonsCard, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+                      <View style={styles.attentionHeader}>
+                        <Ionicons name="warning" size={16} color="#F59E0B" />
+                        <Text style={[styles.attentionTitle, { color: '#92400E' }]}>Attention Required:</Text>
+                      </View>
+                      {project.attentionReasons.map((reason, idx) => (
+                        <View key={idx} style={styles.attentionReasonRow}>
+                          <Text style={styles.attentionBullet}>•</Text>
+                          <Text style={[styles.attentionReasonText, { color: '#78350F' }]}>{reason}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Project Detail View */}
+      <ProjectDetailView
+        visible={showProjectDetail}
+        project={selectedProject}
+        onClose={() => setShowProjectDetail(false)}
+        onEdit={handleProjectEdit}
+        onAction={handleProjectAction}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 }
@@ -473,11 +636,86 @@ const styles = StyleSheet.create({
   },
   viewAllButton: {
     marginTop: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
   viewAllText: {
     fontSize: FontSizes.small,
     color: LightColors.primaryBlue,
     fontWeight: '500',
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  emptyModalState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+  },
+  emptyModalText: {
+    fontSize: 16,
+    marginTop: 16,
+  },
+  attentionReasonsCard: {
+    marginHorizontal: 16,
+    marginTop: -12,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+  attentionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  attentionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  attentionReasonRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+    paddingLeft: 4,
+  },
+  attentionBullet: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#F59E0B',
+    marginRight: 6,
+    marginTop: 1,
+  },
+  attentionReasonText: {
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
   },
   projectCard: {
     backgroundColor: LightColors.white,

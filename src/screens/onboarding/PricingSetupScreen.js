@@ -19,7 +19,7 @@ import { saveUserProfile, completeOnboarding } from '../../utils/storage';
 export default function PricingSetupScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
-  const { selectedTrades, businessInfo } = route.params;
+  const { selectedTrades, businessInfo, phasesTemplate } = route.params;
 
   const [activeTrade, setActiveTrade] = useState(selectedTrades[0]);
   const [pricing, setPricing] = useState({});
@@ -48,17 +48,24 @@ export default function PricingSetupScreen({ navigation, route }) {
   };
 
   const handleContinue = async () => {
-    // Save complete profile
+    // Save profile (without invoice setup for now)
     const profile = {
       isOnboarded: false, // Will be set to true after completion screen
       businessInfo,
       trades: selectedTrades,
       pricing,
+      phasesTemplate,
     };
 
     await saveUserProfile(profile);
 
-    navigation.navigate('Completion');
+    // Navigate to Invoice Setup screen
+    navigation.navigate('InvoiceSetup', {
+      selectedTrades,
+      businessInfo,
+      pricing,
+      phasesTemplate,
+    });
   };
 
   const handleBack = () => {

@@ -70,7 +70,6 @@ export const formatEstimate = (estimateData, businessInfo = {}) => {
   }
 
   // Footer
-  estimate += `Valid for ${validDays} days\n`;
   estimate += `Reply to accept or request changes.`;
 
   return estimate;

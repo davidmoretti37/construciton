@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 
 /**
@@ -83,16 +83,16 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      font-size: 12px;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11px;
       line-height: 1.6;
-      color: #333;
-      padding: 40px;
+      color: #000;
+      padding: 50px 60px;
       background: #fff;
     }
 
     .invoice-container {
-      max-width: 800px;
+      max-width: 100%;
       margin: 0 auto;
       background: #fff;
     }
@@ -101,9 +101,9 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 40px;
-      padding-bottom: 20px;
-      border-bottom: 3px solid #2563EB;
+      margin-bottom: 50px;
+      padding-bottom: 0;
+      border-bottom: none;
     }
 
     .company-info {
@@ -111,16 +111,17 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     }
 
     .company-name {
-      font-size: 24px;
+      font-size: 28px;
       font-weight: 700;
-      color: #2563EB;
-      margin-bottom: 8px;
+      color: #000;
+      margin-bottom: 4px;
+      letter-spacing: -0.5px;
     }
 
     .company-details {
-      font-size: 11px;
-      color: #666;
-      line-height: 1.5;
+      font-size: 10px;
+      color: #000;
+      line-height: 1.4;
     }
 
     .invoice-title {
@@ -128,215 +129,144 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     }
 
     .invoice-title h1 {
-      font-size: 32px;
+      font-size: 36px;
       font-weight: 700;
-      color: #1F2937;
-      margin-bottom: 8px;
+      color: #000;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
     }
 
-    .invoice-number {
-      font-size: 14px;
+    .invoice-meta {
+      font-size: 10px;
+      color: #000;
+      text-align: right;
+      line-height: 1.6;
+    }
+
+    .invoice-meta strong {
       font-weight: 600;
-      color: #2563EB;
+    }
+
+    .section-header {
+      font-size: 13px;
+      font-weight: 700;
+      color: #000;
+      text-transform: uppercase;
+      margin-top: 30px;
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
     }
 
     .info-section {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
     }
 
     .info-block {
-      flex: 1;
+      margin-bottom: 15px;
     }
 
-    .info-label {
-      font-size: 10px;
+    .info-block strong {
       font-weight: 600;
-      text-transform: uppercase;
-      color: #6B7280;
-      margin-bottom: 8px;
-      letter-spacing: 0.5px;
     }
 
     .info-content {
-      font-size: 12px;
-      color: #1F2937;
-      line-height: 1.6;
+      font-size: 10px;
+      color: #000;
+      line-height: 1.5;
     }
 
-    .info-content strong {
-      font-weight: 600;
-    }
-
-    .items-table {
-      width: 100%;
-      border-collapse: collapse;
+    .description-section {
       margin-bottom: 30px;
     }
 
-    .items-table thead {
-      background: #F3F4F6;
+    .work-item {
+      margin-bottom: 18px;
     }
 
-    .items-table th {
-      padding: 12px;
-      text-align: left;
+    .work-item-title {
       font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: #374151;
-      border-bottom: 2px solid #D1D5DB;
+      font-weight: 700;
+      color: #000;
+      margin-bottom: 6px;
     }
 
-    .items-table th:last-child,
-    .items-table td:last-child {
-      text-align: right;
-    }
-
-    .items-table tbody tr {
-      border-bottom: 1px solid #E5E7EB;
-    }
-
-    .items-table td {
-      padding: 12px;
-      font-size: 12px;
-      color: #1F2937;
-    }
-
-    .item-description {
-      font-weight: 500;
-      margin-bottom: 4px;
-    }
-
-    .item-details {
+    .work-item-details {
       font-size: 10px;
-      color: #6B7280;
+      color: #000;
+      line-height: 1.7;
+      padding-left: 12px;
+    }
+
+    .work-item-details li {
+      margin-bottom: 3px;
+      list-style-type: disc;
     }
 
     .totals-section {
-      margin-left: auto;
-      width: 300px;
+      margin-top: 30px;
       margin-bottom: 30px;
+      border-top: 2px solid #000;
+      border-bottom: 2px solid #000;
+      padding: 10px 0;
     }
 
-    .totals-row {
+    .subtotal-row {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
+      padding: 6px 0;
+      font-size: 10px;
+      color: #000;
+    }
+
+    .subtotal-row .label {
+      margin-right: 100px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: flex-end;
       padding: 8px 0;
       font-size: 12px;
-    }
-
-    .totals-row.subtotal {
-      color: #6B7280;
-      border-bottom: 1px solid #E5E7EB;
-      padding-bottom: 12px;
-      margin-bottom: 8px;
-    }
-
-    .totals-row.total {
-      font-size: 16px;
       font-weight: 700;
-      color: #1F2937;
-      border-top: 2px solid #2563EB;
-      border-bottom: 2px solid #2563EB;
-      padding: 12px 0;
-      margin-top: 8px;
+      color: #000;
     }
 
-    .totals-row.total .amount {
-      color: #2563EB;
+    .total-row .label {
+      margin-right: 80px;
     }
 
-    .totals-row.paid {
-      color: #059669;
-      font-weight: 600;
-    }
-
-    .totals-row.due {
-      font-size: 14px;
+    .total-row .amount {
       font-weight: 700;
-      color: #DC2626;
-      margin-top: 8px;
     }
 
     .payment-info {
-      background: #F9FAFB;
-      padding: 20px;
-      border-radius: 8px;
-      margin-bottom: 30px;
-      border-left: 4px solid #2563EB;
-    }
-
-    .payment-info h3 {
-      font-size: 13px;
-      font-weight: 600;
-      color: #1F2937;
-      margin-bottom: 12px;
+      margin-bottom: 25px;
     }
 
     .payment-info p {
-      font-size: 11px;
-      color: #4B5563;
+      font-size: 10px;
+      color: #000;
       line-height: 1.6;
+      margin-bottom: 4px;
+    }
+
+    .payment-method {
+      margin-bottom: 15px;
+    }
+
+    .payment-method strong {
+      font-weight: 700;
     }
 
     .notes {
-      margin-top: 30px;
-      padding-top: 20px;
-      border-top: 1px solid #E5E7EB;
-    }
-
-    .notes h3 {
-      font-size: 12px;
-      font-weight: 600;
-      color: #1F2937;
-      margin-bottom: 8px;
+      margin-top: 25px;
     }
 
     .notes p {
-      font-size: 11px;
-      color: #6B7280;
-      line-height: 1.6;
-    }
-
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #E5E7EB;
-      text-align: center;
       font-size: 10px;
-      color: #9CA3AF;
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .status-unpaid {
-      background: #FEE2E2;
-      color: #991B1B;
-    }
-
-    .status-paid {
-      background: #D1FAE5;
-      color: #065F46;
-    }
-
-    .status-partial {
-      background: #FEF3C7;
-      color: #92400E;
-    }
-
-    .status-overdue {
-      background: #FEE2E2;
-      color: #7F1D1D;
+      color: #000;
+      line-height: 1.7;
+      margin-bottom: 8px;
     }
 
     @media print {
@@ -348,118 +278,82 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
 </head>
 <body>
   <div class="invoice-container">
-    <!-- Header -->
+    <!-- Header: Company Name/Info on Left, INVOICE Title on Right -->
     <div class="header">
       <div class="company-info">
-        <div class="company-name">${businessInfo?.name || 'Your Business'}</div>
+        <div class="company-name">${businessInfo?.name || 'YOUR COMPANY NAME'}</div>
         <div class="company-details">
-          ${businessInfo?.phone ? `Phone: ${businessInfo.phone}<br>` : ''}
-          ${businessInfo?.email ? `Email: ${businessInfo.email}<br>` : ''}
-          ${businessInfo?.address ? `${businessInfo.address}` : ''}
+          ${businessInfo?.contactName || businessInfo?.owner || ''}<br>
+          ${businessInfo?.email || ''}
         </div>
       </div>
       <div class="invoice-title">
         <h1>INVOICE</h1>
-        <div class="invoice-number">${invNumber}</div>
+        <div class="invoice-meta">
+          <strong>Invoice No.:</strong> ${invNumber}<br>
+          <strong>Date Issued:</strong> ${formatDate(invoiceDate)}
+        </div>
       </div>
     </div>
 
-    <!-- Invoice Info -->
+    <!-- BILL TO Section -->
+    <div class="section-header">BILL TO:</div>
     <div class="info-section">
-      <div class="info-block">
-        <div class="info-label">Bill To:</div>
-        <div class="info-content">
-          <strong>${client}</strong><br>
-          ${clientAddr ? `${clientAddr}<br>` : ''}
-        </div>
-      </div>
-      <div class="info-block">
-        <div class="info-label">Invoice Details:</div>
-        <div class="info-content">
-          <strong>Date:</strong> ${formatDate(invoiceDate)}<br>
-          ${dueDateValue ? `<strong>Due Date:</strong> ${formatDate(dueDateValue)}<br>` : ''}
-          ${terms ? `<strong>Terms:</strong> ${terms}<br>` : ''}
-          ${project ? `<strong>Project:</strong> ${project}` : ''}
-        </div>
+      <div class="info-content">
+        <strong>${client}</strong><br>
+        ${clientAddr ? `${clientAddr}` : ''}
       </div>
     </div>
 
-    <!-- Items Table -->
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th style="width: 50%;">Description</th>
-          <th style="width: 15%;">Quantity</th>
-          <th style="width: 15%;">Rate</th>
-          <th style="width: 20%;">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items.map((item, index) => `
-          <tr>
-            <td>
-              <div class="item-description">${item.description || `Item ${index + 1}`}</div>
-              ${item.unit ? `<div class="item-details">Unit: ${item.unit}</div>` : ''}
-            </td>
-            <td>${item.quantity || 0}</td>
-            <td>${formatCurrency(item.price || item.pricePerUnit || 0)}</td>
-            <td>${formatCurrency(item.total || 0)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
+    <!-- PROJECT Section (if exists) -->
+    ${project ? `
+      <div class="section-header">PROJECT:</div>
+      <div class="info-section">
+        <div class="info-content">${project}</div>
+      </div>
+    ` : ''}
 
-    <!-- Totals -->
+    <!-- DESCRIPTION OF WORK Section -->
+    <div class="section-header">DESCRIPTION OF WORK:</div>
+    <div class="description-section">
+      ${items.map((item, index) => `
+        <div class="work-item">
+          <div class="work-item-title">${index + 1}. ${item.description || `Service ${index + 1}`}</div>
+          <div class="work-item-details">
+            ${item.quantity} ${item.unit || 'unit'}${item.quantity > 1 ? 's' : ''} × ${formatCurrency(item.price || item.pricePerUnit || 0)} = ${formatCurrency(item.total || 0)}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Totals Section -->
+    <div class="subtotal-row">
+      <span class="label">Subtotal:</span>
+      <span>${formatCurrency(subtotal)}</span>
+    </div>
+
     <div class="totals-section">
-      <div class="totals-row subtotal">
-        <span>Subtotal:</span>
-        <span>${formatCurrency(subtotal)}</span>
+      <div class="total-row">
+        <span class="label">TOTAL DUE:</span>
+        <span class="amount">${formatCurrency(total)} USD</span>
       </div>
-      ${taxRateValue > 0 ? `
-        <div class="totals-row">
-          <span>Tax (${taxRateValue}%):</span>
-          <span>${formatCurrency(taxAmountValue)}</span>
-        </div>
-      ` : ''}
-      <div class="totals-row total">
-        <span>TOTAL:</span>
-        <span class="amount">${formatCurrency(total)}</span>
-      </div>
-      ${paidAmount > 0 ? `
-        <div class="totals-row paid">
-          <span>Amount Paid:</span>
-          <span>-${formatCurrency(paidAmount)}</span>
-        </div>
-        <div class="totals-row due">
-          <span>AMOUNT DUE:</span>
-          <span>${formatCurrency(dueAmount)}</span>
-        </div>
-      ` : ''}
     </div>
 
-    <!-- Payment Info -->
-    ${terms || notes ? `
+    <!-- PAYMENT INFORMATION Section -->
+    ${businessInfo?.paymentInfo ? `
+      <div class="section-header">PAYMENT INFORMATION:</div>
       <div class="payment-info">
-        ${terms ? `
-          <h3>Payment Terms</h3>
-          <p>${terms}</p>
-        ` : ''}
+        ${businessInfo.paymentInfo.split('\n').map(line => `<p>${line}</p>`).join('')}
       </div>
     ` : ''}
 
-    <!-- Notes -->
+    <!-- NOTES Section (if exists) -->
     ${notes ? `
+      <div class="section-header">NOTES:</div>
       <div class="notes">
-        <h3>Notes</h3>
-        <p>${notes}</p>
+        ${notes.split('\n').map(line => `<p>${line}</p>`).join('')}
       </div>
     ` : ''}
-
-    <!-- Footer -->
-    <div class="footer">
-      Thank you for your business!<br>
-      Generated on ${formatDate(new Date().toISOString())}
-    </div>
   </div>
 </body>
 </html>
@@ -505,11 +399,12 @@ export const uploadInvoicePDF = async (localUri, invoiceNumber) => {
 
     // Read the file as base64
     const fileData = await FileSystem.readAsStringAsync(localUri, {
-      encoding: FileSystem.EncodingType.Base64,
+      encoding: 'base64',
     });
 
     // Convert base64 to blob
-    const fileName = `${invoiceNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
+    const safeInvoiceNumber = invoiceNumber ? invoiceNumber.replace(/\//g, '-') : `invoice_${Date.now()}`;
+    const fileName = `${safeInvoiceNumber}_${Date.now()}.pdf`;
     const filePath = `${user.id}/invoices/${fileName}`;
 
     // Upload to Supabase storage
@@ -524,12 +419,22 @@ export const uploadInvoicePDF = async (localUri, invoiceNumber) => {
       throw error;
     }
 
-    // Get public URL
-    const { data: publicUrlData } = supabase.storage
+    // Get signed URL (expires in 1 hour for security)
+    // This creates a temporary, secure URL that expires
+    const { data: signedUrlData, error: signedError } = await supabase.storage
       .from('documents')
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 3600); // 3600 seconds = 1 hour
 
-    return publicUrlData.publicUrl;
+    if (signedError) {
+      console.error('Error creating signed URL:', signedError);
+      // Fallback to public URL if signed URL fails
+      const { data: publicUrlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+      return publicUrlData.publicUrl;
+    }
+
+    return signedUrlData.signedUrl;
   } catch (error) {
     console.error('Error uploading PDF:', error);
     throw new Error('Failed to upload PDF to storage');
@@ -547,6 +452,42 @@ function decode(base64) {
   }
   return bytes.buffer;
 }
+
+/**
+ * Opens invoice PDF in viewer (for preview)
+ * Uses Web Browser API to open PDF on iOS/Android
+ * @param {string} pdfUri - Local PDF URI
+ * @param {string} invoiceNumber - Invoice number for share title
+ */
+export const previewInvoicePDF = async (pdfUri, invoiceNumber) => {
+  try {
+    // Import WebBrowser dynamically
+    const { openBrowserAsync } = await import('expo-web-browser');
+
+    // On mobile, this opens the PDF in system viewer
+    // On web, this opens in browser
+    await openBrowserAsync(pdfUri, {
+      dismissButtonStyle: 'close',
+      presentationStyle: 'pageSheet',
+      toolbarColor: '#2563EB',
+    });
+  } catch (error) {
+    console.error('Error previewing PDF:', error);
+    // Fallback to share if WebBrowser fails
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(pdfUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Invoice ${invoiceNumber}`,
+          UTI: 'com.adobe.pdf',
+        });
+      }
+    } catch (shareError) {
+      throw new Error('Failed to preview PDF');
+    }
+  }
+};
 
 /**
  * Shares invoice PDF with system share dialog

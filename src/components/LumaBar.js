@@ -12,7 +12,7 @@ const items = [
   { id: 1, icon: 'file-tray-full', label: 'Projects', routeIndex: 1 },
   { id: 2, icon: 'chatbubbles', label: 'Chat', routeIndex: 3 },
   { id: 3, icon: 'people', label: 'Workers', routeIndex: 2 },
-  { id: 4, icon: 'stats-chart', label: 'Stats', routeIndex: 4 },
+  { id: 4, icon: 'ellipsis-horizontal', label: 'More', routeIndex: 4 },
 ];
 
 const LumaBar = ({ state, navigation }) => {

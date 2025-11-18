@@ -1,5 +1,20 @@
-import { getSystemPrompt } from './agentPrompt';
+// Legacy prompt archived - now using multi-agent system via CoreAgent
+// import { getSystemPrompt } from './agentPrompt';
 import { OPENROUTER_API_KEY } from '@env';
+
+/**
+ * DEPRECATED: Legacy single-agent prompt function
+ * This is kept for backward compatibility but is no longer used in production.
+ * The app now uses CoreAgent with specialized agent prompts.
+ */
+const getSystemPrompt = (projectContext) => {
+  console.warn('⚠️ Using deprecated legacy prompt. Consider migrating to CoreAgent.');
+  return `You are ConstructBot, a construction project management assistant.
+Respond with valid JSON: {"text":"...","visualElements":[],"actions":[],"quickSuggestions":[]}
+
+Current Context:
+${JSON.stringify(projectContext, null, 2)}`;
+};
 
 // Response cache for instant repeat queries (5 minute TTL)
 const responseCache = {};
@@ -10,9 +25,10 @@ const CACHE_TTL = 300000; // 5 minutes (common queries like "updates" don't chan
  * @param {string} message - User's message
  * @param {object} projectContext - Current app data (projects, workers, stats)
  * @param {array} conversationHistory - Previous messages in the conversation
+ * @param {string} customSystemPrompt - Optional custom system prompt (for multi-agent orchestration)
  * @returns {Promise<object>} - Structured AI response with text, visualElements, actions, quickSuggestions
  */
-export const sendMessageToAI = async (message, projectContext, conversationHistory = []) => {
+export const sendMessageToAI = async (message, projectContext, conversationHistory = [], customSystemPrompt = null) => {
   try {
     console.log('Calling AI with context:', {
       messageLength: message.length,
@@ -26,10 +42,12 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
     }
 
     // Build messages array with system prompt, history, and new message
+    const systemPromptContent = customSystemPrompt || getSystemPrompt(projectContext);
+
     const messages = [
       {
         role: 'system',
-        content: getSystemPrompt(projectContext),
+        content: systemPromptContent,
       },
       ...conversationHistory,
       {
@@ -49,7 +67,7 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini', // Reliable and proven - Qwen 2.5 7B was hanging/timing out
         messages: messages,
-        max_tokens: 800, // Balanced: fast responses but enough for multiple projects
+        max_tokens: 1500, // Increased for complex responses and multi-agent plans
         temperature: 0.3, // Lower temp = more reliable JSON formatting
         response_format: { type: "json_object" }, // Force JSON responses
       }),
@@ -126,7 +144,8 @@ export const sendMessageToAIStreaming = async (
   conversationHistory = [],
   onChunk,
   onComplete,
-  onError
+  onError,
+  customSystemPrompt = null // Optional: For multi-agent system
 ) => {
   try {
     // Check cache for instant responses (common queries like "updates", "income")
@@ -148,10 +167,12 @@ export const sendMessageToAIStreaming = async (
 
     // Build messages array with system prompt, history, and new message
     // OPTIMIZATION: Enable prompt caching to reduce latency + costs by 75%
+    const systemPromptContent = customSystemPrompt || getSystemPrompt(projectContext);
+
     const messages = [
       {
         role: 'system',
-        content: getSystemPrompt(projectContext),
+        content: systemPromptContent,
         cache_control: { type: 'ephemeral' }, // Cache system prompt for 5 min
       },
       ...conversationHistory,
@@ -174,9 +195,10 @@ export const sendMessageToAIStreaming = async (
       body: JSON.stringify({
         model: 'anthropic/claude-3.5-haiku:nitro', // :nitro = fastest routing optimization
         messages,
-        max_tokens: 250, // Tight limit for speed
+        max_tokens: 4000, // High limit for detailed estimates with phases, tasks, schedule, and line items
         temperature: 0.3,
         stream: true,
+        // Note: Claude doesn't support response_format, must rely on system prompt
       }),
     });
 
@@ -216,6 +238,11 @@ export const sendMessageToAIStreaming = async (
         }
       }
 
+      // Log the raw accumulated response for debugging
+      if (__DEV__) {
+        console.log('🔍 [aiService] Raw accumulated JSON (first 500 chars):', accumulatedJSON.substring(0, 500));
+      }
+
       // ROBUST JSON CLEANUP - handle all AI formatting mistakes
       let cleanJSON = accumulatedJSON.trim();
 
@@ -233,6 +260,10 @@ export const sendMessageToAIStreaming = async (
       // Fix literal newlines and tabs in ALL string values (not just "text" field)
       // Replace literal newlines/tabs with escaped versions
       cleanJSON = cleanJSON.replace(/"([^"]+)":\s*"([^"]*(?:\n|\r|\t)[^"]*)*"/g, (match, key, value) => {
+        // Safety check for undefined value
+        if (value === undefined) {
+          return `"${key}": ""`;
+        }
         const escaped = value
           .replace(/\n/g, '\\n')
           .replace(/\r/g, '\\r')
@@ -271,26 +302,35 @@ export const sendMessageToAIStreaming = async (
           throw new Error('Response is not an object');
         }
 
-        // Ensure all required fields exist with correct types
-        parsedResponse = {
-          text: typeof parsedResponse.text === 'string' ? parsedResponse.text : 'Unable to process response',
-          visualElements: Array.isArray(parsedResponse.visualElements) ? parsedResponse.visualElements : [],
-          actions: Array.isArray(parsedResponse.actions) ? parsedResponse.actions : [],
-          quickSuggestions: Array.isArray(parsedResponse.quickSuggestions) ? parsedResponse.quickSuggestions : [],
-        };
+        // IMPORTANT: If using a custom system prompt (multi-agent system),
+        // DO NOT normalize the structure - let the agent handle its own format
+        if (customSystemPrompt) {
+          // Just validate it's valid JSON and return as-is
+          if (__DEV__) {
+            console.log('✅ [aiService] Custom prompt mode - returning raw parsed response');
+          }
+        } else {
+          // Legacy mode: Ensure all required fields exist with correct types
+          parsedResponse = {
+            text: typeof parsedResponse.text === 'string' ? parsedResponse.text : 'Unable to process response',
+            visualElements: Array.isArray(parsedResponse.visualElements) ? parsedResponse.visualElements : [],
+            actions: Array.isArray(parsedResponse.actions) ? parsedResponse.actions : [],
+            quickSuggestions: Array.isArray(parsedResponse.quickSuggestions) ? parsedResponse.quickSuggestions : [],
+          };
 
-        // Validate we have at least some text
-        if (!parsedResponse.text || parsedResponse.text.length === 0) {
-          throw new Error('Empty text response');
-        }
+          // Validate we have at least some text
+          if (!parsedResponse.text || parsedResponse.text.length === 0) {
+            throw new Error('Empty text response');
+          }
 
-        // IMPORTANT: Log if visualElements are missing (helps debug AI prompt issues)
-        if (__DEV__ && parsedResponse.visualElements.length === 0) {
-          console.warn('⚠️ AI returned no visualElements. Check if prompt example matches query type.');
-        }
+          // IMPORTANT: Log if visualElements are missing (helps debug AI prompt issues)
+          if (__DEV__ && parsedResponse.visualElements.length === 0) {
+            console.warn('⚠️ AI returned no visualElements. Check if prompt example matches query type.');
+          }
 
-        if (__DEV__ && parsedResponse.visualElements.length > 0) {
-          console.log('✅ Parsed visualElements:', parsedResponse.visualElements.map(v => v.type));
+          if (__DEV__ && parsedResponse.visualElements.length > 0) {
+            console.log('✅ Parsed visualElements:', parsedResponse.visualElements.map(v => v.type));
+          }
         }
 
       } catch (parseError) {
@@ -317,7 +357,10 @@ export const sendMessageToAIStreaming = async (
 
       // Show text immediately - no animation delay
       // (Speed is more important than aesthetics for contractors)
-      onChunk?.(parsedResponse.text);
+      // Call onChunk with the text for UI display
+      if (parsedResponse.text) {
+        onChunk?.(parsedResponse.text);
+      }
 
       // Cache the response for instant repeat queries
       responseCache[cacheKey] = {
@@ -362,7 +405,7 @@ export const sendMessageToAIStreaming = async (
             if (content) {
               accumulatedText += content;
 
-              // Extract clean text from JSON as it streams
+              // Extract clean text from JSON as it streams (for all agents)
               const textMatch = accumulatedText.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
               if (textMatch && textMatch[1]) {
                 const cleanText = textMatch[1]
@@ -383,7 +426,19 @@ export const sendMessageToAIStreaming = async (
     }
 
     // Parse final JSON response with robust cleanup
-    let finalText = accumulatedText.trim();
+    let finalText = (accumulatedText || '').trim();
+
+    // Safety check
+    if (!finalText) {
+      console.warn('⚠️ No accumulated text to parse');
+      onComplete?.({
+        text: 'Unable to process response',
+        visualElements: [],
+        actions: [],
+        quickSuggestions: []
+      });
+      return;
+    }
 
     // Remove markdown code blocks
     finalText = finalText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/g, '');
@@ -397,6 +452,10 @@ export const sendMessageToAIStreaming = async (
 
     // Fix literal newlines/tabs in string values
     finalText = finalText.replace(/"([^"]+)":\s*"([^"]*(?:\n|\r|\t)[^"]*)*"/g, (match, key, value) => {
+      // Safety check for undefined value
+      if (value === undefined) {
+        return `"${key}": ""`;
+      }
       const escaped = value
         .replace(/\n/g, '\\n')
         .replace(/\r/g, '\\r')
@@ -425,25 +484,35 @@ export const sendMessageToAIStreaming = async (
     try {
       const parsed = JSON.parse(finalText);
 
-      // Validate and normalize structure
-      const validatedResponse = {
-        text: typeof parsed.text === 'string' ? parsed.text : 'Unable to process response',
-        visualElements: Array.isArray(parsed.visualElements) ? parsed.visualElements : [],
-        actions: Array.isArray(parsed.actions) ? parsed.actions : [],
-        quickSuggestions: Array.isArray(parsed.quickSuggestions) ? parsed.quickSuggestions : [],
-      };
+      let validatedResponse;
 
-      if (!validatedResponse.text || validatedResponse.text.length === 0) {
-        throw new Error('Empty text response');
-      }
+      // IMPORTANT: If using custom system prompt (multi-agent), don't normalize
+      if (customSystemPrompt) {
+        validatedResponse = parsed; // Return as-is for agents to handle
+        if (__DEV__) {
+          console.log('✅ [aiService] TRUE STREAMING - Custom prompt mode, returning raw response');
+        }
+      } else {
+        // Validate and normalize structure for legacy mode
+        validatedResponse = {
+          text: typeof parsed.text === 'string' ? parsed.text : 'Unable to process response',
+          visualElements: Array.isArray(parsed.visualElements) ? parsed.visualElements : [],
+          actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+          quickSuggestions: Array.isArray(parsed.quickSuggestions) ? parsed.quickSuggestions : [],
+        };
 
-      // IMPORTANT: Log if visualElements are missing
-      if (__DEV__ && validatedResponse.visualElements.length === 0) {
-        console.warn('⚠️ AI returned no visualElements. Check if prompt example matches query type.');
-      }
+        if (!validatedResponse.text || validatedResponse.text.length === 0) {
+          throw new Error('Empty text response');
+        }
 
-      if (__DEV__ && validatedResponse.visualElements.length > 0) {
-        console.log('✅ Parsed visualElements:', validatedResponse.visualElements.map(v => v.type));
+        // IMPORTANT: Log if visualElements are missing
+        if (__DEV__ && validatedResponse.visualElements.length === 0) {
+          console.warn('⚠️ AI returned no visualElements. Check if prompt example matches query type.');
+        }
+
+        if (__DEV__ && validatedResponse.visualElements.length > 0) {
+          console.log('✅ Parsed visualElements:', validatedResponse.visualElements.map(v => v.type));
+        }
       }
 
       // Cache the validated response

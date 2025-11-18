@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Alert,
   Keyboard,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,11 +19,12 @@ import AIInputWithSearch from '../components/AIInputWithSearch';
 import AnimatedText from '../components/AnimatedText';
 import { useTheme } from '../contexts/ThemeContext';
 import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, formatProjectConfirmation } from '../services/aiService';
-import { ProjectCard, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, ProjectSelector, ExpenseCard, ProjectOverview } from '../components/ChatVisuals';
+import CoreAgent from '../services/agents/core/CoreAgent';
+import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview } from '../components/ChatVisuals';
 import { formatEstimate } from '../utils/estimateFormatter';
 import { sendEstimateViaSMS, sendEstimateViaWhatsApp, isValidPhoneNumber } from '../utils/messaging';
-import { getUserProfile, saveProject, transformScreenshotToProject, getProject, saveEstimate, createInvoiceFromEstimate, markInvoiceAsPaid, updateInvoicePDF, getInvoice, updateTradePricing } from '../utils/storage';
-import { generateInvoicePDF, uploadInvoicePDF, shareInvoicePDF } from '../utils/pdfGenerator';
+import { getUserProfile, saveProject, transformScreenshotToProject, getProject, saveEstimate, updateEstimate, createInvoiceFromEstimate, markInvoiceAsPaid, updateInvoicePDF, getInvoice, updateTradePricing, updatePhaseProgress, extendPhaseTimeline, startPhase, completePhase, fetchProjectPhases, addTaskToPhase, saveDailyReport, savePhasePaymentAmount, deleteProject } from '../utils/storage';
+import { generateInvoicePDF, uploadInvoicePDF, previewInvoicePDF, shareInvoicePDF } from '../utils/pdfGenerator';
 import TimelinePickerModal from '../components/TimelinePickerModal';
 import BudgetInputModal from '../components/BudgetInputModal';
 import JobNameInputModal from '../components/JobNameInputModal';
@@ -42,6 +44,20 @@ export default function ChatScreen({ navigation }) {
   const [currentProject, setCurrentProject] = useState(null);
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const [inputSetValueRef, setInputSetValueRef] = useState(null); // Store setValue function from input
+  const [selectedSuggestions, setSelectedSuggestions] = useState({}); // Store selected quick suggestions per message (messageIndex -> array)
+  const [customInputs, setCustomInputs] = useState({}); // Store custom input state per message: {messageId: {visible: bool, value: string}}
+  const aiTimeoutRef = useRef(null); // Store timeout ID for AI response
+
+  // Memoize the callback to prevent infinite loops
+  const handlePopulateInput = useCallback((callback) => {
+    console.log('onPopulateInput received callback in parent');
+    setInputSetValueRef(() => callback);
+  }, []);
+
+  useEffect(() => {
+    console.log('inputSetValueRef changed:', !!inputSetValueRef, typeof inputSetValueRef);
+  }, [inputSetValueRef]);
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages appear or AI starts thinking
@@ -82,19 +98,44 @@ export default function ChatScreen({ navigation }) {
     setIsAIThinking(true);
     let messageCreated = false; // Track if we've created the message bubble
 
-    try {
-      // Get current project context with saved projects data
-      const projectContext = await getProjectContext();
+    // Set 50-second timeout
+    aiTimeoutRef.current = setTimeout(() => {
+      console.log('⏱️ AI response timeout - 50 seconds elapsed');
+      setIsAIThinking(false);
 
-      // Use STREAMING version for real-time word-by-word responses
-      await sendMessageToAIStreaming(
+      if (!messageCreated) {
+        const timeoutMessage = {
+          id: aiMessageId,
+          text: "Sorry, the AI is taking longer than expected to respond. This might be due to network issues or server load.",
+          isUser: false,
+          timestamp: new Date(),
+          visualElements: [],
+          actions: [{
+            type: 'retry',
+            label: 'Retry',
+            data: { originalMessage: text }
+          }],
+          quickSuggestions: [],
+        };
+
+        setMessages((prev) => [...prev, timeoutMessage]);
+        messageCreated = true;
+      }
+    }, 50000); // 50 seconds
+
+    try {
+      // Use CoreAgent for intelligent multi-agent routing with execution planning
+      await CoreAgent.processStreaming(
         text,
-        projectContext,
-        conversationHistory,
+        conversationHistory, // Pass conversation history
         // onChunk callback - Create bubble on first chunk, then update text
         (cleanText) => {
           if (!messageCreated && cleanText) {
-            // First chunk arrived - hide loading, create bubble with text
+            // First chunk arrived - clear timeout, hide loading, create bubble with text
+            if (aiTimeoutRef.current) {
+              clearTimeout(aiTimeoutRef.current);
+              aiTimeoutRef.current = null;
+            }
             setIsAIThinking(false);
             messageCreated = true;
 
@@ -159,6 +200,13 @@ export default function ChatScreen({ navigation }) {
             return updated;
           });
 
+          // AUTO-EXECUTE financial update actions (deposit/expense)
+          const updateAction = parsedResponse.actions?.find(action => action.type === 'update-project-finances');
+          if (updateAction) {
+            console.log('🔄 Auto-executing financial update:', updateAction.data);
+            handleUpdateProjectFinances(updateAction.data);
+          }
+
           // Update conversation history
           setConversationHistory((prev) => [
             ...prev,
@@ -169,6 +217,11 @@ export default function ChatScreen({ navigation }) {
         // onError callback
         (error) => {
           console.error('Streaming error:', error);
+          // Clear timeout on error
+          if (aiTimeoutRef.current) {
+            clearTimeout(aiTimeoutRef.current);
+            aiTimeoutRef.current = null;
+          }
           setIsAIThinking(false);
 
           // Only add error message if we haven't created a message bubble yet
@@ -196,6 +249,11 @@ export default function ChatScreen({ navigation }) {
       );
     } catch (error) {
       console.error('Error calling AI:', error);
+      // Clear timeout on error
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+        aiTimeoutRef.current = null;
+      }
       setIsAIThinking(false);
 
       // Only add error message if onError callback didn't already add one
@@ -356,12 +414,14 @@ export default function ChatScreen({ navigation }) {
         break;
 
       case 'create-project':
-        console.log('Create project');
-        // TODO: Navigate to create project screen
+      case 'save-project':
+      case 'confirm-project':
+        await handleSaveProject(action.data);
         break;
 
-      case 'save-project':
-        await handleSaveProject(action.data);
+      case 'edit-project-details':
+        // Send a message to restart the conversation with editing mode
+        handleSend('I want to edit the project details', false);
         break;
 
       case 'create-project-from-screenshot':
@@ -391,6 +451,13 @@ export default function ChatScreen({ navigation }) {
         navigation.navigate('Projects');
         break;
 
+      case 'retry':
+        // Retry the original message
+        if (action.data?.originalMessage) {
+          handleSend(action.data.originalMessage, false);
+        }
+        break;
+
       case 'send-estimate-sms':
       case 'send-estimate-whatsapp':
         await handleSendEstimate(action);
@@ -400,24 +467,42 @@ export default function ChatScreen({ navigation }) {
         await handleSaveEstimate(action.data);
         break;
 
+      case 'save-project':
+        await handleSaveProject(action.data);
+        break;
+
+      case 'delete-project':
+        await handleDeleteProject(action.data);
+        break;
+
+      case 'update-estimate':
+        await handleUpdateEstimate(action.data);
+        break;
+
+      case 'create-estimate':
+        // Trigger estimate creation flow for the specified project
+        const projectName = action.projectName || action.data?.projectName;
+        if (projectName) {
+          handleSend(`create estimate for ${projectName}`, false);
+        }
+        break;
+
+      case 'generate-estimate':
+      case 'confirm-estimate':
+        // AI wants to show estimate preview - send message back to AI to continue
+        handleSend('yes, create the estimate', false);
+        break;
+
       case 'convert-estimate-to-invoice':
         await handleConvertToInvoice(action.data);
         break;
 
-      case 'generate-invoice-pdf':
-        await handleGenerateInvoicePDF(action.data);
+      case 'preview-invoice-pdf':
+        await handlePreviewInvoicePDF(action.data);
         break;
 
-      case 'download-invoice-pdf':
-        await handleDownloadInvoicePDF(action.data);
-        break;
-
-      case 'send-invoice-email':
-        await handleSendInvoiceEmail(action.data);
-        break;
-
-      case 'mark-invoice-paid':
-        await handleMarkInvoicePaid(action.data);
+      case 'share-invoice-pdf':
+        await handleShareInvoicePDF(action.data);
         break;
 
       case 'view-estimate':
@@ -427,6 +512,42 @@ export default function ChatScreen({ navigation }) {
 
       case 'select-project':
         await handleSelectProject(action.data);
+        break;
+
+      case 'update-project-finances':
+        await handleUpdateProjectFinances(action.data);
+        break;
+
+      case 'update-phase-progress':
+        await handleUpdatePhaseProgress(action.data);
+        break;
+
+      case 'extend-phase-timeline':
+        await handleExtendPhaseTimeline(action.data);
+        break;
+
+      case 'start-phase':
+        await handleStartPhase(action.data);
+        break;
+
+      case 'complete-phase':
+        await handleCompletePhase(action.data);
+        break;
+
+      case 'view-project-phases':
+        await handleViewProjectPhases(action.data);
+        break;
+
+      case 'add-phase-tasks':
+        await handleAddPhaseTasks(action.data);
+        break;
+
+      case 'save-daily-report':
+        await handleSaveDailyReport(action.data);
+        break;
+
+      case 'set-phase-payment':
+        await handleSetPhasePayment(action.data);
         break;
 
       default:
@@ -492,78 +613,6 @@ export default function ChatScreen({ navigation }) {
     } catch (error) {
       console.error('Error sending estimate:', error);
       Alert.alert('Error', 'Failed to send estimate. Please try again.');
-    }
-  };
-
-  const handleSaveProject = async (projectData) => {
-    try {
-      // Check if this is an update (has real ID) or new project (temp ID or no ID)
-      const isUpdate = projectData.id && !projectData.id.startsWith('temp-');
-
-      // Show confirmation before saving
-      Alert.alert(
-        isUpdate ? 'Update Project' : 'Save Project',
-        isUpdate
-          ? `Update project "${projectData.name}"?`
-          : `Create project "${projectData.name}" for ${projectData.client}?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: isUpdate ? 'Update' : 'Save',
-            onPress: async () => {
-              const savedProject = await saveProject(projectData);
-              if (savedProject) {
-                Alert.alert(
-                  'Success',
-                  isUpdate
-                    ? 'Project updated successfully!'
-                    : 'Project saved successfully!'
-                );
-
-                // Update the SAME message - remove project card and show success
-                setMessages((prev) => {
-                  const messages = [...prev];
-
-                  // Find the last message with a project-card
-                  for (let i = messages.length - 1; i >= 0; i--) {
-                    const message = messages[i];
-                    if (!message.isUser && message.visualElements) {
-                      const projectCardIndex = message.visualElements.findIndex(el => el.type === 'project-card');
-
-                      if (projectCardIndex !== -1) {
-                        // Update the message text to show success
-                        message.text = isUpdate
-                          ? `✅ Project "${savedProject.name}" has been updated successfully!`
-                          : `✅ Project "${savedProject.name}" has been created and saved successfully!\n\nYou can find it in your Projects tab.`;
-
-                        // Remove the project card since it's saved
-                        message.visualElements = [];
-
-                        // Update actions
-                        message.actions = [
-                          { label: 'View Projects', type: 'navigate-to-projects', data: {} }
-                        ];
-
-                        break; // Exit loop after updating
-                      }
-                    }
-                  }
-
-                  return messages;
-                });
-              } else {
-                Alert.alert('Error', 'Failed to save project. Please try again.');
-              }
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Error saving project:', error);
-      Alert.alert('Error', 'Failed to save project. Please try again.');
     }
   };
 
@@ -825,6 +874,13 @@ export default function ChatScreen({ navigation }) {
       // Also update legacy fields
       updatedProject.spent = updatedProject.expenses;
 
+      // SAVE DIRECTLY TO DATABASE - No button needed!
+      const saved = await saveProject(updatedProject);
+      if (!saved) {
+        Alert.alert('Error', 'Failed to save changes to database.');
+        return;
+      }
+
       // Replace the project-selector message with updated project card
       setMessages((prev) => {
         const messages = [...prev];
@@ -845,14 +901,8 @@ export default function ChatScreen({ navigation }) {
                 data: updatedProject
               }];
 
-              // Add "Update Project" button to save changes
-              message.actions = [
-                {
-                  label: 'Update Project',
-                  type: 'save-project',
-                  data: updatedProject
-                }
-              ];
+              // No actions needed - already saved!
+              message.actions = [];
 
               break;
             }
@@ -867,15 +917,495 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
+  const handleUpdateProjectFinances = async (data) => {
+    try {
+      const { projectId, projectName, incomeCollected, expenses } = data;
+
+      // Get the full project data
+      const project = await getProject(projectId);
+      if (!project) {
+        Alert.alert('Error', 'Could not load project details. Please try again.');
+        return;
+      }
+
+      // Update financial fields
+      const updatedProject = {
+        ...project,
+        incomeCollected: (project.incomeCollected || 0) + (incomeCollected || 0),
+        expenses: (project.expenses || 0) + (expenses || 0),
+      };
+
+      // Recalculate profit
+      updatedProject.profit = updatedProject.incomeCollected - updatedProject.expenses;
+      updatedProject.spent = updatedProject.expenses;
+
+      // SAVE DIRECTLY TO DATABASE
+      const saved = await saveProject(updatedProject);
+      if (!saved) {
+        Alert.alert('Error', 'Failed to save changes to database.');
+        return;
+      }
+
+      // Update the last AI message to show success
+      setMessages((prev) => {
+        const messages = [...prev];
+
+        // Find the last AI message
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const message = messages[i];
+          if (!message.isUser) {
+            // Update message text to show success
+            const depositText = incomeCollected ? `\nCollected: +$${incomeCollected.toLocaleString()}` : '';
+            const expenseText = expenses ? `\nExpenses: +$${expenses.toLocaleString()}` : '';
+            message.text = `✅ Updated ${projectName}!${depositText}${expenseText}\nNew Profit: $${updatedProject.profit.toLocaleString()}`;
+
+            // Update or add project card
+            message.visualElements = [{
+              type: 'project-card',
+              data: updatedProject
+            }];
+
+            // Remove the action button - no longer needed
+            message.actions = [];
+
+            break;
+          }
+        }
+
+        return messages;
+      });
+    } catch (error) {
+      console.error('Error updating project finances:', error);
+      Alert.alert('Error', 'Failed to update project. Please try again.');
+    }
+  };
+
+  // Phase Management Handlers
+  const handleUpdatePhaseProgress = async (data) => {
+    try {
+      const { phaseId, phaseName, percentage } = data;
+
+      const success = await updatePhaseProgress(phaseId, percentage);
+      if (success) {
+        addAIMessage(`✅ Updated ${phaseName} to ${percentage}% complete!`);
+      } else {
+        Alert.alert('Error', 'Failed to update phase progress.');
+      }
+    } catch (error) {
+      console.error('Error updating phase progress:', error);
+      Alert.alert('Error', 'Failed to update phase progress.');
+    }
+  };
+
+  const handleExtendPhaseTimeline = async (data) => {
+    try {
+      const { phaseId, phaseName, extraDays, reason } = data;
+
+      const success = await extendPhaseTimeline(phaseId, extraDays, reason || '');
+      if (success) {
+        addAIMessage(`✅ Extended ${phaseName} by ${extraDays} days!`);
+      } else {
+        Alert.alert('Error', 'Failed to extend phase timeline.');
+      }
+    } catch (error) {
+      console.error('Error extending phase timeline:', error);
+      Alert.alert('Error', 'Failed to extend phase timeline.');
+    }
+  };
+
+  const handleStartPhase = async (data) => {
+    try {
+      const { phaseId, phaseName } = data;
+
+      const success = await startPhase(phaseId);
+      if (success) {
+        addAIMessage(`✅ Started ${phaseName} phase!`);
+      } else {
+        Alert.alert('Error', 'Failed to start phase.');
+      }
+    } catch (error) {
+      console.error('Error starting phase:', error);
+      Alert.alert('Error', 'Failed to start phase.');
+    }
+  };
+
+  const handleCompletePhase = async (data) => {
+    try {
+      const { phaseId, phaseName } = data;
+
+      const success = await completePhase(phaseId);
+      if (success) {
+        addAIMessage(`✅ Marked ${phaseName} as complete!`);
+      } else {
+        Alert.alert('Error', 'Failed to complete phase.');
+      }
+    } catch (error) {
+      console.error('Error completing phase:', error);
+      Alert.alert('Error', 'Failed to complete phase.');
+    }
+  };
+
+  const handleViewProjectPhases = async (data) => {
+    try {
+      const { projectId } = data;
+
+      // Fetch project phases
+      const phases = await fetchProjectPhases(projectId);
+      const project = await getProject(projectId);
+
+      if (phases && phases.length > 0 && project) {
+        // Show phases in chat
+        const aiMessage = {
+          id: `ai-${Date.now()}`,
+          text: `Here are the phases for ${project.name}:`,
+          isUser: false,
+          visualElements: [{
+            type: 'phase-overview',
+            data: {
+              projectId: project.id,
+              projectName: project.name,
+              phases: phases
+            }
+          }],
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      } else {
+        addAIMessage('This project does not have any phases configured.');
+      }
+    } catch (error) {
+      console.error('Error viewing project phases:', error);
+      Alert.alert('Error', 'Failed to load project phases.');
+    }
+  };
+
+  const handleAddPhaseTasks = async (data) => {
+    try {
+      const { phaseId, phaseName, tasks } = data;
+
+      // Add multiple tasks to phase
+      for (const taskDescription of tasks) {
+        await addTaskToPhase(phaseId, taskDescription, 0);
+      }
+
+      addAIMessage(`✅ Added ${tasks.length} task${tasks.length !== 1 ? 's' : ''} to ${phaseName} phase!`);
+    } catch (error) {
+      console.error('Error adding phase tasks:', error);
+      Alert.alert('Error', 'Failed to add tasks to phase.');
+    }
+  };
+
+  const handleSaveDailyReport = async (data) => {
+    try {
+      const { workerId, projectId, phaseId, photos, completedStepIds, notes } = data;
+
+      const report = await saveDailyReport(
+        workerId,
+        projectId,
+        phaseId,
+        photos || [],
+        completedStepIds || [],
+        notes || ''
+      );
+
+      if (report) {
+        addAIMessage(`✅ Daily report saved! ${completedStepIds?.length || 0} tasks marked complete.`);
+      } else {
+        Alert.alert('Error', 'Failed to save daily report.');
+      }
+    } catch (error) {
+      console.error('Error saving daily report:', error);
+      Alert.alert('Error', 'Failed to save daily report.');
+    }
+  };
+
+  const handleSetPhasePayment = async (data) => {
+    try {
+      const { phaseId, phaseName, amount } = data;
+
+      const success = await savePhasePaymentAmount(phaseId, amount);
+
+      if (success) {
+        addAIMessage(`✅ Set payment for ${phaseName} to $${amount.toLocaleString()}`);
+      } else {
+        Alert.alert('Error', 'Failed to set phase payment amount.');
+      }
+    } catch (error) {
+      console.error('Error setting phase payment:', error);
+      Alert.alert('Error', 'Failed to set phase payment amount.');
+    }
+  };
+
   const handleSaveEstimate = async (estimateData) => {
     try {
-      const savedEstimate = await saveEstimate(estimateData);
-      if (savedEstimate) {
-        Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
+      // 🔧 CRITICAL FIX: Extract complete data from visualElement if action data is incomplete
+      let completeEstimateData = estimateData;
+
+      // Check if phases are missing tasks (common AI issue)
+      const actionHasTasks = estimateData.phases?.some(p => p.tasks?.length > 0);
+
+      if (!actionHasTasks) {
+        console.log('⚠️ Action data missing tasks, searching for complete data in preview...');
+
+        // Find the most recent message with estimate preview
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = messages[i];
+          if (!msg.isUser && msg.visualElements) {
+            const estimatePreview = msg.visualElements.find(ve => ve.type === 'estimate-preview');
+            if (estimatePreview && estimatePreview.data) {
+              const previewHasTasks = estimatePreview.data.phases?.some(p => p.tasks?.length > 0);
+
+              if (previewHasTasks) {
+                console.log('✅ Found complete data in preview, merging with action data');
+                completeEstimateData = {
+                  ...estimateData,
+                  // Use preview phases (has tasks)
+                  phases: estimatePreview.data.phases || estimateData.phases,
+                  // Use preview schedule (has phaseSchedule)
+                  schedule: estimatePreview.data.schedule || estimateData.schedule,
+                  // Use preview scope (complete data)
+                  scope: estimatePreview.data.scope || estimateData.scope,
+                  // Use preview line items if missing
+                  lineItems: estimateData.lineItems || estimatePreview.data.items || [],
+                };
+                console.log('📊 Merged data:', {
+                  phasesCount: completeEstimateData.phases?.length,
+                  tasksInPhases: completeEstimateData.phases?.map(p => p.tasks?.length || 0),
+                  hasSchedule: !!completeEstimateData.schedule,
+                  hasScope: !!completeEstimateData.scope,
+                  lineItemsCount: completeEstimateData.lineItems?.length
+                });
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // If estimate has a linked project, check if project already has estimate data
+      if (completeEstimateData.projectId) {
+        const existingProject = await getProject(completeEstimateData.projectId);
+
+        if (existingProject && (existingProject.budget > 0 || existingProject.phases)) {
+          // Project already has data - ask user what to do
+          Alert.alert(
+            'Project Has Existing Data',
+            'This project already has estimate data. How would you like to proceed?',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel'
+              },
+              {
+                text: 'Add to Existing',
+                onPress: async () => {
+                  // Save estimate with merge flag
+                  const savedEstimate = await saveEstimate({ ...completeEstimateData, mergeWithProject: true });
+                  if (savedEstimate) {
+                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved and added to project!`);
+                  }
+                }
+              },
+              {
+                text: 'Override Project',
+                style: 'destructive',
+                onPress: async () => {
+                  // Save estimate with override flag (default behavior)
+                  const savedEstimate = await saveEstimate({ ...completeEstimateData, overrideProject: true });
+                  if (savedEstimate) {
+                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved! Project data has been replaced.`);
+                  }
+                }
+              }
+            ]
+          );
+        } else {
+          // Project is empty or new - just save normally
+          const savedEstimate = await saveEstimate(completeEstimateData);
+          if (savedEstimate) {
+            Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
+          }
+        }
+      } else {
+        // No linked project - just save the estimate
+        const savedEstimate = await saveEstimate(completeEstimateData);
+        if (savedEstimate) {
+          Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
+        }
       }
     } catch (error) {
       console.error('Error saving estimate:', error);
       Alert.alert('Error', 'Failed to save estimate. Please try again.');
+    }
+  };
+
+  const handleSaveProject = async (projectData) => {
+    try {
+      console.log('💾 [handleSaveProject] Saving project with data:', {
+        hasPhases: !!projectData.phases,
+        phasesCount: projectData.phases?.length,
+        hasSchedule: !!projectData.schedule,
+        hasScope: !!projectData.scope
+      });
+
+      // Extract complete data from visualElement if action data is incomplete
+      let completeProjectData = projectData;
+
+      // Check if phases are missing tasks (common AI issue)
+      const actionHasTasks = projectData.phases?.some(p => p.tasks?.length > 0);
+
+      if (!actionHasTasks) {
+        console.log('⚠️ Action data missing tasks, searching for complete data in preview...');
+
+        // Find the most recent message with project preview
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = messages[i];
+          if (!msg.isUser && msg.visualElements) {
+            const projectPreview = msg.visualElements.find(ve => ve.type === 'project-preview');
+            if (projectPreview && projectPreview.data) {
+              const previewHasTasks = projectPreview.data.phases?.some(p => p.tasks?.length > 0);
+
+              if (previewHasTasks) {
+                console.log('✅ Found complete data in preview, merging with action data');
+                completeProjectData = {
+                  ...projectData,
+                  // Use preview phases (has tasks)
+                  phases: projectPreview.data.phases || projectData.phases,
+                  // Use preview schedule (has phaseSchedule)
+                  schedule: projectPreview.data.schedule || projectData.schedule,
+                  // Use preview scope (complete data)
+                  scope: projectPreview.data.scope || projectData.scope,
+                  // Use preview line items if missing
+                  lineItems: projectData.lineItems || projectPreview.data.items || [],
+                };
+                console.log('📊 Merged project data:', {
+                  phasesCount: completeProjectData.phases?.length,
+                  tasksInPhases: completeProjectData.phases?.map(p => p.tasks?.length || 0),
+                  hasSchedule: !!completeProjectData.schedule,
+                  hasScope: !!completeProjectData.scope,
+                  lineItemsCount: completeProjectData.lineItems?.length
+                });
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Save the project with complete data
+      const savedProject = await saveProject(completeProjectData);
+
+      if (savedProject) {
+        console.log('✅ Project saved successfully:', savedProject.id);
+        Alert.alert(
+          'Success',
+          `Project "${savedProject.name}" has been saved!`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Optionally navigate to projects screen
+                // navigation.navigate('Projects');
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error saving project:', error);
+      Alert.alert('Error', 'Failed to save project. Please try again.');
+    }
+  };
+
+  const handleDeleteProject = async (deleteData) => {
+    try {
+      const { projectId, projectName } = deleteData;
+
+      if (!projectId) {
+        Alert.alert('Error', 'Project ID not found');
+        return;
+      }
+
+      // Show confirmation alert
+      Alert.alert(
+        'Delete Project',
+        `Are you sure you want to delete "${projectName}"? This action cannot be undone.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              const success = await deleteProject(projectId);
+              if (success) {
+                Alert.alert('Success', `Project "${projectName}" has been deleted`);
+                // Send a confirmation message to the chat
+                const confirmationMessage = {
+                  id: Date.now().toString(),
+                  text: `✅ Project "${projectName}" has been successfully deleted.`,
+                  isUser: false,
+                  timestamp: new Date(),
+                  visualElements: [],
+                  actions: [],
+                  quickSuggestions: ['Show all projects', 'Create new project']
+                };
+                setMessages(prev => [...prev, confirmationMessage]);
+              } else {
+                Alert.alert('Error', 'Failed to delete project');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      Alert.alert('Error', 'Failed to delete project. Please try again.');
+    }
+  };
+
+  const handleUpdateEstimate = async (estimateData) => {
+    try {
+      const updatedEstimate = await updateEstimate(estimateData);
+      if (updatedEstimate) {
+        Alert.alert('Success', 'Estimate and linked project updated successfully!');
+
+        // Update the message in the chat with the new data
+        setMessages((prevMessages) => {
+          return prevMessages.map((msg) => {
+            // Find the message with the estimate preview
+            if (msg.visualElements && msg.visualElements.length > 0) {
+              const hasEstimate = msg.visualElements.some(
+                (ve) => ve.type === 'estimate-preview' &&
+                       (ve.data.id === estimateData.id || ve.data.estimateId === estimateData.estimateId)
+              );
+
+              if (hasEstimate) {
+                // Update the visual element with new data
+                return {
+                  ...msg,
+                  visualElements: msg.visualElements.map((ve) => {
+                    if (ve.type === 'estimate-preview' &&
+                        (ve.data.id === estimateData.id || ve.data.estimateId === estimateData.estimateId)) {
+                      return {
+                        ...ve,
+                        data: updatedEstimate
+                      };
+                    }
+                    return ve;
+                  })
+                };
+              }
+            }
+            return msg;
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error updating estimate:', error);
+      Alert.alert('Error', 'Failed to update estimate. Please try again.');
     }
   };
 
@@ -1015,33 +1545,61 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
-  const handleMarkInvoicePaid = async (invoiceData) => {
+  const handlePreviewInvoicePDF = async (invoiceData) => {
     try {
-      Alert.prompt(
-        'Mark as Paid',
-        `Enter payment amount (Total: $${invoiceData.total?.toFixed(2)})`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Mark Paid',
-            onPress: async (amountText) => {
-              const amount = parseFloat(amountText);
-              if (isNaN(amount) || amount <= 0) {
-                Alert.alert('Invalid Amount', 'Please enter a valid amount');
-                return;
-              }
+      // Get user profile for business info
+      const userProfile = await getUserProfile();
 
-              await markInvoiceAsPaid(invoiceData.id, amount);
-              Alert.alert('Success', 'Invoice payment recorded!');
-            }
-          }
-        ],
-        'plain-text',
-        invoiceData.total?.toString()
-      );
+      // Generate PDF
+      const pdfUri = await generateInvoicePDF(invoiceData, userProfile.businessInfo);
+
+      const invNumber = invoiceData.invoice_number || invoiceData.invoiceNumber;
+
+      // Upload to Supabase storage to get public URL
+      const publicUrl = await uploadInvoicePDF(pdfUri, invNumber);
+
+      // Update invoice record with PDF URL (only if invoice has been saved to DB)
+      if (invoiceData.id) {
+        await updateInvoicePDF(invoiceData.id, publicUrl);
+      }
+
+      // Open the PDF in viewer using public URL
+      await previewInvoicePDF(publicUrl, invNumber);
     } catch (error) {
-      console.error('Error marking invoice paid:', error);
-      Alert.alert('Error', 'Failed to update invoice. Please try again.');
+      console.error('Error previewing PDF:', error);
+      Alert.alert('Error', 'Failed to preview PDF. Please try again.');
+    }
+  };
+
+  const handleShareInvoicePDF = async (invoiceData) => {
+    try {
+      // Get user profile for business info
+      const userProfile = await getUserProfile();
+      const invNumber = invoiceData.invoice_number || invoiceData.invoiceNumber;
+
+      // Check if PDF already exists
+      if (invoiceData.pdf_url || invoiceData.pdfUrl) {
+        // Re-generate PDF locally for sharing (in case of updates)
+        const pdfUri = await generateInvoicePDF(invoiceData, userProfile.businessInfo);
+        await shareInvoicePDF(pdfUri, invNumber);
+      } else {
+        // Generate PDF first
+        const pdfUri = await generateInvoicePDF(invoiceData, userProfile.businessInfo);
+
+        // Upload to Supabase storage
+        const publicUrl = await uploadInvoicePDF(pdfUri, invNumber);
+
+        // Update invoice record with PDF URL (only if invoice has been saved to DB)
+        if (invoiceData.id) {
+          await updateInvoicePDF(invoiceData.id, publicUrl);
+        }
+
+        // Share via native share menu
+        await shareInvoicePDF(pdfUri, invNumber);
+      }
+    } catch (error) {
+      console.error('Error sharing invoice:', error);
+      Alert.alert('Error', 'Failed to share invoice. Please try again.');
     }
   };
 
@@ -1057,6 +1615,8 @@ export default function ChatScreen({ navigation }) {
         return <BudgetChart key={index} data={element.data} />;
       case 'photo-gallery':
         return <PhotoGallery key={index} data={element.data} onAction={handleAction} />;
+      case 'project-preview':
+        return <ProjectPreview key={index} data={element.data} onAction={handleAction} />;
       case 'estimate-preview':
         return <EstimatePreview key={index} data={element.data} onAction={handleAction} />;
       case 'estimate-list':
@@ -1067,6 +1627,8 @@ export default function ChatScreen({ navigation }) {
         return <ExpenseCard key={index} data={element.data} />;
       case 'project-overview':
         return <ProjectOverview key={index} data={element.data} onAction={handleAction} />;
+      case 'phase-overview':
+        return <PhaseOverview key={index} data={element.data} onAction={handleAction} />;
       default:
         return null;
     }
@@ -1107,7 +1669,11 @@ export default function ChatScreen({ navigation }) {
             </View>
           ) : (
             <>
-          {messages.map((message) => (
+          {messages.map((message, messageIndex) => {
+            // Get selections for this specific message
+            const messageSelections = selectedSuggestions[message.id] || [];
+
+            return (
                 <View key={message.id} style={styles.messageContainer}>
                   {/* Text bubble */}
             <View
@@ -1140,8 +1706,11 @@ export default function ChatScreen({ navigation }) {
                     </View>
                   )}
 
-                  {/* Action Buttons */}
-                  {!message.isUser && message.actions && message.actions.length > 0 && (
+                  {/* Action Buttons - Skip for invoice-preview (has its own buttons) */}
+                  {!message.isUser &&
+                   message.actions &&
+                   message.actions.length > 0 &&
+                   !message.visualElements?.some(el => el.type === 'invoice-preview') && (
                     <View style={styles.actionsContainer}>
                       {message.actions.map((action, index) => (
                         <TouchableOpacity
@@ -1160,27 +1729,201 @@ export default function ChatScreen({ navigation }) {
                     </View>
                   )}
 
-                  {/* Quick Suggestions */}
-                  {!message.isUser && message.quickSuggestions && message.quickSuggestions.length > 0 && (
-                    <View style={styles.quickSuggestionsContainer}>
-                      {message.quickSuggestions.map((suggestion, index) => (
+                  {/* Quick Suggestions - Skip for invoice-preview (has its own buttons) */}
+                  {!message.isUser &&
+                   message.quickSuggestions &&
+                   message.quickSuggestions.length > 0 &&
+                   !message.visualElements?.some(el => el.type === 'invoice-preview') && (
+                    <View>
+                      <View style={styles.quickSuggestionsContainer}>
+                        {message.quickSuggestions.map((suggestion, index) => {
+                          // Handle both string suggestions and object suggestions {label, value}
+                          const suggestionText = typeof suggestion === 'string' ? suggestion : suggestion.label;
+                          const suggestionValue = typeof suggestion === 'string' ? suggestion : suggestion.value;
+                          const isSelected = messageSelections.includes(suggestionValue);
+
+                          // Check if this is a numeric value (single-select, populate input)
+                          const isNumericValue = /^[\d\$,\.]+$/.test(suggestionValue.trim());
+
+                          // Check if this is a custom input button (Other, Custom, +, etc.)
+                          const lowerText = suggestionText.toLowerCase();
+                          const isCustomInputButton = lowerText.includes('other') ||
+                                                      lowerText.includes('custom') ||
+                                                      lowerText.startsWith('+') ||
+                                                      lowerText.startsWith('➕');
+
+                          // Check if this is a value input button (asking for size, budget, date, amount, etc.)
+                          // Only trigger input if it's explicitly asking for a custom value (e.g., "Enter size", "Custom amount")
+                          const isValueInputButton = (lowerText.includes('enter') && (lowerText.includes('size') || lowerText.includes('budget') || lowerText.includes('amount'))) ||
+                                                     (lowerText.includes('specify') && (lowerText.includes('size') || lowerText.includes('budget') || lowerText.includes('amount'))) ||
+                                                     (lowerText.includes('custom') && (lowerText.includes('size') || lowerText.includes('budget') || lowerText.includes('amount') || lowerText.includes('value')));
+
+                          return (
+                            <TouchableOpacity
+                              key={index}
+                              style={[
+                                styles.quickSuggestionChip,
+                                {
+                                  backgroundColor: isSelected ? Colors.primaryBlue : Colors.primaryBlue + '15',
+                                  borderColor: Colors.primaryBlue
+                                }
+                              ]}
+                              onPress={() => {
+                                // Check if this is a custom input button OR value input button
+                                if (isCustomInputButton || isValueInputButton) {
+                                  // Show inline custom input with label as placeholder
+                                  setCustomInputs(prev => ({
+                                    ...prev,
+                                    [message.id]: {
+                                      visible: true,
+                                      value: '',
+                                      placeholder: suggestionText // Use button text as placeholder
+                                    }
+                                  }));
+                                  return;
+                                }
+
+                                // Check if this is a numeric value
+                                if (isNumericValue && inputSetValueRef) {
+                                  inputSetValueRef(suggestionValue + ' ');
+                                  // Clear selections for this message
+                                  setSelectedSuggestions(prev => ({
+                                    ...prev,
+                                    [message.id]: []
+                                  }));
+                                  return; // Don't toggle selection
+                                }
+
+                                // Default behavior: Auto-send the suggestion
+                                handleSend(suggestionValue, false);
+                              }}
+                            >
+                              <Text style={[
+                                styles.quickSuggestionText,
+                                { color: isSelected ? '#FFFFFF' : Colors.primaryBlue }
+                              ]}>
+                                {suggestionText}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+
+                        {/* Show custom selections as chips */}
+                        {messageSelections.filter(sel =>
+                          !message.quickSuggestions.some(sug => {
+                            const suggestionValue = typeof sug === 'string' ? sug : sug.value;
+                            return suggestionValue === sel;
+                          })
+                        ).map((customValue, idx) => (
+                          <TouchableOpacity
+                            key={`custom-${idx}`}
+                            style={[
+                              styles.quickSuggestionChip,
+                              {
+                                backgroundColor: Colors.primaryBlue,
+                                borderColor: Colors.primaryBlue
+                              }
+                            ]}
+                            onPress={() => {
+                              // Remove custom selection
+                              setSelectedSuggestions(prev => ({
+                                ...prev,
+                                [message.id]: messageSelections.filter(s => s !== customValue)
+                              }));
+                            }}
+                          >
+                            <Text style={[
+                              styles.quickSuggestionText,
+                              { color: '#FFFFFF' }
+                            ]}>
+                              {customValue}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Inline Custom Input */}
+                      {customInputs[message.id]?.visible && (
+                        <View style={styles.customInputContainer}>
+                          <TextInput
+                            style={[styles.customInput, {
+                              color: Colors.primaryText,
+                              borderColor: Colors.primaryBlue
+                            }]}
+                            placeholder={customInputs[message.id]?.placeholder || "Type custom option..."}
+                            placeholderTextColor={Colors.secondaryText}
+                            value={customInputs[message.id]?.value || ''}
+                            onChangeText={(text) => {
+                              setCustomInputs(prev => ({
+                                ...prev,
+                                [message.id]: {
+                                  ...prev[message.id],
+                                  value: text
+                                }
+                              }));
+                            }}
+                            autoFocus
+                          />
+                          <TouchableOpacity
+                            style={[styles.customInputAddButton, { backgroundColor: Colors.primaryBlue }]}
+                            onPress={() => {
+                              const customValue = customInputs[message.id]?.value?.trim();
+                              if (customValue) {
+                                // Add to selections
+                                setSelectedSuggestions(prev => ({
+                                  ...prev,
+                                  [message.id]: [...(prev[message.id] || []), customValue]
+                                }));
+                                // Hide input
+                                setCustomInputs(prev => ({
+                                  ...prev,
+                                  [message.id]: { visible: false, value: '' }
+                                }));
+                              }
+                            }}
+                          >
+                            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.customInputCancelButton, {
+                              backgroundColor: Colors.lightGray
+                            }]}
+                            onPress={() => {
+                              setCustomInputs(prev => ({
+                                ...prev,
+                                [message.id]: { visible: false, value: '' }
+                              }));
+                            }}
+                          >
+                            <Ionicons name="close" size={20} color={Colors.secondaryText} />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Show Send button when selections are made */}
+                      {messageSelections.length > 0 && (
                         <TouchableOpacity
-                          key={index}
-                          style={[styles.quickSuggestionChip, {
-                            backgroundColor: Colors.primaryBlue + '15',
-                            borderColor: Colors.primaryBlue
-                          }]}
-                          onPress={() => handleSend(suggestion, false)}
+                          style={[styles.sendSelectionsButton, { backgroundColor: Colors.primaryBlue }]}
+                          onPress={() => {
+                            const messageText = messageSelections.join(', ');
+                            handleSend(messageText, false);
+                            // Clear selections for this message after sending
+                            setSelectedSuggestions(prev => ({
+                              ...prev,
+                              [message.id]: []
+                            }));
+                          }}
                         >
-                          <Text style={[styles.quickSuggestionText, { color: Colors.primaryBlue }]}>
-                            {suggestion}
+                          <Text style={styles.sendSelectionsText}>
+                            Send ({messageSelections.length} selected)
                           </Text>
                         </TouchableOpacity>
-                      ))}
+                      )}
                     </View>
                   )}
             </View>
-          ))}
+            );
+          })}
 
               {/* AI Thinking Loader */}
               {isAIThinking && (
@@ -1200,6 +1943,7 @@ export default function ChatScreen({ navigation }) {
             onSubmit={handleSend}
             onFileSelect={handleFileSelect}
             onCameraPress={handleCameraOpen}
+            onPopulateInput={handlePopulateInput}
           />
           </View>
         </View>
@@ -1334,6 +2078,18 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     fontWeight: '600',
   },
+  sendSelectionsButton: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+  },
+  sendSelectionsText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
   inputWrapper: {
     backgroundColor: 'transparent',
     marginBottom: 70, // Space for navigation bar when keyboard is hidden
@@ -1349,5 +2105,34 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingVertical: Spacing.md,
     paddingLeft: Spacing.sm,
+  },
+  customInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  customInput: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    fontSize: FontSizes.small,
+    backgroundColor: '#FFFFFF',
+  },
+  customInputAddButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customInputCancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

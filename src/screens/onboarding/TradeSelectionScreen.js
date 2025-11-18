@@ -34,7 +34,7 @@ export default function TradeSelectionScreen({ navigation, route }) {
       return;
     }
 
-    navigation.navigate('BusinessInfo', { selectedTrades });
+    navigation.navigate('PhaseTemplateSetup', { selectedTrades });
   };
 
   const handleBack = () => {

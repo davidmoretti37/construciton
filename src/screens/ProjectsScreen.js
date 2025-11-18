@@ -13,15 +13,21 @@ import {
   TextInput as RNTextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjects, saveProject } from '../utils/storage';
+import { fetchProjects, saveProject, saveProjectPhases, fetchProjectPhases, deleteProject } from '../utils/storage';
 import { ProjectCard } from '../components/ChatVisuals';
 import TimelinePickerModal from '../components/TimelinePickerModal';
 import ConversationsSection from '../components/ConversationsSection';
+import PhasePickerModal from '../components/PhasePickerModal';
+import PhaseTimeline from '../components/PhaseTimeline';
+import PhaseDetailModal from '../components/PhaseDetailModal';
+import SimpleProjectCard from '../components/SimpleProjectCard';
+import ProjectDetailView from '../components/ProjectDetailView';
 
 export default function ProjectsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -50,9 +56,24 @@ export default function ProjectsScreen({ navigation }) {
   const [showNewProjectTimeline, setShowNewProjectTimeline] = useState(false);
   const [showEditTimeline, setShowEditTimeline] = useState(false);
 
+  // Phase management
+  const [showNewProjectPhases, setShowNewProjectPhases] = useState(false);
+  const [showEditPhases, setShowEditPhases] = useState(false);
+  const [newProjectPhases, setNewProjectPhases] = useState([]);
+  const [editingPhases, setEditingPhases] = useState([]);
+  const [selectedPhaseDetail, setSelectedPhaseDetail] = useState(null);
+  const [showPhaseDetail, setShowPhaseDetail] = useState(false);
+
+  // Project detail view
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [showProjectDetail, setShowProjectDetail] = useState(false);
+
   const closeEdit = () => {
     setEditOpen(false);
     setEditing(null);
+    setShowEditTimeline(false);
+    setShowEditPhases(false);
+    setEditingPhases([]);
   };
 
   const closeNewProject = () => {
@@ -68,6 +89,8 @@ export default function ProjectsScreen({ navigation }) {
       startDate: null,
       endDate: null,
     });
+    setShowNewProjectPhases(false);
+    setNewProjectPhases([]);
   };
 
   const handleNewProjectTimelineConfirm = (timelineData) => {
@@ -132,11 +155,17 @@ export default function ProjectsScreen({ navigation }) {
         endDate: newProject.endDate,
         daysRemaining: newProject.daysRemaining,
         estimatedDuration: newProject.estimatedDuration,
+        hasPhases: newProjectPhases.length > 0, // Set hasPhases flag
       };
 
       const savedProject = await saveProject(projectData);
 
       if (savedProject) {
+        // Save phases if any were selected
+        if (newProjectPhases.length > 0) {
+          await saveProjectPhases(savedProject.id, newProjectPhases);
+        }
+
         // Reload projects list
         await loadProjects();
         closeNewProject();
@@ -172,11 +201,17 @@ export default function ProjectsScreen({ navigation }) {
         endDate: editing.endDate,
         daysRemaining: editing.daysRemaining,
         estimatedDuration: editing.estimatedDuration,
+        hasPhases: editingPhases.length > 0, // Set hasPhases flag
       };
 
       const savedProject = await saveProject(projectData);
 
       if (savedProject) {
+        // Save phases if they were modified
+        if (editingPhases.length > 0) {
+          await saveProjectPhases(savedProject.id, editingPhases);
+        }
+
         // Reload projects list
         await loadProjects();
         closeEdit();
@@ -216,6 +251,25 @@ export default function ProjectsScreen({ navigation }) {
     setRefreshing(false);
   }, []);
 
+  const handleDeleteProject = async (projectId) => {
+    try {
+      const success = await deleteProject(projectId);
+      if (success) {
+        // Close the detail modal
+        setShowProjectDetail(false);
+        setSelectedProject(null);
+        // Reload projects list
+        await loadProjects();
+        Alert.alert('Success', 'Project deleted successfully');
+      } else {
+        Alert.alert('Error', 'Failed to delete project');
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      Alert.alert('Error', 'Failed to delete project');
+    }
+  };
+
   // Filter projects based on search query and filter
   const filteredProjects = projects.filter(project => {
     // Apply filter
@@ -243,29 +297,74 @@ export default function ProjectsScreen({ navigation }) {
     return true;
   });
 
-  const handleProjectAction = (action) => {
+  const handleProjectCardPress = async (project) => {
+    setSelectedProject(project);
+    setShowProjectDetail(true);
+  };
+
+  const handleProjectEdit = async () => {
+    if (!selectedProject) return;
+
+    // Close detail view
+    setShowProjectDetail(false);
+
+    // Open edit modal
+    setEditing({ ...selectedProject });
+
+    // Load phases if project has them
+    if (selectedProject.hasPhases) {
+      const phases = await fetchProjectPhases(selectedProject.id);
+
+      // Transform database format to PhasePickerModal format
+      const transformedPhases = (phases || []).map(phase => ({
+        id: phase.id,
+        name: phase.name,
+        defaultDays: phase.planned_days,
+        startDate: phase.start_date,
+        endDate: phase.end_date,
+        budget: phase.budget,
+        tasks: phase.tasks || [],
+        completionPercentage: phase.completion_percentage,
+        status: phase.status,
+      }));
+
+      setEditingPhases(transformedPhases);
+    }
+
+    setEditOpen(true);
+  };
+
+  const handleProjectAction = async (action) => {
     if (!action) return;
     if (action.type === 'view-project' && action.data?.projectId) {
       const project = projects.find(p => p.id === action.data.projectId);
       if (project) {
-        setEditing({ ...project });
-        setEditOpen(true);
+        handleProjectCardPress(project);
       }
       return;
     }
     console.log('Project action:', action);
   };
 
+  const handlePhasePress = (phase) => {
+    setSelectedPhaseDetail(phase);
+    setShowPhaseDetail(true);
+  };
+
+  const handlePhaseUpdate = async () => {
+    // Reload phases after update
+    if (editing?.id) {
+      const phases = await fetchProjectPhases(editing.id);
+      setEditingPhases(phases || []);
+      await loadProjects(); // Reload projects to update card display
+    }
+    setShowPhaseDetail(false);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
-        </TouchableOpacity>
         <View style={styles.spacer} />
         <TouchableOpacity style={styles.newProjectButton} onPress={() => setNewProjectOpen(true)}>
           <Text style={[styles.newProjectText, { color: Colors.primaryBlue }]}>+ New Project</Text>
@@ -339,15 +438,19 @@ export default function ProjectsScreen({ navigation }) {
             </Text>
           </View>
         ) : (
-          <View style={styles.projectsList}>
+          <View style={styles.projectsGrid}>
             {filteredProjects.map((project) => (
-              <ProjectCard key={project.id} data={project} onAction={handleProjectAction} />
+              <SimpleProjectCard
+                key={project.id}
+                project={project}
+                onPress={() => handleProjectCardPress(project)}
+              />
             ))}
           </View>
         )}
       </ScrollView>
-      {/* Simple Edit Modal */}
-      <Modal visible={editOpen} transparent animationType="slide" onRequestClose={closeEdit}>
+      {/* Simple Edit Modal - Hide when timeline picker is open */}
+      <Modal visible={editOpen && !showEditTimeline} transparent animationType="slide" onRequestClose={closeEdit}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalBackdrop}
@@ -417,6 +520,37 @@ export default function ProjectsScreen({ navigation }) {
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
                 </TouchableOpacity>
+
+                <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Project Phases</Text>
+                <TouchableOpacity
+                  style={[styles.timelineButton, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}
+                  onPress={() => setShowEditPhases(true)}
+                >
+                  <Ionicons name="layers-outline" size={20} color={Colors.primaryBlue} />
+                  <View style={{ flex: 1 }}>
+                    {editingPhases.length > 0 ? (
+                      <Text style={[styles.timelineText, { color: Colors.primaryText }]}>
+                        {editingPhases.length} {editingPhases.length === 1 ? 'phase' : 'phases'} configured
+                      </Text>
+                    ) : (
+                      <Text style={[styles.timelinePlaceholder, { color: Colors.placeholderText }]}>
+                        Add project phases (optional)
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+                </TouchableOpacity>
+
+                {/* Show phase timeline if phases exist */}
+                {editingPhases.length > 0 && (
+                  <View style={{ marginTop: Spacing.md }}>
+                    <PhaseTimeline
+                      phases={editingPhases}
+                      onPhasePress={handlePhasePress}
+                      compact={false}
+                    />
+                  </View>
+                )}
 
                 <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                   <View style={{ flex: 1 }}>
@@ -560,6 +694,26 @@ export default function ProjectsScreen({ navigation }) {
                 <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
               </TouchableOpacity>
 
+              <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Project Phases</Text>
+              <TouchableOpacity
+                style={[styles.timelineButton, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}
+                onPress={() => setShowNewProjectPhases(true)}
+              >
+                <Ionicons name="layers-outline" size={20} color={Colors.primaryBlue} />
+                <View style={{ flex: 1 }}>
+                  {newProjectPhases.length > 0 ? (
+                    <Text style={[styles.timelineText, { color: Colors.primaryText }]}>
+                      {newProjectPhases.length} {newProjectPhases.length === 1 ? 'phase' : 'phases'} configured
+                    </Text>
+                  ) : (
+                    <Text style={[styles.timelinePlaceholder, { color: Colors.placeholderText }]}>
+                      Add project phases (optional)
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+              </TouchableOpacity>
+
               <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.inputLabel, { color: Colors.secondaryText }]}>Income Collected</Text>
@@ -643,11 +797,59 @@ export default function ProjectsScreen({ navigation }) {
       />
 
       {/* Timeline Picker for Edit */}
-      <TimelinePickerModal
-        visible={showEditTimeline}
-        onClose={() => setShowEditTimeline(false)}
-        onConfirm={handleEditTimelineConfirm}
-        projectData={editing}
+      {editOpen && editing && (
+        <TimelinePickerModal
+          visible={showEditTimeline}
+          onClose={() => setShowEditTimeline(false)}
+          onConfirm={handleEditTimelineConfirm}
+          projectData={editing}
+        />
+      )}
+
+      {/* Phase Picker for New Project */}
+      <PhasePickerModal
+        visible={showNewProjectPhases}
+        onClose={() => setShowNewProjectPhases(false)}
+        onSave={(phases) => {
+          setNewProjectPhases(phases);
+          setShowNewProjectPhases(false);
+        }}
+        projectStartDate={newProject.startDate}
+      />
+
+      {/* Phase Picker for Edit */}
+      {editOpen && editing && (
+        <PhasePickerModal
+          visible={showEditPhases}
+          onClose={() => setShowEditPhases(false)}
+          onSave={(phases) => {
+            setEditingPhases(phases);
+            setShowEditPhases(false);
+          }}
+          projectStartDate={editing.startDate}
+          initialPhases={editingPhases}
+        />
+      )}
+
+      {/* Phase Detail Modal */}
+      {selectedPhaseDetail && (
+        <PhaseDetailModal
+          visible={showPhaseDetail}
+          onClose={() => setShowPhaseDetail(false)}
+          phase={selectedPhaseDetail}
+          onUpdate={handlePhaseUpdate}
+        />
+      )}
+
+      {/* Project Detail View Modal */}
+      <ProjectDetailView
+        visible={showProjectDetail}
+        project={selectedProject}
+        onClose={() => setShowProjectDetail(false)}
+        onEdit={handleProjectEdit}
+        onAction={handleProjectAction}
+        onDelete={handleDeleteProject}
+        navigation={navigation}
       />
     </SafeAreaView>
   );
@@ -924,5 +1126,11 @@ const styles = StyleSheet.create({
   },
   timelinePlaceholder: {
     fontSize: FontSizes.small,
+  },
+  projectsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
   },
 });
