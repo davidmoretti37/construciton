@@ -27,6 +27,7 @@ export default function EstimatesDetailScreen({ navigation }) {
   const [estimates, setEstimates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedEstimate, setSelectedEstimate] = useState(null);
@@ -34,8 +35,10 @@ export default function EstimatesDetailScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadEstimates();
-    }, [])
+      if (!hasLoadedOnce) {
+        loadEstimates();
+      }
+    }, [hasLoadedOnce])
   );
 
   const loadEstimates = async () => {
@@ -43,6 +46,7 @@ export default function EstimatesDetailScreen({ navigation }) {
       setLoading(true);
       const allEstimates = await fetchEstimates();
       setEstimates(allEstimates || []);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading estimates:', error);
     } finally {

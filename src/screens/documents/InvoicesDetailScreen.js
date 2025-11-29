@@ -23,13 +23,16 @@ export default function InvoicesDetailScreen({ navigation }) {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
   useFocusEffect(
     useCallback(() => {
-      loadInvoices();
-    }, [])
+      if (!hasLoadedOnce) {
+        loadInvoices();
+      }
+    }, [hasLoadedOnce])
   );
 
   const loadInvoices = async () => {
@@ -37,6 +40,7 @@ export default function InvoicesDetailScreen({ navigation }) {
       setLoading(true);
       const allInvoices = await fetchInvoices();
       setInvoices(allInvoices || []);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading invoices:', error);
     } finally {

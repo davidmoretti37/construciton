@@ -15,7 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getUserProfile, saveUserProfile } from '../../utils/storage';
+import { getCurrentUserId } from '../../utils/storage';
+import { supabase } from '../../lib/supabase';
 
 export default function EditPhasesScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -24,6 +25,7 @@ export default function EditPhasesScreen({ navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [userServices, setUserServices] = useState([]);
   const [phases, setPhases] = useState([
     {
       id: '1',
@@ -47,17 +49,45 @@ export default function EditPhasesScreen({ navigation }) {
 
   const loadPhases = async () => {
     try {
-      const profile = await getUserProfile();
-      if (profile.phasesTemplate?.phases && profile.phasesTemplate.phases.length > 0) {
-        // Convert to edit format
-        const editPhases = profile.phasesTemplate.phases.map((p, idx) => ({
-          id: idx.toString(),
-          name: p.name,
-          typical_days: p.typical_days?.toString() || '7',
-          tasks: p.tasks || [],
-          typical_budget_percentage: p.typical_budget_percentage?.toString() || '',
-        }));
-        setPhases(editPhases);
+      // Load user services to get custom phases
+      const userId = await getCurrentUserId();
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('user_services')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (servicesError) {
+        console.error('Error loading user services:', servicesError);
+      }
+
+      setUserServices(servicesData || []);
+
+      // Combine all custom phases from all services
+      const allPhases = [];
+      if (servicesData && servicesData.length > 0) {
+        servicesData.forEach(service => {
+          if (service.custom_phases && service.custom_phases.length > 0) {
+            service.custom_phases.forEach(phase => {
+              allPhases.push({
+                id: `${service.id}_${phase.phase_name}`,
+                name: phase.phase_name,
+                typical_days: (phase.default_days || 7).toString(),
+                tasks: phase.tasks || [],
+                typical_budget_percentage: '',
+                serviceId: service.id,
+              });
+            });
+          }
+        });
+      }
+
+      // Use service-specific phases
+      if (allPhases.length > 0) {
+        setPhases(allPhases);
+      } else {
+        // No phases found - use default empty state
+        setPhases([]);
       }
     } catch (error) {
       console.error('Error loading phases:', error);
@@ -130,18 +160,37 @@ export default function EditPhasesScreen({ navigation }) {
       return;
     }
 
-    const cleanedPhases = validPhases.map((p) => ({
-      name: p.name.trim(),
-      typical_days: parseInt(p.typical_days) || 7,
-      tasks: p.tasks.filter((t) => t.trim() !== ''),
-      typical_budget_percentage: parseFloat(p.typical_budget_percentage) || 0,
-    }));
-
     try {
       setSaving(true);
-      const profile = await getUserProfile();
-      profile.phasesTemplate = { phases: cleanedPhases };
-      await saveUserProfile(profile);
+
+      // Group phases by service
+      const phasesByService = {};
+      validPhases.forEach(phase => {
+        if (phase.serviceId) {
+          if (!phasesByService[phase.serviceId]) {
+            phasesByService[phase.serviceId] = [];
+          }
+          phasesByService[phase.serviceId].push({
+            phase_name: phase.name.trim(),
+            default_days: parseInt(phase.typical_days) || 7,
+            description: '',
+            tasks: phase.tasks.filter((t) => t.trim() !== ''),
+          });
+        }
+      });
+
+      // Update each service's custom phases
+      for (const serviceId in phasesByService) {
+        const { error } = await supabase
+          .from('user_services')
+          .update({ custom_phases: phasesByService[serviceId] })
+          .eq('id', serviceId);
+
+        if (error) {
+          console.error(`Error updating service ${serviceId}:`, error);
+          throw error;
+        }
+      }
 
       Alert.alert('Success', 'Your project phases have been updated!', [
         { text: 'OK', onPress: () => navigation.goBack() }

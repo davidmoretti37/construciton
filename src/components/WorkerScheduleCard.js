@@ -63,7 +63,6 @@ export default function WorkerScheduleCard({ worker, onPress }) {
   };
 
   const statusColor = getStatusColor(worker.status);
-  const hasLocation = worker.latestClockIn?.location_lat && worker.latestClockIn?.location_lng;
   const hasNotes = worker.latestClockIn?.notes;
 
   return (
@@ -123,22 +122,6 @@ export default function WorkerScheduleCard({ worker, onPress }) {
               {worker.isActive ? elapsedTime : `${Math.round(worker.hoursWorked * 10) / 10}h`}
             </Text>
           </View>
-
-          {/* Location Badge */}
-          {hasLocation && (
-            <View style={[styles.statBadge, { backgroundColor: '#10B981' + '15' }]}>
-              <Ionicons name="location" size={14} color="#10B981" />
-              <Text style={[styles.statText, { color: '#10B981' }]}>GPS</Text>
-            </View>
-          )}
-
-          {/* Notes Badge */}
-          {hasNotes && (
-            <View style={[styles.statBadge, { backgroundColor: '#F59E0B' + '15' }]}>
-              <Ionicons name="document-text" size={14} color="#F59E0B" />
-              <Text style={[styles.statText, { color: '#F59E0B' }]}>Notes</Text>
-            </View>
-          )}
 
           {/* Status Badge */}
           {worker.isActive && (

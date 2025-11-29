@@ -12,7 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { getWorkerClockInHistory, getWorkerStats, getActiveClockIn } from '../utils/storage';
+import { getWorkerClockInHistory, getWorkerStats, getActiveClockIn, calculateWorkerPaymentForPeriod } from '../utils/storage';
+import DateRangePicker from '../components/DateRangePicker';
 
 export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -31,9 +32,34 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const [activeSession, setActiveSession] = useState(null);
   const [elapsedTime, setElapsedTime] = useState('');
 
+  // Date range and payment state
+  const getDefaultDateRange = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    return {
+      from: monday.toISOString().split('T')[0],
+      to: sunday.toISOString().split('T')[0]
+    };
+  };
+
+  const [dateRange, setDateRange] = useState(getDefaultDateRange());
+  const [paymentData, setPaymentData] = useState(null);
+  const [loadingPayment, setLoadingPayment] = useState(true);
+
   useEffect(() => {
     loadData();
   }, [worker.id]);
+
+  // Load payment data when date range changes
+  useEffect(() => {
+    loadPaymentData();
+  }, [dateRange, worker.id]);
 
   // Update elapsed time every second for active session
   useEffect(() => {
@@ -77,9 +103,30 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
     }
   };
 
+  const loadPaymentData = async () => {
+    try {
+      setLoadingPayment(true);
+      const data = await calculateWorkerPaymentForPeriod(
+        worker.id,
+        dateRange.from,
+        dateRange.to
+      );
+      setPaymentData(data);
+    } catch (error) {
+      console.error('Error loading payment data:', error);
+      setPaymentData(null);
+    } finally {
+      setLoadingPayment(false);
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([loadData(), loadPaymentData()]);
+  };
+
+  const handleRangeChange = (from, to) => {
+    setDateRange({ from, to });
   };
 
   const getInitials = (name) => {
@@ -144,6 +191,45 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
       grouped[date].push(entry);
     });
     return grouped;
+  };
+
+  const calculateEntryAmount = (entry) => {
+    if (!paymentData || !worker.payment_type) return null;
+
+    const hours = entry.hoursWorked || 0;
+
+    switch (worker.payment_type) {
+      case 'hourly':
+        return hours * (worker.hourly_rate || 0);
+
+      case 'daily':
+        // Find this entry in the payment breakdown by date
+        if (paymentData.byDate) {
+          const entryDate = new Date(entry.clock_in).toISOString().split('T')[0];
+          const dateData = paymentData.byDate.find(d => d.date === entryDate);
+          if (dateData) {
+            // Find this specific entry's proportion
+            const dayEntries = dateData.entries || [];
+            const thisEntry = dayEntries.find(e =>
+              e.projectId === entry.project_id &&
+              Math.abs(e.hours - hours) < 0.01
+            );
+            return thisEntry ? thisEntry.amount : 0;
+          }
+        }
+        return 0;
+
+      case 'weekly':
+        // For weekly, we can't show per-entry amounts
+        return null;
+
+      case 'project_based':
+        // For project-based, payment is milestone-based, not per session
+        return null;
+
+      default:
+        return null;
+    }
   };
 
   const statusColor = getStatusColor(worker.status);
@@ -257,6 +343,132 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Date Range Picker */}
+        <DateRangePicker
+          fromDate={dateRange.from}
+          toDate={dateRange.to}
+          onRangeChange={handleRangeChange}
+        />
+
+        {/* Payment Summary */}
+        {loadingPayment ? (
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <ActivityIndicator size="small" color={Colors.primaryBlue} />
+          </View>
+        ) : paymentData && (
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="cash-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Payment Summary</Text>
+            </View>
+
+            {/* Total Amount */}
+            <View style={[styles.totalAmountContainer, { backgroundColor: Colors.lightGray }]}>
+              <Text style={[styles.totalAmountLabel, { color: Colors.secondaryText }]}>
+                Total Amount Owed
+              </Text>
+              <Text style={[styles.totalAmountValue, { color: Colors.primaryBlue }]}>
+                ${paymentData.totalAmount.toFixed(2)}
+              </Text>
+              <Text style={[styles.totalHoursText, { color: Colors.secondaryText }]}>
+                {paymentData.totalHours.toFixed(1)} hours total
+              </Text>
+            </View>
+
+            {/* Breakdown by Project */}
+            {paymentData.byProject && paymentData.byProject.length > 0 && (
+              <View style={styles.breakdownSection}>
+                <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
+                  Breakdown by Project
+                </Text>
+                {paymentData.byProject.map((project, index) => (
+                  <View
+                    key={index}
+                    style={[styles.breakdownItem, { borderBottomColor: Colors.border }]}
+                  >
+                    <View style={styles.breakdownLeft}>
+                      <Text style={[styles.breakdownProjectName, { color: Colors.primaryText }]}>
+                        {project.projectName}
+                      </Text>
+                      <Text style={[styles.breakdownHours, { color: Colors.secondaryText }]}>
+                        {project.hours.toFixed(1)} hours
+                      </Text>
+                    </View>
+                    <Text style={[styles.breakdownAmount, { color: Colors.primaryBlue }]}>
+                      ${project.amount.toFixed(2)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Breakdown by Date */}
+            {paymentData.byDate && paymentData.byDate.length > 0 && (
+              <View style={styles.breakdownSection}>
+                <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
+                  Daily Breakdown
+                </Text>
+                {paymentData.byDate
+                  .sort((a, b) => new Date(b.date) - new Date(a.date))
+                  .map((day, index) => (
+                  <View
+                    key={index}
+                    style={[styles.dayBreakdownItem, { borderBottomColor: Colors.border }]}
+                  >
+                    <View style={styles.dayBreakdownHeader}>
+                      <View style={styles.dayBreakdownLeft}>
+                        <Text style={[styles.dayBreakdownDate, { color: Colors.primaryText }]}>
+                          {new Date(day.date).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </Text>
+                        <Text style={[styles.dayBreakdownHours, { color: Colors.secondaryText }]}>
+                          {day.hours.toFixed(1)} hours
+                        </Text>
+                      </View>
+                      <Text style={[styles.dayBreakdownAmount, { color: Colors.primaryBlue }]}>
+                        ${day.amount.toFixed(2)}
+                      </Text>
+                    </View>
+                    {/* Show projects worked on this day */}
+                    {day.projects && day.projects.length > 0 && (
+                      <View style={styles.dayProjectsList}>
+                        {day.projects.map((project, projectIndex) => (
+                          <View key={projectIndex} style={styles.dayProjectItem}>
+                            <View style={styles.dayProjectDot} />
+                            <Text style={[styles.dayProjectText, { color: Colors.secondaryText }]}>
+                              {project.projectName}: {project.hours.toFixed(1)}h
+                              {project.amount && ` ($${project.amount.toFixed(2)})`}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Payment type info */}
+            {worker.payment_type && (
+              <View style={styles.paymentTypeInfo}>
+                <Ionicons name="information-circle-outline" size={16} color={Colors.secondaryText} />
+                <Text style={[styles.paymentTypeText, { color: Colors.secondaryText }]}>
+                  Payment Type: {worker.payment_type === 'hourly' ? 'Hourly' :
+                    worker.payment_type === 'daily' ? 'Daily' :
+                    worker.payment_type === 'weekly' ? 'Weekly' : 'Project-Based'}
+                  {worker.payment_type === 'hourly' && worker.hourly_rate && ` - $${Number(worker.hourly_rate).toFixed(2)}/hr`}
+                  {worker.payment_type === 'daily' && worker.daily_rate && ` - $${Number(worker.daily_rate).toFixed(2)}/day`}
+                  {worker.payment_type === 'weekly' && worker.weekly_salary && ` - $${Number(worker.weekly_salary).toFixed(2)}/wk`}
+                  {worker.payment_type === 'project_based' && worker.project_rate && ` - $${Number(worker.project_rate).toFixed(2)}/project`}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Stats Summary */}
         <View style={[styles.card, { backgroundColor: Colors.white }]}>
           <View style={styles.cardHeader}>
@@ -275,54 +487,6 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* History */}
-        <View style={[styles.card, { backgroundColor: Colors.white }]}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="calendar" size={20} color={Colors.primaryBlue} />
-            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Recent History</Text>
-          </View>
-
-          {history.length === 0 ? (
-            <View style={styles.emptyHistory}>
-              <Ionicons name="time-outline" size={48} color={Colors.secondaryText} />
-              <Text style={[styles.emptyHistoryText, { color: Colors.secondaryText }]}>
-                No clock-in history yet
-              </Text>
-            </View>
-          ) : (
-            Object.entries(groupedHistory).map(([date, entries]) => (
-              <View key={date} style={styles.dateGroup}>
-                <Text style={[styles.dateHeader, { color: Colors.primaryText }]}>
-                  {formatDate(entries[0].clock_in)}
-                </Text>
-                {entries.map((entry) => (
-                  <View key={entry.id} style={[styles.historyEntry, { borderBottomColor: Colors.border }]}>
-                    <View style={styles.historyLeft}>
-                      <Text style={[styles.historyProject, { color: Colors.primaryText }]}>
-                        {entry.projects?.name || 'Unknown Project'}
-                      </Text>
-                      <View style={styles.historyTimeRow}>
-                        <Text style={[styles.historyTime, { color: Colors.secondaryText }]}>
-                          {formatTime(entry.clock_in)} → {formatTime(entry.clock_out)}
-                        </Text>
-                      </View>
-                      {entry.notes && (
-                        <Text style={[styles.historyNotes, { color: Colors.secondaryText }]} numberOfLines={2}>
-                          {entry.notes}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.historyRight}>
-                      <Text style={[styles.historyHours, { color: Colors.primaryBlue }]}>
-                        {entry.hoursWorked ? `${Math.round(entry.hoursWorked * 10) / 10}h` : '--'}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ))
-          )}
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -531,10 +695,16 @@ const styles = StyleSheet.create({
   },
   historyRight: {
     justifyContent: 'center',
+    alignItems: 'flex-end',
   },
   historyHours: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  historyAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
   },
   emptyHistory: {
     alignItems: 'center',
@@ -543,5 +713,111 @@ const styles = StyleSheet.create({
   emptyHistoryText: {
     fontSize: 14,
     marginTop: 12,
+  },
+  totalAmountContainer: {
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  totalAmountLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  totalAmountValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  totalHoursText: {
+    fontSize: 13,
+  },
+  breakdownSection: {
+    marginTop: 8,
+  },
+  breakdownTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  breakdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  breakdownLeft: {
+    flex: 1,
+  },
+  breakdownProjectName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  breakdownHours: {
+    fontSize: 13,
+  },
+  breakdownAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  paymentTypeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  paymentTypeText: {
+    fontSize: 12,
+    flex: 1,
+  },
+  dayBreakdownItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  dayBreakdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  dayBreakdownLeft: {
+    flex: 1,
+  },
+  dayBreakdownDate: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  dayBreakdownHours: {
+    fontSize: 13,
+  },
+  dayBreakdownAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  dayProjectsList: {
+    marginTop: 4,
+    paddingLeft: 12,
+  },
+  dayProjectItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dayProjectDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#9CA3AF',
+    marginRight: 8,
+  },
+  dayProjectText: {
+    fontSize: 13,
   },
 });

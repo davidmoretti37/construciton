@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,18 +8,14 @@ import {
   SafeAreaView,
   RefreshControl,
   ActivityIndicator,
-  Switch,
-  TextInput,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { LightColors, getColors, Spacing } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchEstimates, fetchInvoices, getCurrentUserId, getUserProfile, getSelectedLanguage } from '../utils/storage';
+import { getCurrentUserId, getUserProfile, getSelectedLanguage } from '../utils/storage';
 import { supabase } from '../lib/supabase';
-import PhotoGallery from '../components/ChatVisuals/PhotoGallery';
-import { getTradeById, formatPriceUnit } from '../constants/trades';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Language display names
@@ -40,81 +36,88 @@ export default function MoreScreen({ navigation }) {
   const { isDark = false, toggleTheme } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
-  // Content state
-  const [photos, setPhotos] = useState([]);
-  const [estimates, setEstimates] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  // Content state - only counts, not actual data
+  const [photoCount, setPhotoCount] = useState(0);
+  const [estimateCount, setEstimateCount] = useState(0);
+  const [invoiceCount, setInvoiceCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); // Track if data was loaded
 
   // Settings state
   const [userProfile, setUserProfile] = useState(null);
+  const [userServices, setUserServices] = useState([]);
   const [currentLanguage, setCurrentLanguage] = useState('en');
 
-  // Filter states
-  const [estimateFilter, setEstimateFilter] = useState('All');
-  const [invoiceFilter, setInvoiceFilter] = useState('All');
-
-  // Load all data
+  // Load minimal data - just UI essentials
   const loadData = async () => {
     try {
       setLoading(true);
 
-      // Load photos from daily reports
+      // Load counts only (fast queries)
       try {
-        // Fetch all daily reports across all projects
-        const { data: reports, error } = await supabase
-          .from('daily_reports')
-          .select('*, projects(name)')
-          .order('report_date', { ascending: false })
-          .limit(50); // Get recent 50 reports
+        const userId = await getCurrentUserId();
+        if (userId) {
+          // Get photo count from daily reports
+          const { count: photoCountResult } = await supabase
+            .from('daily_reports')
+            .select('id', { count: 'exact', head: true })
+            .not('photos', 'is', null);
+          setPhotoCount(photoCountResult || 0);
 
-        if (error) throw error;
+          // Get estimate count
+          const { count: estimateCountResult } = await supabase
+            .from('estimates')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId);
+          setEstimateCount(estimateCountResult || 0);
 
-        const allPhotos = [];
-        reports?.forEach(report => {
-          if (report.photos && report.photos.length > 0) {
-            report.photos.forEach(photo => {
-              allPhotos.push({
-                uri: photo,
-                project: report.projects?.name || 'Unknown Project',
-                uploadedBy: report.worker_name || 'Unknown',
-                timestamp: report.report_date,
-              });
-            });
-          }
-        });
-        setPhotos(allPhotos.slice(0, 15)); // Recent 15 photos
+          // Get invoice count
+          const { count: invoiceCountResult } = await supabase
+            .from('invoices')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId);
+          setInvoiceCount(invoiceCountResult || 0);
+        }
       } catch (error) {
-        console.log('Error loading photos:', error);
-        setPhotos([]);
+        console.log('Error loading counts:', error);
       }
 
-      // Load estimates
-      try {
-        const allEstimates = await fetchEstimates();
-        setEstimates(allEstimates?.slice(0, 10) || []); // Recent 10
-      } catch (error) {
-        console.log('Error loading estimates:', error);
-        setEstimates([]);
-      }
-
-      // Load invoices
-      try {
-        const allInvoices = await fetchInvoices();
-        setInvoices(allInvoices?.slice(0, 10) || []); // Recent 10
-      } catch (error) {
-        console.log('Error loading invoices:', error);
-        setInvoices([]);
-      }
-
-      // Load user profile
+      // Load user profile (needed for business info display)
       const profile = await getUserProfile();
       setUserProfile(profile);
+
+      // Load user services (needed for services section)
+      try {
+        const userId = await getCurrentUserId();
+        if (userId) {
+          const { data: services, error } = await supabase
+            .from('user_services')
+            .select(`
+              *,
+              service_categories(id, name, icon, description)
+            `)
+            .eq('user_id', userId)
+            .eq('is_active', true);
+
+          if (error) {
+            console.error('Error loading user services:', error);
+            setUserServices([]);
+          } else {
+            setUserServices(services || []);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user services:', error);
+        setUserServices([]);
+      }
 
       // Load current language
       const language = await getSelectedLanguage();
       setCurrentLanguage(language || 'en');
+
+      // Mark as loaded
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -124,8 +127,12 @@ export default function MoreScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [])
+      // Only load data if we haven't loaded it before
+      // This makes navigating back instant
+      if (!hasLoadedOnce) {
+        loadData();
+      }
+    }, [hasLoadedOnce])
   );
 
   const onRefresh = useCallback(async () => {
@@ -138,12 +145,16 @@ export default function MoreScreen({ navigation }) {
     navigation.navigate('EditBusinessInfo');
   };
 
-  const handleEditPhases = () => {
-    navigation.navigate('EditPhases');
-  };
-
   const handleEditPricing = (tradeId) => {
     navigation.navigate('EditPricing', { tradeId });
+  };
+
+  const handleEditProfitMargin = () => {
+    navigation.navigate('EditProfitMargin');
+  };
+
+  const handleAddService = () => {
+    navigation.navigate('AddService');
   };
 
   const handleChangeLanguage = () => {
@@ -186,34 +197,6 @@ export default function MoreScreen({ navigation }) {
     );
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'accepted':
-      case 'paid':
-        return '#10B981';
-      case 'sent':
-      case 'partial':
-        return '#F59E0B';
-      case 'draft':
-      case 'unpaid':
-        return '#6B7280';
-      case 'rejected':
-      case 'overdue':
-        return '#EF4444';
-      default:
-        return Colors.primaryBlue;
-    }
-  };
-
-  const filteredEstimates = estimates.filter(est => {
-    if (estimateFilter === 'All') return true;
-    return est.status?.toLowerCase() === estimateFilter.toLowerCase();
-  });
-
-  const filteredInvoices = invoices.filter(inv => {
-    if (invoiceFilter === 'All') return true;
-    return inv.status?.toLowerCase() === invoiceFilter.toLowerCase();
-  });
 
   if (loading) {
     return (
@@ -224,7 +207,7 @@ export default function MoreScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
       <ScrollView
         style={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -249,9 +232,6 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Pictures</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                {photos.length} photos uploaded
-              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
           </TouchableOpacity>
@@ -266,9 +246,6 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Contracts</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                View saved contracts & templates
-              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
           </TouchableOpacity>
@@ -288,9 +265,6 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Estimates</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                {estimates.length} total • View all
-              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
           </TouchableOpacity>
@@ -305,26 +279,6 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Invoices</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                {invoices.length} total • View all
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-            onPress={() => navigation.navigate('InvoiceTemplate')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: Colors.primaryBlue + '20' }]}>
-              <Ionicons name="color-palette-outline" size={22} color={Colors.primaryBlue} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Invoice Template</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                Customize invoice design
-              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
           </TouchableOpacity>
@@ -345,28 +299,34 @@ export default function MoreScreen({ navigation }) {
               </View>
               <View style={styles.settingContent}>
                 <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Business Information</Text>
-                <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                  {userProfile.businessInfo?.name || 'Not set'}
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-              onPress={handleEditPhases}
+              onPress={handleEditProfitMargin}
               activeOpacity={0.7}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#8B5CF6' + '20' }]}>
-                <Ionicons name="layers-outline" size={22} color="#8B5CF6" />
+              <View style={[styles.settingIcon, { backgroundColor: '#10B981' + '20' }]}>
+                <Ionicons name="trending-up-outline" size={22} color="#10B981" />
               </View>
               <View style={styles.settingContent}>
-                <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Project Phases</Text>
-                <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                  {userProfile.phasesTemplate?.phases?.length
-                    ? `${userProfile.phasesTemplate.phases.length} phases configured`
-                    : 'Set up your workflow template'}
-                </Text>
+                <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Profit Margin</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+              onPress={() => navigation.navigate('EditInvoiceSetup')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F59E0B' + '20' }]}>
+                <Ionicons name="receipt-outline" size={22} color="#F59E0B" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Invoice Setup</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
             </TouchableOpacity>
@@ -388,12 +348,6 @@ export default function MoreScreen({ navigation }) {
               </View>
               <View style={styles.settingContent}>
                 <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>SMS/WhatsApp Setup</Text>
-                <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                  {userProfile.businessPhoneNumber
-                    ? `Configured: ${userProfile.businessPhoneNumber}`
-                    : 'Not configured - Tap to set up'
-                  }
-                </Text>
               </View>
               <Ionicons
                 name={userProfile.businessPhoneNumber ? "checkmark-circle" : "chevron-forward"}
@@ -405,48 +359,89 @@ export default function MoreScreen({ navigation }) {
         )}
 
         {/* Services & Pricing Section */}
-        {userProfile && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionCategory, { color: Colors.secondaryText }]}>SERVICES & PRICING</Text>
+        <View style={styles.section}>
+          <Text style={[styles.sectionCategory, { color: Colors.secondaryText }]}>SERVICES & PRICING</Text>
 
-            {userProfile.trades && userProfile.trades.length > 0 ? (
-              userProfile.trades.map((tradeId) => {
-                const trade = getTradeById(tradeId);
-                if (!trade) return null;
+          {userServices && userServices.length > 0 ? (
+            <>
+              {userServices.map((userService) => {
+                const service = userService.service_categories;
+                if (!service) return null;
 
                 return (
                   <TouchableOpacity
-                    key={tradeId}
+                    key={userService.id}
                     style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-                    onPress={() => handleEditPricing(tradeId)}
+                    onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.settingIcon, { backgroundColor: '#10B981' + '20' }]}>
-                      <Ionicons name={trade.icon} size={22} color="#10B981" />
+                      <Ionicons name={service.icon || 'briefcase-outline'} size={22} color="#10B981" />
                     </View>
                     <View style={styles.settingContent}>
-                      <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>{trade.name}</Text>
-                      <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                        {trade.pricingTemplate.length} pricing items
-                      </Text>
+                      <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>{service.name}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
                   </TouchableOpacity>
                 );
-              })
-            ) : (
+              })}
+
+              {/* Add New Service Button */}
+              <TouchableOpacity
+                style={[styles.addServiceButton, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}
+                onPress={handleAddService}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.addServiceIcon, { backgroundColor: Colors.primaryBlue }]}>
+                  <Ionicons name="add" size={22} color="#fff" />
+                </View>
+                <Text style={[styles.addServiceText, { color: Colors.primaryBlue }]}>
+                  Add New Service
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
               <View style={[styles.emptyCard, { backgroundColor: Colors.lightGray }]}>
                 <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
                   No services configured
                 </Text>
               </View>
-            )}
-          </View>
-        )}
+
+              {/* Add New Service Button */}
+              <TouchableOpacity
+                style={[styles.addServiceButton, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}
+                onPress={handleAddService}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.addServiceIcon, { backgroundColor: Colors.primaryBlue }]}>
+                  <Ionicons name="add" size={22} color="#fff" />
+                </View>
+                <Text style={[styles.addServiceText, { color: Colors.primaryBlue }]}>
+                  Add New Service
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
 
         {/* App Settings Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionCategory, { color: Colors.secondaryText }]}>APP SETTINGS</Text>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+            onPress={() => navigation.navigate('NotificationSettings')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: '#EF4444' + '20' }]}>
+              <Ionicons name="notifications-outline" size={22} color="#EF4444" />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Notifications</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
@@ -458,9 +453,6 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Language</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                {LANGUAGE_NAMES[currentLanguage] || 'English'}
-              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
           </TouchableOpacity>
@@ -475,9 +467,6 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Appearance</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                {isDark ? 'Dark Mode' : 'Light Mode'}
-              </Text>
             </View>
             <Ionicons name={isDark ? "toggle" : "toggle-outline"} size={32} color={Colors.primaryBlue} />
           </TouchableOpacity>
@@ -493,7 +482,6 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>App Version</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>1.0.0</Text>
             </View>
           </View>
 
@@ -503,21 +491,7 @@ export default function MoreScreen({ navigation }) {
             </View>
             <View style={styles.settingContent}>
               <Text style={[styles.settingTitle, { color: Colors.primaryText }]}>Construction Manager</Text>
-              <Text style={[styles.settingSubtitle, { color: Colors.secondaryText }]}>
-                AI-powered estimates
-              </Text>
             </View>
-          </View>
-        </View>
-
-        {/* Help Section */}
-        <View style={[styles.helpCard, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
-          <Ionicons name="help-circle-outline" size={22} color={Colors.primaryBlue} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.helpTitle, { color: Colors.primaryBlue }]}>Need Help?</Text>
-            <Text style={[styles.helpText, { color: Colors.primaryBlue }]}>
-              Chat with the AI assistant to learn how to use features, create estimates, and manage your business.
-            </Text>
           </View>
         </View>
 
@@ -748,6 +722,27 @@ const styles = StyleSheet.create({
   },
   settingSubtitle: {
     fontSize: 13,
+  },
+  addServiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    marginTop: 10,
+  },
+  addServiceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  addServiceText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   infoCard: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -9,6 +9,8 @@ export default function ProjectCard({ data, onAction }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
   const [expandedPhases, setExpandedPhases] = useState({});
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedData, setEditedData] = useState(data);
 
   const togglePhaseExpansion = (phaseId) => {
     setExpandedPhases(prev => ({
@@ -17,38 +19,61 @@ export default function ProjectCard({ data, onAction }) {
     }));
   };
 
+  // Edit mode handlers
+  const handleStartEdit = () => {
+    setEditedData({ ...data });
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditedData(data);
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = () => {
+    if (onAction) {
+      onAction({ type: 'update-project', data: editedData });
+    }
+    setIsEditing(false);
+  };
+
+  const handleUpdateField = (field, value) => {
+    setEditedData({ ...editedData, [field]: value });
+  };
+
   if (!data) {
     console.error('ProjectCard: No data provided');
     return null;
   }
 
-  // Extract all fields from data
+  // Extract all fields from data (use editedData when editing)
+  const currentData = isEditing ? editedData : data;
   const {
     id,
     name = 'Unnamed Project',
     percentComplete = 0,
-    status = 'draft',
+    status = 'active',
     workers = [],
     daysRemaining = null,
     lastActivity = '',
     phases = [],
     hasPhases = false
-  } = data;
+  } = currentData;
 
   // Extras/Additions support (for history display only)
-  const extras = data.extras || [];
-  const baseContract = data.baseContract || 0;
+  const extras = currentData.extras || [];
+  const baseContract = currentData.baseContract || 0;
 
   // New financial model - contractAmount is ALREADY calculated by database (base + extras)
   // DO NOT add extras again here!
-  const contractAmount = data.contractAmount || data.budget || 0;
-  const incomeCollected = data.incomeCollected || 0;
-  const expenses = data.expenses || data.spent || 0;
+  const contractAmount = currentData.contractAmount || currentData.budget || 0;
+  const incomeCollected = currentData.incomeCollected || 0;
+  const expenses = currentData.expenses || currentData.spent || 0;
   const profit = incomeCollected - expenses;
 
   // Legacy fields
-  const budget = data.budget || contractAmount;
-  const spent = data.spent || expenses;
+  const budget = currentData.budget || contractAmount;
+  const spent = currentData.spent || expenses;
 
   const getStatusColor = () => {
     switch (status) {
@@ -66,6 +91,104 @@ export default function ProjectCard({ data, onAction }) {
   // Calculate progress values
   const progressWidth = Math.min(percentComplete, 100);
   const progressColor = getStatusColor();
+
+  // Helper function to render a single phase
+  const renderPhase = (phase, index) => {
+    const isExpanded = expandedPhases[phase.id || index];
+    const hasPayment = currentData.payment_structure === 'per_phase' && phase.payment_amount;
+    const hasTasks = phase.tasks && phase.tasks.length > 0;
+
+    return (
+      <View key={phase.id || index} style={styles.phaseCard}>
+        {/* Phase Header - Clickable to expand/collapse */}
+        <TouchableOpacity
+          style={styles.phaseHeader}
+          onPress={() => togglePhaseExpansion(phase.id || index)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.phaseHeaderLeft}>
+            <Ionicons
+              name={isExpanded ? "chevron-down" : "chevron-forward"}
+              size={20}
+              color={Colors.primaryBlue}
+            />
+            <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
+              {phase.name}
+            </Text>
+          </View>
+          <View style={styles.phaseHeaderRight}>
+            {hasPayment && (
+              <Text style={[styles.phasePayment, { color: Colors.primaryBlue }]}>
+                ${phase.payment_amount.toLocaleString()}
+              </Text>
+            )}
+            <Text style={[styles.phaseProgress, { color: Colors.secondaryText }]}>
+              {phase.completion_percentage || 0}%
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Expandable Content */}
+        {isExpanded && (
+          <View style={styles.phaseContent}>
+            {/* Progress Bar */}
+            <View style={styles.phaseProgressBar}>
+              <View style={[styles.phaseProgressBg, { backgroundColor: Colors.lightGray }]}>
+                <View
+                  style={[
+                    styles.phaseProgressFill,
+                    {
+                      backgroundColor: Colors.primaryBlue,
+                      width: `${phase.completion_percentage || 0}%`
+                    }
+                  ]}
+                />
+              </View>
+            </View>
+
+            {/* Phase Dates */}
+            {phase.start_date && phase.end_date && (
+              <View style={styles.phaseDates}>
+                <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
+                <Text style={[styles.phaseDateText, { color: Colors.secondaryText }]}>
+                  {new Date(phase.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {' → '}
+                  {new Date(phase.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </Text>
+              </View>
+            )}
+
+            {/* Tasks Checklist */}
+            {hasTasks && (
+              <View style={styles.tasksContainer}>
+                <Text style={[styles.tasksHeader, { color: Colors.primaryText }]}>
+                  Tasks:
+                </Text>
+                {phase.tasks.map((task, taskIndex) => (
+                  <View key={taskIndex} style={styles.taskItem}>
+                    <Ionicons
+                      name={task.completed ? "checkmark-circle" : "ellipse-outline"}
+                      size={18}
+                      color={task.completed ? Colors.success : Colors.lightGray}
+                    />
+                    <Text style={[
+                      styles.taskText,
+                      {
+                        color: task.completed ? Colors.secondaryText : Colors.primaryText,
+                        textDecorationLine: task.completed ? 'line-through' : 'none'
+                      }
+                    ]}>
+                      {task.description || task.name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const getStatusIcon = () => {
     switch (status) {
@@ -117,9 +240,9 @@ export default function ProjectCard({ data, onAction }) {
     }
 
     // If no daysRemaining but we have an endDate, show it
-    if (data.endDate) {
+    if (currentData.endDate) {
       // Parse date as local time to avoid timezone issues
-      const [year, month, day] = data.endDate.split('-');
+      const [year, month, day] = currentData.endDate.split('-');
       const endDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
       endDate.setHours(0, 0, 0, 0);
 
@@ -168,24 +291,54 @@ export default function ProjectCard({ data, onAction }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Text style={[styles.projectName, { color: Colors.primaryText }]}>{name}</Text>
+          {isEditing ? (
+            <TextInput
+              style={[styles.editInput, styles.projectName, { color: Colors.primaryText, borderColor: Colors.border }]}
+              value={name}
+              onChangeText={(value) => handleUpdateField('name', value)}
+              placeholder="Project Name"
+              placeholderTextColor={Colors.secondaryText}
+            />
+          ) : (
+            <Text style={[styles.projectName, { color: Colors.primaryText }]}>{name}</Text>
+          )}
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '20' }]}>
-          <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
+        <View style={styles.headerActions}>
+          {!isEditing ? (
+            <TouchableOpacity
+              style={[styles.editIconButton, { backgroundColor: Colors.primaryBlue + '15' }]}
+              onPress={handleStartEdit}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={20} color={Colors.primaryBlue} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.editActions}>
+              <TouchableOpacity onPress={handleCancelEdit} style={styles.editActionButton}>
+                <Ionicons name="close" size={20} color={Colors.error} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveEdit} style={styles.editActionButton}>
+                <Ionicons name="checkmark" size={20} color={Colors.success} />
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '20' }]}>
+            <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
+          </View>
         </View>
       </View>
 
       {/* Payment Structure Badge */}
-      {data.payment_structure && (
+      {currentData.payment_structure && (
         <View style={styles.paymentBadgeContainer}>
           <View style={[styles.paymentBadge, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue + '30' }]}>
             <Ionicons
-              name={data.payment_structure === 'per_phase' ? 'layers-outline' : 'wallet-outline'}
+              name={currentData.payment_structure === 'per_phase' ? 'layers-outline' : 'wallet-outline'}
               size={14}
               color={Colors.primaryBlue}
             />
             <Text style={[styles.paymentBadgeText, { color: Colors.primaryBlue }]}>
-              {data.payment_structure === 'per_phase' ? 'Pay per phase' : 'Pay in full'}
+              {currentData.payment_structure === 'per_phase' ? 'Pay per phase' : 'Pay in full'}
             </Text>
           </View>
         </View>
@@ -194,124 +347,141 @@ export default function ProjectCard({ data, onAction }) {
       {/* Timeline Progress Bar - Show phases if available, otherwise simple bar */}
       {hasPhases && phases && phases.length > 0 ? (
         <View style={styles.progressSection}>
-          <PhaseTimeline phases={phases} compact={true} />
+          <PhaseTimeline phases={phases} compact={true} projectProgress={percentComplete} />
 
           {/* Expandable Phase Details */}
           <View style={styles.phasesContainer}>
-            {phases.map((phase, index) => {
-              const isExpanded = expandedPhases[phase.id || index];
-              const hasPayment = data.payment_structure === 'per_phase' && phase.payment_amount;
-              const hasTasks = phase.tasks && phase.tasks.length > 0;
+            {/* Group phases by scope if multiple scopes exist */}
+            {(() => {
+              // Check if there are multiple scopes
+              const hasMultipleScopes = phases.some(p => p.scope_id);
 
-              return (
-                <View key={phase.id || index} style={styles.phaseCard}>
-                  {/* Phase Header - Clickable to expand/collapse */}
-                  <TouchableOpacity
-                    style={styles.phaseHeader}
-                    onPress={() => togglePhaseExpansion(phase.id || index)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.phaseHeaderLeft}>
-                      <Ionicons
-                        name={isExpanded ? "chevron-down" : "chevron-forward"}
-                        size={20}
-                        color={Colors.primaryBlue}
-                      />
-                      <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
-                        {phase.name}
-                      </Text>
-                    </View>
-                    <View style={styles.phaseHeaderRight}>
-                      {hasPayment && (
-                        <Text style={[styles.phasePayment, { color: Colors.primaryBlue }]}>
-                          ${phase.payment_amount.toLocaleString()}
-                        </Text>
-                      )}
-                      <Text style={[styles.phaseProgress, { color: Colors.secondaryText }]}>
-                        {phase.completion_percentage || 0}%
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+              if (!hasMultipleScopes) {
+                // Single scope - render normally
+                return phases.map((phase, index) => renderPhase(phase, index));
+              }
 
-                  {/* Expandable Content */}
-                  {isExpanded && (
-                    <View style={styles.phaseContent}>
-                      {/* Progress Bar */}
-                      <View style={styles.phaseProgressBar}>
-                        <View style={[styles.phaseProgressBg, { backgroundColor: Colors.lightGray }]}>
-                          <View
-                            style={[
-                              styles.phaseProgressFill,
-                              {
-                                backgroundColor: Colors.primaryBlue,
-                                width: `${phase.completion_percentage || 0}%`
-                              }
-                            ]}
-                          />
-                        </View>
-                      </View>
+              // Multiple scopes - group by scope
+              const scopes = {};
+              phases.forEach(phase => {
+                const scopeId = phase.scope_id || 'original';
+                if (!scopes[scopeId]) {
+                  scopes[scopeId] = {
+                    id: scopeId,
+                    name: phase.scope_name || 'Original Work',
+                    phases: []
+                  };
+                }
+                scopes[scopeId].phases.push(phase);
+              });
 
-                      {/* Phase Dates */}
-                      {phase.start_date && phase.end_date && (
-                        <View style={styles.phaseDates}>
-                          <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
-                          <Text style={[styles.phaseDateText, { color: Colors.secondaryText }]}>
-                            {new Date(phase.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {' → '}
-                            {new Date(phase.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </Text>
-                        </View>
-                      )}
+              return Object.values(scopes).map((scope, scopeIndex) => (
+                <View key={scope.id} style={styles.scopeSection}>
+                  {/* Scope Header */}
+                  <View style={[styles.scopeHeader, { backgroundColor: Colors.lightBackground }]}>
+                    <Ionicons name="folder-outline" size={16} color={Colors.primaryBlue} />
+                    <Text style={[styles.scopeName, { color: Colors.primaryText }]}>
+                      {scope.name}
+                    </Text>
+                    <Text style={[styles.scopePhaseCount, { color: Colors.secondaryText }]}>
+                      {scope.phases.length} phase{scope.phases.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
 
-                      {/* Tasks Checklist */}
-                      {hasTasks && (
-                        <View style={styles.tasksContainer}>
-                          <Text style={[styles.tasksHeader, { color: Colors.primaryText }]}>
-                            Tasks:
-                          </Text>
-                          {phase.tasks.map((task, taskIndex) => (
-                            <View key={taskIndex} style={styles.taskItem}>
-                              <Ionicons
-                                name={task.completed ? "checkmark-circle" : "ellipse-outline"}
-                                size={18}
-                                color={task.completed ? Colors.success : Colors.lightGray}
-                              />
-                              <Text style={[
-                                styles.taskText,
-                                {
-                                  color: task.completed ? Colors.secondaryText : Colors.primaryText,
-                                  textDecorationLine: task.completed ? 'line-through' : 'none'
-                                }
-                              ]}>
-                                {task.name}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  )}
+                  {/* Scope Phases */}
+                  {scope.phases.map((phase, phaseIndex) => renderPhase(phase, `${scope.id}-${phaseIndex}`))}
                 </View>
-              );
-            })}
+              ));
+            })()}
           </View>
         </View>
       ) : (
         <View style={styles.progressSection}>
-          <View style={[styles.progressBarBg, { backgroundColor: '#E5E7EB' }]}>
-            <View
-              style={[
-                styles.progressBarFill,
-                {
-                  backgroundColor: getStatusColor(),
-                  width: `${Math.min(percentComplete, 100)}%`
-                }
-              ]}
-            />
+          {/* Timeline Progress Bar (Bold) - Time-based */}
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarHeader}>
+              <Text style={[styles.progressLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
+                Timeline
+              </Text>
+              <Text style={[styles.progressPercentage, { color: Colors.primaryText, fontWeight: '700' }]}>
+                {percentComplete}%
+              </Text>
+            </View>
+            <View style={[styles.progressBarBg, { backgroundColor: '#E5E7EB' }]}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    backgroundColor: getStatusColor(),
+                    width: `${Math.min(percentComplete, 100)}%`
+                  }
+                ]}
+              />
+            </View>
           </View>
-          <Text style={[styles.progressText, { color: Colors.primaryText }]}>
-            {percentComplete}% complete {!data.startDate || !data.endDate ? '(no timeline)' : ''}
-          </Text>
+
+          {/* Actual Work Progress Bar (Faded) - Task-based */}
+          {hasPhases && (
+            <View style={[styles.progressBarContainer, { opacity: 0.65, marginTop: 8 }]}>
+              <View style={styles.progressBarHeader}>
+                <Text style={[styles.progressLabel, { color: Colors.secondaryText, fontWeight: '500' }]}>
+                  Work Complete
+                </Text>
+                <Text style={[styles.progressPercentage, { color: Colors.secondaryText, fontWeight: '600' }]}>
+                  {currentData.actual_progress || 0}%
+                </Text>
+              </View>
+              <View style={[styles.progressBarBg, { backgroundColor: '#E5E7EB' }]}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      backgroundColor: Colors.primaryBlue,
+                      width: `${Math.min(currentData.actual_progress || 0, 100)}%`
+                    }
+                  ]}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Timeline Note */}
+          {!currentData.startDate || !currentData.endDate ? (
+            <Text style={[styles.progressNote, { color: Colors.secondaryText }]}>
+              No timeline set
+            </Text>
+          ) : null}
+
+          {/* Variance Alert */}
+          {hasPhases && currentData.estimated_completion_date && currentData.endDate && (() => {
+            const variance = percentComplete - (currentData.actual_progress || 0);
+            const estimatedDate = new Date(currentData.estimated_completion_date);
+            const plannedDate = new Date(currentData.endDate);
+            const daysLate = Math.ceil((estimatedDate - plannedDate) / (1000 * 60 * 60 * 24));
+
+            if (Math.abs(variance) > 15 || Math.abs(daysLate) > 3) {
+              const isBehind = variance > 15 || daysLate > 3;
+              return (
+                <View style={[styles.varianceAlert, {
+                  backgroundColor: isBehind ? '#FEE2E2' : '#D1FAE5',
+                  borderColor: isBehind ? '#EF4444' : '#10B981'
+                }]}>
+                  <Ionicons
+                    name={isBehind ? "alert-circle" : "rocket"}
+                    size={16}
+                    color={isBehind ? "#EF4444" : "#10B981"}
+                  />
+                  <Text style={[styles.varianceText, { color: isBehind ? "#991B1B" : "#065F46" }]}>
+                    {isBehind
+                      ? `${Math.round(variance)}% behind - Est: ${estimatedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (${daysLate}d late)`
+                      : `${Math.round(Math.abs(variance))}% ahead of schedule`
+                    }
+                  </Text>
+                </View>
+              );
+            }
+            return null;
+          })()}
         </View>
       )}
 
@@ -479,11 +649,25 @@ const styles = StyleSheet.create({
   progressSection: {
     marginBottom: Spacing.md,
   },
+  progressBarContainer: {
+    marginBottom: Spacing.sm,
+  },
+  progressBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  progressLabel: {
+    fontSize: FontSizes.tiny,
+  },
+  progressPercentage: {
+    fontSize: FontSizes.small,
+  },
   progressBarBg: {
     height: 8,
     borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: Spacing.xs,
   },
   progressBarFill: {
     height: '100%',
@@ -491,6 +675,25 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: FontSizes.tiny,
+  },
+  progressNote: {
+    fontSize: FontSizes.tiny,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  varianceAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  varianceText: {
+    fontSize: FontSizes.tiny,
+    fontWeight: '600',
+    flex: 1,
   },
   paymentBadgeContainer: {
     marginTop: Spacing.sm,
@@ -695,5 +898,50 @@ const styles = StyleSheet.create({
   taskText: {
     fontSize: FontSizes.small,
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  editIconButton: {
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  editActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  editActionButton: {
+    padding: Spacing.xs,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    minHeight: 36,
+  },
+  // Scope Section Styles (for multiple estimates/scopes)
+  scopeSection: {
+    marginBottom: Spacing.md,
+  },
+  scopeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  scopeName: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+    flex: 1,
+  },
+  scopePhaseCount: {
+    fontSize: FontSizes.small,
   },
 });

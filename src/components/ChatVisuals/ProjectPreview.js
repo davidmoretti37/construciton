@@ -21,12 +21,10 @@ export default function ProjectPreview({ data, onAction }) {
     client_phone,
     projectName,
     date,
-    items = [],
+    services = [],
     phases = [],
     schedule = {},
     scope = {},
-    subtotal = 0,
-    total = 0,
     businessName,
     status,
   } = isEditing ? editedData : data;
@@ -64,43 +62,39 @@ export default function ProjectPreview({ data, onAction }) {
   };
 
   const handleSaveEdit = () => {
-    // Recalculate totals from line items
-    const newItems = editedData.items || items;
-    const newSubtotal = newItems.reduce((sum, item) => sum + (item.total || 0), 0);
-
-    // Recalculate total from phase budgets if available
     const newPhases = editedData.phases || phases;
-    const phaseTotalBudget = newPhases.reduce((sum, phase) => sum + (parseFloat(phase.budget) || 0), 0);
-
-    // Use phase budgets if they exist, otherwise use line items
-    const newTotal = phaseTotalBudget > 0 ? phaseTotalBudget : newSubtotal + (editedData.taxAmount || 0);
+    const newServices = editedData.services || services;
 
     const updatedData = {
+      ...data,
       ...editedData,
-      items: newItems,
       phases: newPhases,
-      subtotal: newSubtotal,
-      total: newTotal
+      services: newServices,
     };
 
     if (onAction) {
-      onAction({ type: 'update-project', data: updatedData });
+      const actionType = data.id ? 'update-project' : 'save-project';
+      onAction({ type: actionType, data: updatedData });
     }
     setIsEditing(false);
   };
 
-  const handleUpdateLineItem = (index, field, value) => {
-    const newItems = [...(editedData.items || items)];
-    newItems[index] = { ...newItems[index], [field]: value };
+  const handleUpdateService = (index, value) => {
+    const newServices = [...(editedData.services || services)];
+    newServices[index] = { ...newServices[index], description: value };
+    setEditedData({ ...editedData, services: newServices });
+  };
 
-    // Recalculate item total if quantity or price changed
-    if (field === 'quantity' || field === 'price') {
-      const quantity = parseFloat(newItems[index].quantity) || 0;
-      const price = parseFloat(newItems[index].price) || 0;
-      newItems[index].total = quantity * price;
-    }
+  const handleAddService = () => {
+    const newServices = [...(editedData.services || services)];
+    newServices.push({ description: '' });
+    setEditedData({ ...editedData, services: newServices });
+  };
 
-    setEditedData({ ...editedData, items: newItems });
+  const handleRemoveService = (index) => {
+    const newServices = [...(editedData.services || services)];
+    newServices.splice(index, 1);
+    setEditedData({ ...editedData, services: newServices });
   };
 
   const handleUpdatePhase = (phaseIndex, field, value) => {
@@ -185,16 +179,10 @@ export default function ProjectPreview({ data, onAction }) {
     text += `Date: ${date}\n\n`;
 
     text += `SERVICES:\n`;
-    items.forEach(item => {
-      const cleanDescription = item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description;
-      text += `${item.index}. ${cleanDescription}\n`;
-      const itemPrice = typeof item.price === 'number' ? item.price : (parseFloat(item.price) || 0);
-      const itemTotal = typeof item.total === 'number' ? item.total : (parseFloat(item.total) || 0);
-      text += `   ${item.quantity || 0} ${item.unit || 'unit'}${(item.quantity || 0) > 1 ? 's' : ''} × $${itemPrice.toFixed(2)} = $${itemTotal.toFixed(2)}\n`;
+    services.forEach((service, index) => {
+      const cleanDescription = service.description?.replace(/^undefined\.\s*/i, '').trim() || service.description;
+      text += `${index + 1}. ${cleanDescription}\n`;
     });
-
-    const totalAmount = typeof total === 'number' ? total : (parseFloat(total) || 0);
-    text += `\nTOTAL: $${totalAmount.toFixed(2)}`;
 
     return text;
   };
@@ -319,21 +307,32 @@ export default function ProjectPreview({ data, onAction }) {
           )}
         </View>
         <View style={styles.headerRight}>
-          {!isEditing && !status && (
-            <TouchableOpacity
-              style={[styles.editIconButton, { backgroundColor: Colors.primaryBlue + '15' }]}
-              onPress={handleStartEdit}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="create-outline" size={20} color={Colors.primaryBlue} />
-            </TouchableOpacity>
-          )}
-          {status && (
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '15', borderColor: getStatusColor() }]}>
-              <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
-              <Text style={[styles.statusText, { color: getStatusColor() }]}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </Text>
+          {!isEditing ? (
+            <>
+              <TouchableOpacity
+                style={[styles.editIconButton, { backgroundColor: Colors.primaryBlue + '15' }]}
+                onPress={handleStartEdit}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="create-outline" size={20} color={Colors.primaryBlue} />
+              </TouchableOpacity>
+              {status && (
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '15', borderColor: getStatusColor() }]}>
+                  <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
+                  <Text style={[styles.statusText, { color: getStatusColor() }]}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.editActions}>
+              <TouchableOpacity onPress={handleCancelEdit} style={styles.editActionButton}>
+                <Ionicons name="close" size={20} color={Colors.error} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveEdit} style={styles.editActionButton}>
+                <Ionicons name="checkmark" size={20} color={Colors.success} />
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -481,29 +480,6 @@ export default function ProjectPreview({ data, onAction }) {
                     </View>
                   )}
 
-                  {/* Phase Budget */}
-                  {phase.budget && (
-                    <View style={[styles.phaseBudgetRow, { borderTopColor: Colors.border }]}>
-                      <Text style={[styles.phaseBudgetLabel, { color: Colors.secondaryText }]}>Phase Budget:</Text>
-                      {isEditing ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={[styles.phaseBudgetAmount, { color: Colors.primaryBlue }]}>$</Text>
-                          <TextInput
-                            style={[styles.editInputSmall, { color: Colors.primaryBlue, borderColor: Colors.primaryBlue, minWidth: 80 }]}
-                            value={(typeof phase.budget === 'number' ? phase.budget : parseFloat(phase.budget) || 0).toString()}
-                            onChangeText={(value) => handleUpdatePhase(index, 'budget', parseFloat(value) || 0)}
-                            keyboardType="decimal-pad"
-                            placeholder="0.00"
-                          />
-                        </View>
-                      ) : (
-                        <Text style={[styles.phaseBudgetAmount, { color: Colors.primaryBlue }]}>
-                          ${typeof phase.budget === 'number' ? phase.budget.toFixed(2) : phase.budget}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-
                   {/* Phase Timeline */}
                   {schedule.phaseSchedule && schedule.phaseSchedule[index] && (
                     <View style={styles.phaseTimeline}>
@@ -573,68 +549,53 @@ export default function ProjectPreview({ data, onAction }) {
         </View>
       )}
 
-      {/* Line Items */}
-      <View style={[styles.section, { borderTopColor: Colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SERVICES</Text>
-        {items.map((item, index) => (
-          <View key={index} style={styles.lineItem}>
-            <View style={styles.itemHeader}>
-              <Text style={[styles.itemNumber, { color: Colors.secondaryText }]}>
-                {item.index}.
-              </Text>
-              {isEditing ? (
-                <TextInput
-                  style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
-                  value={item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description}
-                  onChangeText={(value) => handleUpdateLineItem(index, 'description', value)}
-                  placeholder="Item description"
-                  placeholderTextColor={Colors.secondaryText}
-                />
-              ) : (
-                <Text style={[styles.itemDescription, { color: Colors.primaryText }]}>
-                  {item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description}
-                </Text>
-              )}
-            </View>
-            <View style={styles.itemDetails}>
-              {isEditing ? (
-                <View style={styles.editableItemDetails}>
-                  <TextInput
-                    style={[styles.editInputSmall, { color: Colors.primaryText, borderColor: Colors.border }]}
-                    value={item.quantity?.toString()}
-                    onChangeText={(value) => handleUpdateLineItem(index, 'quantity', value)}
-                    keyboardType="numeric"
-                    placeholder="Qty"
-                  />
-                  <Text style={[styles.itemCalc, { color: Colors.secondaryText }]}>× $</Text>
-                  <TextInput
-                    style={[styles.editInputSmall, { color: Colors.primaryText, borderColor: Colors.border }]}
-                    value={item.price?.toString()}
-                    onChangeText={(value) => handleUpdateLineItem(index, 'price', value)}
-                    keyboardType="decimal-pad"
-                    placeholder="Price"
-                  />
-                </View>
-              ) : (
-                <Text style={[styles.itemCalc, { color: Colors.secondaryText }]}>
-                  {item.quantity} {item.unit || 'unit'}{item.quantity > 1 ? 's' : ''} × ${item.price?.toFixed(2) || 0}
-                </Text>
-              )}
-              <Text style={[styles.itemTotal, { color: Colors.primaryText }]}>
-                ${item.total?.toFixed(2) || 0}
-              </Text>
-            </View>
+      {/* Services */}
+      {(services && services.length > 0) || isEditing ? (
+        <View style={[styles.section, { borderTopColor: Colors.border }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SERVICES</Text>
+            {isEditing && (
+              <TouchableOpacity
+                onPress={handleAddService}
+                style={[styles.addTaskButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
+              >
+                <Ionicons name="add" size={14} color={Colors.primaryBlue} />
+                <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>Add Service</Text>
+              </TouchableOpacity>
+            )}
           </View>
-        ))}
-      </View>
-
-      {/* Total */}
-      <View style={[styles.totalSection, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
-        <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>TOTAL</Text>
-        <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
-          ${typeof total === 'number' ? total.toFixed(2) : (parseFloat(total) || 0).toFixed(2)}
-        </Text>
-      </View>
+          {(isEditing ? (editedData.services || services) : services).map((service, index) => (
+            <View key={index} style={styles.lineItem}>
+              <View style={styles.itemHeader}>
+                <Text style={[styles.itemNumber, { color: Colors.secondaryText }]}>
+                  {index + 1}.
+                </Text>
+                {isEditing ? (
+                  <>
+                    <TextInput
+                      style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
+                      value={service.description?.replace(/^undefined\.\s*/i, '').trim() || service.description || ''}
+                      onChangeText={(value) => handleUpdateService(index, value)}
+                      placeholder="Service description"
+                      placeholderTextColor={Colors.secondaryText}
+                    />
+                    <TouchableOpacity
+                      onPress={() => handleRemoveService(index)}
+                      style={styles.removeTaskButton}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <Text style={[styles.itemDescription, { color: Colors.primaryText }]}>
+                    {service.description?.replace(/^undefined\.\s*/i, '').trim() || service.description}
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
@@ -782,6 +743,24 @@ const styles = StyleSheet.create({
   },
   itemTotal: {
     fontSize: FontSizes.small,
+    fontWeight: '600',
+  },
+  costBreakdown: {
+    borderTopWidth: 1,
+    paddingTop: Spacing.md,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+  },
+  breakdownLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+  },
+  breakdownValue: {
+    fontSize: FontSizes.body,
     fontWeight: '600',
   },
   totalSection: {
@@ -1003,5 +982,13 @@ const styles = StyleSheet.create({
   removeTaskButton: {
     padding: 4,
     marginLeft: Spacing.xs,
+  },
+  editActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  editActionButton: {
+    padding: Spacing.xs,
   },
 });

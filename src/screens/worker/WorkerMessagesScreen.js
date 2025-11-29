@@ -1,31 +1,22 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getColors, Spacing, FontSizes } from '../../constants/theme';
-import { useTheme } from '../../contexts/ThemeContext';
 
 export default function WorkerMessagesScreen({ navigation }) {
-  const { isDark = false } = useTheme() || {};
-  const Colors = getColors(isDark);
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      {/* Top Bar */}
-      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
+    <SafeAreaView style={styles.container}>
+      {/* Minimalist Top Bar */}
+      <View style={styles.topBar}>
+        <Text style={styles.topBarTitle}>Messages</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+          <Ionicons name="settings-outline" size={22} color="#1F2937" />
         </TouchableOpacity>
       </View>
 
+      {/* Empty State */}
       <View style={styles.content}>
-        <Ionicons name="chatbubbles-outline" size={80} color="#059669" />
-        <Text style={[styles.title, { color: Colors.primaryText }]}>Messages</Text>
-        <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-          Messaging feature coming soon
-        </Text>
+        <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
+        <Text style={styles.emptyStateText}>Coming soon</Text>
       </View>
     </SafeAreaView>
   );
@@ -34,29 +25,31 @@ export default function WorkerMessagesScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FAFAFA',
   },
   topBar: {
-    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    borderBottomWidth: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
   },
-  settingsButton: {
-    padding: Spacing.sm,
+  topBarTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1F2937',
+    letterSpacing: -0.5,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
-  title: {
-    fontSize: FontSizes.xlarge,
-    fontWeight: '700',
-    marginTop: Spacing.lg,
-  },
-  subtitle: {
-    fontSize: FontSizes.body,
-    marginTop: Spacing.sm,
+  emptyStateText: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
 });

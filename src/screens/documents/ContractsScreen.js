@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -21,22 +23,26 @@ export default function ContractsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
 
-  const [activeTab, setActiveTab] = useState('contracts'); // 'contracts' or 'templates'
-  const [contracts, setContracts] = useState([]);
-  const [templates, setTemplates] = useState([]);
+  const [contractDocuments, setContractDocuments] = useState([]);
+  const [typicalContracts, setTypicalContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [])
+      if (!hasLoadedOnce) {
+        loadData();
+      }
+    }, [hasLoadedOnce])
   );
 
   const loadData = async () => {
     try {
       setLoading(true);
-      await Promise.all([loadContracts(), loadTemplates()]);
+      await Promise.all([loadContractDocuments(), loadTypicalContracts()]);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading contracts data:', error);
     } finally {
@@ -44,37 +50,182 @@ export default function ContractsScreen({ navigation }) {
     }
   };
 
-  const loadContracts = async () => {
+  const loadContractDocuments = async () => {
     try {
       const userId = await getCurrentUserId();
       const { data, error } = await supabase
-        .from('contracts')
-        .select('*, projects(name, client)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setContracts(data || []);
-    } catch (error) {
-      console.error('Error loading contracts:', error);
-      setContracts([]);
-    }
-  };
-
-  const loadTemplates = async () => {
-    try {
-      const userId = await getCurrentUserId();
-      const { data, error } = await supabase
-        .from('contract_templates')
+        .from('contract_documents')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setTemplates(data || []);
+      setContractDocuments(data || []);
     } catch (error) {
-      console.error('Error loading templates:', error);
-      setTemplates([]);
+      console.error('Error loading contract documents:', error);
+      setContractDocuments([]);
+    }
+  };
+
+  const loadTypicalContracts = async () => {
+    try {
+      const userId = await getCurrentUserId();
+      const { data, error } = await supabase
+        .from('typical_contracts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('order_index', { ascending: true });
+
+      if (error) throw error;
+      setTypicalContracts(data || []);
+    } catch (error) {
+      console.error('Error loading typical contracts:', error);
+      setTypicalContracts([]);
+    }
+  };
+
+  const handleUploadDocument = () => {
+    Alert.alert(
+      'Add Contract Document',
+      'Choose a source',
+      [
+        {
+          text: 'Take Photo',
+          onPress: handleTakePhoto
+        },
+        {
+          text: 'Choose from Photos',
+          onPress: handlePickImage
+        },
+        {
+          text: 'Choose Document',
+          onPress: handlePickDocument
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Camera permission is required to take photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadFile(result.assets[0].uri, 'image');
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Photo library permission is required');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+        allowsMultipleSelection: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        for (const asset of result.assets) {
+          await uploadFile(asset.uri, 'image');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const handlePickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        multiple: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        for (const asset of result.assets) {
+          await uploadFile(asset.uri, 'document', asset.name);
+        }
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
+    }
+  };
+
+  const uploadFile = async (uri, type, fileName) => {
+    try {
+      setUploading(true);
+      const userId = await getCurrentUserId();
+
+      // Get file extension
+      const fileExt = fileName ? fileName.split('.').pop() : 'jpg';
+      const timestamp = Date.now();
+      const filePath = `${userId}/${timestamp}.${fileExt}`;
+
+      // Fetch the file
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('contract-documents')
+        .upload(filePath, blob, {
+          contentType: type === 'image' ? 'image/jpeg' : 'application/pdf',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('contract-documents')
+        .getPublicUrl(filePath);
+
+      // Save document record to database
+      const { error: dbError } = await supabase
+        .from('contract_documents')
+        .insert({
+          user_id: userId,
+          file_name: fileName || `Contract ${timestamp}`,
+          file_url: publicUrl,
+          file_path: filePath,
+          file_type: type,
+        });
+
+      if (dbError) throw dbError;
+
+      await loadContractDocuments();
+      Alert.alert('Success', 'Contract document uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      Alert.alert('Error', 'Failed to upload file. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -84,10 +235,11 @@ export default function ContractsScreen({ navigation }) {
     setRefreshing(false);
   }, []);
 
-  const handleDeleteContract = (contractId) => {
+
+  const handleDeleteDocument = (documentId, filePath) => {
     Alert.alert(
-      'Delete Contract',
-      'Are you sure you want to delete this contract?',
+      'Delete Document',
+      'Are you sure you want to delete this contract document?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -95,17 +247,25 @@ export default function ContractsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('contracts')
-                .delete()
-                .eq('id', contractId);
+              // Delete from storage
+              const { error: storageError } = await supabase.storage
+                .from('contract-documents')
+                .remove([filePath]);
 
-              if (error) throw error;
-              await loadContracts();
-              Alert.alert('Success', 'Contract deleted successfully');
+              if (storageError) console.error('Storage delete error:', storageError);
+
+              // Delete from database
+              const { error: dbError } = await supabase
+                .from('contract_documents')
+                .delete()
+                .eq('id', documentId);
+
+              if (dbError) throw dbError;
+              await loadContractDocuments();
+              Alert.alert('Success', 'Document deleted successfully');
             } catch (error) {
-              console.error('Error deleting contract:', error);
-              Alert.alert('Error', 'Failed to delete contract');
+              console.error('Error deleting document:', error);
+              Alert.alert('Error', 'Failed to delete document');
             }
           },
         },
@@ -113,33 +273,30 @@ export default function ContractsScreen({ navigation }) {
     );
   };
 
-  const handleDeleteTemplate = (templateId) => {
-    Alert.alert(
-      'Delete Template',
-      'Are you sure you want to delete this template?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('contract_templates')
-                .delete()
-                .eq('id', templateId);
+  const handleViewDocument = (document) => {
+    // Navigate to document viewer or open in browser
+    navigation.navigate('DocumentViewer', { document });
+  };
 
-              if (error) throw error;
-              await loadTemplates();
-              Alert.alert('Success', 'Template deleted successfully');
-            } catch (error) {
-              console.error('Error deleting template:', error);
-              Alert.alert('Error', 'Failed to delete template');
-            }
-          },
-        },
-      ]
-    );
+  const handleViewContract = async (contract) => {
+    if (contract.file_url) {
+      // Get the public URL from storage
+      const { data: { publicUrl } } = supabase.storage
+        .from('contracts')
+        .getPublicUrl(contract.file_url);
+
+      // Navigate to document viewer with contract info
+      navigation.navigate('DocumentViewer', {
+        document: {
+          id: contract.id,
+          file_name: contract.name,
+          file_url: publicUrl,
+          file_type: contract.file_mime_type?.includes('pdf') ? 'pdf' : 'image',
+        }
+      });
+    } else {
+      Alert.alert('No File', 'This contract template doesn\'t have an attached file.');
+    }
   };
 
   const getStatusColor = (status) => {
@@ -179,30 +336,25 @@ export default function ContractsScreen({ navigation }) {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Tabs */}
-      <View style={[styles.tabBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]}>
+      {/* Upload Button */}
+      <View style={[styles.uploadSection, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'contracts' && { borderBottomColor: Colors.primaryBlue }]}
-          onPress={() => setActiveTab('contracts')}
+          style={[styles.uploadButton, { backgroundColor: Colors.primaryBlue }]}
+          onPress={handleUploadDocument}
+          disabled={uploading}
         >
-          <Text style={[
-            styles.tabText,
-            { color: activeTab === 'contracts' ? Colors.primaryBlue : Colors.secondaryText }
-          ]}>
-            Saved Contracts ({contracts.length})
-          </Text>
+          {uploading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
+              <Text style={styles.uploadButtonText}>Add Contract Document</Text>
+            </>
+          )}
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'templates' && { borderBottomColor: Colors.primaryBlue }]}
-          onPress={() => setActiveTab('templates')}
-        >
-          <Text style={[
-            styles.tabText,
-            { color: activeTab === 'templates' ? Colors.primaryBlue : Colors.secondaryText }
-          ]}>
-            Templates ({templates.length})
-          </Text>
-        </TouchableOpacity>
+        <Text style={[styles.uploadHint, { color: Colors.secondaryText }]}>
+          Upload contracts from photos, camera, or PDF files
+        </Text>
       </View>
 
       <ScrollView
@@ -210,167 +362,106 @@ export default function ContractsScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-        {activeTab === 'contracts' ? (
+        {/* Typical Contracts Section (from onboarding) */}
+        {typicalContracts.length > 0 && (
           <View style={styles.listSection}>
-            {contracts.length === 0 ? (
-              <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
-                <Ionicons name="document-text-outline" size={48} color={Colors.secondaryText} />
-                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                  No contracts created yet
-                </Text>
-                <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
-                  Contracts will appear here when you create them through the chat
-                </Text>
-              </View>
-            ) : (
-              contracts.map((contract) => (
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Contract Templates</Text>
+            {typicalContracts.map((contract) => {
+              const getFileIcon = () => {
+                if (contract.file_mime_type?.includes('pdf')) return 'document-text';
+                if (contract.file_mime_type?.includes('image')) return 'image';
+                return 'document-outline';
+              };
+
+              return (
                 <View
                   key={contract.id}
-                  style={[styles.contractCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+                  style={[styles.documentCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
                 >
-                  <View style={styles.cardHeader}>
-                    <View style={styles.cardHeaderLeft}>
-                      <Text style={[styles.contractTitle, { color: Colors.primaryText }]}>
-                        {contract.projects?.name || 'Untitled Project'}
+                  <TouchableOpacity
+                    style={styles.documentContent}
+                    onPress={() => handleViewContract(contract)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.documentIcon, { backgroundColor: Colors.primaryBlue + '15' }]}>
+                      <Ionicons
+                        name={getFileIcon()}
+                        size={28}
+                        color={Colors.primaryBlue}
+                      />
+                    </View>
+                    <View style={styles.documentInfo}>
+                      <Text style={[styles.documentName, { color: Colors.primaryText }]}>
+                        {contract.name}
                       </Text>
-                      <Text style={[styles.contractClient, { color: Colors.secondaryText }]}>
-                        {contract.projects?.client || 'No client'}
+                      <Text style={[styles.documentDate, { color: Colors.secondaryText }]}>
+                        {contract.base_contract === 'fixed' ? 'Fixed Price' :
+                         contract.base_contract === 'time_materials' ? 'Time & Materials' :
+                         'Cost Plus'}
+                        {contract.contract_amount ? ` • $${contract.contract_amount}` : ''}
                       </Text>
                     </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: getStatusColor(contract.status) + '20' },
-                      ]}
-                    >
-                      <Text style={[styles.statusText, { color: getStatusColor(contract.status) }]}>
-                        {contract.status || 'Draft'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.contractInfo}>
-                    <View style={styles.infoRow}>
-                      <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
-                      <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                        {contract.created_at ? new Date(contract.created_at).toLocaleDateString() : 'N/A'}
-                      </Text>
-                    </View>
-                    {contract.value && (
-                      <Text style={[styles.contractValue, { color: Colors.primaryText }]}>
-                        ${contract.value.toLocaleString()}
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.cardActions}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: Colors.primaryBlue + '10' }]}
-                      onPress={() => {/* TODO: View/download PDF */}}
-                    >
-                      <Ionicons name="eye-outline" size={18} color={Colors.primaryBlue} />
-                      <Text style={[styles.actionText, { color: Colors.primaryBlue }]}>View</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: Colors.primaryBlue + '10' }]}
-                      onPress={() => {/* TODO: Share */}}
-                    >
-                      <Ionicons name="share-outline" size={18} color={Colors.primaryBlue} />
-                      <Text style={[styles.actionText, { color: Colors.primaryBlue }]}>Share</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: '#EF4444' + '10' }]}
-                      onPress={() => handleDeleteContract(contract.id)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                      <Text style={[styles.actionText, { color: '#EF4444' }]}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 </View>
-              ))
-            )}
-          </View>
-        ) : (
-          <View style={styles.listSection}>
-            {/* Create New Template Button */}
-            <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: Colors.primaryBlue }]}
-              onPress={() => {/* TODO: Create new template */}}
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#fff" />
-              <Text style={styles.createButtonText}>Create New Template</Text>
-            </TouchableOpacity>
-
-            {templates.length === 0 ? (
-              <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
-                <Ionicons name="document-outline" size={48} color={Colors.secondaryText} />
-                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                  No templates created yet
-                </Text>
-                <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
-                  Create reusable contract templates for faster project setup
-                </Text>
-              </View>
-            ) : (
-              templates.map((template) => (
-                <View
-                  key={template.id}
-                  style={[styles.templateCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-                >
-                  <View style={styles.templateHeader}>
-                    <View style={styles.templateHeaderLeft}>
-                      <Text style={[styles.templateName, { color: Colors.primaryText }]}>
-                        {template.name}
-                      </Text>
-                      {template.description && (
-                        <Text style={[styles.templateDescription, { color: Colors.secondaryText }]}>
-                          {template.description}
-                        </Text>
-                      )}
-                    </View>
-                    {template.is_default && (
-                      <View style={[styles.defaultBadge, { backgroundColor: Colors.primaryBlue + '20' }]}>
-                        <Text style={[styles.defaultText, { color: Colors.primaryBlue }]}>Default</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.templateInfo}>
-                    <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                      Created {template.created_at ? new Date(template.created_at).toLocaleDateString() : 'N/A'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.cardActions}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: Colors.primaryBlue + '10' }]}
-                      onPress={() => {/* TODO: Edit template */}}
-                    >
-                      <Ionicons name="create-outline" size={18} color={Colors.primaryBlue} />
-                      <Text style={[styles.actionText, { color: Colors.primaryBlue }]}>Edit</Text>
-                    </TouchableOpacity>
-                    {!template.is_default && (
-                      <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: Colors.primaryBlue + '10' }]}
-                        onPress={() => {/* TODO: Set as default */}}
-                      >
-                        <Ionicons name="star-outline" size={18} color={Colors.primaryBlue} />
-                        <Text style={[styles.actionText, { color: Colors.primaryBlue }]}>Set Default</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: '#EF4444' + '10' }]}
-                      onPress={() => handleDeleteTemplate(template.id)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                      <Text style={[styles.actionText, { color: '#EF4444' }]}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))
-            )}
+              );
+            })}
           </View>
         )}
+
+        {/* Contract Documents Section */}
+        <View style={styles.listSection}>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Uploaded Documents</Text>
+            {contractDocuments.length === 0 && typicalContracts.length === 0 ? (
+              <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
+                <Ionicons name="cloud-upload-outline" size={48} color={Colors.secondaryText} />
+                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+                  No contract documents uploaded
+                </Text>
+                <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
+                  Upload your contract templates to easily send them to clients
+                </Text>
+              </View>
+            ) : contractDocuments.length === 0 ? (
+              <Text style={[styles.emptySubtext, { color: Colors.secondaryText, textAlign: 'center', padding: 20 }]}>
+                No additional documents uploaded
+              </Text>
+            ) : (
+              contractDocuments.map((doc) => (
+                <View
+                  key={doc.id}
+                  style={[styles.documentCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+                >
+                  <TouchableOpacity
+                    style={styles.documentContent}
+                    onPress={() => handleViewDocument(doc)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.documentIcon, { backgroundColor: Colors.primaryBlue + '15' }]}>
+                      <Ionicons
+                        name={doc.file_type === 'image' ? 'image-outline' : 'document-text-outline'}
+                        size={28}
+                        color={Colors.primaryBlue}
+                      />
+                    </View>
+                    <View style={styles.documentInfo}>
+                      <Text style={[styles.documentName, { color: Colors.primaryText }]}>
+                        {doc.file_name}
+                      </Text>
+                      <Text style={[styles.documentDate, { color: Colors.secondaryText }]}>
+                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteDocButton}
+                    onPress={() => handleDeleteDocument(doc.id, doc.file_path)}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+        </View>
 
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -402,20 +493,37 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  tabBar: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-  },
-  tab: {
-    flex: 1,
+  uploadSection: {
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    borderBottomWidth: 1,
+    gap: 8,
   },
-  tabText: {
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  uploadButtonText: {
+    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
+  },
+  uploadHint: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  section: {
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   content: {
     flex: 1,
@@ -557,5 +665,41 @@ const styles = StyleSheet.create({
   },
   templateInfo: {
     marginBottom: 12,
+  },
+  documentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  documentContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  documentIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  documentInfo: {
+    flex: 1,
+  },
+  documentName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  documentDate: {
+    fontSize: 13,
+  },
+  deleteDocButton: {
+    padding: 8,
+    marginLeft: 8,
   },
 });

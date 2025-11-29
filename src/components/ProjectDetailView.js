@@ -13,11 +13,15 @@ import {
   ActionSheetIOS,
   TextInput,
   KeyboardAvoidingView,
+  Image,
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjectPhases, getProjectWorkers } from '../utils/storage';
+import { fetchProjectPhases, getProjectWorkers, updateProjectProgress, resetProjectProgressToAutomatic, fetchProjectPhotosByPhase, updatePhaseProgress, fetchEstimatesByProjectId } from '../utils/storage';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
 import { supabase } from '../lib/supabase';
@@ -28,12 +32,20 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [phases, setPhases] = useState([]);
   const [loadingPhases, setLoadingPhases] = useState(false);
 
-  // Contact edit modal
-  const [showEditContact, setShowEditContact] = useState(false);
+  // Main editing mode (controls all editing)
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Contact info editing
   const [editAddress, setEditAddress] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [savingContact, setSavingContact] = useState(false);
+  const [savingChanges, setSavingChanges] = useState(false);
+
+  // Timeline editing
+  const [editStartDate, setEditStartDate] = useState(null);
+  const [editEndDate, setEditEndDate] = useState(null);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   // Workers
   const [workers, setWorkers] = useState([]);
@@ -41,6 +53,29 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   // Expanded phase for showing tasks
   const [expandedPhaseId, setExpandedPhaseId] = useState(null);
+
+  // Manual progress override
+  const [showProgressOverride, setShowProgressOverride] = useState(false);
+  const [overrideProgress, setOverrideProgress] = useState(project?.actual_progress || 0);
+  const [savingProgress, setSavingProgress] = useState(false);
+
+  // Phase progress editing
+  const [isEditingPhases, setIsEditingPhases] = useState(false);
+  const [phaseProgressValues, setPhaseProgressValues] = useState({});
+
+  // Photos section
+  const [photosByPhase, setPhotosByPhase] = useState({});
+  const [totalPhotos, setTotalPhotos] = useState(0);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [selectedPhotoFilter, setSelectedPhotoFilter] = useState('all');
+  const [visiblePhotosCount, setVisiblePhotosCount] = useState(12);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+
+  // Estimates section
+  const [projectEstimates, setProjectEstimates] = useState([]);
+  const [loadingEstimates, setLoadingEstimates] = useState(false);
+
+  const screenWidth = Dimensions.get('window').width;
 
   // Load phases and workers when project changes
   useEffect(() => {
@@ -70,6 +105,32 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           console.error('Error loading workers:', error);
           setWorkers([]);
         }
+
+        // Load photos
+        setLoadingPhotos(true);
+        try {
+          const { photosByPhase: photos, totalPhotos: total } = await fetchProjectPhotosByPhase(project.id);
+          setPhotosByPhase(photos);
+          setTotalPhotos(total);
+        } catch (error) {
+          console.error('Error loading photos:', error);
+          setPhotosByPhase({});
+          setTotalPhotos(0);
+        } finally {
+          setLoadingPhotos(false);
+        }
+
+        // Load estimates linked to this project
+        setLoadingEstimates(true);
+        try {
+          const estimates = await fetchEstimatesByProjectId(project.id);
+          setProjectEstimates(estimates || []);
+        } catch (error) {
+          console.error('Error loading estimates:', error);
+          setProjectEstimates([]);
+        } finally {
+          setLoadingEstimates(false);
+        }
       }
     };
 
@@ -79,8 +140,28 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       setEditAddress(project?.location || '');
       setEditPhone(project?.client_phone || project?.clientPhone || '');
       setEditEmail(project?.client_email || project?.clientEmail || '');
+      // Populate timeline edit fields
+      setEditStartDate(project?.startDate ? new Date(project.startDate) : null);
+      setEditEndDate(project?.endDate ? new Date(project.endDate) : null);
+      // Reset photo filter and visible count
+      setSelectedPhotoFilter('all');
+      setVisiblePhotosCount(12);
+      // Reset editing state
+      setIsEditing(false);
     }
   }, [project?.id, project?.hasPhases, visible]);
+
+  // When entering edit mode, initialize phase progress values
+  useEffect(() => {
+    if (isEditing && phases.length > 0) {
+      const values = {};
+      phases.forEach(p => values[p.id] = p.completion_percentage || 0);
+      setPhaseProgressValues(values);
+      setIsEditingPhases(true);
+    } else if (!isEditing) {
+      setIsEditingPhases(false);
+    }
+  }, [isEditing, phases]);
 
   const handleWorkersUpdated = async () => {
     // Reload workers after assignment changes
@@ -159,16 +240,19 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     });
   };
 
-  const handleSaveContact = async () => {
+  const handleSaveAllChanges = async () => {
     try {
-      setSavingContact(true);
+      setSavingChanges(true);
 
+      // Save contact info and timeline to project
       const { error } = await supabase
         .from('projects')
         .update({
           location: editAddress || null,
           client_phone: editPhone || null,
           client_email: editEmail || null,
+          start_date: editStartDate ? editStartDate.toISOString() : null,
+          end_date: editEndDate ? editEndDate.toISOString() : null,
         })
         .eq('id', project.id);
 
@@ -179,15 +263,28 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         project.location = editAddress;
         project.client_phone = editPhone;
         project.client_email = editEmail;
+        project.startDate = editStartDate ? editStartDate.toISOString() : null;
+        project.endDate = editEndDate ? editEndDate.toISOString() : null;
       }
 
-      setShowEditContact(false);
-      Alert.alert('Success', 'Contact information updated');
+      // Save phase progress values
+      for (const [phaseId, progress] of Object.entries(phaseProgressValues)) {
+        await updatePhaseProgress(phaseId, progress);
+      }
+
+      // Refresh phases to get updated values
+      if (project?.hasPhases) {
+        const updatedPhases = await fetchProjectPhases(project.id);
+        setPhases(updatedPhases || []);
+      }
+
+      setIsEditing(false);
+      Alert.alert('Success', 'All changes saved');
     } catch (error) {
-      console.error('Error saving contact:', error);
-      Alert.alert('Error', 'Failed to save contact information');
+      console.error('Error saving changes:', error);
+      Alert.alert('Error', 'Failed to save changes');
     } finally {
-      setSavingContact(false);
+      setSavingChanges(false);
     }
   };
 
@@ -211,6 +308,51 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         }
       ]
     );
+  };
+
+  const handleSaveProgressOverride = async () => {
+    try {
+      setSavingProgress(true);
+      const success = await updateProjectProgress(project.id, overrideProgress);
+
+      if (success) {
+        // Update local project object
+        project.actual_progress = overrideProgress;
+        project.progress_override = true;
+
+        setShowProgressOverride(false);
+        Alert.alert('Success', 'Progress updated successfully');
+      } else {
+        Alert.alert('Error', 'Failed to update progress');
+      }
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      Alert.alert('Error', 'Failed to update progress');
+    } finally {
+      setSavingProgress(false);
+    }
+  };
+
+  const handleResetToAutomatic = async () => {
+    try {
+      setSavingProgress(true);
+      const success = await resetProjectProgressToAutomatic(project.id);
+
+      if (success) {
+        // Update local project object
+        project.progress_override = false;
+
+        setShowProgressOverride(false);
+        Alert.alert('Success', 'Progress reset to automatic calculation');
+      } else {
+        Alert.alert('Error', 'Failed to reset progress');
+      }
+    } catch (error) {
+      console.error('Error resetting progress:', error);
+      Alert.alert('Error', 'Failed to reset progress');
+    } finally {
+      setSavingProgress(false);
+    }
   };
 
   if (!project) return null;
@@ -251,15 +393,40 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity
+            onPress={() => {
+              if (isEditing) {
+                // Cancel editing - reset values
+                setEditAddress(project?.location || '');
+                setEditPhone(project?.client_phone || project?.clientPhone || '');
+                setEditEmail(project?.client_email || project?.clientEmail || '');
+                setEditStartDate(project?.startDate ? new Date(project.startDate) : null);
+                setEditEndDate(project?.endDate ? new Date(project.endDate) : null);
+                setIsEditing(false);
+              } else {
+                onClose();
+              }
+            }}
+            style={styles.closeButton}
+          >
             <View style={[styles.closeIconContainer, { backgroundColor: Colors.lightGray }]}>
-              <Ionicons name="chevron-down" size={24} color={Colors.primaryText} />
+              <Ionicons name={isEditing ? "close" : "chevron-down"} size={24} color={Colors.primaryText} />
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={onEdit} style={styles.editButton}>
-            <View style={[styles.editIconContainer, { backgroundColor: Colors.primaryBlue }]}>
-              <Ionicons name="create-outline" size={20} color={Colors.white} />
+          <TouchableOpacity
+            onPress={() => {
+              if (isEditing) {
+                handleSaveAllChanges();
+              } else {
+                setIsEditing(true);
+              }
+            }}
+            style={styles.editButton}
+            disabled={savingChanges}
+          >
+            <View style={[styles.editIconContainer, { backgroundColor: isEditing ? '#10B981' : Colors.primaryBlue, opacity: savingChanges ? 0.6 : 1 }]}>
+              <Ionicons name={isEditing ? "checkmark" : "create-outline"} size={20} color={Colors.white} />
             </View>
           </TouchableOpacity>
         </View>
@@ -285,7 +452,19 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
               {/* Contact Information */}
               <View style={styles.contactContainer}>
-                {project.location ? (
+                {/* Address */}
+                {isEditing ? (
+                  <View style={styles.contactEditRow}>
+                    <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
+                    <TextInput
+                      style={styles.contactInput}
+                      value={editAddress}
+                      onChangeText={setEditAddress}
+                      placeholder="Enter address"
+                      placeholderTextColor="rgba(255,255,255,0.5)"
+                    />
+                  </View>
+                ) : project.location ? (
                   <TouchableOpacity
                     style={styles.contactRow}
                     onPress={() => handleAddressPress(project.location)}
@@ -301,7 +480,20 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   </View>
                 )}
 
-                {project.client_phone || project.clientPhone ? (
+                {/* Phone */}
+                {isEditing ? (
+                  <View style={styles.contactEditRow}>
+                    <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
+                    <TextInput
+                      style={styles.contactInput}
+                      value={editPhone}
+                      onChangeText={setEditPhone}
+                      placeholder="Enter phone"
+                      placeholderTextColor="rgba(255,255,255,0.5)"
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                ) : project.client_phone || project.clientPhone ? (
                   <TouchableOpacity
                     style={styles.contactRow}
                     onPress={() => handlePhonePress(project.client_phone || project.clientPhone)}
@@ -317,7 +509,21 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   </View>
                 )}
 
-                {project.client_email || project.clientEmail ? (
+                {/* Email */}
+                {isEditing ? (
+                  <View style={styles.contactEditRow}>
+                    <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
+                    <TextInput
+                      style={styles.contactInput}
+                      value={editEmail}
+                      onChangeText={setEditEmail}
+                      placeholder="Enter email"
+                      placeholderTextColor="rgba(255,255,255,0.5)"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                ) : project.client_email || project.clientEmail ? (
                   <TouchableOpacity
                     style={styles.contactRow}
                     onPress={() => handleEmailPress(project.client_email || project.clientEmail)}
@@ -332,22 +538,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>No email added</Text>
                   </View>
                 )}
-
-                {/* Edit Contact Info Button */}
-                <TouchableOpacity
-                  style={styles.editContactButton}
-                  onPress={() => setShowEditContact(true)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="create-outline" size={14} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.editContactText}>Edit Contact Info</Text>
-                </TouchableOpacity>
               </View>
-            </View>
-
-            {/* Progress Badge */}
-            <View style={styles.progressRing}>
-              <Text style={styles.progressRingText}>{progressPercent}%</Text>
             </View>
           </View>
 
@@ -367,7 +558,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
 
               {/* Income Collected */}
-              <View style={[styles.financialCard, { backgroundColor: Colors.white }]}>
+              <TouchableOpacity
+                style={[styles.financialCard, { backgroundColor: Colors.white }]}
+                onPress={() => {
+                  if (navigation) {
+                    navigation.navigate('ProjectTransactions', {
+                      projectId: project.id,
+                      projectName: project.name,
+                    });
+                  }
+                }}
+                activeOpacity={0.7}
+              >
                 <View style={[styles.iconBadge, { backgroundColor: '#10B981' + '15' }]}>
                   <Ionicons name="cash" size={18} color="#10B981" />
                 </View>
@@ -375,13 +577,24 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
                   ${incomeCollected.toLocaleString()}
                 </Text>
-              </View>
+              </TouchableOpacity>
             </View>
 
             {/* Bottom Row: Expenses & Profit */}
             <View style={styles.financialRow}>
               {/* Expenses */}
-              <View style={[styles.financialCard, { backgroundColor: Colors.white }]}>
+              <TouchableOpacity
+                style={[styles.financialCard, { backgroundColor: Colors.white }]}
+                onPress={() => {
+                  if (navigation) {
+                    navigation.navigate('ProjectTransactions', {
+                      projectId: project.id,
+                      projectName: project.name,
+                    });
+                  }
+                }}
+                activeOpacity={0.7}
+              >
                 <View style={[styles.iconBadge, { backgroundColor: '#EF4444' + '15' }]}>
                   <Ionicons name="trending-down" size={18} color="#EF4444" />
                 </View>
@@ -389,7 +602,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
                   ${expenses.toLocaleString()}
                 </Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Profit */}
               <View style={[styles.financialCard, { backgroundColor: Colors.white }]}>
@@ -452,13 +665,31 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <View style={[styles.section, { backgroundColor: Colors.white }]}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="layers-outline" size={20} color={Colors.primaryBlue} />
-                <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8 }]}>Project Phases</Text>
+                <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>Project Phases</Text>
+                {isEditing && (
+                  <View style={styles.editingIndicator}>
+                    <Text style={[styles.editingIndicatorText, { color: Colors.primaryBlue }]}>Editing</Text>
+                  </View>
+                )}
               </View>
               <PhaseTimeline
                 phases={phases}
                 onPhasePress={handlePhasePress}
                 compact={false}
                 expandedPhaseId={expandedPhaseId}
+                isEditing={isEditingPhases}
+                progressValues={phaseProgressValues}
+                onProgressChange={(phaseId, value) => {
+                  setPhaseProgressValues(prev => ({ ...prev, [phaseId]: value }));
+                }}
+                onProgressSave={async (phaseId, value) => {
+                  const success = await updatePhaseProgress(phaseId, value);
+                  if (success) {
+                    // Refresh phases
+                    const updated = await fetchProjectPhases(project.id);
+                    setPhases(updated);
+                  }
+                }}
               />
             </View>
           )}
@@ -509,12 +740,259 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             )}
           </View>
 
-          {/* Timeline Section */}
-          {(project.startDate || project.endDate) && (
-            <View style={[styles.section, { backgroundColor: Colors.white }]}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Timeline</Text>
+          {/* Photos Section */}
+          <View style={[styles.section, { backgroundColor: Colors.white }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="camera-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
+                Photos ({totalPhotos})
+              </Text>
+            </View>
 
-              {project.startDate && (
+            {loadingPhotos ? (
+              <View style={styles.photosLoading}>
+                <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                <Text style={[styles.photosLoadingText, { color: Colors.secondaryText }]}>Loading photos...</Text>
+              </View>
+            ) : totalPhotos === 0 ? (
+              <View style={styles.emptyPhotos}>
+                <Ionicons name="images-outline" size={40} color={Colors.secondaryText} />
+                <Text style={[styles.emptyPhotosText, { color: Colors.secondaryText }]}>
+                  No photos yet
+                </Text>
+                <Text style={[styles.emptyPhotosSubtext, { color: Colors.secondaryText }]}>
+                  Photos from daily reports will appear here
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Phase Filter Tabs */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.photoFilterScroll}
+                  contentContainerStyle={styles.photoFilterContainer}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.photoFilterTab,
+                      selectedPhotoFilter === 'all' && styles.photoFilterTabActive,
+                      { borderColor: selectedPhotoFilter === 'all' ? Colors.primaryBlue : Colors.border }
+                    ]}
+                    onPress={() => {
+                      setSelectedPhotoFilter('all');
+                      setVisiblePhotosCount(12);
+                    }}
+                  >
+                    <Text style={[
+                      styles.photoFilterTabText,
+                      { color: selectedPhotoFilter === 'all' ? Colors.primaryBlue : Colors.secondaryText }
+                    ]}>
+                      All ({totalPhotos})
+                    </Text>
+                  </TouchableOpacity>
+                  {Object.entries(photosByPhase).map(([phaseId, data]) => (
+                    <TouchableOpacity
+                      key={phaseId}
+                      style={[
+                        styles.photoFilterTab,
+                        selectedPhotoFilter === phaseId && styles.photoFilterTabActive,
+                        { borderColor: selectedPhotoFilter === phaseId ? Colors.primaryBlue : Colors.border }
+                      ]}
+                      onPress={() => {
+                        setSelectedPhotoFilter(phaseId);
+                        setVisiblePhotosCount(12);
+                      }}
+                    >
+                      <Text style={[
+                        styles.photoFilterTabText,
+                        { color: selectedPhotoFilter === phaseId ? Colors.primaryBlue : Colors.secondaryText }
+                      ]}>
+                        {data.phaseName} ({data.photos.length})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Photo Grid */}
+                <View style={styles.photoGrid}>
+                  {(() => {
+                    // Get photos based on filter
+                    let photosToShow = [];
+                    if (selectedPhotoFilter === 'all') {
+                      Object.values(photosByPhase).forEach(data => {
+                        photosToShow = [...photosToShow, ...data.photos];
+                      });
+                    } else if (photosByPhase[selectedPhotoFilter]) {
+                      photosToShow = photosByPhase[selectedPhotoFilter].photos;
+                    }
+
+                    const visiblePhotos = photosToShow.slice(0, visiblePhotosCount);
+                    const hasMore = photosToShow.length > visiblePhotosCount;
+
+                    return (
+                      <>
+                        {visiblePhotos.map((photo, index) => (
+                          <TouchableOpacity
+                            key={`${photo.reportId}-${index}`}
+                            style={styles.photoThumbnailContainer}
+                            onPress={() => setSelectedPhoto(photo)}
+                            activeOpacity={0.8}
+                          >
+                            <Image
+                              source={{ uri: photo.url }}
+                              style={styles.photoThumbnail}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                        {hasMore && (
+                          <TouchableOpacity
+                            style={[styles.loadMorePhotosButton, { backgroundColor: Colors.lightGray }]}
+                            onPress={() => setVisiblePhotosCount(prev => prev + 12)}
+                          >
+                            <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
+                            <Text style={[styles.loadMorePhotosText, { color: Colors.primaryBlue }]}>
+                              Load More ({photosToShow.length - visiblePhotosCount} more)
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    );
+                  })()}
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* Estimates Section */}
+          <View style={[styles.section, { backgroundColor: Colors.white }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="document-text-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
+                Estimates ({projectEstimates.length})
+              </Text>
+              <TouchableOpacity
+                style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
+                onPress={() => {
+                  // Navigate to chat with context to create estimate
+                  if (navigation) {
+                    onClose();
+                    navigation.navigate('Chat', {
+                      initialMessage: `Create estimate for ${project.name}`
+                    });
+                  }
+                }}
+              >
+                <Ionicons name="add" size={16} color="#FFFFFF" />
+                <Text style={styles.assignButtonText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingEstimates ? (
+              <View style={styles.photosLoading}>
+                <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                <Text style={[styles.photosLoadingText, { color: Colors.secondaryText }]}>Loading estimates...</Text>
+              </View>
+            ) : projectEstimates.length === 0 ? (
+              <View style={styles.emptyPhotos}>
+                <Ionicons name="document-text-outline" size={40} color={Colors.secondaryText} />
+                <Text style={[styles.emptyPhotosText, { color: Colors.secondaryText }]}>
+                  No estimates yet
+                </Text>
+                <Text style={[styles.emptyPhotosSubtext, { color: Colors.secondaryText }]}>
+                  Create an estimate to add pricing for this project
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.estimatesList}>
+                {projectEstimates.map((estimate) => (
+                  <TouchableOpacity
+                    key={estimate.id}
+                    style={[styles.estimateCard, { backgroundColor: Colors.lightGray }]}
+                    onPress={() => {
+                      if (navigation) {
+                        onClose();
+                        navigation.navigate('EstimateDetail', { estimateId: estimate.id });
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.estimateCardContent}>
+                      <View style={styles.estimateCardHeader}>
+                        <Text style={[styles.estimateCardTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+                          {estimate.projectName || 'Estimate'}
+                        </Text>
+                        <View style={[
+                          styles.estimateStatusBadge,
+                          { backgroundColor: estimate.status === 'sent' ? '#10B981' + '20' : estimate.status === 'accepted' ? '#3B82F6' + '20' : '#F59E0B' + '20' }
+                        ]}>
+                          <Text style={[
+                            styles.estimateStatusText,
+                            { color: estimate.status === 'sent' ? '#10B981' : estimate.status === 'accepted' ? '#3B82F6' : '#F59E0B' }
+                          ]}>
+                            {estimate.status || 'Draft'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.estimateCardDetails}>
+                        <Text style={[styles.estimateCardTotal, { color: Colors.primaryText }]}>
+                          ${(estimate.total || 0).toLocaleString()}
+                        </Text>
+                        <Text style={[styles.estimateCardDate, { color: Colors.secondaryText }]}>
+                          {estimate.createdAt ? new Date(estimate.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          }) : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Timeline Section */}
+          {(project.startDate || project.endDate || isEditing) && (
+            <View style={[styles.section, { backgroundColor: Colors.white }]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="calendar-outline" size={20} color={Colors.primaryBlue} />
+                <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>Timeline</Text>
+                {isEditing && (
+                  <View style={styles.editingIndicator}>
+                    <Text style={[styles.editingIndicatorText, { color: Colors.primaryBlue }]}>Editing</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Start Date */}
+              {isEditing ? (
+                <TouchableOpacity
+                  style={styles.dateEditRow}
+                  onPress={() => setShowStartDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.detailIconBadge, { backgroundColor: '#10B981' + '15' }]}>
+                    <Ionicons name="play-outline" size={18} color="#10B981" />
+                  </View>
+                  <View style={styles.detailContent}>
+                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Start Date</Text>
+                    <View style={[styles.dateEditButton, { borderColor: Colors.border }]}>
+                      <Text style={[styles.dateEditText, { color: editStartDate ? Colors.primaryText : Colors.secondaryText }]}>
+                        {editStartDate ? editStartDate.toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }) : 'Tap to set date'}
+                      </Text>
+                      <Ionicons name="calendar" size={16} color={Colors.primaryBlue} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ) : project.startDate ? (
                 <View style={styles.detailRow}>
                   <View style={[styles.detailIconBadge, { backgroundColor: '#10B981' + '15' }]}>
                     <Ionicons name="play-outline" size={18} color="#10B981" />
@@ -530,9 +1008,33 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     </Text>
                   </View>
                 </View>
-              )}
+              ) : null}
 
-              {project.endDate && (
+              {/* End Date */}
+              {isEditing ? (
+                <TouchableOpacity
+                  style={styles.dateEditRow}
+                  onPress={() => setShowEndDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.detailIconBadge, { backgroundColor: '#EF4444' + '15' }]}>
+                    <Ionicons name="flag-outline" size={18} color="#EF4444" />
+                  </View>
+                  <View style={styles.detailContent}>
+                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>End Date</Text>
+                    <View style={[styles.dateEditButton, { borderColor: Colors.border }]}>
+                      <Text style={[styles.dateEditText, { color: editEndDate ? Colors.primaryText : Colors.secondaryText }]}>
+                        {editEndDate ? editEndDate.toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }) : 'Tap to set date'}
+                      </Text>
+                      <Ionicons name="calendar" size={16} color={Colors.primaryBlue} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ) : project.endDate ? (
                 <View style={styles.detailRow}>
                   <View style={[styles.detailIconBadge, { backgroundColor: '#EF4444' + '15' }]}>
                     <Ionicons name="flag-outline" size={18} color="#EF4444" />
@@ -548,9 +1050,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     </Text>
                   </View>
                 </View>
-              )}
+              ) : null}
 
-              {project.daysRemaining !== null && project.daysRemaining !== undefined && (
+              {!isEditing && project.daysRemaining !== null && project.daysRemaining !== undefined && (
                 <View style={styles.detailRow}>
                   <View style={[styles.detailIconBadge, { backgroundColor: '#F59E0B' + '15' }]}>
                     <Ionicons name="time-outline" size={18} color="#F59E0B" />
@@ -565,6 +1067,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               )}
             </View>
           )}
+
 
           {/* Delete Project Section */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: '#EF4444' + '30' }]}>
@@ -587,88 +1090,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         </ScrollView>
       </SafeAreaView>
 
-      {/* Edit Contact Info Modal */}
-      <Modal
-        visible={showEditContact}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowEditContact(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={[styles.editContactModal, { backgroundColor: Colors.background }]}
-        >
-          <SafeAreaView style={{ flex: 1 }}>
-            {/* Modal Header */}
-            <View style={[styles.editContactHeader, { borderBottomColor: Colors.border }]}>
-              <TouchableOpacity onPress={() => setShowEditContact(false)}>
-                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={[styles.editContactTitle, { color: Colors.primaryText }]}>Edit Contact Info</Text>
-              <TouchableOpacity onPress={handleSaveContact} disabled={savingContact}>
-                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue, opacity: savingContact ? 0.5 : 1 }]}>
-                  {savingContact ? 'Saving...' : 'Save'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Modal Content */}
-            <ScrollView style={styles.editContactContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.editContactSection}>
-                <Text style={[styles.editContactLabel, { color: Colors.secondaryText }]}>
-                  <Ionicons name="location" size={16} color={Colors.primaryBlue} /> Address
-                </Text>
-                <TextInput
-                  style={[styles.editContactInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  value={editAddress}
-                  onChangeText={setEditAddress}
-                  placeholder="123 Main St, City, State 12345"
-                  placeholderTextColor={Colors.secondaryText}
-                  multiline
-                  numberOfLines={2}
-                />
-              </View>
-
-              <View style={styles.editContactSection}>
-                <Text style={[styles.editContactLabel, { color: Colors.secondaryText }]}>
-                  <Ionicons name="call" size={16} color={Colors.primaryBlue} /> Phone Number
-                </Text>
-                <TextInput
-                  style={[styles.editContactInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  placeholder="(555) 123-4567"
-                  placeholderTextColor={Colors.secondaryText}
-                  keyboardType="phone-pad"
-                />
-              </View>
-
-              <View style={styles.editContactSection}>
-                <Text style={[styles.editContactLabel, { color: Colors.secondaryText }]}>
-                  <Ionicons name="mail" size={16} color={Colors.primaryBlue} /> Email Address
-                </Text>
-                <TextInput
-                  style={[styles.editContactInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
-                  value={editEmail}
-                  onChangeText={setEditEmail}
-                  placeholder="client@email.com"
-                  placeholderTextColor={Colors.secondaryText}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
-                <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
-                <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-                  Tap on the address, phone, or email in the project header to quickly access maps, call, or email.
-                </Text>
-              </View>
-            </ScrollView>
-          </SafeAreaView>
-        </KeyboardAvoidingView>
-      </Modal>
-
       {/* Worker Assignment Modal */}
       <WorkerAssignmentModal
         visible={showWorkerAssignment}
@@ -678,6 +1099,218 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         assignmentName={project?.name}
         onAssignmentsChange={handleWorkersUpdated}
       />
+
+      {/* Full-Screen Photo Modal */}
+      <Modal
+        visible={!!selectedPhoto}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setSelectedPhoto(null)}
+      >
+        <View style={styles.photoModalOverlay}>
+          <SafeAreaView style={styles.photoModalContainer}>
+            {/* Photo Modal Header */}
+            <View style={styles.photoModalHeader}>
+              <TouchableOpacity
+                style={styles.photoModalCloseButton}
+                onPress={() => setSelectedPhoto(null)}
+              >
+                <Ionicons name="close" size={28} color="#FFFFFF" />
+              </TouchableOpacity>
+              {selectedPhoto && (
+                <View style={styles.photoModalInfo}>
+                  <Text style={styles.photoModalDate}>
+                    {new Date(selectedPhoto.date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Full-Screen Photo */}
+            {selectedPhoto && (
+              <View style={styles.photoModalImageContainer}>
+                <Image
+                  source={{ uri: selectedPhoto.url }}
+                  style={styles.photoModalImage}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Progress Override Modal */}
+      <Modal
+        visible={showProgressOverride}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowProgressOverride(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.progressModalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.progressModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowProgressOverride(false)}
+          />
+          <View style={[styles.progressModalContent, { backgroundColor: Colors.white }]}>
+            <View style={styles.progressModalHeader}>
+              <Text style={[styles.progressModalTitle, { color: Colors.primaryText }]}>
+                Update Progress
+              </Text>
+              <TouchableOpacity onPress={() => setShowProgressOverride(false)}>
+                <Ionicons name="close" size={24} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.progressModalBody}>
+              {/* Progress Display */}
+              <View style={styles.progressDisplay}>
+                <Text style={[styles.progressDisplayValue, { color: Colors.primaryBlue }]}>
+                  {overrideProgress}%
+                </Text>
+                <Text style={[styles.progressDisplayLabel, { color: Colors.secondaryText }]}>
+                  Work Complete
+                </Text>
+              </View>
+
+              {/* Slider */}
+              <View style={styles.sliderContainer}>
+                <Text style={[styles.sliderLabel, { color: Colors.secondaryText }]}>0%</Text>
+                <View style={styles.sliderTrack}>
+                  <View style={[styles.sliderFill, { width: `${overrideProgress}%`, backgroundColor: Colors.primaryBlue }]} />
+                  <TouchableOpacity
+                    style={[styles.sliderThumb, { left: `${overrideProgress}%`, backgroundColor: Colors.primaryBlue }]}
+                    activeOpacity={1}
+                  />
+                </View>
+                <Text style={[styles.sliderLabel, { color: Colors.secondaryText }]}>100%</Text>
+              </View>
+
+              {/* Number Input */}
+              <View style={styles.inputRow}>
+                <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>Progress %</Text>
+                <TextInput
+                  style={[styles.progressInput, {
+                    color: Colors.primaryText,
+                    backgroundColor: Colors.lightGray,
+                    borderColor: Colors.border
+                  }]}
+                  value={String(overrideProgress)}
+                  onChangeText={(text) => {
+                    const num = parseInt(text) || 0;
+                    setOverrideProgress(Math.min(100, Math.max(0, num)));
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                />
+              </View>
+
+              {/* Override Indicator */}
+              {project?.progress_override && (
+                <View style={styles.overrideIndicator}>
+                  <Ionicons name="information-circle" size={16} color="#F59E0B" />
+                  <Text style={styles.overrideIndicatorText}>
+                    Progress is manually set. Tap "Reset to Automatic" to use task-based calculation.
+                  </Text>
+                </View>
+              )}
+
+              {/* Buttons */}
+              <View style={styles.progressModalButtons}>
+                {project?.progress_override && (
+                  <TouchableOpacity
+                    style={[styles.progressButton, styles.resetButton]}
+                    onPress={handleResetToAutomatic}
+                    disabled={savingProgress}
+                  >
+                    <Ionicons name="refresh" size={18} color="#6B7280" />
+                    <Text style={styles.resetButtonText}>Reset to Automatic</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.progressButton, styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
+                  onPress={handleSaveProgressOverride}
+                  disabled={savingProgress}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {savingProgress ? 'Saving...' : 'Save Progress'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Date Picker Modal */}
+      <Modal
+        visible={showStartDatePicker || showEndDatePicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowStartDatePicker(false);
+          setShowEndDatePicker(false);
+        }}
+      >
+        <View style={styles.datePickerModalOverlay}>
+          <TouchableOpacity
+            style={styles.datePickerBackdrop}
+            activeOpacity={1}
+            onPress={() => {
+              setShowStartDatePicker(false);
+              setShowEndDatePicker(false);
+            }}
+          />
+          <View style={[styles.datePickerModalContent, { backgroundColor: Colors.white }]}>
+            <View style={styles.datePickerHeader}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowStartDatePicker(false);
+                  setShowEndDatePicker(false);
+                }}
+              >
+                <Text style={[styles.datePickerCancelText, { color: Colors.secondaryText }]}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={[styles.datePickerTitle, { color: Colors.primaryText }]}>
+                {showStartDatePicker ? 'Start Date' : 'End Date'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowStartDatePicker(false);
+                  setShowEndDatePicker(false);
+                }}
+              >
+                <Text style={[styles.datePickerDoneText, { color: Colors.primaryBlue }]}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={showStartDatePicker ? (editStartDate || new Date()) : (editEndDate || new Date())}
+              mode="date"
+              display="spinner"
+              onChange={(event, selectedDate) => {
+                if (selectedDate) {
+                  if (showStartDatePicker) {
+                    setEditStartDate(selectedDate);
+                  } else {
+                    setEditEndDate(selectedDate);
+                  }
+                }
+              }}
+              style={styles.datePicker}
+              textColor={Colors.primaryText}
+            />
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -704,6 +1337,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButton: {
+    padding: 4,
+  },
+  editPhasesButton: {
     padding: 4,
   },
   editIconContainer: {
@@ -763,21 +1399,95 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
-  editContactButton: {
+  contactEditRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 3,
+  },
+  contactInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '500',
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 6,
-    marginTop: 6,
-    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  editContactText: {
+  editingIndicator: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  editingIndicatorText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.95)',
+    fontWeight: '600',
+  },
+  dateEditRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  dateEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  dateEditText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  datePickerModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  datePickerBackdrop: {
+    flex: 1,
+  },
+  datePickerModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  datePickerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  datePickerCancelText: {
+    fontSize: 16,
     fontWeight: '500',
+  },
+  datePickerDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  datePicker: {
+    height: 200,
   },
   editContactModal: {
     flex: 1,
@@ -1023,5 +1733,326 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+  manualBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  progressModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  progressModalBackdrop: {
+    flex: 1,
+  },
+  progressModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  progressModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  progressModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  progressModalBody: {
+    paddingHorizontal: 20,
+  },
+  progressDisplay: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  progressDisplayValue: {
+    fontSize: 56,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  progressDisplayLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  sliderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 24,
+  },
+  sliderLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    width: 32,
+  },
+  sliderTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    position: 'relative',
+  },
+  sliderFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    top: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginLeft: -10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  progressInput: {
+    width: 80,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  overrideIndicator: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  overrideIndicatorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  progressModalButtons: {
+    gap: 12,
+  },
+  progressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
+  },
+  saveButton: {
+    // backgroundColor set dynamically
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  resetButton: {
+    backgroundColor: '#F3F4F6',
+  },
+  resetButtonText: {
+    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Photos Section Styles
+  photosLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    gap: 10,
+  },
+  photosLoadingText: {
+    fontSize: 14,
+  },
+  emptyPhotos: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  emptyPhotosText: {
+    fontSize: 14,
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  emptyPhotosSubtext: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  photoFilterScroll: {
+    marginBottom: 12,
+    marginHorizontal: -4,
+  },
+  photoFilterContainer: {
+    paddingHorizontal: 4,
+    gap: 8,
+  },
+  photoFilterTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+  },
+  photoFilterTabActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  },
+  photoFilterTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  photoThumbnailContainer: {
+    width: '23%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+  },
+  photoThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  loadMorePhotosButton: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  loadMorePhotosText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Full-Screen Photo Modal Styles
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  photoModalContainer: {
+    flex: 1,
+  },
+  photoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  photoModalCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoModalInfo: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  photoModalDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  photoModalImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  // Estimates Section Styles
+  estimatesList: {
+    gap: 10,
+  },
+  estimateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+  },
+  estimateCardContent: {
+    flex: 1,
+  },
+  estimateCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  estimateCardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 10,
+  },
+  estimateStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  estimateStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  estimateCardDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  estimateCardTotal: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  estimateCardDate: {
+    fontSize: 12,
   },
 });

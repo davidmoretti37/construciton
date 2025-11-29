@@ -30,12 +30,8 @@ const CustomCalendar = ({ onDateSelect, selectedStart, selectedEnd, theme }) => 
 
   const isToday = (dateString) => {
     const today = new Date();
-    const date = new Date(dateString);
-    return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
+    const todayString = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
+    return dateString === todayString;
   };
 
   const isPastDate = (dateString) => {
@@ -47,8 +43,11 @@ const CustomCalendar = ({ onDateSelect, selectedStart, selectedEnd, theme }) => 
   };
 
   const formatDateString = (year, month, day) => {
-    const date = new Date(year, month, day);
-    return date.toISOString().split('T')[0];
+    // Format without timezone conversion to avoid off-by-one errors
+    const yyyy = year;
+    const mm = String(month + 1).padStart(2, '0'); // month is 0-indexed
+    const dd = String(day).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   };
 
   const renderDays = () => {
@@ -81,8 +80,7 @@ const CustomCalendar = ({ onDateSelect, selectedStart, selectedEnd, theme }) => 
             isEnd && styles.rangeEnd,
             isStart && isEnd && styles.singleDay,
           ]}
-          onPress={() => !past && onDateSelect(dateString)}
-          disabled={past}
+          onPress={() => onDateSelect(dateString)}
         >
           <Text
             style={[
@@ -90,13 +88,12 @@ const CustomCalendar = ({ onDateSelect, selectedStart, selectedEnd, theme }) => 
               { color: theme.primaryText },
               selected && { color: theme.white, fontWeight: 'bold' },
               inRange && !selected && { color: theme.primaryBlue, fontWeight: '600' },
-              past && { color: theme.border },
+              past && !selected && { color: theme.secondaryText, opacity: 0.6 },
               today && !selected && { color: theme.primaryBlue, fontWeight: 'bold' },
             ]}
           >
             {day}
           </Text>
-          {today && !selected && <View style={[styles.todayDot, { backgroundColor: theme.primaryBlue }]} />}
         </TouchableOpacity>
       );
     }
@@ -184,31 +181,27 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: '14.28%', // 100% / 7 days
-    aspectRatio: 1,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    marginVertical: 2,
   },
   dayText: {
     fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 36,
   },
   rangeStart: {
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20,
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
   },
   rangeEnd: {
-    borderTopRightRadius: 20,
-    borderBottomRightRadius: 20,
+    borderTopRightRadius: 18,
+    borderBottomRightRadius: 18,
   },
   singleDay: {
-    borderRadius: 20,
-  },
-  todayDot: {
-    position: 'absolute',
-    bottom: 4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    borderRadius: 18,
   },
 });
 

@@ -1,10 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Slider from '@react-native-community/slider';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
-export default function PhaseTimeline({ phases, onPhasePress, compact = false, expandedPhaseId = null }) {
+export default function PhaseTimeline({
+  phases,
+  onPhasePress,
+  compact = false,
+  expandedPhaseId = null,
+  projectProgress = null,
+  isEditing = false,
+  progressValues = {},
+  onProgressChange,
+  onProgressSave,
+}) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
 
@@ -46,10 +57,12 @@ export default function PhaseTimeline({ phases, onPhasePress, compact = false, e
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Calculate overall project completion from phases
-  const overallCompletion = phases.length > 0
-    ? Math.round(phases.reduce((sum, p) => sum + (p.completion_percentage || 0), 0) / phases.length)
-    : 0;
+  // Use project timeline progress if provided, otherwise calculate from phases
+  const overallCompletion = projectProgress !== null
+    ? projectProgress
+    : (phases.length > 0
+        ? Math.round(phases.reduce((sum, p) => sum + (p.completion_percentage || 0), 0) / phases.length)
+        : 0);
 
   if (compact) {
     // Compact view: Just show segmented progress bar
@@ -67,7 +80,7 @@ export default function PhaseTimeline({ phases, onPhasePress, compact = false, e
                   styles.progressSegment,
                   {
                     flex: 1,
-                    backgroundColor: statusColor + '20',
+                    backgroundColor: statusColor + '40', // Increased opacity from 20 to 40
                     borderLeftWidth: index > 0 ? 1 : 0,
                     borderColor: Colors.border,
                   },
@@ -101,31 +114,19 @@ export default function PhaseTimeline({ phases, onPhasePress, compact = false, e
   // Full view: Show detailed phase list
   return (
     <View style={styles.container}>
-      {/* Overall Progress */}
-      <View style={styles.overallSection}>
+      {/* Overall Progress Label */}
+      <View style={styles.overallLabelRow}>
         <Text style={[styles.overallLabel, { color: Colors.secondaryText }]}>
           Overall Progress
         </Text>
-        <View style={styles.overallProgressBar}>
-          <View
-            style={[
-              styles.overallProgressFill,
-              {
-                width: `${overallCompletion}%`,
-                backgroundColor: Colors.primaryBlue,
-              },
-            ]}
-          />
-        </View>
         <Text style={[styles.overallPercentage, { color: Colors.primaryText }]}>
           {overallCompletion}%
         </Text>
       </View>
 
-      {/* Segmented Progress Bar */}
+      {/* Segmented Progress Bar - Shows each phase */}
       <View style={styles.segmentedProgressBar}>
         {phases.map((phase, index) => {
-          const statusColor = getStatusColor(phase.status);
           const completion = phase.completion_percentage || 0;
 
           return (
@@ -135,9 +136,9 @@ export default function PhaseTimeline({ phases, onPhasePress, compact = false, e
                 styles.progressSegment,
                 {
                   flex: 1,
-                  backgroundColor: statusColor + '20',
+                  backgroundColor: '#FFFFFF',
                   borderLeftWidth: index > 0 ? 1 : 0,
-                  borderColor: Colors.border,
+                  borderColor: '#D1D5DB',
                 },
               ]}
             >
@@ -146,7 +147,7 @@ export default function PhaseTimeline({ phases, onPhasePress, compact = false, e
                   styles.progressFill,
                   {
                     width: `${completion}%`,
-                    backgroundColor: statusColor,
+                    backgroundColor: '#10B981',
                   },
                 ]}
               />
@@ -197,23 +198,43 @@ export default function PhaseTimeline({ phases, onPhasePress, compact = false, e
                     <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
                       {phase.name}
                     </Text>
-                    <Text style={[styles.phasePercentage, { color: statusColor }]}>
+                    <Text style={[styles.phasePercentage, { color: Colors.primaryText }]}>
                       {phase.completion_percentage || 0}%
                     </Text>
                   </View>
 
-                  {/* Progress Bar */}
-                  <View style={[styles.phaseProgressBar, { backgroundColor: statusColor + '20' }]}>
-                    <View
-                      style={[
-                        styles.phaseProgressFill,
-                        {
-                          width: `${phase.completion_percentage || 0}%`,
-                          backgroundColor: statusColor,
-                        },
-                      ]}
-                    />
-                  </View>
+                  {/* Progress Bar or Slider */}
+                  {isEditing ? (
+                    <View style={styles.sliderContainer}>
+                      <Slider
+                        style={styles.slider}
+                        minimumValue={0}
+                        maximumValue={100}
+                        step={5}
+                        value={progressValues[phase.id] ?? phase.completion_percentage ?? 0}
+                        onValueChange={(value) => onProgressChange?.(phase.id, value)}
+                        onSlidingComplete={(value) => onProgressSave?.(phase.id, value)}
+                        minimumTrackTintColor="#10B981"
+                        maximumTrackTintColor="#E5E7EB"
+                        thumbTintColor="#10B981"
+                      />
+                      <Text style={[styles.sliderValue, { color: Colors.primaryText }]}>
+                        {Math.round(progressValues[phase.id] ?? phase.completion_percentage ?? 0)}%
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.phaseProgressBar, { backgroundColor: '#E5E7EB' }]}>
+                      <View
+                        style={[
+                          styles.phaseProgressFill,
+                          {
+                            width: `${phase.completion_percentage || 0}%`,
+                            backgroundColor: '#10B981',
+                          },
+                        ]}
+                      />
+                    </View>
+                  )}
 
                   {/* Dates */}
                   <View style={styles.phaseDates}>
@@ -312,13 +333,15 @@ const styles = StyleSheet.create({
   compactContainer: {
     marginVertical: Spacing.sm,
   },
-  overallSection: {
-    marginBottom: Spacing.md,
+  overallLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
   },
   overallLabel: {
     fontSize: FontSizes.small,
     fontWeight: '600',
-    marginBottom: Spacing.xs,
   },
   overallProgressBar: {
     height: 8,
@@ -338,10 +361,12 @@ const styles = StyleSheet.create({
   },
   segmentedProgressBar: {
     flexDirection: 'row',
-    height: 12,
-    borderRadius: 6,
+    height: 16, // Increased from 12 to 16
+    borderRadius: 8, // Increased from 6 to 8 to match new height
     overflow: 'hidden',
     marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#D1D5DB', // Light gray border
   },
   progressSegment: {
     position: 'relative',
@@ -411,6 +436,21 @@ const styles = StyleSheet.create({
   phaseProgressFill: {
     height: '100%',
     borderRadius: 3,
+  },
+  sliderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  slider: {
+    flex: 1,
+    height: 40,
+  },
+  sliderValue: {
+    width: 45,
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '600',
   },
   phaseDates: {
     flexDirection: 'row',

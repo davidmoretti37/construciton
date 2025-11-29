@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, ActionSheetIOS, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { shareEstimatePDF, emailEstimatePDF, smsEstimatePDF } from '../../utils/estimatePDF';
+import { shareEstimatePDF, emailEstimatePDF } from '../../utils/estimatePDF';
+import { getUserProfile, getAverageWorkerRate } from '../../utils/storage';
+import { recordPricingCorrection, extractServiceType } from '../../services/pricingIntelligence';
 
 export default function EstimatePreview({ data, onAction }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
-  const [expandedPhases, setExpandedPhases] = useState({});
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState(data);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const {
     estimateNumber,
@@ -18,17 +21,36 @@ export default function EstimatePreview({ data, onAction }) {
     clientName,
     clientPhone,
     client_phone,
+    clientAddress,
+    clientCity,
+    clientState,
+    clientZip,
+    clientEmail,
     projectName,
     date,
     items = [],
-    phases = [],
-    schedule = {},
+    tasks = [],
     scope = {},
     subtotal = 0,
+    profit = 0,
     total = 0,
     businessName,
     status,
+    laborEstimate,
   } = isEditing ? editedData : data;
+
+  // Fetch average worker rate for labor cost calculation
+  const [workerRates, setWorkerRates] = useState({ daily: 0, hourly: 0, count: 0 });
+
+  useEffect(() => {
+    getAverageWorkerRate().then(setWorkerRates);
+  }, []);
+
+  // Calculate estimated labor cost (use editedData when editing for real-time updates)
+  const currentLaborEstimate = isEditing ? (editedData.laborEstimate || laborEstimate) : laborEstimate;
+  const estimatedLaborCost = currentLaborEstimate && workerRates.daily > 0
+    ? (currentLaborEstimate.workersNeeded || 0) * (currentLaborEstimate.daysNeeded || 0) * workerRates.daily
+    : 0;
 
   // Extract client name - handle both string and object formats
   const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || 'N/A';
@@ -36,13 +58,21 @@ export default function EstimatePreview({ data, onAction }) {
   // Get phone number from any possible field
   const phoneNumber = clientPhone || client_phone || client?.phone || data.phone;
 
-  // Toggle phase expansion
-  const togglePhase = (phaseIndex) => {
-    setExpandedPhases(prev => ({
-      ...prev,
-      [phaseIndex]: !prev[phaseIndex]
-    }));
+  // Get email from any possible field
+  const emailAddress = clientEmail || client?.email || data.email;
+
+  // Format full client address
+  const formatClientAddress = () => {
+    const parts = [];
+    if (clientAddress) parts.push(clientAddress);
+    if (clientCity || clientState || clientZip) {
+      const cityStateZip = [clientCity, clientState].filter(Boolean).join(', ');
+      parts.push(clientZip ? `${cityStateZip} ${clientZip}` : cityStateZip);
+    }
+    return parts.join('\n') || '';
   };
+
+  const displayClientAddress = formatClientAddress();
 
   // Format date helper
   const formatDate = (dateString) => {
@@ -62,25 +92,68 @@ export default function EstimatePreview({ data, onAction }) {
     setIsEditing(false);
   };
 
-  const handleSaveEdit = () => {
-    // Recalculate totals from line items
+  const handleSaveEdit = async () => {
+    // Recalculate totals from line items - LINE ITEMS ARE SOURCE OF TRUTH
     const newItems = editedData.items || items;
-    const newSubtotal = newItems.reduce((sum, item) => sum + (item.total || 0), 0);
+    const newSubtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
 
-    // Recalculate total from phase budgets if available
+    // Apply profit margin if it exists
+    const profitMargin = editedData.profit && editedData.subtotal ? (editedData.profit / editedData.subtotal) : 0;
+    const newProfit = profitMargin > 0 ? newSubtotal * profitMargin : 0;
+    const newTotal = newSubtotal + newProfit;
+
+    // Also update phase budgets proportionally if phases exist
     const newPhases = editedData.phases || phases;
-    const phaseTotalBudget = newPhases.reduce((sum, phase) => sum + (parseFloat(phase.budget) || 0), 0);
+    const oldTotal = editedData.subtotal || subtotal || 1;
+    const ratio = newSubtotal / oldTotal;
+    const updatedPhases = newPhases.map(phase => ({
+      ...phase,
+      budget: Math.round((parseFloat(phase.budget) || 0) * ratio)
+    }));
 
-    // Use phase budgets if they exist, otherwise use line items
-    const newTotal = phaseTotalBudget > 0 ? phaseTotalBudget : newSubtotal + (editedData.taxAmount || 0);
+    // Preserve the original estimate ID - this is critical for updates
+    const estimateId = data.id || data.estimateId;
 
     const updatedData = {
       ...editedData,
+      id: estimateId,
+      estimateId: estimateId,
       items: newItems,
-      phases: newPhases,
+      phases: updatedPhases,
       subtotal: newSubtotal,
+      profit: newProfit,
       total: newTotal
     };
+
+    // Track price corrections for AI learning (compare original vs edited)
+    try {
+      const originalItems = data.items || [];
+      for (let i = 0; i < newItems.length; i++) {
+        const newItem = newItems[i];
+        const originalItem = originalItems[i];
+
+        // Check if price was changed
+        if (originalItem && newItem.price !== originalItem.price) {
+          const originalTotal = (originalItem.quantity || 0) * (originalItem.price || 0);
+          const newTotal = (newItem.quantity || 0) * (newItem.price || 0);
+
+          await recordPricingCorrection({
+            originalSuggestion: originalTotal,
+            finalPrice: newTotal,
+            pricePerUnit: parseFloat(newItem.price) || 0,
+            workDescription: newItem.description,
+            serviceType: extractServiceType(newItem.description),
+            quantity: newItem.quantity,
+            unit: newItem.unit,
+            sourceId: data.id || data.estimateId,
+            projectName: projectName,
+          });
+          console.log(`📊 Recorded price correction: ${newItem.description} ($${originalItem.price} → $${newItem.price})`);
+        }
+      }
+    } catch (correctionErr) {
+      console.warn('Failed to record price corrections:', correctionErr);
+    }
 
     if (onAction) {
       onAction({ type: 'update-estimate', data: updatedData });
@@ -99,7 +172,43 @@ export default function EstimatePreview({ data, onAction }) {
       newItems[index].total = quantity * price;
     }
 
+    // Recalculate overall totals when items change - always use line items as source of truth
+    const newSubtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+    // Apply profit margin if it exists
+    const profitMargin = editedData.profit && editedData.subtotal ? (editedData.profit / editedData.subtotal) : 0;
+    const newProfit = profitMargin > 0 ? newSubtotal * profitMargin : 0;
+    const newTotal = newSubtotal + newProfit;
+    setEditedData({ ...editedData, items: newItems, subtotal: newSubtotal, profit: newProfit, total: newTotal });
+  };
+
+  const handleAddLineItem = () => {
+    const newItems = [...(editedData.items || items)];
+    const newItem = {
+      index: newItems.length + 1,
+      description: '',
+      quantity: 1,
+      unit: 'job',
+      price: 0,
+      total: 0
+    };
+    newItems.push(newItem);
     setEditedData({ ...editedData, items: newItems });
+  };
+
+  const handleRemoveLineItem = (index) => {
+    const newItems = [...(editedData.items || items)];
+    newItems.splice(index, 1);
+    // Re-index remaining items
+    newItems.forEach((item, idx) => {
+      item.index = idx + 1;
+    });
+    // Recalculate totals when items change - always use line items as source of truth
+    const newSubtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+    // Apply profit margin if it exists (preserve the percentage)
+    const profitMargin = editedData.profit && editedData.subtotal ? (editedData.profit / editedData.subtotal) : 0;
+    const newProfit = profitMargin > 0 ? newSubtotal * profitMargin : 0;
+    const newTotal = newSubtotal + newProfit;
+    setEditedData({ ...editedData, items: newItems, subtotal: newSubtotal, profit: newProfit, total: newTotal });
   };
 
   const handleUpdatePhase = (phaseIndex, field, value) => {
@@ -151,6 +260,11 @@ export default function EstimatePreview({ data, onAction }) {
     setEditedData({ ...editedData, scope: newScope });
   };
 
+  // Client field update handler
+  const handleUpdateClientField = (field, value) => {
+    setEditedData({ ...editedData, [field]: value });
+  };
+
   // Schedule update handlers
   const handleUpdatePhaseSchedule = (phaseIndex, field, value) => {
     const newSchedule = { ...(editedData.schedule || schedule) };
@@ -166,8 +280,31 @@ export default function EstimatePreview({ data, onAction }) {
   };
 
   // Date update handler
-  const handleUpdateDate = (value) => {
-    setEditedData({ ...editedData, date: value });
+  const handleUpdateDate = (event, selectedDate) => {
+    setShowDatePicker(Platform.OS === 'ios'); // Keep open on iOS, close on Android
+    if (selectedDate) {
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      setEditedData({ ...editedData, date: formattedDate });
+    }
+  };
+
+  // Parse date string to Date object for picker
+  const getDateValue = () => {
+    const dateStr = isEditing ? (editedData.date || date) : date;
+    if (!dateStr) return new Date();
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+
+  // Labor estimate update handler
+  const handleUpdateLaborEstimate = (field, value) => {
+    setEditedData({
+      ...editedData,
+      laborEstimate: {
+        ...(editedData.laborEstimate || laborEstimate || {}),
+        [field]: value,
+      },
+    });
   };
 
   // Format estimate as text for sharing
@@ -198,26 +335,91 @@ export default function EstimatePreview({ data, onAction }) {
     return text;
   };
 
+  // Enrich estimate data with business info for PDF generation
+  const getEnrichedEstimateData = async () => {
+    try {
+      const userProfile = await getUserProfile();
+      const businessInfo = userProfile?.businessInfo || {};
+
+      // Parse address into components if it's a single string
+      let businessAddress = businessInfo.address || '';
+      let businessCity = '';
+      let businessState = '';
+      let businessZip = '';
+
+      // Try to parse "123 Main St, City, ST 12345" format
+      if (businessAddress && businessAddress.includes(',')) {
+        const parts = businessAddress.split(',').map(p => p.trim());
+        if (parts.length >= 2) {
+          businessAddress = parts[0];
+          // Last part might be "City, ST 12345" or "ST 12345"
+          const lastPart = parts[parts.length - 1];
+          const stateZipMatch = lastPart.match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)/);
+          if (stateZipMatch) {
+            businessState = stateZipMatch[1];
+            businessZip = stateZipMatch[2];
+            // City is what's left
+            if (parts.length >= 3) {
+              businessCity = parts[1];
+            }
+          } else if (parts.length >= 2) {
+            businessCity = parts[1];
+          }
+        }
+      }
+
+      return {
+        ...data,
+        // Business info
+        businessName: businessInfo.name || data.businessName || '',
+        businessAddress: businessAddress,
+        businessCity: businessCity,
+        businessState: businessState,
+        businessZip: businessZip,
+        businessEmail: businessInfo.email || '',
+        businessPhone: businessInfo.phone || '',
+        businessLogo: businessInfo.logoUrl || businessInfo.logo || '',
+        // Client info - ensure proper mapping
+        clientName: displayClientName,
+        clientAddress: data.clientAddress || (typeof client === 'object' ? client?.address : '') || '',
+        clientCity: data.clientCity || '',
+        clientState: data.clientState || '',
+        clientZip: data.clientZip || '',
+        clientPhone: data.clientPhone || data.client_phone || (typeof client === 'object' ? client?.phone : '') || '',
+        clientEmail: data.clientEmail || (typeof client === 'object' ? client?.email : '') || '',
+        // Ship to (job site) - defaults to project address or client address
+        shipToName: data.shipToName || displayClientName,
+        shipToAddress: data.shipToAddress || data.projectAddress || data.clientAddress || (typeof client === 'object' ? client?.address : '') || '',
+        shipToCity: data.shipToCity || data.clientCity || '',
+        shipToState: data.shipToState || data.clientState || '',
+        shipToZip: data.shipToZip || data.clientZip || '',
+      };
+    } catch (error) {
+      console.error('Error getting business info:', error);
+      return data;
+    }
+  };
+
   const handleShare = async () => {
     try {
+      // Get enriched data with business info
+      const enrichedData = await getEnrichedEstimateData();
+
       if (Platform.OS === 'ios') {
         // iOS: Show action sheet with options
         ActionSheetIOS.showActionSheetWithOptions(
           {
-            options: ['Cancel', 'Share PDF', 'Email PDF', 'Text PDF'],
+            options: ['Cancel', 'Share PDF', 'Email PDF'],
             cancelButtonIndex: 0,
           },
           async (buttonIndex) => {
             if (buttonIndex === 1) {
               // Share PDF
-              await shareEstimatePDF(data);
+              await shareEstimatePDF(enrichedData);
             } else if (buttonIndex === 2) {
               // Email PDF
               const clientEmail = typeof client === 'object' ? client?.email : null;
-              await emailEstimatePDF(data, clientEmail);
-            } else if (buttonIndex === 3) {
-              // Text PDF
-              await smsEstimatePDF(data);
+              await emailEstimatePDF(enrichedData, clientEmail);
             }
           }
         );
@@ -230,18 +432,14 @@ export default function EstimatePreview({ data, onAction }) {
             { text: 'Cancel', style: 'cancel' },
             {
               text: 'Share PDF',
-              onPress: async () => await shareEstimatePDF(data)
+              onPress: async () => await shareEstimatePDF(enrichedData)
             },
             {
               text: 'Email PDF',
               onPress: async () => {
                 const clientEmail = typeof client === 'object' ? client?.email : null;
-                await emailEstimatePDF(data, clientEmail);
+                await emailEstimatePDF(enrichedData, clientEmail);
               }
-            },
-            {
-              text: 'Text PDF',
-              onPress: async () => await smsEstimatePDF(data)
             },
           ]
         );
@@ -346,7 +544,17 @@ export default function EstimatePreview({ data, onAction }) {
       <View style={[styles.section, { borderTopColor: Colors.border }]}>
         <View style={styles.infoRow}>
           <Text style={[styles.label, { color: Colors.secondaryText }]}>Client:</Text>
-          <Text style={[styles.value, { color: Colors.primaryText }]}>{displayClientName}</Text>
+          {isEditing ? (
+            <TextInput
+              style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
+              value={editedData.clientName || displayClientName}
+              onChangeText={(value) => handleUpdateClientField('clientName', value)}
+              placeholder="Client name"
+              placeholderTextColor={Colors.secondaryText}
+            />
+          ) : (
+            <Text style={[styles.value, { color: Colors.primaryText }]}>{displayClientName}</Text>
+          )}
         </View>
         {projectName && (
           <View style={styles.infoRow}>
@@ -357,17 +565,118 @@ export default function EstimatePreview({ data, onAction }) {
         <View style={styles.infoRow}>
           <Text style={[styles.label, { color: Colors.secondaryText }]}>Date:</Text>
           {isEditing ? (
-            <TextInput
-              style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
-              value={date}
-              onChangeText={handleUpdateDate}
-              placeholder="MM/DD/YYYY"
-              placeholderTextColor={Colors.secondaryText}
-            />
+            <TouchableOpacity
+              style={[styles.datePickerButton, { borderColor: Colors.border }]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={[styles.value, { color: Colors.primaryText }]}>
+                {formatDate(editedData.date || date)}
+              </Text>
+              <Ionicons name="calendar-outline" size={18} color={Colors.primaryBlue} />
+            </TouchableOpacity>
           ) : (
-            <Text style={[styles.value, { color: Colors.primaryText }]}>{date}</Text>
+            <Text style={[styles.value, { color: Colors.primaryText }]}>{formatDate(date)}</Text>
           )}
         </View>
+
+        {/* Date Picker */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={getDateValue()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleUpdateDate}
+          />
+        )}
+
+        {/* Client Address */}
+        {(displayClientAddress || isEditing) && (
+          <>
+            <View style={[styles.addressDivider, { borderTopColor: Colors.border }]} />
+            <Text style={[styles.addressSectionLabel, { color: Colors.secondaryText }]}>BILL TO</Text>
+            {isEditing ? (
+              <View style={styles.addressEditContainer}>
+                <TextInput
+                  style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, marginBottom: Spacing.xs }]}
+                  value={editedData.clientAddress || clientAddress || ''}
+                  onChangeText={(value) => handleUpdateClientField('clientAddress', value)}
+                  placeholder="Street address"
+                  placeholderTextColor={Colors.secondaryText}
+                />
+                <View style={styles.addressRow}>
+                  <TextInput
+                    style={[styles.editInput, styles.cityInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                    value={editedData.clientCity || clientCity || ''}
+                    onChangeText={(value) => handleUpdateClientField('clientCity', value)}
+                    placeholder="City"
+                    placeholderTextColor={Colors.secondaryText}
+                  />
+                  <TextInput
+                    style={[styles.editInput, styles.stateInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                    value={editedData.clientState || clientState || ''}
+                    onChangeText={(value) => handleUpdateClientField('clientState', value)}
+                    placeholder="State"
+                    placeholderTextColor={Colors.secondaryText}
+                    maxLength={2}
+                    autoCapitalize="characters"
+                  />
+                  <TextInput
+                    style={[styles.editInput, styles.zipInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                    value={editedData.clientZip || clientZip || ''}
+                    onChangeText={(value) => handleUpdateClientField('clientZip', value)}
+                    placeholder="ZIP"
+                    placeholderTextColor={Colors.secondaryText}
+                    keyboardType="numeric"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+            ) : (
+              <Text style={[styles.addressText, { color: Colors.primaryText }]}>
+                {displayClientAddress}
+              </Text>
+            )}
+          </>
+        )}
+
+        {/* Client Phone */}
+        {(phoneNumber || isEditing) && (
+          <View style={[styles.infoRow, { marginTop: Spacing.sm }]}>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone:</Text>
+            {isEditing ? (
+              <TextInput
+                style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
+                value={editedData.clientPhone || phoneNumber || ''}
+                onChangeText={(value) => handleUpdateClientField('clientPhone', value)}
+                placeholder="(555) 555-5555"
+                placeholderTextColor={Colors.secondaryText}
+                keyboardType="phone-pad"
+              />
+            ) : (
+              <Text style={[styles.value, { color: Colors.primaryText }]}>{phoneNumber}</Text>
+            )}
+          </View>
+        )}
+
+        {/* Client Email */}
+        {(emailAddress || isEditing) && (
+          <View style={styles.infoRow}>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>Email:</Text>
+            {isEditing ? (
+              <TextInput
+                style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
+                value={editedData.clientEmail || emailAddress || ''}
+                onChangeText={(value) => handleUpdateClientField('clientEmail', value)}
+                placeholder="client@email.com"
+                placeholderTextColor={Colors.secondaryText}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            ) : (
+              <Text style={[styles.value, { color: Colors.primaryText }]}>{emailAddress}</Text>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Scope Summary */}
@@ -397,202 +706,57 @@ export default function EstimatePreview({ data, onAction }) {
         </View>
       )}
 
-      {/* Phase Breakdown */}
-      {phases && phases.length > 0 && (
+      {/* Tasks Section (flat list) */}
+      {tasks && tasks.length > 0 && (
         <View style={[styles.section, { borderTopColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>PROJECT PHASES</Text>
-          {phases.map((phase, index) => (
-            <View key={index} style={[styles.phaseCard, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
-              <TouchableOpacity
-                style={styles.phaseHeader}
-                onPress={() => togglePhase(index)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.phaseHeaderLeft}>
-                  <Ionicons
-                    name={expandedPhases[index] ? "chevron-down" : "chevron-forward"}
-                    size={20}
-                    color={Colors.primaryBlue}
-                  />
-                  <Text style={[styles.phaseName, { color: Colors.primaryText }]}>{phase.name}</Text>
-                </View>
-                <View style={[styles.phaseBadge, { backgroundColor: Colors.primaryBlue + '15' }]}>
-                  <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
-                  {isEditing ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <TextInput
-                        style={[styles.editInputTiny, { color: Colors.primaryBlue, borderColor: Colors.primaryBlue }]}
-                        value={(phase.plannedDays || phase.duration || 0).toString()}
-                        onChangeText={(value) => handleUpdatePhase(index, 'plannedDays', parseInt(value) || 0)}
-                        keyboardType="numeric"
-                        placeholder="0"
-                      />
-                      <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>days</Text>
-                    </View>
-                  ) : (
-                    <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>
-                      {phase.plannedDays || phase.duration || 0} days
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              {expandedPhases[index] && (
-                <View style={styles.phaseContent}>
-                  {/* Tasks List */}
-                  {phase.tasks && phase.tasks.length > 0 && (
-                    <View style={styles.tasksSection}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
-                        <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>Tasks:</Text>
-                        {isEditing && (
-                          <TouchableOpacity
-                            onPress={() => handleAddTask(index)}
-                            style={[styles.addTaskButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
-                          >
-                            <Ionicons name="add" size={14} color={Colors.primaryBlue} />
-                            <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>Add Task</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      {phase.tasks.map((task, taskIndex) => (
-                        <View key={taskIndex} style={styles.taskRow}>
-                          <Ionicons name="checkmark-circle-outline" size={16} color={Colors.secondaryText} />
-                          {isEditing ? (
-                            <>
-                              <TextInput
-                                style={[styles.editInput, styles.taskText, { color: Colors.primaryText, borderColor: Colors.border }]}
-                                value={task.description}
-                                onChangeText={(value) => handleUpdateTask(index, taskIndex, value)}
-                                placeholder="Task description"
-                                placeholderTextColor={Colors.secondaryText}
-                                multiline
-                              />
-                              <TouchableOpacity
-                                onPress={() => handleRemoveTask(index, taskIndex)}
-                                style={styles.removeTaskButton}
-                              >
-                                <Ionicons name="close-circle" size={20} color="#EF4444" />
-                              </TouchableOpacity>
-                            </>
-                          ) : (
-                            <Text style={[styles.taskText, { color: Colors.primaryText }]}>
-                              {task.description}
-                            </Text>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {/* Phase Budget */}
-                  {phase.budget && (
-                    <View style={[styles.phaseBudgetRow, { borderTopColor: Colors.border }]}>
-                      <Text style={[styles.phaseBudgetLabel, { color: Colors.secondaryText }]}>Phase Budget:</Text>
-                      {isEditing ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={[styles.phaseBudgetAmount, { color: Colors.primaryBlue }]}>$</Text>
-                          <TextInput
-                            style={[styles.editInputSmall, { color: Colors.primaryBlue, borderColor: Colors.primaryBlue, minWidth: 80 }]}
-                            value={(typeof phase.budget === 'number' ? phase.budget : parseFloat(phase.budget) || 0).toString()}
-                            onChangeText={(value) => handleUpdatePhase(index, 'budget', parseFloat(value) || 0)}
-                            keyboardType="decimal-pad"
-                            placeholder="0.00"
-                          />
-                        </View>
-                      ) : (
-                        <Text style={[styles.phaseBudgetAmount, { color: Colors.primaryBlue }]}>
-                          ${typeof phase.budget === 'number' ? phase.budget.toFixed(2) : phase.budget}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Phase Timeline */}
-                  {schedule.phaseSchedule && schedule.phaseSchedule[index] && (
-                    <View style={styles.phaseTimeline}>
-                      <Ionicons name="time-outline" size={14} color={Colors.secondaryText} />
-                      {isEditing ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
-                          <TextInput
-                            style={[styles.editInputSmall, { color: Colors.secondaryText, borderColor: Colors.border, flex: 1 }]}
-                            value={schedule.phaseSchedule[index].startDate}
-                            onChangeText={(value) => handleUpdatePhaseSchedule(index, 'startDate', value)}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor={Colors.secondaryText}
-                          />
-                          <Text style={[styles.phaseTimelineText, { color: Colors.secondaryText }]}>→</Text>
-                          <TextInput
-                            style={[styles.editInputSmall, { color: Colors.secondaryText, borderColor: Colors.border, flex: 1 }]}
-                            value={schedule.phaseSchedule[index].endDate}
-                            onChangeText={(value) => handleUpdatePhaseSchedule(index, 'endDate', value)}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor={Colors.secondaryText}
-                          />
-                        </View>
-                      ) : (
-                        <Text style={[styles.phaseTimelineText, { color: Colors.secondaryText }]}>
-                          {formatDate(schedule.phaseSchedule[index].startDate)} → {formatDate(schedule.phaseSchedule[index].endDate)}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-              )}
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>TASKS</Text>
+          {tasks.map((task, index) => (
+            <View key={index} style={styles.taskRow}>
+              <Ionicons name="checkbox-outline" size={16} color={Colors.secondaryText} />
+              <Text style={[styles.taskText, { color: Colors.primaryText }]}>
+                {task.description}
+              </Text>
             </View>
           ))}
-
-          {/* Overall Timeline */}
-          {schedule.startDate && schedule.estimatedEndDate && (
-            <View style={[styles.overallTimeline, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
-              <Ionicons name="calendar" size={18} color={Colors.primaryBlue} />
-              <View style={styles.timelineContent}>
-                <Text style={[styles.timelineLabel, { color: Colors.primaryText }]}>Project Timeline</Text>
-                {isEditing ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <TextInput
-                      style={[styles.editInputSmall, { color: Colors.primaryBlue, borderColor: Colors.primaryBlue, flex: 1 }]}
-                      value={schedule.startDate}
-                      onChangeText={(value) => handleUpdateOverallSchedule('startDate', value)}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={Colors.primaryBlue + '80'}
-                    />
-                    <Text style={[styles.timelineText, { color: Colors.primaryBlue }]}>→</Text>
-                    <TextInput
-                      style={[styles.editInputSmall, { color: Colors.primaryBlue, borderColor: Colors.primaryBlue, flex: 1 }]}
-                      value={schedule.estimatedEndDate}
-                      onChangeText={(value) => handleUpdateOverallSchedule('estimatedEndDate', value)}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={Colors.primaryBlue + '80'}
-                    />
-                  </View>
-                ) : (
-                  <Text style={[styles.timelineText, { color: Colors.primaryBlue }]}>
-                    {formatDate(schedule.startDate)} → {formatDate(schedule.estimatedEndDate)}
-                  </Text>
-                )}
-              </View>
-            </View>
-          )}
         </View>
       )}
 
       {/* Line Items */}
       <View style={[styles.section, { borderTopColor: Colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SERVICES</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SERVICES</Text>
+          {isEditing && (
+            <TouchableOpacity
+              onPress={handleAddLineItem}
+              style={[styles.addItemButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
+            >
+              <Ionicons name="add" size={16} color={Colors.primaryBlue} />
+              <Text style={[styles.addItemText, { color: Colors.primaryBlue }]}>Add Service</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {items.map((item, index) => (
           <View key={index} style={styles.lineItem}>
             <View style={styles.itemHeader}>
               <Text style={[styles.itemNumber, { color: Colors.secondaryText }]}>
-                {item.index}.
+                {item.index || index + 1}.
               </Text>
               {isEditing ? (
-                <TextInput
-                  style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
-                  value={item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description}
-                  onChangeText={(value) => handleUpdateLineItem(index, 'description', value)}
-                  placeholder="Item description"
-                  placeholderTextColor={Colors.secondaryText}
-                />
+                <>
+                  <TextInput
+                    style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
+                    value={item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description}
+                    onChangeText={(value) => handleUpdateLineItem(index, 'description', value)}
+                    placeholder="Item description"
+                    placeholderTextColor={Colors.secondaryText}
+                  />
+                  <TouchableOpacity
+                    onPress={() => handleRemoveLineItem(index)}
+                    style={styles.removeItemButton}
+                  >
+                    <Ionicons name="close-circle" size={22} color="#EF4444" />
+                  </TouchableOpacity>
+                </>
               ) : (
                 <Text style={[styles.itemDescription, { color: Colors.primaryText }]}>
                   {item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description}
@@ -631,13 +795,93 @@ export default function EstimatePreview({ data, onAction }) {
         ))}
       </View>
 
-      {/* Total */}
-      <View style={[styles.totalSection, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
-        <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>TOTAL</Text>
-        <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
-          ${typeof total === 'number' ? total.toFixed(2) : (parseFloat(total) || 0).toFixed(2)}
-        </Text>
-      </View>
+      {/* Cost Breakdown */}
+      {profit > 0 ? (
+        <View style={[styles.costBreakdown, { borderColor: Colors.border }]}>
+          <View style={styles.breakdownRow}>
+            <Text style={[styles.breakdownLabel, { color: Colors.secondaryText }]}>Services Total</Text>
+            <Text style={[styles.breakdownValue, { color: Colors.primaryText }]}>
+              ${typeof subtotal === 'number' ? subtotal.toFixed(2) : (parseFloat(subtotal) || 0).toFixed(2)}
+            </Text>
+          </View>
+          <View style={styles.breakdownRow}>
+            <Text style={[styles.breakdownLabel, { color: Colors.secondaryText }]}>
+              Profit ({((profit / subtotal) * 100).toFixed(0)}%)
+            </Text>
+            <Text style={[styles.breakdownValue, { color: Colors.green }]}>
+              ${typeof profit === 'number' ? profit.toFixed(2) : (parseFloat(profit) || 0).toFixed(2)}
+            </Text>
+          </View>
+          <View style={[styles.totalSection, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue, marginTop: Spacing.sm }]}>
+            <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>CONTRACT TOTAL</Text>
+            <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
+              ${typeof total === 'number' ? total.toFixed(2) : (parseFloat(total) || 0).toFixed(2)}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View style={[styles.totalSection, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
+          <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>TOTAL</Text>
+          <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
+            ${typeof total === 'number' ? total.toFixed(2) : (parseFloat(total) || 0).toFixed(2)}
+          </Text>
+        </View>
+      )}
+
+      {/* Labor Cost Info - Owner Only (not shown when estimate is sent/shared) */}
+      {!status && laborEstimate && (estimatedLaborCost > 0 || isEditing) && (
+        <View style={[styles.laborInfoSection, { backgroundColor: '#F59E0B' + '15', borderColor: '#F59E0B' }]}>
+          <View style={styles.laborHeader}>
+            <Ionicons name="people-outline" size={18} color="#F59E0B" />
+            <Text style={[styles.laborTitle, { color: Colors.primaryText }]}>
+              Estimated Labor Cost
+            </Text>
+          </View>
+          {isEditing ? (
+            <View style={styles.laborEditContainer}>
+              <View style={styles.laborEditRow}>
+                <Text style={[styles.laborEditLabel, { color: Colors.secondaryText }]}>Workers needed:</Text>
+                <TextInput
+                  style={[styles.editInputSmall, { color: Colors.primaryText, borderColor: '#F59E0B' }]}
+                  value={String(editedData.laborEstimate?.workersNeeded || laborEstimate?.workersNeeded || '')}
+                  onChangeText={(val) => handleUpdateLaborEstimate('workersNeeded', parseInt(val) || 0)}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.secondaryText}
+                />
+              </View>
+              <View style={styles.laborEditRow}>
+                <Text style={[styles.laborEditLabel, { color: Colors.secondaryText }]}>Days needed:</Text>
+                <TextInput
+                  style={[styles.editInputSmall, { color: Colors.primaryText, borderColor: '#F59E0B' }]}
+                  value={String(editedData.laborEstimate?.daysNeeded || laborEstimate?.daysNeeded || '')}
+                  onChangeText={(val) => handleUpdateLaborEstimate('daysNeeded', parseInt(val) || 0)}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.secondaryText}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.laborDetails, { color: Colors.secondaryText }]}>
+                {laborEstimate.workersNeeded} worker{laborEstimate.workersNeeded > 1 ? 's' : ''} × {laborEstimate.daysNeeded} day{laborEstimate.daysNeeded > 1 ? 's' : ''}
+              </Text>
+              <Text style={[styles.laborCost, { color: '#F59E0B' }]}>
+                ~${estimatedLaborCost.toFixed(2)}
+              </Text>
+              <Text style={[styles.laborNote, { color: Colors.secondaryText }]}>
+                Based on avg worker rate of ${workerRates.daily.toFixed(0)}/day
+              </Text>
+              {laborEstimate.reasoning && (
+                <Text style={[styles.laborReasoning, { color: Colors.secondaryText }]}>
+                  {laborEstimate.reasoning}
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+      )}
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
@@ -668,6 +912,29 @@ export default function EstimatePreview({ data, onAction }) {
             <Ionicons name="document-text-outline" size={18} color="#fff" />
             <Text style={styles.buttonText}>Convert to Invoice</Text>
           </TouchableOpacity>
+        ) : !status ? (
+          <>
+            <TouchableOpacity
+              style={[styles.sendButton, { backgroundColor: '#22C55E', flex: 1 }]}
+              onPress={() => {
+                if (onAction) {
+                  onAction({ type: 'save-estimate', data });
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="save-outline" size={18} color="#fff" />
+              <Text style={styles.buttonText}>Save Estimate</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sendButton, { backgroundColor: Colors.primaryBlue, flex: 1 }]}
+              onPress={handleShare}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="share-outline" size={18} color="#fff" />
+              <Text style={styles.buttonText}>Share</Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity
             style={[styles.sendButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
@@ -678,6 +945,16 @@ export default function EstimatePreview({ data, onAction }) {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Helper Text for Project Creation */}
+      {(!status || status === 'draft' || status === 'sent') && (
+        <View style={[styles.helperTextContainer, { backgroundColor: Colors.lightGray }]}>
+          <Ionicons name="information-circle-outline" size={16} color={Colors.primaryBlue} />
+          <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
+            After the client accepts this estimate, you can ask me to create a project from it. I can also modify it first if the client requests changes.
+          </Text>
+        </View>
+      )}
 
       {/* Footer Note */}
       {status === 'accepted' && (
@@ -737,10 +1014,32 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderTopWidth: 1,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
   sectionTitle: {
     fontSize: FontSizes.small,
     fontWeight: '600',
-    marginBottom: Spacing.md,
+  },
+  addItemButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    gap: 4,
+  },
+  addItemText: {
+    fontSize: FontSizes.tiny,
+    fontWeight: '600',
+  },
+  removeItemButton: {
+    padding: 4,
+    marginLeft: Spacing.xs,
   },
   infoRow: {
     flexDirection: 'row',
@@ -754,6 +1053,17 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     fontWeight: '500',
     flex: 1,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    gap: Spacing.sm,
   },
   lineItem: {
     marginBottom: Spacing.md,
@@ -781,6 +1091,24 @@ const styles = StyleSheet.create({
   },
   itemTotal: {
     fontSize: FontSizes.small,
+    fontWeight: '600',
+  },
+  costBreakdown: {
+    borderTopWidth: 1,
+    paddingTop: Spacing.md,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+  },
+  breakdownLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+  },
+  breakdownValue: {
+    fontSize: FontSizes.body,
     fontWeight: '600',
   },
   totalSection: {
@@ -826,6 +1154,20 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: FontSizes.small,
     fontWeight: '600',
+  },
+  helperTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  helperText: {
+    flex: 1,
+    fontSize: FontSizes.tiny,
+    lineHeight: 16,
   },
   footerNote: {
     fontSize: FontSizes.tiny,
@@ -1002,5 +1344,86 @@ const styles = StyleSheet.create({
   removeTaskButton: {
     padding: 4,
     marginLeft: Spacing.xs,
+  },
+  // Labor Info Section Styles
+  laborInfoSection: {
+    margin: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  laborHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  laborTitle: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  laborDetails: {
+    fontSize: FontSizes.small,
+    marginBottom: Spacing.xs,
+  },
+  laborCost: {
+    fontSize: FontSizes.subheader,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+  },
+  laborNote: {
+    fontSize: FontSizes.tiny,
+  },
+  laborReasoning: {
+    fontSize: FontSizes.tiny,
+    fontStyle: 'italic',
+    marginTop: Spacing.xs,
+  },
+  laborEditContainer: {
+    marginTop: Spacing.xs,
+  },
+  laborEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  laborEditLabel: {
+    fontSize: FontSizes.small,
+    fontWeight: '500',
+  },
+  // Address styles
+  addressDivider: {
+    borderTopWidth: 1,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  addressSectionLabel: {
+    fontSize: FontSizes.tiny,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: Spacing.xs,
+  },
+  addressEditContainer: {
+    marginBottom: Spacing.xs,
+  },
+  addressRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  cityInput: {
+    flex: 2,
+  },
+  stateInput: {
+    flex: 0.8,
+    textAlign: 'center',
+  },
+  zipInput: {
+    flex: 1.2,
+  },
+  addressText: {
+    fontSize: FontSizes.small,
+    lineHeight: 20,
+    marginBottom: Spacing.xs,
   },
 });

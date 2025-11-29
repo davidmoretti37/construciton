@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -18,22 +19,86 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
 
-  const [phases, setPhases] = useState([
-    {
-      id: '1',
-      name: 'Rough',
-      typical_days: '14',
-      tasks: ['Framing', 'Electrical rough-in', 'Plumbing rough-in'],
-      typical_budget_percentage: '40',
-    },
-    {
-      id: '2',
-      name: 'Finish',
-      typical_days: '10',
-      tasks: ['Drywall', 'Paint', 'Fixtures'],
-      typical_budget_percentage: '60',
-    },
-  ]);
+  const selectedServices = route?.params?.selectedServices || [];
+
+  const [phases, setPhases] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Initialize phases from selected services
+  useEffect(() => {
+    initializePhases();
+  }, []);
+
+  const initializePhases = () => {
+    if (selectedServices.length === 0) {
+      // Fallback to default phases if no services
+      setPhases([
+        {
+          id: '1',
+          name: 'Planning',
+          typical_days: '7',
+          tasks: ['Initial consultation', 'Create plan', 'Get approvals'],
+          typical_budget_percentage: '20',
+        },
+        {
+          id: '2',
+          name: 'Execution',
+          typical_days: '14',
+          tasks: ['Perform service', 'Quality checks'],
+          typical_budget_percentage: '80',
+        },
+      ]);
+      setLoading(false);
+      return;
+    }
+
+    // Combine phases from all selected services (deduplicate by name)
+    const allPhases = [];
+    const seenPhaseNames = new Set();
+
+    selectedServices.forEach(service => {
+      if (service.phases && service.phases.length > 0) {
+        service.phases.forEach(phase => {
+          const phaseName = phase.phase_name || phase.name;
+          if (!seenPhaseNames.has(phaseName)) {
+            allPhases.push({
+              id: phase.id || Date.now().toString() + Math.random(),
+              name: phaseName,
+              typical_days: (phase.default_days || phase.defaultDays || 7).toString(),
+              tasks: Array.isArray(phase.tasks) ? phase.tasks : (phase.defaultTasks || []),
+              typical_budget_percentage: '',
+            });
+            seenPhaseNames.add(phaseName);
+          }
+        });
+      }
+    });
+
+    // If we got phases from services, use them
+    if (allPhases.length > 0) {
+      setPhases(allPhases);
+    } else {
+      // Fallback if services don't have phases yet
+      setPhases([
+        {
+          id: '1',
+          name: 'Preparation',
+          typical_days: '5',
+          tasks: ['Assess requirements', 'Prepare materials', 'Schedule work'],
+          typical_budget_percentage: '30',
+        },
+        {
+          id: '2',
+          name: 'Service Delivery',
+          typical_days: '10',
+          tasks: ['Perform work', 'Quality checks', 'Client updates'],
+          typical_budget_percentage: '70',
+        },
+      ]);
+    }
+
+    setLoading(false);
+  };
 
   const addPhase = () => {
     const newPhase = {
@@ -125,6 +190,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
       }
     } else {
       navigation.navigate('BusinessInfo', {
+        selectedServices: selectedServices, // Pass selected services
         selectedTrades: route?.params?.selectedTrades,
         phasesTemplate,
       });
@@ -139,24 +205,44 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
       }
     } else {
       navigation.navigate('BusinessInfo', {
+        selectedServices: selectedServices, // Pass selected services
         selectedTrades: route?.params?.selectedTrades,
-        phasesTemplate: null,
+        phasesTemplate: phases,
       });
     }
   };
+
+  // Show loading while initializing phases
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.loadingContainer]}>
+          <ActivityIndicator size="large" color={Colors.primaryBlue} />
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
+            Preparing your workflow phases...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.background }]}>
         <Text style={[styles.title, { color: Colors.primaryText }]}>
-          {isUpdate ? '🎉 New Feature!' : 'Project Phases'}
+          {isUpdate ? '🎉 New Feature!' : 'Workflow Phases'}
         </Text>
         <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
           {isUpdate
             ? 'Set up your typical workflow to create estimates faster with AI'
-            : 'Define your standard project workflow'}
+            : 'Review and customize your workflow phases'}
         </Text>
+        {selectedServices.length > 0 && (
+          <Text style={[styles.helpText, { color: Colors.secondaryText }]}>
+            Based on: {selectedServices.map(s => s.name).join(', ')}
+          </Text>
+        )}
       </View>
 
       {/* Content */}
@@ -466,5 +552,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+  },
+  helpText: {
+    fontSize: 13,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });

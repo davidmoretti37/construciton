@@ -18,7 +18,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 export default function BusinessInfoScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark);
-  const { selectedTrades, phasesTemplate } = route.params;
+
+  // Handle both new (services) and legacy (trades) format
+  const { selectedServices, selectedTrades, phasesTemplate } = route.params || {};
 
   const [businessName, setBusinessName] = useState('');
   const [phone, setPhone] = useState('');
@@ -35,9 +37,11 @@ export default function BusinessInfoScreen({ navigation, route }) {
       return;
     }
 
-    navigation.navigate('PricingSetup', {
-      selectedTrades,
+    navigation.navigate('ProfitMargin', {
+      selectedServices, // NEW: Pass services
+      selectedTrades, // Legacy support
       phasesTemplate,
+      pricing: route.params?.pricing,
       businessInfo: {
         name: businessName.trim(),
         phone: phone.trim(),
@@ -156,7 +160,7 @@ export default function BusinessInfoScreen({ navigation, route }) {
             onPress={handleContinue}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Continue to Pricing</Text>
+            <Text style={styles.buttonText}>Continue</Text>
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
 
@@ -165,10 +169,10 @@ export default function BusinessInfoScreen({ navigation, route }) {
             <View style={styles.progressDots}>
               <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
               <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
+              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
               <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
             </View>
-            <Text style={[styles.progressText, { color: Colors.secondaryText }]}>Step 3 of 4</Text>
+            <Text style={[styles.progressText, { color: Colors.secondaryText }]}>Step 4 of 4</Text>
           </View>
         </View>
       </KeyboardAvoidingView>

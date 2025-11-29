@@ -12,8 +12,6 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
-import { useTheme } from '../contexts/ThemeContext';
 import {
   fetchWorkers,
   assignWorkerToProject,
@@ -27,13 +25,6 @@ import {
 /**
  * Reusable Worker Assignment Modal
  * Can be used to assign workers to projects or phases
- *
- * @param {boolean} visible - Modal visibility
- * @param {function} onClose - Close modal callback
- * @param {string} assignmentType - 'project' or 'phase'
- * @param {string} assignmentId - Project ID or Phase ID
- * @param {string} assignmentName - Project or Phase name for display
- * @param {function} onAssignmentsChange - Callback when assignments change
  */
 export default function WorkerAssignmentModal({
   visible,
@@ -43,9 +34,6 @@ export default function WorkerAssignmentModal({
   assignmentName,
   onAssignmentsChange,
 }) {
-  const { isDark = false } = useTheme() || {};
-  const Colors = getColors(isDark);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [allWorkers, setAllWorkers] = useState([]);
@@ -185,7 +173,7 @@ export default function WorkerAssignmentModal({
       case 'pending':
         return '#F59E0B';
       default:
-        return Colors.secondaryText;
+        return '#9CA3AF';
     }
   };
 
@@ -199,95 +187,86 @@ export default function WorkerAssignmentModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={[styles.cancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+      <SafeAreaView style={styles.container}>
+        {/* Minimalist Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.headerButton}>
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: Colors.primaryText }]}>Assign Workers</Text>
-            <Text style={[styles.subtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
+            <Text style={styles.title}>Assign Workers</Text>
+            <Text style={styles.subtitle} numberOfLines={1}>
               {assignmentName}
             </Text>
           </View>
-          <TouchableOpacity onPress={handleSave} disabled={saving}>
-            <Text style={[styles.saveText, { color: Colors.primaryBlue, opacity: saving ? 0.5 : 1 }]}>
+          <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerButton}>
+            <Text style={[styles.saveText, { opacity: saving ? 0.5 : 1 }]}>
               {saving ? 'Saving...' : 'Save'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Search and Filter */}
-        <View style={[styles.searchSection, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <View style={[styles.searchBar, { backgroundColor: Colors.lightGray }]}>
-            <Ionicons name="search" size={20} color={Colors.secondaryText} />
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
-              style={[styles.searchInput, { color: Colors.primaryText }]}
+              style={styles.searchInput}
               placeholder="Search workers..."
-              placeholderTextColor={Colors.secondaryText}
+              placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery !== '' && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Trade Filter */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+          {/* Trade Filter Pills */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterRow}
+            contentContainerStyle={styles.filterRowContent}
+          >
             {getAvailableTrades().map((trade) => (
               <TouchableOpacity
                 key={trade}
                 style={[
-                  styles.filterChip,
-                  filterTrade === trade && { backgroundColor: Colors.primaryBlue },
-                  { borderColor: Colors.border },
+                  styles.filterPill,
+                  filterTrade === trade && styles.filterPillActive
                 ]}
                 onPress={() => setFilterTrade(trade)}
               >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    filterTrade === trade ? { color: '#FFFFFF' } : { color: Colors.primaryText },
-                  ]}
-                >
+                <Text style={[
+                  styles.filterPillText,
+                  filterTrade === trade && styles.filterPillTextActive
+                ]}>
                   {trade === 'all' ? 'All Trades' : trade}
                 </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
-
-          {/* Selection Summary */}
-          {selectedCount > 0 && (
-            <View style={[styles.selectionSummary, { backgroundColor: Colors.primaryBlue + '10' }]}>
-              <Ionicons name="checkmark-circle" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.selectionText, { color: Colors.primaryBlue }]}>
-                {selectedCount} worker{selectedCount !== 1 ? 's' : ''} selected
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Workers List */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primaryBlue} />
+            <ActivityIndicator size="large" color="#1F2937" />
           </View>
         ) : (
-          <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+          >
             {filteredWorkers.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={64} color={Colors.secondaryText} />
-                <Text style={[styles.emptyStateText, { color: Colors.primaryText }]}>
-                  {allWorkers.length === 0 ? 'No workers available' : 'No workers match your search'}
-                </Text>
-                <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
-                  {allWorkers.length === 0
-                    ? 'Add workers in the Workers screen first'
-                    : 'Try adjusting your search or filter'}
+                <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyStateText}>
+                  {allWorkers.length === 0 ? 'No workers available' : 'No workers found'}
                 </Text>
               </View>
             ) : (
@@ -301,20 +280,17 @@ export default function WorkerAssignmentModal({
                       key={worker.id}
                       style={[
                         styles.workerCard,
-                        { backgroundColor: Colors.white, borderColor: Colors.border },
-                        isSelected && { borderColor: Colors.primaryBlue, borderWidth: 2 },
+                        isSelected && styles.workerCardSelected
                       ]}
                       onPress={() => toggleWorkerSelection(worker.id)}
+                      activeOpacity={0.7}
                     >
-                      {/* Checkbox */}
-                      <View
-                        style={[
-                          styles.checkbox,
-                          { borderColor: Colors.border },
-                          isSelected && { backgroundColor: Colors.primaryBlue, borderColor: Colors.primaryBlue },
-                        ]}
-                      >
-                        {isSelected && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
+                      {/* Checkbox Circle */}
+                      <View style={[
+                        styles.checkbox,
+                        isSelected && styles.checkboxSelected
+                      ]}>
+                        {isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
                       </View>
 
                       {/* Avatar */}
@@ -324,27 +300,28 @@ export default function WorkerAssignmentModal({
 
                       {/* Worker Info */}
                       <View style={styles.workerInfo}>
-                        <Text style={[styles.workerName, { color: Colors.primaryText }]}>{worker.full_name}</Text>
-                        {worker.trade && (
-                          <View style={styles.infoRow}>
-                            <Ionicons name="hammer-outline" size={14} color={Colors.secondaryText} />
-                            <Text style={[styles.workerTrade, { color: Colors.secondaryText }]}>{worker.trade}</Text>
-                          </View>
-                        )}
-                        {worker.hourly_rate > 0 && (
-                          <View style={styles.infoRow}>
-                            <Ionicons name="cash-outline" size={14} color={Colors.secondaryText} />
-                            <Text style={[styles.workerRate, { color: Colors.secondaryText }]}>
-                              ${worker.hourly_rate}/hr
-                            </Text>
-                          </View>
-                        )}
+                        <Text style={styles.workerName}>{worker.full_name}</Text>
+                        <View style={styles.metaRow}>
+                          {worker.trade && (
+                            <>
+                              <Ionicons name="hammer" size={12} color="#6B7280" />
+                              <Text style={styles.metaText}>{worker.trade}</Text>
+                            </>
+                          )}
+                          {worker.hourly_rate > 0 && (
+                            <>
+                              {worker.trade && <Text style={styles.metaDot}>•</Text>}
+                              <Ionicons name="cash" size={12} color="#6B7280" />
+                              <Text style={styles.metaText}>${worker.hourly_rate}/hr</Text>
+                            </>
+                          )}
+                        </View>
                       </View>
 
                       {/* Status Badge */}
-                      <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                        <Text style={[styles.statusText, { color: statusColor }]}>
-                          {worker.status || 'pending'}
+                      <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+                        <Text style={styles.statusBadgeText}>
+                          {worker.status || 'Active'}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -354,6 +331,18 @@ export default function WorkerAssignmentModal({
             )}
           </ScrollView>
         )}
+
+        {/* Floating Action Bar */}
+        {selectedCount > 0 && (
+          <View style={styles.floatingBar}>
+            <View style={styles.floatingBarContent}>
+              <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+              <Text style={styles.floatingBarText}>
+                {selectedCount} selected
+              </Text>
+            </View>
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -362,81 +351,99 @@ export default function WorkerAssignmentModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FAFAFA',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.large,
-    paddingVertical: Spacing.medium,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerButton: {
+    minWidth: 70,
   },
   titleContainer: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: Spacing.medium,
+    paddingHorizontal: 16,
   },
   title: {
-    fontSize: FontSizes.large,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: FontSizes.small,
+    fontSize: 13,
+    color: '#6B7280',
     marginTop: 2,
   },
   cancelText: {
-    fontSize: FontSizes.body,
+    fontSize: 16,
     fontWeight: '600',
+    color: '#1F2937',
   },
   saveText: {
-    fontSize: FontSizes.body,
+    fontSize: 16,
     fontWeight: '600',
+    color: '#1F2937',
+    textAlign: 'right',
   },
-  searchSection: {
-    padding: Spacing.medium,
+  searchContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.medium,
-    paddingVertical: Spacing.small,
-    borderRadius: BorderRadius.medium,
-    gap: 8,
-    marginBottom: Spacing.small,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 10,
+    marginBottom: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: FontSizes.body,
-    paddingVertical: 4,
+    fontSize: 15,
+    color: '#1F2937',
+    paddingVertical: 0,
   },
   filterRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: Spacing.small,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
   },
-  filterChip: {
-    paddingHorizontal: Spacing.medium,
-    paddingVertical: 6,
+  filterRowContent: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  filterPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    marginRight: 8,
+    borderColor: '#E5E7EB',
   },
-  filterChipText: {
-    fontSize: FontSizes.small,
+  filterPillActive: {
+    backgroundColor: '#1F2937',
+    borderColor: '#1F2937',
+  },
+  filterPillText: {
+    fontSize: 13,
     fontWeight: '600',
+    color: '#6B7280',
   },
-  selectionSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: Spacing.medium,
-    paddingVertical: Spacing.small,
-    borderRadius: BorderRadius.medium,
-  },
-  selectionText: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
+  filterPillTextActive: {
+    color: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
@@ -447,58 +454,60 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: Spacing.medium,
+    padding: 20,
+    paddingBottom: 100,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.xlarge * 3,
+    paddingVertical: 80,
   },
   emptyStateText: {
-    fontSize: FontSizes.large,
-    fontWeight: '700',
-    marginTop: Spacing.large,
-    marginBottom: Spacing.small,
-  },
-  emptyStateSubtext: {
-    fontSize: FontSizes.body,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.xlarge,
+    fontSize: 15,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginTop: 12,
   },
   workersList: {
-    gap: Spacing.medium,
+    gap: 12,
   },
   workerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.medium,
-    borderRadius: BorderRadius.large,
-    borderWidth: 1,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
+    padding: 14,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  workerCardSelected: {
+    borderColor: '#1F2937',
+    backgroundColor: '#F9FAFB',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.medium,
+    marginRight: 12,
+  },
+  checkboxSelected: {
+    backgroundColor: '#1F2937',
+    borderColor: '#1F2937',
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.medium,
+    marginRight: 12,
   },
   avatarText: {
-    fontSize: FontSizes.small,
+    fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '700',
   },
@@ -506,30 +515,62 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   workerName: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
     marginBottom: 4,
   },
-  infoRow: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
   },
-  workerTrade: {
-    fontSize: FontSizes.small,
+  metaText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
   },
-  workerRate: {
-    fontSize: FontSizes.small,
+  metaDot: {
+    fontSize: 13,
+    color: '#D1D5DB',
+    marginHorizontal: 4,
   },
   statusBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  statusText: {
+  statusBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#FFFFFF',
     textTransform: 'capitalize',
+  },
+  floatingBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  floatingBarContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  floatingBarText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
   },
 });

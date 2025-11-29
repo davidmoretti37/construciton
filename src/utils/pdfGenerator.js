@@ -15,8 +15,12 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     invoiceNumber,
     client_name,
     clientName,
+    client_contact_person,
+    clientContactPerson,
     client_address,
     clientAddress,
+    client_email,
+    clientEmail,
     project_name,
     projectName,
     items = [],
@@ -41,7 +45,9 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
 
   const invNumber = invoice_number || invoiceNumber || 'INV-DRAFT';
   const client = client_name || clientName || 'Client';
+  const clientContact = client_contact_person || clientContactPerson || '';
   const clientAddr = client_address || clientAddress || '';
+  const clientEmailAddr = client_email || clientEmail || '';
   const project = project_name || projectName || '';
   const taxRateValue = tax_rate || taxRate || 0;
   const taxAmountValue = tax_amount || taxAmount || 0;
@@ -278,13 +284,19 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
 </head>
 <body>
   <div class="invoice-container">
-    <!-- Header: Company Name/Info on Left, INVOICE Title on Right -->
+    <!-- Header: Company Logo/Name on Left, INVOICE Title on Right -->
     <div class="header">
       <div class="company-info">
-        <div class="company-name">${businessInfo?.name || 'YOUR COMPANY NAME'}</div>
+        ${businessInfo?.logoUrl ? `
+          <img src="${businessInfo.logoUrl}" alt="Business Logo" style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 8px;" />
+        ` : `
+          <div class="company-name">${businessInfo?.name || 'YOUR COMPANY NAME'}</div>
+        `}
         <div class="company-details">
-          ${businessInfo?.contactName || businessInfo?.owner || ''}<br>
-          ${businessInfo?.email || ''}
+          ${businessInfo?.logoUrl ? `<strong>${businessInfo?.name || ''}</strong><br>` : ''}
+          ${businessInfo?.contactName || businessInfo?.owner || ''}${(businessInfo?.contactName || businessInfo?.owner) ? '<br>' : ''}
+          ${businessInfo?.email || ''}${businessInfo?.email ? '<br>' : ''}
+          ${businessInfo?.address || ''}
         </div>
       </div>
       <div class="invoice-title">
@@ -301,6 +313,8 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     <div class="info-section">
       <div class="info-content">
         <strong>${client}</strong><br>
+        ${clientContact ? `Attn: ${clientContact}<br>` : ''}
+        ${clientEmailAddr ? `${clientEmailAddr}<br>` : ''}
         ${clientAddr ? `${clientAddr}` : ''}
       </div>
     </div>

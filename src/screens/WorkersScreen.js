@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,14 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  Linking,
+  Dimensions,
 } from 'react-native';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,35 +33,81 @@ import {
   removeWorkerFromProject,
   fetchProjects,
   getTodaysWorkersSchedule,
+  fetchScheduleEvents,
+  fetchWorkSchedules,
+  fetchDailyReports,
+  fetchActiveProjectsForDate,
+  createScheduleEvent,
+  deleteScheduleEvent,
 } from '../utils/storage';
 import WorkerCard from '../components/WorkerCard';
 import WorkerScheduleCard from '../components/WorkerScheduleCard';
+import CustomCalendar from '../components/CustomCalendar';
+import AddPersonalEventModal from '../components/AddPersonalEventModal';
+import NotificationBell from '../components/NotificationBell';
 
 export default function WorkersScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState('schedule'); // 'schedule' | 'reports' | 'workers'
+
   const [loading, setLoading] = useState(true);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [reportsLoading, setReportsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [workers, setWorkers] = useState([]);
   const [filteredWorkers, setFilteredWorkers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all'); // all, active, inactive, pending, rejected
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
+  const [isEditingDetail, setIsEditingDetail] = useState(false);
   const [activeClockIns, setActiveClockIns] = useState({});
-  const [scheduleData, setScheduleData] = useState({
-    unassignedWorkers: [],
-    projectGroups: [],
-    totalWorkers: 0,
-    clockedInCount: 0
+
+  // Schedule tab state
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [scheduleEvents, setScheduleEvents] = useState([]);
+  const [workSchedules, setWorkSchedules] = useState([]);
+  const [activeProjects, setActiveProjects] = useState([]);
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+
+  // Reports tab state
+  const [dailyReports, setDailyReports] = useState([]);
+  const [groupedReports, setGroupedReports] = useState({});
+  // Photo viewer state
+  const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
+  const [viewerPhotos, setViewerPhotos] = useState([]);
+  const [viewerPhotoIndex, setViewerPhotoIndex] = useState(0);
+
+  // Open photo viewer with specific photos and index
+  const openPhotoViewer = useCallback((photos, index) => {
+    setViewerPhotos(photos);
+    setViewerPhotoIndex(index);
+    setPhotoViewerVisible(true);
+  }, []);
+
+  const closePhotoViewer = useCallback(() => {
+    setPhotoViewerVisible(false);
+  }, []);
+  // Initialize to today's date in local timezone (not UTC)
+  const [selectedReportDate, setSelectedReportDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
-  const [filteredSchedule, setFilteredSchedule] = useState({
-    projectGroups: [],
-    clockedInCount: 0
-  });
+  const [reportsGroupedByProject, setReportsGroupedByProject] = useState({});
+
+  // Calendar modal state for date range selection
+  const [showReportsCalendarModal, setShowReportsCalendarModal] = useState(false);
+  const [reportsDateRangeStart, setReportsDateRangeStart] = useState(null);
+  const [reportsDateRangeEnd, setReportsDateRangeEnd] = useState(null);
+  const [showAllReports, setShowAllReports] = useState(false);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -72,27 +125,27 @@ export default function WorkersScreen({ navigation }) {
     loadData();
   }, []);
 
+  // Reload data when screen comes into focus (after editing payment)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Only load if we haven't loaded before
+      if (!hasLoadedOnce) {
+        loadData();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, hasLoadedOnce]);
+
   useEffect(() => {
     filterData();
-  }, [workers, scheduleData, searchQuery, filterStatus]);
-
-  // Auto-refresh schedule every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadSchedule(false);
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [workers, searchQuery]);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
-      // Load both workers and schedule data
-      const [workersData, scheduleDataResult] = await Promise.all([
-        fetchWorkers(),
-        getTodaysWorkersSchedule()
-      ]);
+      // Load workers data
+      const workersData = await fetchWorkers();
 
       // Load active clock-in status for each worker
       const clockIns = {};
@@ -105,7 +158,7 @@ export default function WorkersScreen({ navigation }) {
 
       setActiveClockIns(clockIns);
       setWorkers(workersData);
-      setScheduleData(scheduleDataResult);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -113,41 +166,300 @@ export default function WorkersScreen({ navigation }) {
     }
   };
 
-  const loadSchedule = async (showLoading = true) => {
+  // Load data for Schedule tab
+  const loadScheduleTabData = async () => {
     try {
-      if (showLoading) setLoading(true);
-      const data = await getTodaysWorkersSchedule();
-      setScheduleData(data);
+      setScheduleLoading(true);
+
+      // Get the selected date in local timezone (YYYY-MM-DD format)
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+
+      // Create UTC date range for the full local day
+      const startDate = new Date(selectedDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(selectedDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      const [events, work, projects] = await Promise.all([
+        fetchScheduleEvents(startDate.toISOString(), endDate.toISOString()),
+        fetchWorkSchedules(dateString, dateString),
+        fetchActiveProjectsForDate(dateString)
+      ]);
+
+      setScheduleEvents(events);
+      setWorkSchedules(work);
+      setActiveProjects(projects);
     } catch (error) {
-      console.error('Error loading schedule:', error);
+      console.error('Error loading schedule tab data:', error);
     } finally {
-      if (showLoading) setLoading(false);
-      setRefreshing(false);
+      setScheduleLoading(false);
     }
   };
 
+  // Open address in maps app with choice between Google Maps and Apple Maps
+  const openAddressInMaps = (address) => {
+    if (!address) return;
+
+    const encodedAddress = encodeURIComponent(address);
+
+    // Show action sheet with map options
+    Alert.alert(
+      'Open in Maps',
+      'Choose which map app to use:',
+      [
+        {
+          text: 'Google Maps',
+          onPress: () => {
+            const googleMapsUrl = Platform.select({
+              ios: `comgooglemaps://?q=${encodedAddress}`,
+              android: `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`,
+            });
+
+            Linking.canOpenURL(googleMapsUrl)
+              .then((supported) => {
+                if (supported) {
+                  return Linking.openURL(googleMapsUrl);
+                } else {
+                  // Google Maps not installed, open in browser
+                  const browserUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+                  return Linking.openURL(browserUrl);
+                }
+              })
+              .catch((err) => {
+                console.error('Error opening Google Maps:', err);
+                Alert.alert('Error', 'Could not open Google Maps');
+              });
+          },
+        },
+        {
+          text: 'Apple Maps',
+          onPress: () => {
+            const appleMapsUrl = `maps://maps.apple.com/?address=${encodedAddress}`;
+            Linking.openURL(appleMapsUrl).catch((err) => {
+              console.error('Error opening Apple Maps:', err);
+              Alert.alert('Error', 'Could not open Apple Maps');
+            });
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // Handle saving personal event
+  const handleSaveEvent = async (eventData) => {
+    try {
+      const result = await createScheduleEvent(eventData);
+      if (result) {
+        Alert.alert('Success', 'Personal event added successfully');
+        // Reload schedule data to show the new event
+        loadScheduleTabData();
+      } else {
+        Alert.alert('Error', 'Failed to create event. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving event:', error);
+      Alert.alert('Error', 'Failed to create event. Please try again.');
+    }
+  };
+
+  // Handle deleting personal event
+  const handleDeleteEvent = async (eventId) => {
+    Alert.alert(
+      'Delete Event',
+      'Are you sure you want to delete this event?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const success = await deleteScheduleEvent(eventId);
+              if (success) {
+                Alert.alert('Success', 'Event deleted successfully');
+                // Reload schedule data to remove the deleted event
+                loadScheduleTabData();
+              } else {
+                Alert.alert('Error', 'Failed to delete event. Please try again.');
+              }
+            } catch (error) {
+              console.error('Error deleting event:', error);
+              Alert.alert('Error', 'Failed to delete event. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // Load data for Reports tab - loads reports for selected date, date range, or all
+  const loadReportsTabData = async (options = {}) => {
+    try {
+      setReportsLoading(true);
+
+      let filters = {};
+
+      if (options.showAll) {
+        // No date filters - fetch all reports
+      } else if (options.startDate && options.endDate) {
+        // Date range mode
+        filters.startDate = options.startDate;
+        filters.endDate = options.endDate;
+      } else {
+        // Single day mode (default)
+        const dateToLoad = options.date || selectedReportDate;
+        filters.startDate = dateToLoad;
+        filters.endDate = dateToLoad;
+      }
+
+      const reports = await fetchDailyReports(null, filters);
+
+      // Group reports by project
+      const groupedByProject = {};
+      reports.forEach(report => {
+        const projectId = report.project_id;
+        const projectName = report.projects?.name || 'Unknown Project';
+        if (!groupedByProject[projectId]) {
+          groupedByProject[projectId] = {
+            projectName,
+            reports: []
+          };
+        }
+        groupedByProject[projectId].reports.push(report);
+      });
+
+      setDailyReports(reports);
+      setReportsGroupedByProject(groupedByProject);
+    } catch (error) {
+      console.error('Error loading reports tab data:', error);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  // Handle date change for reports (arrow navigation)
+  const handleReportDateChange = (daysOffset) => {
+    // Reset to single day mode when using arrows
+    setShowAllReports(false);
+    setReportsDateRangeStart(null);
+    setReportsDateRangeEnd(null);
+
+    const currentDate = new Date(selectedReportDate + 'T12:00:00'); // Add noon time to avoid timezone issues
+    currentDate.setDate(currentDate.getDate() + daysOffset);
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    const newDate = `${year}-${month}-${day}`;
+    setSelectedReportDate(newDate);
+    loadReportsTabData({ date: newDate });
+  };
+
+  // Get today's date in local timezone for comparison
+  const getTodayLocalDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Format date for display
+  const formatReportDate = (dateString) => {
+    // Parse the date string as local date (add noon to avoid timezone shifts)
+    const date = new Date(dateString + 'T12:00:00');
+    const todayStr = getTodayLocalDate();
+
+    // Calculate yesterday's date string
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayYear = yesterday.getFullYear();
+    const yesterdayMonth = String(yesterday.getMonth() + 1).padStart(2, '0');
+    const yesterdayDay = String(yesterday.getDate()).padStart(2, '0');
+    const yesterdayStr = `${yesterdayYear}-${yesterdayMonth}-${yesterdayDay}`;
+
+    if (dateString === todayStr) {
+      return 'Today';
+    } else if (dateString === yesterdayStr) {
+      return 'Yesterday';
+    }
+
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  // Get the display title for current reports view mode
+  const getReportsDisplayTitle = () => {
+    if (showAllReports) {
+      return 'All Reports';
+    }
+    if (reportsDateRangeStart && reportsDateRangeEnd && reportsDateRangeStart !== reportsDateRangeEnd) {
+      // Format date range
+      const startDate = new Date(reportsDateRangeStart + 'T12:00:00');
+      const endDate = new Date(reportsDateRangeEnd + 'T12:00:00');
+      const formatShort = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `${formatShort(startDate)} - ${formatShort(endDate)}`;
+    }
+    // Single day mode
+    return formatReportDate(selectedReportDate);
+  };
+
+  // Load data for Workers tab (existing loadData)
+  const loadWorkersTabData = async () => {
+    await loadData();
+  };
+
+  // Load tab-specific data when tab changes
+  useEffect(() => {
+    switch (activeTab) {
+      case 'schedule':
+        loadScheduleTabData();
+        break;
+      case 'reports':
+        loadReportsTabData();
+        break;
+      case 'workers':
+        loadWorkersTabData();
+        break;
+    }
+  }, [activeTab, selectedDate, selectedReportDate]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    switch (activeTab) {
+      case 'schedule':
+        await loadScheduleTabData();
+        break;
+      case 'reports':
+        await loadReportsTabData();
+        break;
+      case 'workers':
+        await loadData();
+        break;
+    }
     setRefreshing(false);
   };
 
   const filterData = () => {
-    // Get IDs of workers currently clocked in
-    const clockedInIds = new Set();
-    scheduleData.projectGroups.forEach(group => {
-      group.workers.forEach(worker => {
-        clockedInIds.add(worker.id);
-      });
-    });
+    // Get IDs of workers currently clocked in (from activeClockIns state)
+    const clockedInIds = new Set(Object.keys(activeClockIns));
 
     // Filter workers for bottom list (exclude clocked-in workers)
     let filtered = workers.filter(w => !clockedInIds.has(w.id));
-
-    // Apply status filter
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(w => w.status === filterStatus);
-    }
 
     // Apply search query to workers
     if (searchQuery.trim()) {
@@ -172,28 +484,6 @@ export default function WorkersScreen({ navigation }) {
     });
 
     setFilteredWorkers(filtered);
-
-    // Filter schedule data (apply search to schedule section too)
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      const filteredGroups = scheduleData.projectGroups.map(group => ({
-        ...group,
-        workers: group.workers.filter(w =>
-          w.full_name?.toLowerCase().includes(query) ||
-          w.trade?.toLowerCase().includes(query)
-        )
-      })).filter(group => group.workers.length > 0);
-
-      setFilteredSchedule({
-        projectGroups: filteredGroups,
-        clockedInCount: filteredGroups.reduce((sum, g) => sum + g.workers.length, 0)
-      });
-    } else {
-      setFilteredSchedule({
-        projectGroups: scheduleData.projectGroups,
-        clockedInCount: scheduleData.clockedInCount
-      });
-    }
   };
 
   const handleAddWorker = async () => {
@@ -299,6 +589,48 @@ export default function WorkersScreen({ navigation }) {
     }
   };
 
+  const handleSaveDetailEdits = async () => {
+    if (!formName.trim()) {
+      Alert.alert('Error', 'Please enter worker name');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const success = await updateWorker(selectedWorker.id, {
+        fullName: formName.trim(),
+        phone: formPhone.trim(),
+        email: formEmail.trim(),
+        trade: formTrade.trim(),
+      });
+
+      if (success) {
+        // Update local state
+        const updatedWorker = {
+          ...selectedWorker,
+          full_name: formName.trim(),
+          phone: formPhone.trim(),
+          email: formEmail.trim(),
+          trade: formTrade.trim(),
+        };
+
+        setWorkers(
+          workers.map(w => (w.id === selectedWorker.id ? updatedWorker : w))
+        );
+        setSelectedWorker(updatedWorker);
+        setIsEditingDetail(false);
+        Alert.alert('Success', 'Worker updated successfully');
+      } else {
+        Alert.alert('Error', 'Failed to update worker');
+      }
+    } catch (error) {
+      console.error('Error updating worker:', error);
+      Alert.alert('Error', 'Failed to update worker');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDeleteWorker = (worker) => {
     Alert.alert('Delete Worker', `Are you sure you want to delete ${worker.full_name}?`, [
       { text: 'Cancel', style: 'cancel' },
@@ -383,74 +715,89 @@ export default function WorkersScreen({ navigation }) {
     return activeClockIns[workerId] !== undefined;
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primaryBlue} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
         <View style={styles.headerTop}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Workers</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+            {activeTab === 'schedule' ? 'Schedule' : activeTab === 'reports' ? 'Reports' : 'Workers'}
+          </Text>
+          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        </View>
+
+        {/* Tab Bar */}
+        <View style={styles.tabBar}>
           <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: Colors.primaryBlue }]}
-            onPress={() => setShowAddModal(true)}
+            style={[styles.tab, activeTab === 'schedule' && styles.activeTab]}
+            onPress={() => setActiveTab('schedule')}
           >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
+            <Ionicons
+              name={activeTab === 'schedule' ? "calendar" : "calendar-outline"}
+              size={20}
+              color={activeTab === 'schedule' ? Colors.primaryBlue : Colors.secondaryText}
+            />
+            <Text style={[
+              styles.tabText,
+              activeTab === 'schedule' && { ...styles.activeTabText, color: Colors.primaryBlue }
+            ]}>
+              Schedule
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'reports' && styles.activeTab]}
+            onPress={() => setActiveTab('reports')}
+          >
+            <Ionicons
+              name={activeTab === 'reports' ? "document-text" : "document-text-outline"}
+              size={20}
+              color={activeTab === 'reports' ? Colors.primaryBlue : Colors.secondaryText}
+            />
+            <Text style={[
+              styles.tabText,
+              activeTab === 'reports' && { ...styles.activeTabText, color: Colors.primaryBlue }
+            ]}>
+              Reports
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'workers' && styles.activeTab]}
+            onPress={() => setActiveTab('workers')}
+          >
+            <Ionicons
+              name={activeTab === 'workers' ? "people" : "people-outline"}
+              size={20}
+              color={activeTab === 'workers' ? Colors.primaryBlue : Colors.secondaryText}
+            />
+            <Text style={[
+              styles.tabText,
+              activeTab === 'workers' && { ...styles.activeTabText, color: Colors.primaryBlue }
+            ]}>
+              Workers
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
-        <View style={[styles.searchBar, { backgroundColor: Colors.lightGray }]}>
-          <Ionicons name="search" size={20} color={Colors.secondaryText} />
-          <TextInput
-            style={[styles.searchInput, { color: Colors.primaryText }]}
-            placeholder="Search workers..."
-            placeholderTextColor={Colors.secondaryText}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery !== '' && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Filter Chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterRow}
-          contentContainerStyle={styles.filterRowContent}
-        >
-          {['all', 'active', 'inactive', 'pending', 'rejected'].map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterChip,
-                filterStatus === filter && { backgroundColor: Colors.primaryBlue },
-              ]}
-              onPress={() => setFilterStatus(filter)}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  filterStatus === filter ? { color: '#FFFFFF' } : { color: Colors.primaryText },
-                ]}
-              >
-                {filter.charAt(0).toUpperCase() + filter.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Search Bar (only for Workers tab) */}
+        {activeTab === 'workers' && (
+          <View style={[styles.searchBar, { backgroundColor: Colors.lightGray }]}>
+            <Ionicons name="search" size={20} color={Colors.secondaryText} />
+            <TextInput
+              style={[styles.searchInput, { color: Colors.primaryText }]}
+              placeholder="Search workers..."
+              placeholderTextColor={Colors.secondaryText}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery !== '' && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -459,40 +806,516 @@ export default function WorkersScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryBlue} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* SCHEDULE TAB */}
+        {activeTab === 'schedule' && (
+          <>
+            {/* Mini Calendar */}
+            <View style={[styles.calendarContainer, { backgroundColor: Colors.white }]}>
+              <View style={styles.calendarHeader}>
+                <Text style={[styles.calendarTitle, { color: Colors.primaryText }]}>
+                  {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </Text>
+              </View>
+              <CustomCalendar
+                onDateSelect={(dateString) => {
+                  // Parse as local date to avoid timezone issues
+                  const [year, month, day] = dateString.split('-').map(Number);
+                  setSelectedDate(new Date(year, month - 1, day));
+                }}
+                selectedStart={selectedDate.toISOString().split('T')[0]}
+                selectedEnd={selectedDate.toISOString().split('T')[0]}
+                theme={{
+                  primaryBlue: Colors.primaryBlue,
+                  primaryText: Colors.primaryText,
+                  white: '#FFFFFF',
+                  border: Colors.border,
+                }}
+              />
+            </View>
+
+            {/* Today's Schedule */}
+            <View style={styles.scheduleSection}>
+              <View style={styles.scheduleSectionHeader}>
+                <Text style={[styles.scheduleSectionTitle, { color: Colors.primaryText }]}>
+                  {selectedDate.toDateString() === new Date().toDateString()
+                    ? "Today's Schedule"
+                    : selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.addEventButton, { backgroundColor: Colors.primaryBlue }]}
+                  onPress={() => setShowAddEventModal(true)}
+                >
+                  <Ionicons name="add" size={18} color="#FFFFFF" />
+                  <Text style={styles.addEventButtonText}>Add Event</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Loading indicator for schedule data */}
+              {scheduleLoading && (
+                <View style={styles.scheduleLoadingContainer}>
+                  <ActivityIndicator size="large" color={Colors.primaryBlue} />
+                </View>
+              )}
+
+              {/* Personal Events - PRIORITY FIRST */}
+              {!scheduleLoading && scheduleEvents.length > 0 && (
+                <View style={styles.scheduleCategory}>
+                  <View style={styles.categoryHeader}>
+                    <Ionicons name="calendar" size={20} color="#10B981" />
+                    <Text style={[styles.categoryTitle, { color: '#10B981' }]}>
+                      Personal
+                    </Text>
+                  </View>
+                  {scheduleEvents.map((event) => (
+                    <View
+                      key={event.id}
+                      style={[
+                        styles.personalEventCard,
+                        { backgroundColor: Colors.white, borderLeftColor: event.color || '#10B981', borderLeftWidth: 4 }
+                      ]}
+                    >
+                      {/* Delete Button */}
+                      <TouchableOpacity
+                        style={styles.deleteEventButton}
+                        onPress={() => handleDeleteEvent(event.id)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+
+                      {/* Time - Large and prominent */}
+                      <View style={styles.personalEventTimeContainer}>
+                        {!event.all_day && (
+                          <Text style={[styles.personalEventTime, { color: Colors.primaryText }]}>
+                            {new Date(event.start_datetime).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit'
+                            })}
+                            {event.end_datetime &&
+                              ` - ${new Date(event.end_datetime).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}`
+                            }
+                          </Text>
+                        )}
+                        {event.all_day && (
+                          <Text style={[styles.personalEventTime, { color: Colors.primaryText }]}>
+                            All Day
+                          </Text>
+                        )}
+                        {event.event_type && (
+                          <View style={[styles.eventTypeBadge, { backgroundColor: Colors.lightGray }]}>
+                            <Text style={[styles.eventTypeBadgeText, { color: Colors.secondaryText }]}>
+                              {event.event_type}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Title */}
+                      <Text style={[styles.personalEventTitle, { color: Colors.primaryText }]}>
+                        {event.title}
+                      </Text>
+
+                      {/* Location - Prominent with icon and tappable */}
+                      {(event.formatted_address || event.address || event.location) && (
+                        <TouchableOpacity
+                          style={styles.personalEventLocationContainer}
+                          onPress={() => openAddressInMaps(event.formatted_address || event.address || event.location)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="location" size={18} color="#3B82F6" />
+                          <Text style={[styles.personalEventLocation, {
+                            color: '#3B82F6',
+                            textDecorationLine: 'underline'
+                          }]}>
+                            {event.formatted_address || event.address || event.location}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={16} color="#3B82F6" style={{ marginLeft: 4 }} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Projects - Jobs happening on this date */}
+              {!scheduleLoading && activeProjects.length > 0 && (
+                <View style={styles.scheduleCategory}>
+                  {activeProjects.map((project) => (
+                    <TouchableOpacity
+                      key={project.id}
+                      style={[styles.projectCard, { backgroundColor: Colors.white }]}
+                      onPress={() => navigation.navigate('Projects', { projectId: project.id })}
+                    >
+                      {/* Project Header */}
+                      <View style={styles.projectCardHeader}>
+                        <Text style={[styles.projectCardTitle, { color: Colors.primaryText }]}>
+                          {project.name}
+                        </Text>
+                        <View
+                          style={[
+                            styles.projectStatusBadge,
+                            {
+                              backgroundColor:
+                                project.status === 'active'
+                                  ? Colors.primaryBlue + '20'
+                                  : project.status === 'completed'
+                                  ? '#10B981' + '20'
+                                  : Colors.secondaryText + '20',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.projectStatusText,
+                              {
+                                color:
+                                  project.status === 'active'
+                                    ? Colors.primaryBlue
+                                    : project.status === 'completed'
+                                    ? '#10B981'
+                                    : Colors.secondaryText,
+                              },
+                            ]}
+                          >
+                            {project.status === 'active'
+                              ? 'Active'
+                              : project.status === 'completed'
+                              ? 'Completed'
+                              : 'Archived'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Project Timeline */}
+                      <View style={styles.projectTimeline}>
+                        <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
+                        <Text style={[styles.projectTimelineText, { color: Colors.secondaryText }]}>
+                          {project.startDate && new Date(project.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {project.endDate && ` - ${new Date(project.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                          {!project.endDate && ' - Ongoing'}
+                        </Text>
+                      </View>
+
+                      {/* Active Phases for this project */}
+                      {project.phases && project.phases.length > 0 && (
+                        <View style={styles.projectPhases}>
+                          <Text style={[styles.projectPhasesLabel, { color: Colors.secondaryText }]}>
+                            Phases:
+                          </Text>
+                          {project.phases.map((phase, index) => (
+                            <View
+                              key={phase.id}
+                              style={[
+                                styles.phaseTag,
+                                {
+                                  backgroundColor:
+                                    phase.status === 'in_progress'
+                                      ? '#10B981' + '20'
+                                      : phase.status === 'completed'
+                                      ? Colors.secondaryText + '20'
+                                      : Colors.lightGray,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.phaseTagText,
+                                  {
+                                    color:
+                                      phase.status === 'in_progress'
+                                        ? '#10B981'
+                                        : phase.status === 'completed'
+                                        ? Colors.secondaryText
+                                        : Colors.secondaryText,
+                                  },
+                                ]}
+                              >
+                                {phase.name}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Project Work Schedules */}
+              {!scheduleLoading && workSchedules.length > 0 && (
+                <View style={styles.scheduleCategory}>
+                  <View style={styles.categoryHeader}>
+                    <Ionicons name="briefcase" size={20} color={Colors.primaryBlue} />
+                    <Text style={[styles.categoryTitle, { color: Colors.primaryBlue }]}>
+                      Project Work
+                    </Text>
+                  </View>
+                  {workSchedules.map((schedule) => (
+                    <View key={schedule.id} style={[styles.scheduleCard, { backgroundColor: Colors.white }]}>
+                      <View style={styles.scheduleCardHeader}>
+                        <View style={styles.scheduleCardTitleRow}>
+                          <Text style={[styles.scheduleCardProject, { color: Colors.primaryText }]}>
+                            {schedule.projects?.name || 'Unknown Project'}
+                          </Text>
+                          {schedule.start_time && (
+                            <Text style={[styles.scheduleCardTime, { color: Colors.secondaryText }]}>
+                              {schedule.start_time.substring(0, 5)}
+                              {schedule.end_time && ` - ${schedule.end_time.substring(0, 5)}`}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={[styles.scheduleCardWorker, { color: Colors.secondaryText }]}>
+                          {schedule.workers?.full_name}
+                          {schedule.workers?.trade && ` • ${schedule.workers.trade}`}
+                        </Text>
+                      </View>
+                      {schedule.project_phases && (
+                        <View style={[styles.scheduleCardPhase, { backgroundColor: Colors.lightGray }]}>
+                          <Ionicons name="layers-outline" size={14} color={Colors.secondaryText} />
+                          <Text style={[styles.scheduleCardPhaseText, { color: Colors.secondaryText }]}>
+                            {schedule.project_phases.name}
+                          </Text>
+                        </View>
+                      )}
+                      {schedule.notes && (
+                        <Text style={[styles.scheduleCardNotes, { color: Colors.secondaryText }]}>
+                          {schedule.notes}
+                        </Text>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Empty State */}
+              {!scheduleLoading && workSchedules.length === 0 && scheduleEvents.length === 0 && activeProjects.length === 0 && (
+                <View style={styles.emptyScheduleState}>
+                  <Ionicons name="calendar-outline" size={64} color={Colors.secondaryText} />
+                  <Text style={[styles.emptyScheduleTitle, { color: Colors.primaryText }]}>
+                    Nothing Scheduled
+                  </Text>
+                  <Text style={[styles.emptyScheduleSubtext, { color: Colors.secondaryText }]}>
+                    No work schedules or events for this day
+                  </Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {/* REPORTS TAB */}
+        {activeTab === 'reports' && (
+          <>
+            {/* Date Header with Navigation */}
+            <View style={styles.reportDateNav}>
+              <TouchableOpacity
+                style={styles.dateNavButton}
+                onPress={() => handleReportDateChange(-1)}
+              >
+                <Ionicons name="chevron-back" size={24} color={Colors.primaryBlue} />
+              </TouchableOpacity>
+              <View style={styles.dateNavCenter}>
+                <Text style={[styles.dateNavTitle, { color: Colors.primaryText }]}>
+                  {getReportsDisplayTitle()}
+                </Text>
+                <Text style={[styles.dateNavSubtitle, { color: Colors.secondaryText }]}>
+                  {dailyReports.length} {dailyReports.length === 1 ? 'report' : 'reports'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.dateNavButton}
+                onPress={() => handleReportDateChange(1)}
+                disabled={!showAllReports && !reportsDateRangeStart && selectedReportDate >= getTodayLocalDate()}
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={24}
+                  color={!showAllReports && !reportsDateRangeStart && selectedReportDate >= getTodayLocalDate() ? Colors.border : Colors.primaryBlue}
+                />
+              </TouchableOpacity>
+              {/* Calendar Icon Button */}
+              <TouchableOpacity
+                style={[styles.dateNavButton, styles.calendarButton]}
+                onPress={() => setShowReportsCalendarModal(true)}
+              >
+                <Ionicons name="calendar" size={22} color={Colors.primaryBlue} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Reports Loading */}
+            {reportsLoading && (
+              <View style={styles.tabLoadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primaryBlue} />
+              </View>
+            )}
+
+            {/* Reports Grouped by Project */}
+            {!reportsLoading && Object.keys(reportsGroupedByProject).length > 0 ? (
+              <View style={styles.reportsContainer}>
+                {Object.entries(reportsGroupedByProject).map(([projectId, projectData]) => (
+                  <View key={projectId} style={styles.projectReportGroup}>
+                    {/* Project Header */}
+                    <View style={[styles.projectReportHeader, { backgroundColor: Colors.primaryBlue + '10' }]}>
+                      <Ionicons name="business" size={18} color={Colors.primaryBlue} />
+                      <Text style={[styles.projectReportName, { color: Colors.primaryBlue }]}>
+                        {projectData.projectName}
+                      </Text>
+                      <View style={[styles.reportCountBadge, { backgroundColor: Colors.primaryBlue + '20' }]}>
+                        <Text style={[styles.reportCountText, { color: Colors.primaryBlue }]}>
+                          {projectData.reports.length}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Reports for this project */}
+                    {projectData.reports.map((report) => (
+                      <View key={report.id} style={[styles.reportCard, { backgroundColor: Colors.white }]}>
+                        {/* Worker Header */}
+                        <View style={styles.reportCardHeader}>
+                          <View style={[styles.workerAvatarSmall, { backgroundColor: Colors.primaryBlue }]}>
+                            <Text style={styles.workerAvatarSmallText}>
+                              {report.workers?.full_name
+                                ?.split(' ')
+                                .map(n => n[0])
+                                .join('')
+                                .toUpperCase() || (report.reporter_type === 'owner' ? 'O' : '?')}
+                            </Text>
+                          </View>
+                          <View style={styles.reportCardHeaderInfo}>
+                            <View style={styles.reportWorkerRow}>
+                              <Text style={[styles.reportWorkerName, { color: Colors.primaryText }]}>
+                                {report.reporter_type === 'owner' ? 'Owner' : (report.workers?.full_name || 'Unknown Worker')}
+                              </Text>
+                              {report.reporter_type === 'owner' && (
+                                <View style={[styles.ownerBadgeSmall, { backgroundColor: '#10B981' + '20' }]}>
+                                  <Text style={[styles.ownerBadgeSmallText, { color: '#10B981' }]}>Owner</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={[styles.reportProjectName, { color: Colors.secondaryText }]}>
+                              {report.project_phases?.name || 'General'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Photos Grid */}
+                        {report.photos && report.photos.length > 0 && (
+                          <View style={styles.photosGrid}>
+                            {report.photos.slice(0, 4).map((photoUrl, index) => (
+                              <TouchableOpacity
+                                key={index}
+                                style={styles.photoThumbnail}
+                                onPress={() => openPhotoViewer(report.photos, index)}
+                                activeOpacity={0.7}
+                              >
+                                <Image
+                                  source={{ uri: photoUrl }}
+                                  style={styles.photoImage}
+                                  resizeMode="cover"
+                                />
+                                {index === 3 && report.photos.length > 4 && (
+                                  <View style={[styles.morePhotosOverlay, { backgroundColor: Colors.primaryBlue + '90' }]}>
+                                    <Text style={styles.morePhotosText}>+{report.photos.length - 4}</Text>
+                                  </View>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Notes */}
+                        {report.notes && (
+                          <View style={styles.reportNotes}>
+                            <Ionicons name="document-text-outline" size={16} color={Colors.secondaryText} />
+                            <Text style={[styles.reportNotesText, { color: Colors.primaryText }]}>
+                              {report.notes}
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Completed Steps */}
+                        {report.completed_steps && report.completed_steps.length > 0 && (
+                          <View style={styles.completedSteps}>
+                            <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                            <Text style={[styles.completedStepsText, { color: '#10B981' }]}>
+                              {report.completed_steps.length} task{report.completed_steps.length !== 1 ? 's' : ''} completed
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Footer - Time */}
+                        <View style={styles.reportFooter}>
+                          <Ionicons name="time-outline" size={14} color={Colors.secondaryText} />
+                          <Text style={[styles.reportTime, { color: Colors.secondaryText }]}>
+                            Submitted at {new Date(report.created_at).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit'
+                            })}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            ) : !reportsLoading ? (
+              <View style={styles.emptyReportsState}>
+                <Ionicons name="document-text-outline" size={64} color={Colors.secondaryText} />
+                <Text style={[styles.emptyReportsTitle, { color: Colors.primaryText }]}>
+                  No Reports for {formatReportDate(selectedReportDate)}
+                </Text>
+                <Text style={[styles.emptyReportsSubtext, { color: Colors.secondaryText }]}>
+                  Use the arrows to view reports from other days
+                </Text>
+              </View>
+            ) : null}
+          </>
+        )}
+
+        {/* WORKERS TAB */}
+        {activeTab === 'workers' && (
+          <>
+        {/* Workers Loading */}
+        {loading && (
+          <View style={styles.tabLoadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primaryBlue} />
+          </View>
+        )}
+
         {/* SCHEDULE SECTION - Clocked In Workers */}
-        {filteredSchedule.clockedInCount === 0 ? (
+        {!loading && Object.keys(activeClockIns).length === 0 ? (
           <View style={styles.emptySchedule}>
             <Ionicons name="time-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyScheduleText, { color: Colors.secondaryText }]}>
               No one is working so far
             </Text>
           </View>
-        ) : (
-          <>
-            {filteredSchedule.projectGroups.map((group) => (
-              <View key={group.projectId} style={styles.section}>
-                <View style={[styles.sectionHeader, { backgroundColor: Colors.primaryBlue + '15' }]}>
-                  <Ionicons name="briefcase" size={20} color={Colors.primaryBlue} />
-                  <Text style={[styles.sectionTitle, { color: Colors.primaryBlue }]}>
-                    {group.projectName} ({group.workers.length})
-                  </Text>
-                </View>
-                <View style={styles.workersList}>
-                  {group.workers.map((worker) => (
-                    <WorkerScheduleCard
-                      key={worker.id}
-                      worker={worker}
-                      onPress={() => navigation.navigate('WorkerDetailHistory', { worker })}
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
-          </>
-        )}
+        ) : !loading && Object.keys(activeClockIns).length > 0 ? (
+          <View style={styles.section}>
+            <View style={[styles.sectionHeader, { backgroundColor: Colors.primaryBlue + '15' }]}>
+              <Ionicons name="time" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryBlue }]}>
+                Currently Working ({Object.keys(activeClockIns).length})
+              </Text>
+            </View>
+            <View style={styles.workersList}>
+              {workers.filter(w => activeClockIns[w.id]).map((worker) => (
+                <WorkerScheduleCard
+                  key={worker.id}
+                  worker={worker}
+                  onPress={() => navigation.navigate('WorkerDetailHistory', { worker })}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
 
         {/* DIVIDER */}
-        {workers.length > 0 && (
+        {!loading && workers.length > 0 && (
           <View style={styles.divider}>
             <View style={[styles.dividerLine, { backgroundColor: Colors.border }]} />
             <Text style={[styles.dividerText, { color: Colors.secondaryText }]}>ALL WORKERS</Text>
@@ -500,8 +1323,8 @@ export default function WorkersScreen({ navigation }) {
           </View>
         )}
 
-        {/* WORKERS LIST SECTION */}
-        {filteredWorkers.length === 0 && workers.length === 0 ? (
+        {/* WORKERS LIST SECTION - Empty State */}
+        {!loading && filteredWorkers.length === 0 && workers.length === 0 && (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconCircle, { backgroundColor: Colors.lightGray }]}>
               <Ionicons name="people-outline" size={64} color={Colors.secondaryText} />
@@ -524,7 +1347,10 @@ export default function WorkersScreen({ navigation }) {
               </TouchableOpacity>
             )}
           </View>
-        ) : (
+        )}
+
+        {/* WORKERS LIST SECTION - With Workers */}
+        {!loading && (filteredWorkers.length > 0 || workers.length > 0) && (
           <>
             {/* Stats Cards */}
             <View style={styles.statsRow}>
@@ -566,7 +1392,32 @@ export default function WorkersScreen({ navigation }) {
             </View>
           </>
         )}
+        {/* End Workers Tab */}
+        </>
+        )}
       </ScrollView>
+
+      {/* FAB Button for Owner to create daily report - Fixed position outside ScrollView */}
+      {activeTab === 'reports' && (
+        <TouchableOpacity
+          style={styles.reportsFab}
+          onPress={() => navigation.navigate('DailyReportForm', { isOwner: true })}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
+
+      {/* FAB Button for Workers tab - Add new worker */}
+      {activeTab === 'workers' && (
+        <TouchableOpacity
+          style={styles.workersFab}
+          onPress={() => setShowAddModal(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
 
       {/* Add Worker Modal */}
       <Modal
@@ -603,7 +1454,16 @@ export default function WorkersScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={100}
+          >
+            <ScrollView
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {/* Personal Information Section */}
             <View style={[styles.formCard, { backgroundColor: Colors.white }]}>
               <View style={styles.formCardHeader}>
@@ -851,7 +1711,8 @@ export default function WorkersScreen({ navigation }) {
                 </View>
               )}
             </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -890,7 +1751,16 @@ export default function WorkersScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={100}
+          >
+            <ScrollView
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {/* Personal Information Section */}
             <View style={[styles.formCard, { backgroundColor: Colors.white }]}>
               <View style={styles.formCardHeader}>
@@ -1138,7 +2008,8 @@ export default function WorkersScreen({ navigation }) {
                 </View>
               )}
             </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -1152,15 +2023,36 @@ export default function WorkersScreen({ navigation }) {
         >
           <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
             <View style={[styles.modalHeader, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-              <TouchableOpacity onPress={() => setShowDetailModal(false)}>
-                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>Close</Text>
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Worker Details</Text>
               <TouchableOpacity onPress={() => {
                 setShowDetailModal(false);
-                openEditModal(selectedWorker);
+                setIsEditingDetail(false);
               }}>
-                <Ionicons name="create-outline" size={24} color={Colors.primaryBlue} />
+                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>
+                  {isEditingDetail ? 'Cancel' : 'Close'}
+                </Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Worker Details</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (isEditingDetail) {
+                    handleSaveDetailEdits();
+                  } else {
+                    setIsEditingDetail(true);
+                    setFormName(selectedWorker.full_name || '');
+                    setFormPhone(selectedWorker.phone || '');
+                    setFormEmail(selectedWorker.email || '');
+                    setFormTrade(selectedWorker.trade || '');
+                  }
+                }}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                ) : (
+                  <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>
+                    {isEditingDetail ? 'Save' : 'Edit'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -1185,39 +2077,72 @@ export default function WorkersScreen({ navigation }) {
               <View style={styles.detailsContainer}>
                 {/* Info Grid */}
                 <View style={styles.infoGrid}>
-                  {selectedWorker.email && (
+                  {(isEditingDetail || selectedWorker.email) && (
                     <View style={[styles.gridItem, { backgroundColor: Colors.white }]}>
                       <View style={[styles.gridIconBg, { backgroundColor: '#10B981' }]}>
                         <Ionicons name="mail" size={18} color="#FFFFFF" />
                       </View>
                       <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>EMAIL</Text>
-                      <Text style={[styles.gridValue, { color: Colors.primaryText }]} numberOfLines={1}>
-                        {selectedWorker.email}
-                      </Text>
+                      {isEditingDetail ? (
+                        <TextInput
+                          style={[styles.gridInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                          value={formEmail}
+                          onChangeText={setFormEmail}
+                          placeholder="worker@example.com"
+                          placeholderTextColor={Colors.secondaryText}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                      ) : (
+                        <Text style={[styles.gridValue, { color: Colors.primaryText }]} numberOfLines={1}>
+                          {selectedWorker.email}
+                        </Text>
+                      )}
                     </View>
                   )}
 
-                  {selectedWorker.phone && (
+                  {(isEditingDetail || selectedWorker.phone) && (
                     <View style={[styles.gridItem, { backgroundColor: Colors.white }]}>
                       <View style={[styles.gridIconBg, { backgroundColor: '#3B82F6' }]}>
                         <Ionicons name="call" size={18} color="#FFFFFF" />
                       </View>
                       <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>PHONE</Text>
-                      <Text style={[styles.gridValue, { color: Colors.primaryText }]}>
-                        {selectedWorker.phone}
-                      </Text>
+                      {isEditingDetail ? (
+                        <TextInput
+                          style={[styles.gridInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                          value={formPhone}
+                          onChangeText={setFormPhone}
+                          placeholder="(555) 123-4567"
+                          placeholderTextColor={Colors.secondaryText}
+                          keyboardType="phone-pad"
+                        />
+                      ) : (
+                        <Text style={[styles.gridValue, { color: Colors.primaryText }]}>
+                          {selectedWorker.phone}
+                        </Text>
+                      )}
                     </View>
                   )}
 
-                  {selectedWorker.trade && (
+                  {(isEditingDetail || selectedWorker.trade) && (
                     <View style={[styles.gridItem, { backgroundColor: Colors.white }]}>
                       <View style={[styles.gridIconBg, { backgroundColor: '#F59E0B' }]}>
                         <Ionicons name="hammer" size={18} color="#FFFFFF" />
                       </View>
                       <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>TRADE</Text>
-                      <Text style={[styles.gridValue, { color: Colors.primaryText }]}>
-                        {selectedWorker.trade}
-                      </Text>
+                      {isEditingDetail ? (
+                        <TextInput
+                          style={[styles.gridInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                          value={formTrade}
+                          onChangeText={setFormTrade}
+                          placeholder="Carpenter, Electrician, etc."
+                          placeholderTextColor={Colors.secondaryText}
+                        />
+                      ) : (
+                        <Text style={[styles.gridValue, { color: Colors.primaryText }]}>
+                          {selectedWorker.trade}
+                        </Text>
+                      )}
                     </View>
                   )}
                 </View>
@@ -1226,8 +2151,19 @@ export default function WorkersScreen({ navigation }) {
                 {(selectedWorker.hourly_rate > 0 || selectedWorker.daily_rate > 0 || selectedWorker.weekly_salary > 0 || selectedWorker.project_rate > 0) && (
                   <View style={[styles.paymentCard, { backgroundColor: Colors.white }]}>
                     <View style={styles.paymentHeader}>
-                      <Ionicons name="cash" size={22} color="#6B7280" />
-                      <Text style={[styles.paymentHeaderText, { color: Colors.primaryText }]}>Payment Information</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                        <Ionicons name="cash" size={22} color="#6B7280" />
+                        <Text style={[styles.paymentHeaderText, { color: Colors.primaryText }]}>Payment Information</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedWorker(null);
+                          navigation.navigate('EditWorkerPayment', { worker: selectedWorker });
+                        }}
+                        style={styles.editPaymentButton}
+                      >
+                        <Ionicons name="pencil" size={18} color={Colors.primaryBlue} />
+                      </TouchableOpacity>
                     </View>
                     <View style={styles.paymentBody}>
                       <View style={[styles.paymentTypeBadge, { backgroundColor: '#F3F4F6' }]}>
@@ -1271,6 +2207,18 @@ export default function WorkersScreen({ navigation }) {
                   </View>
                 )}
 
+                {/* View Payment History Button */}
+                <TouchableOpacity
+                  style={[styles.viewHistoryButton, { backgroundColor: Colors.primaryBlue }]}
+                  onPress={() => {
+                    setSelectedWorker(null);
+                    navigation.navigate('WorkerDetailHistory', { worker: selectedWorker });
+                  }}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.viewHistoryButtonText}>View Payment History</Text>
+                </TouchableOpacity>
+
                 {/* Delete Button */}
                 <TouchableOpacity
                   style={[styles.deleteButton, { backgroundColor: Colors.white }]}
@@ -1284,6 +2232,216 @@ export default function WorkersScreen({ navigation }) {
           </SafeAreaView>
         </Modal>
       )}
+
+      {/* Add Personal Event Modal */}
+      <AddPersonalEventModal
+        visible={showAddEventModal}
+        onClose={() => setShowAddEventModal(false)}
+        onSave={handleSaveEvent}
+        initialDate={selectedDate}
+      />
+
+      {/* Full Screen Photo Viewer Modal */}
+      {photoViewerVisible && (
+        <Modal
+          visible={photoViewerVisible}
+          transparent={false}
+          animationType="fade"
+          onRequestClose={closePhotoViewer}
+        >
+          <View style={{ flex: 1, backgroundColor: '#000' }}>
+            {/* Close Button */}
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 50, right: 20, zIndex: 100, padding: 10 }}
+              onPress={closePhotoViewer}
+            >
+              <Ionicons name="close" size={32} color="#fff" />
+            </TouchableOpacity>
+
+            {/* Photo Counter */}
+            <View style={{ position: 'absolute', top: 55, left: 20, zIndex: 100 }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+                {viewerPhotoIndex + 1} / {viewerPhotos.length}
+              </Text>
+            </View>
+
+            {/* Main Image Container */}
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              {/* Loading Spinner - shows behind the image */}
+              <ActivityIndicator
+                size="large"
+                color="#fff"
+                style={{ position: 'absolute' }}
+              />
+              {viewerPhotos.length > 0 && viewerPhotos[viewerPhotoIndex] && (
+                <Image
+                  key={`photo-${viewerPhotoIndex}`}
+                  source={{ uri: viewerPhotos[viewerPhotoIndex] }}
+                  style={{ width: screenWidth, height: screenHeight * 0.7 }}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+
+            {/* Left Arrow */}
+            {viewerPhotos.length > 1 && viewerPhotoIndex > 0 && (
+              <TouchableOpacity
+                style={{
+                  position: 'absolute',
+                  left: 15,
+                  top: '50%',
+                  marginTop: -30,
+                  padding: 15,
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                  borderRadius: 30,
+                  zIndex: 100,
+                }}
+                onPress={() => setViewerPhotoIndex(prev => prev - 1)}
+              >
+                <Ionicons name="chevron-back" size={30} color="#fff" />
+              </TouchableOpacity>
+            )}
+
+            {/* Right Arrow */}
+            {viewerPhotos.length > 1 && viewerPhotoIndex < viewerPhotos.length - 1 && (
+              <TouchableOpacity
+                style={{
+                  position: 'absolute',
+                  right: 15,
+                  top: '50%',
+                  marginTop: -30,
+                  padding: 15,
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                  borderRadius: 30,
+                  zIndex: 100,
+                }}
+                onPress={() => setViewerPhotoIndex(prev => prev + 1)}
+              >
+                <Ionicons name="chevron-forward" size={30} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </Modal>
+      )}
+
+      {/* Reports Calendar Modal */}
+      <Modal
+        visible={showReportsCalendarModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowReportsCalendarModal(false)}
+      >
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
+          {/* Modal Header */}
+          <View style={[styles.calendarModalHeader, { borderBottomColor: Colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowReportsCalendarModal(false)}
+              style={styles.calendarModalClose}
+            >
+              <Ionicons name="close" size={24} color={Colors.primaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.calendarModalTitle, { color: Colors.primaryText }]}>
+              Select Date
+            </Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* All Reports Button */}
+          <TouchableOpacity
+            style={[
+              styles.allReportsButton,
+              { backgroundColor: showAllReports ? Colors.primaryBlue : Colors.lightGray }
+            ]}
+            onPress={() => {
+              setShowAllReports(true);
+              setReportsDateRangeStart(null);
+              setReportsDateRangeEnd(null);
+              loadReportsTabData({ showAll: true });
+              setShowReportsCalendarModal(false);
+            }}
+          >
+            <Ionicons
+              name="list"
+              size={20}
+              color={showAllReports ? '#FFFFFF' : Colors.primaryText}
+            />
+            <Text style={[
+              styles.allReportsButtonText,
+              { color: showAllReports ? '#FFFFFF' : Colors.primaryText }
+            ]}>
+              All Reports
+            </Text>
+          </TouchableOpacity>
+
+          {/* Calendar */}
+          <View style={styles.calendarModalContent}>
+            <Text style={[styles.calendarHint, { color: Colors.secondaryText }]}>
+              Tap a date or select two dates for a range
+            </Text>
+            <CustomCalendar
+              onDateSelect={(dateString) => {
+                if (!reportsDateRangeStart || (reportsDateRangeStart && reportsDateRangeEnd)) {
+                  // Start new selection
+                  setReportsDateRangeStart(dateString);
+                  setReportsDateRangeEnd(null);
+                  setShowAllReports(false);
+                } else {
+                  // Complete range selection
+                  if (dateString < reportsDateRangeStart) {
+                    setReportsDateRangeEnd(reportsDateRangeStart);
+                    setReportsDateRangeStart(dateString);
+                  } else {
+                    setReportsDateRangeEnd(dateString);
+                  }
+                }
+              }}
+              selectedStart={reportsDateRangeStart}
+              selectedEnd={reportsDateRangeEnd}
+              theme={{
+                primaryBlue: Colors.primaryBlue,
+                primaryText: Colors.primaryText,
+                white: '#FFFFFF',
+                border: Colors.border,
+              }}
+            />
+          </View>
+
+          {/* Apply Button */}
+          <View style={styles.calendarModalFooter}>
+            <TouchableOpacity
+              style={[styles.applyButton, { backgroundColor: Colors.primaryBlue }]}
+              onPress={() => {
+                if (reportsDateRangeStart) {
+                  const endDate = reportsDateRangeEnd || reportsDateRangeStart;
+                  if (reportsDateRangeStart === endDate) {
+                    // Single date selected
+                    setSelectedReportDate(reportsDateRangeStart);
+                    setReportsDateRangeStart(null);
+                    setReportsDateRangeEnd(null);
+                    setShowAllReports(false);
+                    loadReportsTabData({ date: reportsDateRangeStart });
+                  } else {
+                    // Date range selected
+                    setShowAllReports(false);
+                    loadReportsTabData({ startDate: reportsDateRangeStart, endDate: endDate });
+                    setReportsDateRangeEnd(endDate);
+                  }
+                }
+                setShowReportsCalendarModal(false);
+              }}
+              disabled={!reportsDateRangeStart && !showAllReports}
+            >
+              <Text style={styles.applyButtonText}>
+                {reportsDateRangeStart && reportsDateRangeEnd && reportsDateRangeStart !== reportsDateRangeEnd
+                  ? 'Apply Range'
+                  : reportsDateRangeStart
+                    ? 'Select Date'
+                    : 'Select a Date'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1326,6 +2484,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#3B82F6',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  activeTabText: {
+    fontWeight: '600',
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1339,6 +2524,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.body,
     paddingVertical: 0,
+  },
+  tabContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  placeholderText: {
+    fontSize: 16,
+    textAlign: 'center',
   },
   filterRow: {
     marginHorizontal: -Spacing.large,
@@ -1619,6 +2814,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  gridInput: {
+    fontSize: 15,
+    fontWeight: '600',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 4,
+    backgroundColor: '#F9FAFB',
+  },
   paymentCard: {
     borderRadius: 12,
     padding: 20,
@@ -1629,12 +2834,17 @@ const styles = StyleSheet.create({
   paymentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   paymentHeaderText: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  editPaymentButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
   },
   paymentBody: {
     alignItems: 'center',
@@ -1715,6 +2925,20 @@ const styles = StyleSheet.create({
   },
   detailRowText: {
     fontSize: FontSizes.body,
+  },
+  viewHistoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  viewHistoryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   deleteButton: {
     flexDirection: 'row',
@@ -1842,5 +3066,657 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  noOneWorkingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginHorizontal: 4,
+  },
+  noOneWorkingText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  // Schedule Tab Styles
+  calendarContainer: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  calendarHeader: {
+    marginBottom: 16,
+  },
+  calendarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  scheduleSection: {
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  scheduleSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  scheduleSectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    flex: 1,
+  },
+  addEventButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  addEventButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  scheduleLoadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabLoadingContainer: {
+    flex: 1,
+    paddingVertical: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleCategory: {
+    marginBottom: 24,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  scheduleCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  scheduleCardHeader: {
+    gap: 8,
+  },
+  scheduleCardTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  scheduleCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  scheduleCardProject: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  scheduleCardTime: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  scheduleCardWorker: {
+    fontSize: 14,
+  },
+  scheduleCardPhase: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  scheduleCardPhaseText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  scheduleCardNotes: {
+    fontSize: 14,
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  scheduleCardLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
+  scheduleCardLocationText: {
+    fontSize: 14,
+  },
+  emptyScheduleState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyScheduleTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  emptyScheduleSubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  // Personal Event Card Styles (Enhanced)
+  personalEventCard: {
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    gap: 12,
+    position: 'relative',
+  },
+  deleteEventButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  personalEventTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  personalEventTime: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  eventTypeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  eventTypeBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  personalEventTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    lineHeight: 24,
+  },
+  personalEventLocationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  personalEventLocation: {
+    fontSize: 16,
+    fontWeight: '500',
+    flex: 1,
+  },
+  personalEventDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  // Active Projects Card Styles
+  projectCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    gap: 12,
+  },
+  projectCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  projectCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 12,
+  },
+  projectStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  projectStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  projectTimeline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  projectTimelineText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  projectPhases: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  projectPhasesLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  phaseTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  phaseTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // Reports Tab Styles
+  reportDateNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    marginBottom: 8,
+  },
+  dateNavButton: {
+    padding: 8,
+  },
+  calendarButton: {
+    marginLeft: 8,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 8,
+  },
+  dateNavCenter: {
+    alignItems: 'center',
+  },
+  dateNavTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  dateNavSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  projectReportGroup: {
+    marginBottom: 20,
+  },
+  projectReportHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    gap: 8,
+  },
+  projectReportName: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  reportWorkerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ownerBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  ownerBadgeSmallText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  reportsFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  workersFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  reportsHeader: {
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  reportsHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  reportsDateRange: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dateGroup: {
+    marginBottom: 24,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  dateHeaderText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  reportsBadge: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  reportsBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  reportCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  reportCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  workerAvatarSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  workerAvatarSmallText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  reportCardHeaderInfo: {
+    flex: 1,
+  },
+  reportWorkerName: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  reportProjectName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  photosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoThumbnail: {
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  morePhotosOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  morePhotosText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  reportNotes: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  reportNotesText: {
+    fontSize: 14,
+    lineHeight: 20,
+    flex: 1,
+  },
+  completedSteps: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 8,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  completedStepsText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  reportFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginTop: 8,
+  },
+  reportTimestamp: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  emptyReportsState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyReportsText: {
+    fontSize: 15,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  // Photo Viewer Styles
+  photoViewerContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoViewerCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  photoViewerCounter: {
+    position: 'absolute',
+    top: 55,
+    left: 20,
+    zIndex: 10,
+  },
+  photoViewerCounterText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  photoViewerImage: {
+    width: screenWidth,
+    height: screenHeight * 0.75,
+  },
+  photoViewerNavLeft: {
+    position: 'absolute',
+    left: 15,
+    top: screenHeight / 2 - 30,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 30,
+    zIndex: 10,
+  },
+  photoViewerNavRight: {
+    position: 'absolute',
+    right: 15,
+    top: screenHeight / 2 - 30,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 30,
+    zIndex: 10,
+  },
+  // Calendar Modal Styles
+  calendarModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  calendarModalClose: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  calendarModalContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  calendarHint: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  allReportsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  allReportsButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  calendarModalFooter: {
+    padding: 16,
+    paddingBottom: 24,
+  },
+  applyButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

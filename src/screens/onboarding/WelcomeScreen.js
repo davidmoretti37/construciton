@@ -10,7 +10,7 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
   const Colors = getColors(isDark);
 
   const handleContinue = () => {
-    navigation.navigate('TradeSelection');
+    navigation.navigate('ServiceSelection'); // NEW: Use AI-powered service selection
   };
 
   const handleGoBack = () => {
@@ -41,12 +41,12 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
         {/* Welcome Text */}
         <View style={styles.textContainer}>
           <AnimatedText
-            text="Welcome to Construction Manager"
+            text="Welcome to Your Service Platform"
             delay={40}
             textStyle={[styles.title, { color: Colors.primaryText }]}
           />
           <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-            Let's set up your business so you can start sending estimates instantly
+            Let's set up your service business so you can start sending estimates instantly
           </Text>
         </View>
 

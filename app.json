@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "construction-manager",
-    "slug": "construction-manager",
+    "slug": "consrcutionapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -36,7 +36,14 @@
     },
     "plugins": [
       "expo-web-browser",
-      "expo-mail-composer"
-    ]
+      "expo-mail-composer",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d77d2431-4ce6-4ed4-b447-acdc3e6d8f1c"
+      }
+    },
+    "owner": "davidmoretti"
   }
 }

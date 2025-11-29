@@ -4,6 +4,14 @@ import MoreScreen from '../screens/MoreScreen';
 import EditBusinessInfoScreen from '../screens/settings/EditBusinessInfoScreen';
 import EditPhasesScreen from '../screens/settings/EditPhasesScreen';
 import EditPricingScreen from '../screens/settings/EditPricingScreen';
+import EditProfitMarginScreen from '../screens/settings/EditProfitMarginScreen';
+import EditServiceScreen from '../screens/settings/EditServiceScreen';
+import EditInvoiceSetupScreen from '../screens/settings/EditInvoiceSetupScreen';
+import AddServiceScreen from '../screens/settings/AddServiceScreen';
+import AddServicePhasesScreen from '../screens/settings/AddServicePhasesScreen';
+import AddServicePricingScreen from '../screens/settings/AddServicePricingScreen';
+import GeneralContractorSetupScreen from '../screens/settings/GeneralContractorSetupScreen';
+import ManageSubcontractorsScreen from '../screens/settings/ManageSubcontractorsScreen';
 import ChangeLanguageScreen from '../screens/settings/ChangeLanguageScreen';
 import TwilioSetupScreen from '../screens/settings/TwilioSetupScreen';
 import PicturesScreen from '../screens/media/PicturesScreen';
@@ -59,12 +67,44 @@ export default function SettingsNavigator() {
         component={EditPricingScreen}
       />
       <Stack.Screen
+        name="EditProfitMargin"
+        component={EditProfitMarginScreen}
+      />
+      <Stack.Screen
+        name="AddService"
+        component={AddServiceScreen}
+      />
+      <Stack.Screen
+        name="AddServicePhases"
+        component={AddServicePhasesScreen}
+      />
+      <Stack.Screen
+        name="AddServicePricing"
+        component={AddServicePricingScreen}
+      />
+      <Stack.Screen
+        name="GeneralContractorSetup"
+        component={GeneralContractorSetupScreen}
+      />
+      <Stack.Screen
+        name="ManageSubcontractors"
+        component={ManageSubcontractorsScreen}
+      />
+      <Stack.Screen
         name="ChangeLanguage"
         component={ChangeLanguageScreen}
       />
       <Stack.Screen
         name="TwilioSetup"
         component={TwilioSetupScreen}
+      />
+      <Stack.Screen
+        name="EditService"
+        component={EditServiceScreen}
+      />
+      <Stack.Screen
+        name="EditInvoiceSetup"
+        component={EditInvoiceSetupScreen}
       />
     </Stack.Navigator>
   );

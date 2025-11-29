@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -21,10 +21,22 @@ export default function InvoicePreview({ data, onAction }) {
     amountDue,
     status = 'unpaid',
     businessName,
+    businessLogo,
     pdfUrl,
+    // New fields for partial payment invoices
+    contractTotal,
+    paymentType,
+    paymentPercentage,
+    previousPayments = 0,
+    remainingBalance,
   } = data;
 
+  // For partial payment invoices, use amountDue; otherwise calculate from total - paid
   const actualAmountDue = amountDue !== undefined ? amountDue : (total - amountPaid);
+
+  // Check if this is a partial payment invoice
+  const isPartialPayment = paymentType && paymentType !== 'final' && paymentPercentage && paymentPercentage < 100;
+  const displayContractTotal = contractTotal || total;
 
   const getStatusColor = () => {
     switch (status) {
@@ -81,10 +93,14 @@ export default function InvoicePreview({ data, onAction }) {
     <View style={[styles.container, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <View>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
-            🧾 INVOICE
-          </Text>
+        <View style={styles.headerLeft}>
+          {businessLogo ? (
+            <Image source={{ uri: businessLogo }} style={styles.businessLogo} resizeMode="contain" />
+          ) : (
+            <Text style={[styles.title, { color: Colors.primaryText }]}>
+              🧾 INVOICE
+            </Text>
+          )}
           <Text style={[styles.invoiceNumber, { color: Colors.primaryBlue }]}>
             {invoiceNumber || 'INV-XXXX'}
           </Text>
@@ -150,23 +166,66 @@ export default function InvoicePreview({ data, onAction }) {
 
       {/* Payment Summary */}
       <View style={styles.paymentSummary}>
-        <View style={styles.summaryRow}>
-          <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Subtotal:</Text>
-          <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
-            ${subtotal.toFixed(2)}
-          </Text>
-        </View>
+        {/* Show contract total for partial payments */}
+        {isPartialPayment && (
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Contract Total:</Text>
+            <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
+              ${displayContractTotal.toFixed(2)}
+            </Text>
+          </View>
+        )}
+
+        {/* Show previous payments if any */}
+        {previousPayments > 0 && (
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { color: '#22C55E' }]}>
+              Previous Payments:
+            </Text>
+            <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
+              -${previousPayments.toFixed(2)}
+            </Text>
+          </View>
+        )}
+
+        {/* Show this invoice amount for partial payments */}
+        {isPartialPayment && (
+          <View style={[styles.summaryRow, { marginTop: Spacing.sm }]}>
+            <Text style={[styles.summaryLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
+              This Invoice ({paymentPercentage}% {paymentType === 'down_payment' ? 'Down Payment' : paymentType === 'progress' ? 'Progress Payment' : 'Payment'}):
+            </Text>
+            <Text style={[styles.summaryValue, { color: Colors.primaryText, fontWeight: '600' }]}>
+              ${actualAmountDue.toFixed(2)}
+            </Text>
+          </View>
+        )}
+
+        {/* Amount Due - highlighted */}
         <View style={[styles.totalRow, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
-          <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>TOTAL:</Text>
+          <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>AMOUNT DUE:</Text>
           <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
-            ${total.toFixed(2)}
+            ${actualAmountDue.toFixed(2)}
           </Text>
         </View>
-        {amountPaid > 0 && (
+
+        {/* Show remaining balance for partial payments */}
+        {isPartialPayment && remainingBalance > 0 && (
+          <View style={[styles.summaryRow, { marginTop: Spacing.sm }]}>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>
+              Remaining Balance:
+            </Text>
+            <Text style={[styles.summaryValue, { color: Colors.secondaryText }]}>
+              ${remainingBalance.toFixed(2)}
+            </Text>
+          </View>
+        )}
+
+        {/* For non-partial payment invoices, show the old format */}
+        {!isPartialPayment && amountPaid > 0 && (
           <>
             <View style={[styles.summaryRow, styles.paidRow]}>
               <Text style={[styles.summaryLabel, { color: '#22C55E' }]}>
-                <Ionicons name="checkmark-circle" size={14} color="#22C55E" /> Paid:
+                Paid:
               </Text>
               <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
                 -${amountPaid.toFixed(2)}
@@ -174,10 +233,10 @@ export default function InvoicePreview({ data, onAction }) {
             </View>
             <View style={[styles.summaryRow, styles.dueRow]}>
               <Text style={[styles.summaryLabel, { color: status === 'overdue' ? '#EF4444' : Colors.primaryText, fontWeight: '700' }]}>
-                Amount Due:
+                Balance Due:
               </Text>
               <Text style={[styles.summaryValue, { color: status === 'overdue' ? '#EF4444' : Colors.primaryText, fontWeight: '700' }]}>
-                ${actualAmountDue.toFixed(2)}
+                ${(total - amountPaid).toFixed(2)}
               </Text>
             </View>
           </>
@@ -219,6 +278,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     padding: Spacing.lg,
     borderBottomWidth: 2,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  businessLogo: {
+    width: 50,
+    height: 50,
+    marginBottom: 8,
   },
   title: {
     fontSize: FontSizes.subheader,

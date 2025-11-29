@@ -30,12 +30,15 @@ export default function PicturesScreen({ navigation }) {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [])
+      if (!hasLoadedOnce) {
+        loadData();
+      }
+    }, [hasLoadedOnce])
   );
 
   const loadData = async () => {
@@ -82,6 +85,7 @@ export default function PicturesScreen({ navigation }) {
       });
 
       setPhotos(allPhotos);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading pictures:', error);
       Alert.alert('Error', 'Failed to load pictures');

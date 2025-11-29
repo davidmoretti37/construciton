@@ -4,29 +4,107 @@ import * as MailComposer from 'expo-mail-composer';
 import { Alert, Platform } from 'react-native';
 
 /**
- * Generate HTML for estimate PDF
+ * Generate HTML for estimate PDF - Professional minimalist design
+ * Matching Atrium Construction style
  */
 export const generateEstimateHTML = (estimateData) => {
   const {
-    estimateNumber = 'EST-XXX',
-    businessName = 'Your Business',
+    estimateNumber = '',
+    businessName = '',
+    businessAddress = '',
+    businessCity = '',
+    businessState = '',
+    businessZip = '',
+    businessEmail = '',
+    businessPhone = '',
+    businessLogo = '',
     client,
     clientName,
+    clientAddress,
+    clientCity,
+    clientState,
+    clientZip,
+    // Ship to (job site) - can be different from billing
+    shipToName,
+    shipToAddress,
+    shipToCity,
+    shipToState,
+    shipToZip,
+    shipToCountry = '',
     projectName,
-    date = new Date().toLocaleDateString(),
+    date = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
     items = [],
-    phases = [],
-    schedule = {},
-    scope = {},
-    subtotal = 0,
     total = 0,
     notes = '',
+    // Accent color - default olive/green like Atrium
+    accentColor = '#8B9A46',
   } = estimateData;
 
-  const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || 'Client';
-  const clientAddress = typeof client === 'object' ? client?.address : '';
-  const clientPhone = typeof client === 'object' ? client?.phone : '';
-  const clientEmail = typeof client === 'object' ? client?.email : '';
+  // Extract client info - handle both string and object formats
+  const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || '';
+  const displayClientAddress = clientAddress || (typeof client === 'object' ? client?.address : '') || '';
+  const displayClientCity = clientCity || (typeof client === 'object' ? client?.city : '') || '';
+  const displayClientState = clientState || (typeof client === 'object' ? client?.state : '') || '';
+  const displayClientZip = clientZip || (typeof client === 'object' ? client?.zip : '') || '';
+  const displayClientEmail = (typeof client === 'object' ? client?.email : '') || '';
+  const displayClientPhone = (typeof client === 'object' ? client?.phone : '') || '';
+
+  // Ship to defaults to client info if not provided
+  const displayShipToName = shipToName || displayClientName;
+  const displayShipToAddress = shipToAddress || displayClientAddress;
+  const displayShipToCity = shipToCity || displayClientCity;
+  const displayShipToState = shipToState || displayClientState;
+  const displayShipToZip = shipToZip || displayClientZip;
+
+  // Format address lines
+  const formatAddressLine = (city, state, zip, country = '') => {
+    const parts = [city, state, zip].filter(Boolean).join(', ');
+    return country ? `${parts} ${country}` : parts;
+  };
+
+  const billToAddressLine = formatAddressLine(displayClientCity, displayClientState, displayClientZip);
+  const shipToAddressLine = formatAddressLine(displayShipToCity, displayShipToState, displayShipToZip, shipToCountry);
+
+  // Generate line items HTML with multi-line description support
+  const generateItemsHTML = () => {
+    return items.map((item, index) => {
+      const itemPrice = typeof item.price === 'number' ? item.price : (parseFloat(item.price) || 0);
+      const itemTotal = typeof item.total === 'number' ? item.total : (parseFloat(item.total) || 0);
+      const quantity = item.quantity || 1;
+
+      // Handle multi-line descriptions (split by newline or bullet points)
+      let description = item.description || '';
+      let productName = item.productName || item.name || description.split('\n')[0] || '';
+      let descriptionLines = [];
+
+      // If description contains line breaks or "includes", format as multi-line
+      if (description.includes('\n')) {
+        const lines = description.split('\n');
+        productName = lines[0];
+        descriptionLines = lines.slice(1).filter(line => line.trim());
+      } else if (description.toLowerCase().includes('includes')) {
+        // Split on "includes" to create sub-items
+        const parts = description.split(/includes/i);
+        productName = parts[0].trim();
+        descriptionLines = parts.slice(1).map(p => `includes ${p.trim()}`);
+      }
+
+      const descriptionHTML = descriptionLines.length > 0
+        ? `<div class="item-description">${descriptionLines.map(line => `<div class="desc-line">${line}</div>`).join('')}</div>`
+        : '';
+
+      return `
+        <tr>
+          <td class="col-num">${index + 1}.</td>
+          <td class="col-product"><strong>${productName}</strong></td>
+          <td class="col-description">${descriptionLines.length > 0 ? descriptionLines.join('<br>') : (item.details || '')}</td>
+          <td class="col-qty">${quantity}</td>
+          <td class="col-rate">$${itemPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td class="col-amount">$${itemTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        </tr>
+      `;
+    }).join('');
+  };
 
   return `
     <!DOCTYPE html>
@@ -43,417 +121,394 @@ export const generateEstimateHTML = (estimateData) => {
         }
 
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-          color: #1f2937;
-          line-height: 1.6;
-          padding: 40px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+          color: #333;
+          line-height: 1.5;
+          font-size: 14px;
+          background: #fff;
+        }
+
+        .page {
           max-width: 800px;
           margin: 0 auto;
+          padding: 0;
         }
 
+        /* Header - Gray background bar */
         .header {
-          border-bottom: 3px solid #3b82f6;
-          padding-bottom: 20px;
-          margin-bottom: 30px;
-        }
-
-        .header h1 {
-          font-size: 32px;
-          color: #3b82f6;
-          margin-bottom: 5px;
-        }
-
-        .header .estimate-number {
-          font-size: 18px;
-          font-weight: 600;
-          color: #3b82f6;
-          margin-bottom: 5px;
-        }
-
-        .header .business-name {
-          font-size: 14px;
-          color: #6b7280;
-        }
-
-        .info-section {
+          background: #f5f5f5;
+          padding: 25px 40px;
           display: flex;
           justify-content: space-between;
-          margin-bottom: 30px;
-          gap: 40px;
+          align-items: flex-start;
         }
 
-        .info-block {
+        .header-left {
           flex: 1;
         }
 
-        .info-block h3 {
-          font-size: 12px;
-          text-transform: uppercase;
-          color: #6b7280;
-          margin-bottom: 8px;
-          font-weight: 600;
+        .header-right {
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-end;
         }
 
-        .info-block p {
-          font-size: 14px;
+        .estimate-title {
+          font-size: 28px;
+          font-weight: 700;
+          color: ${accentColor};
+          margin-bottom: 12px;
+          letter-spacing: 2px;
+        }
+
+        .business-info {
+          margin-top: 4px;
+        }
+
+        .business-name {
+          font-size: 16px;
+          font-weight: 600;
+          color: #333;
           margin-bottom: 4px;
         }
 
-        .section {
+        .business-contact {
+          font-size: 12px;
+          color: #666;
+          line-height: 1.6;
+        }
+
+        .business-contact-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 2px;
+        }
+
+        .logo {
+          max-width: 120px;
+          max-height: 80px;
+        }
+
+        .logo img {
+          max-width: 100%;
+          max-height: 80px;
+          object-fit: contain;
+        }
+
+        /* Main content area */
+        .content {
+          padding: 30px 40px;
+        }
+
+        /* Project title bar */
+        .project-title {
+          color: ${accentColor};
+          font-size: 16px;
+          font-weight: 600;
+          margin-bottom: 15px;
+          padding-bottom: 0;
+        }
+
+        /* Bill To / Ship To section */
+        .addresses {
+          display: flex;
+          gap: 60px;
+          margin-bottom: 25px;
+          padding-bottom: 25px;
+          border-bottom: 1px dashed #ddd;
+        }
+
+        .address-block {
+          flex: 1;
+        }
+
+        .address-label {
+          font-size: 11px;
+          font-weight: 600;
+          color: #666;
+          text-transform: uppercase;
+          margin-bottom: 8px;
+        }
+
+        .address-name {
+          font-size: 14px;
+          color: #333;
+          margin-bottom: 2px;
+        }
+
+        .address-line {
+          font-size: 13px;
+          color: #666;
+          line-height: 1.5;
+        }
+
+        /* Estimate details */
+        .estimate-details {
           margin-bottom: 30px;
         }
 
-        .section-title {
-          font-size: 18px;
-          font-weight: 700;
-          color: #1f2937;
-          margin-bottom: 15px;
-          padding-bottom: 8px;
-          border-bottom: 2px solid #e5e7eb;
-        }
-
-        .scope-text {
-          font-size: 14px;
-          color: #4b5563;
-          line-height: 1.8;
-          margin-bottom: 10px;
-        }
-
-        .complexity {
-          display: inline-block;
-          padding: 4px 12px;
-          background: #f3f4f6;
-          border-radius: 12px;
-          font-size: 12px;
+        .estimate-details-title {
+          font-size: 13px;
           font-weight: 600;
-          color: #6b7280;
-          text-transform: capitalize;
+          color: #333;
+          margin-bottom: 8px;
         }
 
-        .phases-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 15px;
-          margin-bottom: 20px;
+        .estimate-details-row {
+          font-size: 13px;
+          color: #666;
+          margin-bottom: 3px;
         }
 
-        .phase-card {
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 15px;
-          background: #f9fafb;
-        }
-
-        .phase-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 10px;
-        }
-
-        .phase-name {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1f2937;
-        }
-
-        .phase-days {
-          font-size: 12px;
-          color: #6b7280;
-          background: #fff;
-          padding: 4px 8px;
-          border-radius: 4px;
-        }
-
-        .phase-budget {
-          font-size: 14px;
-          font-weight: 600;
-          color: #3b82f6;
-          margin-bottom: 10px;
-        }
-
-        .phase-tasks {
-          list-style: none;
-          margin-top: 8px;
-        }
-
-        .phase-tasks li {
-          font-size: 12px;
-          color: #4b5563;
-          padding: 4px 0;
-          padding-left: 16px;
-          position: relative;
-        }
-
-        .phase-tasks li:before {
-          content: "•";
-          position: absolute;
-          left: 0;
-          color: #3b82f6;
-        }
-
-        .timeline {
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 15px;
-          font-size: 14px;
-          color: #4b5563;
-          margin-bottom: 20px;
-        }
-
-        .timeline-dates {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .timeline-date {
-          font-weight: 600;
-          color: #1f2937;
-        }
-
+        /* Items table */
         .items-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
+          margin-bottom: 25px;
         }
 
-        .items-table thead {
-          background: #f9fafb;
+        .items-table thead tr {
+          border-bottom: 1px solid #ddd;
         }
 
         .items-table th {
           text-align: left;
-          padding: 12px;
+          padding: 12px 8px;
           font-size: 12px;
-          font-weight: 600;
-          color: #6b7280;
-          text-transform: uppercase;
-          border-bottom: 2px solid #e5e7eb;
+          font-weight: 500;
+          color: #666;
+        }
+
+        .items-table th.text-right {
+          text-align: right;
         }
 
         .items-table td {
-          padding: 12px;
-          font-size: 14px;
-          border-bottom: 1px solid #e5e7eb;
+          padding: 15px 8px;
+          font-size: 13px;
+          color: #333;
+          vertical-align: top;
+          border-bottom: 1px solid #eee;
         }
 
-        .items-table tbody tr:hover {
-          background: #f9fafb;
+        .items-table tbody tr:last-child td {
+          border-bottom: 1px solid #ddd;
         }
 
-        .text-right {
-          text-align: right;
+        .col-num {
+          width: 30px;
+          color: #333;
         }
 
-        .item-description {
-          font-weight: 500;
-          color: #1f2937;
+        .col-product {
+          width: 160px;
         }
 
-        .item-calc {
+        .col-product strong {
+          font-weight: 600;
+          color: #333;
+        }
+
+        .col-description {
+          color: #666;
           font-size: 12px;
-          color: #6b7280;
+          line-height: 1.6;
         }
 
-        .totals-section {
-          margin-top: 20px;
+        .col-qty {
+          width: 50px;
           text-align: right;
+        }
+
+        .col-rate {
+          width: 100px;
+          text-align: right;
+        }
+
+        .col-amount {
+          width: 100px;
+          text-align: right;
+          font-weight: 500;
+        }
+
+        /* Total section */
+        .total-section {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 40px;
         }
 
         .total-row {
           display: flex;
-          justify-content: flex-end;
-          padding: 8px 0;
-          font-size: 14px;
-        }
-
-        .total-row.grand-total {
-          border-top: 2px solid #3b82f6;
-          margin-top: 10px;
-          padding-top: 15px;
-          font-size: 18px;
-          font-weight: 700;
-          color: #3b82f6;
+          align-items: baseline;
+          gap: 30px;
         }
 
         .total-label {
-          margin-right: 40px;
-          min-width: 100px;
+          font-size: 14px;
+          color: #333;
         }
 
         .total-amount {
-          min-width: 120px;
-          font-weight: 600;
+          font-size: 22px;
+          font-weight: 700;
+          color: #333;
         }
 
+        /* Signature section */
+        .signature-section {
+          display: flex;
+          gap: 80px;
+          padding-top: 30px;
+          border-top: 1px solid #ddd;
+          margin-top: 40px;
+        }
+
+        .signature-block {
+          flex: 1;
+        }
+
+        .signature-label {
+          font-size: 12px;
+          color: #666;
+          margin-bottom: 30px;
+        }
+
+        .signature-line {
+          border-bottom: 1px solid #ccc;
+          min-width: 200px;
+        }
+
+        /* Notes section */
         .notes {
           margin-top: 30px;
           padding: 15px;
-          background: #fef3c7;
-          border-left: 4px solid #f59e0b;
-          border-radius: 4px;
-        }
-
-        .notes-title {
+          background: #fafafa;
+          border-left: 3px solid ${accentColor};
           font-size: 12px;
-          font-weight: 600;
-          text-transform: uppercase;
-          color: #92400e;
-          margin-bottom: 8px;
-        }
-
-        .notes-text {
-          font-size: 13px;
-          color: #78350f;
+          color: #666;
           line-height: 1.6;
         }
 
-        .footer {
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 1px solid #e5e7eb;
-          text-align: center;
-          font-size: 12px;
-          color: #6b7280;
+        .notes-title {
+          font-weight: 600;
+          color: #333;
+          margin-bottom: 5px;
         }
 
+        /* Print styles */
         @media print {
           body {
-            padding: 20px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .page {
+            max-width: none;
           }
         }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>📋 ESTIMATE</h1>
-        <div class="estimate-number">${estimateNumber}</div>
-        <div class="business-name">${businessName}</div>
-      </div>
-
-      <div class="info-section">
-        <div class="info-block">
-          <h3>Client</h3>
-          <p><strong>${displayClientName}</strong></p>
-          ${clientAddress ? `<p>${clientAddress}</p>` : ''}
-          ${clientPhone ? `<p>${clientPhone}</p>` : ''}
-          ${clientEmail ? `<p>${clientEmail}</p>` : ''}
-        </div>
-
-        <div class="info-block">
-          <h3>Project</h3>
-          <p><strong>${projectName || 'Unnamed Project'}</strong></p>
-          <p>Date: ${date}</p>
-        </div>
-      </div>
-
-      ${scope?.description ? `
-        <div class="section">
-          <h2 class="section-title">Scope</h2>
-          <p class="scope-text">${scope.description}</p>
-          ${scope.complexity ? `<span class="complexity">${scope.complexity} complexity</span>` : ''}
-        </div>
-      ` : ''}
-
-      ${phases && phases.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Project Phases</h2>
-          <div class="phases-grid">
-            ${phases.map(phase => `
-              <div class="phase-card">
-                <div class="phase-header">
-                  <div class="phase-name">${phase.name}</div>
-                  ${phase.plannedDays ? `<div class="phase-days">${phase.plannedDays} days</div>` : ''}
-                </div>
-                ${phase.budget ? `<div class="phase-budget">Budget: $${(typeof phase.budget === 'number' ? phase.budget : parseFloat(phase.budget) || 0).toLocaleString()}</div>` : ''}
-                ${phase.tasks && phase.tasks.length > 0 ? `
-                  <ul class="phase-tasks">
-                    ${phase.tasks.map(task => `<li>${task.description || task.name}</li>`).join('')}
-                  </ul>
-                ` : ''}
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${schedule?.startDate && schedule?.estimatedEndDate ? `
-        <div class="section">
-          <h2 class="section-title">Project Timeline</h2>
-          <div class="timeline">
-            <div class="timeline-dates">
-              <div>
-                Start: <span class="timeline-date">${new Date(schedule.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-              </div>
-              <div>→</div>
-              <div>
-                End: <span class="timeline-date">${new Date(schedule.estimatedEndDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+      <div class="page">
+        <!-- Header -->
+        <div class="header">
+          <div class="header-left">
+            <div class="estimate-title">ESTIMATE</div>
+            <div class="business-info">
+              ${businessName ? `<div class="business-name">${businessName}</div>` : ''}
+              <div class="business-contact">
+                ${businessPhone ? `<div class="business-contact-item">${businessPhone}</div>` : ''}
+                ${businessEmail ? `<div class="business-contact-item">${businessEmail}</div>` : ''}
+                ${businessAddress ? `<div class="business-contact-item">${businessAddress}${businessCity || businessState || businessZip ? `, ${formatAddressLine(businessCity, businessState, businessZip)}` : ''}</div>` : ''}
               </div>
             </div>
           </div>
+          <div class="header-right">
+            ${businessLogo
+              ? `<div class="logo"><img src="${businessLogo}" alt="Logo" /></div>`
+              : ''
+            }
+          </div>
         </div>
-      ` : ''}
 
-      ${items && items.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Services</h2>
+        <!-- Content -->
+        <div class="content">
+          <!-- Project Title -->
+          ${projectName || displayClientName ? `
+            <div class="project-title">
+              ${displayClientName}${projectName ? `:${projectName}` : ''}
+            </div>
+          ` : ''}
+
+          <!-- Bill To / Ship To -->
+          <div class="addresses">
+            <div class="address-block">
+              <div class="address-label">Bill to</div>
+              <div class="address-name">${displayClientName}</div>
+              ${displayClientAddress ? `<div class="address-line">${displayClientAddress}</div>` : ''}
+              ${billToAddressLine ? `<div class="address-line">${billToAddressLine}</div>` : ''}
+            </div>
+            <div class="address-block">
+              <div class="address-label">Ship to</div>
+              <div class="address-name">${displayShipToName}</div>
+              ${displayShipToAddress ? `<div class="address-line">${displayShipToAddress}</div>` : ''}
+              ${shipToAddressLine ? `<div class="address-line">${shipToAddressLine}</div>` : ''}
+            </div>
+          </div>
+
+          <!-- Estimate Details -->
+          <div class="estimate-details">
+            <div class="estimate-details-title">Estimate details</div>
+            ${estimateNumber ? `<div class="estimate-details-row">Estimate no.: ${estimateNumber}</div>` : ''}
+            <div class="estimate-details-row">Estimate date: ${date}</div>
+          </div>
+
+          <!-- Items Table -->
           <table class="items-table">
             <thead>
               <tr>
                 <th>#</th>
+                <th>Product or service</th>
                 <th>Description</th>
-                <th class="text-right">Quantity</th>
-                <th class="text-right">Unit Price</th>
-                <th class="text-right">Total</th>
+                <th class="text-right">Qty</th>
+                <th class="text-right">Rate</th>
+                <th class="text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
-              ${items.map(item => {
-                const itemPrice = typeof item.price === 'number' ? item.price : (parseFloat(item.price) || 0);
-                const itemTotal = typeof item.total === 'number' ? item.total : (parseFloat(item.total) || 0);
-                return `
-                  <tr>
-                    <td>${item.index || ''}</td>
-                    <td>
-                      <div class="item-description">${item.description || ''}</div>
-                      ${item.quantity && item.unit ? `<div class="item-calc">${item.quantity} ${item.unit}</div>` : ''}
-                    </td>
-                    <td class="text-right">${item.quantity || ''}</td>
-                    <td class="text-right">$${itemPrice.toFixed(2)}</td>
-                    <td class="text-right">$${itemTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  </tr>
-                `;
-              }).join('')}
+              ${generateItemsHTML()}
             </tbody>
           </table>
-        </div>
-      ` : ''}
 
-      <div class="totals-section">
-        ${subtotal && subtotal !== total ? `
-          <div class="total-row">
-            <div class="total-label">Subtotal:</div>
-            <div class="total-amount">$${(typeof subtotal === 'number' ? subtotal : parseFloat(subtotal) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <!-- Total -->
+          <div class="total-section">
+            <div class="total-row">
+              <div class="total-label">Total</div>
+              <div class="total-amount">$${(typeof total === 'number' ? total : parseFloat(total) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
           </div>
-        ` : ''}
-        <div class="total-row grand-total">
-          <div class="total-label">TOTAL:</div>
-          <div class="total-amount">$${(typeof total === 'number' ? total : parseFloat(total) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </div>
-      </div>
 
-      ${notes ? `
-        <div class="notes">
-          <div class="notes-title">Notes</div>
-          <div class="notes-text">${notes}</div>
-        </div>
-      ` : ''}
+          <!-- Notes (if provided) -->
+          ${notes ? `
+            <div class="notes">
+              <div class="notes-title">Notes</div>
+              ${notes}
+            </div>
+          ` : ''}
 
-      <div class="footer">
-        <p>This estimate is valid for 30 days from the date above.</p>
-        <p>Thank you for your business!</p>
+          <!-- Signature Section -->
+          <div class="signature-section">
+            <div class="signature-block">
+              <div class="signature-label">Accepted date</div>
+              <div class="signature-line"></div>
+            </div>
+            <div class="signature-block">
+              <div class="signature-label">Accepted by</div>
+              <div class="signature-line"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </body>
     </html>

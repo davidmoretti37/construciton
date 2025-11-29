@@ -347,7 +347,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: Colors.primaryText }]}>Status</Text>
               <View style={styles.statusButtons}>
-                {['draft', 'on-track', 'behind', 'completed'].map((statusOption) => (
+                {['active', 'completed', 'archived'].map((statusOption) => (
                   <TouchableOpacity
                     key={statusOption}
                     style={[

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   SafeAreaView,
@@ -19,8 +20,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjects, saveProject, saveProjectPhases, fetchProjectPhases, deleteProject } from '../utils/storage';
+import { saveProject, saveProjectPhases, fetchProjectPhases, deleteProject } from '../utils/storage';
 import { ProjectCard } from '../components/ChatVisuals';
+import { useProjects } from '../hooks/useProjects';
 import TimelinePickerModal from '../components/TimelinePickerModal';
 import ConversationsSection from '../components/ConversationsSection';
 import PhasePickerModal from '../components/PhasePickerModal';
@@ -28,15 +30,18 @@ import PhaseTimeline from '../components/PhaseTimeline';
 import PhaseDetailModal from '../components/PhaseDetailModal';
 import SimpleProjectCard from '../components/SimpleProjectCard';
 import ProjectDetailView from '../components/ProjectDetailView';
+import NotificationBell from '../components/NotificationBell';
 
-export default function ProjectsScreen({ navigation }) {
+export default function ProjectsScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Use custom hook for projects data
+  const { projects, loading, hasLoadedOnce, loadProjects, addProject, updateProject, removeProject } = useProjects();
+
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -229,27 +234,40 @@ export default function ProjectsScreen({ navigation }) {
   // Reload projects whenever screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      loadProjects();
-    }, [])
+      if (!hasLoadedOnce) {
+        loadProjects();
+      }
+    }, [hasLoadedOnce, loadProjects])
   );
 
-  const loadProjects = async () => {
-    try {
-      setLoading(true);
-      const fetchedProjects = await fetchProjects();
-      setProjects(fetchedProjects);
-    } catch (error) {
-      console.error('Error loading projects:', error);
-    } finally {
-      setLoading(false);
+  // OPTIMIZATION: Debounce search input (300ms delay)
+  // Prevents filtering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Handle navigation from other screens with projectId
+  useEffect(() => {
+    if (route.params?.projectId && projects.length > 0) {
+      const project = projects.find(p => p.id === route.params.projectId);
+      if (project) {
+        setSelectedProject(project);
+        setShowProjectDetail(true);
+        // Clear the param so it doesn't trigger again
+        navigation.setParams({ projectId: undefined });
+      }
     }
-  };
+  }, [route.params?.projectId, projects]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadProjects();
     setRefreshing(false);
-  }, []);
+  }, [loadProjects]);
 
   const handleDeleteProject = async (projectId) => {
     try {
@@ -270,32 +288,35 @@ export default function ProjectsScreen({ navigation }) {
     }
   };
 
-  // Filter projects based on search query and filter
-  const filteredProjects = projects.filter(project => {
-    // Apply filter
-    if (selectedFilter !== 'All') {
-      const filterMap = {
-        'Active': ['active', 'on-track', 'behind', 'over-budget'],
-        'Completed': ['completed'],
-        'Archived': ['archived'],
-      };
-      if (!filterMap[selectedFilter]?.includes(project.status)) {
-        return false;
+  // OPTIMIZATION: Memoized filter logic
+  // Only recalculates when projects, filter, or debounced search changes
+  const filteredProjects = useMemo(() => {
+    return projects.filter(project => {
+      // Apply filter
+      if (selectedFilter !== 'All') {
+        const filterMap = {
+          'Active': ['active', 'on-track', 'behind', 'over-budget'],
+          'Completed': ['completed'],
+          'Archived': ['archived'],
+        };
+        if (!filterMap[selectedFilter]?.includes(project.status)) {
+          return false;
+        }
       }
-    }
 
-    // Apply search
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        project.name.toLowerCase().includes(query) ||
-        project.client.toLowerCase().includes(query) ||
-        project.location?.toLowerCase().includes(query)
-      );
-    }
+      // Apply search (using debounced query)
+      if (debouncedSearchQuery) {
+        const query = debouncedSearchQuery.toLowerCase();
+        return (
+          project.name.toLowerCase().includes(query) ||
+          project.client.toLowerCase().includes(query) ||
+          project.location?.toLowerCase().includes(query)
+        );
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [projects, selectedFilter, debouncedSearchQuery]);
 
   const handleProjectCardPress = async (project) => {
     setSelectedProject(project);
@@ -361,94 +382,85 @@ export default function ProjectsScreen({ navigation }) {
     setShowPhaseDetail(false);
   };
 
+  // OPTIMIZATION: FlatList optimizations
+  const renderProjectItem = useCallback(({ item }) => (
+    <SimpleProjectCard
+      project={item}
+      onPress={() => handleProjectCardPress(item)}
+    />
+  ), []);
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
+  const getItemLayout = useCallback((data, index) => ({
+    length: 200, // Approximate item height
+    offset: 200 * index,
+    index,
+  }), []);
+
+  const renderEmptyComponent = useCallback(() => (
+    <View style={styles.emptyState}>
+      <Ionicons name="folder-outline" size={64} color={Colors.secondaryText} />
+      <Text style={[styles.emptyStateText, { color: Colors.primaryText }]}>
+        {searchQuery || selectedFilter !== 'All' ? 'No projects found' : 'No projects yet'}
+      </Text>
+      <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
+        {searchQuery || selectedFilter !== 'All'
+          ? 'Try adjusting your search or filter'
+          : 'Create your first project to get started'}
+      </Text>
+    </View>
+  ), [searchQuery, selectedFilter, Colors]);
+
+  const renderLoadingComponent = useCallback(() => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={Colors.primaryBlue} />
+      <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading projects...</Text>
+    </View>
+  ), [Colors]);
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
       {/* Top Bar */}
-      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <View style={styles.spacer} />
-        <TouchableOpacity style={styles.newProjectButton} onPress={() => setNewProjectOpen(true)}>
-          <Text style={[styles.newProjectText, { color: Colors.primaryBlue }]}>+ New Project</Text>
-        </TouchableOpacity>
+      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.white }]}>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Projects</Text>
+        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
 
-      {/* Search and Filter */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color={Colors.placeholderText} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search projects..."
-            placeholderTextColor={Colors.placeholderText}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
 
-        <View style={styles.filterChips}>
-          <TouchableOpacity
-            style={[styles.chip, selectedFilter === 'All' && styles.activeChip]}
-            onPress={() => setSelectedFilter('All')}
-          >
-            <Text style={selectedFilter === 'All' ? styles.activeChipText : styles.chipText}>All</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chip, selectedFilter === 'Active' && styles.activeChip]}
-            onPress={() => setSelectedFilter('Active')}
-          >
-            <Text style={selectedFilter === 'Active' ? styles.activeChipText : styles.chipText}>Active</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chip, selectedFilter === 'Completed' && styles.activeChip]}
-            onPress={() => setSelectedFilter('Completed')}
-          >
-            <Text style={selectedFilter === 'Completed' ? styles.activeChipText : styles.chipText}>Completed</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chip, selectedFilter === 'Archived' && styles.activeChip]}
-            onPress={() => setSelectedFilter('Archived')}
-          >
-            <Text style={selectedFilter === 'Archived' ? styles.activeChipText : styles.chipText}>Archived</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* OPTIMIZED: Projects List with FlatList */}
+      {loading ? (
+        renderLoadingComponent()
+      ) : (
+        <FlatList
+          data={filteredProjects}
+          renderItem={renderProjectItem}
+          keyExtractor={keyExtractor}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.flatListContent}
+          ListEmptyComponent={renderEmptyComponent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          // Performance optimizations
+          windowSize={5}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          removeClippedSubviews={true}
+          initialNumToRender={10}
+        />
+      )}
 
-      {/* Projects List */}
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+      {/* FAB Button for adding new project */}
+      <TouchableOpacity
+        style={styles.projectsFab}
+        onPress={() => setNewProjectOpen(true)}
+        activeOpacity={0.8}
       >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primaryBlue} />
-            <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading projects...</Text>
-          </View>
-        ) : filteredProjects.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="folder-outline" size={64} color={Colors.secondaryText} />
-            <Text style={[styles.emptyStateText, { color: Colors.primaryText }]}>
-              {searchQuery || selectedFilter !== 'All' ? 'No projects found' : 'No projects yet'}
-            </Text>
-            <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
-              {searchQuery || selectedFilter !== 'All'
-                ? 'Try adjusting your search or filter'
-                : 'Create your first project to get started'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.projectsGrid}>
-            {filteredProjects.map((project) => (
-              <SimpleProjectCard
-                key={project.id}
-                project={project}
-                onPress={() => handleProjectCardPress(project)}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
+
       {/* Simple Edit Modal - Hide when timeline picker is open */}
       <Modal visible={editOpen && !showEditTimeline} transparent animationType="slide" onRequestClose={closeEdit}>
         <KeyboardAvoidingView
@@ -867,8 +879,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     backgroundColor: LightColors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: LightColors.border,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   settingsButton: {
     padding: Spacing.sm,
@@ -886,6 +901,22 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.body,
     color: LightColors.primaryBlue,
     fontWeight: '600',
+  },
+  projectsFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#1F2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   searchSection: {
     backgroundColor: LightColors.white,
@@ -937,6 +968,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
+  },
+  flatListContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 16,
+    paddingBottom: 100,
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    gap: Spacing.md,
   },
   projectCard: {
     backgroundColor: LightColors.white,

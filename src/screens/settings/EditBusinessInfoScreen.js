@@ -80,7 +80,12 @@ export default function EditBusinessInfoScreen({ navigation }) {
     // Save to storage
     setSaving(true);
     try {
+      // Get current profile to preserve other fields
+      const currentProfile = await getUserProfile();
+      const currentBusinessInfo = currentProfile?.businessInfo || {};
+
       await updateBusinessInfo({
+        ...currentBusinessInfo, // Preserve existing fields like address, paymentInfo, logoUrl
         name: businessName.trim(),
         phone: phone.trim(),
         email: email.trim(),
@@ -137,7 +142,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
             <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
               <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-                This information appears on your estimates and helps clients contact you.
+                This information appears on your estimates and invoices.
               </Text>
             </View>
 
@@ -305,6 +310,15 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     fontSize: FontSizes.body,
   },
+  textArea: {
+    minHeight: 80,
+    paddingTop: Spacing.md,
+  },
+  helpText: {
+    fontSize: FontSizes.tiny,
+    marginBottom: Spacing.xs,
+    lineHeight: 16,
+  },
   requiredNote: {
     fontSize: FontSizes.tiny,
     marginTop: Spacing.md,
@@ -324,6 +338,58 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  helperText: {
+    fontSize: FontSizes.tiny,
+    lineHeight: 16,
+  },
+  logoUploadButton: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 150,
+  },
+  uploadText: {
+    fontSize: FontSizes.body,
+    fontWeight: '500',
+    marginTop: Spacing.sm,
+  },
+  uploadHint: {
+    fontSize: FontSizes.tiny,
+    marginTop: Spacing.xs,
+  },
+  logoPreviewContainer: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  logoPreview: {
+    width: 120,
+    height: 120,
+    marginBottom: Spacing.md,
+  },
+  logoActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    width: '100%',
+  },
+  logoButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  logoButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.small,
     fontWeight: '600',
   },
 });

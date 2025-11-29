@@ -72,11 +72,15 @@ export const AuthProvider = ({ children }) => {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('🔐 AuthContext - Error loading profile:', error);
-        setRoleState(null);
+        // Don't clear role state on error, just clear profile
+        setProfile(null);
+      } else if (!data) {
+        console.log('🔐 AuthContext - No profile found for user (new account)');
+        // Don't clear role state when no profile exists (role might have just been set)
         setProfile(null);
       } else {
         console.log('🔐 AuthContext - Profile loaded:', {
@@ -89,7 +93,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('🔐 AuthContext - Error loading profile:', error);
-      setRoleState(null);
+      // Don't clear role state on catch, just clear profile
       setProfile(null);
     } finally {
       setIsLoading(false);
@@ -107,8 +111,12 @@ export const AuthProvider = ({ children }) => {
 
       const { error } = await supabase
         .from('profiles')
-        .update({ role: newRole })
-        .eq('id', user.id);
+        .upsert({
+          id: user.id,
+          role: newRole
+        }, {
+          onConflict: 'id'
+        });
 
       if (error) {
         console.error('🔐 AuthContext - Error setting role:', error);

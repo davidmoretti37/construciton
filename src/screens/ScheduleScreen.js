@@ -22,6 +22,7 @@ export default function ScheduleScreen({ navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [scheduleData, setScheduleData] = useState({
     unassignedWorkers: [],
     projectGroups: [],
@@ -41,8 +42,10 @@ export default function ScheduleScreen({ navigation }) {
   // Load when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      loadSchedule();
-    }, [])
+      if (!hasLoadedOnce) {
+        loadSchedule();
+      }
+    }, [hasLoadedOnce])
   );
 
   const loadSchedule = async (showLoading = true) => {
@@ -50,6 +53,7 @@ export default function ScheduleScreen({ navigation }) {
       if (showLoading) setLoading(true);
       const data = await getTodaysWorkersSchedule();
       setScheduleData(data);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading schedule:', error);
     } finally {

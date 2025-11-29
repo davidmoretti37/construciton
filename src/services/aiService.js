@@ -21,6 +21,106 @@ const responseCache = {};
 const CACHE_TTL = 300000; // 5 minutes (common queries like "updates" don't change often)
 
 /**
+ * SMART MODEL ROUTING
+ * Use faster/cheaper models for simple queries, powerful models for complex tasks
+ *
+ * Speed comparison (first token latency):
+ * - claude-3-5-haiku: ~200-400ms ⚡⚡⚡
+ * - gpt-4o-mini: ~200-300ms ⚡⚡⚡
+ * - claude-3-5-sonnet: ~500-1000ms ⚡⚡
+ * - gpt-4o: ~400-600ms ⚡⚡
+ */
+const FAST_MODEL = 'anthropic/claude-haiku-4.5'; // Haiku 4.5 for simple queries
+const POWERFUL_MODEL = 'anthropic/claude-sonnet-4'; // Sonnet 4 for complex tasks
+
+/**
+ * VOICE MODE OPTIMIZATION
+ * When isVoiceMode is true, we use:
+ * 1. Faster model (Haiku)
+ * 2. Lower max_tokens (shorter responses)
+ * 3. Condensed system prompts
+ */
+let isVoiceMode = false;
+
+export const setVoiceMode = (enabled) => {
+  isVoiceMode = enabled;
+  console.log(isVoiceMode ? '🎤 Voice mode ENABLED - using fast settings' : '⌨️ Voice mode DISABLED - using standard settings');
+};
+
+export const getVoiceMode = () => isVoiceMode;
+
+/**
+ * Determines if a query is simple and can use a faster model
+ * @param {string} message - User's message
+ * @param {string} customSystemPrompt - Custom system prompt (indicates agent routing)
+ * @returns {boolean} - True if simple query
+ */
+const isSimpleQuery = (message, customSystemPrompt = null) => {
+  // If using custom system prompt (multi-agent), let the agent decide complexity
+  // But still use fast model for obvious simple responses
+  const trimmed = message.trim().toLowerCase();
+
+  // Very short confirmations/acknowledgments - always fast
+  const simplePatterns = /^(thanks|thank you|ok|okay|yes|no|hello|hi|hey|cancel|nevermind|nope|yep|sure|cool|great|got it|alright|sounds good|perfect|nice|awesome|good|fine|bye|goodbye|see ya|later|k|thx|ty|np|no problem|you're welcome|welcome|what's up|how are you|good morning|good afternoon|good evening|morning|afternoon|evening)$/i;
+
+  if (simplePatterns.test(trimmed)) {
+    return true;
+  }
+
+  // Very short messages (< 20 chars) that are questions or simple requests
+  if (trimmed.length < 20 && !customSystemPrompt) {
+    return true;
+  }
+
+  // Simple status/list queries
+  const simpleQueries = /^(show|list|get|what('s| is| are)?|how many|any)\s+(my\s+)?(projects?|estimates?|invoices?|workers?|updates?|tasks?|schedule)/i;
+  if (simpleQueries.test(trimmed)) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Selects the appropriate model based on query complexity and voice mode
+ * @param {string} message - User's message
+ * @param {string} customSystemPrompt - Custom system prompt
+ * @returns {string} - Model identifier
+ */
+export const selectModel = (message, customSystemPrompt = null) => {
+  // Voice mode always uses fast model for snappy responses
+  if (isVoiceMode) {
+    console.log('🎤⚡ Using FAST model (Haiku) for voice mode');
+    return FAST_MODEL;
+  }
+
+  if (isSimpleQuery(message, customSystemPrompt)) {
+    console.log('⚡ Using FAST model (Haiku) for simple query');
+    return FAST_MODEL;
+  }
+  console.log('🧠 Using POWERFUL model (Sonnet) for complex query');
+  return POWERFUL_MODEL;
+};
+
+/**
+ * Gets optimized max_tokens based on mode and task complexity
+ * Voice mode uses fewer tokens for simple queries, but complex tasks need more
+ * @param {number} defaultTokens - Default token limit
+ * @param {boolean} isComplexTask - Whether this is a complex agent task (project creation, estimates, etc.)
+ */
+export const getMaxTokens = (defaultTokens = 4000, isComplexTask = false) => {
+  if (isVoiceMode) {
+    // Complex tasks (project creation, estimates) need full tokens even in voice mode
+    // because they return large visualElements like project-preview
+    if (isComplexTask) {
+      return 4000; // Full tokens for complex tasks
+    }
+    return 2500; // Increased from 1500 - agents need more room for proper JSON responses
+  }
+  return defaultTokens;
+};
+
+/**
  * Sends a message to the AI with conversation history and project context
  * @param {string} message - User's message
  * @param {object} projectContext - Current app data (projects, workers, stats)
@@ -65,11 +165,11 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
         'X-Title': 'Construction Manager',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o-mini', // Reliable and proven - Qwen 2.5 7B was hanging/timing out
+        model: selectModel(message, customSystemPrompt), // Smart model routing: Haiku for simple, Sonnet for complex
         messages: messages,
-        max_tokens: 1500, // Increased for complex responses and multi-agent plans
+        max_tokens: 4000, // Sufficient for detailed templates
         temperature: 0.3, // Lower temp = more reliable JSON formatting
-        response_format: { type: "json_object" }, // Force JSON responses
+        // Note: Claude doesn't support response_format, relies on prompt instructions
       }),
     });
 
@@ -81,7 +181,22 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
     const data = await response.json();
 
     if (data.choices && data.choices[0]) {
+      // Check why the response stopped
+      const finishReason = data.choices[0].finish_reason;
+      if (finishReason === 'length') {
+        console.warn('⚠️ AI response was cut off due to max_tokens limit. Increasing tokens...');
+      } else if (finishReason !== 'stop') {
+        console.warn('⚠️ AI response finished with reason:', finishReason);
+      }
+
       let content = data.choices[0].message.content;
+
+      // Check for empty content before processing
+      if (!content || content.trim() === '') {
+        console.error('❌ AI returned empty content');
+        console.error('📋 Full API response:', JSON.stringify(data, null, 2));
+        throw new Error('AI returned empty content');
+      }
 
       // Clean up common JSON formatting issues from AI
       content = content.trim();
@@ -95,9 +210,31 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
 
       // Try to parse as JSON, with robust error handling
       try {
+        // If content seems truncated (doesn't end with }), try to fix it
+        if (!content.endsWith('}') && !content.endsWith(']}')) {
+          console.warn('⚠️ Content appears truncated, attempting to fix...');
+
+          // Count opening and closing braces
+          const openBraces = (content.match(/\{/g) || []).length;
+          const closeBraces = (content.match(/\}/g) || []).length;
+
+          // Add missing closing braces
+          if (openBraces > closeBraces) {
+            content += '}'.repeat(openBraces - closeBraces);
+          }
+
+          // Remove trailing commas that might be invalid
+          content = content.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+        }
+
         const parsed = JSON.parse(content);
 
-        // Validate required fields exist
+        // For custom system prompts (like template generation), return as-is
+        if (customSystemPrompt) {
+          return parsed;
+        }
+
+        // For default prompts, validate required fields
         if (!parsed.text || !Array.isArray(parsed.visualElements)) {
           throw new Error('Missing required fields in AI response');
         }
@@ -109,6 +246,11 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
       } catch (parseError) {
         console.warn('AI response was not valid JSON:', parseError.message);
         console.warn('Raw content:', content.substring(0, 200)); // Show first 200 chars for debugging
+
+        // If using custom system prompt, just return the raw content
+        if (customSystemPrompt) {
+          return content; // Let the caller handle it
+        }
 
         // Fallback: wrap as plain text response
         return {
@@ -193,9 +335,11 @@ export const sendMessageToAIStreaming = async (
         'X-Title': 'Construction Manager',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku:nitro', // :nitro = fastest routing optimization
+        model: selectModel(message, customSystemPrompt), // Smart model routing: Haiku for simple, Sonnet for complex
         messages,
-        max_tokens: 4000, // High limit for detailed estimates with phases, tasks, schedule, and line items
+        // Complex tasks (custom prompts from agents) need full tokens even in voice mode
+        // because they return large visualElements like project-preview
+        max_tokens: getMaxTokens(4000, !!customSystemPrompt),
         temperature: 0.3,
         stream: true,
         // Note: Claude doesn't support response_format, must rely on system prompt
@@ -486,11 +630,17 @@ export const sendMessageToAIStreaming = async (
 
       let validatedResponse;
 
-      // IMPORTANT: If using custom system prompt (multi-agent), don't normalize
+      // IMPORTANT: If using custom system prompt (multi-agent), still ensure required arrays exist
       if (customSystemPrompt) {
-        validatedResponse = parsed; // Return as-is for agents to handle
+        // Ensure required array fields exist to prevent crashes
+        validatedResponse = {
+          text: parsed.text || '',
+          visualElements: Array.isArray(parsed.visualElements) ? parsed.visualElements : [],
+          actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+          quickSuggestions: Array.isArray(parsed.quickSuggestions) ? parsed.quickSuggestions : [],
+        };
         if (__DEV__) {
-          console.log('✅ [aiService] TRUE STREAMING - Custom prompt mode, returning raw response');
+          console.log('✅ [aiService] Custom prompt mode - returning raw parsed response');
         }
       } else {
         // Validate and normalize structure for legacy mode
@@ -561,41 +711,179 @@ export const sendMessageToAIStreaming = async (
 };
 
 /**
+ * Fetches pricing history for AI learning
+ * Returns recent pricing decisions with corrections weighted higher
+ * @param {string} userId - User's ID
+ * @param {string} serviceType - Optional filter by service type
+ * @returns {Promise<object>} - Pricing history organized for AI consumption
+ */
+export const getPricingHistory = async (userId, serviceType = null) => {
+  const { supabase } = require('../lib/supabase');
+
+  try {
+    let query = supabase
+      .from('pricing_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (serviceType) {
+      query = query.eq('service_type', serviceType);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn('Error fetching pricing history:', error);
+      return { recentJobs: [], byService: {}, corrections: [] };
+    }
+
+    // Organize data for AI consumption
+    const recentJobs = (data || []).slice(0, 20);
+    const corrections = (data || []).filter(item => item.is_correction);
+
+    // Group by service type
+    const byService = {};
+    (data || []).forEach(item => {
+      if (!byService[item.service_type]) {
+        byService[item.service_type] = [];
+      }
+      byService[item.service_type].push(item);
+    });
+
+    return {
+      recentJobs,
+      byService,
+      corrections,
+      totalEntries: (data || []).length,
+    };
+  } catch (error) {
+    console.error('Error in getPricingHistory:', error);
+    return { recentJobs: [], byService: {}, corrections: [] };
+  }
+};
+
+/**
+ * Saves a pricing entry to history for AI learning
+ * @param {object} pricingData - Pricing data to save
+ * @returns {Promise<object>} - Saved entry or error
+ */
+export const savePricingHistory = async (pricingData) => {
+  const { supabase } = require('../lib/supabase');
+  const { getCurrentUserId } = require('../utils/storage');
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    const entry = {
+      user_id: userId,
+      service_type: pricingData.serviceType,
+      work_description: pricingData.workDescription,
+      quantity: pricingData.quantity || null,
+      unit: pricingData.unit || null,
+      price_per_unit: pricingData.pricePerUnit || null,
+      total_amount: pricingData.totalAmount,
+      scope_keywords: pricingData.scopeKeywords || [],
+      square_footage: pricingData.squareFootage || null,
+      complexity: pricingData.complexity || null,
+      source_type: pricingData.sourceType, // 'project', 'estimate', 'invoice', 'correction'
+      source_id: pricingData.sourceId || null,
+      project_name: pricingData.projectName || null,
+      is_correction: pricingData.isCorrection || false,
+      confidence_weight: pricingData.isCorrection ? 1.5 : 1.0,
+      work_date: pricingData.workDate || new Date().toISOString().split('T')[0],
+    };
+
+    const { data, error } = await supabase
+      .from('pricing_history')
+      .insert(entry)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving pricing history:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in savePricingHistory:', error);
+    throw error;
+  }
+};
+
+/**
  * Gets the current project context to feed to the AI
- * Includes user profile with pricing information
+ * Includes user profile with pricing information and pricing history for learning
  * @returns {Promise<object>} - Project context object
  */
 export const getProjectContext = async () => {
   // Import functions inside to avoid circular dependencies
-  const { getUserProfile, fetchProjects, fetchEstimates, fetchInvoices } = require('../utils/storage');
+  const { getUserProfile, getUserServices, fetchProjects, fetchEstimates, fetchInvoices, getSubcontractorQuotesGroupedByTrade, getCurrentUserId } = require('../utils/storage');
   const { getTradeById } = require('../constants/trades');
 
   try {
     const userProfile = await getUserProfile();
+    const userServices = await getUserServices();
     const projects = await fetchProjects();
     const estimates = await fetchEstimates();
     const invoices = await fetchInvoices();
+    const subcontractorQuotes = await getSubcontractorQuotesGroupedByTrade();
 
-    // Format pricing for AI readability
+    // Fetch pricing history for AI learning
+    const userId = await getCurrentUserId();
+    const pricingHistory = userId ? await getPricingHistory(userId) : { recentJobs: [], byService: {}, corrections: [] };
+
+    // Format pricing for AI readability from new user_services system
     const formattedPricing = {};
-    if (userProfile.pricing) {
-      userProfile.trades.forEach(tradeId => {
-        const trade = getTradeById(tradeId);
-        if (trade && userProfile.pricing[tradeId]) {
-          formattedPricing[trade.name] = {};
+    const serviceNames = [];
 
-          trade.pricingTemplate.forEach(item => {
-            const priceData = userProfile.pricing[tradeId][item.id];
-            if (priceData) {
-              formattedPricing[trade.name][item.label] = {
-                price: priceData.price,
-                unit: priceData.unit
-              };
-            }
-          });
-        }
-      });
-    }
+    userServices.forEach(service => {
+      const categoryName = service.service_categories?.name || 'Unknown Service';
+      serviceNames.push(categoryName);
+
+      if (service.pricing && Object.keys(service.pricing).length > 0) {
+        formattedPricing[categoryName] = {};
+
+        Object.entries(service.pricing).forEach(([itemId, itemData]) => {
+          const itemName = itemData.name || itemId;
+          formattedPricing[categoryName][itemName] = {
+            price: itemData.price,
+            unit: itemData.unit
+          };
+        });
+      }
+    });
+
+    // Format subcontractor quotes for AI
+    const formattedSubcontractorQuotes = {};
+    Object.keys(subcontractorQuotes).forEach(tradeId => {
+      const trade = getTradeById(tradeId);
+      const quotes = subcontractorQuotes[tradeId];
+
+      if (trade && quotes && quotes.length > 0) {
+        formattedSubcontractorQuotes[trade.name] = quotes.map(quote => ({
+          contractor: quote.subcontractor_name,
+          contactPhone: quote.contact_phone,
+          isPreferred: quote.is_preferred,
+          services: quote.services.map(service => ({
+            description: service.description,
+            unit: service.unit,
+            pricePerUnit: service.pricePerUnit || service.price_per_unit,
+          })),
+        }));
+      }
+    });
+
+    // Check if user is a general contractor
+    const isGeneralContractor = serviceNames.some(name =>
+      name.toLowerCase().includes('general contractor') ||
+      name.toLowerCase().includes('general contracting')
+    );
 
     return {
       currentDate: new Date().toISOString(),
@@ -607,9 +895,17 @@ export const getProjectContext = async () => {
         email: '',
       },
 
-      // User services and pricing
-      services: userProfile.trades || [],
+      // User services and pricing (from new system)
+      services: serviceNames,
       pricing: formattedPricing,
+
+      // Pricing history for AI learning (actual prices charged on past jobs)
+      // AI should weight corrections (is_correction=true) 1.5x higher
+      pricingHistory: pricingHistory,
+
+      // Subcontractor quotes (for General Contractors)
+      subcontractorQuotes: formattedSubcontractorQuotes,
+      isGeneralContractor: isGeneralContractor,
 
       // Projects (fetched from database)
       projects: projects || [],
@@ -660,6 +956,7 @@ export const getProjectContext = async () => {
       businessInfo: { name: 'Your Business', phone: '', email: '' },
       services: [],
       pricing: {},
+      pricingHistory: { recentJobs: [], byService: {}, corrections: [] },
       projects: [],
       estimates: [],
       invoices: [],
@@ -813,6 +1110,147 @@ If any field is not found in the image, use null. Be accurate and only extract w
     // Fallback to mock data if API fails
     console.warn('Falling back to mock data');
     return mockScreenshotAnalysis();
+  }
+};
+
+/**
+ * Analyze subcontractor quote document using AI Vision
+ * Extracts pricing information, subcontractor details, and service line items
+ * @param {string} base64Image - Base64 encoded image of the quote document
+ * @param {string} tradeId - Trade ID (e.g., 'drywall', 'electrical') for context
+ * @returns {Promise<object>} - Extracted quote data
+ */
+export const analyzeSubcontractorQuote = async (base64Image, tradeId = null) => {
+  try {
+    console.log('🔍 Analyzing subcontractor quote with AI Vision...');
+    console.log('📋 Trade ID:', tradeId);
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://construction-manager.app',
+        'X-Title': 'Construction Manager - Quote Analysis',
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4-vision-preview', // Vision model
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Analyze this subcontractor quote/estimate document${tradeId ? ` for ${tradeId} services` : ''}. Extract ALL pricing information and company details.
+
+Return ONLY valid JSON (no markdown, no extra text) in this EXACT format:
+
+{
+  "subcontractorName": "Company name from document",
+  "contactPhone": "Phone number if visible",
+  "contactEmail": "Email if visible",
+  "services": [
+    {
+      "description": "Service or item description",
+      "quantity": null,
+      "unit": "sq ft | linear ft | unit | hour | job | day",
+      "pricePerUnit": 0.00,
+      "total": 0.00,
+      "notes": "Any special terms or conditions"
+    }
+  ],
+  "subtotal": 0.00,
+  "tax": 0.00,
+  "totalAmount": 0.00,
+  "validUntil": "Date if mentioned (YYYY-MM-DD format)",
+  "paymentTerms": "Payment terms if mentioned",
+  "notes": "Any additional notes or terms"
+}
+
+IMPORTANT EXTRACTION RULES:
+1. Extract ALL line items you can find in the pricing table
+2. For "unit", use standard construction units: "sq ft", "linear ft", "unit", "hour", "job", "day"
+3. If a service has "per sq ft" pricing, extract just the number for pricePerUnit
+4. If you see "$2.50/sq ft", extract: pricePerUnit: 2.50, unit: "sq ft"
+5. Calculate totals if they're not shown: total = quantity × pricePerUnit
+6. If quantity is not shown but price per unit is, set quantity: null
+7. If a field is not visible, use null (except services array which should have at least one entry)
+8. Look for company name in header, footer, or letterhead
+9. Extract ALL phone numbers and emails you see
+
+Be thorough and accurate. Extract every line item you can identify.`
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 2000, // More tokens for detailed pricing tables
+        temperature: 0.2, // Lower temperature for more accurate extraction
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Vision API error:', errorData);
+      throw new Error(errorData.error?.message || 'Vision API request failed');
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+
+    // Try to parse the JSON response
+    try {
+      // Remove markdown code blocks if present
+      const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const extracted = JSON.parse(cleanContent);
+
+      console.log('✅ Extracted quote data:', extracted);
+
+      // Validate and structure the response
+      return {
+        subcontractorName: extracted.subcontractorName || 'Unknown Contractor',
+        contactPhone: extracted.contactPhone || null,
+        contactEmail: extracted.contactEmail || null,
+        services: Array.isArray(extracted.services) && extracted.services.length > 0
+          ? extracted.services.map(service => ({
+              description: service.description || 'Service',
+              quantity: service.quantity || null,
+              unit: service.unit || 'unit',
+              pricePerUnit: parseFloat(service.pricePerUnit) || 0,
+              total: parseFloat(service.total) || 0,
+              notes: service.notes || null,
+            }))
+          : [{
+              description: 'Extracted service',
+              quantity: null,
+              unit: 'unit',
+              pricePerUnit: 0,
+              total: 0,
+              notes: 'Could not extract detailed pricing',
+            }],
+        subtotal: parseFloat(extracted.subtotal) || 0,
+        tax: parseFloat(extracted.tax) || 0,
+        totalAmount: parseFloat(extracted.totalAmount) || 0,
+        validUntil: extracted.validUntil || null,
+        paymentTerms: extracted.paymentTerms || null,
+        notes: extracted.notes || null,
+        confidence: 0.85,
+        extractedAt: new Date().toISOString(),
+      };
+    } catch (parseError) {
+      console.error('❌ Failed to parse vision response:', content);
+      console.error('Parse error:', parseError);
+      throw new Error('Could not parse extracted quote data. Please check the image quality and try again.');
+    }
+
+  } catch (error) {
+    console.error('❌ Quote analysis error:', error);
+    throw error; // Re-throw to let caller handle it
   }
 };
 

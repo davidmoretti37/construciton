@@ -11,30 +11,77 @@ import {
   Alert,
   Keyboard,
   TextInput,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import AIInputWithSearch from '../components/AIInputWithSearch';
 import AnimatedText from '../components/AnimatedText';
 import { useTheme } from '../contexts/ThemeContext';
-import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, formatProjectConfirmation } from '../services/aiService';
+import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, formatProjectConfirmation, setVoiceMode } from '../services/aiService';
 import CoreAgent from '../services/agents/core/CoreAgent';
-import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview } from '../components/ChatVisuals';
+import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, WorkerPaymentCard, DailyReportList, AppointmentCard } from '../components/ChatVisuals';
 import { formatEstimate } from '../utils/estimateFormatter';
 import { sendEstimateViaSMS, sendEstimateViaWhatsApp, isValidPhoneNumber } from '../utils/messaging';
-import { getUserProfile, saveProject, transformScreenshotToProject, getProject, saveEstimate, updateEstimate, createInvoiceFromEstimate, markInvoiceAsPaid, updateInvoicePDF, getInvoice, updateTradePricing, updatePhaseProgress, extendPhaseTimeline, startPhase, completePhase, fetchProjectPhases, addTaskToPhase, saveDailyReport, savePhasePaymentAmount, deleteProject } from '../utils/storage';
+import { fetchWorkers, fetchProjects, getUserProfile, getUserServices, updateUserServicePricing, saveProject, transformScreenshotToProject, getProject, saveEstimate, updateEstimate, createInvoiceFromEstimate, markInvoiceAsPaid, updateInvoicePDF, getInvoice, updateTradePricing, updatePhaseProgress, extendPhaseTimeline, startPhase, completePhase, fetchProjectPhases, addTaskToPhase, saveDailyReport, savePhasePaymentAmount, deleteProject, createProjectFromEstimate, createWorker, updateWorker, clockIn, clockOut, getActiveClockIn, createScheduleEvent, updateScheduleEvent, deleteScheduleEvent, createWorkSchedule, updateWorkSchedule, deleteWorkSchedule, updateBusinessInfo, updatePhaseTemplate, addServiceToTrade, removeServiceFromTrade, updateServicePricing, updateProfitMargin, saveSubcontractorQuote, updateSubcontractorQuote, deleteSubcontractorQuote, updateInvoiceTemplate, updateInvoice, deleteInvoice, recordInvoicePayment, voidInvoice, uploadContractDocument, calculateWorkerPaymentForPeriod, fetchPhotosWithFilters, fetchDailyReportsWithFilters, fetchDailyReportById, getTodaysWorkersSchedule, editTimeEntry, createManualTimeEntry, deleteTimeEntry, createRecurringEvent, updateRecurringEvent, deleteRecurringEvent, setWorkerAvailability, setWorkerPTO, removeWorkerAvailability, createCrew, getCrew, updateCrew, deleteCrew, createShiftTemplate, applyShiftTemplate, deleteShiftTemplate, startWorkerBreak, endWorkerBreak, swapWorkerShifts, fetchScheduleEvents } from '../utils/storage';
 import { generateInvoicePDF, uploadInvoicePDF, previewInvoicePDF, shareInvoicePDF } from '../utils/pdfGenerator';
 import TimelinePickerModal from '../components/TimelinePickerModal';
 import BudgetInputModal from '../components/BudgetInputModal';
 import JobNameInputModal from '../components/JobNameInputModal';
 import AddCustomServiceModal from '../components/AddCustomServiceModal';
 import OrbitalLoader from '../components/OrbitalLoader';
+import StatusMessage from '../components/StatusMessage';
+import NotificationBell from '../components/NotificationBell';
 
-export default function ChatScreen({ navigation }) {
+// Helper: Find worker by name (case-insensitive, partial match)
+const findWorkerByName = (workers, searchName) => {
+  if (!searchName || !workers) return null;
+  const search = searchName.toLowerCase().trim();
+
+  // Exact match first
+  let match = workers.find(w =>
+    w.full_name?.toLowerCase() === search ||
+    w.name?.toLowerCase() === search
+  );
+
+  // Partial match (contains)
+  if (!match) {
+    match = workers.find(w =>
+      w.full_name?.toLowerCase().includes(search) ||
+      w.name?.toLowerCase().includes(search)
+    );
+  }
+
+  return match;
+};
+
+// Helper: Resolve partial UUID to full UUID
+const resolveWorkerId = (workers, id) => {
+  if (!id || !workers) return null;
+  // Full UUID (36 chars)
+  if (id.length === 36) return id;
+  // Partial UUID - find by prefix
+  const match = workers.find(w => w.id?.startsWith(id));
+  return match?.id || null;
+};
+
+// Helper: Resolve partial project UUID to full UUID
+const resolveProjectId = (projects, id) => {
+  if (!id || !projects) return null;
+  // Full UUID (36 chars with hyphens)
+  if (id.length === 36) return id;
+  // Partial UUID - find by prefix
+  const match = projects.find(p => p.id?.startsWith(id));
+  return match?.id || null;
+};
+
+export default function ChatScreen({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(null);
   const scrollViewRef = useRef(null);
   const [showTimelinePicker, setShowTimelinePicker] = useState(false);
   const [showBudgetInput, setShowBudgetInput] = useState(false);
@@ -63,6 +110,70 @@ export default function ChatScreen({ navigation }) {
     // Auto-scroll to bottom when new messages appear or AI starts thinking
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages, isAIThinking]);
+
+  // Handle navigation params (e.g., from notification tap)
+  useEffect(() => {
+    const handleRouteParams = async () => {
+      const params = route?.params;
+      if (!params) return;
+
+      // Handle appointment/event viewing
+      if (params.eventId) {
+        try {
+          // Fetch the event details
+          const now = new Date();
+          const farFuture = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+          const events = await fetchScheduleEvents(
+            new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
+            farFuture.toISOString()
+          );
+          const event = events?.find(e => e.id === params.eventId);
+
+          if (event) {
+            // Create a message showing the appointment card
+            const appointmentMessage = {
+              id: `appointment-${Date.now()}`,
+              text: `Here's your appointment:`,
+              isUser: false,
+              timestamp: new Date(),
+              visualElements: [{
+                type: 'appointment-card',
+                data: event
+              }],
+              actions: [],
+              quickSuggestions: ['Reschedule', 'Get directions', 'Cancel appointment'],
+            };
+            setMessages(prev => [...prev, appointmentMessage]);
+          } else {
+            addAIMessage(`I couldn't find that appointment. It may have been deleted or rescheduled.`);
+          }
+        } catch (error) {
+          console.error('Error fetching appointment:', error);
+          addAIMessage(`Sorry, I couldn't load the appointment details.`);
+        }
+
+        // Clear the params so it doesn't trigger again
+        navigation.setParams({ eventId: undefined });
+      }
+    };
+
+    handleRouteParams();
+  }, [route?.params?.eventId]);
+
+  // Helper function to add AI messages programmatically
+  const addAIMessage = (text) => {
+    const aiMessageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const aiMessage = {
+      id: aiMessageId,
+      text: text,
+      isUser: false,
+      timestamp: new Date(),
+      visualElements: [],
+      actions: [],
+      quickSuggestions: [],
+    };
+    setMessages((prev) => [...prev, aiMessage]);
+  };
 
   const handleSend = async (text, withSearch) => {
     if (text.trim() === '') return;
@@ -94,14 +205,16 @@ export default function ChatScreen({ navigation }) {
     // Dismiss keyboard so user can see AI response
     Keyboard.dismiss();
 
-    // Show ONLY loading spinner (no bubble yet)
+    // Show status message immediately (ChatGPT-style feedback)
     setIsAIThinking(true);
+    setStatusMessage('Thinking');
     let messageCreated = false; // Track if we've created the message bubble
 
     // Set 50-second timeout
     aiTimeoutRef.current = setTimeout(() => {
       console.log('⏱️ AI response timeout - 50 seconds elapsed');
       setIsAIThinking(false);
+      setStatusMessage(null); // Clear status on timeout
 
       if (!messageCreated) {
         const timeoutMessage = {
@@ -131,12 +244,13 @@ export default function ChatScreen({ navigation }) {
         // onChunk callback - Create bubble on first chunk, then update text
         (cleanText) => {
           if (!messageCreated && cleanText) {
-            // First chunk arrived - clear timeout, hide loading, create bubble with text
+            // First chunk arrived - clear timeout, hide status, create bubble with text
             if (aiTimeoutRef.current) {
               clearTimeout(aiTimeoutRef.current);
               aiTimeoutRef.current = null;
             }
             setIsAIThinking(false);
+            setStatusMessage(null); // Hide status when response starts
             messageCreated = true;
 
             const aiMessage = {
@@ -164,6 +278,11 @@ export default function ChatScreen({ navigation }) {
         // onComplete callback - Add visual elements
         (parsedResponse) => {
           setIsAIThinking(false);
+          setStatusMessage(null); // Clear status on complete
+
+          // Disable voice mode after response completes
+          // This ensures next typed message uses standard (powerful) model
+          setVoiceMode(false);
 
           // Debug logging
           if (__DEV__) {
@@ -207,6 +326,107 @@ export default function ChatScreen({ navigation }) {
             handleUpdateProjectFinances(updateAction.data);
           }
 
+          // AUTO-EXECUTE worker payment queries
+          const workerPaymentAction = parsedResponse.actions?.find(action => action.type === 'get-worker-payment');
+          if (workerPaymentAction) {
+            console.log('🔄 Auto-executing worker payment query:', workerPaymentAction.data);
+            handleGetWorkerPayment(workerPaymentAction);
+
+            // Clear actions and suggestions from the message since we auto-executed
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
+                  ? { ...msg, actions: [], quickSuggestions: [] }
+                  : msg
+              )
+            );
+          }
+
+          // AUTO-EXECUTE schedule event actions (create, update, delete)
+          const createScheduleAction = parsedResponse.actions?.find(action => action.type === 'create-schedule-event');
+          const updateScheduleAction = parsedResponse.actions?.find(action => action.type === 'update-schedule-event');
+          const deleteScheduleAction = parsedResponse.actions?.find(action => action.type === 'delete-schedule-event');
+
+          if (createScheduleAction) {
+            console.log('🔄 Auto-executing schedule event creation:', createScheduleAction.data);
+            handleCreateScheduleEvent(createScheduleAction.data);
+
+            // Clear actions and suggestions from the message since we auto-executed
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
+                  ? { ...msg, actions: [], quickSuggestions: [] }
+                  : msg
+              )
+            );
+          } else if (updateScheduleAction) {
+            console.log('🔄 Auto-executing schedule event update:', updateScheduleAction.data);
+            handleUpdateScheduleEvent(updateScheduleAction.data);
+
+            // Clear actions and suggestions
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
+                  ? { ...msg, actions: [], quickSuggestions: [] }
+                  : msg
+              )
+            );
+          } else if (deleteScheduleAction) {
+            console.log('🔄 Auto-executing schedule event deletion:', deleteScheduleAction.data);
+            handleDeleteScheduleEvent(deleteScheduleAction.data);
+
+            // Remove the AI message entirely - the handler adds its own confirmation
+            setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
+          }
+
+          // AUTO-EXECUTE retrieve daily reports action
+          const retrieveReportsAction = parsedResponse.actions?.find(action => action.type === 'retrieve-daily-reports');
+          if (retrieveReportsAction) {
+            console.log('🔄 Auto-executing retrieve daily reports:', retrieveReportsAction.data);
+            handleRetrieveDailyReports(retrieveReportsAction.data);
+
+            // Clear actions and suggestions from the message since we auto-executed
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
+                  ? { ...msg, actions: [], quickSuggestions: [] }
+                  : msg
+              )
+            );
+          }
+
+          // AUTO-EXECUTE retrieve photos action
+          const retrievePhotosAction = parsedResponse.actions?.find(action => action.type === 'retrieve-photos');
+          if (retrievePhotosAction) {
+            console.log('🔄 Auto-executing retrieve photos:', retrievePhotosAction.data);
+            handleRetrievePhotos(retrievePhotosAction.data);
+
+            // Clear actions and suggestions from the message since we auto-executed
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
+                  ? { ...msg, actions: [], quickSuggestions: [] }
+                  : msg
+              )
+            );
+          }
+
+          // AUTO-EXECUTE retrieve schedule events action
+          const retrieveScheduleAction = parsedResponse.actions?.find(action => action.type === 'retrieve-schedule-events');
+          if (retrieveScheduleAction) {
+            console.log('🔄 Auto-executing retrieve schedule events:', retrieveScheduleAction.data);
+            handleRetrieveScheduleEvents(retrieveScheduleAction.data);
+
+            // Clear actions and suggestions from the message since we auto-executed
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
+                  ? { ...msg, actions: [], quickSuggestions: [] }
+                  : msg
+              )
+            );
+          }
+
           // Update conversation history
           setConversationHistory((prev) => [
             ...prev,
@@ -223,6 +443,9 @@ export default function ChatScreen({ navigation }) {
             aiTimeoutRef.current = null;
           }
           setIsAIThinking(false);
+          setStatusMessage(null); // Clear status on error
+          // Disable voice mode on error so retries use standard model
+          setVoiceMode(false);
 
           // Only add error message if we haven't created a message bubble yet
           if (!messageCreated) {
@@ -245,6 +468,12 @@ export default function ChatScreen({ navigation }) {
             });
             messageCreated = true;
           }
+        },
+        // onStatusChange callback - Update status message for agent-specific feedback
+        (status) => {
+          if (status) {
+            setStatusMessage(status);
+          }
         }
       );
     } catch (error) {
@@ -255,6 +484,7 @@ export default function ChatScreen({ navigation }) {
         aiTimeoutRef.current = null;
       }
       setIsAIThinking(false);
+      setStatusMessage(null); // Clear status on error
 
       // Only add error message if onError callback didn't already add one
       if (!messageCreated) {
@@ -413,6 +643,10 @@ export default function ChatScreen({ navigation }) {
         // TODO: Navigate to add worker screen
         break;
 
+      case 'get-worker-payment':
+        await handleGetWorkerPayment(action);
+        break;
+
       case 'create-project':
       case 'save-project':
       case 'confirm-project':
@@ -475,8 +709,20 @@ export default function ChatScreen({ navigation }) {
         await handleDeleteProject(action.data);
         break;
 
+      case 'add-estimate-to-project-choice':
+        await handleAddEstimateToProjectChoice(action.data);
+        break;
+
+      case 'update-project':
+        await handleUpdateProject(action.data);
+        break;
+
       case 'update-estimate':
         await handleUpdateEstimate(action.data);
+        break;
+
+      case 'create-project-from-estimate':
+        await handleCreateProjectFromEstimate(action.data);
         break;
 
       case 'create-estimate':
@@ -550,8 +796,287 @@ export default function ChatScreen({ navigation }) {
         await handleSetPhasePayment(action.data);
         break;
 
+      // Workers & Scheduling Agent Actions
+      case 'create-worker':
+        await handleCreateWorker(action.data);
+        break;
+
+      case 'update-worker':
+        await handleUpdateWorker(action.data);
+        break;
+
+      case 'clock-in-worker':
+        await handleClockInWorker(action.data);
+        break;
+
+      case 'clock-out-worker':
+        await handleClockOutWorker(action.data);
+        break;
+
+      case 'create-schedule-event':
+        await handleCreateScheduleEvent(action.data);
+        break;
+
+      case 'update-schedule-event':
+        await handleUpdateScheduleEvent(action.data);
+        break;
+
+      case 'delete-schedule-event':
+        await handleDeleteScheduleEvent(action.data);
+        break;
+
+      case 'reschedule-appointment':
+        // Send message to AI to reschedule
+        addAIMessage(`Let's reschedule "${action.data?.title || 'this appointment'}". When would you like to move it to?`);
+        break;
+
+      case 'cancel-appointment':
+        // Confirm and delete the appointment
+        Alert.alert(
+          'Cancel Appointment',
+          `Are you sure you want to cancel "${action.data?.title || 'this appointment'}"?`,
+          [
+            { text: 'Keep', style: 'cancel' },
+            {
+              text: 'Cancel Appointment',
+              style: 'destructive',
+              onPress: async () => {
+                await handleDeleteScheduleEvent({ id: action.data?.id, eventTitle: action.data?.title });
+              }
+            }
+          ]
+        );
+        break;
+
+      case 'retrieve-schedule-events':
+        await handleRetrieveScheduleEvents(action.data);
+        break;
+
+      case 'create-work-schedule':
+        await handleCreateWorkSchedule(action.data);
+        break;
+
+      case 'update-work-schedule':
+        await handleUpdateWorkSchedule(action.data);
+        break;
+
+      case 'create-daily-report':
+        await handleCreateDailyReport(action.data);
+        break;
+
+      // Bulk Operations
+      case 'bulk-clock-in':
+        await handleBulkClockIn(action.data);
+        break;
+
+      case 'bulk-clock-out':
+        await handleBulkClockOut(action.data);
+        break;
+
+      case 'bulk-create-work-schedule':
+        await handleBulkCreateWorkSchedule(action.data);
+        break;
+
+      // Time Entry Management
+      case 'edit-time-entry':
+        await handleEditTimeEntry(action.data);
+        break;
+
+      case 'create-time-entry':
+        await handleCreateTimeEntry(action.data);
+        break;
+
+      case 'delete-time-entry':
+        await handleDeleteTimeEntry(action.data);
+        break;
+
+      // Recurring Events
+      case 'create-recurring-event':
+        await handleCreateRecurringEvent(action.data);
+        break;
+
+      case 'update-recurring-event':
+        await handleUpdateRecurringEvent(action.data);
+        break;
+
+      case 'delete-recurring-event':
+        await handleDeleteRecurringEvent(action.data);
+        break;
+
+      // Worker Availability & PTO
+      case 'set-worker-availability':
+        await handleSetWorkerAvailability(action.data);
+        break;
+
+      case 'set-worker-pto':
+        await handleSetWorkerPTO(action.data);
+        break;
+
+      case 'remove-worker-availability':
+        await handleRemoveWorkerAvailability(action.data);
+        break;
+
+      // Crew Management
+      case 'create-crew':
+        await handleCreateCrew(action.data);
+        break;
+
+      case 'update-crew':
+        await handleUpdateCrew(action.data);
+        break;
+
+      case 'delete-crew':
+        await handleDeleteCrew(action.data);
+        break;
+
+      // Shift Templates
+      case 'create-shift-template':
+        await handleCreateShiftTemplate(action.data);
+        break;
+
+      case 'apply-shift-template':
+        await handleApplyShiftTemplate(action.data);
+        break;
+
+      case 'delete-shift-template':
+        await handleDeleteShiftTemplate(action.data);
+        break;
+
+      // Break Management
+      case 'start-break':
+        await handleStartBreak(action.data);
+        break;
+
+      case 'end-break':
+        await handleEndBreak(action.data);
+        break;
+
+      // Shift Swapping
+      case 'swap-shifts':
+        await handleSwapShifts(action.data);
+        break;
+
+      // Settings & Configuration Agent Actions
+      case 'update-business-info':
+        await handleUpdateBusinessInfo(action.data);
+        break;
+
+      case 'create-phase-template':
+      case 'update-phase-template':
+        await handleUpdatePhaseTemplate(action.data);
+        break;
+
+      case 'add-service':
+        await handleAddService(action.data);
+        break;
+
+      case 'update-service-pricing':
+        await handleUpdateServicePricing(action.data);
+        break;
+
+      case 'remove-service':
+        await handleRemoveService(action.data);
+        break;
+
+      case 'update-profit-margin':
+        await handleUpdateProfitMargin(action.data);
+        break;
+
+      case 'add-subcontractor-quote':
+        await handleAddSubcontractorQuote(action.data);
+        break;
+
+      case 'update-subcontractor-quote':
+        await handleUpdateSubcontractorQuote(action.data);
+        break;
+
+      case 'delete-subcontractor-quote':
+        await handleDeleteSubcontractorQuote(action.data);
+        break;
+
+      case 'update-invoice-template':
+        await handleUpdateInvoiceTemplate(action.data);
+        break;
+
+      // Document Agent - Invoice Management Actions
+      case 'update-invoice':
+        await handleUpdateInvoice(action.data);
+        break;
+
+      case 'delete-invoice':
+        await handleDeleteInvoice(action.data);
+        break;
+
+      case 'record-invoice-payment':
+        await handleRecordInvoicePayment(action.data);
+        break;
+
+      case 'void-invoice':
+        await handleVoidInvoice(action.data);
+        break;
+
+      // Document Agent - Contract Management Actions
+      case 'upload-contract':
+        await handleUploadContract();
+        break;
+
+      case 'view-contract':
+        await handleViewContract(action.data);
+        break;
+
+      case 'share-contract':
+        await handleShareContract(action.data);
+        break;
+
+      // Photo and Daily Report Retrieval Actions
+      case 'retrieve-photos':
+        await handleRetrievePhotos(action.data);
+        break;
+
+      case 'retrieve-daily-reports':
+        await handleRetrieveDailyReports(action.data);
+        break;
+
+      case 'view-report-detail':
+        try {
+          const report = await fetchDailyReportById(action.data.reportId);
+          if (report) {
+            navigation.navigate('DailyReportDetail', { report });
+          } else {
+            Alert.alert('Error', 'Could not load report details');
+          }
+        } catch (error) {
+          console.error('Error fetching report:', error);
+          Alert.alert('Error', 'Could not load report details');
+        }
+        break;
+
+      case 'view-photo':
+        // Open photo URL in browser/image viewer
+        if (action.data?.photo?.url) {
+          try {
+            await Linking.openURL(action.data.photo.url);
+          } catch (err) {
+            console.error('Error opening photo:', err);
+            Alert.alert('Error', 'Could not open photo');
+          }
+        }
+        break;
+
+      // Maps/Location Actions
+      case 'open-maps':
+        handleOpenMaps(action.data);
+        break;
+
       default:
-        console.log('Unknown action:', action.type);
+        console.error('❌ Unknown action type:', action.type);
+        console.error('📋 Full action object:', JSON.stringify(action, null, 2));
+        console.error('💡 Available action types: create-schedule-event, update-schedule-event, delete-schedule-event, etc.');
+        Alert.alert(
+          'Unknown Action',
+          `The AI tried to perform an action "${action.type}" that is not supported. This has been logged for debugging.`,
+          [{ text: 'OK' }]
+        );
     }
   };
 
@@ -800,36 +1325,35 @@ export default function ChatScreen({ navigation }) {
 
   const handleCustomServiceAdd = async (serviceData) => {
     try {
-      // Get user profile to determine which trade to add this to
-      const profile = await getUserProfile();
+      // Get user's services from the new system
+      const userServices = await getUserServices();
 
-      // Find the appropriate trade based on user's enabled trades
-      // For now, we'll add it to a general "custom" trade or the first available trade
-      let tradeId = 'custom';
-
-      if (profile?.trades && profile.trades.length > 0) {
-        // Use the first enabled trade as the default location for custom services
-        tradeId = profile.trades[0];
+      if (userServices.length === 0) {
+        Alert.alert('No Services', 'Please add a service from the More screen first.');
+        return;
       }
+
+      // Use the first service as the default location for custom items
+      const firstService = userServices[0];
 
       // Create unique ID for custom service
       const customId = `custom_${Date.now()}`;
 
-      // Get existing pricing for this trade
-      const existingPricing = (profile?.pricing && profile.pricing[tradeId]) || {};
+      // Get existing pricing for this service
+      const existingPricing = firstService.pricing || {};
 
       // Add the new custom service
       const updatedPricing = {
         ...existingPricing,
         [customId]: {
-          label: serviceData.label,
+          name: serviceData.label,
           unit: serviceData.unit,
           price: parseFloat(serviceData.price),
         }
       };
 
-      // Save to storage
-      await updateTradePricing(tradeId, updatedPricing);
+      // Save to user_services table
+      await updateUserServicePricing(firstService.id, updatedPricing);
 
       // Close the modal
       setShowAddCustomService(false);
@@ -1136,10 +1660,864 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
+  // Workers & Scheduling Agent Handlers
+  const handleCreateWorker = async (data) => {
+    try {
+      const worker = await createWorker(data);
+      if (worker) {
+        addAIMessage(`✅ Added ${data.full_name} as ${data.trade || 'worker'}!`);
+      } else {
+        Alert.alert('Error', 'Failed to create worker.');
+      }
+    } catch (error) {
+      console.error('Error creating worker:', error);
+      Alert.alert('Error', 'Failed to create worker.');
+    }
+  };
+
+  const handleUpdateWorker = async (data) => {
+    try {
+      const { workerId, workerName, ...updates } = data;
+      const success = await updateWorker(workerId, updates);
+      if (success) {
+        const updateMsg = Object.keys(updates).map(key => {
+          if (key === 'hourly_rate') return `rate to $${updates[key]}/hour`;
+          if (key === 'trade') return `trade to ${updates[key]}`;
+          if (key === 'status') return `status to ${updates[key]}`;
+          return `${key} updated`;
+        }).join(', ');
+        addAIMessage(`✅ Updated ${workerName || 'worker'}: ${updateMsg}`);
+      } else {
+        Alert.alert('Error', 'Failed to update worker.');
+      }
+    } catch (error) {
+      console.error('Error updating worker:', error);
+      Alert.alert('Error', 'Failed to update worker.');
+    }
+  };
+
+  const handleGetWorkerPayment = async (action) => {
+    try {
+      const actionData = action.data || action;
+      const period = actionData.period || 'this_week';
+
+      // Support workerName, workerNames, workerId, workerIds, or allWorkers
+      let workerIds = [];
+      const workers = await fetchWorkers();
+
+      if (actionData.allWorkers) {
+        // Get all active workers
+        const activeWorkers = workers.filter(w => w.status === 'active' || !w.status);
+        workerIds = activeWorkers.map(w => w.id);
+        console.log('📅 Fetching payments for all workers:', activeWorkers.length);
+      } else if (actionData.workerName || actionData.workerNames) {
+        // Name-based resolution (preferred)
+        const names = actionData.workerNames || [actionData.workerName];
+        for (const name of names) {
+          const match = findWorkerByName(workers, name);
+          if (match) {
+            workerIds.push(match.id);
+          } else {
+            console.warn(`Worker not found: ${name}`);
+          }
+        }
+      } else if (actionData.workerIds && Array.isArray(actionData.workerIds)) {
+        // Array of IDs (may be partial)
+        for (const id of actionData.workerIds) {
+          const resolved = resolveWorkerId(workers, id);
+          if (resolved) workerIds.push(resolved);
+        }
+      } else if (actionData.workerId) {
+        // Single ID (may be partial)
+        const resolved = resolveWorkerId(workers, actionData.workerId);
+        if (resolved) workerIds.push(resolved);
+      }
+
+      if (workerIds.length === 0) {
+        addAIMessage(`I couldn't find any workers. Please check and try again.`);
+        return;
+      }
+
+      // Calculate date range based on period
+      const getDateRange = (period) => {
+        const now = new Date();
+        const formatDate = (date) => {
+          const yyyy = date.getFullYear();
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const dd = String(date.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}`;
+        };
+
+        switch (period) {
+          case 'this_week': {
+            const dayOfWeek = now.getDay();
+            const monday = new Date(now);
+            monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+            monday.setHours(0, 0, 0, 0);
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            return { from: formatDate(monday), to: formatDate(sunday) };
+          }
+          case 'last_week': {
+            const dayOfWeek = now.getDay();
+            const lastMonday = new Date(now);
+            lastMonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1) - 7);
+            const lastSunday = new Date(lastMonday);
+            lastSunday.setDate(lastMonday.getDate() + 6);
+            return { from: formatDate(lastMonday), to: formatDate(lastSunday) };
+          }
+          case 'this_month': {
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            return { from: formatDate(firstDay), to: formatDate(lastDay) };
+          }
+          case 'last_month': {
+            const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+            return { from: formatDate(firstDay), to: formatDate(lastDay) };
+          }
+          default:
+            return { from: formatDate(now), to: formatDate(now) };
+        }
+      };
+
+      const { from, to } = getDateRange(period);
+
+      // Calculate payment for each worker
+      const workerPayments = await Promise.all(
+        workerIds.map(async (workerId) => {
+          const paymentData = await calculateWorkerPaymentForPeriod(workerId, from, to);
+          return paymentData;
+        })
+      );
+
+      // Filter out workers with no payment data (but keep workers with 0 hours for visibility)
+      const validPayments = workerPayments.filter(p => p !== null);
+
+      if (validPayments.length === 0) {
+        addAIMessage('No workers found for this period.');
+        return;
+      }
+
+      // Check if any worker has hours recorded
+      const hasAnyHours = validPayments.some(p => p.totalAmount > 0);
+      if (!hasAnyHours) {
+        addAIMessage('No work hours recorded for any workers in this period. Amount owed: $0.00');
+        return;
+      }
+
+      // Create SEPARATE payment cards for each worker
+      const periodLabel = period.replace('_', ' ');
+      const newMessages = [];
+
+      validPayments.forEach((paymentData, index) => {
+        if (!paymentData || paymentData.totalAmount === 0) return; // Skip workers with no hours
+
+        const workerData = {
+          workerId: paymentData.workerId,
+          workerName: paymentData.workerName,
+          paymentType: paymentData.paymentType,
+          rate: paymentData.rate ? paymentData.rate[paymentData.paymentType] : 0,
+          totalAmount: paymentData.totalAmount,
+          totalHours: paymentData.totalHours,
+          totalDays: paymentData.totalDays,
+          byDate: paymentData.byDate,
+          byProject: paymentData.byProject,
+        };
+
+        const messageId = `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+        newMessages.push({
+          id: messageId,
+          text: '', // No text, just the visual element
+          isUser: false,
+          timestamp: new Date(),
+          visualElements: [
+            {
+              type: 'worker-payment-card',
+              data: {
+                workers: [workerData], // Single worker per card
+                period: period,
+                totalAmount: workerData.totalAmount,
+                totalHours: workerData.totalHours,
+                totalDays: workerData.totalDays,
+              }
+            }
+          ],
+          actions: [],
+          quickSuggestions: [],
+        });
+      });
+
+      // Add all messages
+      setMessages((prev) => [...prev, ...newMessages]);
+
+    } catch (error) {
+      console.error('Error getting worker payment:', error);
+      Alert.alert('Error', 'Failed to calculate worker payment.');
+    }
+  };
+
+  const handleClockInWorker = async (data) => {
+    try {
+      const { workerId, workerName, projectId, projectName, location } = data;
+      const record = await clockIn(workerId, projectId, location);
+      if (record) {
+        const time = new Date(record.clock_in_time).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+        addAIMessage(`✅ Clocked in ${workerName} at ${projectName} (${time})`);
+      } else {
+        Alert.alert('Error', 'Failed to clock in worker.');
+      }
+    } catch (error) {
+      console.error('Error clocking in worker:', error);
+      Alert.alert('Error', 'Failed to clock in worker.');
+    }
+  };
+
+  const handleClockOutWorker = async (data) => {
+    try {
+      const { workerId, workerName } = data;
+
+      // Get active clock-in for this worker
+      const activeRecord = await getActiveClockIn(workerId);
+      if (!activeRecord) {
+        Alert.alert('Error', `${workerName} is not currently clocked in.`);
+        return;
+      }
+
+      const success = await clockOut(activeRecord.id, data.notes);
+      if (success) {
+        // Calculate hours worked
+        const clockInTime = new Date(activeRecord.clock_in_time);
+        const clockOutTime = new Date();
+        const hoursWorked = ((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(1);
+        addAIMessage(`✅ Clocked out ${workerName} (${hoursWorked} hours worked)`);
+      } else {
+        Alert.alert('Error', 'Failed to clock out worker.');
+      }
+    } catch (error) {
+      console.error('Error clocking out worker:', error);
+      Alert.alert('Error', 'Failed to clock out worker.');
+    }
+  };
+
+  const handleCreateScheduleEvent = async (data) => {
+    try {
+      const event = await createScheduleEvent(data);
+      if (event) {
+        // Success! Event created and AI already shows success message in response
+        // No need for alert popup since this is auto-executed
+        console.log('✅ Schedule event created:', event.id);
+      } else {
+        // Only show error if creation failed
+        addAIMessage('❌ Sorry, I couldn\'t create that event. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating schedule event:', error);
+      addAIMessage(`❌ Error creating event: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleUpdateScheduleEvent = async (data) => {
+    try {
+      // Support 'id', 'eventId', and 'event_id' field names
+      const { id, eventId, event_id, eventTitle, ...updates } = data;
+      const actualEventId = eventId || event_id || id;
+
+      if (!actualEventId) {
+        console.error('No event ID provided in update data:', data);
+        Alert.alert('Error', 'Cannot update event: No event ID provided.');
+        return;
+      }
+
+      const success = await updateScheduleEvent(actualEventId, updates);
+      if (success) {
+        addAIMessage(`✅ Updated event: ${eventTitle || 'schedule event'}`);
+      } else {
+        Alert.alert('Error', 'Failed to update schedule event.');
+      }
+    } catch (error) {
+      console.error('Error updating schedule event:', error);
+      Alert.alert('Error', 'Failed to update schedule event.');
+    }
+  };
+
+  const handleDeleteScheduleEvent = async (data) => {
+    try {
+      // Support 'id', 'eventId', and 'event_id' field names
+      const { id, eventId, event_id, eventTitle } = data;
+      const actualEventId = eventId || event_id || id;
+
+      if (!actualEventId) {
+        console.error('No event ID provided in delete data:', data);
+        Alert.alert('Error', 'Cannot delete event: No event ID provided.');
+        return;
+      }
+
+      const success = await deleteScheduleEvent(actualEventId);
+      if (success) {
+        addAIMessage(`✅ Cancelled: ${eventTitle || 'schedule event'}`);
+      } else {
+        Alert.alert('Error', 'Failed to delete schedule event.');
+      }
+    } catch (error) {
+      console.error('Error deleting schedule event:', error);
+      Alert.alert('Error', 'Failed to delete schedule event.');
+    }
+  };
+
+  const handleRetrieveScheduleEvents = async (data) => {
+    try {
+      const { date, startDate, endDate } = data;
+
+      // Determine date range
+      const start = startDate || date;
+      const end = endDate || date;
+
+      // Fetch events for the date range
+      // Add time component to ensure full day coverage
+      const startWithTime = `${start}T00:00:00`;
+      const endWithTime = `${end}T23:59:59`;
+      const events = await fetchScheduleEvents(startWithTime, endWithTime);
+
+      // Filter events to ensure they actually fall within the requested date range
+      // This handles any timezone edge cases from the database query
+      const filteredEvents = events?.filter(e => {
+        if (!e.start_datetime) return false;
+        const eventDate = e.start_datetime.split('T')[0];
+        return eventDate >= start && eventDate <= end;
+      }) || [];
+
+      // Format date for display - parse as local date to avoid timezone issues
+      const [year, month, day] = start.split('-').map(Number);
+      const localDate = new Date(year, month - 1, day); // month is 0-indexed
+      const displayDate = localDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      // Build message text
+      let messageText;
+      if (filteredEvents.length > 0) {
+        const eventList = filteredEvents.map(e => {
+          const time = e.all_day ? 'All day' : new Date(e.start_datetime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          return `• ${time}: ${e.title}${e.location ? ` @ ${e.location}` : ''}`;
+        }).join('\n');
+        messageText = `Here's your schedule for ${displayDate}:\n\n${eventList}\n\nYou have ${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'} scheduled.`;
+      } else {
+        messageText = `You have no events scheduled for ${displayDate}.`;
+      }
+
+      addAIMessage(messageText);
+    } catch (error) {
+      console.error('Error retrieving schedule events:', error);
+      addAIMessage('Sorry, I encountered an error while retrieving your schedule.');
+    }
+  };
+
+  const handleCreateWorkSchedule = async (data) => {
+    try {
+      const { workerName, projectName, phaseName, ...scheduleData } = data;
+
+      const schedule = await createWorkSchedule(scheduleData);
+      if (schedule) {
+        const dateRange = `${scheduleData.start_date}${scheduleData.end_date ? ` to ${scheduleData.end_date}` : ' (ongoing)'}`;
+        const timeRange = scheduleData.start_time && scheduleData.end_time
+          ? ` (${scheduleData.start_time} - ${scheduleData.end_time})`
+          : '';
+        addAIMessage(`✅ Assigned ${workerName} to ${projectName}${phaseName ? ` (${phaseName})` : ''} from ${dateRange}${timeRange}`);
+      } else {
+        Alert.alert('Error', 'Failed to create work schedule.');
+      }
+    } catch (error) {
+      console.error('Error creating work schedule:', error);
+      Alert.alert('Error', 'Failed to create work schedule.');
+    }
+  };
+
+  const handleUpdateWorkSchedule = async (data) => {
+    try {
+      const { scheduleId, workerName, ...updates } = data;
+      const success = await updateWorkSchedule(scheduleId, updates);
+      if (success) {
+        addAIMessage(`✅ Updated schedule for ${workerName}`);
+      } else {
+        Alert.alert('Error', 'Failed to update work schedule.');
+      }
+    } catch (error) {
+      console.error('Error updating work schedule:', error);
+      Alert.alert('Error', 'Failed to update work schedule.');
+    }
+  };
+
+  const handleCreateDailyReport = async (data) => {
+    try {
+      const { workerId, projectId, projectName, phaseId, phaseName, photos, completedStepIds, notes } = data;
+
+      const report = await saveDailyReport(
+        workerId,
+        projectId,
+        phaseId,
+        photos || [],
+        completedStepIds || [],
+        notes || ''
+      );
+
+      if (report) {
+        addAIMessage(`✅ Created daily report for ${projectName}${phaseName ? ` (${phaseName})` : ''}`);
+      } else {
+        Alert.alert('Error', 'Failed to create daily report.');
+      }
+    } catch (error) {
+      console.error('Error creating daily report:', error);
+      Alert.alert('Error', 'Failed to create daily report.');
+    }
+  };
+
+  // ============================================
+  // NEW FEATURE HANDLERS - Workers & Scheduling
+  // ============================================
+
+  // Bulk Operations
+  const handleBulkClockIn = async (data) => {
+    try {
+      const { worker_ids, project_id, location } = data;
+      let successCount = 0;
+      let failedWorkers = [];
+
+      for (const workerId of worker_ids) {
+        try {
+          const record = await clockIn(workerId, project_id, location);
+          if (record) successCount++;
+          else failedWorkers.push(workerId);
+        } catch (err) {
+          failedWorkers.push(workerId);
+        }
+      }
+
+      if (successCount > 0) {
+        addAIMessage(`✅ Clocked in ${successCount} worker${successCount > 1 ? 's' : ''} at ${location || 'project site'}`);
+      }
+      if (failedWorkers.length > 0) {
+        console.warn('Failed to clock in some workers:', failedWorkers);
+      }
+    } catch (error) {
+      console.error('Error in bulk clock in:', error);
+      Alert.alert('Error', 'Failed to clock in workers.');
+    }
+  };
+
+  const handleBulkClockOut = async (data) => {
+    try {
+      const { worker_ids, project_id } = data;
+      let successCount = 0;
+      let totalHours = 0;
+
+      // If project_id provided, get all active workers at that project
+      let workersToClockOut = worker_ids || [];
+
+      if (project_id && !worker_ids) {
+        // Get all active clock-ins for this project
+        const schedule = await getTodaysWorkersSchedule();
+        workersToClockOut = schedule
+          .filter(s => s.project_id === project_id && s.clock_in_time && !s.clock_out_time)
+          .map(s => s.worker_id);
+      }
+
+      for (const workerId of workersToClockOut) {
+        try {
+          const activeRecord = await getActiveClockIn(workerId);
+          if (activeRecord) {
+            const success = await clockOut(activeRecord.id);
+            if (success) {
+              successCount++;
+              const clockInTime = new Date(activeRecord.clock_in_time);
+              const clockOutTime = new Date();
+              totalHours += (clockOutTime - clockInTime) / (1000 * 60 * 60);
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to clock out worker:', workerId);
+        }
+      }
+
+      if (successCount > 0) {
+        addAIMessage(`✅ Clocked out ${successCount} worker${successCount > 1 ? 's' : ''} (${totalHours.toFixed(1)} total hours)`);
+      } else {
+        addAIMessage('No workers were clocked in to clock out.');
+      }
+    } catch (error) {
+      console.error('Error in bulk clock out:', error);
+      Alert.alert('Error', 'Failed to clock out workers.');
+    }
+  };
+
+  const handleBulkCreateWorkSchedule = async (data) => {
+    try {
+      const { worker_ids, crew_id, project_id, phase_id, start_date, end_date, start_time, end_time } = data;
+
+      let workersToSchedule = worker_ids || [];
+
+      // If crew_id provided, get crew members
+      if (crew_id && !worker_ids) {
+        const crew = await getCrew(crew_id);
+        if (crew) workersToSchedule = crew.worker_ids;
+      }
+
+      let successCount = 0;
+      for (const workerId of workersToSchedule) {
+        try {
+          const schedule = await createWorkSchedule({
+            worker_id: workerId,
+            project_id,
+            phase_id,
+            start_date,
+            end_date,
+            start_time,
+            end_time
+          });
+          if (schedule) successCount++;
+        } catch (err) {
+          console.warn('Failed to schedule worker:', workerId);
+        }
+      }
+
+      if (successCount > 0) {
+        const dateRange = end_date ? `${start_date} to ${end_date}` : start_date;
+        addAIMessage(`✅ Assigned ${successCount} worker${successCount > 1 ? 's' : ''} to project (${dateRange})`);
+      }
+    } catch (error) {
+      console.error('Error in bulk schedule:', error);
+      Alert.alert('Error', 'Failed to create work schedules.');
+    }
+  };
+
+  // Time Entry Management
+  const handleEditTimeEntry = async (data) => {
+    try {
+      const { time_tracking_id, field, value } = data;
+      const success = await editTimeEntry(time_tracking_id, { [field]: value });
+      if (success) {
+        addAIMessage(`✅ Updated time entry`);
+      } else {
+        Alert.alert('Error', 'Failed to update time entry.');
+      }
+    } catch (error) {
+      console.error('Error editing time entry:', error);
+      Alert.alert('Error', 'Failed to update time entry.');
+    }
+  };
+
+  const handleCreateTimeEntry = async (data) => {
+    try {
+      const { worker_id, project_id, clock_in_time, clock_out_time, date } = data;
+      const entry = await createManualTimeEntry(worker_id, project_id, clock_in_time, clock_out_time, date);
+      if (entry) {
+        const hours = entry.hours_worked || 0;
+        addAIMessage(`✅ Added time entry: ${hours.toFixed(1)} hours`);
+      } else {
+        Alert.alert('Error', 'Failed to create time entry.');
+      }
+    } catch (error) {
+      console.error('Error creating time entry:', error);
+      Alert.alert('Error', 'Failed to create time entry.');
+    }
+  };
+
+  const handleDeleteTimeEntry = async (data) => {
+    try {
+      const { time_tracking_id } = data;
+      const success = await deleteTimeEntry(time_tracking_id);
+      if (success) {
+        addAIMessage(`✅ Deleted time entry`);
+      } else {
+        Alert.alert('Error', 'Failed to delete time entry.');
+      }
+    } catch (error) {
+      console.error('Error deleting time entry:', error);
+      Alert.alert('Error', 'Failed to delete time entry.');
+    }
+  };
+
+  // Recurring Events
+  const handleCreateRecurringEvent = async (data) => {
+    try {
+      const { title, event_type, start_time, end_time, location, recurrence } = data;
+      const result = await createRecurringEvent({
+        title,
+        event_type,
+        start_time,
+        end_time,
+        location,
+        recurrence
+      });
+      if (result) {
+        const freq = recurrence.frequency;
+        addAIMessage(`✅ Created recurring ${event_type}: ${title} (${freq})`);
+      } else {
+        Alert.alert('Error', 'Failed to create recurring event.');
+      }
+    } catch (error) {
+      console.error('Error creating recurring event:', error);
+      Alert.alert('Error', 'Failed to create recurring event.');
+    }
+  };
+
+  const handleUpdateRecurringEvent = async (data) => {
+    try {
+      const { recurring_id, updates } = data;
+      const success = await updateRecurringEvent(recurring_id, updates);
+      if (success) {
+        addAIMessage(`✅ Updated recurring event`);
+      } else {
+        Alert.alert('Error', 'Failed to update recurring event.');
+      }
+    } catch (error) {
+      console.error('Error updating recurring event:', error);
+      Alert.alert('Error', 'Failed to update recurring event.');
+    }
+  };
+
+  const handleDeleteRecurringEvent = async (data) => {
+    try {
+      const { recurring_id, scope } = data;
+      const success = await deleteRecurringEvent(recurring_id, scope);
+      if (success) {
+        const scopeMsg = scope === 'all' ? 'all instances' : scope === 'future' ? 'future instances' : 'this instance';
+        addAIMessage(`✅ Deleted ${scopeMsg} of recurring event`);
+      } else {
+        Alert.alert('Error', 'Failed to delete recurring event.');
+      }
+    } catch (error) {
+      console.error('Error deleting recurring event:', error);
+      Alert.alert('Error', 'Failed to delete recurring event.');
+    }
+  };
+
+  // Worker Availability & PTO
+  const handleSetWorkerAvailability = async (data) => {
+    try {
+      const { worker_id, date, date_range, status, reason, time_range } = data;
+      const result = await setWorkerAvailability({
+        worker_id,
+        date: date || date_range?.start,
+        end_date: date_range?.end,
+        status,
+        reason,
+        time_range
+      });
+      if (result) {
+        addAIMessage(`✅ Marked worker as ${status}${date ? ` on ${date}` : ''}`);
+      } else {
+        Alert.alert('Error', 'Failed to set worker availability.');
+      }
+    } catch (error) {
+      console.error('Error setting worker availability:', error);
+      Alert.alert('Error', 'Failed to set worker availability.');
+    }
+  };
+
+  const handleSetWorkerPTO = async (data) => {
+    try {
+      const { worker_id, start_date, end_date, reason } = data;
+      const result = await setWorkerPTO(worker_id, start_date, end_date, reason);
+      if (result) {
+        addAIMessage(`✅ Set PTO: ${start_date} to ${end_date}`);
+      } else {
+        Alert.alert('Error', 'Failed to set worker PTO.');
+      }
+    } catch (error) {
+      console.error('Error setting worker PTO:', error);
+      Alert.alert('Error', 'Failed to set worker PTO.');
+    }
+  };
+
+  const handleRemoveWorkerAvailability = async (data) => {
+    try {
+      const { availability_id } = data;
+      const success = await removeWorkerAvailability(availability_id);
+      if (success) {
+        addAIMessage(`✅ Removed time off`);
+      } else {
+        Alert.alert('Error', 'Failed to remove availability.');
+      }
+    } catch (error) {
+      console.error('Error removing availability:', error);
+      Alert.alert('Error', 'Failed to remove availability.');
+    }
+  };
+
+  // Crew Management
+  const handleCreateCrew = async (data) => {
+    try {
+      const { name, worker_ids, default_project_id } = data;
+      const crew = await createCrew({ name, worker_ids, default_project_id });
+      if (crew) {
+        addAIMessage(`✅ Created '${name}' crew with ${worker_ids.length} worker${worker_ids.length > 1 ? 's' : ''}`);
+      } else {
+        Alert.alert('Error', 'Failed to create crew.');
+      }
+    } catch (error) {
+      console.error('Error creating crew:', error);
+      Alert.alert('Error', 'Failed to create crew.');
+    }
+  };
+
+  const handleUpdateCrew = async (data) => {
+    try {
+      const { crew_id, add_worker_ids, remove_worker_ids, name } = data;
+      const success = await updateCrew(crew_id, { add_worker_ids, remove_worker_ids, name });
+      if (success) {
+        addAIMessage(`✅ Updated crew`);
+      } else {
+        Alert.alert('Error', 'Failed to update crew.');
+      }
+    } catch (error) {
+      console.error('Error updating crew:', error);
+      Alert.alert('Error', 'Failed to update crew.');
+    }
+  };
+
+  const handleDeleteCrew = async (data) => {
+    try {
+      const { crew_id } = data;
+      const success = await deleteCrew(crew_id);
+      if (success) {
+        addAIMessage(`✅ Deleted crew`);
+      } else {
+        Alert.alert('Error', 'Failed to delete crew.');
+      }
+    } catch (error) {
+      console.error('Error deleting crew:', error);
+      Alert.alert('Error', 'Failed to delete crew.');
+    }
+  };
+
+  // Shift Templates
+  const handleCreateShiftTemplate = async (data) => {
+    try {
+      const { name, start_time, end_time, break_duration, days } = data;
+      const template = await createShiftTemplate({ name, start_time, end_time, break_duration, days });
+      if (template) {
+        addAIMessage(`✅ Created '${name}' shift template`);
+      } else {
+        Alert.alert('Error', 'Failed to create shift template.');
+      }
+    } catch (error) {
+      console.error('Error creating shift template:', error);
+      Alert.alert('Error', 'Failed to create shift template.');
+    }
+  };
+
+  const handleApplyShiftTemplate = async (data) => {
+    try {
+      const { template_id, worker_id, project_id, start_date, end_date } = data;
+      const result = await applyShiftTemplate(template_id, worker_id, project_id, start_date, end_date);
+      if (result) {
+        addAIMessage(`✅ Applied shift template to worker`);
+      } else {
+        Alert.alert('Error', 'Failed to apply shift template.');
+      }
+    } catch (error) {
+      console.error('Error applying shift template:', error);
+      Alert.alert('Error', 'Failed to apply shift template.');
+    }
+  };
+
+  const handleDeleteShiftTemplate = async (data) => {
+    try {
+      const { template_id } = data;
+      const success = await deleteShiftTemplate(template_id);
+      if (success) {
+        addAIMessage(`✅ Deleted shift template`);
+      } else {
+        Alert.alert('Error', 'Failed to delete shift template.');
+      }
+    } catch (error) {
+      console.error('Error deleting shift template:', error);
+      Alert.alert('Error', 'Failed to delete shift template.');
+    }
+  };
+
+  // Break Management
+  const handleStartBreak = async (data) => {
+    try {
+      const { worker_id, break_type } = data;
+      const result = await startWorkerBreak(worker_id, break_type);
+      if (result) {
+        const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        addAIMessage(`✅ Started ${break_type} break at ${time}`);
+      } else {
+        Alert.alert('Error', 'Failed to start break.');
+      }
+    } catch (error) {
+      console.error('Error starting break:', error);
+      Alert.alert('Error', 'Failed to start break.');
+    }
+  };
+
+  const handleEndBreak = async (data) => {
+    try {
+      const { worker_id } = data;
+      const result = await endWorkerBreak(worker_id);
+      if (result) {
+        const duration = result.duration_minutes || 0;
+        addAIMessage(`✅ Break ended (${duration} min)`);
+      } else {
+        Alert.alert('Error', 'Failed to end break.');
+      }
+    } catch (error) {
+      console.error('Error ending break:', error);
+      Alert.alert('Error', 'Failed to end break.');
+    }
+  };
+
+  // Shift Swapping
+  const handleSwapShifts = async (data) => {
+    try {
+      const { shift_1_id, shift_2_id } = data;
+      const success = await swapWorkerShifts(shift_1_id, shift_2_id);
+      if (success) {
+        addAIMessage(`✅ Swapped shifts successfully`);
+      } else {
+        Alert.alert('Error', 'Failed to swap shifts.');
+      }
+    } catch (error) {
+      console.error('Error swapping shifts:', error);
+      Alert.alert('Error', 'Failed to swap shifts.');
+    }
+  };
+
+  // ============================================
+  // END NEW FEATURE HANDLERS
+  // ============================================
+
   const handleSaveEstimate = async (estimateData) => {
     try {
       // 🔧 CRITICAL FIX: Extract complete data from visualElement if action data is incomplete
       let completeEstimateData = estimateData;
+
+      // Normalize project_id to projectId (AI might use snake_case)
+      if (completeEstimateData.project_id && !completeEstimateData.projectId) {
+        completeEstimateData.projectId = completeEstimateData.project_id;
+      }
+
+      // Resolve partial project UUID to full UUID (AI sometimes uses truncated IDs from display)
+      if (completeEstimateData.projectId && completeEstimateData.projectId.length < 36) {
+        console.log('⚠️ Partial project ID detected, resolving...', completeEstimateData.projectId);
+        const projects = await fetchProjects();
+        const fullProjectId = resolveProjectId(projects, completeEstimateData.projectId);
+        if (fullProjectId) {
+          console.log('✅ Resolved to full UUID:', fullProjectId);
+          completeEstimateData.projectId = fullProjectId;
+        } else {
+          console.warn('❌ Could not resolve partial project ID, removing link');
+          completeEstimateData.projectId = null;
+        }
+      }
 
       // Check if phases are missing tasks (common AI issue)
       const actionHasTasks = estimateData.phases?.some(p => p.tasks?.length > 0);
@@ -1157,6 +2535,8 @@ export default function ChatScreen({ navigation }) {
 
               if (previewHasTasks) {
                 console.log('✅ Found complete data in preview, merging with action data');
+                // Normalize project_id from preview
+                const previewProjectId = estimatePreview.data.project_id || estimatePreview.data.projectId;
                 completeEstimateData = {
                   ...estimateData,
                   // Use preview phases (has tasks)
@@ -1167,13 +2547,16 @@ export default function ChatScreen({ navigation }) {
                   scope: estimatePreview.data.scope || estimateData.scope,
                   // Use preview line items if missing
                   lineItems: estimateData.lineItems || estimatePreview.data.items || [],
+                  // Use preview projectId if action doesn't have it
+                  projectId: completeEstimateData.projectId || previewProjectId,
                 };
                 console.log('📊 Merged data:', {
                   phasesCount: completeEstimateData.phases?.length,
                   tasksInPhases: completeEstimateData.phases?.map(p => p.tasks?.length || 0),
                   hasSchedule: !!completeEstimateData.schedule,
                   hasScope: !!completeEstimateData.scope,
-                  lineItemsCount: completeEstimateData.lineItems?.length
+                  lineItemsCount: completeEstimateData.lineItems?.length,
+                  projectId: completeEstimateData.projectId
                 });
                 break;
               }
@@ -1182,45 +2565,47 @@ export default function ChatScreen({ navigation }) {
         }
       }
 
-      // If estimate has a linked project, check if project already has estimate data
+      // If estimate has a linked project, give user clear save options
       if (completeEstimateData.projectId) {
         const existingProject = await getProject(completeEstimateData.projectId);
 
-        if (existingProject && (existingProject.budget > 0 || existingProject.phases)) {
-          // Project already has data - ask user what to do
+        if (existingProject) {
+          // Project exists - give user 2 clear options
           Alert.alert(
-            'Project Has Existing Data',
-            'This project already has estimate data. How would you like to proceed?',
+            'Save Estimate',
+            `How would you like to save this estimate${completeEstimateData.projectName ? ` for "${completeEstimateData.projectName}"` : ''}?`,
             [
               {
                 text: 'Cancel',
                 style: 'cancel'
               },
               {
-                text: 'Add to Existing',
+                text: 'Save Only',
                 onPress: async () => {
-                  // Save estimate with merge flag
-                  const savedEstimate = await saveEstimate({ ...completeEstimateData, mergeWithProject: true });
+                  // Save estimate without linking to project
+                  const savedEstimate = await saveEstimate({
+                    ...completeEstimateData,
+                    projectId: null // Remove link to prevent project update
+                  });
                   if (savedEstimate) {
-                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved and added to project!`);
+                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
                   }
                 }
               },
               {
-                text: 'Override Project',
-                style: 'destructive',
+                text: 'Save & Add to Project',
                 onPress: async () => {
-                  // Save estimate with override flag (default behavior)
-                  const savedEstimate = await saveEstimate({ ...completeEstimateData, overrideProject: true });
+                  // Save estimate and update the project
+                  const savedEstimate = await saveEstimate(completeEstimateData);
                   if (savedEstimate) {
-                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved! Project data has been replaced.`);
+                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved and added to project!`);
                   }
                 }
               }
             ]
           );
         } else {
-          // Project is empty or new - just save normally
+          // Project doesn't exist - just save the estimate
           const savedEstimate = await saveEstimate(completeEstimateData);
           if (savedEstimate) {
             Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
@@ -1292,11 +2677,39 @@ export default function ChatScreen({ navigation }) {
         }
       }
 
+      // Clean up the data before saving - remove estimate-specific fields
+      const cleanProjectData = {
+        ...completeProjectData,
+        // Override status with valid project status (estimates use 'draft', projects use 'active')
+        status: 'active',
+        // Remove estimate-specific fields if they exist
+        estimate_id: undefined,
+        estimateId: undefined
+      };
+
       // Save the project with complete data
-      const savedProject = await saveProject(completeProjectData);
+      const savedProject = await saveProject(cleanProjectData);
 
       if (savedProject) {
         console.log('✅ Project saved successfully:', savedProject.id);
+
+        // Update CoreAgent with the saved project data (includes the real ID)
+        // This is critical for estimate creation to link to the project
+        const savedProjectPreview = {
+          id: savedProject.id, // Full UUID from database
+          projectName: savedProject.name,
+          client: savedProject.client,
+          location: savedProject.location || savedProject.address,
+          address: savedProject.address || savedProject.location,
+          phone: savedProject.phone,
+          email: savedProject.email,
+          services: savedProject.services || cleanProjectData.services,
+          phases: savedProject.phases || cleanProjectData.phases,
+          scope: savedProject.scope || cleanProjectData.scope,
+        };
+        CoreAgent.updateConversationState({ lastProjectPreview: savedProjectPreview });
+        console.log('📦 [ChatScreen] Updated lastProjectPreview with saved project ID:', savedProject.id);
+
         Alert.alert(
           'Success',
           `Project "${savedProject.name}" has been saved!`,
@@ -1366,8 +2779,173 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
+  const handleAddEstimateToProjectChoice = async (choiceData) => {
+    try {
+      const { estimateId, estimateName, projectId, projectName, options } = choiceData;
+
+      if (!estimateId || !projectId) {
+        Alert.alert('Error', 'Missing estimate or project information');
+        return;
+      }
+
+      // Show alert with merge options
+      Alert.alert(
+        'Add Estimate to Project',
+        `How would you like to add "${estimateName}" to "${projectName}"?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: options.merge.label,
+            onPress: async () => {
+              // Import the function
+              const { addEstimateToProject } = require('../utils/storage');
+
+              const updatedProject = await addEstimateToProject(projectId, estimateId, 'merge');
+              if (updatedProject) {
+                Alert.alert('Success', 'Estimate merged into project successfully!');
+
+                // Send confirmation message
+                const confirmationMessage = {
+                  id: Date.now().toString(),
+                  text: `✅ "${estimateName}" has been merged into "${projectName}". Tasks and budgets have been combined into existing phases.`,
+                  isUser: false,
+                  timestamp: new Date(),
+                  visualElements: [],
+                  actions: [],
+                  quickSuggestions: ['View project', 'Show all projects']
+                };
+                setMessages(prev => [...prev, confirmationMessage]);
+              } else {
+                Alert.alert('Error', 'Failed to add estimate to project');
+              }
+            }
+          },
+          {
+            text: options.separate.label + (options.separate.recommended ? ' ✓' : ''),
+            onPress: async () => {
+              // Import the function
+              const { addEstimateToProject } = require('../utils/storage');
+
+              const updatedProject = await addEstimateToProject(projectId, estimateId, 'separate');
+              if (updatedProject) {
+                Alert.alert('Success', 'Estimate added as separate scope!');
+
+                // Send confirmation message
+                const confirmationMessage = {
+                  id: Date.now().toString(),
+                  text: `✅ "${estimateName}" has been added to "${projectName}" as a separate scope. You can track it independently.`,
+                  isUser: false,
+                  timestamp: new Date(),
+                  visualElements: [],
+                  actions: [],
+                  quickSuggestions: ['View project', 'Show all projects']
+                };
+                setMessages(prev => [...prev, confirmationMessage]);
+              } else {
+                Alert.alert('Error', 'Failed to add estimate to project');
+              }
+            },
+            style: options.separate.recommended ? 'default' : undefined
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error adding estimate to project:', error);
+      Alert.alert('Error', 'Failed to add estimate to project. Please try again.');
+    }
+  };
+
+  const handleUpdateProject = async (projectData) => {
+    try {
+      const updatedProject = await saveProject(projectData);
+      if (updatedProject) {
+        Alert.alert('Success', 'Project updated successfully!');
+
+        // Update the message in the chat with the new data
+        setMessages((prevMessages) => {
+          return prevMessages.map((msg) => {
+            // Find the message with the project preview
+            if (msg.visualElements && msg.visualElements.length > 0) {
+              const hasProject = msg.visualElements.some(
+                (ve) => ve.type === 'project-preview' &&
+                       (ve.data.id === projectData.id || ve.data.projectId === projectData.projectId)
+              );
+
+              if (hasProject) {
+                // Update the visual element with new data
+                return {
+                  ...msg,
+                  visualElements: msg.visualElements.map((ve) => {
+                    if (ve.type === 'project-preview' &&
+                        (ve.data.id === projectData.id || ve.data.projectId === projectData.projectId)) {
+                      return {
+                        ...ve,
+                        data: updatedProject
+                      };
+                    }
+                    return ve;
+                  })
+                };
+              }
+            }
+            return msg;
+          });
+        });
+
+        // Also update CoreAgent's lastProjectPreview so "Create Estimate" uses the edited data
+        CoreAgent.updateConversationState({ lastProjectPreview: updatedProject });
+        console.log('📦 [ChatScreen] Updated lastProjectPreview with edited project data');
+      }
+    } catch (error) {
+      console.error('Error updating project:', error);
+      Alert.alert('Error', 'Failed to update project. Please try again.');
+    }
+  };
+
   const handleUpdateEstimate = async (estimateData) => {
     try {
+      const estimateId = estimateData.id || estimateData.estimateId;
+
+      // If no ID, this is a new unsaved estimate - just update the preview in chat
+      if (!estimateId) {
+        console.log('📝 Updating unsaved estimate preview in chat');
+        // Update the message in the chat with the edited data (but don't save to DB yet)
+        setMessages((prevMessages) => {
+          return prevMessages.map((msg) => {
+            if (msg.visualElements && msg.visualElements.length > 0) {
+              // Find estimate preview by matching estimateNumber or other identifying data
+              const hasEstimate = msg.visualElements.some(
+                (ve) => ve.type === 'estimate-preview' &&
+                       ve.data.estimateNumber === estimateData.estimateNumber
+              );
+
+              if (hasEstimate) {
+                return {
+                  ...msg,
+                  visualElements: msg.visualElements.map((ve) => {
+                    if (ve.type === 'estimate-preview' &&
+                        ve.data.estimateNumber === estimateData.estimateNumber) {
+                      return {
+                        ...ve,
+                        data: estimateData
+                      };
+                    }
+                    return ve;
+                  })
+                };
+              }
+            }
+            return msg;
+          });
+        });
+        Alert.alert('Success', 'Estimate updated! Click "Save Estimate" to save it permanently.');
+        return;
+      }
+
+      // Existing estimate with ID - update in database
       const updatedEstimate = await updateEstimate(estimateData);
       if (updatedEstimate) {
         Alert.alert('Success', 'Estimate and linked project updated successfully!');
@@ -1406,6 +2984,72 @@ export default function ChatScreen({ navigation }) {
     } catch (error) {
       console.error('Error updating estimate:', error);
       Alert.alert('Error', 'Failed to update estimate. Please try again.');
+    }
+  };
+
+  const handleCreateProjectFromEstimate = async (estimateData) => {
+    try {
+      const estimateId = estimateData.id || estimateData.estimateId;
+      if (!estimateId) {
+        Alert.alert('Error', 'No estimate ID provided');
+        return;
+      }
+
+      // Create the project from the estimate
+      const createdProject = await createProjectFromEstimate(estimateId);
+
+      if (createdProject) {
+        Alert.alert(
+          'Success',
+          `Project "${createdProject.name}" has been created from the estimate!`,
+          [
+            {
+              text: 'View Project',
+              onPress: () => {
+                // Navigate to project details if navigation is available
+                if (navigation) {
+                  navigation.navigate('Projects');
+                }
+              },
+            },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+
+        // Update the message in the chat to reflect estimate accepted status
+        setMessages((prevMessages) => {
+          return prevMessages.map((msg) => {
+            if (msg.visualElements && msg.visualElements.length > 0) {
+              const hasEstimate = msg.visualElements.some(
+                (ve) => ve.type === 'estimate-preview' &&
+                       (ve.data.id === estimateId || ve.data.estimateId === estimateId)
+              );
+
+              if (hasEstimate) {
+                return {
+                  ...msg,
+                  visualElements: msg.visualElements.map((ve) => {
+                    if (ve.type === 'estimate-preview' &&
+                        (ve.data.id === estimateId || ve.data.estimateId === estimateId)) {
+                      return {
+                        ...ve,
+                        data: { ...ve.data, status: 'accepted' }
+                      };
+                    }
+                    return ve;
+                  })
+                };
+              }
+            }
+            return msg;
+          });
+        });
+      } else {
+        Alert.alert('Error', 'Failed to create project from estimate. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating project from estimate:', error);
+      Alert.alert('Error', 'Failed to create project from estimate. Please try again.');
     }
   };
 
@@ -1603,6 +3247,570 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
+  // ===================================
+  // Settings & Configuration Handlers
+  // ===================================
+
+  const handleUpdateBusinessInfo = async (data) => {
+    try {
+      const { field, value } = data;
+      const userProfile = await getUserProfile();
+
+      // Update specific field or entire businessInfo object
+      const updatedBusinessInfo = {
+        ...(userProfile.businessInfo || {}),
+        [field]: value
+      };
+
+      const success = await updateBusinessInfo(updatedBusinessInfo);
+      if (success) {
+        addAIMessage(`✅ Updated ${field} successfully`);
+      } else {
+        Alert.alert('Error', 'Failed to update business information.');
+      }
+    } catch (error) {
+      console.error('Error updating business info:', error);
+      Alert.alert('Error', 'Failed to update business information.');
+    }
+  };
+
+  const handleUpdatePhaseTemplate = async (data) => {
+    try {
+      const { name, phases } = data;
+      const userProfile = await getUserProfile();
+
+      // Get existing templates or create new array
+      const existingTemplates = userProfile.phases_template || [];
+
+      // Check if template exists (for updates)
+      const existingIndex = existingTemplates.findIndex(t => t.name === name);
+
+      let updatedTemplates;
+      if (existingIndex !== -1) {
+        // Update existing template
+        updatedTemplates = [...existingTemplates];
+        updatedTemplates[existingIndex] = { name, phases };
+      } else {
+        // Add new template
+        updatedTemplates = [...existingTemplates, { name, phases }];
+      }
+
+      const success = await updatePhaseTemplate(updatedTemplates);
+      if (success) {
+        const action = existingIndex !== -1 ? 'Updated' : 'Created';
+        addAIMessage(`✅ ${action} phase template: ${name}`);
+      } else {
+        Alert.alert('Error', 'Failed to save phase template.');
+      }
+    } catch (error) {
+      console.error('Error updating phase template:', error);
+      Alert.alert('Error', 'Failed to save phase template.');
+    }
+  };
+
+  const handleAddService = async (data) => {
+    try {
+      const { tradeId, serviceId, service } = data;
+      const success = await addServiceToTrade(tradeId, serviceId, service);
+
+      if (success) {
+        addAIMessage(`✅ Added service: ${service.label} at $${service.price}/${service.unit}`);
+      } else {
+        Alert.alert('Error', 'Failed to add service.');
+      }
+    } catch (error) {
+      console.error('Error adding service:', error);
+      Alert.alert('Error', 'Failed to add service.');
+    }
+  };
+
+  const handleUpdateServicePricing = async (data) => {
+    try {
+      const { tradeId, serviceId, price, unit } = data;
+      const success = await updateServicePricing(tradeId, serviceId, price, unit);
+
+      if (success) {
+        addAIMessage(`✅ Updated service pricing to $${price}${unit ? '/' + unit : ''}`);
+      } else {
+        Alert.alert('Error', 'Failed to update service pricing.');
+      }
+    } catch (error) {
+      console.error('Error updating service pricing:', error);
+      Alert.alert('Error', 'Failed to update service pricing.');
+    }
+  };
+
+  const handleRemoveService = async (data) => {
+    try {
+      const { tradeId, serviceId } = data;
+      const success = await removeServiceFromTrade(tradeId, serviceId);
+
+      if (success) {
+        addAIMessage(`✅ Removed service from catalog`);
+      } else {
+        Alert.alert('Error', 'Failed to remove service.');
+      }
+    } catch (error) {
+      console.error('Error removing service:', error);
+      Alert.alert('Error', 'Failed to remove service.');
+    }
+  };
+
+  const handleUpdateProfitMargin = async (data) => {
+    try {
+      const { margin } = data;
+      const success = await updateProfitMargin(margin);
+
+      if (success) {
+        addAIMessage(`✅ Set profit margin to ${margin}%`);
+      } else {
+        Alert.alert('Error', 'Failed to update profit margin.');
+      }
+    } catch (error) {
+      console.error('Error updating profit margin:', error);
+      Alert.alert('Error', 'Failed to update profit margin.');
+    }
+  };
+
+  const handleAddSubcontractorQuote = async (data) => {
+    try {
+      const { tradeId, company, contactName, phone, rate, unit, preferred } = data;
+
+      const quoteData = {
+        trade_id: tradeId,
+        company,
+        contact_name: contactName,
+        phone,
+        rate,
+        unit,
+        preferred: preferred || false
+      };
+
+      const quote = await saveSubcontractorQuote(quoteData);
+      if (quote) {
+        addAIMessage(`✅ Added ${company} as subcontractor ($${rate}/${unit})`);
+      } else {
+        Alert.alert('Error', 'Failed to add subcontractor.');
+      }
+    } catch (error) {
+      console.error('Error adding subcontractor:', error);
+      Alert.alert('Error', 'Failed to add subcontractor.');
+    }
+  };
+
+  const handleUpdateSubcontractorQuote = async (data) => {
+    try {
+      const { quoteId, updates } = data;
+      const success = await updateSubcontractorQuote(quoteId, updates);
+
+      if (success) {
+        addAIMessage(`✅ Updated subcontractor quote`);
+      } else {
+        Alert.alert('Error', 'Failed to update subcontractor.');
+      }
+    } catch (error) {
+      console.error('Error updating subcontractor:', error);
+      Alert.alert('Error', 'Failed to update subcontractor.');
+    }
+  };
+
+  const handleDeleteSubcontractorQuote = async (data) => {
+    try {
+      const { quoteId, company } = data;
+      const success = await deleteSubcontractorQuote(quoteId);
+
+      if (success) {
+        addAIMessage(`✅ Removed ${company || 'subcontractor'} from database`);
+      } else {
+        Alert.alert('Error', 'Failed to delete subcontractor.');
+      }
+    } catch (error) {
+      console.error('Error deleting subcontractor:', error);
+      Alert.alert('Error', 'Failed to delete subcontractor.');
+    }
+  };
+
+  const handleUpdateInvoiceTemplate = async (data) => {
+    try {
+      const success = await updateInvoiceTemplate(data);
+
+      if (success) {
+        addAIMessage(`✅ Updated invoice template`);
+      } else {
+        Alert.alert('Error', 'Failed to update invoice template.');
+      }
+    } catch (error) {
+      console.error('Error updating invoice template:', error);
+      Alert.alert('Error', 'Failed to update invoice template.');
+    }
+  };
+
+  // ===================================
+  // Document Agent - Invoice Handlers
+  // ===================================
+
+  const handleUpdateInvoice = async (data) => {
+    try {
+      const { invoiceId, clientName, ...updates } = data;
+      const success = await updateInvoice(invoiceId, updates);
+
+      if (success) {
+        addAIMessage(`✅ Updated invoice${clientName ? ' for ' + clientName : ''}`);
+      } else {
+        Alert.alert('Error', 'Failed to update invoice.');
+      }
+    } catch (error) {
+      console.error('Error updating invoice:', error);
+      Alert.alert('Error', 'Failed to update invoice.');
+    }
+  };
+
+  const handleDeleteInvoice = async (data) => {
+    try {
+      const { invoiceId, invoiceNumber } = data;
+      const success = await deleteInvoice(invoiceId);
+
+      if (success) {
+        addAIMessage(`✅ Deleted invoice ${invoiceNumber || ''}`);
+      } else {
+        Alert.alert('Error', 'Failed to delete invoice.');
+      }
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      Alert.alert('Error', 'Failed to delete invoice.');
+    }
+  };
+
+  const handleRecordInvoicePayment = async (data) => {
+    try {
+      const { invoiceId, clientName, paymentAmount, paymentMethod, paymentDate } = data;
+      const result = await recordInvoicePayment(invoiceId, paymentAmount, paymentMethod, paymentDate);
+
+      if (result && result.success) {
+        const balanceMsg = result.newBalance > 0
+          ? `Remaining balance: $${result.newBalance.toFixed(2)}`
+          : 'Invoice paid in full';
+        addAIMessage(`✅ Recorded $${paymentAmount} payment${clientName ? ' from ' + clientName : ''}. ${balanceMsg}`);
+      } else {
+        Alert.alert('Error', 'Failed to record payment.');
+      }
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      Alert.alert('Error', 'Failed to record payment.');
+    }
+  };
+
+  const handleVoidInvoice = async (data) => {
+    try {
+      const { invoiceId, invoiceNumber } = data;
+      const success = await voidInvoice(invoiceId);
+
+      if (success) {
+        addAIMessage(`✅ Voided invoice ${invoiceNumber || ''}`);
+      } else {
+        Alert.alert('Error', 'Failed to void invoice.');
+      }
+    } catch (error) {
+      console.error('Error voiding invoice:', error);
+      Alert.alert('Error', 'Failed to void invoice.');
+    }
+  };
+
+  // Contract Management Handlers
+  const handleUploadContract = async () => {
+    try {
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: ['Cancel', 'Take Photo', 'Choose from Photos', 'Choose Document'],
+            cancelButtonIndex: 0,
+          },
+          async (buttonIndex) => {
+            if (buttonIndex === 1) {
+              await uploadContractFromCamera();
+            } else if (buttonIndex === 2) {
+              await uploadContractFromLibrary();
+            } else if (buttonIndex === 3) {
+              await uploadContractFromFile();
+            }
+          }
+        );
+      } else {
+        Alert.alert(
+          'Upload Contract',
+          'Choose a source',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Take Photo', onPress: uploadContractFromCamera },
+            { text: 'Choose from Photos', onPress: uploadContractFromLibrary },
+            { text: 'Choose Document', onPress: uploadContractFromFile },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error showing upload options:', error);
+      Alert.alert('Error', 'Failed to show upload options');
+    }
+  };
+
+  const uploadContractFromCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Camera permission is required to take photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const fileName = `Contract_${Date.now()}.jpg`;
+        const uploaded = await uploadContractDocument(result.assets[0].uri, fileName, 'image');
+        if (uploaded) {
+          addAIMessage('✅ Contract uploaded successfully! You can now share it with clients.');
+        } else {
+          Alert.alert('Error', 'Failed to upload contract');
+        }
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const uploadContractFromLibrary = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Photo library permission is required');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const fileName = `Contract_${Date.now()}.jpg`;
+        const uploaded = await uploadContractDocument(result.assets[0].uri, fileName, 'image');
+        if (uploaded) {
+          addAIMessage('✅ Contract uploaded successfully! You can now share it with clients.');
+        } else {
+          Alert.alert('Error', 'Failed to upload contract');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const uploadContractFromFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const uploaded = await uploadContractDocument(asset.uri, asset.name, asset.mimeType?.includes('pdf') ? 'document' : 'image');
+        if (uploaded) {
+          addAIMessage('✅ Contract uploaded successfully! You can now share it with clients.');
+        } else {
+          Alert.alert('Error', 'Failed to upload contract');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
+    }
+  };
+
+  const handleViewContract = async (data) => {
+    try {
+      const { contractDocument } = data;
+      if (!contractDocument) {
+        Alert.alert('Error', 'Contract document not found');
+        return;
+      }
+
+      // Navigate to document viewer
+      navigation.navigate('DocumentViewer', { document: contractDocument });
+    } catch (error) {
+      console.error('Error viewing contract:', error);
+      Alert.alert('Error', 'Failed to view contract');
+    }
+  };
+
+  const handleShareContract = async (data) => {
+    try {
+      const { contractId, contractName, fileUrl } = data;
+
+      Alert.alert(
+        'Share Contract',
+        `Share "${contractName}" with your client?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Share',
+            onPress: async () => {
+              try {
+                await Share.share({
+                  message: `Contract: ${contractName}`,
+                  url: fileUrl,
+                });
+                addAIMessage(`✅ Contract "${contractName}" shared successfully!`);
+              } catch (error) {
+                console.error('Error sharing:', error);
+                Alert.alert('Error', 'Failed to share contract');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error handling share contract:', error);
+      Alert.alert('Error', 'Failed to share contract');
+    }
+  };
+
+  // Photo and Daily Report Retrieval Handlers
+  const handleRetrievePhotos = async (data) => {
+    try {
+      const filters = data?.filters || {};
+      const photos = await fetchPhotosWithFilters(filters);
+
+      const photoGalleryElement = {
+        type: 'photo-gallery',
+        data: {
+          title: data?.title || 'Project Photos',
+          subtitle: data?.subtitle || '',
+          photos: photos,
+          totalCount: photos.length,
+          filters: filters
+        }
+      };
+
+      const resultMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        text: photos.length > 0
+          ? `Found ${photos.length} photo${photos.length === 1 ? '' : 's'} matching your criteria.`
+          : 'No photos found matching your criteria. Try adjusting your filters.',
+        isUser: false,
+        timestamp: new Date(),
+        visualElements: photos.length > 0 ? [photoGalleryElement] : [],
+        actions: [],
+        quickSuggestions: photos.length === 0 ? ['Show all photos', 'Try different dates'] : [],
+      };
+
+      setMessages((prev) => [...prev, resultMessage]);
+    } catch (error) {
+      console.error('Error retrieving photos:', error);
+      addAIMessage('Sorry, I encountered an error while retrieving photos. Please try again.');
+    }
+  };
+
+  const handleRetrieveDailyReports = async (data) => {
+    try {
+      const filters = data?.filters || {};
+      console.log('📋 [handleRetrieveDailyReports] Received data:', JSON.stringify(data, null, 2));
+      console.log('📋 [handleRetrieveDailyReports] Using filters:', JSON.stringify(filters, null, 2));
+      const reports = await fetchDailyReportsWithFilters(filters);
+      console.log('📋 [handleRetrieveDailyReports] Found reports:', reports.length);
+
+      const reportListElement = {
+        type: 'daily-report-list',
+        data: {
+          title: data?.title || 'Daily Reports',
+          subtitle: data?.subtitle || '',
+          reports: reports,
+          totalCount: reports.length,
+          filters: filters
+        }
+      };
+
+      const resultMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        text: reports.length > 0
+          ? `Found ${reports.length} daily report${reports.length === 1 ? '' : 's'}.`
+          : 'No reports found matching your criteria.',
+        isUser: false,
+        timestamp: new Date(),
+        visualElements: reports.length > 0 ? [reportListElement] : [],
+        actions: [],
+        quickSuggestions: reports.length === 0 ? ['Show all reports', 'Try different dates'] : [],
+      };
+
+      setMessages((prev) => [...prev, resultMessage]);
+    } catch (error) {
+      console.error('Error retrieving daily reports:', error);
+      addAIMessage('Sorry, I encountered an error while retrieving reports. Please try again.');
+    }
+  };
+
+  // Open address in maps app
+  const handleOpenMaps = (data) => {
+    const address = data?.address;
+    if (!address) {
+      Alert.alert('Error', 'No address provided');
+      return;
+    }
+
+    const encodedAddress = encodeURIComponent(address);
+
+    Alert.alert(
+      'Open in Maps',
+      address,
+      [
+        {
+          text: 'Google Maps',
+          onPress: () => {
+            const googleMapsUrl = Platform.select({
+              ios: `comgooglemaps://?q=${encodedAddress}`,
+              android: `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`,
+            });
+
+            Linking.canOpenURL(googleMapsUrl)
+              .then((supported) => {
+                if (supported) {
+                  return Linking.openURL(googleMapsUrl);
+                } else {
+                  const browserUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+                  return Linking.openURL(browserUrl);
+                }
+              })
+              .catch((err) => {
+                console.error('Error opening Google Maps:', err);
+                Alert.alert('Error', 'Could not open Google Maps');
+              });
+          },
+        },
+        {
+          text: 'Apple Maps',
+          onPress: () => {
+            const appleMapsUrl = `maps://maps.apple.com/?address=${encodedAddress}`;
+            Linking.openURL(appleMapsUrl).catch((err) => {
+              console.error('Error opening Apple Maps:', err);
+              Alert.alert('Error', 'Could not open Apple Maps');
+            });
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const renderVisualElement = (element, index) => {
     switch (element.type) {
       case 'project-card':
@@ -1611,6 +3819,8 @@ export default function ChatScreen({ navigation }) {
         return <ProjectSelector key={index} data={element.data} onAction={handleAction} />;
       case 'worker-list':
         return <WorkerList key={index} data={element.data} />;
+      case 'worker-payment-card':
+        return <WorkerPaymentCard key={index} data={element.data} />;
       case 'budget-chart':
         return <BudgetChart key={index} data={element.data} />;
       case 'photo-gallery':
@@ -1623,28 +3833,30 @@ export default function ChatScreen({ navigation }) {
         return <EstimateList key={index} data={element.data} onAction={handleAction} />;
       case 'invoice-preview':
         return <InvoicePreview key={index} data={element.data} onAction={handleAction} />;
+      case 'contract-preview':
+        return <ContractPreview key={index} data={element.data} onAction={handleAction} />;
       case 'expense-card':
         return <ExpenseCard key={index} data={element.data} />;
       case 'project-overview':
         return <ProjectOverview key={index} data={element.data} onAction={handleAction} />;
       case 'phase-overview':
         return <PhaseOverview key={index} data={element.data} onAction={handleAction} />;
+      case 'daily-report-list':
+        return <DailyReportList key={index} data={element.data} onAction={handleAction} />;
+      case 'appointment-card':
+        return <AppointmentCard key={index} data={element.data} onAction={handleAction} />;
       default:
         return null;
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.background }]}>
+    <View style={[styles.container, { backgroundColor: Colors.white }]}>
       <SafeAreaView style={styles.safeArea}>
       {/* Top Bar */}
-        <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
-        </TouchableOpacity>
+      <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.white }]}>
+        <View style={{ flex: 1 }} />
+        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
 
       {/* Chat Messages and Input Area */}
@@ -1653,10 +3865,11 @@ export default function ChatScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? -80 : 0}
       >
+        <View style={{ flex: 1 }}>
         <ScrollView
           ref={scrollViewRef}
           style={[styles.chatArea, { backgroundColor: Colors.background }]}
-          contentContainerStyle={[styles.chatContent, { paddingBottom: 120 }]}
+          contentContainerStyle={[styles.chatContent, { paddingBottom: 180 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
         >
@@ -1675,7 +3888,8 @@ export default function ChatScreen({ navigation }) {
 
             return (
                 <View key={message.id} style={styles.messageContainer}>
-                  {/* Text bubble */}
+                  {/* Text bubble - only show if there's text content */}
+                  {message.text && message.text.trim() !== '' && (
             <View
               style={[
                 styles.messageBubble,
@@ -1696,6 +3910,7 @@ export default function ChatScreen({ navigation }) {
                       {typeof message.text === 'string' ? message.text : JSON.stringify(message.text)}
               </Text>
                   </View>
+                  )}
 
                   {/* Visual Elements */}
                   {!message.isUser && message.visualElements && message.visualElements.length > 0 && (
@@ -1925,19 +4140,17 @@ export default function ChatScreen({ navigation }) {
             );
           })}
 
-              {/* AI Thinking Loader */}
-              {isAIThinking && (
-                <View style={styles.loaderContainer}>
-                  <OrbitalLoader size={32} />
-                </View>
+              {/* AI Status Message */}
+              {statusMessage && (
+                <StatusMessage message={statusMessage} />
               )}
             </>
           )}
         </ScrollView>
 
-        {/* AI Input Component - Moves up with keyboard with shadow */}
-        <View style={styles.inputWrapperShadow}>
-          <View style={styles.inputWrapper}>
+        {/* AI Input Component - Floating over content with glass effect */}
+        <View style={styles.inputWrapperFloat}>
+          <View style={styles.inputWrapperGlass}>
           <AIInputWithSearch
               placeholder="Type a message..."
             onSubmit={handleSend}
@@ -1946,6 +4159,7 @@ export default function ChatScreen({ navigation }) {
             onPopulateInput={handlePopulateInput}
           />
           </View>
+        </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -2018,6 +4232,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 20,
     elevation: 15,
+  },
+  inputWrapperFloat: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  inputWrapperGlass: {
+    backgroundColor: 'transparent',
+    paddingBottom: 55,
   },
   chatContent: {
     padding: Spacing.lg,

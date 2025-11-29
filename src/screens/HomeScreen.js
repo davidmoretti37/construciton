@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,50 +14,155 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjects } from '../utils/storage';
 import { ProjectCard } from '../components/ChatVisuals';
 import ProjectDetailView from '../components/ProjectDetailView';
+import { useProjects } from '../hooks/useProjects';
+import NotificationBell from '../components/NotificationBell';
+import { fetchDailyReportsWithFilters } from '../utils/storage';
 
 export default function HomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Use custom hook for projects data
+  const { projects, loading, hasLoadedOnce, loadProjects } = useProjects();
+
   const [refreshing, setRefreshing] = useState(false);
   const [showProjectsModal, setShowProjectsModal] = useState(false);
   const [modalProjects, setModalProjects] = useState([]);
   const [modalTitle, setModalTitle] = useState('');
-  const [showAllActiveProjects, setShowAllActiveProjects] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [showProjectDetail, setShowProjectDetail] = useState(false);
+  const [todaysDailyReports, setTodaysDailyReports] = useState([]);
 
-  // Load projects when screen comes into focus
+  // Load today's daily reports
+  const loadTodaysDailyReports = useCallback(async () => {
+    try {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const reports = await fetchDailyReportsWithFilters({
+        startDate: todayStr,
+        endDate: todayStr,
+        limit: 10
+      });
+      setTodaysDailyReports(reports || []);
+    } catch (error) {
+      console.error('Error loading daily reports:', error);
+    }
+  }, []);
+
+  // Load projects and daily reports when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      loadProjects();
-    }, [])
+      if (!hasLoadedOnce) {
+        loadProjects();
+      }
+      loadTodaysDailyReports();
+    }, [hasLoadedOnce, loadProjects, loadTodaysDailyReports])
   );
-
-  const loadProjects = async () => {
-    try {
-      setLoading(true);
-      const fetchedProjects = await fetchProjects();
-      setProjects(fetchedProjects);
-    } catch (error) {
-      console.error('Error loading projects:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadProjects();
+    await Promise.all([loadProjects(), loadTodaysDailyReports()]);
     setRefreshing(false);
-  }, []);
+  }, [loadProjects, loadTodaysDailyReports]);
 
-  const handleStatCardPress = (type) => {
+  // Memoized: Active projects calculation
+  const activeProjects = useMemo(() =>
+    projects.filter(p => ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)),
+    [projects]
+  );
+
+  // Memoized: On-site projects calculation
+  const onSiteProjects = useMemo(() =>
+    projects.filter(p => p.workers && p.workers.length > 0),
+    [projects]
+  );
+
+  // Memoized: Projects needing attention
+  const needAttentionProjects = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return projects.filter(p => {
+      const isBehindSchedule = p.status === 'behind' || (p.daysRemaining !== null && p.daysRemaining < 7);
+      const isOverBudget = (p.expenses || 0) > (p.contractAmount || 0);
+      const hasLowCashFlow = (p.expenses || 0) > (p.incomeCollected || 0);
+
+      let isOverdue = false;
+      if (p.endDate) {
+        const endDate = new Date(p.endDate);
+        endDate.setHours(0, 0, 0, 0);
+        isOverdue = endDate < today && (p.percentComplete || 0) < 100;
+      }
+
+      const needsAttention = isBehindSchedule || isOverBudget || hasLowCashFlow || isOverdue;
+
+      // Store attention reasons on the project object for display
+      if (needsAttention) {
+        p.attentionReasons = [];
+        if (isBehindSchedule) {
+          if (p.status === 'behind') {
+            p.attentionReasons.push('Behind Schedule');
+          } else if (p.daysRemaining !== null && p.daysRemaining < 7) {
+            p.attentionReasons.push(`Only ${p.daysRemaining} days remaining`);
+          }
+        }
+        if (isOverBudget) {
+          const over = (p.expenses || 0) - (p.contractAmount || 0);
+          p.attentionReasons.push(`Over budget by $${over.toLocaleString()}`);
+        }
+        if (hasLowCashFlow) {
+          const unpaid = (p.expenses || 0) - (p.incomeCollected || 0);
+          p.attentionReasons.push(`Unpaid expenses: $${unpaid.toLocaleString()}`);
+        }
+        if (isOverdue) {
+          p.attentionReasons.push('Project is overdue');
+        }
+      }
+
+      return needsAttention;
+    });
+  }, [projects]);
+
+  // Memoized: Monthly stats
+  const monthlyStats = useMemo(() => {
+    const thisMonth = new Date().getMonth();
+    const thisYear = new Date().getFullYear();
+
+    const thisMonthProjects = projects.filter(p => {
+      const createdDate = new Date(p.createdAt);
+      const updatedDate = new Date(p.updatedAt);
+
+      const createdThisMonth = createdDate.getMonth() === thisMonth && createdDate.getFullYear() === thisYear;
+      const updatedThisMonth = updatedDate.getMonth() === thisMonth && updatedDate.getFullYear() === thisYear;
+
+      return createdThisMonth || updatedThisMonth;
+    });
+
+    const income = thisMonthProjects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0);
+    const expenses = thisMonthProjects.reduce((sum, p) => sum + (p.expenses || p.spent || 0), 0);
+    const profit = income - expenses;
+    const budgeted = thisMonthProjects.reduce((sum, p) => sum + (p.contractAmount || 0), 0);
+    const percentage = budgeted > 0 ? Math.round((income / budgeted) * 100) : 0;
+
+    return { profit, budgeted, percentage };
+  }, [projects]);
+
+  // Memoized: Today's activity
+  const todaysActivity = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return projects.filter(p => {
+      if (!p.updatedAt) return false;
+      const updatedDate = new Date(p.updatedAt);
+      updatedDate.setHours(0, 0, 0, 0);
+      return updatedDate.getTime() === today.getTime();
+    }).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  }, [projects]);
+
+  const handleStatCardPress = useCallback((type) => {
     let filteredProjects = [];
     let title = '';
 
@@ -79,92 +184,7 @@ export default function HomeScreen({ navigation }) {
     setModalProjects(filteredProjects);
     setModalTitle(title);
     setShowProjectsModal(true);
-  };
-
-  // Calculate Quick Stats
-  const activeProjects = projects.filter(p =>
-    ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)
-  );
-
-  const onSiteCount = projects.filter(p =>
-    p.workers && p.workers.length > 0
-  ).length;
-
-  const needAttentionProjects = projects.filter(p => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const isBehindSchedule = p.status === 'behind' || (p.daysRemaining !== null && p.daysRemaining < 7);
-    const isOverBudget = (p.expenses || 0) > (p.contractAmount || 0);
-    const hasLowCashFlow = (p.expenses || 0) > (p.incomeCollected || 0);
-
-    let isOverdue = false;
-    if (p.endDate) {
-      const endDate = new Date(p.endDate);
-      endDate.setHours(0, 0, 0, 0);
-      isOverdue = endDate < today && (p.percentComplete || 0) < 100;
-    }
-
-    const needsAttention = isBehindSchedule || isOverBudget || hasLowCashFlow || isOverdue;
-
-    // Store attention reasons on the project object for display
-    if (needsAttention) {
-      p.attentionReasons = [];
-      if (isBehindSchedule) {
-        if (p.status === 'behind') {
-          p.attentionReasons.push('Behind Schedule');
-        } else if (p.daysRemaining !== null && p.daysRemaining < 7) {
-          p.attentionReasons.push(`Only ${p.daysRemaining} days remaining`);
-        }
-      }
-      if (isOverBudget) {
-        const over = (p.expenses || 0) - (p.contractAmount || 0);
-        p.attentionReasons.push(`Over budget by $${over.toLocaleString()}`);
-      }
-      if (hasLowCashFlow) {
-        const unpaid = (p.expenses || 0) - (p.incomeCollected || 0);
-        p.attentionReasons.push(`Unpaid expenses: $${unpaid.toLocaleString()}`);
-      }
-      if (isOverdue) {
-        p.attentionReasons.push('Project is overdue');
-      }
-    }
-
-    return needsAttention;
-  });
-
-  const onSiteProjects = projects.filter(p => p.workers && p.workers.length > 0);
-
-  const needAttentionCount = needAttentionProjects.length;
-
-  // Calculate This Month income (projects created/updated this month)
-  const thisMonth = new Date().getMonth();
-  const thisYear = new Date().getFullYear();
-
-  const thisMonthProjects = projects.filter(p => {
-    const createdDate = new Date(p.createdAt);
-    const updatedDate = new Date(p.updatedAt);
-
-    const createdThisMonth = createdDate.getMonth() === thisMonth && createdDate.getFullYear() === thisYear;
-    const updatedThisMonth = updatedDate.getMonth() === thisMonth && updatedDate.getFullYear() === thisYear;
-
-    return createdThisMonth || updatedThisMonth;
-  });
-
-  const monthlyEarned = thisMonthProjects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0);
-  const monthlyBudgeted = thisMonthProjects.reduce((sum, p) => sum + (p.contractAmount || 0), 0);
-  const monthlyPercentage = monthlyBudgeted > 0 ? Math.round((monthlyEarned / monthlyBudgeted) * 100) : 0;
-
-  // Get today's activity (projects updated today)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const todaysActivity = projects.filter(p => {
-    if (!p.updatedAt) return false;
-    const updatedDate = new Date(p.updatedAt);
-    updatedDate.setHours(0, 0, 0, 0);
-    return updatedDate.getTime() === today.getTime();
-  }).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)); // Most recent first
+  }, [activeProjects, onSiteProjects, needAttentionProjects]);
 
   const formatTimeAgo = (dateString) => {
     const now = new Date();
@@ -197,10 +217,11 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        {/* Settings removed - now in More tab */}
+        <View style={styles.topBarLeft} />
+        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
 
       <ScrollView
@@ -239,7 +260,7 @@ export default function HomeScreen({ navigation }) {
                 onPress={() => handleStatCardPress('onsite')}
                 activeOpacity={0.7}
               >
-                <Text style={styles.statNumber}>{onSiteCount}</Text>
+                <Text style={styles.statNumber}>{onSiteProjects.length}</Text>
                 <Text style={styles.statLabel}>On-Site</Text>
               </TouchableOpacity>
 
@@ -248,7 +269,7 @@ export default function HomeScreen({ navigation }) {
                 onPress={() => handleStatCardPress('attention')}
                 activeOpacity={0.7}
               >
-                <Text style={styles.statNumber}>{needAttentionCount}</Text>
+                <Text style={styles.statNumber}>{needAttentionProjects.length}</Text>
                 <Text style={styles.statLabel}>Need Attention</Text>
               </TouchableOpacity>
             </View>
@@ -261,12 +282,12 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>💰 This Month</Text>
               <View style={styles.card}>
-                <Text style={styles.incomeAmount}>${monthlyEarned.toLocaleString()} earned</Text>
-                <Text style={styles.budgetText}>${monthlyBudgeted.toLocaleString()} budgeted</Text>
+                <Text style={[styles.incomeAmount, { color: monthlyStats.profit >= 0 ? '#10B981' : '#EF4444' }]}>${monthlyStats.profit.toLocaleString()} profit</Text>
+                <Text style={styles.budgetText}>${monthlyStats.budgeted.toLocaleString()} budgeted</Text>
                 <View style={styles.progressBarContainer}>
-                  <View style={[styles.progressBar, { width: `${Math.min(monthlyPercentage, 100)}%` }]} />
+                  <View style={[styles.progressBar, { width: `${Math.min(monthlyStats.percentage, 100)}%` }]} />
                 </View>
-                <Text style={styles.percentageText}>{monthlyPercentage}%</Text>
+                <Text style={styles.percentageText}>{monthlyStats.percentage}%</Text>
               </View>
             </View>
 
@@ -310,15 +331,45 @@ export default function HomeScreen({ navigation }) {
             {/* Today's Activity */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>🔔 Today's Activity</Text>
-              {todaysActivity.length === 0 ? (
+              {todaysDailyReports.length === 0 && todaysActivity.length === 0 ? (
                 <View style={styles.card}>
                   <Text style={styles.emptyText}>No activity today</Text>
                 </View>
               ) : (
                 <View style={styles.card}>
+                  {/* Daily Reports */}
+                  {todaysDailyReports.map((report, index) => (
+                    <TouchableOpacity
+                      key={`report-${report.id}`}
+                      style={[
+                        styles.activityItem,
+                        { backgroundColor: Colors.lightGray },
+                        (index < todaysDailyReports.length - 1 || todaysActivity.length > 0) && { marginBottom: Spacing.md }
+                      ]}
+                      onPress={() => navigation.navigate('DailyReportDetail', { reportId: report.id })}
+                    >
+                      <View style={[styles.activityIcon, { backgroundColor: '#10B981' + '20' }]}>
+                        <Ionicons name="document-text" size={20} color="#10B981" />
+                      </View>
+                      <View style={styles.activityContent}>
+                        <Text style={[styles.activityTitle, { color: Colors.primaryText }]}>
+                          Daily Report
+                        </Text>
+                        <Text style={[styles.activityProject, { color: Colors.secondaryText }]} numberOfLines={1}>
+                          {report.workers?.full_name || 'Worker'} • {report.projects?.name || 'Project'}
+                        </Text>
+                        <Text style={[styles.activityTime, { color: Colors.placeholderText }]} numberOfLines={1}>
+                          {report.work_performed ? report.work_performed.substring(0, 50) + (report.work_performed.length > 50 ? '...' : '') : 'No description'}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+                    </TouchableOpacity>
+                  ))}
+
+                  {/* Project Updates */}
                   {todaysActivity.map((project, index) => (
                     <TouchableOpacity
-                      key={project.id}
+                      key={`project-${project.id}`}
                       style={[
                         styles.activityItem,
                         { backgroundColor: Colors.lightGray },
@@ -347,50 +398,6 @@ export default function HomeScreen({ navigation }) {
               )}
             </View>
 
-            {/* Active Projects */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>🏗️ Active Projects</Text>
-                {activeProjects.length > 0 && (
-                  <TouchableOpacity onPress={() => navigation.navigate('Projects')}>
-                    <Text style={[styles.viewAllText, { color: Colors.primaryBlue }]}>View All</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {activeProjects.length === 0 ? (
-                <View style={styles.card}>
-                  <Text style={styles.emptyText}>No active projects</Text>
-                </View>
-              ) : (
-                <>
-                  {(showAllActiveProjects ? activeProjects : activeProjects.slice(0, 3)).map((project) => (
-                    <ProjectCard key={project.id} data={project} onAction={handleProjectAction} />
-                  ))}
-                  {activeProjects.length > 3 && !showAllActiveProjects && (
-                    <TouchableOpacity
-                      style={styles.viewAllButton}
-                      onPress={() => setShowAllActiveProjects(true)}
-                    >
-                      <Ionicons name="chevron-down" size={20} color={Colors.primaryBlue} />
-                      <Text style={[styles.viewAllText, { color: Colors.primaryBlue }]}>
-                        View {activeProjects.length - 3} more project{activeProjects.length - 3 === 1 ? '' : 's'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  {showAllActiveProjects && activeProjects.length > 3 && (
-                    <TouchableOpacity
-                      style={styles.viewAllButton}
-                      onPress={() => setShowAllActiveProjects(false)}
-                    >
-                      <Ionicons name="chevron-up" size={20} color={Colors.primaryBlue} />
-                      <Text style={[styles.viewAllText, { color: Colors.primaryBlue }]}>
-                        Show Less
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </View>
           </>
         )}
       </ScrollView>
@@ -486,6 +493,9 @@ const styles = StyleSheet.create({
     backgroundColor: LightColors.white,
     borderBottomWidth: 1,
     borderBottomColor: LightColors.border,
+  },
+  topBarLeft: {
+    width: 40,
   },
   emptySpace: {
     flex: 1,
