@@ -319,8 +319,8 @@ app.post('/api/chat/planning', aiLimiter, async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server - bind to 0.0.0.0 for Railway/Docker compatibility
+app.listen(PORT, '0.0.0.0', () => {
   logger.info(`🚀 Backend server running on port ${PORT}`);
   logger.info(`   Health check: http://localhost:${PORT}/health`);
   logger.info(`   AI Chat: http://localhost:${PORT}/api/chat/stream`);
