@@ -1,0 +1,55 @@
+{
+  "welcome": "Welcome!",
+  "loading": "Loading your dashboard...",
+  "timeAgo": {
+    "justNow": "Just now",
+    "minuteAgo": "1 min ago",
+    "minutesAgo": "{{count}} mins ago",
+    "hourAgo": "1 hour ago",
+    "hoursAgo": "{{count}} hours ago"
+  },
+  "fallbacks": {
+    "worker": "Worker",
+    "project": "Project",
+    "noDescription": "No description",
+    "updated": "Updated"
+  },
+  "stats": {
+    "activeProjects": "Active Projects",
+    "onSite": "On-Site",
+    "needAttention": "Need Attention"
+  },
+  "sections": {
+    "thisMonth": "This Month",
+    "quickStats": "Quick Stats",
+    "todaysActivity": "Today's Activity"
+  },
+  "financial": {
+    "profit": "profit",
+    "budgeted": "budgeted",
+    "totalProjects": "Total Projects",
+    "totalContractValue": "Total Contract Value",
+    "totalIncomeCollected": "Total Income Collected",
+    "totalExpenses": "Total Expenses",
+    "totalProfit": "Total Profit"
+  },
+  "activity": {
+    "noActivity": "No activity today",
+    "dailyReport": "Daily Report",
+    "updated": "Updated"
+  },
+  "attention": {
+    "required": "Attention Required:",
+    "behindSchedule": "Behind Schedule",
+    "daysRemaining": "Only {{count}} days remaining",
+    "overBudget": "Over budget by ${{amount}}",
+    "unpaidExpenses": "Unpaid expenses: ${{amount}}",
+    "projectOverdue": "Project is overdue"
+  },
+  "modal": {
+    "activeProjects": "Active Projects",
+    "onSiteProjects": "On-Site Projects",
+    "projectsNeedingAttention": "Projects Needing Attention",
+    "noProjectsFound": "No projects found"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "title": "Invoices",
+  "estimates": "Estimates",
+  "newInvoice": "New Invoice",
+  "newEstimate": "New Estimate",
+  "editInvoice": "Edit Invoice",
+  "editEstimate": "Edit Estimate",
+  "noInvoices": "No invoices yet",
+  "noEstimates": "No estimates yet",
+  "searchPlaceholder": "Search invoices...",
+  "form": {
+    "invoiceNumber": "Invoice #",
+    "estimateNumber": "Estimate #",
+    "client": "Client",
+    "project": "Project",
+    "date": "Date",
+    "dueDate": "Due Date",
+    "validUntil": "Valid Until",
+    "items": "Line Items",
+    "addItem": "Add Item",
+    "itemDescription": "Description",
+    "itemQuantity": "Qty",
+    "itemRate": "Rate",
+    "itemAmount": "Amount",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "taxRate": "Tax Rate %",
+    "discount": "Discount",
+    "total": "Total",
+    "notes": "Notes",
+    "terms": "Terms & Conditions"
+  },
+  "status": {
+    "all": "All",
+    "draft": "Draft",
+    "sent": "Sent",
+    "viewed": "Viewed",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "paid": "Paid",
+    "partiallyPaid": "Partially Paid",
+    "overdue": "Overdue",
+    "void": "Void"
+  },
+  "actions": {
+    "view": "View",
+    "edit": "Edit",
+    "delete": "Delete",
+    "send": "Send",
+    "download": "Download PDF",
+    "share": "Share",
+    "duplicate": "Duplicate",
+    "markPaid": "Mark as Paid",
+    "recordPayment": "Record Payment",
+    "void": "Void Invoice",
+    "convertToInvoice": "Convert to Invoice",
+    "preview": "Preview"
+  },
+  "payment": {
+    "title": "Record Payment",
+    "amount": "Amount",
+    "date": "Payment Date",
+    "method": "Payment Method",
+    "reference": "Reference #",
+    "notes": "Notes",
+    "methods": {
+      "cash": "Cash",
+      "check": "Check",
+      "creditCard": "Credit Card",
+      "bankTransfer": "Bank Transfer",
+      "other": "Other"
+    }
+  },
+  "email": {
+    "subject": "Invoice from {{company}}",
+    "message": "Please find attached your invoice.",
+    "sendTo": "Send To",
+    "cc": "CC",
+    "attachPdf": "Attach PDF"
+  },
+  "errors": {
+    "loadFailed": "Failed to load invoices",
+    "saveFailed": "Failed to save invoice",
+    "deleteFailed": "Failed to delete invoice",
+    "sendFailed": "Failed to send invoice",
+    "noItems": "Please add at least one line item"
+  },
+  "confirmDelete": {
+    "title": "Delete Invoice",
+    "message": "Are you sure you want to delete this invoice?"
+  },
+  "confirmVoid": {
+    "title": "Void Invoice",
+    "message": "Are you sure you want to void this invoice? This action cannot be undone."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "title": "Agenda de Hoje",
+  "stats": {
+    "totalWorkers": "Total de Trabalhadores",
+    "clockedIn": "Registrados",
+    "notClockedIn": "Não Registrados"
+  },
+  "sections": {
+    "notClockedInYet": "Ainda Não Registrados ({{count}})",
+    "projectWorkers": "{{projectName}} ({{count}})"
+  },
+  "emptyStates": {
+    "noWorkers": {
+      "title": "Ainda Não Há Trabalhadores",
+      "subtitle": "Adicione trabalhadores para ver sua agenda diária aqui",
+      "button": "Ir para Trabalhadores"
+    },
+    "noClockedIn": {
+      "title": "Nenhum Trabalhador Registrado",
+      "subtitle": "Os trabalhadores aparecerão aqui quando registrarem entrada nos projetos"
+    }
+  },
+  "actions": {
+    "refresh": "Atualizar"
+  }
+}

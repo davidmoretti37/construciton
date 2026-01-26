@@ -1,0 +1,26 @@
+{
+  "title": "Today's Schedule",
+  "stats": {
+    "totalWorkers": "Total Workers",
+    "clockedIn": "Clocked In",
+    "notClockedIn": "Not Clocked In"
+  },
+  "sections": {
+    "notClockedInYet": "Not Clocked In Yet ({{count}})",
+    "projectWorkers": "{{projectName}} ({{count}})"
+  },
+  "emptyStates": {
+    "noWorkers": {
+      "title": "No Workers Yet",
+      "subtitle": "Add workers to see their daily schedule here",
+      "button": "Go to Workers"
+    },
+    "noClockedIn": {
+      "title": "No Workers Clocked In",
+      "subtitle": "Workers will appear here when they clock in to projects"
+    }
+  },
+  "actions": {
+    "refresh": "Refresh"
+  }
+}

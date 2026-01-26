@@ -1,0 +1,135 @@
+{
+  "title": "Trabajadores",
+  "newWorker": "Nuevo Trabajador",
+  "editWorker": "Editar Trabajador",
+  "deleteWorker": "Eliminar Trabajador",
+  "workerDetails": "Detalles del Trabajador",
+  "noWorkers": "Aún no hay trabajadores",
+  "noWorkersHint": "Agrega tu primer trabajador para comenzar",
+  "searchPlaceholder": "Buscar trabajadores...",
+  "form": {
+    "fullName": "Nombre Completo",
+    "fullNamePlaceholder": "Ingresa el nombre completo del trabajador",
+    "email": "Correo Electrónico",
+    "emailPlaceholder": "trabajador@correo.com",
+    "phone": "Teléfono",
+    "phonePlaceholder": "(555) 123-4567",
+    "role": "Rol / Oficio",
+    "rolePlaceholder": "ej., Electricista, Carpintero",
+    "hourlyRate": "Tarifa por Hora",
+    "hourlyRatePlaceholder": "0.00",
+    "notes": "Notas",
+    "notesPlaceholder": "Notas adicionales sobre este trabajador..."
+  },
+  "status": {
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "onSite": "En Sitio",
+    "clockedIn": "Registrado",
+    "clockedOut": "Fuera",
+    "onBreak": "En Descanso"
+  },
+  "details": {
+    "contact": "Contacto",
+    "assignments": "Asignaciones",
+    "hoursThisWeek": "Horas Esta Semana",
+    "hoursThisMonth": "Horas Este Mes",
+    "totalHours": "Horas Totales",
+    "earnings": "Ganancias",
+    "lastActive": "Última Actividad",
+    "currentProject": "Proyecto Actual",
+    "dailyReports": "Reportes Diarios",
+    "timesheet": "Hoja de Tiempo"
+  },
+  "actions": {
+    "viewDetails": "Ver Detalles",
+    "editWorker": "Editar Trabajador",
+    "deleteWorker": "Eliminar Trabajador",
+    "assignToProject": "Asignar a Proyecto",
+    "removeFromProject": "Remover de Proyecto",
+    "viewTimesheet": "Ver Hoja de Tiempo",
+    "viewReports": "Ver Reportes",
+    "sendMessage": "Enviar Mensaje",
+    "call": "Llamar",
+    "openInMaps": "Abrir en Mapas",
+    "chooseMapApp": "Elige qué app de mapas usar:",
+    "googleMaps": "Google Maps",
+    "appleMaps": "Apple Maps",
+    "cancel": "Cancelar",
+    "delete": "Eliminar"
+  },
+  "reports": {
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "allReports": "Todos los Reportes"
+  },
+  "schedule": {
+    "todaySchedule": "Horario de Hoy",
+    "deleteEvent": "Eliminar Evento",
+    "confirmDeleteEvent": "¿Estás seguro de que quieres eliminar este evento?"
+  },
+  "success": {
+    "title": "Éxito",
+    "eventAdded": "Evento agregado exitosamente",
+    "eventDeleted": "Evento eliminado exitosamente"
+  },
+  "timeTracking": {
+    "clockIn": "Registrar Entrada",
+    "clockOut": "Registrar Salida",
+    "startBreak": "Iniciar Descanso",
+    "endBreak": "Terminar Descanso",
+    "currentShift": "Turno Actual",
+    "shiftDuration": "Duración del Turno",
+    "breakDuration": "Duración del Descanso",
+    "selectProject": "Seleccionar Proyecto",
+    "noActiveShift": "Sin turno activo"
+  },
+  "timesheet": {
+    "title": "Hoja de Tiempo",
+    "date": "Fecha",
+    "project": "Proyecto",
+    "clockIn": "Entrada",
+    "clockOut": "Salida",
+    "break": "Descanso",
+    "totalHours": "Horas Totales",
+    "noEntries": "Sin registros de tiempo",
+    "editEntry": "Editar Registro",
+    "deleteEntry": "Eliminar Registro"
+  },
+  "dailyReport": {
+    "title": "Reporte Diario",
+    "workPerformed": "Trabajo Realizado",
+    "workPerformedPlaceholder": "Describe el trabajo realizado hoy...",
+    "materials": "Materiales Usados",
+    "materialsPlaceholder": "Lista de materiales usados...",
+    "issues": "Problemas / Notas",
+    "issuesPlaceholder": "Cualquier problema o nota...",
+    "photos": "Fotos",
+    "addPhoto": "Agregar Foto",
+    "submitReport": "Enviar Reporte"
+  },
+  "invite": {
+    "title": "Invitar Trabajador",
+    "sendInvite": "Enviar Invitación",
+    "inviteSent": "Invitación Enviada",
+    "invitePending": "Invitación Pendiente",
+    "acceptInvite": "Aceptar Invitación",
+    "rejectInvite": "Rechazar Invitación"
+  },
+  "errors": {
+    "error": "Error",
+    "nameRequired": "Por favor ingresa el nombre del trabajador",
+    "loadFailed": "Error al cargar trabajadores",
+    "saveFailed": "Error al guardar trabajador",
+    "deleteFailed": "Error al eliminar trabajador",
+    "clockInFailed": "Error al registrar entrada",
+    "clockOutFailed": "Error al registrar salida",
+    "couldNotOpenMaps": "No se pudo abrir mapas",
+    "createEventFailed": "Error al crear evento. Intenta de nuevo.",
+    "deleteEventFailed": "Error al eliminar evento. Intenta de nuevo."
+  },
+  "confirmDelete": {
+    "title": "Eliminar Trabajador",
+    "message": "¿Estás seguro de que quieres eliminar este trabajador? Esta acción no se puede deshacer."
+  }
+}

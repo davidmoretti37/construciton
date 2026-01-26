@@ -1,0 +1,214 @@
+{
+  "welcome": {
+    "title": "Bem-vindo à Sua Plataforma de Serviços",
+    "subtitle": "Vamos configurar seu negócio para que você possa enviar orçamentos instantaneamente",
+    "getStarted": "Começar",
+    "features": {
+      "aiEstimates": "Orçamentos instantâneos com IA",
+      "autoCalc": "Cálculos automáticos de preços",
+      "sendVia": "Enviar por SMS ou WhatsApp",
+      "setupTime": "Configuração em 5 minutos"
+    }
+  },
+  "serviceSelection": {
+    "headerTitle": "Seus Serviços",
+    "title": "Seus Serviços",
+    "subtitle": "Escolha os serviços que sua empresa oferece",
+    "searchPlaceholder": "Buscar serviços...",
+    "selectedCount": "{{count}} selecionados",
+    "selectedServices": "Serviços Selecionados ({{count}})",
+    "availableServices": "Serviços Disponíveis",
+    "searchResults": "Resultados da Busca",
+    "addCustomService": "Adicionar serviço personalizado",
+    "createServiceHint": "Busque para criar um novo serviço com IA",
+    "createService": "Criar \"{{name}}\"",
+    "createServiceAiHint": "A IA gerará um modelo para este serviço",
+    "creatingService": "Criando Serviço...",
+    "creatingServiceSubtitle": "A IA está gerando itens e fases",
+    "loadingServices": "Carregando serviços...",
+    "loadingDetails": "Carregando detalhes do serviço...",
+    "items": "{{count}} itens",
+    "phases": "{{count}} fases",
+    "categories": {
+      "general": "Construção Geral",
+      "electrical": "Elétrica",
+      "plumbing": "Hidráulica",
+      "hvac": "Ar Condicionado",
+      "roofing": "Telhados",
+      "flooring": "Pisos",
+      "painting": "Pintura",
+      "landscaping": "Paisagismo",
+      "concrete": "Concreto",
+      "framing": "Estrutura",
+      "drywall": "Drywall",
+      "windows": "Janelas e Portas",
+      "siding": "Revestimento",
+      "insulation": "Isolamento",
+      "demolition": "Demolição",
+      "custom": "Serviços Personalizados"
+    },
+    "errors": {
+      "selectService": "Selecionar Serviços",
+      "selectAtLeastOne": "Por favor, selecione pelo menos um serviço que você oferece",
+      "loadFailed": "Falha ao carregar serviços. Tente novamente.",
+      "detailsFailed": "Falha ao carregar detalhes do serviço. Tente novamente.",
+      "createFailed": "Falha ao criar serviço. Tente novamente.",
+      "alreadyAdded": "Já Adicionado",
+      "alreadyAddedMessage": "{{name}} já está na sua lista de serviços"
+    }
+  },
+  "tradeSelection": {
+    "headerTitle": "Seus Serviços",
+    "title": "Quais serviços você oferece?",
+    "subtitle": "Selecione todos que se aplicam. Você pode adicionar ou remover depois.",
+    "servicesSelected": "{{count}} serviço selecionado",
+    "servicesSelectedPlural": "{{count}} serviços selecionados",
+    "errors": {
+      "selectService": "Selecionar Serviços",
+      "selectAtLeastOne": "Por favor, selecione pelo menos um serviço que você oferece"
+    }
+  },
+  "businessInfo": {
+    "headerTitle": "Info do Negócio",
+    "title": "Conte-nos sobre seu negócio",
+    "subtitle": "Essas informações aparecerão nos seus orçamentos",
+    "businessName": "Nome da Empresa",
+    "businessNamePlaceholder": "ex., Construções João",
+    "businessNameRequired": "*",
+    "companyName": "Nome da Empresa",
+    "companyNamePlaceholder": "Sua Empresa LTDA",
+    "phone": "Número de Telefone",
+    "phonePlaceholder": "(11) 99999-9999",
+    "phoneRequired": "*",
+    "phoneHelper": "Os clientes verão isso nos orçamentos",
+    "email": "E-mail",
+    "emailOptional": "(Opcional)",
+    "emailPlaceholder": "joao@construcao.com",
+    "address": "Endereço Comercial",
+    "addressPlaceholder": "Rua Principal, 123",
+    "city": "Cidade",
+    "cityPlaceholder": "São Paulo",
+    "state": "Estado",
+    "statePlaceholder": "SP",
+    "zipCode": "CEP",
+    "zipCodePlaceholder": "01310-100",
+    "licenseNumber": "Número do CREA/CAU",
+    "licenseNumberPlaceholder": "Opcional",
+    "infoNote": "Você pode atualizar essas informações depois em Configurações",
+    "errors": {
+      "businessNameRequired": "Nome da Empresa Obrigatório",
+      "enterBusinessName": "Por favor, insira o nome da sua empresa ou empreiteira",
+      "phoneRequired": "Telefone Obrigatório",
+      "enterPhone": "Por favor, insira seu número de telefone",
+      "companyNameRequired": "Por favor, digite o nome da sua empresa"
+    }
+  },
+  "phaseCustomization": {
+    "headerTitle": "Revisar Fases",
+    "title": "Fases do Projeto",
+    "subtitle": "Revise as fases de trabalho para seus serviços",
+    "days": "~{{count}} dias",
+    "tasks": "Tarefas:",
+    "noPhases": "Sem fases ainda",
+    "addPhase": "Adicionar Fase",
+    "deletePhase": "Excluir Fase",
+    "deletePhaseConfirm": "Tem certeza de que deseja excluir esta fase?",
+    "continueToPricing": "Continuar para Preços",
+    "modal": {
+      "addPhase": "Adicionar Fase",
+      "editPhase": "Editar Fase",
+      "save": "Salvar",
+      "phaseName": "Nome da Fase *",
+      "phaseNamePlaceholder": "ex., Preparação do Local",
+      "description": "Descrição",
+      "descriptionPlaceholder": "O que acontece nesta fase...",
+      "estimatedDays": "Dias Estimados",
+      "tasks": "Tarefas",
+      "addTaskPlaceholder": "Adicionar uma tarefa...",
+      "errors": {
+        "enterName": "Por favor, insira um nome para a fase"
+      }
+    }
+  },
+  "phaseTemplate": {
+    "title": "Fases do Projeto",
+    "subtitle": "Configure suas fases padrão de projeto",
+    "addPhase": "Adicionar Fase",
+    "editPhase": "Editar Fase",
+    "deletePhase": "Excluir Fase",
+    "phaseName": "Nome da Fase",
+    "phaseNamePlaceholder": "ex., Fundação, Estrutura",
+    "duration": "Duração (dias)",
+    "reorderHint": "Arraste para reordenar as fases"
+  },
+  "pricingSetup": {
+    "headerTitle": "Configurar Preços",
+    "title": "Configure Seus Preços",
+    "subtitle": "Configure seus preços padrão para serviços"
+  },
+  "pricing": {
+    "title": "Configuração de Preços",
+    "subtitle": "Defina seus preços padrão para serviços",
+    "hourlyRate": "Taxa por Hora",
+    "perUnit": "Por Unidade",
+    "perSqFt": "Por m²",
+    "flatRate": "Taxa Fixa",
+    "laborRate": "Taxa de Mão de Obra",
+    "materialMarkup": "Margem de Materiais %",
+    "currency": "Moeda"
+  },
+  "profitMargin": {
+    "headerTitle": "Margem de Lucro",
+    "headerSubtitle": "Defina sua margem de lucro desejada",
+    "title": "Selecione Sua Margem de Lucro",
+    "subtitle": "Escolha a porcentagem que deseja adicionar aos custos do projeto",
+    "defaultMargin": "Margem Padrão",
+    "marginHint": "Esta será aplicada a todos os novos orçamentos",
+    "customMargin": "Margem Personalizada",
+    "enterPercentage": "Insira a porcentagem"
+  },
+  "invoiceSetup": {
+    "headerTitle": "Config. de Faturas",
+    "title": "Configurações de Fatura",
+    "subtitle": "Personalize a aparência das suas faturas",
+    "logo": "Logo da Empresa",
+    "uploadLogo": "Enviar Logo",
+    "paymentTerms": "Condições de Pagamento",
+    "paymentTermsPlaceholder": "ex., 30 dias",
+    "notes": "Notas Padrão",
+    "notesPlaceholder": "Obrigado pela preferência!"
+  },
+  "typicalContracts": {
+    "headerTitle": "Contratos Típicos",
+    "title": "Contratos Típicos",
+    "subtitle": "Envie seus modelos de contratos padrão"
+  },
+  "completion": {
+    "title": "Tudo Pronto!",
+    "titleEmoji": "🎉",
+    "subtitle": "Seu negócio está configurado e pronto. Comece a criar orçamentos em segundos com assistência de IA.",
+    "startButton": "Começar a Usar o App",
+    "startUsing": "Começar a Usar",
+    "features": {
+      "aiPricing": "A IA conhece seus preços",
+      "autoCalc": "Cálculos automáticos",
+      "oneTapSend": "Envio com um toque",
+      "projects": "Criar e gerenciar projetos",
+      "estimates": "Gerar orçamentos profissionais",
+      "invoices": "Enviar notas fiscais para clientes",
+      "workers": "Acompanhar horas e relatórios de trabalhadores",
+      "schedule": "Gerenciar sua agenda"
+    },
+    "tip": "Tente dizer: \"Criar um orçamento para João - 50 m² de pintura interna\""
+  },
+  "progress": {
+    "step": "Passo {{current}} de {{total}}"
+  },
+  "buttons": {
+    "continue": "Continuar",
+    "back": "Voltar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "save": "Salvar"
+  }
+}

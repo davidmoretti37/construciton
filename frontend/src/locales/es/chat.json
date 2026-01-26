@@ -1,0 +1,72 @@
+{
+  "title": "Asistente IA",
+  "placeholder": "Escribe un mensaje...",
+  "send": "Enviar",
+  "thinking": "Pensando...",
+  "typing": "IA está escribiendo...",
+  "welcome": {
+    "title": "¿Cómo puedo ayudarte hoy?",
+    "suggestions": {
+      "createEstimate": "Crear un presupuesto",
+      "checkSchedule": "Ver el calendario de hoy",
+      "projectStatus": "Estado del proyecto",
+      "findWorker": "Buscar trabajadores disponibles"
+    }
+  },
+  "actions": {
+    "newChat": "Nueva Conversación",
+    "clearChat": "Limpiar Conversación",
+    "voiceInput": "Entrada de Voz",
+    "attachFile": "Adjuntar Archivo",
+    "takePhoto": "Tomar Foto"
+  },
+  "messages": {
+    "error": "Lo siento, algo salió mal. Por favor intenta de nuevo.",
+    "offline": "Estás sin conexión. Los mensajes se enviarán cuando te conectes.",
+    "rateLimited": "Demasiadas solicitudes. Por favor espera un momento.",
+    "contextCleared": "Historial de conversación limpiado"
+  },
+  "suggestions": {
+    "createProject": "Crear un nuevo proyecto",
+    "viewReports": "Ver reportes diarios",
+    "checkBudget": "Revisar presupuesto del proyecto",
+    "scheduleWorker": "Programar un trabajador",
+    "createInvoice": "Crear una factura",
+    "viewPhotos": "Ver fotos del proyecto"
+  },
+  "features": {
+    "projectCard": {
+      "viewProject": "Ver Proyecto",
+      "editProject": "Editar Proyecto"
+    },
+    "estimateCard": {
+      "viewEstimate": "Ver Presupuesto",
+      "sendEstimate": "Enviar al Cliente"
+    },
+    "invoiceCard": {
+      "viewInvoice": "Ver Factura",
+      "markPaid": "Marcar como Pagada"
+    },
+    "workerCard": {
+      "viewWorker": "Ver Detalles",
+      "assignToProject": "Asignar a Proyecto"
+    },
+    "photoGallery": {
+      "viewAll": "Ver Todas las Fotos",
+      "download": "Descargar"
+    }
+  },
+  "voice": {
+    "listening": "Escuchando...",
+    "processing": "Procesando...",
+    "tapToSpeak": "Toca para hablar",
+    "permissionDenied": "Permiso de micrófono denegado"
+  },
+  "upload": {
+    "selectFile": "Seleccionar Archivo",
+    "takePhoto": "Tomar Foto",
+    "chooseFromLibrary": "Elegir de la Galería",
+    "uploading": "Subiendo...",
+    "uploadFailed": "Error al subir"
+  }
+}

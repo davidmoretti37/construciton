@@ -1,0 +1,153 @@
+{
+  "welcome": {
+    "title": "Welcome to Your Service Platform",
+    "subtitle": "Let's set up your service business so you can start sending estimates instantly",
+    "getStarted": "Get Started",
+    "features": {
+      "aiEstimates": "Instant AI-powered estimates",
+      "autoCalc": "Automatic pricing calculations",
+      "sendVia": "Send via SMS or WhatsApp",
+      "setupTime": "5-minute setup"
+    }
+  },
+  "serviceSelection": {
+    "headerTitle": "Your Services",
+    "title": "Your Services",
+    "subtitle": "Choose the services your company provides",
+    "searchPlaceholder": "Search services...",
+    "selectedCount": "{{count}} selected",
+    "selectedServices": "Selected Services ({{count}})",
+    "availableServices": "Available Services",
+    "searchResults": "Search Results",
+    "addCustomService": "Add custom service",
+    "createServiceHint": "Search to create a new service with AI",
+    "createService": "Create \"{{name}}\"",
+    "createServiceAiHint": "AI will generate a template for this service",
+    "creatingService": "Creating Service...",
+    "creatingServiceSubtitle": "AI is generating items and phases",
+    "loadingServices": "Loading services...",
+    "loadingDetails": "Loading service details...",
+    "items": "{{count}} items",
+    "phases": "{{count}} phases",
+    "errors": {
+      "selectService": "Select Services",
+      "selectAtLeastOne": "Please select at least one service you offer",
+      "loadFailed": "Failed to load services. Please try again.",
+      "detailsFailed": "Failed to load service details. Please try again.",
+      "createFailed": "Failed to create service. Please try again.",
+      "alreadyAdded": "Already Added",
+      "alreadyAddedMessage": "{{name}} is already in your service list"
+    }
+  },
+  "tradeSelection": {
+    "headerTitle": "Your Services",
+    "title": "What services do you offer?",
+    "subtitle": "Select all that apply. You can add or remove later.",
+    "servicesSelected": "{{count}} service selected",
+    "servicesSelectedPlural": "{{count}} services selected",
+    "errors": {
+      "selectService": "Select Services",
+      "selectAtLeastOne": "Please select at least one service you offer"
+    }
+  },
+  "businessInfo": {
+    "headerTitle": "Business Info",
+    "title": "Tell us about your business",
+    "subtitle": "This information will appear on your estimates",
+    "businessName": "Business Name",
+    "businessNamePlaceholder": "e.g., John's Construction",
+    "businessNameRequired": "*",
+    "phone": "Phone Number",
+    "phonePlaceholder": "(555) 123-4567",
+    "phoneRequired": "*",
+    "phoneHelper": "Clients will see this on estimates",
+    "email": "Email",
+    "emailOptional": "(Optional)",
+    "emailPlaceholder": "john@construction.com",
+    "infoNote": "You can update this information later in Settings",
+    "errors": {
+      "businessNameRequired": "Business Name Required",
+      "enterBusinessName": "Please enter your business or contractor name",
+      "phoneRequired": "Phone Required",
+      "enterPhone": "Please enter your phone number"
+    }
+  },
+  "phaseCustomization": {
+    "headerTitle": "Review Phases",
+    "title": "Project Phases",
+    "subtitle": "Review the workflow phases for your services",
+    "days": "~{{count}} days",
+    "tasks": "Tasks:",
+    "noPhases": "No phases yet",
+    "addPhase": "Add Phase",
+    "deletePhase": "Delete Phase",
+    "deletePhaseConfirm": "Are you sure you want to delete this phase?",
+    "continueToPricing": "Continue to Pricing",
+    "modal": {
+      "addPhase": "Add Phase",
+      "editPhase": "Edit Phase",
+      "save": "Save",
+      "phaseName": "Phase Name *",
+      "phaseNamePlaceholder": "e.g., Site Preparation",
+      "description": "Description",
+      "descriptionPlaceholder": "What happens in this phase...",
+      "estimatedDays": "Estimated Days",
+      "tasks": "Tasks",
+      "addTaskPlaceholder": "Add a task...",
+      "errors": {
+        "enterName": "Please enter a phase name"
+      }
+    }
+  },
+  "pricingSetup": {
+    "headerTitle": "Pricing Setup",
+    "title": "Set Your Pricing",
+    "subtitle": "Configure your default prices for services"
+  },
+  "profitMargin": {
+    "headerTitle": "Profit Margin",
+    "headerSubtitle": "Set your desired profit margin",
+    "title": "Select Your Profit Margin",
+    "subtitle": "Choose the percentage you want to add to project costs",
+    "customMargin": "Custom Margin",
+    "enterPercentage": "Enter percentage"
+  },
+  "invoiceSetup": {
+    "headerTitle": "Invoice Settings",
+    "title": "Invoice Settings",
+    "subtitle": "Customize your invoice appearance",
+    "logo": "Company Logo",
+    "uploadLogo": "Upload Logo",
+    "paymentTerms": "Payment Terms",
+    "paymentTermsPlaceholder": "e.g., Net 30",
+    "notes": "Default Notes",
+    "notesPlaceholder": "Thank you for your business!"
+  },
+  "typicalContracts": {
+    "headerTitle": "Typical Contracts",
+    "title": "Typical Contracts",
+    "subtitle": "Upload your standard contract templates"
+  },
+  "completion": {
+    "title": "All Set!",
+    "titleEmoji": "🎉",
+    "subtitle": "Your business is configured and ready to go. Start creating estimates in seconds with AI assistance.",
+    "startButton": "Start Using the App",
+    "features": {
+      "aiPricing": "AI knows your pricing",
+      "autoCalc": "Automatic calculations",
+      "oneTapSend": "One-tap sending"
+    },
+    "tip": "Try saying: \"Create an estimate for John - 500 sq ft interior painting\""
+  },
+  "progress": {
+    "step": "Step {{current}} of {{total}}"
+  },
+  "buttons": {
+    "continue": "Continue",
+    "back": "Back",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save"
+  }
+}

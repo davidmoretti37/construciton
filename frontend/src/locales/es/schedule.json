@@ -1,0 +1,26 @@
+{
+  "title": "Horario de Hoy",
+  "stats": {
+    "totalWorkers": "Total de Trabajadores",
+    "clockedIn": "Registrados",
+    "notClockedIn": "No Registrados"
+  },
+  "sections": {
+    "notClockedInYet": "Aún No Registrados ({{count}})",
+    "projectWorkers": "{{projectName}} ({{count}})"
+  },
+  "emptyStates": {
+    "noWorkers": {
+      "title": "Aún No Hay Trabajadores",
+      "subtitle": "Agrega trabajadores para ver su horario diario aquí",
+      "button": "Ir a Trabajadores"
+    },
+    "noClockedIn": {
+      "title": "No Hay Trabajadores Registrados",
+      "subtitle": "Los trabajadores aparecerán aquí cuando se registren en los proyectos"
+    }
+  },
+  "actions": {
+    "refresh": "Actualizar"
+  }
+}

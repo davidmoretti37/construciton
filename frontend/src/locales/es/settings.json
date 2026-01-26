@@ -1,0 +1,137 @@
+{
+  "title": "Más",
+  "sections": {
+    "account": "Cuenta",
+    "business": "Negocio",
+    "preferences": "Preferencias",
+    "notifications": "Notificaciones",
+    "integrations": "Integraciones",
+    "support": "Soporte",
+    "about": "Acerca de",
+    "documents": "DOCUMENTOS Y MEDIOS",
+    "financials": "FINANZAS"
+  },
+  "items": {
+    "pictures": "Fotos",
+    "contracts": "Contratos",
+    "estimates": "Presupuestos",
+    "invoices": "Facturas",
+    "addNewService": "Agregar Nuevo Servicio"
+  },
+  "errors": {
+    "logoutFailed": "Error",
+    "logoutFailedMessage": "Error al cerrar sesión. Intenta de nuevo."
+  },
+  "appName": "Construction Manager",
+  "cancel": "Cancelar",
+  "account": {
+    "profile": "Perfil",
+    "email": "Correo Electrónico",
+    "password": "Cambiar Contraseña",
+    "language": "Idioma",
+    "logout": "Cerrar Sesión",
+    "deleteAccount": "Eliminar Cuenta"
+  },
+  "business": {
+    "info": "Información del Negocio",
+    "companyName": "Nombre de la Empresa",
+    "phone": "Teléfono",
+    "address": "Dirección",
+    "logo": "Logo de la Empresa",
+    "uploadLogo": "Subir Logo",
+    "removeLogo": "Eliminar Logo",
+    "license": "Número de Licencia",
+    "taxId": "RFC / ID Fiscal"
+  },
+  "preferences": {
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "themeSystem": "Sistema",
+    "currency": "Moneda",
+    "dateFormat": "Formato de Fecha",
+    "timeFormat": "Formato de Hora",
+    "defaultView": "Vista Predeterminada"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "push": "Notificaciones Push",
+    "email": "Notificaciones por Correo",
+    "sms": "Notificaciones SMS",
+    "projectUpdates": "Actualizaciones de Proyectos",
+    "workerReports": "Reportes de Trabajadores",
+    "payments": "Recordatorios de Pago",
+    "appointments": "Citas",
+    "marketing": "Marketing y Consejos"
+  },
+  "integrations": {
+    "twilio": "Twilio (SMS)",
+    "twilioSetup": "Configurar mensajería SMS",
+    "quickbooks": "QuickBooks",
+    "stripe": "Pagos con Stripe",
+    "connected": "Conectado",
+    "notConnected": "No Conectado",
+    "connect": "Conectar",
+    "disconnect": "Desconectar"
+  },
+  "ai": {
+    "title": "Configuración de IA",
+    "enabled": "Asistente IA Activado",
+    "autoSuggest": "Auto-Sugerencias",
+    "estimateNotes": "Notas de Presupuesto Predeterminadas",
+    "subcontractorNotes": "Notas de Subcontratistas"
+  },
+  "pricing": {
+    "title": "Configuración de Precios",
+    "laborRate": "Tarifa de Mano de Obra Predeterminada",
+    "materialMarkup": "Margen de Materiales %",
+    "profitMargin": "Margen de Ganancia %",
+    "trades": "Precios por Oficio"
+  },
+  "phases": {
+    "title": "Plantillas de Fases",
+    "editPhases": "Editar Fases Predeterminadas",
+    "addPhase": "Agregar Fase"
+  },
+  "invoiceTemplate": {
+    "title": "Plantilla de Factura",
+    "paymentTerms": "Términos de Pago",
+    "defaultNotes": "Notas Predeterminadas",
+    "footer": "Texto del Pie de Página"
+  },
+  "support": {
+    "help": "Centro de Ayuda",
+    "contact": "Contactar Soporte",
+    "feedback": "Enviar Comentarios",
+    "reportBug": "Reportar un Error",
+    "faq": "Preguntas Frecuentes"
+  },
+  "about": {
+    "version": "Versión",
+    "terms": "Términos de Servicio",
+    "privacy": "Política de Privacidad",
+    "licenses": "Licencias de Código Abierto"
+  },
+  "language": {
+    "title": "Idioma",
+    "select": "Seleccionar Idioma",
+    "current": "Idioma Actual",
+    "updated": "Idioma Actualizado",
+    "updateMessage": "Tu preferencia de idioma ha sido guardada."
+  },
+  "dangerZone": {
+    "title": "Zona de Peligro",
+    "resetApp": "Restablecer Datos de la App",
+    "resetWarning": "Esto eliminará todos los datos locales. Tus datos en la nube permanecerán seguros.",
+    "deleteAccount": "Eliminar Cuenta",
+    "deleteWarning": "Esto eliminará permanentemente tu cuenta y todos los datos."
+  },
+  "confirmLogout": {
+    "title": "Cerrar Sesión",
+    "message": "¿Estás seguro de que quieres cerrar sesión?"
+  },
+  "confirmReset": {
+    "title": "Restablecer App",
+    "message": "¿Estás seguro de que quieres restablecer todos los datos de la app? Esto no se puede deshacer."
+  }
+}

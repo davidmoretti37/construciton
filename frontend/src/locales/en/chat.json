@@ -1,0 +1,72 @@
+{
+  "title": "AI Assistant",
+  "placeholder": "Type a message...",
+  "send": "Send",
+  "thinking": "Thinking...",
+  "typing": "AI is typing...",
+  "welcome": {
+    "title": "How can I help you today?",
+    "suggestions": {
+      "createEstimate": "Create an estimate",
+      "checkSchedule": "Check today's schedule",
+      "projectStatus": "Project status update",
+      "findWorker": "Find available workers"
+    }
+  },
+  "actions": {
+    "newChat": "New Chat",
+    "clearChat": "Clear Chat",
+    "voiceInput": "Voice Input",
+    "attachFile": "Attach File",
+    "takePhoto": "Take Photo"
+  },
+  "messages": {
+    "error": "Sorry, something went wrong. Please try again.",
+    "offline": "You're offline. Messages will be sent when connected.",
+    "rateLimited": "Too many requests. Please wait a moment.",
+    "contextCleared": "Chat history cleared"
+  },
+  "suggestions": {
+    "createProject": "Create a new project",
+    "viewReports": "View daily reports",
+    "checkBudget": "Check project budget",
+    "scheduleWorker": "Schedule a worker",
+    "createInvoice": "Create an invoice",
+    "viewPhotos": "View project photos"
+  },
+  "features": {
+    "projectCard": {
+      "viewProject": "View Project",
+      "editProject": "Edit Project"
+    },
+    "estimateCard": {
+      "viewEstimate": "View Estimate",
+      "sendEstimate": "Send to Client"
+    },
+    "invoiceCard": {
+      "viewInvoice": "View Invoice",
+      "markPaid": "Mark as Paid"
+    },
+    "workerCard": {
+      "viewWorker": "View Details",
+      "assignToProject": "Assign to Project"
+    },
+    "photoGallery": {
+      "viewAll": "View All Photos",
+      "download": "Download"
+    }
+  },
+  "voice": {
+    "listening": "Listening...",
+    "processing": "Processing...",
+    "tapToSpeak": "Tap to speak",
+    "permissionDenied": "Microphone permission denied"
+  },
+  "upload": {
+    "selectFile": "Select File",
+    "takePhoto": "Take Photo",
+    "chooseFromLibrary": "Choose from Library",
+    "uploading": "Uploading...",
+    "uploadFailed": "Upload failed"
+  }
+}

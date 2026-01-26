@@ -1,0 +1,463 @@
+import { supabase } from '../../lib/supabase';
+
+// ============================================================
+// Daily Reports Functions
+// ============================================================
+
+/**
+ * Save a daily report
+ * Note: Progress is no longer tracked via daily reports. Task completion is done in the Schedule.
+ * @param {string} workerId - Worker ID
+ * @param {string} projectId - Project ID
+ * @param {string} phaseId - Phase ID (optional)
+ * @param {array} photos - Array of photo URLs
+ * @param {array} completedStepIds - Array of completed step IDs (legacy, not used)
+ * @param {array} customTasks - Array of custom task descriptions (legacy, not used)
+ * @param {string} notes - Report notes
+ * @param {object} taskProgress - Map of taskId to progress percentage (legacy, not used)
+ * @param {boolean} isOwner - Whether the reporter is the owner
+ * @param {array} tags - Array of work category tags (stores work description)
+ * @returns {Promise<object|null>} Created report or null
+ */
+export const saveDailyReport = async (workerId, projectId, phaseId, photos, completedStepIds, customTasks, notes, taskProgress = {}, isOwner = false, tags = []) => {
+  try {
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) throw new Error('User not authenticated');
+
+    const today = new Date();
+    const reportDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const reportData = {
+      project_id: projectId,
+      phase_id: phaseId || null,
+      report_date: reportDateStr,
+      photos: photos || [],
+      completed_steps: [], // Legacy field, no longer used
+      custom_tasks: [], // Legacy field, no longer used
+      notes: notes || '',
+      reporter_type: isOwner ? 'owner' : 'worker',
+      tags: tags || [], // Now stores work description
+    };
+
+    if (isOwner) {
+      reportData.owner_id = userId;
+      reportData.worker_id = null;
+    } else {
+      reportData.worker_id = workerId;
+      reportData.owner_id = null;
+    }
+
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .insert(reportData)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Note: Progress is now calculated from task completion in Schedule, not daily reports
+
+    return data;
+  } catch (error) {
+    console.error('Error saving daily report:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch a single daily report by ID
+ * @param {string} reportId - Report ID
+ * @returns {Promise<object|null>} Report object or null
+ */
+export const fetchDailyReportById = async (reportId) => {
+  try {
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .select(`
+        *,
+        workers (id, full_name, trade),
+        projects (id, name, location, status),
+        project_phases (id, name, completion_percentage)
+      `)
+      .eq('id', reportId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error fetching daily report by ID:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch daily reports for a project
+ * @param {string} projectId - Project ID
+ * @param {object} filters - Optional filters (workerId, phaseId, startDate, endDate)
+ * @returns {Promise<array>} Array of reports
+ */
+export const fetchDailyReports = async (projectId, filters = {}) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    let query = supabase
+      .from('daily_reports')
+      .select(`
+        *,
+        workers (id, full_name, trade),
+        projects!inner (id, name, user_id),
+        project_phases (id, name)
+      `)
+      .eq('projects.user_id', user.id)
+      .order('report_date', { ascending: false });
+
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+
+    if (filters.workerId) {
+      query = query.eq('worker_id', filters.workerId);
+    }
+
+    if (filters.phaseId) {
+      query = query.eq('phase_id', filters.phaseId);
+    }
+
+    if (filters.startDate) {
+      query = query.gte('report_date', filters.startDate);
+    }
+
+    if (filters.endDate) {
+      query = query.lte('report_date', filters.endDate);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching daily reports:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch all photos for a project grouped by phase
+ * @param {string} projectId - Project ID
+ * @returns {Promise<object>} Photos grouped by phase
+ */
+export const fetchProjectPhotosByPhase = async (projectId) => {
+  try {
+    const { data: reports, error } = await supabase
+      .from('daily_reports')
+      .select(`
+        id,
+        photos,
+        report_date,
+        phase_id,
+        project_phases (id, name)
+      `)
+      .eq('project_id', projectId)
+      .order('report_date', { ascending: false });
+
+    if (error) throw error;
+
+    const photosByPhase = {};
+    let totalPhotos = 0;
+
+    reports?.forEach(report => {
+      if (!report.photos || report.photos.length === 0) return;
+
+      const phaseId = report.phase_id || 'unassigned';
+      const phaseName = report.project_phases?.name || 'General';
+
+      if (!photosByPhase[phaseId]) {
+        photosByPhase[phaseId] = {
+          phaseName,
+          photos: []
+        };
+      }
+
+      report.photos.forEach(url => {
+        photosByPhase[phaseId].photos.push({
+          url,
+          reportId: report.id,
+          date: report.report_date
+        });
+        totalPhotos++;
+      });
+    });
+
+    return { photosByPhase, totalPhotos };
+  } catch (error) {
+    console.error('Error fetching project photos:', error);
+    return { photosByPhase: {}, totalPhotos: 0 };
+  }
+};
+
+/**
+ * Fetch worker's daily reports for a specific date
+ * @param {string} workerId - Worker ID
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @returns {Promise<array>} Array of reports
+ */
+export const fetchWorkerDailyReports = async (workerId, date) => {
+  try {
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .select('*, projects(*), project_phases(*)')
+      .eq('worker_id', workerId)
+      .eq('report_date', date)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching worker daily reports:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch photos with intelligent filtering for AI-powered retrieval
+ * @param {object} filters - Filter criteria
+ * @returns {Promise<Array>} Array of photo objects with metadata
+ */
+export const fetchPhotosWithFilters = async (filters = {}) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    let query = supabase
+      .from('daily_reports')
+      .select(`
+        id,
+        photos,
+        tags,
+        report_date,
+        notes,
+        worker_id,
+        project_id,
+        phase_id,
+        owner_id,
+        reporter_type,
+        workers (id, full_name, trade),
+        projects!inner (id, name, user_id, location),
+        project_phases (id, name)
+      `)
+      .eq('projects.user_id', user.id)
+      .order('report_date', { ascending: false });
+
+    if (filters.projectId) {
+      query = query.eq('project_id', filters.projectId);
+    }
+
+    if (filters.workerId) {
+      query = query.eq('worker_id', filters.workerId);
+    }
+
+    if (filters.phaseId) {
+      query = query.eq('phase_id', filters.phaseId);
+    }
+
+    if (filters.startDate) {
+      query = query.gte('report_date', filters.startDate);
+    }
+    if (filters.endDate) {
+      query = query.lte('report_date', filters.endDate);
+    }
+
+    const { data: reports, error } = await query;
+
+    if (error) throw error;
+
+    let filteredReports = reports || [];
+
+    if (filters.projectName) {
+      const searchTerm = filters.projectName.toLowerCase();
+      filteredReports = filteredReports.filter(r =>
+        r.projects?.name?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    if (filters.workerName) {
+      const searchTerm = filters.workerName.toLowerCase();
+      filteredReports = filteredReports.filter(r =>
+        r.workers?.full_name?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    if (filters.phaseName) {
+      const searchTerm = filters.phaseName.toLowerCase();
+      filteredReports = filteredReports.filter(r => {
+        const phaseMatch = r.project_phases?.name?.toLowerCase().includes(searchTerm);
+        const tagMatch = r.tags?.some(tag => tag.toLowerCase().includes(searchTerm));
+        return phaseMatch || tagMatch;
+      });
+    }
+
+    if (filters.tags) {
+      const tagsArray = Array.isArray(filters.tags) ? filters.tags : [filters.tags];
+      if (tagsArray.length > 0) {
+        const searchTags = tagsArray.map(t => t.toLowerCase());
+        filteredReports = filteredReports.filter(r => {
+          const reportTags = (r.tags || []).map(t => t.toLowerCase());
+          return searchTags.some(searchTag =>
+            reportTags.some(reportTag =>
+              reportTag.includes(searchTag) || searchTag.includes(reportTag)
+            )
+          );
+        });
+      }
+    }
+
+    const photos = [];
+    const limit = filters.limit || 50;
+
+    for (const report of filteredReports) {
+      if (!report.photos || report.photos.length === 0) continue;
+
+      for (const photoUrl of report.photos) {
+        if (photos.length >= limit) break;
+
+        photos.push({
+          url: photoUrl,
+          reportId: report.id,
+          reportDate: report.report_date,
+          projectId: report.project_id,
+          projectName: report.projects?.name || 'Unknown Project',
+          projectLocation: report.projects?.location,
+          phaseId: report.phase_id,
+          phaseName: report.project_phases?.name || 'General',
+          workerId: report.worker_id,
+          workerName: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : 'Unknown'),
+          workerTrade: report.workers?.trade,
+          tags: report.tags || [],
+          notes: report.notes,
+          uploadedBy: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : 'Unknown'),
+        });
+      }
+
+      if (photos.length >= limit) break;
+    }
+
+    return photos;
+  } catch (error) {
+    console.error('Error fetching photos with filters:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch daily reports with intelligent filtering for AI-powered retrieval
+ * @param {object} filters - Filter criteria
+ * @returns {Promise<Array>} Array of daily report objects with metadata
+ */
+export const fetchDailyReportsWithFilters = async (filters = {}) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    let query = supabase
+      .from('daily_reports')
+      .select(`
+        *,
+        workers (id, full_name, trade),
+        projects!inner (id, name, user_id, location, status),
+        project_phases (id, name, completion_percentage)
+      `)
+      .eq('projects.user_id', user.id)
+      .order('report_date', { ascending: false });
+
+    if (filters.projectId) {
+      query = query.eq('project_id', filters.projectId);
+    }
+    if (filters.workerId) {
+      query = query.eq('worker_id', filters.workerId);
+    }
+    if (filters.phaseId) {
+      query = query.eq('phase_id', filters.phaseId);
+    }
+    if (filters.startDate) {
+      query = query.gte('report_date', filters.startDate);
+    }
+    if (filters.endDate) {
+      query = query.lte('report_date', filters.endDate);
+    }
+
+    const limit = filters.limit || 20;
+    query = query.limit(limit);
+
+    const { data: reports, error } = await query;
+
+    if (error) throw error;
+
+    let filteredReports = reports || [];
+
+    if (filters.projectName) {
+      const searchTerm = filters.projectName.toLowerCase();
+      filteredReports = filteredReports.filter(r =>
+        r.projects?.name?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    if (filters.workerName) {
+      const searchTerm = filters.workerName.toLowerCase();
+      filteredReports = filteredReports.filter(r =>
+        r.workers?.full_name?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    if (filters.phaseName) {
+      const searchTerm = filters.phaseName.toLowerCase();
+      filteredReports = filteredReports.filter(r => {
+        const phaseMatch = r.project_phases?.name?.toLowerCase().includes(searchTerm);
+        const tagMatch = r.tags?.some(tag => tag.toLowerCase().includes(searchTerm));
+        return phaseMatch || tagMatch;
+      });
+    }
+
+    if (filters.tags) {
+      const tagsArray = Array.isArray(filters.tags) ? filters.tags : [filters.tags];
+      if (tagsArray.length > 0) {
+        const searchTags = tagsArray.map(t => t.toLowerCase());
+        filteredReports = filteredReports.filter(r => {
+          const reportTags = (r.tags || []).map(t => t.toLowerCase());
+          return searchTags.some(searchTag =>
+            reportTags.some(reportTag =>
+              reportTag.includes(searchTag) || searchTag.includes(reportTag)
+            )
+          );
+        });
+      }
+    }
+
+    return filteredReports.map(report => ({
+      id: report.id,
+      reportDate: report.report_date,
+      projectId: report.project_id,
+      projectName: report.projects?.name || 'Unknown Project',
+      projectLocation: report.projects?.location,
+      projectStatus: report.projects?.status,
+      phaseId: report.phase_id,
+      phaseName: report.project_phases?.name || 'General',
+      phaseProgress: report.project_phases?.completion_percentage || 0,
+      workerId: report.worker_id,
+      workerName: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : 'Unknown'),
+      workerTrade: report.workers?.trade,
+      reporterType: report.reporter_type,
+      photos: report.photos || [],
+      photoCount: (report.photos || []).length,
+      notes: report.notes,
+      completedSteps: report.completed_steps || [],
+      customTasks: report.custom_tasks || [],
+      taskProgress: report.task_progress || {},
+      tags: report.tags || [],
+      createdAt: report.created_at,
+    }));
+  } catch (error) {
+    console.error('Error fetching daily reports with filters:', error);
+    return [];
+  }
+};

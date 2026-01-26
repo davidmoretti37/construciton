@@ -1,0 +1,96 @@
+{
+  "title": "Facturas",
+  "estimates": "Presupuestos",
+  "newInvoice": "Nueva Factura",
+  "newEstimate": "Nuevo Presupuesto",
+  "editInvoice": "Editar Factura",
+  "editEstimate": "Editar Presupuesto",
+  "noInvoices": "Aún no hay facturas",
+  "noEstimates": "Aún no hay presupuestos",
+  "searchPlaceholder": "Buscar facturas...",
+  "form": {
+    "invoiceNumber": "Factura #",
+    "estimateNumber": "Presupuesto #",
+    "client": "Cliente",
+    "project": "Proyecto",
+    "date": "Fecha",
+    "dueDate": "Fecha de Vencimiento",
+    "validUntil": "Válido Hasta",
+    "items": "Líneas de Detalle",
+    "addItem": "Agregar Línea",
+    "itemDescription": "Descripción",
+    "itemQuantity": "Cant.",
+    "itemRate": "Precio",
+    "itemAmount": "Monto",
+    "subtotal": "Subtotal",
+    "tax": "Impuesto",
+    "taxRate": "Tasa de Impuesto %",
+    "discount": "Descuento",
+    "total": "Total",
+    "notes": "Notas",
+    "terms": "Términos y Condiciones"
+  },
+  "status": {
+    "all": "Todos",
+    "draft": "Borrador",
+    "sent": "Enviada",
+    "viewed": "Vista",
+    "accepted": "Aceptada",
+    "rejected": "Rechazada",
+    "paid": "Pagada",
+    "partiallyPaid": "Parcialmente Pagada",
+    "overdue": "Vencida",
+    "void": "Anulada"
+  },
+  "actions": {
+    "view": "Ver",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "send": "Enviar",
+    "download": "Descargar PDF",
+    "share": "Compartir",
+    "duplicate": "Duplicar",
+    "markPaid": "Marcar como Pagada",
+    "recordPayment": "Registrar Pago",
+    "void": "Anular Factura",
+    "convertToInvoice": "Convertir a Factura",
+    "preview": "Vista Previa"
+  },
+  "payment": {
+    "title": "Registrar Pago",
+    "amount": "Monto",
+    "date": "Fecha de Pago",
+    "method": "Método de Pago",
+    "reference": "Referencia #",
+    "notes": "Notas",
+    "methods": {
+      "cash": "Efectivo",
+      "check": "Cheque",
+      "creditCard": "Tarjeta de Crédito",
+      "bankTransfer": "Transferencia Bancaria",
+      "other": "Otro"
+    }
+  },
+  "email": {
+    "subject": "Factura de {{company}}",
+    "message": "Por favor encuentre adjunta su factura.",
+    "sendTo": "Enviar A",
+    "cc": "CC",
+    "attachPdf": "Adjuntar PDF"
+  },
+  "errors": {
+    "loadFailed": "Error al cargar facturas",
+    "saveFailed": "Error al guardar factura",
+    "deleteFailed": "Error al eliminar factura",
+    "sendFailed": "Error al enviar factura",
+    "noItems": "Por favor agrega al menos una línea de detalle"
+  },
+  "confirmDelete": {
+    "title": "Eliminar Factura",
+    "message": "¿Estás seguro de que quieres eliminar esta factura?"
+  },
+  "confirmVoid": {
+    "title": "Anular Factura",
+    "message": "¿Estás seguro de que quieres anular esta factura? Esta acción no se puede deshacer."
+  }
+}

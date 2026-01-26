@@ -1,0 +1,55 @@
+{
+  "welcome": "Bem-vindo!",
+  "loading": "Carregando seu painel...",
+  "timeAgo": {
+    "justNow": "Agora mesmo",
+    "minuteAgo": "1 min atrás",
+    "minutesAgo": "{{count}} mins atrás",
+    "hourAgo": "1 hora atrás",
+    "hoursAgo": "{{count}} horas atrás"
+  },
+  "fallbacks": {
+    "worker": "Trabalhador",
+    "project": "Projeto",
+    "noDescription": "Sem descrição",
+    "updated": "Atualizado"
+  },
+  "stats": {
+    "activeProjects": "Projetos Ativos",
+    "onSite": "No Local",
+    "needAttention": "Precisam de Atenção"
+  },
+  "sections": {
+    "thisMonth": "Este Mês",
+    "quickStats": "Estatísticas Rápidas",
+    "todaysActivity": "Atividade de Hoje"
+  },
+  "financial": {
+    "profit": "lucro",
+    "budgeted": "orçado",
+    "totalProjects": "Total de Projetos",
+    "totalContractValue": "Valor Total de Contratos",
+    "totalIncomeCollected": "Receita Total Recebida",
+    "totalExpenses": "Despesas Totais",
+    "totalProfit": "Lucro Total"
+  },
+  "activity": {
+    "noActivity": "Nenhuma atividade hoje",
+    "dailyReport": "Relatório Diário",
+    "updated": "Atualizado"
+  },
+  "attention": {
+    "required": "Atenção Necessária:",
+    "behindSchedule": "Atrasado",
+    "daysRemaining": "Apenas {{count}} dias restantes",
+    "overBudget": "Acima do orçamento em R${{amount}}",
+    "unpaidExpenses": "Despesas não pagas: R${{amount}}",
+    "projectOverdue": "O projeto está vencido"
+  },
+  "modal": {
+    "activeProjects": "Projetos Ativos",
+    "onSiteProjects": "Projetos No Local",
+    "projectsNeedingAttention": "Projetos que Precisam de Atenção",
+    "noProjectsFound": "Nenhum projeto encontrado"
+  }
+}

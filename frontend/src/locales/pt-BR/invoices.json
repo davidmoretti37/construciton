@@ -1,0 +1,96 @@
+{
+  "title": "Notas Fiscais",
+  "estimates": "Orçamentos",
+  "newInvoice": "Nova Nota Fiscal",
+  "newEstimate": "Novo Orçamento",
+  "editInvoice": "Editar Nota Fiscal",
+  "editEstimate": "Editar Orçamento",
+  "noInvoices": "Ainda não há notas fiscais",
+  "noEstimates": "Ainda não há orçamentos",
+  "searchPlaceholder": "Buscar notas fiscais...",
+  "form": {
+    "invoiceNumber": "NF #",
+    "estimateNumber": "Orçamento #",
+    "client": "Cliente",
+    "project": "Projeto",
+    "date": "Data",
+    "dueDate": "Data de Vencimento",
+    "validUntil": "Válido Até",
+    "items": "Itens",
+    "addItem": "Adicionar Item",
+    "itemDescription": "Descrição",
+    "itemQuantity": "Qtd.",
+    "itemRate": "Preço",
+    "itemAmount": "Valor",
+    "subtotal": "Subtotal",
+    "tax": "Imposto",
+    "taxRate": "Alíquota %",
+    "discount": "Desconto",
+    "total": "Total",
+    "notes": "Notas",
+    "terms": "Termos e Condições"
+  },
+  "status": {
+    "all": "Todos",
+    "draft": "Rascunho",
+    "sent": "Enviada",
+    "viewed": "Visualizada",
+    "accepted": "Aceita",
+    "rejected": "Rejeitada",
+    "paid": "Paga",
+    "partiallyPaid": "Parcialmente Paga",
+    "overdue": "Vencida",
+    "void": "Anulada"
+  },
+  "actions": {
+    "view": "Ver",
+    "edit": "Editar",
+    "delete": "Excluir",
+    "send": "Enviar",
+    "download": "Baixar PDF",
+    "share": "Compartilhar",
+    "duplicate": "Duplicar",
+    "markPaid": "Marcar como Paga",
+    "recordPayment": "Registrar Pagamento",
+    "void": "Anular Nota Fiscal",
+    "convertToInvoice": "Converter para Nota Fiscal",
+    "preview": "Pré-visualizar"
+  },
+  "payment": {
+    "title": "Registrar Pagamento",
+    "amount": "Valor",
+    "date": "Data do Pagamento",
+    "method": "Forma de Pagamento",
+    "reference": "Referência #",
+    "notes": "Notas",
+    "methods": {
+      "cash": "Dinheiro",
+      "check": "Cheque",
+      "creditCard": "Cartão de Crédito",
+      "bankTransfer": "Transferência Bancária",
+      "other": "Outro"
+    }
+  },
+  "email": {
+    "subject": "Nota Fiscal de {{company}}",
+    "message": "Segue em anexo sua nota fiscal.",
+    "sendTo": "Enviar Para",
+    "cc": "CC",
+    "attachPdf": "Anexar PDF"
+  },
+  "errors": {
+    "loadFailed": "Falha ao carregar notas fiscais",
+    "saveFailed": "Falha ao salvar nota fiscal",
+    "deleteFailed": "Falha ao excluir nota fiscal",
+    "sendFailed": "Falha ao enviar nota fiscal",
+    "noItems": "Por favor, adicione pelo menos um item"
+  },
+  "confirmDelete": {
+    "title": "Excluir Nota Fiscal",
+    "message": "Tem certeza que deseja excluir esta nota fiscal?"
+  },
+  "confirmVoid": {
+    "title": "Anular Nota Fiscal",
+    "message": "Tem certeza que deseja anular esta nota fiscal? Esta ação não pode ser desfeita."
+  }
+}

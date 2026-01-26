@@ -1,0 +1,55 @@
+{
+  "welcome": "¡Bienvenido!",
+  "loading": "Cargando tu panel...",
+  "stats": {
+    "activeProjects": "Proyectos Activos",
+    "onSite": "En Sitio",
+    "needAttention": "Requieren Atención"
+  },
+  "sections": {
+    "thisMonth": "Este Mes",
+    "quickStats": "Estadísticas Rápidas",
+    "todaysActivity": "Actividad de Hoy"
+  },
+  "financial": {
+    "profit": "ganancia",
+    "budgeted": "presupuestado",
+    "totalProjects": "Total de Proyectos",
+    "totalContractValue": "Valor Total de Contratos",
+    "totalIncomeCollected": "Ingresos Totales Cobrados",
+    "totalExpenses": "Gastos Totales",
+    "totalProfit": "Ganancia Total"
+  },
+  "activity": {
+    "noActivity": "Sin actividad hoy",
+    "dailyReport": "Reporte Diario",
+    "updated": "Actualizado"
+  },
+  "attention": {
+    "required": "Atención Requerida:",
+    "behindSchedule": "Atrasado",
+    "daysRemaining": "Solo quedan {{count}} días",
+    "overBudget": "Sobre presupuesto por ${{amount}}",
+    "unpaidExpenses": "Gastos sin pagar: ${{amount}}",
+    "projectOverdue": "El proyecto está vencido"
+  },
+  "modal": {
+    "activeProjects": "Proyectos Activos",
+    "onSiteProjects": "Proyectos En Sitio",
+    "projectsNeedingAttention": "Proyectos que Requieren Atención",
+    "noProjectsFound": "No se encontraron proyectos"
+  },
+  "timeAgo": {
+    "justNow": "Ahora mismo",
+    "minuteAgo": "hace 1 min",
+    "minutesAgo": "hace {{count}} mins",
+    "hourAgo": "hace 1 hora",
+    "hoursAgo": "hace {{count}} horas"
+  },
+  "fallbacks": {
+    "worker": "Trabajador",
+    "project": "Proyecto",
+    "noDescription": "Sin descripción",
+    "updated": "Actualizado"
+  }
+}

@@ -1,0 +1,495 @@
+import { supabase } from '../../lib/supabase';
+import { getCurrentUserId } from './auth';
+
+// ============================================================
+// Invoice Management Functions
+// ============================================================
+
+/**
+ * Create a standalone invoice (not from estimate)
+ * @param {object} invoiceData - Invoice data
+ * @returns {Promise<object|null>} Created invoice or null
+ */
+export const saveInvoice = async (invoiceData) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert({
+        user_id: userId,
+        client_name: invoiceData.client || invoiceData.clientName,
+        client_contact_person: invoiceData.clientContactPerson || invoiceData.client_contact_person,
+        client_phone: invoiceData.clientPhone,
+        client_email: invoiceData.clientEmail,
+        client_address: invoiceData.clientAddress,
+        project_name: invoiceData.projectName,
+        items: invoiceData.items || [],
+        subtotal: invoiceData.subtotal || 0,
+        tax_rate: invoiceData.taxRate || 0,
+        tax_amount: invoiceData.taxAmount || 0,
+        total: invoiceData.total || 0,
+        due_date: invoiceData.dueDate,
+        payment_terms: invoiceData.paymentTerms || 'Net 30',
+        notes: invoiceData.notes || '',
+        status: 'unpaid'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving invoice:', error);
+      return null;
+    }
+
+    // Record invoice pricing to history for AI learning
+    if (invoiceData.items && invoiceData.items.length > 0) {
+      try {
+        const { savePricingHistory } = require('../../services/aiService');
+        const { extractServiceType } = require('../../services/pricingIntelligence');
+
+        for (const item of invoiceData.items) {
+          if (item.total > 0 || (item.quantity && item.pricePerUnit)) {
+            await savePricingHistory({
+              serviceType: extractServiceType(item.description),
+              workDescription: item.description,
+              quantity: item.quantity,
+              unit: item.unit,
+              pricePerUnit: item.pricePerUnit,
+              totalAmount: item.total || (item.quantity * item.pricePerUnit),
+              sourceType: 'invoice',
+              sourceId: data.id,
+              projectName: invoiceData.projectName,
+              isCorrection: false,
+            });
+          }
+        }
+      } catch (pricingErr) {
+        console.warn('Failed to record invoice pricing:', pricingErr);
+      }
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in saveInvoice:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch all invoices for current user
+ * @param {object} filters - Optional filters (status, dateRange, etc.)
+ * @returns {Promise<array>} Array of invoices
+ */
+export const fetchInvoices = async (filters = {}) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return [];
+    }
+
+    let query = supabase
+      .from('invoices')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters.clientName) {
+      query = query.ilike('client_name', `%${filters.clientName}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching invoices:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchInvoices:', error);
+    return [];
+  }
+};
+
+/**
+ * Get a single invoice by ID
+ * @param {string} invoiceId - Invoice ID
+ * @returns {Promise<object|null>} Invoice or null
+ */
+export const getInvoice = async (invoiceId) => {
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching invoice:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getInvoice:', error);
+    return null;
+  }
+};
+
+/**
+ * Mark invoice as paid
+ * @param {string} invoiceId - Invoice ID
+ * @param {number} amount - Payment amount
+ * @param {string} paymentMethod - Payment method ('cash', 'check', 'credit_card', etc.)
+ * @returns {Promise<boolean>} Success status
+ */
+export const markInvoiceAsPaid = async (invoiceId, amount, paymentMethod = null) => {
+  try {
+    const { data: invoice, error: fetchError } = await supabase
+      .from('invoices')
+      .select('total, amount_paid')
+      .eq('id', invoiceId)
+      .single();
+
+    if (fetchError || !invoice) {
+      console.error('Error fetching invoice:', fetchError);
+      return false;
+    }
+
+    const newAmountPaid = (invoice.amount_paid || 0) + amount;
+    const status = newAmountPaid >= invoice.total ? 'paid' : 'partial';
+
+    const updateData = {
+      amount_paid: newAmountPaid,
+      status,
+      payment_method: paymentMethod
+    };
+
+    if (status === 'paid') {
+      updateData.paid_date = new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from('invoices')
+      .update(updateData)
+      .eq('id', invoiceId);
+
+    if (updateError) {
+      console.error('Error updating invoice payment:', updateError);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in markInvoiceAsPaid:', error);
+    return false;
+  }
+};
+
+/**
+ * Update invoice PDF URL
+ * @param {string} invoiceId - Invoice ID
+ * @param {string} pdfUrl - PDF URL from Supabase storage
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateInvoicePDF = async (invoiceId, pdfUrl) => {
+  try {
+    const { error } = await supabase
+      .from('invoices')
+      .update({ pdf_url: pdfUrl })
+      .eq('id', invoiceId);
+
+    if (error) {
+      console.error('Error updating invoice PDF:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updateInvoicePDF:', error);
+    return false;
+  }
+};
+
+/**
+ * Update an existing invoice (amount, items, terms, etc.)
+ * @param {string} invoiceId - Invoice ID
+ * @param {object} updates - Fields to update
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateInvoice = async (invoiceId, updates) => {
+  try {
+    const { error } = await supabase
+      .from('invoices')
+      .update(updates)
+      .eq('id', invoiceId);
+
+    if (error) {
+      console.error('Error updating invoice:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updateInvoice:', error);
+    return false;
+  }
+};
+
+/**
+ * Delete an invoice
+ * @param {string} invoiceId - Invoice ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const deleteInvoice = async (invoiceId) => {
+  try {
+    const { error } = await supabase
+      .from('invoices')
+      .delete()
+      .eq('id', invoiceId);
+
+    if (error) {
+      console.error('Error deleting invoice:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteInvoice:', error);
+    return false;
+  }
+};
+
+/**
+ * Record a payment on an invoice
+ * Automatically updates status based on amount_paid vs total
+ * @param {string} invoiceId - Invoice ID
+ * @param {number} paymentAmount - Amount being paid
+ * @param {string} paymentMethod - Payment method
+ * @param {string} paymentDate - Optional payment date
+ * @returns {Promise<object|boolean>} Result object or false
+ */
+export const recordInvoicePayment = async (invoiceId, paymentAmount, paymentMethod = 'check', paymentDate = null) => {
+  try {
+    const { data: invoice, error: fetchError } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .single();
+
+    if (fetchError || !invoice) {
+      console.error('Error fetching invoice:', fetchError);
+      return false;
+    }
+
+    const currentAmountPaid = parseFloat(invoice.amount_paid || 0);
+    const newAmountPaid = currentAmountPaid + parseFloat(paymentAmount);
+    const total = parseFloat(invoice.total);
+
+    let newStatus;
+    if (newAmountPaid >= total) {
+      newStatus = 'paid';
+    } else if (newAmountPaid > 0) {
+      newStatus = 'partial';
+    } else {
+      newStatus = 'unpaid';
+    }
+
+    const updates = {
+      amount_paid: newAmountPaid,
+      status: newStatus,
+      payment_method: paymentMethod,
+    };
+
+    if (newStatus === 'paid') {
+      updates.paid_date = paymentDate || new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from('invoices')
+      .update(updates)
+      .eq('id', invoiceId);
+
+    if (updateError) {
+      console.error('Error recording payment:', updateError);
+      return false;
+    }
+
+    return {
+      success: true,
+      newBalance: total - newAmountPaid,
+      status: newStatus
+    };
+  } catch (error) {
+    console.error('Error in recordInvoicePayment:', error);
+    return false;
+  }
+};
+
+/**
+ * Void an invoice (set status to cancelled)
+ * @param {string} invoiceId - Invoice ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const voidInvoice = async (invoiceId) => {
+  try {
+    const { error } = await supabase
+      .from('invoices')
+      .update({ status: 'cancelled' })
+      .eq('id', invoiceId);
+
+    if (error) {
+      console.error('Error voiding invoice:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in voidInvoice:', error);
+    return false;
+  }
+};
+
+/**
+ * Update invoice template settings
+ * @param {object} templateData - Template data to save
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateInvoiceTemplate = async (templateData) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('No authenticated user');
+      return false;
+    }
+
+    const { data: existing } = await supabase
+      .from('invoice_template')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    let error;
+    if (existing) {
+      ({ error } = await supabase
+        .from('invoice_template')
+        .update(templateData)
+        .eq('user_id', user.id));
+    } else {
+      ({ error } = await supabase
+        .from('invoice_template')
+        .insert({
+          ...templateData,
+          user_id: user.id,
+        }));
+    }
+
+    if (error) {
+      console.error('Error updating invoice template:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updateInvoiceTemplate:', error);
+    return false;
+  }
+};
+
+// ============================================================
+// Contract Document Functions
+// ============================================================
+
+/**
+ * Fetch all contract documents for current user
+ * @returns {Promise<Array>} Array of contract documents
+ */
+export const fetchContractDocuments = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('contract_documents')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching contract documents:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchContractDocuments:', error);
+    return [];
+  }
+};
+
+/**
+ * Upload contract document from chat
+ * @param {string} fileUri - File URI
+ * @param {string} fileName - File name
+ * @param {string} fileType - 'image' or 'document'
+ * @returns {Promise<object|null>} Uploaded document data or null
+ */
+export const uploadContractDocument = async (fileUri, fileName, fileType) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.error('No user logged in');
+      return null;
+    }
+
+    const fileExt = fileName ? fileName.split('.').pop() : 'jpg';
+    const timestamp = Date.now();
+    const filePath = `${userId}/${timestamp}.${fileExt}`;
+
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+
+    const { error: uploadError } = await supabase.storage
+      .from('contract-documents')
+      .upload(filePath, blob, {
+        contentType: fileType === 'image' ? 'image/jpeg' : 'application/pdf',
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('contract-documents')
+      .getPublicUrl(filePath);
+
+    const { data: docData, error: dbError } = await supabase
+      .from('contract_documents')
+      .insert({
+        user_id: userId,
+        file_name: fileName || `Contract ${timestamp}`,
+        file_url: publicUrl,
+        file_path: filePath,
+        file_type: fileType,
+      })
+      .select()
+      .single();
+
+    if (dbError) throw dbError;
+
+    return docData;
+  } catch (error) {
+    console.error('Error uploading contract document:', error);
+    return null;
+  }
+};

@@ -1,0 +1,204 @@
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import AnimatedText from '../../components/AnimatedText';
+
+export default function WelcomeScreen({ navigation, onGoBack }) {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('onboarding');
+
+  const handleContinue = () => {
+    navigation.navigate('ServiceSelection'); // NEW: Use AI-powered service selection
+  };
+
+  const handleGoBack = () => {
+    if (onGoBack) {
+      onGoBack();
+    }
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+      {/* Back Button */}
+      {onGoBack && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleGoBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+        </TouchableOpacity>
+      )}
+
+      <View style={styles.content}>
+        {/* Icon */}
+        <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
+          <Ionicons name="construct" size={80} color={Colors.primaryBlue} />
+        </View>
+
+        {/* Welcome Text */}
+        <View style={styles.textContainer}>
+          <AnimatedText
+            text={t('welcome.title')}
+            delay={40}
+            textStyle={[styles.title, { color: Colors.primaryText }]}
+          />
+          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+            {t('welcome.subtitle')}
+          </Text>
+        </View>
+
+        {/* Features */}
+        <View style={styles.featuresContainer}>
+          <View style={styles.feature}>
+            <Ionicons name="flash-outline" size={24} color={Colors.success} />
+            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
+              {t('welcome.features.aiEstimates')}
+            </Text>
+          </View>
+
+          <View style={styles.feature}>
+            <Ionicons name="calculator-outline" size={24} color={Colors.success} />
+            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
+              {t('welcome.features.autoCalc')}
+            </Text>
+          </View>
+
+          <View style={styles.feature}>
+            <Ionicons name="send-outline" size={24} color={Colors.success} />
+            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
+              {t('welcome.features.sendVia')}
+            </Text>
+          </View>
+
+          <View style={styles.feature}>
+            <Ionicons name="time-outline" size={24} color={Colors.success} />
+            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
+              {t('welcome.features.setupTime')}
+            </Text>
+          </View>
+        </View>
+
+        {/* Continue Button */}
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
+          onPress={handleContinue}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.buttonText}>{t('welcome.getStarted')}</Text>
+          <Ionicons name="arrow-forward" size={20} color="#fff" />
+        </TouchableOpacity>
+
+        {/* Progress Indicator */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressDots}>
+            <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
+            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
+            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
+            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
+          </View>
+          <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
+            {t('progress.step', { current: 1, total: 4 })}
+          </Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  backButton: {
+    position: 'absolute',
+    top: Spacing.xxl,
+    left: Spacing.lg,
+    zIndex: 10,
+    padding: Spacing.sm,
+  },
+  content: {
+    flex: 1,
+    padding: Spacing.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xxl,
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginBottom: Spacing.xxl,
+  },
+  title: {
+    fontSize: FontSizes.header,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  subtitle: {
+    fontSize: FontSizes.body,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+    lineHeight: 24,
+  },
+  featuresContainer: {
+    width: '100%',
+    marginBottom: Spacing.xxl,
+  },
+  feature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    paddingLeft: Spacing.lg,
+  },
+  featureText: {
+    fontSize: FontSizes.body,
+    marginLeft: Spacing.md,
+    flex: 1,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xxl,
+    borderRadius: BorderRadius.lg,
+    width: '100%',
+    gap: Spacing.sm,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  progressContainer: {
+    marginTop: Spacing.xxl,
+    alignItems: 'center',
+  },
+  progressDots: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  activeDot: {
+    width: 24,
+  },
+  progressText: {
+    fontSize: FontSizes.small,
+  },
+});

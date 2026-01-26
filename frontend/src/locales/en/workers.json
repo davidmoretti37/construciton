@@ -1,0 +1,135 @@
+{
+  "title": "Workers",
+  "newWorker": "New Worker",
+  "editWorker": "Edit Worker",
+  "deleteWorker": "Delete Worker",
+  "workerDetails": "Worker Details",
+  "noWorkers": "No workers yet",
+  "noWorkersHint": "Add your first worker to get started",
+  "searchPlaceholder": "Search workers...",
+  "form": {
+    "fullName": "Full Name",
+    "fullNamePlaceholder": "Enter worker's full name",
+    "email": "Email",
+    "emailPlaceholder": "worker@email.com",
+    "phone": "Phone",
+    "phonePlaceholder": "(555) 123-4567",
+    "role": "Role / Trade",
+    "rolePlaceholder": "e.g., Electrician, Carpenter",
+    "hourlyRate": "Hourly Rate",
+    "hourlyRatePlaceholder": "0.00",
+    "notes": "Notes",
+    "notesPlaceholder": "Additional notes about this worker..."
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "onSite": "On Site",
+    "clockedIn": "Clocked In",
+    "clockedOut": "Clocked Out",
+    "onBreak": "On Break"
+  },
+  "details": {
+    "contact": "Contact",
+    "assignments": "Assignments",
+    "hoursThisWeek": "Hours This Week",
+    "hoursThisMonth": "Hours This Month",
+    "totalHours": "Total Hours",
+    "earnings": "Earnings",
+    "lastActive": "Last Active",
+    "currentProject": "Current Project",
+    "dailyReports": "Daily Reports",
+    "timesheet": "Timesheet"
+  },
+  "actions": {
+    "viewDetails": "View Details",
+    "editWorker": "Edit Worker",
+    "deleteWorker": "Delete Worker",
+    "assignToProject": "Assign to Project",
+    "removeFromProject": "Remove from Project",
+    "viewTimesheet": "View Timesheet",
+    "viewReports": "View Reports",
+    "sendMessage": "Send Message",
+    "call": "Call",
+    "openInMaps": "Open in Maps",
+    "chooseMapApp": "Choose which map app to use:",
+    "googleMaps": "Google Maps",
+    "appleMaps": "Apple Maps",
+    "cancel": "Cancel",
+    "delete": "Delete"
+  },
+  "reports": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "allReports": "All Reports"
+  },
+  "schedule": {
+    "todaySchedule": "Today's Schedule",
+    "deleteEvent": "Delete Event",
+    "confirmDeleteEvent": "Are you sure you want to delete this event?"
+  },
+  "success": {
+    "title": "Success",
+    "eventAdded": "Personal event added successfully",
+    "eventDeleted": "Event deleted successfully"
+  },
+  "timeTracking": {
+    "clockIn": "Clock In",
+    "clockOut": "Clock Out",
+    "startBreak": "Start Break",
+    "endBreak": "End Break",
+    "currentShift": "Current Shift",
+    "shiftDuration": "Shift Duration",
+    "breakDuration": "Break Duration",
+    "selectProject": "Select Project",
+    "noActiveShift": "No active shift"
+  },
+  "timesheet": {
+    "title": "Timesheet",
+    "date": "Date",
+    "project": "Project",
+    "clockIn": "Clock In",
+    "clockOut": "Clock Out",
+    "break": "Break",
+    "totalHours": "Total Hours",
+    "noEntries": "No timesheet entries",
+    "editEntry": "Edit Entry",
+    "deleteEntry": "Delete Entry"
+  },
+  "dailyReport": {
+    "title": "Daily Report",
+    "workPerformed": "Work Performed",
+    "workPerformedPlaceholder": "Describe the work done today...",
+    "materials": "Materials Used",
+    "materialsPlaceholder": "List materials used...",
+    "issues": "Issues / Notes",
+    "issuesPlaceholder": "Any problems or notes...",
+    "photos": "Photos",
+    "addPhoto": "Add Photo",
+    "submitReport": "Submit Report"
+  },
+  "invite": {
+    "title": "Invite Worker",
+    "sendInvite": "Send Invite",
+    "inviteSent": "Invite Sent",
+    "invitePending": "Invite Pending",
+    "acceptInvite": "Accept Invite",
+    "rejectInvite": "Reject Invite"
+  },
+  "errors": {
+    "error": "Error",
+    "nameRequired": "Please enter worker's name",
+    "loadFailed": "Failed to load workers",
+    "saveFailed": "Failed to save worker",
+    "deleteFailed": "Failed to delete worker",
+    "clockInFailed": "Failed to clock in",
+    "clockOutFailed": "Failed to clock out",
+    "couldNotOpenMaps": "Could not open maps",
+    "createEventFailed": "Failed to create event. Please try again.",
+    "deleteEventFailed": "Failed to delete event. Please try again."
+  },
+  "confirmDelete": {
+    "title": "Delete Worker",
+    "message": "Are you sure you want to delete this worker? This action cannot be undone."
+  }
+}

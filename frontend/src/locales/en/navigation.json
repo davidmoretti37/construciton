@@ -1,0 +1,61 @@
+{
+  "tabs": {
+    "home": "Home",
+    "projects": "Projects",
+    "workers": "Workers",
+    "schedule": "Schedule",
+    "chat": "Chat",
+    "more": "More"
+  },
+  "screens": {
+    "home": "Home",
+    "projects": "Projects",
+    "projectDetail": "Project Details",
+    "newProject": "New Project",
+    "editProject": "Edit Project",
+    "workers": "Workers",
+    "workerDetail": "Worker Details",
+    "newWorker": "New Worker",
+    "editWorker": "Edit Worker",
+    "schedule": "Schedule",
+    "chat": "AI Assistant",
+    "more": "More",
+    "settings": "Settings",
+    "profile": "Profile",
+    "notifications": "Notifications",
+    "invoices": "Invoices",
+    "invoiceDetail": "Invoice Details",
+    "estimates": "Estimates",
+    "estimateDetail": "Estimate Details",
+    "contracts": "Contracts",
+    "photos": "Photos",
+    "dailyReports": "Daily Reports",
+    "dailyReportDetail": "Report Details",
+    "timesheet": "Timesheet",
+    "transactions": "Transactions",
+    "stats": "Statistics",
+    "language": "Language",
+    "businessInfo": "Business Info",
+    "pricing": "Pricing",
+    "phases": "Phases",
+    "notificationSettings": "Notification Settings",
+    "twilioSetup": "Twilio Setup",
+    "subcontractors": "Subcontractors",
+    "generalContractor": "General Contractor"
+  },
+  "worker": {
+    "home": "Home",
+    "assignments": "Assignments",
+    "timeClock": "Time Clock",
+    "reports": "Reports",
+    "messages": "Messages"
+  },
+  "client": {
+    "projects": "My Projects",
+    "invoices": "Invoices",
+    "photos": "Photos",
+    "messages": "Messages"
+  },
+  "back": "Back",
+  "close": "Close"
+}

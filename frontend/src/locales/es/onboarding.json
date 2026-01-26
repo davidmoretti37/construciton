@@ -1,0 +1,214 @@
+{
+  "welcome": {
+    "title": "Bienvenido a Tu Plataforma de Servicios",
+    "subtitle": "Configuremos tu negocio para que puedas enviar presupuestos instantáneamente",
+    "getStarted": "Comenzar",
+    "features": {
+      "aiEstimates": "Presupuestos instantáneos con IA",
+      "autoCalc": "Cálculos automáticos de precios",
+      "sendVia": "Enviar por SMS o WhatsApp",
+      "setupTime": "Configuración en 5 minutos"
+    }
+  },
+  "serviceSelection": {
+    "headerTitle": "Tus Servicios",
+    "title": "Tus Servicios",
+    "subtitle": "Elige los servicios que ofrece tu empresa",
+    "searchPlaceholder": "Buscar servicios...",
+    "selectedCount": "{{count}} seleccionados",
+    "selectedServices": "Servicios Seleccionados ({{count}})",
+    "availableServices": "Servicios Disponibles",
+    "searchResults": "Resultados de Búsqueda",
+    "addCustomService": "Agregar servicio personalizado",
+    "createServiceHint": "Busca para crear un nuevo servicio con IA",
+    "createService": "Crear \"{{name}}\"",
+    "createServiceAiHint": "La IA generará una plantilla para este servicio",
+    "creatingService": "Creando Servicio...",
+    "creatingServiceSubtitle": "La IA está generando elementos y fases",
+    "loadingServices": "Cargando servicios...",
+    "loadingDetails": "Cargando detalles del servicio...",
+    "items": "{{count}} elementos",
+    "phases": "{{count}} fases",
+    "categories": {
+      "general": "Construcción General",
+      "electrical": "Electricidad",
+      "plumbing": "Plomería",
+      "hvac": "Climatización",
+      "roofing": "Techado",
+      "flooring": "Pisos",
+      "painting": "Pintura",
+      "landscaping": "Jardinería",
+      "concrete": "Concreto",
+      "framing": "Estructura",
+      "drywall": "Tablaroca",
+      "windows": "Ventanas y Puertas",
+      "siding": "Revestimiento",
+      "insulation": "Aislamiento",
+      "demolition": "Demolición",
+      "custom": "Servicios Personalizados"
+    },
+    "errors": {
+      "selectService": "Seleccionar Servicios",
+      "selectAtLeastOne": "Por favor selecciona al menos un servicio que ofreces",
+      "loadFailed": "Error al cargar servicios. Intenta de nuevo.",
+      "detailsFailed": "Error al cargar detalles del servicio. Intenta de nuevo.",
+      "createFailed": "Error al crear servicio. Intenta de nuevo.",
+      "alreadyAdded": "Ya Agregado",
+      "alreadyAddedMessage": "{{name}} ya está en tu lista de servicios"
+    }
+  },
+  "tradeSelection": {
+    "headerTitle": "Tus Servicios",
+    "title": "¿Qué servicios ofreces?",
+    "subtitle": "Selecciona todos los que apliquen. Puedes agregar o quitar después.",
+    "servicesSelected": "{{count}} servicio seleccionado",
+    "servicesSelectedPlural": "{{count}} servicios seleccionados",
+    "errors": {
+      "selectService": "Seleccionar Servicios",
+      "selectAtLeastOne": "Por favor selecciona al menos un servicio que ofreces"
+    }
+  },
+  "businessInfo": {
+    "headerTitle": "Info del Negocio",
+    "title": "Cuéntanos sobre tu negocio",
+    "subtitle": "Esta información aparecerá en tus presupuestos",
+    "businessName": "Nombre del Negocio",
+    "businessNamePlaceholder": "ej., Construcciones Juan",
+    "businessNameRequired": "*",
+    "companyName": "Nombre de la Empresa",
+    "companyNamePlaceholder": "Tu Empresa LLC",
+    "phone": "Número de Teléfono",
+    "phonePlaceholder": "(555) 123-4567",
+    "phoneRequired": "*",
+    "phoneHelper": "Los clientes verán esto en los presupuestos",
+    "email": "Correo Electrónico",
+    "emailOptional": "(Opcional)",
+    "emailPlaceholder": "juan@construccion.com",
+    "address": "Dirección del Negocio",
+    "addressPlaceholder": "123 Calle Principal",
+    "city": "Ciudad",
+    "cityPlaceholder": "Los Ángeles",
+    "state": "Estado",
+    "statePlaceholder": "CA",
+    "zipCode": "Código Postal",
+    "zipCodePlaceholder": "90210",
+    "licenseNumber": "Número de Licencia",
+    "licenseNumberPlaceholder": "Opcional",
+    "infoNote": "Puedes actualizar esta información después en Configuración",
+    "errors": {
+      "businessNameRequired": "Nombre del Negocio Requerido",
+      "enterBusinessName": "Por favor ingresa el nombre de tu negocio o contratista",
+      "phoneRequired": "Teléfono Requerido",
+      "enterPhone": "Por favor ingresa tu número de teléfono",
+      "companyNameRequired": "Por favor ingresa el nombre de tu empresa"
+    }
+  },
+  "phaseCustomization": {
+    "headerTitle": "Revisar Fases",
+    "title": "Fases del Proyecto",
+    "subtitle": "Revisa las fases de trabajo para tus servicios",
+    "days": "~{{count}} días",
+    "tasks": "Tareas:",
+    "noPhases": "Sin fases aún",
+    "addPhase": "Agregar Fase",
+    "deletePhase": "Eliminar Fase",
+    "deletePhaseConfirm": "¿Estás seguro de que deseas eliminar esta fase?",
+    "continueToPricing": "Continuar a Precios",
+    "modal": {
+      "addPhase": "Agregar Fase",
+      "editPhase": "Editar Fase",
+      "save": "Guardar",
+      "phaseName": "Nombre de la Fase *",
+      "phaseNamePlaceholder": "ej., Preparación del Sitio",
+      "description": "Descripción",
+      "descriptionPlaceholder": "Qué sucede en esta fase...",
+      "estimatedDays": "Días Estimados",
+      "tasks": "Tareas",
+      "addTaskPlaceholder": "Agregar una tarea...",
+      "errors": {
+        "enterName": "Por favor ingresa un nombre de fase"
+      }
+    }
+  },
+  "phaseTemplate": {
+    "title": "Fases del Proyecto",
+    "subtitle": "Configura tus fases predeterminadas",
+    "addPhase": "Agregar Fase",
+    "editPhase": "Editar Fase",
+    "deletePhase": "Eliminar Fase",
+    "phaseName": "Nombre de la Fase",
+    "phaseNamePlaceholder": "ej., Cimentación, Estructura",
+    "duration": "Duración (días)",
+    "reorderHint": "Arrastra para reordenar las fases"
+  },
+  "pricingSetup": {
+    "headerTitle": "Configurar Precios",
+    "title": "Configura Tus Precios",
+    "subtitle": "Configura tus precios predeterminados para servicios"
+  },
+  "pricing": {
+    "title": "Configuración de Precios",
+    "subtitle": "Establece tus precios predeterminados para servicios",
+    "hourlyRate": "Tarifa por Hora",
+    "perUnit": "Por Unidad",
+    "perSqFt": "Por Pie²",
+    "flatRate": "Tarifa Fija",
+    "laborRate": "Tarifa de Mano de Obra",
+    "materialMarkup": "Margen de Materiales %",
+    "currency": "Moneda"
+  },
+  "profitMargin": {
+    "headerTitle": "Margen de Ganancia",
+    "headerSubtitle": "Establece tu margen de ganancia deseado",
+    "title": "Selecciona Tu Margen de Ganancia",
+    "subtitle": "Elige el porcentaje que deseas agregar a los costos del proyecto",
+    "defaultMargin": "Margen Predeterminado",
+    "marginHint": "Este se aplicará a todos los nuevos presupuestos",
+    "customMargin": "Margen Personalizado",
+    "enterPercentage": "Ingresa porcentaje"
+  },
+  "invoiceSetup": {
+    "headerTitle": "Config. de Facturas",
+    "title": "Configuración de Facturas",
+    "subtitle": "Personaliza la apariencia de tus facturas",
+    "logo": "Logo de la Empresa",
+    "uploadLogo": "Subir Logo",
+    "paymentTerms": "Términos de Pago",
+    "paymentTermsPlaceholder": "ej., 30 días neto",
+    "notes": "Notas Predeterminadas",
+    "notesPlaceholder": "¡Gracias por tu preferencia!"
+  },
+  "typicalContracts": {
+    "headerTitle": "Contratos Típicos",
+    "title": "Contratos Típicos",
+    "subtitle": "Sube tus plantillas de contratos estándar"
+  },
+  "completion": {
+    "title": "¡Todo Listo!",
+    "titleEmoji": "🎉",
+    "subtitle": "Tu negocio está configurado y listo. Comienza a crear presupuestos en segundos con asistencia de IA.",
+    "startButton": "Comenzar a Usar la App",
+    "startUsing": "Comenzar a Usar",
+    "features": {
+      "aiPricing": "La IA conoce tus precios",
+      "autoCalc": "Cálculos automáticos",
+      "oneTapSend": "Envío con un toque",
+      "projects": "Crear y gestionar proyectos",
+      "estimates": "Generar presupuestos profesionales",
+      "invoices": "Enviar facturas a clientes",
+      "workers": "Rastrear horas y reportes de trabajadores",
+      "schedule": "Gestionar tu calendario"
+    },
+    "tip": "Intenta decir: \"Crear un presupuesto para Juan - 50 m² de pintura interior\""
+  },
+  "progress": {
+    "step": "Paso {{current}} de {{total}}"
+  },
+  "buttons": {
+    "continue": "Continuar",
+    "back": "Atrás",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "save": "Guardar"
+  }
+}

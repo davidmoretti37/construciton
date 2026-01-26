@@ -1,0 +1,89 @@
+{
+  "expo": {
+    "name": "Construction Manager",
+    "slug": "consrcutionapp",
+    "scheme": "constructionmanager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.davidmoretti.constructionmanager",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "sms"
+        ],
+        "NSMicrophoneUsageDescription": "This app uses the microphone for voice-to-text input when creating tasks, notes, and messages.",
+        "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to convert your voice to text for easier communication.",
+        "NSCameraUsageDescription": "This app uses the camera to take photos for project documentation, daily reports, and progress tracking.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to attach existing photos to projects, reports, and messages.",
+        "NSPhotoLibraryAddUsageDescription": "This app saves project photos and documents to your photo library.",
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to calculate distances to job sites and provide location-based services.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.davidmoretti.constructionmanager",
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "SEND_SMS",
+        "VIBRATE"
+      ],
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-mail-composer",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This app accesses your photos for project documentation.",
+          "cameraPermission": "This app uses the camera for project photos."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "This app uses your location to calculate distances to job sites."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2196F3"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d77d2431-4ce6-4ed4-b447-acdc3e6d8f1c"
+      },
+      "privacyPolicyUrl": "https://yourwebsite.com/privacy-policy",
+      "termsOfServiceUrl": "https://yourwebsite.com/terms-of-service"
+    },
+    "owner": "davidmoretti"
+  }
+}

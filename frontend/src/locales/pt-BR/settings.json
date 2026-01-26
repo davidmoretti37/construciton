@@ -1,0 +1,137 @@
+{
+  "title": "Mais",
+  "sections": {
+    "account": "Conta",
+    "business": "Empresa",
+    "preferences": "Preferências",
+    "notifications": "Notificações",
+    "integrations": "Integrações",
+    "support": "Suporte",
+    "about": "Sobre",
+    "documents": "DOCUMENTOS E MÍDIA",
+    "financials": "FINANCEIRO"
+  },
+  "items": {
+    "pictures": "Fotos",
+    "contracts": "Contratos",
+    "estimates": "Orçamentos",
+    "invoices": "Faturas",
+    "addNewService": "Adicionar Novo Serviço"
+  },
+  "errors": {
+    "logoutFailed": "Erro",
+    "logoutFailedMessage": "Falha ao sair. Tente novamente."
+  },
+  "appName": "Construction Manager",
+  "cancel": "Cancelar",
+  "account": {
+    "profile": "Perfil",
+    "email": "E-mail",
+    "password": "Alterar Senha",
+    "language": "Idioma",
+    "logout": "Sair",
+    "deleteAccount": "Excluir Conta"
+  },
+  "business": {
+    "info": "Informações da Empresa",
+    "companyName": "Nome da Empresa",
+    "phone": "Telefone",
+    "address": "Endereço",
+    "logo": "Logo da Empresa",
+    "uploadLogo": "Carregar Logo",
+    "removeLogo": "Remover Logo",
+    "license": "Número do CREA/CAU",
+    "taxId": "CNPJ"
+  },
+  "preferences": {
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Escuro",
+    "themeSystem": "Sistema",
+    "currency": "Moeda",
+    "dateFormat": "Formato de Data",
+    "timeFormat": "Formato de Hora",
+    "defaultView": "Visualização Padrão"
+  },
+  "notifications": {
+    "title": "Notificações",
+    "push": "Notificações Push",
+    "email": "Notificações por E-mail",
+    "sms": "Notificações SMS",
+    "projectUpdates": "Atualizações de Projetos",
+    "workerReports": "Relatórios de Trabalhadores",
+    "payments": "Lembretes de Pagamento",
+    "appointments": "Compromissos",
+    "marketing": "Marketing e Dicas"
+  },
+  "integrations": {
+    "twilio": "Twilio (SMS)",
+    "twilioSetup": "Configurar mensagens SMS",
+    "quickbooks": "QuickBooks",
+    "stripe": "Pagamentos Stripe",
+    "connected": "Conectado",
+    "notConnected": "Não Conectado",
+    "connect": "Conectar",
+    "disconnect": "Desconectar"
+  },
+  "ai": {
+    "title": "Configurações de IA",
+    "enabled": "Assistente IA Ativado",
+    "autoSuggest": "Auto-Sugestões",
+    "estimateNotes": "Notas Padrão de Orçamento",
+    "subcontractorNotes": "Notas de Subempreiteiros"
+  },
+  "pricing": {
+    "title": "Configurações de Preços",
+    "laborRate": "Taxa de Mão de Obra Padrão",
+    "materialMarkup": "Margem de Materiais %",
+    "profitMargin": "Margem de Lucro %",
+    "trades": "Preços por Especialidade"
+  },
+  "phases": {
+    "title": "Modelos de Fases",
+    "editPhases": "Editar Fases Padrão",
+    "addPhase": "Adicionar Fase"
+  },
+  "invoiceTemplate": {
+    "title": "Modelo de Nota Fiscal",
+    "paymentTerms": "Condições de Pagamento",
+    "defaultNotes": "Notas Padrão",
+    "footer": "Texto do Rodapé"
+  },
+  "support": {
+    "help": "Central de Ajuda",
+    "contact": "Contatar Suporte",
+    "feedback": "Enviar Feedback",
+    "reportBug": "Reportar um Erro",
+    "faq": "Perguntas Frequentes"
+  },
+  "about": {
+    "version": "Versão",
+    "terms": "Termos de Serviço",
+    "privacy": "Política de Privacidade",
+    "licenses": "Licenças de Código Aberto"
+  },
+  "language": {
+    "title": "Idioma",
+    "select": "Selecionar Idioma",
+    "current": "Idioma Atual",
+    "updated": "Idioma Atualizado",
+    "updateMessage": "Sua preferência de idioma foi salva."
+  },
+  "dangerZone": {
+    "title": "Zona de Perigo",
+    "resetApp": "Redefinir Dados do App",
+    "resetWarning": "Isso excluirá todos os dados locais. Seus dados na nuvem permanecerão seguros.",
+    "deleteAccount": "Excluir Conta",
+    "deleteWarning": "Isso excluirá permanentemente sua conta e todos os dados."
+  },
+  "confirmLogout": {
+    "title": "Sair",
+    "message": "Tem certeza que deseja sair?"
+  },
+  "confirmReset": {
+    "title": "Redefinir App",
+    "message": "Tem certeza que deseja redefinir todos os dados do app? Isso não pode ser desfeito."
+  }
+}

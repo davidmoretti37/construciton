@@ -1,0 +1,137 @@
+{
+  "title": "More",
+  "sections": {
+    "account": "Account",
+    "business": "Business",
+    "preferences": "Preferences",
+    "notifications": "Notifications",
+    "integrations": "Integrations",
+    "support": "Support",
+    "about": "About",
+    "documents": "DOCUMENTS & MEDIA",
+    "financials": "FINANCIALS"
+  },
+  "items": {
+    "pictures": "Pictures",
+    "contracts": "Contracts",
+    "estimates": "Estimates",
+    "invoices": "Invoices",
+    "addNewService": "Add New Service"
+  },
+  "errors": {
+    "logoutFailed": "Error",
+    "logoutFailedMessage": "Failed to logout. Please try again."
+  },
+  "appName": "Construction Manager",
+  "cancel": "Cancel",
+  "account": {
+    "profile": "Profile",
+    "email": "Email",
+    "password": "Change Password",
+    "language": "Language",
+    "logout": "Log Out",
+    "deleteAccount": "Delete Account"
+  },
+  "business": {
+    "info": "Business Information",
+    "companyName": "Company Name",
+    "phone": "Phone",
+    "address": "Address",
+    "logo": "Company Logo",
+    "uploadLogo": "Upload Logo",
+    "removeLogo": "Remove Logo",
+    "license": "License Number",
+    "taxId": "Tax ID"
+  },
+  "preferences": {
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "currency": "Currency",
+    "dateFormat": "Date Format",
+    "timeFormat": "Time Format",
+    "defaultView": "Default View"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "push": "Push Notifications",
+    "email": "Email Notifications",
+    "sms": "SMS Notifications",
+    "projectUpdates": "Project Updates",
+    "workerReports": "Worker Reports",
+    "payments": "Payment Reminders",
+    "appointments": "Appointments",
+    "marketing": "Marketing & Tips"
+  },
+  "integrations": {
+    "twilio": "Twilio (SMS)",
+    "twilioSetup": "Set up SMS messaging",
+    "quickbooks": "QuickBooks",
+    "stripe": "Stripe Payments",
+    "connected": "Connected",
+    "notConnected": "Not Connected",
+    "connect": "Connect",
+    "disconnect": "Disconnect"
+  },
+  "ai": {
+    "title": "AI Settings",
+    "enabled": "AI Assistant Enabled",
+    "autoSuggest": "Auto-Suggest",
+    "estimateNotes": "Default Estimate Notes",
+    "subcontractorNotes": "Subcontractor Notes"
+  },
+  "pricing": {
+    "title": "Pricing Settings",
+    "laborRate": "Default Labor Rate",
+    "materialMarkup": "Material Markup %",
+    "profitMargin": "Profit Margin %",
+    "trades": "Trade Pricing"
+  },
+  "phases": {
+    "title": "Phase Templates",
+    "editPhases": "Edit Default Phases",
+    "addPhase": "Add Phase"
+  },
+  "invoiceTemplate": {
+    "title": "Invoice Template",
+    "paymentTerms": "Payment Terms",
+    "defaultNotes": "Default Notes",
+    "footer": "Footer Text"
+  },
+  "support": {
+    "help": "Help Center",
+    "contact": "Contact Support",
+    "feedback": "Send Feedback",
+    "reportBug": "Report a Bug",
+    "faq": "FAQ"
+  },
+  "about": {
+    "version": "Version",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "licenses": "Open Source Licenses"
+  },
+  "language": {
+    "title": "Language",
+    "select": "Select Language",
+    "current": "Current Language",
+    "updated": "Language Updated",
+    "updateMessage": "Your language preference has been saved."
+  },
+  "dangerZone": {
+    "title": "Danger Zone",
+    "resetApp": "Reset App Data",
+    "resetWarning": "This will delete all local data. Your cloud data will remain safe.",
+    "deleteAccount": "Delete Account",
+    "deleteWarning": "This will permanently delete your account and all data."
+  },
+  "confirmLogout": {
+    "title": "Log Out",
+    "message": "Are you sure you want to log out?"
+  },
+  "confirmReset": {
+    "title": "Reset App",
+    "message": "Are you sure you want to reset all app data? This cannot be undone."
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "tabs": {
+    "home": "Inicio",
+    "projects": "Proyectos",
+    "workers": "Trabajadores",
+    "schedule": "Calendario",
+    "chat": "Chat",
+    "more": "Más"
+  },
+  "screens": {
+    "home": "Inicio",
+    "projects": "Proyectos",
+    "projectDetail": "Detalles del Proyecto",
+    "newProject": "Nuevo Proyecto",
+    "editProject": "Editar Proyecto",
+    "workers": "Trabajadores",
+    "workerDetail": "Detalles del Trabajador",
+    "newWorker": "Nuevo Trabajador",
+    "editWorker": "Editar Trabajador",
+    "schedule": "Calendario",
+    "chat": "Asistente IA",
+    "more": "Más",
+    "settings": "Configuración",
+    "profile": "Perfil",
+    "notifications": "Notificaciones",
+    "invoices": "Facturas",
+    "invoiceDetail": "Detalles de Factura",
+    "estimates": "Presupuestos",
+    "estimateDetail": "Detalles de Presupuesto",
+    "contracts": "Contratos",
+    "photos": "Fotos",
+    "dailyReports": "Reportes Diarios",
+    "dailyReportDetail": "Detalles del Reporte",
+    "timesheet": "Hoja de Tiempo",
+    "transactions": "Transacciones",
+    "stats": "Estadísticas",
+    "language": "Idioma",
+    "businessInfo": "Info del Negocio",
+    "pricing": "Precios",
+    "phases": "Fases",
+    "notificationSettings": "Config. de Notificaciones",
+    "twilioSetup": "Configuración Twilio",
+    "subcontractors": "Subcontratistas",
+    "generalContractor": "Contratista General"
+  },
+  "worker": {
+    "home": "Inicio",
+    "assignments": "Asignaciones",
+    "timeClock": "Reloj de Tiempo",
+    "reports": "Reportes",
+    "messages": "Mensajes"
+  },
+  "client": {
+    "projects": "Mis Proyectos",
+    "invoices": "Facturas",
+    "photos": "Fotos",
+    "messages": "Mensajes"
+  },
+  "back": "Atrás",
+  "close": "Cerrar"
+}

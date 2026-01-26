@@ -1,0 +1,72 @@
+{
+  "title": "Assistente IA",
+  "placeholder": "Digite uma mensagem...",
+  "send": "Enviar",
+  "thinking": "Pensando...",
+  "typing": "IA está digitando...",
+  "welcome": {
+    "title": "Como posso ajudar você hoje?",
+    "suggestions": {
+      "createEstimate": "Criar um orçamento",
+      "checkSchedule": "Ver a agenda de hoje",
+      "projectStatus": "Status do projeto",
+      "findWorker": "Buscar trabalhadores disponíveis"
+    }
+  },
+  "actions": {
+    "newChat": "Nova Conversa",
+    "clearChat": "Limpar Conversa",
+    "voiceInput": "Entrada de Voz",
+    "attachFile": "Anexar Arquivo",
+    "takePhoto": "Tirar Foto"
+  },
+  "messages": {
+    "error": "Desculpe, algo deu errado. Por favor, tente novamente.",
+    "offline": "Você está offline. As mensagens serão enviadas quando conectar.",
+    "rateLimited": "Muitas solicitações. Por favor, aguarde um momento.",
+    "contextCleared": "Histórico de conversa limpo"
+  },
+  "suggestions": {
+    "createProject": "Criar um novo projeto",
+    "viewReports": "Ver relatórios diários",
+    "checkBudget": "Verificar orçamento do projeto",
+    "scheduleWorker": "Agendar um trabalhador",
+    "createInvoice": "Criar uma nota fiscal",
+    "viewPhotos": "Ver fotos do projeto"
+  },
+  "features": {
+    "projectCard": {
+      "viewProject": "Ver Projeto",
+      "editProject": "Editar Projeto"
+    },
+    "estimateCard": {
+      "viewEstimate": "Ver Orçamento",
+      "sendEstimate": "Enviar para Cliente"
+    },
+    "invoiceCard": {
+      "viewInvoice": "Ver Nota Fiscal",
+      "markPaid": "Marcar como Paga"
+    },
+    "workerCard": {
+      "viewWorker": "Ver Detalhes",
+      "assignToProject": "Atribuir a Projeto"
+    },
+    "photoGallery": {
+      "viewAll": "Ver Todas as Fotos",
+      "download": "Baixar"
+    }
+  },
+  "voice": {
+    "listening": "Ouvindo...",
+    "processing": "Processando...",
+    "tapToSpeak": "Toque para falar",
+    "permissionDenied": "Permissão de microfone negada"
+  },
+  "upload": {
+    "selectFile": "Selecionar Arquivo",
+    "takePhoto": "Tirar Foto",
+    "chooseFromLibrary": "Escolher da Galeria",
+    "uploading": "Carregando...",
+    "uploadFailed": "Falha no carregamento"
+  }
+}
