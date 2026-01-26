@@ -1,190 +1,245 @@
 /**
  * PricingPreviewScreen
- * Shows pricing before login so users know the cost upfront
- * Always uses light mode
+ * Modern pricing screen shown before login
+ * Features: gradient background, horizontal plan pills, feature carousel
  */
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
-  ScrollView,
   TouchableOpacity,
+  Dimensions,
+  FlatList,
+  Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
-import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 
-// Plan configurations (same as PaywallScreen)
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Plan configurations
 const PLANS = [
   {
-    tier: 'starter',
+    id: 'starter',
     name: 'Starter',
     price: 49,
     projects: 3,
-    description: 'Perfect for solo contractors',
-    popular: false,
+    description: 'Solo contractors',
   },
   {
-    tier: 'pro',
+    id: 'pro',
     name: 'Pro',
     price: 79,
     projects: 10,
-    description: 'For growing businesses',
-    popular: true,
+    description: 'Growing teams',
+    recommended: true,
   },
   {
-    tier: 'business',
+    id: 'business',
     name: 'Business',
     price: 149,
     projects: 'Unlimited',
-    description: 'For established companies',
-    popular: false,
+    description: 'Large companies',
   },
 ];
 
-// Features included in all plans
+// Features for carousel
 const FEATURES = [
-  { icon: 'chatbubble-outline', text: 'AI-powered assistant' },
-  { icon: 'document-text-outline', text: 'Estimates & invoices' },
-  { icon: 'people-outline', text: 'Worker management' },
-  { icon: 'calendar-outline', text: 'Scheduling & time tracking' },
-  { icon: 'camera-outline', text: 'Photo documentation' },
-  { icon: 'cash-outline', text: 'Financial tracking' },
-  { icon: 'globe-outline', text: '11 languages supported' },
+  { icon: 'sparkles', title: 'AI Assistant', desc: 'Get instant answers & estimates' },
+  { icon: 'document-text', title: 'Smart Invoices', desc: 'Create & send in seconds' },
+  { icon: 'people', title: 'Team Management', desc: 'Track workers & schedules' },
+  { icon: 'camera', title: 'Photo Docs', desc: 'Document every project' },
+  { icon: 'stats-chart', title: 'Financial Insights', desc: 'Track profits & expenses' },
 ];
 
 export default function PricingPreviewScreen({ navigation }) {
-  // Always use light colors for auth screens
-  const Colors = LightColors;
-  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const [selectedPlan, setSelectedPlan] = useState('pro');
+  const [activeFeature, setActiveFeature] = useState(0);
+  const carouselRef = useRef(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Pricing card component
-  const PricingCard = ({ plan }) => (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: Colors.cardBackground },
-        plan.popular && { borderColor: Colors.primaryBlue, borderWidth: 2 },
-      ]}
-    >
-      {plan.popular && (
-        <View style={[styles.popularBadge, { backgroundColor: Colors.primaryBlue }]}>
-          <Text style={styles.popularText}>
-            {t('subscription.mostPopular', 'Most Popular')}
-          </Text>
-        </View>
-      )}
+  // Auto-scroll carousel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const nextIndex = (activeFeature + 1) % FEATURES.length;
+      setActiveFeature(nextIndex);
+      carouselRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeFeature]);
 
-      <Text style={[styles.planName, { color: Colors.primaryText }]}>{plan.name}</Text>
-      <Text style={[styles.description, { color: Colors.secondaryText }]}>
-        {plan.description}
-      </Text>
+  // CTA pulse animation
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.02,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
 
-      <View style={styles.priceRow}>
-        <Text style={[styles.currency, { color: Colors.primaryText }]}>$</Text>
-        <Text style={[styles.price, { color: Colors.primaryText }]}>{plan.price}</Text>
-        <Text style={[styles.period, { color: Colors.secondaryText }]}>/month</Text>
+  const selectedPlanData = PLANS.find(p => p.id === selectedPlan);
+
+  const renderFeatureCard = ({ item, index }) => (
+    <View style={styles.featureCard}>
+      <View style={styles.featureIconWrap}>
+        <Ionicons name={item.icon} size={28} color="#60A5FA" />
       </View>
-
-      <View style={[styles.projectLimit, { backgroundColor: Colors.background }]}>
-        <Ionicons name="folder-outline" size={20} color={Colors.primaryBlue} />
-        <Text style={[styles.projectText, { color: Colors.primaryText }]}>
-          {plan.projects === 'Unlimited' ? 'Unlimited' : plan.projects} active projects
-        </Text>
-      </View>
+      <Text style={styles.featureTitle}>{item.title}</Text>
+      <Text style={styles.featureDesc}>{item.desc}</Text>
     </View>
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.iconCircle, { backgroundColor: Colors.primaryBlue + '15' }]}>
-            <Ionicons name="diamond-outline" size={40} color={Colors.primaryBlue} />
+    <LinearGradient
+      colors={['#0A1628', '#0F172A', '#1E1B4B']}
+      style={[styles.container, { paddingTop: insets.top }]}
+    >
+      {/* Hero Section */}
+      <View style={styles.hero}>
+        <View style={styles.iconGlow}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="construct" size={36} color="#60A5FA" />
           </View>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
-            {t('subscription.chooseYourPlan', 'Choose Your Plan')}
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-            {t(
-              'subscription.trialDescription',
-              'Start with a 7-day free trial. Cancel anytime.'
-            )}
-          </Text>
         </View>
+        <Text style={styles.heroTitle}>Build Smarter</Text>
+        <Text style={styles.heroSubtitle}>The AI-powered app for contractors</Text>
+      </View>
 
-        {/* Pricing Cards */}
-        <View style={styles.cardsContainer}>
-          {PLANS.map((plan) => (
-            <PricingCard key={plan.tier} plan={plan} />
+      {/* Feature Carousel */}
+      <View style={styles.carouselContainer}>
+        <FlatList
+          ref={carouselRef}
+          data={FEATURES}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          renderItem={renderFeatureCard}
+          keyExtractor={(item) => item.title}
+          onMomentumScrollEnd={(e) => {
+            const index = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 60));
+            setActiveFeature(index);
+          }}
+          contentContainerStyle={styles.carouselContent}
+          snapToInterval={SCREEN_WIDTH - 60}
+          decelerationRate="fast"
+        />
+        {/* Pagination dots */}
+        <View style={styles.pagination}>
+          {FEATURES.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                activeFeature === i && styles.dotActive,
+              ]}
+            />
           ))}
         </View>
+      </View>
 
-        {/* Features Section */}
-        <View style={styles.featuresSection}>
-          <Text style={[styles.featuresTitle, { color: Colors.primaryText }]}>
-            {t('subscription.allPlansInclude', 'All plans include:')}
-          </Text>
-          <View style={styles.featuresGrid}>
-            {FEATURES.map((feature, index) => (
-              <View key={index} style={styles.featureRow}>
-                <Ionicons name={feature.icon} size={20} color={Colors.success} />
-                <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-                  {feature.text}
-                </Text>
+      {/* Plan Selector */}
+      <View style={styles.planSelector}>
+        {PLANS.map((plan) => (
+          <TouchableOpacity
+            key={plan.id}
+            style={[
+              styles.planPill,
+              selectedPlan === plan.id && styles.planPillActive,
+            ]}
+            onPress={() => setSelectedPlan(plan.id)}
+            activeOpacity={0.8}
+          >
+            {plan.recommended && (
+              <View style={styles.recommendedBadge}>
+                <Text style={styles.recommendedText}>Best</Text>
               </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Get Started Button */}
-        <TouchableOpacity
-          style={[styles.getStartedButton, { backgroundColor: Colors.primaryBlue }]}
-          onPress={() => navigation.navigate('Signup')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.getStartedText}>
-            {t('subscription.getStarted', 'Get Started')}
-          </Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFF" />
-        </TouchableOpacity>
-
-        {/* Already have account */}
-        <View style={styles.loginSection}>
-          <Text style={[styles.loginText, { color: Colors.secondaryText }]}>
-            {t('pricing.alreadyHaveAccount', 'Already have an account?')}{' '}
-          </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={[styles.loginLink, { color: Colors.primaryBlue }]}>
-              {t('pricing.signIn', 'Sign In')}
+            )}
+            <Text style={[
+              styles.planName,
+              selectedPlan === plan.id && styles.planNameActive,
+            ]}>
+              {plan.name}
+            </Text>
+            <Text style={[
+              styles.planPrice,
+              selectedPlan === plan.id && styles.planPriceActive,
+            ]}>
+              ${plan.price}
             </Text>
           </TouchableOpacity>
-        </View>
+        ))}
+      </View>
 
-        {/* Trust badges */}
-        <View style={styles.trustSection}>
-          <View style={styles.trustBadge}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={Colors.secondaryText} />
-            <Text style={[styles.trustText, { color: Colors.secondaryText }]}>
-              Secure payment via Stripe
-            </Text>
-          </View>
-          <View style={styles.trustBadge}>
-            <Ionicons name="refresh-outline" size={16} color={Colors.secondaryText} />
-            <Text style={[styles.trustText, { color: Colors.secondaryText }]}>
-              Cancel anytime
-            </Text>
-          </View>
+      {/* Selected Plan Details */}
+      <View style={styles.planDetails}>
+        <View style={styles.detailRow}>
+          <Ionicons name="folder-open" size={20} color="#60A5FA" />
+          <Text style={styles.detailText}>
+            {selectedPlanData.projects === 'Unlimited'
+              ? 'Unlimited projects'
+              : `${selectedPlanData.projects} active projects`}
+          </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+        <View style={styles.detailRow}>
+          <Ionicons name="gift" size={20} color="#34D399" />
+          <Text style={styles.detailText}>7-day free trial included</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Ionicons name="refresh" size={20} color="#A78BFA" />
+          <Text style={styles.detailText}>Cancel anytime, no commitment</Text>
+        </View>
+      </View>
+
+      {/* CTA Button */}
+      <View style={styles.ctaContainer}>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <TouchableOpacity
+            style={styles.ctaButton}
+            onPress={() => navigation.navigate('Signup')}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={['#3B82F6', '#2563EB']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.ctaGradient}
+            >
+              <Text style={styles.ctaText}>Start Free Trial</Text>
+              <Ionicons name="arrow-forward" size={20} color="#FFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+
+      {/* Trust Footer */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={styles.trustItem}>
+          <Ionicons name="shield-checkmark" size={16} color="#64748B" />
+          <Text style={styles.trustText}>Secure payment</Text>
+        </View>
+        <View style={styles.trustDivider} />
+        <View style={styles.trustItem}>
+          <Ionicons name="card" size={16} color="#64748B" />
+          <Text style={styles.trustText}>Powered by Stripe</Text>
+        </View>
+      </View>
+    </LinearGradient>
   );
 }
 
@@ -192,155 +247,199 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    padding: Spacing.lg,
-    paddingBottom: 100,
-  },
-  header: {
+  hero: {
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    paddingTop: 20,
+    paddingBottom: 24,
   },
-  iconCircle: {
+  iconGlow: {
     width: 80,
     height: 80,
     borderRadius: 40,
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: 16,
+    shadowColor: '#60A5FA',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
-  title: {
-    fontSize: 28,
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroTitle: {
+    fontSize: 32,
     fontWeight: '700',
-    marginBottom: Spacing.sm,
-    textAlign: 'center',
+    color: '#F8FAFC',
+    marginBottom: 8,
   },
-  subtitle: {
-    fontSize: FontSizes.body,
-    textAlign: 'center',
-    lineHeight: 22,
+  heroSubtitle: {
+    fontSize: 16,
+    color: '#94A3B8',
   },
-  cardsContainer: {
-    gap: Spacing.lg,
-    marginBottom: Spacing.xl,
+  carouselContainer: {
+    marginBottom: 24,
   },
-  card: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  carouselContent: {
+    paddingHorizontal: 30,
   },
-  popularBadge: {
-    position: 'absolute',
-    top: -12,
-    right: 16,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.pill,
+  featureCard: {
+    width: SCREEN_WIDTH - 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  popularText: {
-    color: '#FFF',
-    fontSize: FontSizes.small,
+  featureIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  featureTitle: {
+    fontSize: 18,
     fontWeight: '600',
+    color: '#F8FAFC',
+    marginBottom: 4,
+  },
+  featureDesc: {
+    fontSize: 14,
+    color: '#94A3B8',
+  },
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  dotActive: {
+    width: 20,
+    backgroundColor: '#60A5FA',
+  },
+  planSelector: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  planPill: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  planPillActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: '#3B82F6',
+  },
+  recommendedBadge: {
+    position: 'absolute',
+    top: -8,
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  recommendedText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFF',
   },
   planName: {
-    fontSize: FontSizes.header,
-    fontWeight: '700',
-    marginBottom: Spacing.xs,
-  },
-  description: {
-    fontSize: FontSizes.small,
-    marginBottom: Spacing.md,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: Spacing.md,
-  },
-  currency: {
-    fontSize: FontSizes.subheader,
+    fontSize: 14,
     fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 4,
   },
-  price: {
-    fontSize: 48,
+  planNameActive: {
+    color: '#F8FAFC',
+  },
+  planPrice: {
+    fontSize: 20,
     fontWeight: '700',
-    lineHeight: 52,
+    color: '#64748B',
   },
-  period: {
-    fontSize: FontSizes.body,
-    marginLeft: Spacing.xs,
+  planPriceActive: {
+    color: '#60A5FA',
   },
-  projectLimit: {
+  planDetails: {
+    paddingHorizontal: 30,
+    marginBottom: 24,
+    gap: 12,
+  },
+  detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    gap: Spacing.sm,
+    gap: 12,
   },
-  projectText: {
-    fontSize: FontSizes.body,
-    fontWeight: '500',
+  detailText: {
+    fontSize: 15,
+    color: '#CBD5E1',
   },
-  featuresSection: {
-    marginBottom: Spacing.xl,
+  ctaContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
   },
-  featuresTitle: {
-    fontSize: FontSizes.subheader,
-    fontWeight: '600',
-    marginBottom: Spacing.md,
+  ctaButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  featuresGrid: {
-    gap: Spacing.sm,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  featureText: {
-    fontSize: FontSizes.body,
-  },
-  getStartedButton: {
+  ctaGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
+    paddingVertical: 18,
+    gap: 8,
   },
-  getStartedText: {
+  ctaText: {
+    fontSize: 17,
+    fontWeight: '700',
     color: '#FFF',
-    fontSize: FontSizes.body,
-    fontWeight: '600',
   },
-  loginSection: {
+  footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    gap: 16,
   },
-  loginText: {
-    fontSize: FontSizes.body,
-  },
-  loginLink: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
-  trustSection: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.lg,
-  },
-  trustBadge: {
+  trustItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 6,
   },
   trustText: {
-    fontSize: FontSizes.small,
+    fontSize: 12,
+    color: '#64748B',
+  },
+  trustDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: '#334155',
   },
 });
