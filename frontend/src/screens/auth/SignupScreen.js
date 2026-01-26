@@ -14,8 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
-import { useTheme } from '../../contexts/ThemeContext';
+import { LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 
 // Password complexity validation
@@ -32,8 +31,8 @@ const validatePassword = (password) => {
 };
 
 export default function SignupScreen({ navigation }) {
-  const { isDark = false } = useTheme() || {};
-  const Colors = getColors(isDark) || LightColors;
+  // Always use light mode for auth screens
+  const Colors = LightColors;
   const { t } = useTranslation('auth');
 
   const [email, setEmail] = useState('');
