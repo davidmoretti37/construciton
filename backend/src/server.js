@@ -17,6 +17,9 @@ const { aiLimiter, servicesLimiter } = require('./middleware/rateLimiter');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy for Railway/cloud deployments (fixes rate limiter X-Forwarded-For error)
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 
@@ -34,6 +37,62 @@ app.use('/api/subscription', servicesLimiter, stripeRoutes);
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Subscription success page (shown after Stripe checkout completes)
+app.get('/subscription/success', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Payment Successful</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               display: flex; justify-content: center; align-items: center;
+               min-height: 100vh; margin: 0; background: #1a1a2e; color: white; }
+        .container { text-align: center; padding: 40px; }
+        .checkmark { font-size: 64px; margin-bottom: 20px; color: #4CAF50; }
+        h1 { margin-bottom: 10px; }
+        p { color: #888; margin-bottom: 30px; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="checkmark">✓</div>
+        <h1>Payment Successful!</h1>
+        <p>Your subscription is now active.<br>You can close this page and return to the app.</p>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+// Subscription cancel page
+app.get('/subscription/cancel', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Payment Cancelled</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               display: flex; justify-content: center; align-items: center;
+               min-height: 100vh; margin: 0; background: #1a1a2e; color: white; }
+        .container { text-align: center; padding: 40px; }
+        h1 { margin-bottom: 10px; }
+        p { color: #888; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Payment Cancelled</h1>
+        <p>No worries! You can try again anytime.<br>Close this page to return to the app.</p>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
 // Non-streaming chat endpoint (with AI rate limiting)

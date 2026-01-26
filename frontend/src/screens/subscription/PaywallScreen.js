@@ -4,7 +4,7 @@
  * Shown when user has no active subscription
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import subscriptionService from '../../services/subscriptionService';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useTranslation } from 'react-i18next';
 
 // Plan configurations
@@ -65,6 +66,19 @@ export default function PaywallScreen({ navigation, onSubscribed }) {
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation();
   const [loading, setLoading] = useState(null);
+  const { justSubscribed, clearJustSubscribed, planTier } = useSubscription();
+
+  // Show success message when returning from Stripe checkout
+  useEffect(() => {
+    if (justSubscribed) {
+      const planName = planTier.charAt(0).toUpperCase() + planTier.slice(1);
+      Alert.alert(
+        t('subscription.welcome', 'Welcome!'),
+        t('subscription.trialActive', `Your ${planName} trial is now active. Enjoy 7 days free!`),
+        [{ text: t('common.getStarted', 'Get Started'), onPress: clearJustSubscribed }]
+      );
+    }
+  }, [justSubscribed, planTier, clearJustSubscribed, t]);
 
   const handleSelectPlan = async (tier) => {
     try {

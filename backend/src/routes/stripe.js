@@ -130,8 +130,8 @@ router.post('/create-checkout-session', authenticateUser, async (req, res) => {
           supabase_user_id: userId
         },
       },
-      success_url: `${process.env.FRONTEND_URL}subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL}subscription/cancel`,
+      success_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/cancel`,
       metadata: {
         supabase_user_id: userId
       },

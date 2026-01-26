@@ -4,7 +4,7 @@
  * Provides subscription info, project limits, and trial status
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState } from 'react-native';
 import { useAuth } from './AuthContext';
 import subscriptionService from '../services/subscriptionService';
@@ -53,6 +53,8 @@ export const SubscriptionProvider = ({ children }) => {
   const [subscription, setSubscription] = useState(null);
   const [projectStatus, setProjectStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [justSubscribed, setJustSubscribed] = useState(false);
+  const previousStatusRef = useRef(null);
 
   /**
    * Load subscription data from backend
@@ -92,6 +94,19 @@ export const SubscriptionProvider = ({ children }) => {
         subscriptionService.getSubscription(),
         subscriptionService.canCreateProject(),
       ]);
+
+      // Detect if subscription just activated (for showing success message)
+      const wasInactive = previousStatusRef.current === 'inactive' ||
+                          previousStatusRef.current === 'none' ||
+                          previousStatusRef.current === null;
+      const isNowActive = ['trialing', 'active'].includes(subData?.status);
+
+      if (wasInactive && isNowActive && previousStatusRef.current !== null) {
+        logger.info('[SubscriptionContext] Subscription just activated!');
+        setJustSubscribed(true);
+      }
+
+      previousStatusRef.current = subData?.status || 'inactive';
 
       setSubscription(subData);
       setProjectStatus(projData);
@@ -179,6 +194,10 @@ export const SubscriptionProvider = ({ children }) => {
     // Actions
     refreshSubscription: loadSubscription,
     checkCanCreateProject,
+
+    // Subscription activation tracking (for success message)
+    justSubscribed,
+    clearJustSubscribed: () => setJustSubscribed(false),
   };
 
   return (
