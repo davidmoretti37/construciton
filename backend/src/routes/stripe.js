@@ -61,6 +61,65 @@ const authenticateUser = async (req, res, next) => {
 };
 
 // ============================================================
+// POST /create-guest-checkout
+// Creates a Stripe Checkout Session WITHOUT authentication
+// For users who haven't signed up yet (pay first flow)
+// ============================================================
+router.post('/create-guest-checkout', async (req, res) => {
+  try {
+    const { tier } = req.body;
+
+    // Validate tier
+    const priceId = PRICE_IDS[tier];
+    if (!priceId) {
+      return res.status(400).json({
+        error: 'Invalid subscription tier',
+        validTiers: Object.keys(PRICE_IDS)
+      });
+    }
+
+    logger.info(`Creating GUEST checkout session for tier: ${tier}`);
+
+    // Create Checkout Session - Stripe will collect email
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price: priceId,
+        quantity: 1,
+      }],
+      mode: 'subscription',
+      subscription_data: {
+        trial_period_days: 7,
+        metadata: {
+          guest_checkout: 'true',
+          selected_tier: tier,
+        },
+      },
+      // Let Stripe collect customer email
+      customer_email: undefined,
+      success_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/success?session_id={CHECKOUT_SESSION_ID}&guest=true`,
+      cancel_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/cancel`,
+      metadata: {
+        guest_checkout: 'true',
+        selected_tier: tier,
+      },
+      allow_promotion_codes: true,
+    });
+
+    logger.info(`Guest checkout session created: ${session.id}`);
+
+    res.json({
+      sessionId: session.id,
+      url: session.url
+    });
+
+  } catch (error) {
+    logger.error('Create guest checkout session error:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+// ============================================================
 // POST /create-checkout-session
 // Creates a Stripe Checkout Session for subscription with 7-day trial
 // ============================================================
@@ -214,10 +273,11 @@ router.post('/webhook', async (req, res) => {
 
 async function handleCheckoutComplete(session) {
   const userId = session.metadata?.supabase_user_id;
+  const isGuestCheckout = session.metadata?.guest_checkout === 'true';
   const subscriptionId = session.subscription;
 
-  if (!userId || !subscriptionId) {
-    logger.warn('Missing userId or subscriptionId in checkout session');
+  if (!subscriptionId) {
+    logger.warn('Missing subscriptionId in checkout session');
     return;
   }
 
@@ -226,6 +286,41 @@ async function handleCheckoutComplete(session) {
   const priceId = subscription.items.data[0]?.price?.id;
   const tier = PRICE_TO_TIER[priceId] || 'starter';
 
+  // GUEST CHECKOUT: Store in pending_subscriptions for later linking
+  if (isGuestCheckout || !userId) {
+    const customerEmail = session.customer_details?.email || session.customer_email;
+
+    if (!customerEmail) {
+      logger.error('Guest checkout without email!');
+      return;
+    }
+
+    logger.info(`Guest checkout completed for email: ${customerEmail}, tier: ${tier}`);
+
+    // Store in pending_subscriptions table
+    const { error } = await supabaseAdmin
+      .from('pending_subscriptions')
+      .upsert({
+        email: customerEmail.toLowerCase(),
+        stripe_customer_id: session.customer,
+        stripe_subscription_id: subscriptionId,
+        stripe_price_id: priceId,
+        plan_tier: tier,
+        status: subscription.status,
+        trial_ends_at: subscription.trial_end
+          ? new Date(subscription.trial_end * 1000).toISOString()
+          : null,
+      }, { onConflict: 'email' });
+
+    if (error) {
+      logger.error('Error storing pending subscription:', error);
+    } else {
+      logger.info(`Pending subscription stored for ${customerEmail}`);
+    }
+    return;
+  }
+
+  // AUTHENTICATED CHECKOUT: Normal flow
   await supabaseAdmin
     .from('subscriptions')
     .upsert({
@@ -428,6 +523,83 @@ router.get('/can-create-project', authenticateUser, async (req, res) => {
   } catch (error) {
     logger.error('Can create project check error:', error);
     res.status(500).json({ error: 'Failed to check project limit' });
+  }
+});
+
+// ============================================================
+// POST /link-pending-subscription
+// Links a pending subscription to a newly signed up user
+// Called after user creates their account
+// ============================================================
+router.post('/link-pending-subscription', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userEmail = req.user.email?.toLowerCase();
+
+    if (!userEmail) {
+      return res.status(400).json({ error: 'User email not found' });
+    }
+
+    logger.info(`Checking pending subscription for ${userEmail}`);
+
+    // Check for pending subscription with this email
+    const { data: pending, error: fetchError } = await supabaseAdmin
+      .from('pending_subscriptions')
+      .select('*')
+      .eq('email', userEmail)
+      .eq('status', 'trialing')
+      .single();
+
+    if (fetchError || !pending) {
+      logger.debug(`No pending subscription found for ${userEmail}`);
+      return res.json({ linked: false, message: 'No pending subscription found' });
+    }
+
+    // Link the subscription to this user
+    const { error: upsertError } = await supabaseAdmin
+      .from('subscriptions')
+      .upsert({
+        user_id: userId,
+        stripe_customer_id: pending.stripe_customer_id,
+        stripe_subscription_id: pending.stripe_subscription_id,
+        stripe_price_id: pending.stripe_price_id,
+        plan_tier: pending.plan_tier,
+        status: pending.status,
+        trial_ends_at: pending.trial_ends_at,
+      }, { onConflict: 'user_id' });
+
+    if (upsertError) {
+      logger.error('Error linking subscription:', upsertError);
+      throw upsertError;
+    }
+
+    // Update Stripe customer metadata with the new user ID
+    await stripe.customers.update(pending.stripe_customer_id, {
+      metadata: { supabase_user_id: userId }
+    });
+
+    // Also update the subscription metadata
+    await stripe.subscriptions.update(pending.stripe_subscription_id, {
+      metadata: { supabase_user_id: userId }
+    });
+
+    // Mark pending subscription as linked
+    await supabaseAdmin
+      .from('pending_subscriptions')
+      .update({ status: 'linked' })
+      .eq('id', pending.id);
+
+    logger.info(`Subscription linked for user ${userId}, tier: ${pending.plan_tier}`);
+
+    res.json({
+      linked: true,
+      planTier: pending.plan_tier,
+      status: pending.status,
+    });
+
+  } catch (error) {
+    logger.error('Link pending subscription error:', error);
+    res.status(500).json({ error: 'Failed to link subscription' });
   }
 });
 

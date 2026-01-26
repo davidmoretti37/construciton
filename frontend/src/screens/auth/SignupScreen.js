@@ -5,17 +5,31 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
+import subscriptionService from '../../services/subscriptionService';
+
+// Dark theme colors matching PricingSlide.js
+const COLORS = {
+  glassBg: 'rgba(255, 255, 255, 0.05)',
+  border: 'rgba(255, 255, 255, 0.1)',
+  borderFocus: '#3B82F6',
+  textPrimary: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+  primary: '#3B82F6',
+  gradientStart: '#0A0F1A',
+  gradientMid: '#0F172A',
+  gradientEnd: '#1A1F3A',
+};
 
 // Password complexity validation
 const validatePassword = (password) => {
@@ -31,8 +45,6 @@ const validatePassword = (password) => {
 };
 
 export default function SignupScreen({ navigation }) {
-  // Always use light mode for auth screens
-  const Colors = LightColors;
   const { t } = useTranslation('auth');
 
   const [email, setEmail] = useState('');
@@ -41,6 +53,9 @@ export default function SignupScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [confirmFocused, setConfirmFocused] = useState(false);
 
   const handleSignup = async () => {
     // Validation
@@ -86,9 +101,19 @@ export default function SignupScreen({ navigation }) {
 
       if (data.user) {
         console.log('✅ Signup successful:', data.user.email);
+
+        // Check for pending subscription from guest checkout
+        try {
+          const linkResult = await subscriptionService.linkPendingSubscription();
+          if (linkResult.linked) {
+            console.log('✅ Subscription linked:', linkResult.planTier);
+          }
+        } catch (linkError) {
+          console.log('No pending subscription to link');
+        }
+
         // With email confirmation disabled, user is automatically logged in
         // App.js will detect the session and navigate to language selection
-        // No need to show alert or navigate manually
       }
     } catch (error) {
       console.error('Signup error:', error);
@@ -99,7 +124,10 @@ export default function SignupScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <LinearGradient
+      colors={[COLORS.gradientStart, COLORS.gradientMid, COLORS.gradientEnd]}
+      style={styles.container}
+    >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -111,11 +139,11 @@ export default function SignupScreen({ navigation }) {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
-              <Ionicons name="construct" size={48} color={Colors.primaryBlue} />
+            <View style={styles.iconContainer}>
+              <Ionicons name="construct" size={48} color={COLORS.primary} />
             </View>
-            <Text style={[styles.title, { color: Colors.primaryText }]}>{t('signup.title')}</Text>
-            <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+            <Text style={styles.title}>{t('signup.title')}</Text>
+            <Text style={styles.subtitle}>
               {t('signup.subtitle')}
             </Text>
           </View>
@@ -124,41 +152,51 @@ export default function SignupScreen({ navigation }) {
           <View style={styles.form}>
             {/* Email Input */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('signup.emailLabel')}</Text>
-              <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-                <Ionicons name="mail-outline" size={20} color={Colors.secondaryText} />
+              <Text style={styles.label}>{t('signup.emailLabel')}</Text>
+              <View style={[
+                styles.inputContainer,
+                emailFocused && styles.inputContainerFocused
+              ]}>
+                <Ionicons name="mail-outline" size={20} color={emailFocused ? COLORS.primary : COLORS.textMuted} />
                 <TextInput
-                  style={[styles.input, { color: Colors.primaryText }]}
+                  style={styles.input}
                   placeholder={t('signup.emailPlaceholder')}
-                  placeholderTextColor={Colors.secondaryText}
+                  placeholderTextColor={COLORS.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
                 />
               </View>
             </View>
 
             {/* Password Input */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('signup.passwordLabel')}</Text>
-              <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.secondaryText} />
+              <Text style={styles.label}>{t('signup.passwordLabel')}</Text>
+              <View style={[
+                styles.inputContainer,
+                passwordFocused && styles.inputContainerFocused
+              ]}>
+                <Ionicons name="lock-closed-outline" size={20} color={passwordFocused ? COLORS.primary : COLORS.textMuted} />
                 <TextInput
-                  style={[styles.input, { color: Colors.primaryText }]}
+                  style={styles.input}
                   placeholder={t('signup.passwordPlaceholder')}
-                  placeholderTextColor={Colors.secondaryText}
+                  placeholderTextColor={COLORS.textMuted}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color={Colors.secondaryText}
+                    color={COLORS.textMuted}
                   />
                 </TouchableOpacity>
               </View>
@@ -166,23 +204,28 @@ export default function SignupScreen({ navigation }) {
 
             {/* Confirm Password Input */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('signup.confirmPasswordLabel')}</Text>
-              <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.secondaryText} />
+              <Text style={styles.label}>{t('signup.confirmPasswordLabel')}</Text>
+              <View style={[
+                styles.inputContainer,
+                confirmFocused && styles.inputContainerFocused
+              ]}>
+                <Ionicons name="lock-closed-outline" size={20} color={confirmFocused ? COLORS.primary : COLORS.textMuted} />
                 <TextInput
-                  style={[styles.input, { color: Colors.primaryText }]}
+                  style={styles.input}
                   placeholder={t('signup.confirmPasswordPlaceholder')}
-                  placeholderTextColor={Colors.secondaryText}
+                  placeholderTextColor={COLORS.textMuted}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
+                  onFocus={() => setConfirmFocused(true)}
+                  onBlur={() => setConfirmFocused(false)}
                 />
                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                   <Ionicons
                     name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color={Colors.secondaryText}
+                    color={COLORS.textMuted}
                   />
                 </TouchableOpacity>
               </View>
@@ -190,10 +233,7 @@ export default function SignupScreen({ navigation }) {
 
             {/* Signup Button */}
             <TouchableOpacity
-              style={[styles.button, {
-                backgroundColor: Colors.primaryBlue,
-                opacity: loading ? 0.6 : 1
-              }]}
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignup}
               disabled={loading}
               activeOpacity={0.8}
@@ -210,17 +250,17 @@ export default function SignupScreen({ navigation }) {
 
             {/* Login Link */}
             <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: Colors.secondaryText }]}>
+              <Text style={styles.footerText}>
                 {t('signup.hasAccount')}{' '}
               </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={[styles.linkText, { color: Colors.primaryBlue }]}>{t('signup.signInLink')}</Text>
+                <Text style={styles.linkText}>{t('signup.signInLink')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
@@ -230,80 +270,113 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: Spacing.xl,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
     justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    marginBottom: 40,
   },
   iconContainer: {
     width: 96,
     height: 96,
     borderRadius: 48,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: 24,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
   title: {
-    fontSize: FontSizes.xlarge,
-    fontWeight: '700',
-    marginBottom: Spacing.xs,
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: FontSizes.body,
+    fontSize: 15,
+    color: COLORS.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 24,
   },
   form: {
     width: '100%',
   },
   inputGroup: {
-    marginBottom: Spacing.lg,
+    marginBottom: 20,
   },
   label: {
-    fontSize: FontSizes.body,
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: Spacing.sm,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: COLORS.glassBg,
     borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  inputContainerFocused: {
+    borderColor: COLORS.borderFocus,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   input: {
     flex: 1,
-    paddingVertical: Spacing.md,
-    fontSize: FontSizes.body,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: COLORS.textPrimary,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing.lg,
-    gap: Spacing.sm,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 24,
+    gap: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
-    fontSize: FontSizes.body,
+    fontSize: 16,
     fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: Spacing.xl,
+    marginTop: 24,
   },
   footerText: {
-    fontSize: FontSizes.body,
+    fontSize: 14,
+    color: COLORS.textSecondary,
   },
   linkText: {
-    fontSize: FontSizes.body,
+    fontSize: 14,
     fontWeight: '600',
+    color: COLORS.primary,
   },
 });

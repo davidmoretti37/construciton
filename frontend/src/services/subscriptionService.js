@@ -4,7 +4,8 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import logger from '../utils/logger';
 
@@ -93,7 +94,62 @@ const subscriptionService = {
   },
 
   /**
-   * Start checkout flow for a subscription plan
+   * Start GUEST checkout flow (no authentication required)
+   * For users who haven't signed up yet - pay first flow
+   * Opens Stripe Checkout in the device's browser
+   * @param {string} tier - 'starter' | 'pro' | 'business'
+   * @returns {Promise<Object>} { sessionId, url }
+   */
+  startGuestCheckout: async (tier) => {
+    try {
+      logger.info(`[SubscriptionService] Starting GUEST checkout for tier: ${tier}`);
+
+      const url = `${API_URL}/api/stripe/create-guest-checkout`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tier }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to create checkout');
+      }
+
+      const data = await response.json();
+
+      // Open Stripe Checkout in browser
+      if (data.url) {
+        try {
+          // Use expo-web-browser for more reliable URL opening
+          await WebBrowser.openBrowserAsync(data.url, {
+            dismissButtonStyle: 'close',
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          });
+          logger.info('[SubscriptionService] Opened Stripe Guest Checkout');
+        } catch (browserError) {
+          // Fallback to Linking if WebBrowser fails
+          logger.warn('[SubscriptionService] WebBrowser failed, trying Linking:', browserError);
+          const supported = await Linking.canOpenURL(data.url);
+          if (supported) {
+            await Linking.openURL(data.url);
+          } else {
+            throw new Error('Cannot open checkout URL');
+          }
+        }
+      }
+
+      return data;
+    } catch (error) {
+      logger.error('[SubscriptionService] startGuestCheckout error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Start checkout flow for a subscription plan (requires auth)
    * Opens Stripe Checkout in the device's browser
    * @param {string} tier - 'starter' | 'pro' | 'business'
    * @returns {Promise<Object>} { sessionId, url }
@@ -109,12 +165,20 @@ const subscriptionService = {
 
       // Open Stripe Checkout in browser
       if (data.url) {
-        const supported = await Linking.canOpenURL(data.url);
-        if (supported) {
-          await Linking.openURL(data.url);
+        try {
+          await WebBrowser.openBrowserAsync(data.url, {
+            dismissButtonStyle: 'close',
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          });
           logger.info('[SubscriptionService] Opened Stripe Checkout');
-        } else {
-          throw new Error('Cannot open checkout URL');
+        } catch (browserError) {
+          logger.warn('[SubscriptionService] WebBrowser failed, trying Linking:', browserError);
+          const supported = await Linking.canOpenURL(data.url);
+          if (supported) {
+            await Linking.openURL(data.url);
+          } else {
+            throw new Error('Cannot open checkout URL');
+          }
         }
       }
 
@@ -122,6 +186,23 @@ const subscriptionService = {
     } catch (error) {
       logger.error('[SubscriptionService] startCheckout error:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Link pending subscription after user signs up
+   * Call this after user creates their account
+   * @returns {Promise<Object>} { linked, planTier, status }
+   */
+  linkPendingSubscription: async () => {
+    try {
+      logger.info('[SubscriptionService] Checking for pending subscription to link');
+      return await fetchWithAuth('/api/stripe/link-pending-subscription', {
+        method: 'POST',
+      });
+    } catch (error) {
+      logger.error('[SubscriptionService] linkPendingSubscription error:', error);
+      return { linked: false };
     }
   },
 
@@ -140,12 +221,20 @@ const subscriptionService = {
 
       // Open portal in browser
       if (data.url) {
-        const supported = await Linking.canOpenURL(data.url);
-        if (supported) {
-          await Linking.openURL(data.url);
+        try {
+          await WebBrowser.openBrowserAsync(data.url, {
+            dismissButtonStyle: 'close',
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          });
           logger.info('[SubscriptionService] Opened Stripe Customer Portal');
-        } else {
-          throw new Error('Cannot open portal URL');
+        } catch (browserError) {
+          logger.warn('[SubscriptionService] WebBrowser failed, trying Linking:', browserError);
+          const supported = await Linking.canOpenURL(data.url);
+          if (supported) {
+            await Linking.openURL(data.url);
+          } else {
+            throw new Error('Cannot open portal URL');
+          }
         }
       }
 
