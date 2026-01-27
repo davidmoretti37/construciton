@@ -32,6 +32,7 @@ import NonWorkingDatesManager from './NonWorkingDatesManager';
 import FullscreenPhotoViewer from './FullscreenPhotoViewer';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import { supabase } from '../lib/supabase';
+import { DEMO_PHASES } from '../screens/ProjectsScreen';
 
 export default function ProjectDetailView({ visible, project, onClose, onEdit, onAction, navigation, onDelete, asScreen = false, onRefreshNeeded, isDemo = false }) {
   const { isDark = false } = useTheme() || {};
@@ -118,10 +119,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // Skip all database fetches for demo projects
   useEffect(() => {
     const loadData = async () => {
-      // Skip all database operations for demo projects
+      // Skip all database operations for demo projects - use mock data
       if (isDemo) {
-        setPhases([]);
-        setWorkers([]);
+        setPhases(DEMO_PHASES); // Show demo phases
+        setWorkers([
+          { id: 'demo-worker-1', name: 'John Smith', trade: 'Plumber' },
+          { id: 'demo-worker-2', name: 'Maria Garcia', trade: 'Electrician' },
+        ]);
         setManualTasks([]);
         setCalculatedProgress(50); // Demo progress
         setPhotosByPhase({});

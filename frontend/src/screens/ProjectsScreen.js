@@ -42,14 +42,55 @@ const DEMO_PROJECT = {
   id: 'demo',
   name: 'Kitchen Renovation',
   client: 'Sample Client',
+  clientPhone: '(555) 123-4567',
+  clientEmail: 'sample@example.com',
+  location: '123 Main Street, Austin, TX',
   contractAmount: 25000,
   incomeCollected: 12500,
   expenses: 8000,
   percentComplete: 50,
   status: 'active',
   daysRemaining: 14,
+  startDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 days ago
+  endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 days from now
+  hasPhases: true,
   isDemo: true,
 };
+
+// Demo phases for the demo project
+const DEMO_PHASES = [
+  {
+    id: 'demo-phase-1',
+    name: 'Demolition',
+    completion_percentage: 100,
+    status: 'completed',
+    order_index: 0,
+  },
+  {
+    id: 'demo-phase-2',
+    name: 'Plumbing & Electrical',
+    completion_percentage: 75,
+    status: 'in_progress',
+    order_index: 1,
+  },
+  {
+    id: 'demo-phase-3',
+    name: 'Cabinets & Countertops',
+    completion_percentage: 25,
+    status: 'in_progress',
+    order_index: 2,
+  },
+  {
+    id: 'demo-phase-4',
+    name: 'Finishing & Cleanup',
+    completion_percentage: 0,
+    status: 'pending',
+    order_index: 3,
+  },
+];
+
+// Export demo phases for use in ProjectDetailView
+export { DEMO_PHASES };
 
 export default function ProjectsScreen({ navigation, route }) {
   const { t } = useTranslation('projects');
