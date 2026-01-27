@@ -243,13 +243,23 @@ export const sendPlanningRequest = async (message, systemPrompt) => {
         content = content.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
 
+      // Fix common JSON issues (trailing commas from AI responses)
+      const cleanJson = (str) => str
+        .replace(/,\s*]/g, ']')   // Remove trailing commas in arrays
+        .replace(/,\s*}/g, '}');  // Remove trailing commas in objects
+
       try {
-        return JSON.parse(content);
+        return JSON.parse(cleanJson(content));
       } catch (parseError) {
         // Try to extract JSON from response
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          return JSON.parse(jsonMatch[0]);
+          return JSON.parse(cleanJson(jsonMatch[0]));
+        }
+        // Also try array match
+        const arrayMatch = content.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          return JSON.parse(cleanJson(arrayMatch[0]));
         }
         logger.warn('⚠️ Planning response was not valid JSON:', content.substring(0, 200));
         return content;

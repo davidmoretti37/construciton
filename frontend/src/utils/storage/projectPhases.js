@@ -112,6 +112,10 @@ Return ONLY a valid JSON array with date for each task (by index):
         if (arrayMatch) {
           jsonStr = arrayMatch[0];
         }
+        // Fix common JSON issues (trailing commas from AI responses)
+        jsonStr = jsonStr
+          .replace(/,\s*]/g, ']')   // Remove trailing commas in arrays
+          .replace(/,\s*}/g, '}');  // Remove trailing commas in objects
         distribution = JSON.parse(jsonStr);
       }
     } catch (parseError) {
