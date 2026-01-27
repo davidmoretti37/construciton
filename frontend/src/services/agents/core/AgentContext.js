@@ -23,7 +23,7 @@ const contextCache = {
 export const AGENT_DATA_REQUIREMENTS = {
   'WorkersSchedulingAgent': ['workers', 'clockedInToday', 'workSchedules', 'completedShiftsToday', 'staleClockIns', 'scheduleEvents', 'projects'],
   'FinancialAgent': ['projects', 'invoices', 'estimates'],
-  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate'],
+  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate', 'constructionKnowledge'],
   'EstimateInvoiceAgent': ['projects', 'estimates', 'invoices', 'userServices', 'pricingHistory', 'subcontractorQuotes'],
   'DocumentAgent': ['projects', 'estimates', 'invoices', 'contractDocuments', 'workers'],
   'SettingsConfigAgent': ['userServices', 'pricingHistory', 'subcontractorQuotes'],
@@ -386,6 +386,29 @@ export const fetchAgentSpecificContext = async (agentName) => {
       fetchKeys.push('phasesTemplate');
       fetchPromises.push(Promise.resolve(userProfile.phasesTemplate || null));
     }
+    if (requirements.includes('constructionKnowledge')) {
+      // Fetch construction knowledge graph data for intelligent project creation
+      fetchKeys.push('constructionKnowledge');
+      const { getAllProjectTypes, getTasksForProjectType, getSchedulingConstraints } = require('../../../utils/constructionKnowledge');
+      fetchPromises.push(
+        Promise.all([
+          getAllProjectTypes(),
+          getTasksForProjectType('bathroom'), // Pre-fetch common project types
+          getTasksForProjectType('kitchen'),
+          getSchedulingConstraints()
+        ]).then(([projectTypes, bathroomTasks, kitchenTasks, constraints]) => ({
+          projectTypes: projectTypes || [],
+          tasksByCategory: {
+            bathroom: bathroomTasks || [],
+            kitchen: kitchenTasks || [],
+          },
+          constraints: constraints || []
+        })).catch(err => {
+          logger.debug('[AgentContext] Construction knowledge not available:', err.message);
+          return null; // Return null if tables don't exist yet
+        })
+      );
+    }
 
     // Execute all required fetches in parallel
     const results = await Promise.all(fetchPromises);
@@ -502,6 +525,8 @@ export const fetchAgentSpecificContext = async (agentName) => {
       completedShiftsToday: data.completedShiftsToday || [],
       staleClockIns: data.staleClockIns || [],
       stats: stats,
+      // Construction knowledge graph for intelligent project creation
+      constructionKnowledge: data.constructionKnowledge || null,
     };
   } catch (error) {
     logger.error('Error in fetchAgentSpecificContext:', error);

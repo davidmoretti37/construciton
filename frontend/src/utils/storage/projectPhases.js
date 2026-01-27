@@ -146,11 +146,41 @@ Return ONLY a valid JSON array with date for each task (by index):
         title: task.title,
         description: task.isFromPhase ? `Phase: ${task.phaseName}` : 'Manually added',
         start_date: date,
-        end_date: date,
+        end_date: date, // Will be extended below to fill gaps
         status: 'pending',
         phase_task_id: task.isFromPhase ? `phase-task-${taskIndex}` : null,
       };
     }).filter(Boolean);
+
+    // 10. Fill gaps - extend each task's end_date to day before next task
+    // This ensures no blank days on the schedule
+    if (tasksToCreate.length > 1) {
+      // Sort by start_date
+      tasksToCreate.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+      for (let i = 0; i < tasksToCreate.length - 1; i++) {
+        const currentTask = tasksToCreate[i];
+        const nextTask = tasksToCreate[i + 1];
+
+        // Calculate day before next task starts
+        const nextStart = new Date(nextTask.start_date + 'T00:00:00');
+        nextStart.setDate(nextStart.getDate() - 1);
+        const newEndDate = nextStart.toISOString().split('T')[0];
+
+        // Only extend if there's a gap (don't shrink if tasks overlap)
+        if (new Date(newEndDate) > new Date(currentTask.end_date)) {
+          currentTask.end_date = newEndDate;
+          console.log(`🤖 [AI-DISTRIBUTE] Extended "${currentTask.title}" to ${newEndDate}`);
+        }
+      }
+
+      // Last task extends to project end date
+      const lastTask = tasksToCreate[tasksToCreate.length - 1];
+      if (timeline.endDate && new Date(timeline.endDate) > new Date(lastTask.end_date)) {
+        lastTask.end_date = timeline.endDate;
+        console.log(`🤖 [AI-DISTRIBUTE] Extended last task to project end: ${timeline.endDate}`);
+      }
+    }
 
     if (tasksToCreate.length > 0) {
       const { error } = await supabase
@@ -382,7 +412,36 @@ export const createWorkerTasksFromPhases = async (projectId, ownerId, phases) =>
       }
     }
 
-    // 8. Insert all tasks into database
+    // 8. Fill gaps - extend each task's end_date to day before next task
+    // This ensures no blank days on the schedule
+    if (tasksToCreate.length > 1) {
+      // Sort by start_date
+      tasksToCreate.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+      for (let i = 0; i < tasksToCreate.length - 1; i++) {
+        const currentTask = tasksToCreate[i];
+        const nextTask = tasksToCreate[i + 1];
+
+        // Calculate day before next task starts
+        const nextStart = new Date(nextTask.start_date + 'T00:00:00');
+        nextStart.setDate(nextStart.getDate() - 1);
+        const newEndDate = nextStart.toISOString().split('T')[0];
+
+        // Only extend if there's a gap (don't shrink if tasks overlap)
+        if (new Date(newEndDate) > new Date(currentTask.end_date)) {
+          currentTask.end_date = newEndDate;
+        }
+      }
+
+      // Last task extends to project end date
+      const lastTask = tasksToCreate[tasksToCreate.length - 1];
+      const projectEndStr = projectEnd.toISOString().split('T')[0];
+      if (new Date(projectEndStr) > new Date(lastTask.end_date)) {
+        lastTask.end_date = projectEndStr;
+      }
+    }
+
+    // 9. Insert all tasks into database
     if (tasksToCreate.length > 0) {
       const { error } = await supabase
         .from('worker_tasks')
@@ -391,7 +450,7 @@ export const createWorkerTasksFromPhases = async (projectId, ownerId, phases) =>
       if (error) {
         console.error('Error creating worker tasks from phases:', error);
       } else {
-        console.log(`✅ Created ${tasksToCreate.length} worker tasks from phases`);
+        console.log(`✅ Created ${tasksToCreate.length} worker tasks from phases (gaps filled)`);
       }
     }
   } catch (error) {
