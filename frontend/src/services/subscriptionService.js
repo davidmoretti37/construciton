@@ -57,6 +57,33 @@ const fetchWithAuth = async (endpoint, options = {}) => {
 
 const subscriptionService = {
   /**
+   * Open the pricing page in web browser (App Store safe)
+   * Used instead of showing prices in-app
+   * @returns {Promise<void>}
+   */
+  openPricingPage: async () => {
+    try {
+      const pricingUrl = `${API_URL}/pricing`;
+      logger.info(`[SubscriptionService] Opening pricing page: ${pricingUrl}`);
+
+      await WebBrowser.openBrowserAsync(pricingUrl, {
+        dismissButtonStyle: 'close',
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      });
+    } catch (error) {
+      logger.error('[SubscriptionService] openPricingPage error:', error);
+      // Fallback to Linking
+      const pricingUrl = `${API_URL}/pricing`;
+      const supported = await Linking.canOpenURL(pricingUrl);
+      if (supported) {
+        await Linking.openURL(pricingUrl);
+      } else {
+        throw new Error('Cannot open pricing page');
+      }
+    }
+  },
+
+  /**
    * Get current user's subscription status
    * @returns {Promise<Object>} Subscription details
    */

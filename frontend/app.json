@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Construction Manager",
-    "slug": "consrcutionapp",
+    "slug": "constructionapp",
     "scheme": "constructionmanager",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,6 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "whatsapp",
@@ -81,8 +85,8 @@
       "eas": {
         "projectId": "d77d2431-4ce6-4ed4-b447-acdc3e6d8f1c"
       },
-      "privacyPolicyUrl": "https://yourwebsite.com/privacy-policy",
-      "termsOfServiceUrl": "https://yourwebsite.com/terms-of-service"
+      "privacyPolicyUrl": "https://construciton-production.up.railway.app/privacy",
+      "termsOfServiceUrl": "https://construciton-production.up.railway.app/terms"
     },
     "owner": "davidmoretti"
   }

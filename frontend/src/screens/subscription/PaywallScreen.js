@@ -1,7 +1,7 @@
 /**
  * PaywallScreen
- * Displays pricing options for subscription plans
- * Shown when user has no active subscription
+ * Dark mode pricing screen that blocks features until subscription
+ * Matches the premium onboarding styling
  */
 
 import React, { useState, useEffect } from 'react';
@@ -9,219 +9,286 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../contexts/ThemeContext';
-import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withDelay,
+  withSpring,
+} from 'react-native-reanimated';
 import subscriptionService from '../../services/subscriptionService';
 import { useSubscription } from '../../contexts/SubscriptionContext';
-import { useTranslation } from 'react-i18next';
+import { AnimatedBackground, PricingCard, ShimmerButton } from '../../components/onboarding';
 
-// Plan configurations
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Plan configurations (prices hidden for App Store compliance - shown on web)
 const PLANS = [
   {
-    tier: 'starter',
+    id: 'starter',
     name: 'Starter',
-    price: 49,
+    price: null, // Hidden for App Store
     projects: 3,
-    description: 'Perfect for solo contractors',
-    popular: false,
+    description: 'Solo contractors',
   },
   {
-    tier: 'pro',
+    id: 'pro',
     name: 'Pro',
-    price: 79,
+    price: null, // Hidden for App Store
     projects: 10,
-    description: 'For growing businesses',
-    popular: true,
+    description: 'Growing teams',
+    isBest: true,
   },
   {
-    tier: 'business',
+    id: 'business',
     name: 'Business',
-    price: 149,
+    price: null, // Hidden for App Store
     projects: 'Unlimited',
-    description: 'For established companies',
-    popular: false,
+    description: 'Large companies',
   },
 ];
 
-// Features included in all plans
-const FEATURES = [
-  { icon: 'chatbubble-outline', text: 'AI-powered assistant' },
-  { icon: 'document-text-outline', text: 'Estimates & invoices' },
-  { icon: 'people-outline', text: 'Worker management' },
-  { icon: 'calendar-outline', text: 'Scheduling & time tracking' },
-  { icon: 'camera-outline', text: 'Photo documentation' },
-  { icon: 'cash-outline', text: 'Financial tracking' },
-  { icon: 'globe-outline', text: '11 languages supported' },
-];
+// Benefits by plan
+const BENEFITS = {
+  starter: [
+    { icon: 'folder', text: '3 active projects' },
+    { icon: 'sparkles', text: 'AI estimates (20/mo)' },
+    { icon: 'document-text', text: 'Invoice creation' },
+    { icon: 'headset', text: 'Email support' },
+  ],
+  pro: [
+    { icon: 'folder', text: '10 active projects' },
+    { icon: 'sparkles', text: 'Unlimited AI estimates' },
+    { icon: 'people', text: 'Team management' },
+    { icon: 'stats-chart', text: 'Financial tracking' },
+    { icon: 'headset', text: 'Priority support' },
+  ],
+  business: [
+    { icon: 'infinite', text: 'Unlimited projects' },
+    { icon: 'sparkles', text: 'Unlimited AI estimates' },
+    { icon: 'people', text: 'Unlimited team members' },
+    { icon: 'analytics', text: 'Advanced analytics' },
+    { icon: 'call', text: 'Phone support' },
+    { icon: 'business', text: 'Custom integrations' },
+  ],
+};
 
-export default function PaywallScreen({ navigation, onSubscribed }) {
-  const { isDark } = useTheme();
-  const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation();
-  const [loading, setLoading] = useState(null);
-  const { justSubscribed, clearJustSubscribed, planTier } = useSubscription();
+// Animated benefit item
+const AnimatedBenefitItem = ({ text, index, animationKey }) => {
+  const opacity = useSharedValue(0);
+  const translateX = useSharedValue(-30);
+
+  useEffect(() => {
+    opacity.value = 0;
+    translateX.value = -30;
+    opacity.value = withDelay(index * 80, withSpring(1, { damping: 15 }));
+    translateX.value = withDelay(index * 80, withSpring(0, { damping: 12, stiffness: 100 }));
+  }, [animationKey, index]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.benefitItem, animatedStyle]}>
+      <Ionicons name="checkmark-circle" size={18} color="#34D399" />
+      <Text style={styles.benefitText}>{text}</Text>
+    </Animated.View>
+  );
+};
+
+export default function PaywallScreen({ navigation, onSubscribed, onClose, route }) {
+  const insets = useSafeAreaInsets();
+  const [selectedPlan, setSelectedPlan] = useState('pro');
+  const [loading, setLoading] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
+  const { justSubscribed, clearJustSubscribed, planTier, refreshSubscription, hasActiveSubscription, isLoading: subLoading } = useSubscription();
+
+  // Handle close - either use onClose prop or navigation
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    } else if (navigation?.goBack) {
+      navigation.goBack();
+    }
+  };
+
+  // Load pre-selected plan from onboarding (if any)
+  useEffect(() => {
+    const loadSavedPlan = async () => {
+      try {
+        const savedPlan = await AsyncStorage.getItem('@selectedPlan');
+        if (savedPlan && ['starter', 'pro', 'business'].includes(savedPlan)) {
+          setSelectedPlan(savedPlan);
+        }
+      } catch (error) {
+        console.log('No saved plan found');
+      }
+    };
+    loadSavedPlan();
+  }, []);
+
+  // Re-animate benefits when plan changes
+  useEffect(() => {
+    setAnimationKey(k => k + 1);
+  }, [selectedPlan]);
+
+  // Auto-close when subscription becomes active
+  useEffect(() => {
+    if (hasActiveSubscription && !subLoading) {
+      console.log('Subscription is active, closing paywall');
+      if (onSubscribed) onSubscribed();
+      handleClose();
+    }
+  }, [hasActiveSubscription, subLoading]);
 
   // Show success message when returning from Stripe checkout
   useEffect(() => {
     if (justSubscribed) {
       const planName = planTier.charAt(0).toUpperCase() + planTier.slice(1);
       Alert.alert(
-        t('subscription.welcome', 'Welcome!'),
-        t('subscription.trialActive', `Your ${planName} trial is now active. Enjoy 7 days free!`),
-        [{ text: t('common.getStarted', 'Get Started'), onPress: clearJustSubscribed }]
+        'Welcome!',
+        `Your ${planName} trial is now active. Enjoy 7 days free!`,
+        [{
+          text: 'Get Started',
+          onPress: () => {
+            clearJustSubscribed();
+            if (onSubscribed) onSubscribed();
+            handleClose();
+          }
+        }]
       );
     }
-  }, [justSubscribed, planTier, clearJustSubscribed, t]);
+  }, [justSubscribed, planTier, clearJustSubscribed, onSubscribed]);
 
-  const handleSelectPlan = async (tier) => {
+  const handleStartTrial = async () => {
     try {
-      setLoading(tier);
-      await subscriptionService.startCheckout(tier);
-      // User will be redirected to Stripe Checkout
-      // When they return, SubscriptionContext will refresh
+      setLoading(true);
+      // Open pricing page in browser (App Store compliant)
+      await subscriptionService.openPricingPage();
+
+      // User returned from browser - refresh subscription in case they subscribed
+      console.log('Returned from pricing page, refreshing subscription...');
+      await refreshSubscription();
+
     } catch (error) {
-      Alert.alert(
-        t('subscription.error', 'Error'),
-        t('subscription.checkoutFailed', 'Failed to start checkout. Please try again.')
-      );
-      console.error('Checkout error:', error);
+      Alert.alert('Error', 'Failed to open pricing page. Please try again.');
+      console.error('Pricing page error:', error);
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   };
 
-  // Pricing card component
-  const PricingCard = ({ plan }) => (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: Colors.cardBackground },
-        plan.popular && { borderColor: Colors.primaryBlue, borderWidth: 2 },
-      ]}
-    >
-      {plan.popular && (
-        <View style={[styles.popularBadge, { backgroundColor: Colors.primaryBlue }]}>
-          <Text style={styles.popularText}>
-            {t('subscription.mostPopular', 'Most Popular')}
-          </Text>
-        </View>
-      )}
-
-      <Text style={[styles.planName, { color: Colors.primaryText }]}>{plan.name}</Text>
-      <Text style={[styles.description, { color: Colors.secondaryText }]}>
-        {plan.description}
-      </Text>
-
-      <View style={styles.priceRow}>
-        <Text style={[styles.currency, { color: Colors.primaryText }]}>$</Text>
-        <Text style={[styles.price, { color: Colors.primaryText }]}>{plan.price}</Text>
-        <Text style={[styles.period, { color: Colors.secondaryText }]}>/month</Text>
-      </View>
-
-      <View style={[styles.projectLimit, { backgroundColor: Colors.background }]}>
-        <Ionicons name="folder-outline" size={20} color={Colors.primaryBlue} />
-        <Text style={[styles.projectText, { color: Colors.primaryText }]}>
-          {plan.projects === 'Unlimited' ? 'Unlimited' : plan.projects} active projects
-        </Text>
-      </View>
-
-      <TouchableOpacity
-        style={[
-          styles.selectButton,
-          {
-            backgroundColor: plan.popular ? Colors.primaryBlue : Colors.lightGray,
-          },
-        ]}
-        onPress={() => handleSelectPlan(plan.tier)}
-        disabled={loading !== null}
-        activeOpacity={0.8}
-      >
-        {loading === plan.tier ? (
-          <ActivityIndicator color={plan.popular ? '#FFF' : Colors.primaryText} />
-        ) : (
-          <Text
-            style={[
-              styles.selectButtonText,
-              { color: plan.popular ? '#FFF' : Colors.primaryText },
-            ]}
-          >
-            {t('subscription.startTrial', 'Start 7-Day Free Trial')}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </View>
-  );
+  const currentBenefits = BENEFITS[selectedPlan] || BENEFITS.pro;
+  const currentPlanName = PLANS.find(p => p.id === selectedPlan)?.name || 'Pro';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.iconCircle, { backgroundColor: Colors.primaryBlue + '15' }]}>
-            <Ionicons name="diamond-outline" size={40} color={Colors.primaryBlue} />
+    <AnimatedBackground>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        {/* Close button */}
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={handleClose}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={24} color="#94A3B8" />
+        </TouchableOpacity>
+
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <LinearGradient
+                colors={['#3B82F6', '#8B5CF6']}
+                style={styles.iconGradient}
+              >
+                <Ionicons name="diamond" size={32} color="#FFF" />
+              </LinearGradient>
+            </View>
+            <Text style={styles.title}>Unlock Full Access</Text>
+            <Text style={styles.subtitle}>Manage your projects like a pro</Text>
           </View>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
-            {t('subscription.chooseYourPlan', 'Choose Your Plan')}
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-            {t(
-              'subscription.trialDescription',
-              'Start with a 7-day free trial. Cancel anytime.'
-            )}
-          </Text>
-        </View>
 
-        {/* Pricing Cards */}
-        <View style={styles.cardsContainer}>
-          {PLANS.map((plan) => (
-            <PricingCard key={plan.tier} plan={plan} />
-          ))}
-        </View>
-
-        {/* Features Section */}
-        <View style={styles.featuresSection}>
-          <Text style={[styles.featuresTitle, { color: Colors.primaryText }]}>
-            {t('subscription.allPlansInclude', 'All plans include:')}
-          </Text>
-          <View style={styles.featuresGrid}>
-            {FEATURES.map((feature, index) => (
-              <View key={index} style={styles.featureRow}>
-                <Ionicons name={feature.icon} size={20} color={Colors.success} />
-                <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-                  {feature.text}
-                </Text>
+          {/* Plan cards */}
+          <View style={styles.cardsContainer}>
+            {PLANS.map((plan) => (
+              <View key={plan.id} style={{ flex: 1 }}>
+                <PricingCard
+                  plan={plan.name}
+                  price={plan.price}
+                  projects={plan.projects}
+                  isSelected={selectedPlan === plan.id}
+                  isBest={plan.isBest}
+                  onSelect={() => setSelectedPlan(plan.id)}
+                />
               </View>
             ))}
           </View>
-        </View>
 
-        {/* Trust badges */}
-        <View style={styles.trustSection}>
-          <View style={styles.trustBadge}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={Colors.secondaryText} />
-            <Text style={[styles.trustText, { color: Colors.secondaryText }]}>
-              Secure payment via Stripe
+          {/* Benefits list */}
+          <View style={styles.benefitsContainer}>
+            <Text style={styles.benefitsTitle}>
+              What you get with {currentPlanName}:
             </Text>
+            {currentBenefits.map((benefit, index) => (
+              <AnimatedBenefitItem
+                key={`${selectedPlan}-${benefit.text}`}
+                text={benefit.text}
+                index={index}
+                animationKey={animationKey}
+              />
+            ))}
+            {/* Trial info moved to pricing website for App Store compliance */}
           </View>
-          <View style={styles.trustBadge}>
-            <Ionicons name="refresh-outline" size={16} color={Colors.secondaryText} />
-            <Text style={[styles.trustText, { color: Colors.secondaryText }]}>
-              Cancel anytime
-            </Text>
+
+          {/* CTA */}
+          <View style={styles.ctaContainer}>
+            {loading ? (
+              <View style={styles.loadingButton}>
+                <ActivityIndicator color="#FFF" />
+              </View>
+            ) : (
+              <ShimmerButton
+                title="Get Started"
+                onPress={handleStartTrial}
+                gradientColors={['#3B82F6', '#06B6D4']}
+              />
+            )}
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+
+          {/* Trust footer */}
+          <View style={styles.trustFooter}>
+            <View style={styles.trustItem}>
+              <Ionicons name="shield-checkmark" size={14} color="#64748B" />
+              <Text style={styles.trustText}>Secure</Text>
+            </View>
+            <View style={styles.trustDivider} />
+            <View style={styles.trustItem}>
+              <Ionicons name="refresh" size={14} color="#64748B" />
+              <Text style={styles.trustText}>Cancel anytime</Text>
+            </View>
+            <View style={styles.trustDivider} />
+            <View style={styles.trustItem}>
+              <Ionicons name="card" size={14} color="#64748B" />
+              <Text style={styles.trustText}>Stripe</Text>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </AnimatedBackground>
   );
 }
 
@@ -229,138 +296,105 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  closeButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   scrollContent: {
-    padding: Spacing.lg,
-    paddingBottom: 100,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: 24,
   },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  iconContainer: {
+    marginBottom: 16,
+  },
+  iconGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    marginBottom: Spacing.sm,
+    fontWeight: '800',
+    color: '#F8FAFC',
     textAlign: 'center',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: FontSizes.body,
+    fontSize: 15,
+    color: '#94A3B8',
     textAlign: 'center',
-    lineHeight: 22,
   },
   cardsContainer: {
-    gap: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
-  card: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: -12,
-    right: 16,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.pill,
-  },
-  popularText: {
-    color: '#FFF',
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  planName: {
-    fontSize: FontSizes.header,
-    fontWeight: '700',
-    marginBottom: Spacing.xs,
-  },
-  description: {
-    fontSize: FontSizes.small,
-    marginBottom: Spacing.md,
-  },
-  priceRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: Spacing.md,
+    gap: 10,
+    marginBottom: 24,
   },
-  currency: {
-    fontSize: FontSizes.subheader,
+  benefitsContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  benefitsTitle: {
+    fontSize: 15,
     fontWeight: '600',
+    color: '#F8FAFC',
+    marginBottom: 16,
   },
-  price: {
-    fontSize: 48,
-    fontWeight: '700',
-    lineHeight: 52,
-  },
-  period: {
-    fontSize: FontSizes.body,
-    marginLeft: Spacing.xs,
-  },
-  projectLimit: {
+  benefitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
+    gap: 10,
+    paddingVertical: 8,
   },
-  projectText: {
-    fontSize: FontSizes.body,
-    fontWeight: '500',
+  benefitText: {
+    fontSize: 14,
+    color: '#CBD5E1',
   },
-  selectButton: {
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
+  ctaContainer: {
+    marginBottom: 24,
+  },
+  loadingButton: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 16,
+    paddingVertical: 18,
     alignItems: 'center',
   },
-  selectButtonText: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
-  featuresSection: {
-    marginBottom: Spacing.xl,
-  },
-  featuresTitle: {
-    fontSize: FontSizes.subheader,
-    fontWeight: '600',
-    marginBottom: Spacing.md,
-  },
-  featuresGrid: {
-    gap: Spacing.sm,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  featureText: {
-    fontSize: FontSizes.body,
-  },
-  trustSection: {
+  trustFooter: {
     flexDirection: 'row',
     justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.lg,
+    alignItems: 'center',
+    gap: 12,
   },
-  trustBadge: {
+  trustItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 4,
   },
   trustText: {
-    fontSize: FontSizes.small,
+    fontSize: 12,
+    color: '#64748B',
+  },
+  trustDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
 });
