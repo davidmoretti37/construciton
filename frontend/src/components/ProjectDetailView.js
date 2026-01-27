@@ -33,7 +33,7 @@ import FullscreenPhotoViewer from './FullscreenPhotoViewer';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import { supabase } from '../lib/supabase';
 
-export default function ProjectDetailView({ visible, project, onClose, onEdit, onAction, navigation, onDelete, asScreen = false, onRefreshNeeded }) {
+export default function ProjectDetailView({ visible, project, onClose, onEdit, onAction, navigation, onDelete, asScreen = false, onRefreshNeeded, isDemo = false }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [modalVisible, setModalVisible] = useState(visible);
@@ -723,22 +723,35 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => {
-              if (isEditing) {
-                handleSaveAllChanges();
-              } else {
-                setIsEditing(true);
-              }
-            }}
-            style={styles.editButton}
-            disabled={savingChanges}
-          >
-            <View style={[styles.editIconContainer, { backgroundColor: isEditing ? '#10B981' : Colors.primaryBlue, opacity: savingChanges ? 0.6 : 1 }]}>
-              <Ionicons name={isEditing ? "checkmark" : "create-outline"} size={20} color={Colors.white} />
-            </View>
-          </TouchableOpacity>
+          {/* Hide edit button for demo projects */}
+          {!isDemo && (
+            <TouchableOpacity
+              onPress={() => {
+                if (isEditing) {
+                  handleSaveAllChanges();
+                } else {
+                  setIsEditing(true);
+                }
+              }}
+              style={styles.editButton}
+              disabled={savingChanges}
+            >
+              <View style={[styles.editIconContainer, { backgroundColor: isEditing ? '#10B981' : Colors.primaryBlue, opacity: savingChanges ? 0.6 : 1 }]}>
+                <Ionicons name={isEditing ? "checkmark" : "create-outline"} size={20} color={Colors.white} />
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* Demo Banner */}
+        {isDemo && (
+          <View style={styles.demoBanner}>
+            <Ionicons name="information-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.demoBannerText}>
+              This is a demo project. Tap + to create your own!
+            </Text>
+          </View>
+        )}
 
         {/* Scrollable Content */}
         <ScrollView
@@ -1962,6 +1975,20 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  demoBanner: {
+    backgroundColor: '#8B5CF6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  demoBannerText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,

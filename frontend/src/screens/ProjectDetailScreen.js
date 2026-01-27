@@ -5,14 +5,15 @@ import ProjectDetailView from '../components/ProjectDetailView';
 import { getProject, deleteProject } from '../utils/storage';
 
 export default function ProjectDetailScreen({ route, navigation }) {
-  const { project, projectId, onEdit, onDelete, onRefreshNeeded } = route.params || {};
+  const { project, projectId, onEdit, onDelete, onRefreshNeeded, isDemo } = route.params || {};
   const [currentProject, setCurrentProject] = React.useState(project || null);
-  const [loading, setLoading] = React.useState(!project && !!projectId);
+  const [loading, setLoading] = React.useState(!project && !!projectId && !isDemo);
 
   // Fetch project by ID if only projectId is provided (e.g., from ChatScreen)
+  // Skip for demo projects - they don't exist in the database
   React.useEffect(() => {
     const fetchProject = async () => {
-      if (!project && projectId) {
+      if (!project && projectId && !isDemo) {
         setLoading(true);
         try {
           const fetchedProject = await getProject(projectId);
@@ -27,11 +28,13 @@ export default function ProjectDetailScreen({ route, navigation }) {
       }
     };
     fetchProject();
-  }, [project, projectId]);
+  }, [project, projectId, isDemo]);
 
   // Refresh project data when screen gains focus (e.g., returning from schedule after completing tasks)
+  // Skip for demo projects - they don't exist in the database
   useFocusEffect(
     React.useCallback(() => {
+      if (isDemo) return; // Skip refresh for demo projects
       const refreshOnFocus = async () => {
         const id = currentProject?.id || projectId;
         if (id) {
@@ -46,7 +49,7 @@ export default function ProjectDetailScreen({ route, navigation }) {
         }
       };
       refreshOnFocus();
-    }, [currentProject?.id, projectId])
+    }, [currentProject?.id, projectId, isDemo])
   );
 
   const handleClose = () => {
@@ -62,6 +65,11 @@ export default function ProjectDetailScreen({ route, navigation }) {
   };
 
   const handleDelete = async () => {
+    // Demo projects can't be deleted
+    if (isDemo) {
+      Alert.alert('Demo Project', 'This is a demo project. Create your own project to get started!');
+      return;
+    }
     const id = currentProject?.id || projectId;
     if (id) {
       try {
@@ -121,11 +129,12 @@ export default function ProjectDetailScreen({ route, navigation }) {
       visible={true}
       project={currentProject}
       onClose={handleClose}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
+      onEdit={isDemo ? null : handleEdit}
+      onDelete={isDemo ? null : handleDelete}
       navigation={navigation}
       asScreen={true}
-      onRefreshNeeded={handleRefresh}
+      onRefreshNeeded={isDemo ? null : handleRefresh}
+      isDemo={isDemo}
     />
   );
 }

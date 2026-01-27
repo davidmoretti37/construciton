@@ -44,12 +44,25 @@ export default function SimpleProjectCard({ project, onPress }) {
   const statusColor = getStatusColor(project.status);
   const projectIcon = getProjectIcon();
 
+  const isDemo = project.isDemo;
+
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: Colors.navBarBackground }]}
+      style={[
+        styles.card,
+        { backgroundColor: Colors.navBarBackground },
+        isDemo && styles.demoCard
+      ]}
       onPress={onPress}
       activeOpacity={0.8}
     >
+      {/* Demo Badge */}
+      {isDemo && (
+        <View style={styles.demoBadge}>
+          <Text style={styles.demoBadgeText}>DEMO</Text>
+        </View>
+      )}
+
       {/* Top Section */}
       <View style={styles.topSection}>
         <View style={[styles.iconContainer, { backgroundColor: statusColor + '12' }]}>
@@ -90,6 +103,29 @@ const createStyles = (Colors) => StyleSheet.create({
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  demoCard: {
+    borderColor: '#8B5CF6',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+  },
+  demoBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    zIndex: 1,
+  },
+  demoBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   topSection: {
     marginBottom: 12,

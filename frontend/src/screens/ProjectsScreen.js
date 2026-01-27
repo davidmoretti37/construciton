@@ -34,12 +34,28 @@ import SimpleProjectCard from '../components/SimpleProjectCard';
 import NotificationBell from '../components/NotificationBell';
 import UpgradeModal from '../components/UpgradeModal';
 import subscriptionService from '../services/subscriptionService';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import logger from '../utils/logger';
+
+// Demo project shown when user has no projects yet
+const DEMO_PROJECT = {
+  id: 'demo',
+  name: 'Kitchen Renovation',
+  client: 'Sample Client',
+  contractAmount: 25000,
+  incomeCollected: 12500,
+  expenses: 8000,
+  percentComplete: 50,
+  status: 'active',
+  daysRemaining: 14,
+  isDemo: true,
+};
 
 export default function ProjectsScreen({ navigation, route }) {
   const { t } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { hasActiveSubscription } = useSubscription();
 
   // Use custom hook for projects data
   const { projects, loading, hasLoadedOnce, loadProjects, addProject, updateProject, removeProject } = useProjects();
@@ -322,6 +338,11 @@ export default function ProjectsScreen({ navigation, route }) {
   // OPTIMIZATION: Memoized filter logic
   // Only recalculates when projects, filter, or debounced search changes
   const filteredProjects = useMemo(() => {
+    // If user has no projects and no search/filter active, show demo project
+    if (projects.length === 0 && !debouncedSearchQuery && selectedFilter === 'All') {
+      return [DEMO_PROJECT];
+    }
+
     return projects.filter(project => {
       // Apply filter
       if (selectedFilter !== 'All') {
@@ -350,6 +371,14 @@ export default function ProjectsScreen({ navigation, route }) {
   }, [projects, selectedFilter, debouncedSearchQuery]);
 
   const handleProjectCardPress = async (project) => {
+    // Handle demo project - navigate with isDemo flag for read-only mode
+    if (project.isDemo) {
+      navigation.navigate('ProjectDetail', {
+        project,
+        isDemo: true,
+      });
+      return;
+    }
     setSelectedProject(project);
     navigation.navigate('ProjectDetail', {
       project,
@@ -414,6 +443,14 @@ export default function ProjectsScreen({ navigation, route }) {
 
   // Check subscription before creating new project
   const handleNewProjectPress = async () => {
+    // First check if user has ANY subscription
+    if (!hasActiveSubscription) {
+      // No subscription at all - show the full paywall
+      navigation.navigate('Settings', { screen: 'Paywall' });
+      return;
+    }
+
+    // User has subscription - check if they're at their limit
     try {
       const result = await subscriptionService.canCreateProject();
       if (!result.can_create) {
@@ -421,11 +458,16 @@ export default function ProjectsScreen({ navigation, route }) {
         setShowUpgradeModal(true);
         return;
       }
-      setNewProjectOpen(true);
+      // Navigate to Chat with initial message to create project via AI
+      navigation.navigate('Chat', {
+        initialMessage: 'I want to create a new project'
+      });
     } catch (error) {
-      // If check fails, allow user to proceed (fail open)
-      logger.warn('Subscription check failed, allowing new project:', error);
-      setNewProjectOpen(true);
+      // If check fails, navigate to chat anyway (fail open)
+      logger.warn('Subscription check failed, navigating to chat:', error);
+      navigation.navigate('Chat', {
+        initialMessage: 'I want to create a new project'
+      });
     }
   };
 
