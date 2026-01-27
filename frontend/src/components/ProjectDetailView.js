@@ -115,8 +115,24 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const screenWidth = Dimensions.get('window').width;
 
   // Load phases and workers when project changes
+  // Skip all database fetches for demo projects
   useEffect(() => {
     const loadData = async () => {
+      // Skip all database operations for demo projects
+      if (isDemo) {
+        setPhases([]);
+        setWorkers([]);
+        setManualTasks([]);
+        setCalculatedProgress(50); // Demo progress
+        setPhotosByPhase({});
+        setTotalPhotos(0);
+        setProjectEstimates([]);
+        setCalculatedExpenses(8000); // Demo expenses
+        setCalculatedIncome(12500); // Demo income
+        setProjectDocuments([]);
+        return;
+      }
+
       if (project?.id) {
         // Load phases if project has them
         if (project?.hasPhases) {
@@ -234,7 +250,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       // Reset editing state
       setIsEditing(false);
     }
-  }, [project?.id, project?.hasPhases, visible]);
+  }, [project?.id, project?.hasPhases, visible, isDemo]);
 
   // Sync modal visibility with prop
   useEffect(() => {
