@@ -14,5 +14,6 @@ export { default as ProjectOverview } from './ProjectOverview';
 export { default as PhaseOverview } from './PhaseOverview';
 export { default as ContractPreview } from './ContractPreview';
 export { default as ContractList } from './ContractList';
+export { default as DocumentPicker } from './DocumentPicker';
 export { default as DailyReportList } from './DailyReportList';
 export { default as AppointmentCard } from './AppointmentCard';

@@ -652,12 +652,13 @@ User says: "Send a contract to John" or "Share the contract with Martinez" or "S
 
 **Response Format (multiple contracts - let user choose):**
 {
-  "text": "You have ${context.contractDocuments?.length || 0} contracts. Which one would you like to send?",
+  "text": "Which document would you like to send to [recipient name]?",
   "visualElements": [{
-    "type": "contract-list-selectable",
+    "type": "document-picker",
     "data": {
-      "contracts": context.contractDocuments,
-      "action": "send"
+      "documents": context.contractDocuments,
+      "action": "send",
+      "recipientName": "[recipient name from user message]"
     }
   }],
   "actions": []

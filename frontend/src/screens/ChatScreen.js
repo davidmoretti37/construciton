@@ -12,6 +12,8 @@ import {
   Keyboard,
   TextInput,
   Linking,
+  Share,
+  ActionSheetIOS,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,7 +26,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, formatProjectConfirmation, setVoiceMode } from '../services/aiService';
 import CoreAgent from '../services/agents/core/CoreAgent';
-import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, WorkerPaymentCard, DailyReportList, AppointmentCard } from '../components/ChatVisuals';
+import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard } from '../components/ChatVisuals';
 import { formatEstimate } from '../utils/estimateFormatter';
 import { sendEstimateViaSMS, sendEstimateViaWhatsApp, isValidPhoneNumber } from '../utils/messaging';
 import { fetchWorkers, fetchProjects, getUserProfile, getUserServices, updateUserServicePricing, saveProject, transformScreenshotToProject, getProject, saveEstimate, updateEstimate, createInvoiceFromEstimate, markInvoiceAsPaid, updateInvoicePDF, getInvoice, updateTradePricing, updatePhaseProgress, extendPhaseTimeline, startPhase, completePhase, fetchProjectPhases, addTaskToPhase, saveDailyReport, savePhasePaymentAmount, deleteProject, createProjectFromEstimate, createWorker, updateWorker, clockIn, clockOut, getActiveClockIn, createScheduleEvent, updateScheduleEvent, deleteScheduleEvent, createWorkSchedule, updateWorkSchedule, deleteWorkSchedule, updateBusinessInfo, updatePhaseTemplate, addServiceToTrade, removeServiceFromTrade, updateServicePricing, updateProfitMargin, saveSubcontractorQuote, updateSubcontractorQuote, deleteSubcontractorQuote, updateInvoiceTemplate, updateInvoice, deleteInvoice, recordInvoicePayment, voidInvoice, uploadContractDocument, calculateWorkerPaymentForPeriod, fetchPhotosWithFilters, fetchDailyReportsWithFilters, fetchDailyReportById, getTodaysWorkersSchedule, editTimeEntry, createManualTimeEntry, deleteTimeEntry, createRecurringEvent, updateRecurringEvent, deleteRecurringEvent, setWorkerAvailability, setWorkerPTO, removeWorkerAvailability, createCrew, getCrew, updateCrew, deleteCrew, createShiftTemplate, applyShiftTemplate, deleteShiftTemplate, startWorkerBreak, endWorkerBreak, swapWorkerShifts, fetchScheduleEvents, getProjectWorkers, getAverageWorkerRate } from '../utils/storage';
@@ -36,6 +38,7 @@ import AddCustomServiceModal from '../components/AddCustomServiceModal';
 import OrbitalLoader from '../components/OrbitalLoader';
 import StatusMessage from '../components/StatusMessage';
 import NotificationBell from '../components/NotificationBell';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 // Action hooks
 import {
@@ -104,8 +107,9 @@ export default function ChatScreen({ navigation, route }) {
   const [currentProject, setCurrentProject] = useState(null);
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('chat');
+  const { t } = useTranslation(['chat', 'common']);
   const aiTimeoutRef = useRef(null); // Store timeout ID for AI response
+  const { hasActiveSubscription } = useSubscription();
 
   // Helper function to add AI messages programmatically
   const addAIMessage = useCallback((text) => {
@@ -280,6 +284,12 @@ export default function ChatScreen({ navigation, route }) {
 
   const handleSend = async (text, withSearch) => {
     if (text.trim() === '') return;
+
+    // Check subscription before allowing AI chat
+    if (!hasActiveSubscription) {
+      navigation.navigate('Settings', { screen: 'Paywall' });
+      return;
+    }
 
     // Check if user clicked "➕ Other" to add custom service
     if (text === '➕ Other') {
@@ -1010,7 +1020,7 @@ export default function ChatScreen({ navigation, route }) {
         setShowJobNameInput(true);
         break;
       case 'assign-workers':
-        Alert.alert('Assign Workers', 'Worker assignment feature coming soon!');
+        Alert.alert(t('common:alerts.info'), t('common:messages.featureComingSoon', { feature: 'Worker assignment' }));
         break;
 
       // Message/Chat Actions
@@ -1033,11 +1043,11 @@ export default function ChatScreen({ navigation, route }) {
         break;
       case 'cancel-appointment':
         Alert.alert(
-          'Cancel Appointment',
-          `Are you sure you want to cancel "${action.data?.title || 'this appointment'}"?`,
+          t('common:alerts.confirm'),
+          t('common:alerts.areYouSure'),
           [
-            { text: 'Keep', style: 'cancel' },
-            { text: 'Cancel Appointment', style: 'destructive', onPress: () => scheduleActions.handleDeleteScheduleEvent({ id: action.data?.id, eventTitle: action.data?.title }) }
+            { text: t('common:buttons.cancel'), style: 'cancel' },
+            { text: t('common:buttons.delete'), style: 'destructive', onPress: () => scheduleActions.handleDeleteScheduleEvent({ id: action.data?.id, eventTitle: action.data?.title }) }
           ]
         );
         break;
@@ -1274,10 +1284,10 @@ export default function ChatScreen({ navigation, route }) {
         try {
           const report = await fetchDailyReportById(action.data.reportId);
           if (report) navigation.navigate('DailyReportDetail', { report });
-          else Alert.alert('Error', 'Could not load report details');
+          else Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'report details' }));
         } catch (error) {
           console.error('Error fetching report:', error);
-          Alert.alert('Error', 'Could not load report details');
+          Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'report details' }));
         }
         break;
       case 'view-photo':
@@ -1330,6 +1340,9 @@ export default function ChatScreen({ navigation, route }) {
       case 'share-contract':
         await handleShareContract(action.data);
         break;
+      case 'document-selected':
+        await handleDocumentSelected(action.data);
+        break;
 
       // Maps Action
       case 'open-maps':
@@ -1337,8 +1350,8 @@ export default function ChatScreen({ navigation, route }) {
         break;
 
       default:
-        console.error('❌ Unknown action type:', action.type);
-        Alert.alert('Unknown Action', `Action "${action.type}" is not supported.`);
+        console.error('Unknown action type:', action.type);
+        Alert.alert(t('common:alerts.error'), t('common:messages.featureComingSoon', { feature: action.type }));
     }
   };
 
@@ -1493,7 +1506,7 @@ export default function ChatScreen({ navigation, route }) {
       const userServices = await getUserServices();
 
       if (userServices.length === 0) {
-        Alert.alert('No Services', 'Please add a service from the More screen first.');
+        Alert.alert(t('common:alerts.missingInfo'), t('common:messages.pleaseSelect', { item: 'a service from the More screen' }));
         return;
       }
 
@@ -1529,12 +1542,12 @@ export default function ChatScreen({ navigation, route }) {
       await handleSend(formattedService, false);
 
       Alert.alert(
-        'Service Added!',
-        `${serviceData.label} has been saved to your pricing and will appear in future estimates.`
+        t('common:alerts.success'),
+        t('common:messages.savedSuccessfully', { item: serviceData.label })
       );
     } catch (error) {
       console.error('Error adding custom service:', error);
-      Alert.alert('Error', 'Failed to save custom service. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'custom service' }));
     }
   };
 
@@ -1633,15 +1646,15 @@ export default function ChatScreen({ navigation, route }) {
         if (existingProject) {
           // Project exists - give user 2 clear options
           Alert.alert(
-            'Save Estimate',
-            `How would you like to save this estimate${completeEstimateData.projectName ? ` for "${completeEstimateData.projectName}"` : ''}?`,
+            t('common:alerts.confirm'),
+            t('common:messages.pleaseSelect', { item: 'how to save this estimate' }),
             [
               {
-                text: 'Cancel',
+                text: t('common:buttons.cancel'),
                 style: 'cancel'
               },
               {
-                text: 'Save Only',
+                text: t('common:buttons.save'),
                 onPress: async () => {
                   // Save estimate without linking to project
                   const savedEstimate = await saveEstimate({
@@ -1649,17 +1662,17 @@ export default function ChatScreen({ navigation, route }) {
                     projectId: null // Remove link to prevent project update
                   });
                   if (savedEstimate) {
-                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
+                    Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
                   }
                 }
               },
               {
-                text: 'Save & Add to Project',
+                text: t('common:buttons.save') + ' & Add to Project',
                 onPress: async () => {
                   // Save estimate and update the project
                   const savedEstimate = await saveEstimate(completeEstimateData);
                   if (savedEstimate) {
-                    Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved and added to project!`);
+                    Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
                   }
                 }
               }
@@ -1669,19 +1682,19 @@ export default function ChatScreen({ navigation, route }) {
           // Project doesn't exist - just save the estimate
           const savedEstimate = await saveEstimate(completeEstimateData);
           if (savedEstimate) {
-            Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
+            Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
           }
         }
       } else {
         // No linked project - just save the estimate
         const savedEstimate = await saveEstimate(completeEstimateData);
         if (savedEstimate) {
-          Alert.alert('Success', `Estimate ${savedEstimate.estimate_number} saved!`);
+          Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
         }
       }
     } catch (error) {
       console.error('Error saving estimate:', error);
-      Alert.alert('Error', 'Failed to save estimate. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'estimate' }));
     }
   };
 
@@ -1777,11 +1790,11 @@ export default function ChatScreen({ navigation, route }) {
         console.log('📦 [ChatScreen] Updated lastProjectPreview with saved project ID:', savedProject.id);
 
         Alert.alert(
-          'Success',
-          `Project "${savedProject.name}" has been saved!`,
+          t('common:alerts.success'),
+          t('common:messages.savedSuccessfully', { item: `Project "${savedProject.name}"` }),
           [
             {
-              text: 'OK',
+              text: t('common:buttons.ok'),
               onPress: () => {
                 // Optionally navigate to projects screen
                 // navigation.navigate('Projects');
@@ -1792,7 +1805,7 @@ export default function ChatScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error saving project:', error);
-      Alert.alert('Error', 'Failed to save project. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'project' }));
     }
   };
 
@@ -1801,26 +1814,26 @@ export default function ChatScreen({ navigation, route }) {
       const { projectId, projectName } = deleteData;
 
       if (!projectId) {
-        Alert.alert('Error', 'Project ID not found');
+        Alert.alert(t('common:alerts.error'), t('common:errors.notFound'));
         return;
       }
 
       // Show confirmation alert
       Alert.alert(
-        'Delete Project',
-        `Are you sure you want to delete "${projectName}"? This action cannot be undone.`,
+        t('common:alerts.deleteProject'),
+        t('common:alerts.cannotUndo'),
         [
           {
-            text: 'Cancel',
+            text: t('common:buttons.cancel'),
             style: 'cancel'
           },
           {
-            text: 'Delete',
+            text: t('common:buttons.delete'),
             style: 'destructive',
             onPress: async () => {
               const success = await deleteProject(projectId);
               if (success) {
-                Alert.alert('Success', `Project "${projectName}" has been deleted`);
+                Alert.alert(t('common:alerts.success'), t('common:messages.deletedSuccessfully', { item: `Project "${projectName}"` }));
                 // Send a confirmation message to the chat
                 const confirmationMessage = {
                   id: Date.now().toString(),
@@ -1832,7 +1845,7 @@ export default function ChatScreen({ navigation, route }) {
                 };
                 setMessages(prev => [...prev, confirmationMessage]);
               } else {
-                Alert.alert('Error', 'Failed to delete project');
+                Alert.alert(t('common:alerts.error'), t('common:messages.failedToDelete', { item: 'project' }));
               }
             }
           }
@@ -1840,7 +1853,7 @@ export default function ChatScreen({ navigation, route }) {
       );
     } catch (error) {
       console.error('Error deleting project:', error);
-      Alert.alert('Error', 'Failed to delete project. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToDelete', { item: 'project' }));
     }
   };
 
@@ -1849,17 +1862,17 @@ export default function ChatScreen({ navigation, route }) {
       const { estimateId, estimateName, projectId, projectName, options } = choiceData;
 
       if (!estimateId || !projectId) {
-        Alert.alert('Error', 'Missing estimate or project information');
+        Alert.alert(t('common:alerts.missingInfo'), t('common:errors.requiredField'));
         return;
       }
 
       // Show alert with merge options
       Alert.alert(
-        'Add Estimate to Project',
-        `How would you like to add "${estimateName}" to "${projectName}"?`,
+        t('common:alerts.confirm'),
+        t('common:messages.pleaseSelect', { item: 'how to add this estimate' }),
         [
           {
-            text: 'Cancel',
+            text: t('common:buttons.cancel'),
             style: 'cancel'
           },
           {
@@ -1870,7 +1883,7 @@ export default function ChatScreen({ navigation, route }) {
 
               const updatedProject = await addEstimateToProject(projectId, estimateId, 'merge');
               if (updatedProject) {
-                Alert.alert('Success', 'Estimate merged into project successfully!');
+                Alert.alert(t('common:alerts.success'), t('common:messages.updatedSuccessfully', { item: 'Project' }));
 
                 // Send confirmation message
                 const confirmationMessage = {
@@ -1883,19 +1896,19 @@ export default function ChatScreen({ navigation, route }) {
                 };
                 setMessages(prev => [...prev, confirmationMessage]);
               } else {
-                Alert.alert('Error', 'Failed to add estimate to project');
+                Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'project' }));
               }
             }
           },
           {
-            text: options.separate.label + (options.separate.recommended ? ' ✓' : ''),
+            text: options.separate.label + (options.separate.recommended ? ' ' : ''),
             onPress: async () => {
               // Import the function
               const { addEstimateToProject } = require('../utils/storage');
 
               const updatedProject = await addEstimateToProject(projectId, estimateId, 'separate');
               if (updatedProject) {
-                Alert.alert('Success', 'Estimate added as separate scope!');
+                Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: 'Estimate' }));
 
                 // Send confirmation message
                 const confirmationMessage = {
@@ -1908,7 +1921,7 @@ export default function ChatScreen({ navigation, route }) {
                 };
                 setMessages(prev => [...prev, confirmationMessage]);
               } else {
-                Alert.alert('Error', 'Failed to add estimate to project');
+                Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'project' }));
               }
             },
             style: options.separate.recommended ? 'default' : undefined
@@ -1917,7 +1930,7 @@ export default function ChatScreen({ navigation, route }) {
       );
     } catch (error) {
       console.error('Error adding estimate to project:', error);
-      Alert.alert('Error', 'Failed to add estimate to project. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'project' }));
     }
   };
 
@@ -1925,7 +1938,7 @@ export default function ChatScreen({ navigation, route }) {
     try {
       const updatedProject = await saveProject(projectData);
       if (updatedProject) {
-        Alert.alert('Success', 'Project updated successfully!');
+        Alert.alert(t('common:alerts.success'), t('common:messages.updatedSuccessfully', { item: 'Project' }));
 
         // Update the message in the chat with the new data
         setMessages((prevMessages) => {
@@ -1964,7 +1977,7 @@ export default function ChatScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error updating project:', error);
-      Alert.alert('Error', 'Failed to update project. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'project' }));
     }
   };
 
@@ -2004,14 +2017,14 @@ export default function ChatScreen({ navigation, route }) {
             return msg;
           });
         });
-        Alert.alert('Success', 'Estimate updated! Click "Save Estimate" to save it permanently.');
+        Alert.alert(t('common:alerts.success'), t('common:messages.updatedSuccessfully', { item: 'Estimate' }));
         return;
       }
 
       // Existing estimate with ID - update in database
       const updatedEstimate = await updateEstimate(estimateData);
       if (updatedEstimate) {
-        Alert.alert('Success', 'Estimate and linked project updated successfully!');
+        Alert.alert(t('common:alerts.success'), t('common:messages.updatedSuccessfully', { item: 'Estimate' }));
 
         // Update the message in the chat with the new data
         setMessages((prevMessages) => {
@@ -2046,7 +2059,7 @@ export default function ChatScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error updating estimate:', error);
-      Alert.alert('Error', 'Failed to update estimate. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToUpdate', { item: 'estimate' }));
     }
   };
 
@@ -2054,7 +2067,7 @@ export default function ChatScreen({ navigation, route }) {
     try {
       const estimateId = estimateData.id || estimateData.estimateId;
       if (!estimateId) {
-        Alert.alert('Error', 'No estimate ID provided');
+        Alert.alert(t('common:alerts.error'), t('common:errors.notFound'));
         return;
       }
 
@@ -2063,11 +2076,11 @@ export default function ChatScreen({ navigation, route }) {
 
       if (createdProject) {
         Alert.alert(
-          'Success',
-          `Project "${createdProject.name}" has been created from the estimate!`,
+          t('common:alerts.success'),
+          t('common:messages.savedSuccessfully', { item: `Project "${createdProject.name}"` }),
           [
             {
-              text: 'View Project',
+              text: t('common:buttons.viewAll'),
               onPress: () => {
                 // Navigate to project details if navigation is available
                 if (navigation) {
@@ -2075,7 +2088,7 @@ export default function ChatScreen({ navigation, route }) {
                 }
               },
             },
-            { text: 'OK', style: 'cancel' },
+            { text: t('common:buttons.ok'), style: 'cancel' },
           ]
         );
 
@@ -2108,11 +2121,11 @@ export default function ChatScreen({ navigation, route }) {
           });
         });
       } else {
-        Alert.alert('Error', 'Failed to create project from estimate. Please try again.');
+        Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'project' }));
       }
     } catch (error) {
       console.error('Error creating project from estimate:', error);
-      Alert.alert('Error', 'Failed to create project from estimate. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'project' }));
     }
   };
 
@@ -2121,11 +2134,11 @@ export default function ChatScreen({ navigation, route }) {
       const invoice = await createInvoiceFromEstimate(estimateData.id || estimateData.estimateId);
       if (invoice) {
         Alert.alert(
-          'Invoice Created',
-          `Invoice ${invoice.invoice_number} has been created from this estimate!`,
+          t('common:alerts.success'),
+          t('common:messages.savedSuccessfully', { item: `Invoice ${invoice.invoice_number}` }),
           [
             {
-              text: 'OK',
+              text: t('common:buttons.ok'),
               onPress: () => {
                 // Add a message to chat showing the invoice
                 const aiMessage = {
@@ -2148,14 +2161,14 @@ export default function ChatScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error converting to invoice:', error);
-      Alert.alert('Error', 'Failed to create invoice. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'invoice' }));
     }
   };
 
   const handleGenerateInvoicePDF = async (invoiceData) => {
     try {
       // Show loading alert
-      Alert.alert('Generating PDF', 'Please wait while we generate your invoice PDF...');
+      Alert.alert(t('common:alerts.generatingPDF'), t('common:messages.pleaseWait', { action: 'generate your invoice PDF' }));
 
       // Get user profile for business info
       const userProfile = await getUserProfile();
@@ -2174,17 +2187,17 @@ export default function ChatScreen({ navigation, route }) {
       const updatedInvoice = await getInvoice(invoiceData.id);
 
       Alert.alert(
-        'PDF Generated',
-        'Your invoice PDF has been generated successfully!',
+        t('common:alerts.success'),
+        t('common:messages.savedSuccessfully', { item: 'Invoice PDF' }),
         [
           {
-            text: 'Share PDF',
+            text: t('common:buttons.share'),
             onPress: async () => {
               await shareInvoicePDF(pdfUri, invNumber);
             }
           },
           {
-            text: 'View',
+            text: t('common:buttons.viewAll'),
             onPress: () => {
               // Update the message with the new PDF URL
               const aiMessage = {
@@ -2206,14 +2219,14 @@ export default function ChatScreen({ navigation, route }) {
       );
     } catch (error) {
       console.error('Error generating PDF:', error);
-      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'PDF' }));
     }
   };
 
   const handleDownloadInvoicePDF = async (invoiceData) => {
     try {
       if (!invoiceData.pdf_url && !invoiceData.pdfUrl) {
-        Alert.alert('No PDF', 'Please generate the PDF first.');
+        Alert.alert(t('common:alerts.noPDF'), t('common:messages.pleaseSelect', { item: 'generate the PDF first' }));
         return;
       }
 
@@ -2224,7 +2237,7 @@ export default function ChatScreen({ navigation, route }) {
       await shareInvoicePDF(pdfUrl, invNumber);
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      Alert.alert('Error', 'Failed to download PDF. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'PDF' }));
     }
   };
 
@@ -2234,7 +2247,7 @@ export default function ChatScreen({ navigation, route }) {
       const pdfUrl = invoiceData.pdf_url || invoiceData.pdfUrl;
 
       if (!pdfUrl) {
-        Alert.alert('No PDF', 'Please generate the PDF first before emailing.');
+        Alert.alert(t('common:alerts.noPDF'), t('common:messages.pleaseSelect', { item: 'generate the PDF first' }));
         return;
       }
 
@@ -2248,7 +2261,7 @@ export default function ChatScreen({ navigation, route }) {
       await shareInvoicePDF(pdfUri, invNumber);
     } catch (error) {
       console.error('Error sending invoice email:', error);
-      Alert.alert('Error', 'Failed to send invoice. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'invoice' }));
     }
   };
 
@@ -2274,7 +2287,7 @@ export default function ChatScreen({ navigation, route }) {
       await previewInvoicePDF(publicUrl, invNumber);
     } catch (error) {
       console.error('Error previewing PDF:', error);
-      Alert.alert('Error', 'Failed to preview PDF. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'PDF' }));
     }
   };
 
@@ -2306,7 +2319,7 @@ export default function ChatScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error sharing invoice:', error);
-      Alert.alert('Error', 'Failed to share invoice. Please try again.');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'invoice' }));
     }
   };
 
@@ -2333,19 +2346,19 @@ export default function ChatScreen({ navigation, route }) {
         );
       } else {
         Alert.alert(
-          'Upload Contract',
-          'Choose a source',
+          t('common:buttons.upload'),
+          t('common:messages.pleaseSelect', { item: 'a source' }),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Take Photo', onPress: uploadContractFromCamera },
-            { text: 'Choose from Photos', onPress: uploadContractFromLibrary },
-            { text: 'Choose Document', onPress: uploadContractFromFile },
+            { text: t('common:buttons.cancel'), style: 'cancel' },
+            { text: t('common:buttons.upload'), onPress: uploadContractFromCamera },
+            { text: t('common:buttons.upload'), onPress: uploadContractFromLibrary },
+            { text: t('common:buttons.upload'), onPress: uploadContractFromFile },
           ]
         );
       }
     } catch (error) {
       console.error('Error showing upload options:', error);
-      Alert.alert('Error', 'Failed to show upload options');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'upload options' }));
     }
   };
 
@@ -2353,7 +2366,7 @@ export default function ChatScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Camera permission is required to take photos');
+        Alert.alert(t('common:alerts.permissionRequired'), t('common:permissions.cameraRequired'));
         return;
       }
 
@@ -2367,14 +2380,14 @@ export default function ChatScreen({ navigation, route }) {
         const fileName = `Contract_${Date.now()}.jpg`;
         const uploaded = await uploadContractDocument(result.assets[0].uri, fileName, 'image');
         if (uploaded) {
-          addAIMessage('✅ Contract uploaded successfully! You can now share it with clients.');
+          addAIMessage(t('common:messages.uploadedSuccessfully', { item: 'Contract' }));
         } else {
-          Alert.alert('Error', 'Failed to upload contract');
+          Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
         }
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'photo' }));
     }
   };
 
@@ -2382,7 +2395,7 @@ export default function ChatScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Photo library permission is required');
+        Alert.alert(t('common:alerts.permissionRequired'), t('common:permissions.photoLibraryRequired'));
         return;
       }
 
@@ -2396,14 +2409,14 @@ export default function ChatScreen({ navigation, route }) {
         const fileName = `Contract_${Date.now()}.jpg`;
         const uploaded = await uploadContractDocument(result.assets[0].uri, fileName, 'image');
         if (uploaded) {
-          addAIMessage('✅ Contract uploaded successfully! You can now share it with clients.');
+          addAIMessage(t('common:messages.uploadedSuccessfully', { item: 'Contract' }));
         } else {
-          Alert.alert('Error', 'Failed to upload contract');
+          Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
         }
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'image' }));
     }
   };
 
@@ -2418,14 +2431,14 @@ export default function ChatScreen({ navigation, route }) {
         const asset = result.assets[0];
         const uploaded = await uploadContractDocument(asset.uri, asset.name, asset.mimeType?.includes('pdf') ? 'document' : 'image');
         if (uploaded) {
-          addAIMessage('✅ Contract uploaded successfully! You can now share it with clients.');
+          addAIMessage(t('common:messages.uploadedSuccessfully', { item: 'Contract' }));
         } else {
-          Alert.alert('Error', 'Failed to upload contract');
+          Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
         }
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'document' }));
     }
   };
 
@@ -2433,7 +2446,7 @@ export default function ChatScreen({ navigation, route }) {
     try {
       const { contractDocument } = data;
       if (!contractDocument) {
-        Alert.alert('Error', 'Contract document not found');
+        Alert.alert(t('common:alerts.error'), t('common:errors.notFound'));
         return;
       }
 
@@ -2441,7 +2454,7 @@ export default function ChatScreen({ navigation, route }) {
       navigation.navigate('DocumentViewer', { document: contractDocument });
     } catch (error) {
       console.error('Error viewing contract:', error);
-      Alert.alert('Error', 'Failed to view contract');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: 'contract' }));
     }
   };
 
@@ -2450,22 +2463,22 @@ export default function ChatScreen({ navigation, route }) {
       const { contractId, contractName, fileUrl } = data;
 
       Alert.alert(
-        'Share Contract',
-        `Share "${contractName}" with your client?`,
+        t('common:buttons.share'),
+        t('common:alerts.areYouSure'),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common:buttons.cancel'), style: 'cancel' },
           {
-            text: 'Share',
+            text: t('common:buttons.share'),
             onPress: async () => {
               try {
                 await Share.share({
                   message: `Contract: ${contractName}`,
                   url: fileUrl,
                 });
-                addAIMessage(`✅ Contract "${contractName}" shared successfully!`);
+                addAIMessage(t('common:messages.savedSuccessfully', { item: `Contract "${contractName}"` }));
               } catch (error) {
                 console.error('Error sharing:', error);
-                Alert.alert('Error', 'Failed to share contract');
+                Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'contract' }));
               }
             }
           }
@@ -2473,7 +2486,32 @@ export default function ChatScreen({ navigation, route }) {
       );
     } catch (error) {
       console.error('Error handling share contract:', error);
-      Alert.alert('Error', 'Failed to share contract');
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: 'contract' }));
+    }
+  };
+
+  // Handle document selection from DocumentPicker
+  const handleDocumentSelected = async (data) => {
+    try {
+      const { document, action, recipientName } = data;
+      const docName = document.file_name || document.name || document.title || 'Document';
+      const docUrl = document.file_url || document.url;
+
+      if (action === 'send' && docUrl) {
+        // Share the selected document
+        await Share.share({
+          message: recipientName
+            ? `${docName} for ${recipientName}`
+            : docName,
+          url: docUrl,
+        });
+        addAIMessage(t('common:messages.savedSuccessfully', { item: `"${docName}"` }));
+      } else {
+        // View the document
+        navigation.navigate('DocumentViewer', { document });
+      }
+    } catch (error) {
+      console.error('Error handling document selection:', error);
     }
   };
 
@@ -2483,14 +2521,14 @@ export default function ChatScreen({ navigation, route }) {
   const handleOpenMaps = (data) => {
     const address = data?.address;
     if (!address) {
-      Alert.alert('Error', 'No address provided');
+      Alert.alert(t('common:alerts.error'), t('common:emptyStates.noAddress'));
       return;
     }
 
     const encodedAddress = encodeURIComponent(address);
 
     Alert.alert(
-      'Open in Maps',
+      t('common:alerts.openInMaps'),
       address,
       [
         {
@@ -2512,7 +2550,7 @@ export default function ChatScreen({ navigation, route }) {
               })
               .catch((err) => {
                 console.error('Error opening Google Maps:', err);
-                Alert.alert('Error', 'Could not open Google Maps');
+                Alert.alert(t('common:alerts.error'), t('common:messages.couldNotOpen', { item: 'Google Maps' }));
               });
           },
         },
@@ -2522,12 +2560,12 @@ export default function ChatScreen({ navigation, route }) {
             const appleMapsUrl = `maps://maps.apple.com/?address=${encodedAddress}`;
             Linking.openURL(appleMapsUrl).catch((err) => {
               console.error('Error opening Apple Maps:', err);
-              Alert.alert('Error', 'Could not open Apple Maps');
+              Alert.alert(t('common:alerts.error'), t('common:messages.couldNotOpen', { item: 'Apple Maps' }));
             });
           },
         },
         {
-          text: 'Cancel',
+          text: t('common:buttons.cancel'),
           style: 'cancel',
         },
       ],
@@ -2563,6 +2601,8 @@ export default function ChatScreen({ navigation, route }) {
         return <ContractPreview key={index} data={element.data} onAction={handleAction} />;
       case 'contract-list':
         return <ContractList key={index} data={element.data} onAction={handleAction} />;
+      case 'document-picker':
+        return <ChatDocumentPicker key={index} data={element.data} onAction={handleAction} />;
       case 'expense-card':
         return <ExpenseCard key={index} data={element.data} />;
       case 'project-overview':
