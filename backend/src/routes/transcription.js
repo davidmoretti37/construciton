@@ -6,7 +6,7 @@ const { fetchDeepgram } = require('../utils/fetchWithRetry');
 // Transcribe audio using Deepgram
 router.post('/transcribe', async (req, res) => {
   try {
-    const { audio, contentType = 'audio/m4a' } = req.body;
+    const { audio, contentType = 'audio/m4a', language = 'en' } = req.body;
 
     if (!audio) {
       return res.status(400).json({ error: 'Audio data is required' });
@@ -19,11 +19,11 @@ router.post('/transcribe', async (req, res) => {
     // Convert base64 to binary buffer
     const binaryString = Buffer.from(audio, 'base64');
 
-    logger.info('🎤 Sending to Deepgram API...');
+    logger.info(`🎤 Sending to Deepgram API (language: ${language})...`);
 
     // Call Deepgram API for transcription (with timeout and retry)
     const response = await fetchDeepgram(
-      'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=en',
+      `https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=${language}`,
       {
         method: 'POST',
         headers: {

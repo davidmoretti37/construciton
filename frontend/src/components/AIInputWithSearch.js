@@ -9,6 +9,7 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -27,6 +28,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import i18n from '../i18n';
 
 const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 import OrbitalLoader from './OrbitalLoader';
@@ -56,6 +58,7 @@ const AIInputWithSearch = ({
   onCameraPress,
   onPopulateInput, // New prop to expose setValue to parent
 }) => {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [value, setValue] = useState('');
@@ -143,9 +146,9 @@ const AIInputWithSearch = ({
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Microphone Permission Required',
-          'Please enable microphone access to use voice input.',
-          [{ text: 'OK' }]
+          t('permissions.microphoneRequired'),
+          t('permissions.enableMicrophoneAccess'),
+          [{ text: t('buttons.ok') }]
         );
         return;
       }
@@ -275,7 +278,7 @@ const AIInputWithSearch = ({
     } catch (error) {
       console.error('Failed to start recording:', error);
       setVoiceMode(false); // Disable voice mode on error
-      Alert.alert('Error', 'Could not start recording. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.couldNotStartRecording'));
     }
   };
 
@@ -321,7 +324,7 @@ const AIInputWithSearch = ({
       }
     } catch (error) {
       console.error('Error stopping recording:', error);
-      Alert.alert('Error', 'Could not stop recording.');
+      Alert.alert(t('alerts.error'), t('messages.couldNotStopRecording'));
     }
   };
 
@@ -353,6 +356,7 @@ const AIInputWithSearch = ({
           body: JSON.stringify({
             audio: base64Audio,
             contentType: 'audio/m4a',
+            language: i18n.language || 'en',
           }),
           signal: controller.signal,
         }
@@ -381,7 +385,7 @@ const AIInputWithSearch = ({
         onSubmit?.(text, false);
         // Clear input is handled by onSubmit in parent
       } else {
-        Alert.alert('No Speech', 'Could not detect speech. Please try again.');
+        Alert.alert(t('alerts.noSpeech'), t('messages.couldNotDetectSpeech'));
         setIsTranscribing(false);
         animateBackToInput();
       }
@@ -392,9 +396,9 @@ const AIInputWithSearch = ({
 
       // Handle timeout vs other errors
       if (error.name === 'AbortError') {
-        Alert.alert('Timeout', 'Transcription took too long. Please try again or type instead.');
+        Alert.alert(t('alerts.timeout'), t('messages.transcriptionTimeout'));
       } else {
-        Alert.alert('Error', 'Could not transcribe audio. Please type instead.');
+        Alert.alert(t('alerts.error'), t('messages.couldNotTranscribeAudio'));
       }
     }
   };
