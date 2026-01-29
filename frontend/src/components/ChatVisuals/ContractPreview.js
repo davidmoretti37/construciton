@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, Alert, Platform, ActionSheetIOS } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import * as FileSystem from 'expo-file-system';
 
 export default function ContractPreview({ data, onAction }) {
+  const { t } = useTranslation('chat');
+  const { t: tCommon } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -19,7 +22,7 @@ export default function ContractPreview({ data, onAction }) {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
           <Text style={[styles.errorText, { color: Colors.primaryText }]}>
-            Contract document not found
+            {t('contract.documentNotFound')}
           </Text>
         </View>
       </View>
@@ -63,16 +66,16 @@ export default function ContractPreview({ data, onAction }) {
       } else {
         // Android: Show alert with options
         Alert.alert(
-          'Share Contract',
-          'How would you like to share this contract?',
+          t('contract.shareContract'),
+          t('contract.sharePrompt'),
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: tCommon('buttons.cancel'), style: 'cancel' },
             {
-              text: 'Share Document',
+              text: t('contract.shareDocument'),
               onPress: async () => await shareDocument()
             },
             {
-              text: 'Copy Link',
+              text: t('contract.copyLink'),
               onPress: async () => await copyLink()
             },
           ]
@@ -80,7 +83,7 @@ export default function ContractPreview({ data, onAction }) {
       }
     } catch (error) {
       console.error('Error sharing contract:', error);
-      Alert.alert('Error', 'Failed to share contract. Please try again.');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToShare', { item: t('contract.contract') }));
     }
   };
 
@@ -104,7 +107,7 @@ export default function ContractPreview({ data, onAction }) {
       }
     } catch (error) {
       console.error('Error sharing document:', error);
-      Alert.alert('Error', 'Failed to share document');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToShare', { item: t('contract.document') }));
     }
   };
 
@@ -113,10 +116,10 @@ export default function ContractPreview({ data, onAction }) {
       await Share.share({
         message: file_url,
       });
-      Alert.alert('Success', 'Link copied to share');
+      Alert.alert(tCommon('alerts.success'), t('contract.linkCopiedToShare'));
     } catch (error) {
       console.error('Error copying link:', error);
-      Alert.alert('Error', 'Failed to copy link');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToCopy', { item: t('contract.link') }));
     }
   };
 
@@ -137,7 +140,7 @@ export default function ContractPreview({ data, onAction }) {
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <View>
           <Text style={[styles.title, { color: Colors.primaryText }]}>
-            📄 CONTRACT DOCUMENT
+            {t('contract.contractDocumentTitle')}
           </Text>
         </View>
         <View style={[styles.typeBadge, { backgroundColor: file_type === 'image' ? Colors.success + '15' : Colors.primaryBlue + '15', borderColor: file_type === 'image' ? Colors.success : Colors.primaryBlue }]}>
@@ -147,7 +150,7 @@ export default function ContractPreview({ data, onAction }) {
             color={file_type === 'image' ? Colors.success : Colors.primaryBlue}
           />
           <Text style={[styles.typeText, { color: file_type === 'image' ? Colors.success : Colors.primaryBlue }]}>
-            {file_type === 'image' ? 'Image' : 'PDF'}
+            {file_type === 'image' ? t('contract.image') : t('contract.pdf')}
           </Text>
         </View>
       </View>
@@ -173,7 +176,7 @@ export default function ContractPreview({ data, onAction }) {
           <View style={styles.metaRow}>
             <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
             <Text style={[styles.metaText, { color: Colors.secondaryText }]}>
-              Uploaded {formatDate(created_at)}
+              {t('contract.uploaded')} {formatDate(created_at)}
             </Text>
           </View>
         </View>
@@ -189,7 +192,7 @@ export default function ContractPreview({ data, onAction }) {
           activeOpacity={0.7}
         >
           <Ionicons name="eye-outline" size={18} color={Colors.primaryText} />
-          <Text style={[styles.buttonText, { color: Colors.primaryText }]}>View</Text>
+          <Text style={[styles.buttonText, { color: Colors.primaryText }]}>{tCommon('buttons.view')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -198,7 +201,7 @@ export default function ContractPreview({ data, onAction }) {
           activeOpacity={0.7}
         >
           <Ionicons name="share-outline" size={18} color="#fff" />
-          <Text style={[styles.buttonTextWhite]}>Share</Text>
+          <Text style={[styles.buttonTextWhite]}>{tCommon('buttons.share')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -206,7 +209,7 @@ export default function ContractPreview({ data, onAction }) {
       <View style={[styles.helperTextContainer, { backgroundColor: Colors.lightGray }]}>
         <Ionicons name="information-circle-outline" size={16} color={Colors.primaryBlue} />
         <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-          Tap "Share" to send this contract to your client via SMS, email, or any messaging app.
+          {t('contract.shareHelperText')}
         </Text>
       </View>
     </View>
