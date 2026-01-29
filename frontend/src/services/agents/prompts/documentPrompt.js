@@ -719,7 +719,9 @@ ${(context.invoices || []).slice(0, 5).map(i => `- ${i.clientName || i.client}: 
 ${(context.workers || []).slice(0, 10).map(w => `- ${w.full_name || w.name} [${w.id}] | ${w.trade || w.role || 'N/A'}`).join('\n') || 'None'}
 
 ## Contract Documents (${context.contractDocuments?.length || 0} total)
-${(context.contractDocuments || []).slice(0, 5).map(c => `- ${c.file_name || c.name}`).join('\n') || 'None'}
+${(context.contractDocuments || []).slice(0, 5).map(c => `- ${c.file_name} [id: ${c.id}] [url: ${c.file_url}] [type: ${c.file_type}]`).join('\n') || 'None'}
+
+IMPORTANT: When returning contract-preview, you MUST include the FULL contractDocument object with id, file_name, file_url, file_type, and created_at fields. Copy the exact data from above.
 
 # EXAMPLES
 
