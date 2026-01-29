@@ -57,10 +57,6 @@ export default function SubscriptionSettingsScreen({ navigation }) {
     }
   };
 
-  const handleChangePlan = () => {
-    navigation.navigate('Paywall');
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return '';
     // Handle both date-only strings (YYYY-MM-DD) and ISO timestamps
@@ -212,23 +208,6 @@ export default function SubscriptionSettingsScreen({ navigation }) {
         {/* Actions */}
         {hasActiveSubscription ? (
           <>
-            {/* Change Plan */}
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: Colors.cardBackground }]}
-              onPress={handleChangePlan}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="swap-horizontal-outline"
-                size={20}
-                color={Colors.primaryBlue}
-              />
-              <Text style={[styles.actionText, { color: Colors.primaryText }]}>
-                {t('subscriptionSettings.changePlan')}
-              </Text>
-              <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-            </TouchableOpacity>
-
             {/* Manage Billing */}
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.cardBackground }]}
