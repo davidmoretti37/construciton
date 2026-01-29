@@ -397,8 +397,8 @@ export default function useWorkerActions({ addMessage, setMessages }) {
 
   const handleClockInWorker = useCallback(async (data) => {
     try {
-      const { workerId, workerName, projectId, projectName, location } = data;
-      const record = await clockIn(workerId, projectId, location);
+      const { workerId, workerName, projectId, projectName, location, clock_in_time } = data;
+      const record = await clockIn(workerId, projectId, location, clock_in_time);
       if (record) {
         const time = new Date(record.clock_in).toLocaleTimeString('en-US', {
           hour: 'numeric',
@@ -419,7 +419,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
 
   const handleClockOutWorker = useCallback(async (data) => {
     try {
-      const { workerId, workerName } = data;
+      const { workerId, workerName, clock_out_time } = data;
 
       // Get active clock-in for this worker
       const activeRecord = await getActiveClockIn(workerId);
@@ -428,11 +428,11 @@ export default function useWorkerActions({ addMessage, setMessages }) {
         return null;
       }
 
-      const success = await clockOut(activeRecord.id, data.notes);
+      const success = await clockOut(activeRecord.id, data.notes, clock_out_time);
       if (success) {
         // Calculate hours worked
         const clockInTime = new Date(activeRecord.clock_in);
-        const clockOutTime = new Date();
+        const clockOutTime = clock_out_time ? new Date(clock_out_time) : new Date();
         const hoursWorked = ((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(1);
         addMessage(`✅ Clocked out ${workerName} (${hoursWorked} hours worked)`);
         return { hoursWorked };

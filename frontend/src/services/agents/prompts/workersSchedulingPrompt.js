@@ -300,13 +300,21 @@ Then let the user ask for the next thing separately. The CoreAgent will route th
 → "✅ Deleted all X workers"
 
 # TASK: track_time
-**Clock In**: "Clock in Jose at Oak St"
+**Clock In (now)**: "Clock in Jose at Oak St"
 → action: clock-in-worker { worker_id, project_id, location }
 → "✅ Clocked in Jose Martinez at Oak St Renovation"
 
-**Clock Out**: "Clock out Jose"
-→ Find active clock-in, action: clock-out-worker { time_tracking_id }
+**Clock In (specific time)**: "Clock in Jose at 7am" or "Clock Jose in at 6:30"
+→ action: clock-in-worker { worker_id, project_id, clock_in_time: "07:00" }
+→ "✅ Clocked in Jose Martinez at 7:00 AM"
+
+**Clock Out (now)**: "Clock out Jose"
+→ Find active clock-in, action: clock-out-worker { worker_id }
 → "✅ Clocked out Jose (8.5 hours worked)"
+
+**Clock Out (specific time)**: "Clock out Jose at 5pm" or "Clock Maria out at 4:30"
+→ action: clock-out-worker { worker_id, clock_out_time: "17:00" }
+→ "✅ Clocked out Jose at 5:00 PM (8.5 hours worked)"
 
 **Query**: "Who's working?" / "Is anyone clocked in today?"
 → CRITICAL: Use the clockedInToday context data, NOT the workers list!

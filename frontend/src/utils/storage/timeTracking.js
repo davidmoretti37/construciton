@@ -12,12 +12,27 @@ import { responseCache } from '../../services/agents/core/CacheService';
  * @param {string} workerId - Worker ID
  * @param {string} projectId - Project ID
  * @param {object} location - Optional {latitude, longitude}
+ * @param {string} customTime - Optional ISO timestamp or time string (e.g., "07:00", "2026-01-29T07:00:00")
  * @returns {Promise<object|null>} Time tracking record
  */
-export const clockIn = async (workerId, projectId, location = null) => {
+export const clockIn = async (workerId, projectId, location = null, customTime = null) => {
   try {
-    // Use local timestamp so the date reflects user's local time
-    const localTimestamp = getLocalTimestamp();
+    // Use custom time if provided, otherwise use current local timestamp
+    let localTimestamp;
+    if (customTime) {
+      // If it's just a time (HH:MM), combine with today's date
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(customTime)) {
+        const today = new Date();
+        const [hours, minutes] = customTime.split(':').map(Number);
+        today.setHours(hours, minutes, 0, 0);
+        localTimestamp = today.toISOString();
+      } else {
+        // Assume it's already an ISO timestamp or parseable date
+        localTimestamp = new Date(customTime).toISOString();
+      }
+    } else {
+      localTimestamp = getLocalTimestamp();
+    }
 
     // First, insert the clock-in record
     const { data: insertedData, error: insertError } = await supabase
@@ -72,12 +87,27 @@ export const clockIn = async (workerId, projectId, location = null) => {
  * Clock out a worker and automatically calculate/record labor costs
  * @param {string} timeTrackingId - Time tracking record ID
  * @param {string} notes - Optional notes
+ * @param {string} customTime - Optional ISO timestamp or time string (e.g., "17:00", "2026-01-29T17:00:00")
  * @returns {Promise<{success: boolean, laborCost?: number, hours?: number}>} Result with labor cost details
  */
-export const clockOut = async (timeTrackingId, notes = null) => {
+export const clockOut = async (timeTrackingId, notes = null, customTime = null) => {
   try {
-    // Use local timestamp for clock-out
-    const clockOutTime = getLocalTimestamp();
+    // Use custom time if provided, otherwise use current local timestamp
+    let clockOutTime;
+    if (customTime) {
+      // If it's just a time (HH:MM), combine with today's date
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(customTime)) {
+        const today = new Date();
+        const [hours, minutes] = customTime.split(':').map(Number);
+        today.setHours(hours, minutes, 0, 0);
+        clockOutTime = today.toISOString();
+      } else {
+        // Assume it's already an ISO timestamp or parseable date
+        clockOutTime = new Date(customTime).toISOString();
+      }
+    } else {
+      clockOutTime = getLocalTimestamp();
+    }
 
     const { data: timeEntry, error: fetchError } = await supabase
       .from('time_tracking')
