@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 export default function EditServiceScreen({ route, navigation }) {
@@ -24,6 +25,8 @@ export default function EditServiceScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
+  const { t: tCommon } = useTranslation('common');
+  const { t } = useTranslation('settings');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -64,7 +67,7 @@ export default function EditServiceScreen({ route, navigation }) {
         .single();
 
       if (error) {
-        Alert.alert('Error', 'Failed to load service');
+        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'service' }));
         navigation.goBack();
         return;
       }
@@ -74,7 +77,7 @@ export default function EditServiceScreen({ route, navigation }) {
       setCustomPhases(data.custom_phases || []);
     } catch (error) {
       console.error('Error loading service:', error);
-      Alert.alert('Error', 'Failed to load service information');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'service' }));
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -93,12 +96,12 @@ export default function EditServiceScreen({ route, navigation }) {
 
   const handleDeletePhase = (index) => {
     Alert.alert(
-      'Delete Phase',
-      'Are you sure you want to delete this phase?',
+      tCommon('alerts.cannotDelete'),
+      tCommon('messages.confirmRemove', { item: 'phase' }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: tCommon('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: tCommon('buttons.delete'),
           style: 'destructive',
           onPress: () => {
             const newPhases = customPhases.filter((_, i) => i !== index);
@@ -127,12 +130,12 @@ export default function EditServiceScreen({ route, navigation }) {
 
   const handleDeletePricingItem = (key) => {
     Alert.alert(
-      'Delete Pricing Item',
-      'Are you sure you want to delete this pricing item?',
+      tCommon('alerts.cannotDelete'),
+      tCommon('messages.confirmRemove', { item: 'pricing item' }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: tCommon('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: tCommon('buttons.delete'),
           style: 'destructive',
           onPress: () => {
             const newPricing = { ...pricing };
@@ -169,7 +172,7 @@ export default function EditServiceScreen({ route, navigation }) {
 
   const handleSavePricingItem = () => {
     if (!editItemName.trim()) {
-      Alert.alert('Missing Name', 'Please enter a name for the pricing item');
+      Alert.alert(tCommon('alerts.missingInfo'), tCommon('messages.pleaseEnter', { item: 'name' }));
       return;
     }
 
@@ -195,7 +198,7 @@ export default function EditServiceScreen({ route, navigation }) {
 
   const handleSavePhase = () => {
     if (!editPhaseName.trim()) {
-      Alert.alert('Missing Name', 'Please enter a name for the phase');
+      Alert.alert(tCommon('alerts.missingInfo'), tCommon('messages.pleaseEnter', { item: 'phase name' }));
       return;
     }
 
@@ -224,15 +227,15 @@ export default function EditServiceScreen({ route, navigation }) {
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Service updated successfully', [
+      Alert.alert(tCommon('alerts.success'), tCommon('messages.updatedSuccessfully', { item: 'service' }), [
         {
-          text: 'OK',
+          text: tCommon('buttons.ok'),
           onPress: () => navigation.goBack(),
         },
       ]);
     } catch (error) {
       console.error('Error saving service:', error);
-      Alert.alert('Error', 'Failed to save changes. Please try again.');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'service' }));
     } finally {
       setSaving(false);
     }
@@ -240,12 +243,12 @@ export default function EditServiceScreen({ route, navigation }) {
 
   const handleDeleteService = () => {
     Alert.alert(
-      'Delete Service',
-      `Are you sure you want to remove "${service?.service_categories?.name}" from your services?`,
+      tCommon('alerts.cannotDelete'),
+      tCommon('messages.confirmRemove', { item: service?.service_categories?.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: tCommon('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: tCommon('buttons.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -256,15 +259,15 @@ export default function EditServiceScreen({ route, navigation }) {
 
               if (error) throw error;
 
-              Alert.alert('Deleted', 'Service removed successfully', [
+              Alert.alert(tCommon('alerts.success'), tCommon('messages.deletedSuccessfully', { item: 'service' }), [
                 {
-                  text: 'OK',
+                  text: tCommon('buttons.ok'),
                   onPress: () => navigation.goBack(),
                 },
               ]);
             } catch (error) {
               console.error('Error deleting service:', error);
-              Alert.alert('Error', 'Failed to delete service');
+              Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'service' }));
             }
           }
         }
@@ -277,7 +280,7 @@ export default function EditServiceScreen({ route, navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{tCommon('status.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -311,10 +314,10 @@ export default function EditServiceScreen({ route, navigation }) {
       >
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: Colors.primaryText, paddingHorizontal: Spacing.xl }]}>
-            Customize Service
+            {t('services.customizeService')}
           </Text>
           <Text style={[styles.subtitle, { color: Colors.secondaryText, paddingHorizontal: Spacing.xl }]}>
-            Adjust pricing and phases for this service
+            {t('services.adjustPricing')}
           </Text>
 
           {/* Tabs */}
@@ -346,7 +349,7 @@ export default function EditServiceScreen({ route, navigation }) {
                   { color: activeTab === 'pricing' ? '#fff' : Colors.primaryText },
                 ]}
               >
-                Pricing ({Object.keys(pricing).length})
+                {t('services.pricing')} ({Object.keys(pricing).length})
               </Text>
             </TouchableOpacity>
 
@@ -372,7 +375,7 @@ export default function EditServiceScreen({ route, navigation }) {
                   { color: activeTab === 'phases' ? '#fff' : Colors.primaryText },
                 ]}
               >
-                Phases ({customPhases.length})
+                {t('services.phases')} ({customPhases.length})
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -395,7 +398,7 @@ export default function EditServiceScreen({ route, navigation }) {
                           {value.name || 'Unnamed Item'}
                         </Text>
                         <Text style={[styles.priceItemUnit, { color: Colors.secondaryText }]}>
-                          per {value.unit || 'unit'}
+                          {t('services.perUnit').replace('unit', value.unit || 'unit')}
                         </Text>
                       </View>
                       <View style={styles.itemActions}>
@@ -420,7 +423,7 @@ export default function EditServiceScreen({ route, navigation }) {
                         {value.price || 0}
                       </Text>
                       <Text style={[styles.unitText, { color: Colors.secondaryText }]}>
-                        / {value.unit || 'unit'}
+                        {t('services.unit').replace('unit', value.unit || 'unit')}
                       </Text>
                     </View>
                   </View>
@@ -432,7 +435,7 @@ export default function EditServiceScreen({ route, navigation }) {
                 >
                   <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
                   <Text style={[styles.addButtonText, { color: Colors.primaryBlue }]}>
-                    Add Pricing Item
+                    {t('services.addPricingItem')}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -462,7 +465,7 @@ export default function EditServiceScreen({ route, navigation }) {
                             {phase.phase_name || 'Unnamed Phase'}
                           </Text>
                           <Text style={[styles.phaseDays, { color: Colors.secondaryText }]}>
-                            ~{phase.default_days || 7} days
+                            ~{phase.default_days || 7} {tCommon('units.days')}
                           </Text>
                         </View>
                       </View>
@@ -486,7 +489,7 @@ export default function EditServiceScreen({ route, navigation }) {
                     {phase.tasks && phase.tasks.length > 0 && (
                       <View style={styles.tasksContainer}>
                         <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>
-                          Tasks:
+                          {tCommon('labels.tasksCount', { count: phase.tasks.length })}:
                         </Text>
                         {phase.tasks.map((task, taskIndex) => (
                           <View key={taskIndex} style={styles.taskItem}>
@@ -507,7 +510,7 @@ export default function EditServiceScreen({ route, navigation }) {
                 >
                   <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
                   <Text style={[styles.addButtonText, { color: Colors.primaryBlue }]}>
-                    Add Phase
+                    {t('phases.addPhase')}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -534,7 +537,7 @@ export default function EditServiceScreen({ route, navigation }) {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Text style={styles.buttonText}>Save Changes</Text>
+                <Text style={styles.buttonText}>{t('services.saveChanges')}</Text>
                 <Ionicons name="checkmark" size={20} color="#fff" />
               </>
             )}
@@ -552,7 +555,7 @@ export default function EditServiceScreen({ route, navigation }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              {pricing[editingPricingKey] ? 'Edit Pricing Item' : 'Add Pricing Item'}
+              {pricing[editingPricingKey] ? t('services.editPricingItem') : t('services.addPricingItem')}
             </Text>
             <TouchableOpacity onPress={() => setShowPricingModal(false)}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
@@ -623,13 +626,13 @@ export default function EditServiceScreen({ route, navigation }) {
               style={[styles.modalButton, styles.cancelButton, { borderColor: Colors.border }]}
               onPress={() => setShowPricingModal(false)}
             >
-              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>Cancel</Text>
+              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>{tCommon('buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modalButton, styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={handleSavePricingItem}
             >
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={styles.saveButtonText}>{tCommon('buttons.save')}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -645,7 +648,7 @@ export default function EditServiceScreen({ route, navigation }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
-              Edit Phase
+              {t('phases.editPhases')}
             </Text>
             <TouchableOpacity onPress={() => setShowPhaseModal(false)}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
@@ -687,13 +690,13 @@ export default function EditServiceScreen({ route, navigation }) {
               style={[styles.modalButton, styles.cancelButton, { borderColor: Colors.border }]}
               onPress={() => setShowPhaseModal(false)}
             >
-              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>Cancel</Text>
+              <Text style={[styles.cancelButtonText, { color: Colors.primaryText }]}>{tCommon('buttons.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modalButton, styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={handleSavePhase}
             >
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={styles.saveButtonText}>{tCommon('buttons.save')}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>

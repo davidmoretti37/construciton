@@ -19,7 +19,31 @@
     "hourlyRate": "Hourly Rate",
     "hourlyRatePlaceholder": "0.00",
     "notes": "Notes",
-    "notesPlaceholder": "Additional notes about this worker..."
+    "notesPlaceholder": "Additional notes about this worker...",
+    "personalInfo": "Personal Information",
+    "workDetails": "Work Details",
+    "paymentDetails": "Payment Details",
+    "paymentType": "Payment Type",
+    "hourly": "Hourly",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "projectBased": "Project Based",
+    "dailyRate": "Daily Rate",
+    "dailyRatePlaceholder": "0.00",
+    "weeklySalary": "Weekly Salary",
+    "weeklySalaryPlaceholder": "0.00",
+    "projectRate": "Project Rate",
+    "projectRatePlaceholder": "0.00"
+  },
+  "contact": {
+    "sendEmail": "Send Email",
+    "shareEmail": "Share/Copy Email",
+    "email": "Email",
+    "shareCopy": "Share/Copy",
+    "call": "Call",
+    "whatsapp": "WhatsApp",
+    "shareNumber": "Share/Copy Number",
+    "phone": "Phone"
   },
   "status": {
     "active": "Active",
@@ -58,20 +82,61 @@
     "cancel": "Cancel",
     "delete": "Delete"
   },
+  "tabs": {
+    "schedule": "Schedule",
+    "reports": "Reports",
+    "workers": "Workers"
+  },
   "reports": {
     "today": "Today",
     "yesterday": "Yesterday",
-    "allReports": "All Reports"
+    "allReports": "All Reports",
+    "report": "report",
+    "reportsPlural": "reports",
+    "owner": "Owner",
+    "unknownWorker": "Unknown Worker",
+    "general": "General",
+    "tasksCompleted": "tasks completed",
+    "taskCompleted": "task completed",
+    "submittedAt": "Submitted at",
+    "noReportsForDate": "No Reports for {{date}}",
+    "useArrows": "Use the arrows to view reports from other days"
   },
   "schedule": {
     "todaySchedule": "Today's Schedule",
     "deleteEvent": "Delete Event",
-    "confirmDeleteEvent": "Are you sure you want to delete this event?"
+    "confirmDeleteEvent": "Are you sure you want to delete this event?",
+    "addEvent": "Add Event",
+    "addTask": "Add Task",
+    "deleteTask": "Delete Task",
+    "confirmDeleteTask": "Are you sure you want to delete this task?",
+    "tasks": "Tasks",
+    "noTasksForDay": "No tasks for this day",
+    "addTaskHint": "Tap \"Add Task\" to assign work to your team",
+    "viewMode": {
+      "week": "Week",
+      "month": "Month"
+    },
+    "personal": "Personal",
+    "allDay": "All Day",
+    "workerTasks": "Worker Tasks",
+    "noTasks": "No tasks",
+    "projectActive": "Active",
+    "projectCompleted": "Completed",
+    "projectArchived": "Archived",
+    "ongoing": "Ongoing",
+    "phases": "Phases",
+    "projectWork": "Project Work",
+    "nothingScheduled": "Nothing scheduled",
+    "noSchedules": "No schedules"
   },
   "success": {
     "title": "Success",
     "eventAdded": "Personal event added successfully",
-    "eventDeleted": "Event deleted successfully"
+    "eventDeleted": "Event deleted successfully",
+    "workerAdded": "Worker added successfully",
+    "workerUpdated": "Worker updated successfully",
+    "workerDeleted": "Worker deleted"
   },
   "timeTracking": {
     "clockIn": "Clock In",
@@ -119,6 +184,8 @@
   "errors": {
     "error": "Error",
     "nameRequired": "Please enter worker's name",
+    "emailRequired": "Email is required to send worker invite",
+    "emailInvalid": "Please enter a valid email address",
     "loadFailed": "Failed to load workers",
     "saveFailed": "Failed to save worker",
     "deleteFailed": "Failed to delete worker",
@@ -126,10 +193,52 @@
     "clockOutFailed": "Failed to clock out",
     "couldNotOpenMaps": "Could not open maps",
     "createEventFailed": "Failed to create event. Please try again.",
-    "deleteEventFailed": "Failed to delete event. Please try again."
+    "deleteEventFailed": "Failed to delete event. Please try again.",
+    "saveTaskFailed": "Failed to save task. Please try again.",
+    "deleteTaskFailed": "Failed to delete task. Please try again.",
+    "updateTaskFailed": "Failed to update task. Please try again."
   },
   "confirmDelete": {
     "title": "Delete Worker",
     "message": "Are you sure you want to delete this worker? This action cannot be undone."
+  },
+  "workerDetails": {
+    "title": "Worker Details",
+    "close": "Close",
+    "edit": "Edit",
+    "paymentInformation": "Payment Information",
+    "hourlyRate": "HOURLY RATE",
+    "dailyRate": "DAILY RATE",
+    "weeklySalary": "WEEKLY SALARY",
+    "projectRate": "PROJECT RATE",
+    "perHour": "/hr",
+    "perDay": "/day",
+    "perWeek": "/wk",
+    "perProject": "/project",
+    "viewPaymentHistory": "View Payment History",
+    "deleteWorker": "Delete Worker",
+    "currentlyOnSite": "Currently On Site",
+    "recentClockRecords": "Recent Clock Records",
+    "noOneWorking": "No one is working so far",
+    "noClockIns": "No clock-ins yet"
+  },
+  "payment": {
+    "editPayment": "Edit Payment",
+    "paymentType": "Payment Type",
+    "hourly": "Hourly",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "project": "Project",
+    "hourlyHelp": "Enter the amount paid per hour worked",
+    "dailyHelp": "Enter the amount paid per day. Half day if less than 5 hours.",
+    "weeklyHelp": "Enter the fixed weekly salary amount",
+    "projectHelp": "Enter the fixed amount paid per project completion"
+  },
+  "dailyReportForm": {
+    "newDailyReport": "New Daily Report",
+    "selectProject": "1. Select Project",
+    "addPhotos": "2. Add Photos (Optional)",
+    "loadingProjects": "Loading projects...",
+    "noAssignedProjects": "No assigned projects"
   }
 }

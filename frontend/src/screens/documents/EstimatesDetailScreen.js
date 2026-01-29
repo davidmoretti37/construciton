@@ -10,17 +10,20 @@ import {
   RefreshControl,
   TextInput,
   Modal,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchEstimates } from '../../utils/storage';
 import EstimatePreview from '../../components/ChatVisuals/EstimatePreview';
 import { supabase } from '../../lib/supabase';
-import { Alert } from 'react-native';
 
 export default function EstimatesDetailScreen({ navigation, route }) {
+  const { t: tCommon } = useTranslation('common');
+  const { t } = useTranslation('invoices');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -74,15 +77,15 @@ export default function EstimatesDetailScreen({ navigation, route }) {
 
   const handleDeleteEstimate = async (estimateId) => {
     Alert.alert(
-      'Delete Estimate',
-      'Are you sure you want to delete this estimate? This action cannot be undone.',
+      tCommon('alerts.cannotDelete'),
+      tCommon('messages.confirmRemove', { item: 'estimate' }),
       [
         {
-          text: 'Cancel',
+          text: tCommon('buttons.cancel'),
           style: 'cancel'
         },
         {
-          text: 'Delete',
+          text: tCommon('buttons.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -93,15 +96,15 @@ export default function EstimatesDetailScreen({ navigation, route }) {
 
               if (error) {
                 console.error('Error deleting estimate:', error);
-                Alert.alert('Error', 'Failed to delete estimate. Please try again.');
+                Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToDelete', { item: 'estimate' }));
               } else {
                 // Refresh the list
                 await loadEstimates();
-                Alert.alert('Success', 'Estimate deleted successfully');
+                Alert.alert(tCommon('alerts.success'), tCommon('messages.deletedSuccessfully', { item: 'Estimate' }));
               }
             } catch (error) {
               console.error('Error deleting estimate:', error);
-              Alert.alert('Error', 'Failed to delete estimate. Please try again.');
+              Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToDelete', { item: 'estimate' }));
             }
           }
         }
@@ -163,7 +166,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>All Estimates</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allEstimates')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -178,7 +181,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
             <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
               <Ionicons name="document-text-outline" size={48} color={Colors.secondaryText} />
               <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                {searchQuery || statusFilter !== 'All' ? 'No estimates match your filters' : 'No estimates created yet'}
+                {searchQuery || statusFilter !== 'All' ? t('list.noEstimatesMatch') : t('list.noEstimatesYet')}
               </Text>
             </View>
           ) : (
@@ -217,7 +220,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                       ]}
                     >
                       <Text style={[styles.statusText, { color: getStatusColor(estimate.status) }]}>
-                        {estimate.status || 'Draft'}
+                        {estimate.status ? t(`status.${estimate.status.toLowerCase()}`) : t('status.draft')}
                       </Text>
                     </View>
                   </View>
@@ -255,7 +258,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
             <TouchableOpacity onPress={() => setShowEstimateModal(false)}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Estimate Details</Text>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('list.estimateDetails')}</Text>
             <View style={{ width: 28 }} />
           </View>
 

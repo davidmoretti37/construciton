@@ -92,5 +92,18 @@
   "confirmVoid": {
     "title": "Void Invoice",
     "message": "Are you sure you want to void this invoice? This action cannot be undone."
+  },
+  "list": {
+    "allInvoices": "All Invoices",
+    "allEstimates": "All Estimates",
+    "noInvoicesYet": "No invoices created yet",
+    "noEstimatesYet": "No estimates created yet",
+    "noEstimatesMatch": "No estimates match your filters",
+    "due": "Due:",
+    "paid": "Paid:",
+    "left": "left",
+    "invoiceDetails": "Invoice Details",
+    "estimateDetails": "Estimate Details",
+    "unpaid": "Unpaid"
   }
 }

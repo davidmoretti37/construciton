@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const WeeklyCalendar = ({ selectedDate, onDateSelect, theme, eventDates = [] }) => {
+  const { t } = useTranslation('common');
   const [weekStart, setWeekStart] = useState(() => getWeekStart(selectedDate || new Date()));
 
   // Update week when selectedDate changes externally
@@ -50,13 +52,19 @@ const WeeklyCalendar = ({ selectedDate, onDateSelect, theme, eventDates = [] }) 
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  // Get translated month abbreviation
+  const getMonthShort = (monthIndex) => {
+    const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    return t(`calendar.monthsShort.${monthKeys[monthIndex]}`);
+  };
+
   // Format week range for header (e.g., "Jan 19 - 25, 2026")
   const formatWeekRange = () => {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
-    const startMonth = weekStart.toLocaleDateString('en-US', { month: 'short' });
-    const endMonth = weekEnd.toLocaleDateString('en-US', { month: 'short' });
+    const startMonth = getMonthShort(weekStart.getMonth());
+    const endMonth = getMonthShort(weekEnd.getMonth());
     const startDay = weekStart.getDate();
     const endDay = weekEnd.getDate();
     const year = weekEnd.getFullYear();
@@ -85,7 +93,11 @@ const WeeklyCalendar = ({ selectedDate, onDateSelect, theme, eventDates = [] }) 
     return eventDates.includes(dateStr);
   };
 
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayNames = [
+    t('calendar.daysShort.sun'), t('calendar.daysShort.mon'), t('calendar.daysShort.tue'),
+    t('calendar.daysShort.wed'), t('calendar.daysShort.thu'), t('calendar.daysShort.fri'),
+    t('calendar.daysShort.sat')
+  ];
   const weekDates = getWeekDates();
 
   return (

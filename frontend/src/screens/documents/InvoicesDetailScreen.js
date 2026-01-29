@@ -13,12 +13,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchInvoices, deleteInvoice } from '../../utils/storage';
 import InvoicePreview from '../../components/ChatVisuals/InvoicePreview';
 
 export default function InvoicesDetailScreen({ navigation }) {
+  const { t: tCommon } = useTranslation('common');
+  const { t } = useTranslation('invoices');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -96,7 +99,7 @@ export default function InvoicesDetailScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>All Invoices</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allInvoices')}</Text>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => navigation.navigate('EditInvoiceSetup')}
@@ -116,7 +119,7 @@ export default function InvoicesDetailScreen({ navigation }) {
             <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
               <Ionicons name="receipt-outline" size={48} color={Colors.secondaryText} />
               <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                No invoices created yet
+                {t('list.noInvoicesYet')}
               </Text>
             </View>
           ) : (
@@ -149,7 +152,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                       ]}
                     >
                       <Text style={[styles.statusText, { color: getStatusColor(actualStatus) }]}>
-                        {actualStatus || 'Unpaid'}
+                        {actualStatus ? t(`status.${actualStatus}`) : t('list.unpaid')}
                       </Text>
                     </View>
                   </View>
@@ -159,12 +162,12 @@ export default function InvoicesDetailScreen({ navigation }) {
                       <View style={styles.infoRow}>
                         <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
                         <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                          Due: {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A'}
+                          {t('list.due')} {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A'}
                         </Text>
                       </View>
                       {invoice.status?.toLowerCase() === 'partial' && (
                         <Text style={[styles.paidAmount, { color: Colors.successGreen }]}>
-                          Paid: ${invoice.paidAmount?.toLocaleString() || '0'}
+                          {t('list.paid')} ${invoice.paidAmount?.toLocaleString() || '0'}
                         </Text>
                       )}
                     </View>
@@ -174,7 +177,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                       </Text>
                       {invoice.status?.toLowerCase() === 'partial' && (
                         <Text style={[styles.remaining, { color: Colors.warningOrange }]}>
-                          ${remaining.toLocaleString()} left
+                          ${remaining.toLocaleString()} {t('list.left')}
                         </Text>
                       )}
                     </View>
@@ -201,7 +204,7 @@ export default function InvoicesDetailScreen({ navigation }) {
             <TouchableOpacity onPress={() => setShowInvoiceModal(false)}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Invoice Details</Text>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('list.invoiceDetails')}</Text>
             <View style={{ width: 28 }} />
           </View>
 
@@ -231,21 +234,21 @@ export default function InvoicesDetailScreen({ navigation }) {
                   // Handle actions like share, email, record payment, etc.
                   if (action.type === 'delete-invoice') {
                     Alert.alert(
-                      'Delete Invoice',
-                      'Are you sure you want to delete this invoice?',
+                      t('confirmDelete.title'),
+                      t('confirmDelete.message'),
                       [
-                        { text: 'Cancel', style: 'cancel' },
+                        { text: tCommon('buttons.cancel'), style: 'cancel' },
                         {
-                          text: 'Delete',
+                          text: tCommon('buttons.delete'),
                           style: 'destructive',
                           onPress: async () => {
                             try {
                               await deleteInvoice(selectedInvoice.id);
                               setShowInvoiceModal(false);
                               loadInvoices();
-                              Alert.alert('Success', 'Invoice deleted successfully');
+                              Alert.alert(tCommon('alerts.success'), tCommon('messages.deletedSuccessfully', { item: 'Invoice' }));
                             } catch (error) {
-                              Alert.alert('Error', 'Failed to delete invoice');
+                              Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToDelete', { item: 'invoice' }));
                             }
                           }
                         }

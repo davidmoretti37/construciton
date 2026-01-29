@@ -1,5 +1,6 @@
 {
   "title": "Projetos",
+  "jobName": "Nome do Trabalho",
   "newProject": "Novo Projeto",
   "notSet": "Não definido",
   "noProjectsFound": "Nenhum projeto encontrado",
@@ -109,5 +110,52 @@
   "confirmDelete": {
     "title": "Excluir Projeto",
     "message": "Tem certeza que deseja excluir este projeto? Esta ação não pode ser desfeita."
+  },
+  "card": {
+    "unnamedProject": "Projeto sem nome",
+    "dueToday": "Vence hoje",
+    "daysOverdue": "{{days}} dias de atraso",
+    "daysLeft": "{{days}} {{unit}} restantes",
+    "day": "dia",
+    "dayPlural": "dias",
+    "timeline": "Cronograma",
+    "workComplete": "Trabalho Concluído",
+    "noTimeline": "Sem cronograma definido",
+    "payPerPhase": "Pagamento por fase",
+    "payInFull": "Pagamento integral",
+    "originalWork": "Trabalho Original",
+    "baseContract": "Contrato Base",
+    "additionalWork": "Trabalho Adicional",
+    "tasks": "Tarefas:",
+    "phase": "fase",
+    "phasePlural": "fases",
+    "behind": "{{percent}}% atrasado",
+    "behindWithDate": "{{percent}}% atrasado - Est: {{date}} ({{days}}d tarde)",
+    "aheadOfSchedule": "{{percent}}% adiantado"
+  },
+  "financial": {
+    "totalContractAmount": "Valor Total do Contrato",
+    "contractAmount": "Valor do Contrato",
+    "expenses": "Despesas:",
+    "netAvailable": "Saldo Disponível:",
+    "pending": "Pendente:",
+    "currentProfit": "Lucro Atual"
+  },
+  "project": {
+    "shareProject": "Compartilhar Projeto",
+    "sharePrompt": "Como você gostaria de compartilhar este projeto?",
+    "sharePdf": "Compartilhar PDF",
+    "emailPdf": "Enviar PDF por E-mail",
+    "textPdf": "Enviar PDF por Mensagem",
+    "project": "Projeto",
+    "projectTitle": "Título do Projeto",
+    "scope": "Escopo",
+    "complexity": "Complexidade",
+    "days": "dias",
+    "tasks": "Tarefas",
+    "projectTimeline": "Cronograma do Projeto",
+    "workingDays": "Dias Úteis",
+    "services": "Serviços",
+    "acceptedReadyToConvert": "Aceito - Pronto para converter em nota fiscal"
   }
 }

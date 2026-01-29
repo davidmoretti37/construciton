@@ -22,5 +22,11 @@
   },
   "actions": {
     "refresh": "Refresh"
+  },
+  "timeline": {
+    "daysOff": "DAYS OFF",
+    "addDate": "Add Date",
+    "noDaysOff": "No days off scheduled. Tap \"Add Date\" to mark specific dates as non-working.",
+    "workingDays": "Working Days"
   }
 }

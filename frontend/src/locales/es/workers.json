@@ -19,7 +19,31 @@
     "hourlyRate": "Tarifa por Hora",
     "hourlyRatePlaceholder": "0.00",
     "notes": "Notas",
-    "notesPlaceholder": "Notas adicionales sobre este trabajador..."
+    "notesPlaceholder": "Notas adicionales sobre este trabajador...",
+    "personalInfo": "Información Personal",
+    "workDetails": "Detalles del Trabajo",
+    "paymentDetails": "Detalles de Pago",
+    "paymentType": "Tipo de Pago",
+    "hourly": "Por Hora",
+    "daily": "Diario",
+    "weekly": "Semanal",
+    "projectBased": "Por Proyecto",
+    "dailyRate": "Tarifa Diaria",
+    "dailyRatePlaceholder": "0.00",
+    "weeklySalary": "Salario Semanal",
+    "weeklySalaryPlaceholder": "0.00",
+    "projectRate": "Tarifa por Proyecto",
+    "projectRatePlaceholder": "0.00"
+  },
+  "contact": {
+    "sendEmail": "Enviar Correo",
+    "shareEmail": "Compartir/Copiar Correo",
+    "email": "Correo",
+    "shareCopy": "Compartir/Copiar",
+    "call": "Llamar",
+    "whatsapp": "WhatsApp",
+    "shareNumber": "Compartir/Copiar Número",
+    "phone": "Teléfono"
   },
   "status": {
     "active": "Activo",
@@ -58,20 +82,61 @@
     "cancel": "Cancelar",
     "delete": "Eliminar"
   },
+  "tabs": {
+    "schedule": "Calendario",
+    "reports": "Reportes",
+    "workers": "Trabajadores"
+  },
   "reports": {
     "today": "Hoy",
     "yesterday": "Ayer",
-    "allReports": "Todos los Reportes"
+    "allReports": "Todos los Reportes",
+    "report": "reporte",
+    "reportsPlural": "reportes",
+    "owner": "Responsable",
+    "unknownWorker": "Trabajador Desconocido",
+    "general": "General",
+    "tasksCompleted": "tareas completadas",
+    "taskCompleted": "tarea completada",
+    "submittedAt": "Enviado a las",
+    "noReportsForDate": "Sin Reportes para {{date}}",
+    "useArrows": "Usa las flechas para ver reportes de otros días"
   },
   "schedule": {
     "todaySchedule": "Horario de Hoy",
     "deleteEvent": "Eliminar Evento",
-    "confirmDeleteEvent": "¿Estás seguro de que quieres eliminar este evento?"
+    "confirmDeleteEvent": "¿Estás seguro de que quieres eliminar este evento?",
+    "addEvent": "Agregar Evento",
+    "addTask": "Agregar Tarea",
+    "deleteTask": "Eliminar Tarea",
+    "confirmDeleteTask": "¿Estás seguro de que quieres eliminar esta tarea?",
+    "tasks": "Tareas",
+    "noTasksForDay": "Sin tareas para este día",
+    "addTaskHint": "Toca \"Agregar Tarea\" para asignar trabajo a tu equipo",
+    "viewMode": {
+      "week": "Semana",
+      "month": "Mes"
+    },
+    "personal": "Personal",
+    "allDay": "Todo el Día",
+    "workerTasks": "Tareas del Trabajador",
+    "noTasks": "Sin tareas",
+    "projectActive": "Activo",
+    "projectCompleted": "Completado",
+    "projectArchived": "Archivado",
+    "ongoing": "En Curso",
+    "phases": "Fases",
+    "projectWork": "Trabajo del Proyecto",
+    "nothingScheduled": "Nada programado",
+    "noSchedules": "Sin horarios"
   },
   "success": {
     "title": "Éxito",
     "eventAdded": "Evento agregado exitosamente",
-    "eventDeleted": "Evento eliminado exitosamente"
+    "eventDeleted": "Evento eliminado exitosamente",
+    "workerAdded": "Trabajador agregado exitosamente",
+    "workerUpdated": "Trabajador actualizado exitosamente",
+    "workerDeleted": "Trabajador eliminado"
   },
   "timeTracking": {
     "clockIn": "Registrar Entrada",
@@ -119,6 +184,8 @@
   "errors": {
     "error": "Error",
     "nameRequired": "Por favor ingresa el nombre del trabajador",
+    "emailRequired": "Se requiere correo para enviar invitación",
+    "emailInvalid": "Por favor ingresa un correo válido",
     "loadFailed": "Error al cargar trabajadores",
     "saveFailed": "Error al guardar trabajador",
     "deleteFailed": "Error al eliminar trabajador",
@@ -126,10 +193,52 @@
     "clockOutFailed": "Error al registrar salida",
     "couldNotOpenMaps": "No se pudo abrir mapas",
     "createEventFailed": "Error al crear evento. Intenta de nuevo.",
-    "deleteEventFailed": "Error al eliminar evento. Intenta de nuevo."
+    "deleteEventFailed": "Error al eliminar evento. Intenta de nuevo.",
+    "saveTaskFailed": "Error al guardar tarea. Intenta de nuevo.",
+    "deleteTaskFailed": "Error al eliminar tarea. Intenta de nuevo.",
+    "updateTaskFailed": "Error al actualizar tarea. Intenta de nuevo."
   },
   "confirmDelete": {
     "title": "Eliminar Trabajador",
     "message": "¿Estás seguro de que quieres eliminar este trabajador? Esta acción no se puede deshacer."
+  },
+  "workerDetails": {
+    "title": "Detalles del Trabajador",
+    "close": "Cerrar",
+    "edit": "Editar",
+    "paymentInformation": "Información de Pago",
+    "hourlyRate": "TARIFA POR HORA",
+    "dailyRate": "TARIFA DIARIA",
+    "weeklySalary": "SALARIO SEMANAL",
+    "projectRate": "TARIFA POR PROYECTO",
+    "perHour": "/hr",
+    "perDay": "/día",
+    "perWeek": "/sem",
+    "perProject": "/proyecto",
+    "viewPaymentHistory": "Ver Historial de Pagos",
+    "deleteWorker": "Eliminar Trabajador",
+    "currentlyOnSite": "Actualmente en Sitio",
+    "recentClockRecords": "Registros de Entrada Recientes",
+    "noOneWorking": "Nadie está trabajando aún",
+    "noClockIns": "Sin registros de entrada"
+  },
+  "payment": {
+    "editPayment": "Editar Pago",
+    "paymentType": "Tipo de Pago",
+    "hourly": "Por Hora",
+    "daily": "Diario",
+    "weekly": "Semanal",
+    "project": "Por Proyecto",
+    "hourlyHelp": "Ingresa el monto pagado por hora trabajada",
+    "dailyHelp": "Ingresa el monto pagado por día. Medio día si es menos de 5 horas.",
+    "weeklyHelp": "Ingresa el monto fijo del salario semanal",
+    "projectHelp": "Ingresa el monto fijo pagado por proyecto completado"
+  },
+  "dailyReportForm": {
+    "newDailyReport": "Nuevo Reporte Diario",
+    "selectProject": "1. Seleccionar Proyecto",
+    "addPhotos": "2. Agregar Fotos (Opcional)",
+    "loadingProjects": "Cargando proyectos...",
+    "noAssignedProjects": "Sin proyectos asignados"
   }
 }

@@ -41,7 +41,8 @@
     "uploadLogo": "Carregar Logo",
     "removeLogo": "Remover Logo",
     "license": "Número do CREA/CAU",
-    "taxId": "CNPJ"
+    "taxId": "CNPJ",
+    "noServices": "Nenhum serviço adicionado ainda"
   },
   "preferences": {
     "theme": "Tema",
@@ -51,7 +52,9 @@
     "currency": "Moeda",
     "dateFormat": "Formato de Data",
     "timeFormat": "Formato de Hora",
-    "defaultView": "Visualização Padrão"
+    "defaultView": "Visualização Padrão",
+    "dark": "Escuro",
+    "light": "Claro"
   },
   "notifications": {
     "title": "Notificações",
@@ -80,6 +83,32 @@
     "autoSuggest": "Auto-Sugestões",
     "estimateNotes": "Notas Padrão de Orçamento",
     "subcontractorNotes": "Notas de Subempreiteiros"
+  },
+  "aiPersonality": {
+    "title": "Personalidade da IA",
+    "subtitle": "Personalize seu assistente",
+    "aboutYou": "SOBRE VOCÊ",
+    "aboutYouPlaceholder": "Sou um encanador em Austin especializado em reformas de banheiros...",
+    "responseStyle": "Estilo de Resposta",
+    "responseStylePlaceholder": "Seja breve. Use tópicos..."
+  },
+  "subscription": {
+    "title": "Assinatura",
+    "managePlan": "Gerenciar seu plano",
+    "trialEndsToday": "Seu teste termina hoje!",
+    "trialEnds1Day": "1 dia restante no seu teste",
+    "trialEndsDays": "{{days}} dias restantes no seu teste",
+    "error": "Erro",
+    "portalFailed": "Falha ao abrir o gerenciamento de assinatura",
+    "currentPlan": "Plano Atual",
+    "changePlan": "Mudar Plano",
+    "manageBilling": "Gerenciar Cobrança",
+    "subscribeNow": "Assinar Agora",
+    "upgradeFailed": "Falha ao iniciar a atualização",
+    "limitReached": "Limite de Projetos Atingido",
+    "upgradeTo": "Atualizar para {{plan}}",
+    "upgradeNow": "Atualizar Agora",
+    "completeProjectFirst": "Conclua um projeto primeiro"
   },
   "pricing": {
     "title": "Configurações de Preços",
@@ -110,7 +139,8 @@
     "version": "Versão",
     "terms": "Termos de Serviço",
     "privacy": "Política de Privacidade",
-    "licenses": "Licenças de Código Aberto"
+    "licenses": "Licenças de Código Aberto",
+    "madeWith": "Feito com ❤️"
   },
   "language": {
     "title": "Idioma",
@@ -133,5 +163,76 @@
   "confirmReset": {
     "title": "Redefinir App",
     "message": "Tem certeza que deseja redefinir todos os dados do app? Isso não pode ser desfeito."
+  },
+  "notificationsSettings": {
+    "pushNotifications": "NOTIFICAÇÕES PUSH",
+    "pushDescription": "Notificações que aparecem na sua tela de bloqueio",
+    "enableAll": "Habilitar todas as notificações push",
+    "getReminded": "Receber lembretes antes de compromissos",
+    "whenWorkersSubmit": "Quando trabalhadores enviam relatórios",
+    "behindSchedule": "Alertas de atraso ou acima do orçamento",
+    "paymentsExpense": "Alertas de pagamentos e despesas",
+    "invitationsClockIns": "Convites, registros de ponto, etc.",
+    "workerUpdates": "Atualizações de Trabalhadores",
+    "appointmentsSection": "COMPROMISSOS",
+    "remindMeBefore": "Lembrar-me antes",
+    "minutes": "minutos",
+    "minute": "minuto",
+    "min": "min",
+    "hours": "horas",
+    "hour": "hora",
+    "hoursMinutes": "{{hours}}h {{minutes}}m",
+    "includeTravelTime": "Incluir Tempo de Deslocamento",
+    "addEstimatedTravel": "Adicionar tempo de deslocamento estimado ao lembrete",
+    "quietHours": "HORÁRIO SILENCIOSO",
+    "silenceNotifications": "Silenciar notificações durante determinadas horas",
+    "doNotDisturb": "Não Perturbe",
+    "notificationsAlwaysOn": "Notificações sempre ativas",
+    "inAppNotifications": "NOTIFICAÇÕES NO APP",
+    "inAppDescription": "Notificações mostradas no centro de notificações",
+    "inAppNotificationsToggle": "Notificações no App",
+    "showInNotificationCenter": "Mostrar no centro de notificações",
+    "appointmentReminders": "Lembretes de compromissos",
+    "dailyReportSubmissions": "Envio de relatórios diários",
+    "projectWarningsAlerts": "Avisos e alertas de projetos",
+    "financialUpdates": "Atualizações financeiras",
+    "clockInsInvitations": "Registros de ponto, convites",
+    "until": "Até",
+    "startTime": "Hora de Início",
+    "endTime": "Hora de Término"
+  },
+  "subscriptionSettings": {
+    "title": "Assinatura",
+    "currentPlan": "Plano Atual",
+    "trial": "Teste",
+    "active": "Ativo",
+    "pastDue": "Vencido",
+    "canceled": "Cancelado",
+    "inactive": "Inativo",
+    "perMonth": "/mês",
+    "projectsUsed": "{{used}} de {{total}} projetos usados",
+    "unlimited": "ilimitados",
+    "trialEndsIn": "O teste termina em {{days}} dia(s)",
+    "cancelsOn": "Cancela em {{date}}",
+    "renewsOn": "Renova em {{date}}",
+    "changePlan": "Mudar Plano",
+    "manageBilling": "Gerenciar Cobrança",
+    "billingDescription": "Atualize o método de pagamento, veja faturas ou cancele sua assinatura no portal de cobrança.",
+    "noSubscriptionHelp": "Assine para acessar todas as funcionalidades e gerenciar mais projetos."
+  },
+  "services": {
+    "customizeService": "Personalizar Serviço",
+    "adjustPricing": "Ajuste preços e fases para este serviço",
+    "pricing": "Preços",
+    "phases": "Fases",
+    "addPricingItem": "Adicionar Item de Preço",
+    "editPricingItem": "Editar Item de Preço",
+    "perSqFt": "por m²",
+    "perHour": "por hora",
+    "perUnit": "por unidade",
+    "sqFt": "/ m²",
+    "hour": "/ hora",
+    "unit": "/ unidade",
+    "saveChanges": "Salvar Alterações"
   }
 }

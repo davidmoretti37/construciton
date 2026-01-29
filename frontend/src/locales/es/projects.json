@@ -1,5 +1,6 @@
 {
   "title": "Proyectos",
+  "jobName": "Nombre del Trabajo",
   "newProject": "Nuevo Proyecto",
   "editProject": "Editar Proyecto",
   "deleteProject": "Eliminar Proyecto",
@@ -88,6 +89,36 @@
     "title": "Eliminar Proyecto",
     "message": "¿Estás seguro de que quieres eliminar este proyecto? Esta acción no se puede deshacer."
   },
+  "card": {
+    "unnamedProject": "Proyecto sin nombre",
+    "dueToday": "Vence hoy",
+    "daysOverdue": "{{days}} días de retraso",
+    "daysLeft": "{{days}} {{unit}} restantes",
+    "day": "día",
+    "dayPlural": "días",
+    "timeline": "Cronograma",
+    "workComplete": "Trabajo Completado",
+    "noTimeline": "Sin cronograma establecido",
+    "payPerPhase": "Pago por fase",
+    "payInFull": "Pago total",
+    "originalWork": "Trabajo Original",
+    "baseContract": "Contrato Base",
+    "additionalWork": "Trabajo Adicional",
+    "tasks": "Tareas:",
+    "phase": "fase",
+    "phasePlural": "fases",
+    "behind": "{{percent}}% atrasado",
+    "behindWithDate": "{{percent}}% atrasado - Est: {{date}} ({{days}}d tarde)",
+    "aheadOfSchedule": "{{percent}}% adelantado"
+  },
+  "financial": {
+    "totalContractAmount": "Monto Total del Contrato",
+    "contractAmount": "Monto del Contrato",
+    "expenses": "Gastos:",
+    "netAvailable": "Neto Disponible:",
+    "pending": "Pendiente:",
+    "currentProfit": "Ganancia Actual"
+  },
   "notSet": "No establecido",
   "noProjectsFound": "No se encontraron proyectos",
   "tryAdjustingFilters": "Intenta ajustar tu búsqueda o filtro",
@@ -109,5 +140,22 @@
   "creating": "Creando...",
   "success": "Éxito",
   "error": "Error",
-  "projectDeletedSuccessfully": "Proyecto eliminado exitosamente"
+  "projectDeletedSuccessfully": "Proyecto eliminado exitosamente",
+  "project": {
+    "shareProject": "Compartir Proyecto",
+    "sharePrompt": "¿Cómo te gustaría compartir este proyecto?",
+    "sharePdf": "Compartir PDF",
+    "emailPdf": "Enviar PDF por Correo",
+    "textPdf": "Enviar PDF por Mensaje",
+    "project": "Proyecto",
+    "projectTitle": "Título del Proyecto",
+    "scope": "Alcance",
+    "complexity": "Complejidad",
+    "days": "días",
+    "tasks": "Tareas",
+    "projectTimeline": "Cronograma del Proyecto",
+    "workingDays": "Días Laborales",
+    "services": "Servicios",
+    "acceptedReadyToConvert": "Aceptado - Listo para convertir a factura"
+  }
 }

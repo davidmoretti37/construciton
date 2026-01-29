@@ -41,7 +41,8 @@
     "uploadLogo": "Upload Logo",
     "removeLogo": "Remove Logo",
     "license": "License Number",
-    "taxId": "Tax ID"
+    "taxId": "Tax ID",
+    "noServices": "No services added yet"
   },
   "preferences": {
     "theme": "Theme",
@@ -51,7 +52,9 @@
     "currency": "Currency",
     "dateFormat": "Date Format",
     "timeFormat": "Time Format",
-    "defaultView": "Default View"
+    "defaultView": "Default View",
+    "dark": "Dark",
+    "light": "Light"
   },
   "notifications": {
     "title": "Notifications",
@@ -80,6 +83,32 @@
     "autoSuggest": "Auto-Suggest",
     "estimateNotes": "Default Estimate Notes",
     "subcontractorNotes": "Subcontractor Notes"
+  },
+  "aiPersonality": {
+    "title": "AI Personality",
+    "subtitle": "Customize your assistant",
+    "aboutYou": "ABOUT YOU",
+    "aboutYouPlaceholder": "I'm a plumber in Austin specializing in bathroom remodels...",
+    "responseStyle": "Response Style",
+    "responseStylePlaceholder": "Be brief. Use bullet points..."
+  },
+  "subscription": {
+    "title": "Subscription",
+    "managePlan": "Manage your plan",
+    "trialEndsToday": "Your trial ends today!",
+    "trialEnds1Day": "1 day left in your trial",
+    "trialEndsDays": "{{days}} days left in your trial",
+    "error": "Error",
+    "portalFailed": "Failed to open subscription management",
+    "currentPlan": "Current Plan",
+    "changePlan": "Change Plan",
+    "manageBilling": "Manage Billing",
+    "subscribeNow": "Subscribe Now",
+    "upgradeFailed": "Failed to start upgrade",
+    "limitReached": "Project Limit Reached",
+    "upgradeTo": "Upgrade to {{plan}}",
+    "upgradeNow": "Upgrade Now",
+    "completeProjectFirst": "Complete a project first"
   },
   "pricing": {
     "title": "Pricing Settings",
@@ -110,7 +139,8 @@
     "version": "Version",
     "terms": "Terms of Service",
     "privacy": "Privacy Policy",
-    "licenses": "Open Source Licenses"
+    "licenses": "Open Source Licenses",
+    "madeWith": "Made with ❤️"
   },
   "language": {
     "title": "Language",
@@ -133,5 +163,76 @@
   "confirmReset": {
     "title": "Reset App",
     "message": "Are you sure you want to reset all app data? This cannot be undone."
+  },
+  "notificationsSettings": {
+    "pushNotifications": "PUSH NOTIFICATIONS",
+    "pushDescription": "Notifications that appear on your lock screen",
+    "enableAll": "Enable all push notifications",
+    "getReminded": "Get reminded before appointments",
+    "whenWorkersSubmit": "When workers submit reports",
+    "behindSchedule": "Behind schedule, over budget alerts",
+    "paymentsExpense": "Payments and expense alerts",
+    "invitationsClockIns": "Invitations, clock-ins, etc.",
+    "workerUpdates": "Worker Updates",
+    "appointmentsSection": "APPOINTMENTS",
+    "remindMeBefore": "Remind me before",
+    "minutes": "minutes",
+    "minute": "minute",
+    "min": "min",
+    "hours": "hours",
+    "hour": "hour",
+    "hoursMinutes": "{{hours}}h {{minutes}}m",
+    "includeTravelTime": "Include Travel Time",
+    "addEstimatedTravel": "Add estimated travel time to reminder",
+    "quietHours": "QUIET HOURS",
+    "silenceNotifications": "Silence notifications during certain hours",
+    "doNotDisturb": "Do Not Disturb",
+    "notificationsAlwaysOn": "Notifications always on",
+    "inAppNotifications": "IN-APP NOTIFICATIONS",
+    "inAppDescription": "Notifications shown in the notification center",
+    "inAppNotificationsToggle": "In-App Notifications",
+    "showInNotificationCenter": "Show in notification center",
+    "appointmentReminders": "Appointment reminders",
+    "dailyReportSubmissions": "Daily report submissions",
+    "projectWarningsAlerts": "Project warnings and alerts",
+    "financialUpdates": "Financial updates",
+    "clockInsInvitations": "Clock-ins, invitations",
+    "until": "Until",
+    "startTime": "Start Time",
+    "endTime": "End Time"
+  },
+  "subscriptionSettings": {
+    "title": "Subscription",
+    "currentPlan": "Current Plan",
+    "trial": "Trial",
+    "active": "Active",
+    "pastDue": "Past Due",
+    "canceled": "Canceled",
+    "inactive": "Inactive",
+    "perMonth": "/month",
+    "projectsUsed": "{{used}} of {{total}} projects used",
+    "unlimited": "unlimited",
+    "trialEndsIn": "Trial ends in {{days}} day(s)",
+    "cancelsOn": "Cancels on {{date}}",
+    "renewsOn": "Renews on {{date}}",
+    "changePlan": "Change Plan",
+    "manageBilling": "Manage Billing",
+    "billingDescription": "Update payment method, view invoices, or cancel your subscription in the billing portal.",
+    "noSubscriptionHelp": "Subscribe to access all features and manage more projects."
+  },
+  "services": {
+    "customizeService": "Customize Service",
+    "adjustPricing": "Adjust pricing and phases for this service",
+    "pricing": "Pricing",
+    "phases": "Phases",
+    "addPricingItem": "Add Pricing Item",
+    "editPricingItem": "Edit Pricing Item",
+    "perSqFt": "per sq ft",
+    "perHour": "per hour",
+    "perUnit": "per unit",
+    "sqFt": "/ sq ft",
+    "hour": "/ hour",
+    "unit": "/ unit",
+    "saveChanges": "Save Changes"
   }
 }

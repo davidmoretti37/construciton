@@ -25,6 +25,7 @@ import {
 
 export default function NotificationSettingsScreen({ navigation }) {
   const { t } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -63,7 +64,7 @@ export default function NotificationSettingsScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading preferences:', error);
-      Alert.alert('Error', 'Failed to load notification preferences');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'notification preferences' }));
     } finally {
       setLoading(false);
     }
@@ -118,23 +119,23 @@ export default function NotificationSettingsScreen({ navigation }) {
     setSaving(true);
     try {
       await saveNotificationPreferences(preferences);
-      Alert.alert('Success', 'Notification preferences saved', [
+      Alert.alert(tCommon('alerts.success'), tCommon('messages.savedSuccessfully', { item: 'Notification preferences' }), [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
       console.error('Error saving preferences:', error);
-      Alert.alert('Error', 'Failed to save preferences. Please try again.');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'preferences' }));
     } finally {
       setSaving(false);
     }
   };
 
   const formatReminderTime = (minutes) => {
-    if (minutes < 60) return `${minutes} minutes`;
+    if (minutes < 60) return `${minutes} ${t('notificationsSettings.minutes')}`;
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    if (mins === 0) return `${hours} hour${hours > 1 ? 's' : ''}`;
-    return `${hours}h ${mins}m`;
+    if (mins === 0) return `${hours} ${hours > 1 ? t('notificationsSettings.hours') : t('notificationsSettings.hour')}`;
+    return t('notificationsSettings.hoursMinutes', { hours, minutes: mins });
   };
 
   if (loading) {
@@ -163,7 +164,7 @@ export default function NotificationSettingsScreen({ navigation }) {
           {saving ? (
             <ActivityIndicator size="small" color={Colors.white} />
           ) : (
-            <Text style={[styles.saveButtonText, { color: Colors.white }]}>Save</Text>
+            <Text style={[styles.saveButtonText, { color: Colors.white }]}>{tCommon('buttons.save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -175,7 +176,7 @@ export default function NotificationSettingsScreen({ navigation }) {
             {t('notifications.push').toUpperCase()}
           </Text>
           <Text style={[styles.sectionDescription, { color: Colors.secondaryText }]}>
-            Notifications that appear on your lock screen
+            {t('notificationsSettings.pushDescription')}
           </Text>
 
           <View style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
@@ -183,7 +184,7 @@ export default function NotificationSettingsScreen({ navigation }) {
               icon="notifications"
               iconColor={Colors.primaryBlue}
               title={t('notifications.push')}
-              subtitle="Enable all push notifications"
+              subtitle={t('notificationsSettings.enableAll')}
               value={preferences.push_enabled}
               onToggle={() => handleToggle('push_enabled')}
               Colors={Colors}
@@ -196,7 +197,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="calendar"
                   iconColor={Colors.primaryBlue}
                   title={t('notifications.appointments')}
-                  subtitle="Get reminded before appointments"
+                  subtitle={t('notificationsSettings.getReminded')}
                   value={preferences.push_appointment_reminders}
                   onToggle={() => handleToggle('push_appointment_reminders')}
                   Colors={Colors}
@@ -208,7 +209,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="document-text"
                   iconColor={Colors.success}
                   title={t('notifications.workerReports')}
-                  subtitle="When workers submit reports"
+                  subtitle={t('notificationsSettings.whenWorkersSubmit')}
                   value={preferences.push_daily_reports}
                   onToggle={() => handleToggle('push_daily_reports')}
                   Colors={Colors}
@@ -220,7 +221,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="warning"
                   iconColor={Colors.warning}
                   title={t('notifications.projectUpdates')}
-                  subtitle="Behind schedule, over budget alerts"
+                  subtitle={t('notificationsSettings.behindSchedule')}
                   value={preferences.push_project_warnings}
                   onToggle={() => handleToggle('push_project_warnings')}
                   Colors={Colors}
@@ -232,7 +233,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="cash"
                   iconColor={Colors.accent}
                   title={t('notifications.payments')}
-                  subtitle="Payments and expense alerts"
+                  subtitle={t('notificationsSettings.paymentsExpense')}
                   value={preferences.push_financial_updates}
                   onToggle={() => handleToggle('push_financial_updates')}
                   Colors={Colors}
@@ -243,8 +244,8 @@ export default function NotificationSettingsScreen({ navigation }) {
                 <SettingRow
                   icon="person"
                   iconColor={Colors.primaryBlue}
-                  title="Worker Updates"
-                  subtitle="Invitations, clock-ins, etc."
+                  title={t('notificationsSettings.workerUpdates')}
+                  subtitle={t('notificationsSettings.invitationsClockIns')}
                   value={preferences.push_worker_updates}
                   onToggle={() => handleToggle('push_worker_updates')}
                   Colors={Colors}
@@ -264,7 +265,7 @@ export default function NotificationSettingsScreen({ navigation }) {
           <View style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
             <View style={styles.sliderContainer}>
               <Text style={[styles.sliderLabel, { color: Colors.primaryText }]}>
-                Remind me before
+                {t('notificationsSettings.remindMeBefore')}
               </Text>
               <Text style={[styles.sliderValue, { color: Colors.primaryBlue }]}>
                 {formatReminderTime(preferences.appointment_reminder_minutes)}
@@ -284,8 +285,8 @@ export default function NotificationSettingsScreen({ navigation }) {
             />
 
             <View style={styles.sliderLabels}>
-              <Text style={[styles.sliderLabelText, { color: Colors.secondaryText }]}>15 min</Text>
-              <Text style={[styles.sliderLabelText, { color: Colors.secondaryText }]}>2 hours</Text>
+              <Text style={[styles.sliderLabelText, { color: Colors.secondaryText }]}>15 {t('notificationsSettings.min')}</Text>
+              <Text style={[styles.sliderLabelText, { color: Colors.secondaryText }]}>2 {t('notificationsSettings.hours')}</Text>
             </View>
 
             <View style={[styles.divider, { backgroundColor: Colors.border, marginTop: 16 }]} />
@@ -293,8 +294,8 @@ export default function NotificationSettingsScreen({ navigation }) {
             <SettingRow
               icon="car"
               iconColor={Colors.success}
-              title="Include Travel Time"
-              subtitle="Add estimated travel time to reminder"
+              title={t('notificationsSettings.includeTravelTime')}
+              subtitle={t('notificationsSettings.addEstimatedTravel')}
               value={preferences.appointment_reminder_with_travel}
               onToggle={() => handleToggle('appointment_reminder_with_travel')}
               Colors={Colors}
@@ -305,20 +306,20 @@ export default function NotificationSettingsScreen({ navigation }) {
         {/* Quiet Hours */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            QUIET HOURS
+            {t('notificationsSettings.quietHours')}
           </Text>
           <Text style={[styles.sectionDescription, { color: Colors.secondaryText }]}>
-            Silence notifications during certain hours
+            {t('notificationsSettings.silenceNotifications')}
           </Text>
 
           <View style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
             <SettingRow
               icon="moon"
               iconColor={Colors.primaryBlue}
-              title="Do Not Disturb"
+              title={t('notificationsSettings.doNotDisturb')}
               subtitle={preferences.quiet_hours_enabled
                 ? `${preferences.quiet_hours_start} - ${preferences.quiet_hours_end}`
-                : 'Notifications always on'}
+                : t('notificationsSettings.notificationsAlwaysOn')}
               value={preferences.quiet_hours_enabled}
               onToggle={() => handleToggle('quiet_hours_enabled')}
               Colors={Colors}
@@ -333,7 +334,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                     onPress={() => setShowTimePicker('start')}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>From</Text>
+                    <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{tCommon('labels.from')}</Text>
                     <View style={[styles.timeButton, { backgroundColor: Colors.lightGray }]}>
                       <Text style={[styles.timeValue, { color: Colors.primaryText }]}>
                         {formatTimeForDisplay(preferences.quiet_hours_start)}
@@ -346,7 +347,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                     onPress={() => setShowTimePicker('end')}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>Until</Text>
+                    <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{t('notificationsSettings.until')}</Text>
                     <View style={[styles.timeButton, { backgroundColor: Colors.lightGray }]}>
                       <Text style={[styles.timeValue, { color: Colors.primaryText }]}>
                         {formatTimeForDisplay(preferences.quiet_hours_end)}
@@ -363,18 +364,18 @@ export default function NotificationSettingsScreen({ navigation }) {
         {/* In-App Notifications Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            IN-APP NOTIFICATIONS
+            {t('notificationsSettings.inAppNotifications')}
           </Text>
           <Text style={[styles.sectionDescription, { color: Colors.secondaryText }]}>
-            Notifications shown in the notification center
+            {t('notificationsSettings.inAppDescription')}
           </Text>
 
           <View style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
             <SettingRow
               icon="apps"
               iconColor={Colors.primaryBlue}
-              title="In-App Notifications"
-              subtitle="Show in notification center"
+              title={t('notificationsSettings.inAppNotificationsToggle')}
+              subtitle={t('notificationsSettings.showInNotificationCenter')}
               value={preferences.inapp_enabled}
               onToggle={() => handleToggle('inapp_enabled')}
               Colors={Colors}
@@ -387,7 +388,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="calendar"
                   iconColor={Colors.primaryBlue}
                   title={t('notifications.appointments')}
-                  subtitle="Appointment reminders"
+                  subtitle={t('notificationsSettings.appointmentReminders')}
                   value={preferences.inapp_appointment_reminders}
                   onToggle={() => handleToggle('inapp_appointment_reminders')}
                   Colors={Colors}
@@ -399,7 +400,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="document-text"
                   iconColor={Colors.success}
                   title={t('notifications.workerReports')}
-                  subtitle="Daily report submissions"
+                  subtitle={t('notificationsSettings.dailyReportSubmissions')}
                   value={preferences.inapp_daily_reports}
                   onToggle={() => handleToggle('inapp_daily_reports')}
                   Colors={Colors}
@@ -411,7 +412,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="warning"
                   iconColor={Colors.warning}
                   title={t('notifications.projectUpdates')}
-                  subtitle="Project warnings and alerts"
+                  subtitle={t('notificationsSettings.projectWarningsAlerts')}
                   value={preferences.inapp_project_warnings}
                   onToggle={() => handleToggle('inapp_project_warnings')}
                   Colors={Colors}
@@ -423,7 +424,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   icon="cash"
                   iconColor={Colors.accent}
                   title={t('notifications.payments')}
-                  subtitle="Financial updates"
+                  subtitle={t('notificationsSettings.financialUpdates')}
                   value={preferences.inapp_financial_updates}
                   onToggle={() => handleToggle('inapp_financial_updates')}
                   Colors={Colors}
@@ -434,8 +435,8 @@ export default function NotificationSettingsScreen({ navigation }) {
                 <SettingRow
                   icon="person"
                   iconColor={Colors.primaryBlue}
-                  title="Worker Updates"
-                  subtitle="Clock-ins, invitations"
+                  title={t('notificationsSettings.workerUpdates')}
+                  subtitle={t('notificationsSettings.clockInsInvitations')}
                   value={preferences.inapp_worker_updates}
                   onToggle={() => handleToggle('inapp_worker_updates')}
                   Colors={Colors}
@@ -466,13 +467,13 @@ export default function NotificationSettingsScreen({ navigation }) {
             <View style={[styles.timePickerModalContent, { backgroundColor: Colors.cardBackground }]}>
               <View style={[styles.timePickerHeader, { borderBottomColor: Colors.border }]}>
                 <TouchableOpacity onPress={() => setShowTimePicker(null)}>
-                  <Text style={[styles.timePickerCancelText, { color: Colors.secondaryText }]}>Cancel</Text>
+                  <Text style={[styles.timePickerCancelText, { color: Colors.secondaryText }]}>{tCommon('buttons.cancel')}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.timePickerTitle, { color: Colors.primaryText }]}>
-                  {showTimePicker === 'start' ? 'Start Time' : 'End Time'}
+                  {showTimePicker === 'start' ? t('notificationsSettings.startTime') : t('notificationsSettings.endTime')}
                 </Text>
                 <TouchableOpacity onPress={() => setShowTimePicker(null)}>
-                  <Text style={[styles.timePickerDoneText, { color: Colors.primaryBlue }]}>Done</Text>
+                  <Text style={[styles.timePickerDoneText, { color: Colors.primaryBlue }]}>{tCommon('buttons.done')}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker

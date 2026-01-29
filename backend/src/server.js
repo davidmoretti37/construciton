@@ -95,6 +95,35 @@ app.get('/subscription/cancel', (req, res) => {
   `);
 });
 
+// Billing complete page - redirect back to app after managing billing
+app.get('/billing-complete', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Billing Updated</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               display: flex; justify-content: center; align-items: center;
+               min-height: 100vh; margin: 0; background: #1a1a2e; color: white; }
+        .container { text-align: center; padding: 40px; }
+        h1 { margin-bottom: 10px; color: #10b981; }
+        p { color: #888; line-height: 1.6; }
+        .checkmark { font-size: 64px; margin-bottom: 20px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="checkmark">✓</div>
+        <h1>Billing Updated</h1>
+        <p>Your changes have been saved.<br>You can close this page to return to the app.</p>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // ============================================================
 // PRICING PAGE - Premium design with animations
 // ============================================================

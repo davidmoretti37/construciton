@@ -92,5 +92,18 @@
   "confirmVoid": {
     "title": "Anular Nota Fiscal",
     "message": "Tem certeza que deseja anular esta nota fiscal? Esta ação não pode ser desfeita."
+  },
+  "list": {
+    "allInvoices": "Todas as Notas Fiscais",
+    "allEstimates": "Todos os Orçamentos",
+    "noInvoicesYet": "Nenhuma nota fiscal criada ainda",
+    "noEstimatesYet": "Nenhum orçamento criado ainda",
+    "noEstimatesMatch": "Nenhum orçamento corresponde aos seus filtros",
+    "due": "Vence:",
+    "paid": "Pago:",
+    "left": "restante",
+    "invoiceDetails": "Detalhes da Nota Fiscal",
+    "estimateDetails": "Detalhes do Orçamento",
+    "unpaid": "Não Pago"
   }
 }

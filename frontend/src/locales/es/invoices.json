@@ -92,5 +92,18 @@
   "confirmVoid": {
     "title": "Anular Factura",
     "message": "¿Estás seguro de que quieres anular esta factura? Esta acción no se puede deshacer."
+  },
+  "list": {
+    "allInvoices": "Todas las Facturas",
+    "allEstimates": "Todos los Presupuestos",
+    "noInvoicesYet": "Aún no hay facturas creadas",
+    "noEstimatesYet": "Aún no hay presupuestos creados",
+    "noEstimatesMatch": "No hay presupuestos que coincidan con tus filtros",
+    "due": "Vence:",
+    "paid": "Pagado:",
+    "left": "restante",
+    "invoiceDetails": "Detalles de Factura",
+    "estimateDetails": "Detalles de Presupuesto",
+    "unpaid": "Sin Pagar"
   }
 }

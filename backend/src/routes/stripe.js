@@ -487,9 +487,14 @@ router.post('/create-portal-session', authenticateUser, async (req, res) => {
       return res.status(400).json({ error: 'No subscription found' });
     }
 
+    // Use backend URL for return_url (Stripe requires https://)
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://construciton-production.up.railway.app'
+      : `http://localhost:${process.env.PORT || 3000}`;
+
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
-      return_url: `${process.env.FRONTEND_URL}settings/subscription`,
+      return_url: `${baseUrl}/billing-complete`,
     });
 
     logger.info(`Portal session created for user ${userId}`);

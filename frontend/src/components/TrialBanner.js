@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 export default function TrialBanner({ onPress }) {
   const { isDark } = useTheme();
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation();
+  const { t } = useTranslation('settings');
   const { trialDaysRemaining, isTrialing, hasActiveSubscription } = useSubscription();
 
   // Don't show if not trialing or no days remaining

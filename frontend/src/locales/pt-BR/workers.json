@@ -19,7 +19,31 @@
     "hourlyRate": "Taxa por Hora",
     "hourlyRatePlaceholder": "0,00",
     "notes": "Notas",
-    "notesPlaceholder": "Notas adicionais sobre este trabalhador..."
+    "notesPlaceholder": "Notas adicionais sobre este trabalhador...",
+    "personalInfo": "Informações Pessoais",
+    "workDetails": "Detalhes do Trabalho",
+    "paymentDetails": "Detalhes de Pagamento",
+    "paymentType": "Tipo de Pagamento",
+    "hourly": "Por Hora",
+    "daily": "Diário",
+    "weekly": "Semanal",
+    "projectBased": "Por Projeto",
+    "dailyRate": "Taxa Diária",
+    "dailyRatePlaceholder": "0,00",
+    "weeklySalary": "Salário Semanal",
+    "weeklySalaryPlaceholder": "0,00",
+    "projectRate": "Taxa por Projeto",
+    "projectRatePlaceholder": "0,00"
+  },
+  "contact": {
+    "sendEmail": "Enviar E-mail",
+    "shareEmail": "Compartilhar/Copiar E-mail",
+    "email": "E-mail",
+    "shareCopy": "Compartilhar/Copiar",
+    "call": "Ligar",
+    "whatsapp": "WhatsApp",
+    "shareNumber": "Compartilhar/Copiar Número",
+    "phone": "Telefone"
   },
   "status": {
     "active": "Ativo",
@@ -58,20 +82,61 @@
     "cancel": "Cancelar",
     "delete": "Excluir"
   },
+  "tabs": {
+    "schedule": "Agenda",
+    "reports": "Relatórios",
+    "workers": "Trabalhadores"
+  },
   "reports": {
     "today": "Hoje",
     "yesterday": "Ontem",
-    "allReports": "Todos os Relatórios"
+    "allReports": "Todos os Relatórios",
+    "report": "relatório",
+    "reportsPlural": "relatórios",
+    "owner": "Responsável",
+    "unknownWorker": "Trabalhador Desconhecido",
+    "general": "Geral",
+    "tasksCompleted": "tarefas concluídas",
+    "taskCompleted": "tarefa concluída",
+    "submittedAt": "Enviado às",
+    "noReportsForDate": "Sem Relatórios para {{date}}",
+    "useArrows": "Use as setas para ver relatórios de outros dias"
   },
   "schedule": {
     "todaySchedule": "Agenda de Hoje",
     "deleteEvent": "Excluir Evento",
-    "confirmDeleteEvent": "Tem certeza que deseja excluir este evento?"
+    "confirmDeleteEvent": "Tem certeza que deseja excluir este evento?",
+    "addEvent": "Adicionar Evento",
+    "addTask": "Adicionar Tarefa",
+    "deleteTask": "Excluir Tarefa",
+    "confirmDeleteTask": "Tem certeza que deseja excluir esta tarefa?",
+    "tasks": "Tarefas",
+    "noTasksForDay": "Nenhuma tarefa para este dia",
+    "addTaskHint": "Toque em \"Adicionar Tarefa\" para atribuir trabalho à sua equipe",
+    "viewMode": {
+      "week": "Semana",
+      "month": "Mês"
+    },
+    "personal": "Pessoal",
+    "allDay": "Dia Inteiro",
+    "workerTasks": "Tarefas do Trabalhador",
+    "noTasks": "Sem tarefas",
+    "projectActive": "Ativo",
+    "projectCompleted": "Concluído",
+    "projectArchived": "Arquivado",
+    "ongoing": "Em Andamento",
+    "phases": "Fases",
+    "projectWork": "Trabalho do Projeto",
+    "nothingScheduled": "Nada agendado",
+    "noSchedules": "Sem agendamentos"
   },
   "success": {
     "title": "Sucesso",
     "eventAdded": "Evento adicionado com sucesso",
-    "eventDeleted": "Evento excluído com sucesso"
+    "eventDeleted": "Evento excluído com sucesso",
+    "workerAdded": "Trabalhador adicionado com sucesso",
+    "workerUpdated": "Trabalhador atualizado com sucesso",
+    "workerDeleted": "Trabalhador excluído"
   },
   "timeTracking": {
     "clockIn": "Registrar Entrada",
@@ -119,6 +184,8 @@
   "errors": {
     "error": "Erro",
     "nameRequired": "Por favor, digite o nome do trabalhador",
+    "emailRequired": "E-mail é necessário para enviar o convite",
+    "emailInvalid": "Por favor, digite um e-mail válido",
     "loadFailed": "Falha ao carregar trabalhadores",
     "saveFailed": "Falha ao salvar trabalhador",
     "deleteFailed": "Falha ao excluir trabalhador",
@@ -126,10 +193,52 @@
     "clockOutFailed": "Falha ao registrar saída",
     "couldNotOpenMaps": "Não foi possível abrir o mapa",
     "createEventFailed": "Falha ao criar evento. Tente novamente.",
-    "deleteEventFailed": "Falha ao excluir evento. Tente novamente."
+    "deleteEventFailed": "Falha ao excluir evento. Tente novamente.",
+    "saveTaskFailed": "Falha ao salvar tarefa. Tente novamente.",
+    "deleteTaskFailed": "Falha ao excluir tarefa. Tente novamente.",
+    "updateTaskFailed": "Falha ao atualizar tarefa. Tente novamente."
   },
   "confirmDelete": {
     "title": "Excluir Trabalhador",
     "message": "Tem certeza que deseja excluir este trabalhador? Esta ação não pode ser desfeita."
+  },
+  "workerDetails": {
+    "title": "Detalhes do Trabalhador",
+    "close": "Fechar",
+    "edit": "Editar",
+    "paymentInformation": "Informações de Pagamento",
+    "hourlyRate": "TAXA POR HORA",
+    "dailyRate": "TAXA DIÁRIA",
+    "weeklySalary": "SALÁRIO SEMANAL",
+    "projectRate": "TAXA POR PROJETO",
+    "perHour": "/hr",
+    "perDay": "/dia",
+    "perWeek": "/sem",
+    "perProject": "/projeto",
+    "viewPaymentHistory": "Ver Histórico de Pagamentos",
+    "deleteWorker": "Excluir Trabalhador",
+    "currentlyOnSite": "Atualmente no Local",
+    "recentClockRecords": "Registros de Ponto Recentes",
+    "noOneWorking": "Ninguém está trabalhando ainda",
+    "noClockIns": "Nenhum registro de ponto"
+  },
+  "payment": {
+    "editPayment": "Editar Pagamento",
+    "paymentType": "Tipo de Pagamento",
+    "hourly": "Por Hora",
+    "daily": "Diário",
+    "weekly": "Semanal",
+    "project": "Por Projeto",
+    "hourlyHelp": "Digite o valor pago por hora trabalhada",
+    "dailyHelp": "Digite o valor pago por dia. Meio dia se menos de 5 horas.",
+    "weeklyHelp": "Digite o valor fixo do salário semanal",
+    "projectHelp": "Digite o valor fixo pago por projeto concluído"
+  },
+  "dailyReportForm": {
+    "newDailyReport": "Novo Relatório Diário",
+    "selectProject": "1. Selecionar Projeto",
+    "addPhotos": "2. Adicionar Fotos (Opcional)",
+    "loadingProjects": "Carregando projetos...",
+    "noAssignedProjects": "Sem projetos atribuídos"
   }
 }

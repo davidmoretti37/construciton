@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import CustomCalendar from './CustomCalendar';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -8,6 +9,7 @@ import { useTheme } from '../contexts/ThemeContext';
 export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const [showCalendar, setShowCalendar] = useState(false);
   const [tempFromDate, setTempFromDate] = useState(fromDate);
   const [tempToDate, setTempToDate] = useState(toDate);
@@ -73,10 +75,10 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
   };
 
   const presets = [
-    { label: 'This Week', getValue: getThisWeek },
-    { label: 'Last Week', getValue: getLastWeek },
-    { label: 'This Month', getValue: getThisMonth },
-    { label: 'Last Month', getValue: getLastMonth },
+    { label: t('calendar.thisWeek'), getValue: getThisWeek },
+    { label: t('calendar.lastWeek'), getValue: getLastWeek },
+    { label: t('calendar.thisMonth'), getValue: getThisMonth },
+    { label: t('calendar.lastMonth'), getValue: getLastMonth },
   ];
 
   const isPresetActive = (preset) => {
@@ -136,7 +138,7 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
     <View style={[styles.container, { backgroundColor: Colors.cardBackground }]}>
       <View style={styles.header}>
         <Ionicons name="calendar-outline" size={20} color={Colors.secondaryText} />
-        <Text style={[styles.headerText, { color: Colors.secondaryText }]}>Period</Text>
+        <Text style={[styles.headerText, { color: Colors.secondaryText }]}>{t('calendar.period')}</Text>
       </View>
 
       <TouchableOpacity
@@ -153,7 +155,7 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
         </Text>
         {isCustomRange() && (
           <View style={[styles.customBadge, { backgroundColor: Colors.primaryBlue + '20' }]}>
-            <Text style={[styles.customBadgeText, { color: Colors.primaryBlue }]}>Custom</Text>
+            <Text style={[styles.customBadgeText, { color: Colors.primaryBlue }]}>{t('calendar.custom')}</Text>
           </View>
         )}
         <Ionicons name="calendar" size={20} color={Colors.secondaryText} />
@@ -202,9 +204,9 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
             <TouchableOpacity onPress={handleCancelCustomRange}>
-              <Text style={[styles.modalCancelText, { color: Colors.secondaryText }]}>Cancel</Text>
+              <Text style={[styles.modalCancelText, { color: Colors.secondaryText }]}>{t('buttons.cancel')}</Text>
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Date Range</Text>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('calendar.selectDateRange')}</Text>
             <TouchableOpacity
               onPress={handleApplyCustomRange}
               disabled={!tempFromDate || !tempToDate}
@@ -218,23 +220,23 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
                 { color: Colors.primaryText },
                 (!tempFromDate || !tempToDate) && styles.modalApplyTextDisabled,
                 (tempFromDate && tempToDate) && { color: '#FFFFFF' }
-              ]}>Apply</Text>
+              ]}>{t('buttons.apply')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
             <View style={[styles.selectionInfo, { backgroundColor: Colors.cardBackground }]}>
               <View style={styles.selectionInfoItem}>
-                <Text style={[styles.selectionInfoLabel, { color: Colors.secondaryText }]}>From</Text>
+                <Text style={[styles.selectionInfoLabel, { color: Colors.secondaryText }]}>{t('labels.from')}</Text>
                 <Text style={[styles.selectionInfoValue, { color: Colors.primaryText }]}>
-                  {tempFromDate ? formatDateDisplay(tempFromDate) : 'Tap a date'}
+                  {tempFromDate ? formatDateDisplay(tempFromDate) : t('calendar.tapDate')}
                 </Text>
               </View>
               <Ionicons name="arrow-forward" size={20} color={Colors.placeholderText} />
               <View style={styles.selectionInfoItem}>
-                <Text style={[styles.selectionInfoLabel, { color: Colors.secondaryText }]}>To</Text>
+                <Text style={[styles.selectionInfoLabel, { color: Colors.secondaryText }]}>{t('labels.end')}</Text>
                 <Text style={[styles.selectionInfoValue, { color: Colors.primaryText }]}>
-                  {tempToDate ? formatDateDisplay(tempToDate) : (tempFromDate ? 'Tap another date' : '-')}
+                  {tempToDate ? formatDateDisplay(tempToDate) : (tempFromDate ? t('calendar.tapAnotherDate') : '-')}
                 </Text>
               </View>
             </View>
@@ -242,10 +244,10 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
             {/* Instruction text */}
             <Text style={[styles.instructionText, { color: Colors.secondaryText }]}>
               {!tempFromDate
-                ? 'Tap a date to start selecting a range'
+                ? t('calendar.tapStartDate')
                 : !tempToDate
-                  ? 'Tap another date to complete the range'
-                  : 'Tap "Apply" to use this date range'}
+                  ? t('calendar.tapEndDate')
+                  : t('calendar.tapApply')}
             </Text>
 
             <CustomCalendar

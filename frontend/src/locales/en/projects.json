@@ -1,5 +1,6 @@
 {
   "title": "Projects",
+  "jobName": "Job Name",
   "newProject": "New Project",
   "editProject": "Edit Project",
   "deleteProject": "Delete Project",
@@ -108,5 +109,52 @@
   "confirmDelete": {
     "title": "Delete Project",
     "message": "Are you sure you want to delete this project? This action cannot be undone."
+  },
+  "card": {
+    "unnamedProject": "Unnamed Project",
+    "dueToday": "Due today",
+    "daysOverdue": "{{days}} days overdue",
+    "daysLeft": "{{days}} {{unit}} left",
+    "day": "day",
+    "dayPlural": "days",
+    "timeline": "Timeline",
+    "workComplete": "Work Complete",
+    "noTimeline": "No timeline set",
+    "payPerPhase": "Pay per phase",
+    "payInFull": "Pay in full",
+    "originalWork": "Original Work",
+    "baseContract": "Base Contract",
+    "additionalWork": "Additional Work",
+    "tasks": "Tasks:",
+    "phase": "phase",
+    "phasePlural": "phases",
+    "behind": "{{percent}}% behind",
+    "behindWithDate": "{{percent}}% behind - Est: {{date}} ({{days}}d late)",
+    "aheadOfSchedule": "{{percent}}% ahead of schedule"
+  },
+  "financial": {
+    "totalContractAmount": "Total Contract Amount",
+    "contractAmount": "Contract Amount",
+    "expenses": "Expenses:",
+    "netAvailable": "Net Available:",
+    "pending": "Pending:",
+    "currentProfit": "Current Profit"
+  },
+  "project": {
+    "shareProject": "Share Project",
+    "sharePrompt": "How would you like to share this project?",
+    "sharePdf": "Share PDF",
+    "emailPdf": "Email PDF",
+    "textPdf": "Text PDF",
+    "project": "Project",
+    "projectTitle": "Project Title",
+    "scope": "Scope",
+    "complexity": "Complexity",
+    "days": "days",
+    "tasks": "Tasks",
+    "projectTimeline": "Project Timeline",
+    "workingDays": "Working Days",
+    "services": "Services",
+    "acceptedReadyToConvert": "Accepted - Ready to convert to invoice"
   }
 }
