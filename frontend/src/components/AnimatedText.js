@@ -49,7 +49,10 @@ const AnimatedText = ({
 }) => {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const chars = text.split('');
+
+  // Split into words to prevent punctuation from wrapping to new line
+  const words = text.split(' ');
+  let globalCharIndex = 0;
 
   // Default text color based on theme
   const defaultTextStyle = {
@@ -59,15 +62,44 @@ const AnimatedText = ({
   return (
     <View style={styles.container}>
       <View style={styles.textContainer}>
-        {chars.map((char, index) => (
-          <AnimatedChar
-            key={`${char}-${index}`}
-            char={char === ' ' ? '\u00A0' : char}
-            index={index}
-            delay={delay}
-            textStyle={[defaultTextStyle, textStyle]}
-          />
-        ))}
+        {words.map((word, wordIndex) => {
+          const wordChars = word.split('');
+          const wordElement = (
+            <View key={wordIndex} style={styles.wordContainer}>
+              {wordChars.map((char, charIndex) => {
+                const currentIndex = globalCharIndex;
+                globalCharIndex++;
+                return (
+                  <AnimatedChar
+                    key={`${char}-${currentIndex}`}
+                    char={char}
+                    index={currentIndex}
+                    delay={delay}
+                    textStyle={[defaultTextStyle, textStyle]}
+                  />
+                );
+              })}
+            </View>
+          );
+          // Add space after word (except last word)
+          if (wordIndex < words.length - 1) {
+            const spaceIndex = globalCharIndex;
+            globalCharIndex++;
+            return (
+              <React.Fragment key={`word-${wordIndex}`}>
+                {wordElement}
+                <AnimatedChar
+                  key={`space-${spaceIndex}`}
+                  char={'\u00A0'}
+                  index={spaceIndex}
+                  delay={delay}
+                  textStyle={[defaultTextStyle, textStyle]}
+                />
+              </React.Fragment>
+            );
+          }
+          return wordElement;
+        })}
       </View>
     </View>
   );
@@ -82,6 +114,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+  },
+  wordContainer: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
   },
   char: {
     fontSize: 28,
