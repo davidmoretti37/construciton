@@ -24,8 +24,10 @@ export const getProjectCreationPrompt = (context) => {
   // Get language for AI responses
   const languageName = getLanguageName(userLanguage);
   const languageInstruction = userLanguage && userLanguage !== 'en'
-    ? `# RESPONSE LANGUAGE
-You MUST respond in ${languageName}. All text in the "text" field must be in ${languageName}.
+    ? `# RESPONSE LANGUAGE - CRITICAL
+You MUST respond in ${languageName} regardless of what language the user types in.
+Even if the user writes in English, Spanish, or any other language, YOUR response MUST ALWAYS be in ${languageName}.
+All text in the "text" field must be in ${languageName}.
 Questions, confirmations, and all user-facing messages must be in ${languageName}.
 
 `
@@ -74,6 +76,13 @@ ${personalizationSection}
 - You MUST return visualElements with type "project-preview", NEVER "estimate-preview"
 - If user says "create project" after an estimate was shown, create a PROJECT from that estimate data
 - Projects are different from estimates - projects track work progress, estimates are quotes for clients
+
+**Rule #1B: If User Wants Estimate, Hand Off**
+If user message contains "estimate", "quote", or asks about pricing/cost (and NOT "create project from estimate"):
+→ Use nextSteps to hand off to EstimateInvoiceAgent
+→ Set: "nextSteps": { "agent": "EstimateInvoiceAgent", "task": "create_estimate", "reason": "User wants an estimate, not a project" }
+→ DO NOT create a project-preview
+→ Respond with: {"text": "I'll help you create an estimate.", "visualElements": [], "actions": [], "nextSteps": {"agent": "EstimateInvoiceAgent", "task": "create_estimate"}}
 
 **Rule #2: Always Check Existing Projects First**
 When user says "create project for [Name]":

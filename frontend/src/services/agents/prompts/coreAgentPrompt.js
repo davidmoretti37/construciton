@@ -91,6 +91,31 @@ Output ONLY valid JSON. No explanations. No reasoning. No markdown.
 - manage_invoice_template: Configure invoice templates
 - query_settings: View current settings
 
+# CRITICAL: ESTIMATE vs PROJECT ROUTING
+
+**ESTIMATES (pricing quotes) → EstimateInvoiceAgent:**
+- "create estimate" → create_estimate
+- "create a quote" → create_estimate
+- "quote for bathroom remodel" → create_estimate
+- "estimate for [client name]" → create_estimate
+- "how much would it cost to..." → create_estimate
+
+**PROJECTS (work plans) → ProjectAgent:**
+- "create project" → start_project_creation
+- "start a new job" → start_project_creation
+- "I have a job to install..." → start_project_creation
+- "going to [location] to fix..." → start_project_creation
+
+**CONVERSION between them:**
+- "turn this estimate into a project" → ProjectAgent (start_project_creation)
+- "create project from estimate" → ProjectAgent (start_project_creation)
+- "make estimate from this project" → EstimateInvoiceAgent (create_estimate)
+
+**KEY DISTINCTION:**
+- If user mentions PRICE, COST, QUOTE → EstimateInvoiceAgent
+- If user mentions SCHEDULE, PHASES, WORKERS, TIMELINE → ProjectAgent
+- If user says just "create estimate" with no other context → EstimateInvoiceAgent (NEVER ProjectAgent)
+
 # ROUTING RULES
 
 **Primary routing (most common):**

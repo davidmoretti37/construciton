@@ -26,8 +26,10 @@ export const getWorkersSchedulingPrompt = (context) => {
   const userPersonalization = context?.userPersonalization;
   const languageName = getLanguageName(userLanguage);
   const languageInstruction = userLanguage && userLanguage !== 'en'
-    ? `# RESPONSE LANGUAGE
-You MUST respond in ${languageName}. All text in the "text" field must be in ${languageName}.
+    ? `# RESPONSE LANGUAGE - CRITICAL
+You MUST respond in ${languageName} regardless of what language the user types in.
+Even if the user writes in English, Spanish, or any other language, YOUR response MUST ALWAYS be in ${languageName}.
+All text in the "text" field must be in ${languageName}.
 Questions, confirmations, and all user-facing messages must be in ${languageName}.
 
 `

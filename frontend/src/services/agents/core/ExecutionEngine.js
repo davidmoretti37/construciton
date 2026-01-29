@@ -16,6 +16,7 @@ import DocumentAgent from '../DocumentAgent';
 import WorkersSchedulingAgent from '../WorkersSchedulingAgent';
 import SettingsConfigAgent from '../SettingsConfigAgent';
 import logger from '../../../utils/logger';
+import i18n from '../../../i18n';
 
 class ExecutionEngine {
   constructor() {
@@ -53,100 +54,90 @@ class ExecutionEngine {
 
   /**
    * Get a friendly status message for the UI based on agent and task
-   * Used for ChatGPT-style status indicators
+   * Uses i18n for translations
    */
   getStatusMessage(agent, task) {
-    const STATUS_MESSAGES = {
+    // Map agent/task to i18n keys
+    const STATUS_KEYS = {
       // ==================== PROJECT AGENT ====================
       ProjectAgent: {
-        start_project_creation: 'Setting up new project',
-        continue_project_creation: 'Finishing project setup',
-        update_project: 'Updating project details',
+        start_project_creation: 'settingUpProject',
+        continue_project_creation: 'finishingProject',
+        update_project: 'updatingProject',
       },
 
       // ==================== WORKERS & SCHEDULING AGENT ====================
       WorkersSchedulingAgent: {
-        // Worker management
-        query_workers: 'Looking up worker info',
-        manage_worker: 'Updating worker profile',
-        assign_worker: 'Assigning worker to project',
-        // Time tracking
-        track_time: 'Pulling time records',
-        edit_time_entry: 'Correcting time entry',
-        // Schedule events (personal calendar)
-        manage_schedule_event: 'Updating your calendar',
-        retrieve_schedule_events: 'Checking your schedule',
-        // Work schedules (worker assignments)
-        manage_work_schedule: 'Scheduling crew assignments',
-        // Reports & photos
-        retrieve_photos: 'Loading job site photos',
-        retrieve_daily_reports: 'Pulling daily reports',
-        manage_daily_report: 'Saving daily report',
-        // Payments
-        query_worker_payment: 'Calculating worker pay',
-        // Availability & PTO
-        manage_availability: 'Checking worker availability',
-        // Crew management
-        manage_crew: 'Organizing crew',
-        // Shift templates
-        manage_shift_template: 'Loading shift templates',
-        // Breaks
-        manage_breaks: 'Recording break time',
-        // Replacements
-        find_replacement: 'Finding available workers',
-        // Analytics
-        analytics: 'Analyzing workforce data',
+        query_workers: 'lookingUpWorker',
+        manage_worker: 'updatingWorker',
+        assign_worker: 'assigningWorker',
+        track_time: 'pullingTimeRecords',
+        edit_time_entry: 'correctingTimeEntry',
+        manage_schedule_event: 'updatingCalendar',
+        retrieve_schedule_events: 'checkingSchedule',
+        manage_work_schedule: 'schedulingCrew',
+        retrieve_photos: 'loadingPhotos',
+        retrieve_daily_reports: 'pullingReports',
+        manage_daily_report: 'savingReport',
+        query_worker_payment: 'calculatingPay',
+        manage_availability: 'checkingAvailability',
+        manage_crew: 'organizingCrew',
+        manage_shift_template: 'loadingTemplates',
+        manage_breaks: 'recordingBreak',
+        find_replacement: 'findingWorkers',
+        analytics: 'analyzingData',
       },
 
       // ==================== ESTIMATE & INVOICE AGENT ====================
       EstimateInvoiceAgent: {
-        create_estimate: 'Building your estimate',
-        create_invoice: 'Generating invoice',
-        update_estimate: 'Revising estimate',
-        find_estimates: 'Searching estimates',
-        find_invoices: 'Looking up invoices',
-        send_estimate: 'Preparing to send estimate',
-        create_project_from_estimate: 'Converting to project',
+        create_estimate: 'buildingEstimate',
+        create_invoice: 'generatingInvoice',
+        update_estimate: 'revisingEstimate',
+        find_estimates: 'searchingEstimates',
+        find_invoices: 'lookingUpInvoices',
+        send_estimate: 'preparingEstimate',
+        create_project_from_estimate: 'convertingToProject',
       },
 
       // ==================== FINANCIAL AGENT ====================
       FinancialAgent: {
-        record_transaction: 'Recording transaction',
-        answer_financial_question: 'Crunching the numbers',
-        query_transactions: 'Pulling transactions',
-        analyze_financials: 'Analyzing finances',
+        record_transaction: 'recordingTransaction',
+        answer_financial_question: 'crunchingNumbers',
+        query_transactions: 'pullingTransactions',
+        analyze_financials: 'analyzingFinances',
       },
 
       // ==================== DOCUMENT AGENT ====================
       DocumentAgent: {
-        find_documents: 'Searching documents',
-        find_project: 'Searching for project',
-        update_project: 'Updating project details',
-        delete_project: 'Removing project',
-        answer_general_question: 'Thinking',
-        add_estimate_to_project: 'Linking estimate to project',
-        manage_estimate: 'Updating estimate status',
-        manage_invoice: 'Processing invoice',
-        manage_contract: 'Updating contract',
-        search_documents: 'Searching all documents',
-        list_contract_documents: 'Loading contracts',
-        upload_contract_document: 'Uploading document',
-        send_contract_document: 'Preparing to share contract',
+        find_documents: 'searchingDocuments',
+        find_project: 'searchingProject',
+        update_project: 'updatingProject',
+        delete_project: 'removingProject',
+        answer_general_question: 'thinking',
+        add_estimate_to_project: 'linkingEstimate',
+        manage_estimate: 'updatingEstimate',
+        manage_invoice: 'processingInvoice',
+        manage_contract: 'updatingContract',
+        search_documents: 'searchingDocuments',
+        list_contract_documents: 'loadingContracts',
+        upload_contract_document: 'uploadingDocument',
+        send_contract_document: 'preparingContract',
       },
 
       // ==================== SETTINGS AGENT ====================
       SettingsConfigAgent: {
-        query_settings: 'Loading your settings',
-        manage_business_settings: 'Updating business info',
-        manage_phase_templates: 'Configuring templates',
-        manage_service_catalog: 'Updating service prices',
-        manage_profit_margins: 'Adjusting profit margins',
-        manage_subcontractor_quotes: 'Managing subcontractors',
-        manage_invoice_template: 'Customizing invoice template',
+        query_settings: 'loadingSettings',
+        manage_business_settings: 'updatingBusiness',
+        manage_phase_templates: 'configuringTemplates',
+        manage_service_catalog: 'updatingPrices',
+        manage_profit_margins: 'adjustingMargins',
+        manage_subcontractor_quotes: 'managingSubs',
+        manage_invoice_template: 'customizingInvoice',
       },
     };
 
-    return STATUS_MESSAGES[agent]?.[task] || 'Working on it';
+    const key = STATUS_KEYS[agent]?.[task] || 'workingOnIt';
+    return i18n.t(`chat:status.${key}`);
   }
 
   /**
