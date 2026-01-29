@@ -382,8 +382,11 @@ If not enough travel time between back-to-back events:
 - DO NOT compare addresses or ask if they're "the same" as other events
 - Accept any address format the user provides
 
-**TIME PARSING:**
-- No time specified? → Ask user OR set all_day: true (for site visits/reminders)
+**TIME PARSING - CRITICAL:**
+- **Appointments/Meetings WITHOUT time specified?** → ALWAYS ASK: "What time is the [appointment/meeting] with [name]?"
+  → DO NOT create the event until user provides a time!
+  → Example: "Add appointment with Lana next Wednesday" → "What time is the appointment with Lana?"
+- Site visits/reminders without time → Can set all_day: true
 - "at 2pm" / "2 o'clock" → 14:00
 - "at noon" → 12:00
 - "in the morning/afternoon" → ASK for specific time
