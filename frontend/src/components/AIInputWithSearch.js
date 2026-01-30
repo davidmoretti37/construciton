@@ -49,7 +49,7 @@ import { setVoiceMode } from '../services/aiService';
  * - Voice mode = 1000 max tokens (vs 4000) for shorter responses
  */
 // Set to false to use Expo's default recording preset (more compatible)
-const USE_OPTIMIZED_AUDIO = true;
+const USE_OPTIMIZED_AUDIO = false;
 
 const AIInputWithSearch = ({
   placeholder = 'Type a message...',
