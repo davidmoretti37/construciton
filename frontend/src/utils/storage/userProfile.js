@@ -272,6 +272,8 @@ export const getUserProfile = async () => {
         paymentInfo: data.payment_info || '',
         paymentTerms: data.payment_terms || 'Net 30',
         footerText: data.footer_text || '',
+        accentColor: data.accent_color || '#3B82F6',
+        fontStyle: data.font_style || 'modern',
       },
       phasesTemplate: data.phases_template || null,
       profit_margin: data.profit_margin || 0.25,
@@ -347,6 +349,18 @@ export const updateBusinessInfo = async (businessInfo) => {
     }
     if (businessInfo.paymentInfo !== undefined) {
       updateData.payment_info = businessInfo.paymentInfo;
+    }
+    if (businessInfo.paymentTerms !== undefined) {
+      updateData.payment_terms = businessInfo.paymentTerms;
+    }
+    if (businessInfo.footerText !== undefined) {
+      updateData.footer_text = businessInfo.footerText;
+    }
+    if (businessInfo.accentColor !== undefined) {
+      updateData.accent_color = businessInfo.accentColor;
+    }
+    if (businessInfo.fontStyle !== undefined) {
+      updateData.font_style = businessInfo.fontStyle;
     }
 
     const { error } = await supabase
@@ -656,6 +670,64 @@ export const hasSelectedLanguage = async () => {
     const language = await getSelectedLanguage();
     return language !== null && language !== '';
   } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Get auto-translate estimates setting
+ * When enabled, estimates/invoices are generated in English for PT/ES users
+ * @returns {Promise<boolean>} - Whether to translate estimates to English
+ */
+export const getAutoTranslateEstimates = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.log('getAutoTranslateEstimates: No user ID');
+      return false;
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('auto_translate_estimates')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('getAutoTranslateEstimates error:', error);
+      return false;
+    }
+
+    return data?.auto_translate_estimates || false;
+  } catch (error) {
+    console.error('getAutoTranslateEstimates exception:', error);
+    return false;
+  }
+};
+
+/**
+ * Update auto-translate estimates setting
+ * @param {boolean} enabled - Whether to enable auto-translation
+ * @returns {Promise<boolean>} - Success status
+ */
+export const updateAutoTranslateEstimates = async (enabled) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ auto_translate_estimates: enabled })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('updateAutoTranslateEstimates error:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('updateAutoTranslateEstimates exception:', error);
     return false;
   }
 };

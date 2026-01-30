@@ -1,6 +1,6 @@
 /**
  * GlowingBorder
- * Animated glowing border effect for selected cards
+ * Border effect for selected cards with pulsing glow animation
  */
 
 import React, { useEffect } from 'react';
@@ -11,6 +11,7 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
 
 export default function GlowingBorder({
@@ -20,59 +21,45 @@ export default function GlowingBorder({
   borderRadius = 16,
   style,
 }) {
-  const glowOpacity = useSharedValue(0);
-  const borderOpacity = useSharedValue(0.3);
+  const shadowOpacity = useSharedValue(0.3);
 
   useEffect(() => {
     if (active) {
-      glowOpacity.value = withRepeat(
+      // Start pulsing glow animation
+      shadowOpacity.value = withRepeat(
         withSequence(
-          withTiming(0.6, { duration: 1000 }),
-          withTiming(0.2, { duration: 1000 })
+          withTiming(0.8, { duration: 750, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.3, { duration: 750, easing: Easing.inOut(Easing.ease) })
         ),
-        -1
-      );
-      borderOpacity.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 1000 }),
-          withTiming(0.6, { duration: 1000 })
-        ),
-        -1
+        -1, // Infinite
+        false
       );
     } else {
-      glowOpacity.value = withTiming(0, { duration: 300 });
-      borderOpacity.value = withTiming(0.3, { duration: 300 });
+      shadowOpacity.value = 0;
     }
   }, [active]);
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-  }));
-
-  const borderStyle = useAnimatedStyle(() => ({
-    borderColor: active ? color : 'rgba(255, 255, 255, 0.1)',
-    opacity: borderOpacity.value,
+  const animatedStyle = useAnimatedStyle(() => ({
+    shadowOpacity: shadowOpacity.value,
   }));
 
   return (
     <View style={[styles.container, style]}>
-      {/* Outer glow */}
-      <Animated.View
-        style={[
-          styles.glow,
-          glowStyle,
-          {
-            borderRadius: borderRadius + 8,
-            shadowColor: color,
-          },
-        ]}
-      />
-      {/* Border container */}
+      {/* Border container with animated glow */}
       <Animated.View
         style={[
           styles.borderContainer,
-          borderStyle,
-          { borderRadius },
+          {
+            borderRadius,
+            borderColor: active ? color : 'rgba(255, 255, 255, 0.1)',
+          },
+          active && {
+            shadowColor: color,
+            shadowOffset: { width: 0, height: 0 },
+            shadowRadius: 20,
+            elevation: 20,
+          },
+          animatedStyle,
         ]}
       >
         {children}
@@ -84,13 +71,6 @@ export default function GlowingBorder({
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-  },
-  glow: {
-    ...StyleSheet.absoluteFillObject,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 20,
   },
   borderContainer: {
     borderWidth: 2,

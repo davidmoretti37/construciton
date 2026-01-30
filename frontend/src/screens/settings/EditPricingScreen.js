@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { getUserProfile, updateTradePricing } from '../../utils/storage';
 import { getTradeById } from '../../constants/trades';
 import AddCustomServiceModal from '../../components/AddCustomServiceModal';
@@ -25,6 +26,7 @@ export default function EditPricingScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation('common');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,7 +43,7 @@ export default function EditPricingScreen({ route, navigation }) {
     try {
       const tradeData = getTradeById(tradeId);
       if (!tradeData) {
-        Alert.alert('Error', 'Trade not found');
+        Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'trade' }));
         navigation.goBack();
         return;
       }
@@ -80,7 +82,7 @@ export default function EditPricingScreen({ route, navigation }) {
       }
     } catch (error) {
       console.error('Error loading pricing:', error);
-      Alert.alert('Error', 'Failed to load pricing information');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'pricing' }));
     } finally {
       setLoading(false);
     }
@@ -123,12 +125,12 @@ export default function EditPricingScreen({ route, navigation }) {
 
   const handleRemoveCustomItem = (itemId) => {
     Alert.alert(
-      'Remove Service',
-      'Are you sure you want to remove this custom service?',
+      t('alerts.cannotRemove'),
+      t('messages.confirmRemoveService'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('buttons.remove'),
           style: 'destructive',
           onPress: () => {
             setCustomItems(prev => prev.filter(item => item.id !== itemId));
@@ -148,12 +150,12 @@ export default function EditPricingScreen({ route, navigation }) {
     for (const item of trade.pricingTemplate) {
       const price = pricing[item.id]?.price;
       if (!price || price === '' || isNaN(parseFloat(price))) {
-        Alert.alert('Invalid Price', `Please enter a valid price for ${item.label}`);
+        Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: item.label }));
         return;
       }
 
       if (parseFloat(price) <= 0) {
-        Alert.alert('Invalid Price', `Price for ${item.label} must be greater than 0`);
+        Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: item.label }));
         return;
       }
     }
@@ -172,15 +174,15 @@ export default function EditPricingScreen({ route, navigation }) {
     try {
       await updateTradePricing(tradeId, numericPricing);
 
-      Alert.alert('Success', 'Pricing updated successfully', [
+      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'pricing' }), [
         {
-          text: 'OK',
+          text: t('buttons.ok'),
           onPress: () => navigation.goBack(),
         },
       ]);
     } catch (error) {
       console.error('Error saving pricing:', error);
-      Alert.alert('Error', 'Failed to save pricing. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'pricing' }));
     } finally {
       setSaving(false);
     }

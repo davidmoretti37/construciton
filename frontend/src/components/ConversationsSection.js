@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -16,6 +17,7 @@ import { fetchConversations, sendManualMessage, markConversationHandled } from '
 import { supabase } from '../lib/supabase';
 
 export default function ConversationsSection({ projectId, clientPhone }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -79,11 +81,11 @@ export default function ConversationsSection({ projectId, clientPhone }) {
         // Reload conversations to show the new message
         await loadConversations();
       } else {
-        Alert.alert('Error', 'Failed to send message. Please check your Twilio configuration.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSendMessage'));
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert('Error', 'Failed to send message. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSendMessageRetry'));
     } finally {
       setIsSending(false);
     }
@@ -112,7 +114,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
       <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
         <Ionicons name="chatbubbles-outline" size={48} color={Colors.secondaryText} />
         <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-          Add a client phone number to enable messaging
+          {t('emptyStates.addClientPhone')}
         </Text>
       </View>
     );
@@ -133,7 +135,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
         <View style={styles.headerLeft}>
           <Ionicons name="chatbubbles" size={20} color={Colors.primaryText} />
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-            Client Messages
+            {t('labels.clientMessages')}
           </Text>
         </View>
         {unhandledCount > 0 && (
@@ -156,10 +158,10 @@ export default function ConversationsSection({ projectId, clientPhone }) {
           <View style={styles.emptyConversations}>
             <Ionicons name="mail-open-outline" size={32} color={Colors.secondaryText} />
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No messages yet
+              {t('emptyStates.noMessagesYet')}
             </Text>
             <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
-              Client can text {clientPhone}
+              {t('emptyStates.clientCanText', { phone: clientPhone })}
             </Text>
           </View>
         ) : (
@@ -188,7 +190,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
                   <View style={styles.aiIndicator}>
                     <Ionicons name="flash" size={12} color={Colors.primaryBlue} />
                     <Text style={[styles.aiText, { color: Colors.secondaryText }]}>
-                      AI auto-responded
+                      {t('labels.aiAutoResponded')}
                     </Text>
                   </View>
                 )}
@@ -217,7 +219,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
                 >
                   <Ionicons name="alert-circle" size={14} color={Colors.white} />
                   <Text style={[styles.badgeText, { color: Colors.white }]}>
-                    Needs Response
+                    {t('labels.needsResponse')}
                   </Text>
                   <Ionicons name="checkmark-circle-outline" size={14} color={Colors.white} />
                 </TouchableOpacity>
@@ -240,7 +242,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
       <View style={[styles.replyContainer, { backgroundColor: Colors.white, borderTopColor: Colors.border }]}>
         <TextInput
           style={[styles.replyInput, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-          placeholder="Type your reply..."
+          placeholder={t('placeholders.typeYourReply')}
           placeholderTextColor={Colors.placeholderText}
           value={replyText}
           onChangeText={setReplyText}

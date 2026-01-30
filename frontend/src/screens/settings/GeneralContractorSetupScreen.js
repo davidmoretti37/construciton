@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getAllTrades, getTradeById, getDefaultPricing } from '../../constants/trades';
@@ -22,6 +23,7 @@ import { addTrade, saveUserProfile, getUserProfile, saveSubcontractorQuote } fro
 import { analyzeSubcontractorQuote } from '../../services/aiService';
 
 export default function GeneralContractorSetupScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -66,7 +68,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
 
   const handleContinueToQuotes = () => {
     if (selectedServices.length === 0) {
-      Alert.alert('Select Services', 'Please select at least one service you manage');
+      Alert.alert(t('alerts.selectServices'), t('messages.selectAtLeastOneService'));
       return;
     }
     setCurrentTradeForQuote(selectedServices[0]);
@@ -107,7 +109,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       // Request permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow access to your photo library to upload quotes.');
+        Alert.alert(t('permissions.required'), t('permissions.photoLibraryRequired'));
         return;
       }
 
@@ -131,7 +133,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error uploading quote:', error);
-      Alert.alert('Error', error.message || 'Failed to analyze quote. Please try again.');
+      Alert.alert(t('alerts.error'), error.message || t('messages.failedToAnalyzeQuote'));
       setAnalyzingQuote(false);
       setUploadingQuote(false);
     }
@@ -142,7 +144,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       // Request camera permission
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow camera access to take photos of quotes.');
+        Alert.alert(t('permissions.required'), t('permissions.cameraRequired'));
         return;
       }
 
@@ -165,7 +167,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', error.message || 'Failed to analyze quote. Please try again.');
+      Alert.alert(t('alerts.error'), error.message || t('messages.failedToAnalyzeQuote'));
       setAnalyzingQuote(false);
       setUploadingQuote(false);
     }
@@ -199,16 +201,16 @@ export default function GeneralContractorSetupScreen({ navigation }) {
         setCurrentQuoteData(null);
 
         Alert.alert(
-          'Quote Saved',
-          `${currentQuoteData.subcontractorName} quote saved successfully!`,
-          [{ text: 'OK' }]
+          t('alerts.quoteSaved'),
+          t('messages.quoteSavedSuccessfully', { name: currentQuoteData.subcontractorName }),
+          [{ text: t('alerts.ok') }]
         );
       } else {
-        Alert.alert('Error', 'Failed to save quote. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'quote' }));
       }
     } catch (error) {
       console.error('Error saving quote:', error);
-      Alert.alert('Error', 'Failed to save quote. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'quote' }));
     }
   };
 
@@ -274,23 +276,21 @@ export default function GeneralContractorSetupScreen({ navigation }) {
         const quotesCount = Object.values(uploadedQuotes).reduce((sum, quotes) => sum + quotes.length, 0);
 
         Alert.alert(
-          'Success!',
-          `General Contractor setup complete!\n\n` +
-          `Services: ${selectedServices.length}\n` +
-          `Subcontractor quotes: ${quotesCount}`,
+          t('alerts.success'),
+          t('messages.gcSetupComplete', { services: selectedServices.length, quotes: quotesCount }),
           [
             {
-              text: 'OK',
+              text: t('alerts.ok'),
               onPress: () => navigation.pop(2), // Go back to main settings
             },
           ]
         );
       } else {
-        Alert.alert('Error', 'Failed to save. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSaveTryAgain'));
       }
     } catch (error) {
       console.error('Error saving General Contractor setup:', error);
-      Alert.alert('Error', 'Failed to save. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSaveTryAgain'));
     } finally {
       setSaving(false);
     }

@@ -8,10 +8,12 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { acceptInvite, rejectInvite } from '../utils/storage';
 
 const InvitePopup = ({ invites, userId, onComplete }) => {
+  const { t } = useTranslation('common');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -34,11 +36,11 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
           onComplete();
         }
       } else {
-        Alert.alert('Error', 'Failed to accept invite. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToAcceptInvite'));
       }
     } catch (error) {
       console.error('Error accepting invite:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.somethingWentWrong'));
     } finally {
       setLoading(false);
     }
@@ -57,11 +59,11 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
           onComplete();
         }
       } else {
-        Alert.alert('Error', 'Failed to reject invite. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToRejectInvite'));
       }
     } catch (error) {
       console.error('Error rejecting invite:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.somethingWentWrong'));
     } finally {
       setLoading(false);
     }
@@ -72,15 +74,15 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
 
     switch (payment_type) {
       case 'hourly':
-        return `$${hourly_rate}/hour`;
+        return `$${hourly_rate}/${t('labels.hour')}`;
       case 'daily':
-        return `$${daily_rate}/day`;
+        return `$${daily_rate}/${t('labels.day')}`;
       case 'weekly':
-        return `$${weekly_salary}/week`;
+        return `$${weekly_salary}/${t('labels.week')}`;
       case 'project_based':
-        return `$${project_rate}/project`;
+        return `$${project_rate}/${t('labels.project')}`;
       default:
-        return 'Not specified';
+        return t('emptyStates.notSpecified');
     }
   };
 
@@ -98,7 +100,7 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
             <View style={styles.iconContainer}>
               <Ionicons name="mail" size={32} color="#3B82F6" />
             </View>
-            <Text style={styles.title}>Worker Invitation</Text>
+            <Text style={styles.title}>{t('labels.workerInvitation')}</Text>
             {invites.length > 1 && (
               <Text style={styles.counter}>
                 {currentIndex + 1} of {invites.length}
@@ -108,12 +110,12 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
 
           {/* Owner Info */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>From</Text>
+            <Text style={styles.sectionLabel}>{t('labels.from')}</Text>
             <View style={styles.ownerCard}>
               <Ionicons name="person-circle" size={40} color="#6B7280" />
               <View style={styles.ownerInfo}>
                 <Text style={styles.ownerName}>
-                  {currentInvite.owner?.full_name || 'Unknown Owner'}
+                  {currentInvite.owner?.full_name || t('emptyStates.unknownOwner')}
                 </Text>
                 {currentInvite.owner?.company_name && (
                   <Text style={styles.companyName}>
@@ -126,15 +128,15 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
 
           {/* Job Details */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Position Details</Text>
+            <Text style={styles.sectionLabel}>{t('labels.positionDetails')}</Text>
             <View style={styles.detailRow}>
               <Ionicons name="hammer" size={20} color="#6B7280" />
-              <Text style={styles.detailLabel}>Trade:</Text>
-              <Text style={styles.detailValue}>{currentInvite.trade || 'Not specified'}</Text>
+              <Text style={styles.detailLabel}>{t('labels.trade')}:</Text>
+              <Text style={styles.detailValue}>{currentInvite.trade || t('emptyStates.notSpecified')}</Text>
             </View>
             <View style={styles.detailRow}>
               <Ionicons name="cash" size={20} color="#6B7280" />
-              <Text style={styles.detailLabel}>Pay:</Text>
+              <Text style={styles.detailLabel}>{t('labels.pay')}:</Text>
               <Text style={styles.detailValue}>{formatPayment()}</Text>
             </View>
           </View>
@@ -143,8 +145,7 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
           <View style={styles.messageContainer}>
             <Ionicons name="information-circle" size={20} color="#6B7280" />
             <Text style={styles.message}>
-              You've been invited to work as a {currentInvite.trade || 'worker'}.
-              Accept to start working with this owner or reject to decline the invitation.
+              {t('messages.inviteMessage', { trade: currentInvite.trade || t('labels.worker') })}
             </Text>
           </View>
 
@@ -160,7 +161,7 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
               ) : (
                 <>
                   <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  <Text style={styles.rejectButtonText}>Reject</Text>
+                  <Text style={styles.rejectButtonText}>{t('buttons.reject')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -175,7 +176,7 @@ const InvitePopup = ({ invites, userId, onComplete }) => {
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                  <Text style={styles.acceptButtonText}>Accept</Text>
+                  <Text style={styles.acceptButtonText}>{t('buttons.accept')}</Text>
                 </>
               )}
             </TouchableOpacity>

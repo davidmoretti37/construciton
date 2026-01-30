@@ -14,6 +14,7 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { saveUserProfile, completeOnboarding } from '../../utils/storage';
@@ -21,6 +22,7 @@ import { saveUserProfile, completeOnboarding } from '../../utils/storage';
 export default function PricingSetupScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   // NEW: Get selected services instead of trades
   const { selectedServices: initialServices, businessInfo, phasesTemplate } = route.params;
@@ -96,12 +98,12 @@ export default function PricingSetupScreen({ navigation, route }) {
 
   const handleDeleteItem = (serviceId, itemId) => {
     Alert.alert(
-      'Delete Service Item',
-      'Are you sure you want to delete this service item?',
+      t('alerts.confirmDelete'),
+      t('messages.confirmDeleteItem'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('buttons.delete'),
           style: 'destructive',
           onPress: () => {
             const serviceIndex = services.findIndex(s => s.id === serviceId);
@@ -130,7 +132,7 @@ export default function PricingSetupScreen({ navigation, route }) {
 
   const handleSaveItem = () => {
     if (!editItemName.trim()) {
-      Alert.alert('Missing Name', 'Please enter a name for the service item');
+      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterName'));
       return;
     }
 

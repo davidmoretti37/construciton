@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -22,6 +23,7 @@ const COMMON_UNITS = [
 ];
 
 export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeName }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -106,7 +108,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
             </View>
             <View style={styles.headerCenter}>
               <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-                Add Custom Service
+                {t('invoices:addCustomService', 'Add Custom Service')}
               </Text>
               <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]}>
                 {tradeName}
@@ -144,15 +146,15 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                     <Ionicons name="create-outline" size={48} color={Colors.primaryBlue} />
                   </View>
                   <Text style={[styles.stepTitle, { color: Colors.primaryText }]}>
-                    What service do you provide?
+                    {t('invoices:whatServiceProvide', 'What service do you provide?')}
                   </Text>
                   <Text style={[styles.stepDescription, { color: Colors.secondaryText }]}>
-                    Enter the name of the service you want to add to your pricing list
+                    {t('invoices:enterServiceName', 'Enter the name of the service you want to add to your pricing list')}
                   </Text>
 
                   <View style={styles.inputContainer}>
                     <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                      Service Name
+                      {t('invoices:serviceName', 'Service Name')}
                     </Text>
                     <TextInput
                       style={[styles.textInput, {
@@ -160,7 +162,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                         borderColor: serviceName.trim() ? Colors.primaryBlue : Colors.border,
                         color: Colors.primaryText,
                       }]}
-                      placeholder="e.g., Window Installation"
+                      placeholder={t('invoices:serviceNamePlaceholder', 'e.g., Window Installation')}
                       placeholderTextColor={Colors.secondaryText}
                       value={serviceName}
                       onChangeText={setServiceName}
@@ -173,7 +175,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                   {/* Examples */}
                   <View style={styles.examplesContainer}>
                     <Text style={[styles.examplesLabel, { color: Colors.secondaryText }]}>
-                      Examples:
+                      {t('invoices:examples', 'Examples:')}
                     </Text>
                     <View style={styles.exampleChips}>
                       {['Window Installation', 'Door Hanging', 'Crown Molding', 'Baseboard Install'].map((example) => (
@@ -202,10 +204,10 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                     <Ionicons name="analytics-outline" size={48} color={Colors.primaryBlue} />
                   </View>
                   <Text style={[styles.stepTitle, { color: Colors.primaryText }]}>
-                    How do you charge for this?
+                    {t('invoices:howDoYouCharge', 'How do you charge for this?')}
                   </Text>
                   <Text style={[styles.stepDescription, { color: Colors.secondaryText }]}>
-                    Select the unit you use to price "{serviceName}"
+                    {t('invoices:selectUnitForService', 'Select the unit you use to price "{{serviceName}}"', { serviceName })}
                   </Text>
 
                   {/* Common Units */}
@@ -245,7 +247,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                   {/* Custom Unit */}
                   <View style={styles.customUnitContainer}>
                     <Text style={[styles.orText, { color: Colors.secondaryText }]}>
-                      or enter custom unit
+                      {t('invoices:orEnterCustomUnit', 'or enter custom unit')}
                     </Text>
                     <TextInput
                       style={[styles.textInput, {
@@ -253,7 +255,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                         borderColor: customUnit.trim() ? Colors.primaryBlue : Colors.border,
                         color: Colors.primaryText,
                       }]}
-                      placeholder="e.g., panel, fixture, installation"
+                      placeholder={t('invoices:customUnitPlaceholder', 'e.g., panel, fixture, installation')}
                       placeholderTextColor={Colors.secondaryText}
                       value={customUnit}
                       onChangeText={(text) => {
@@ -274,10 +276,10 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                     <Ionicons name="cash-outline" size={48} color={Colors.success} />
                   </View>
                   <Text style={[styles.stepTitle, { color: Colors.primaryText }]}>
-                    What's your rate?
+                    {t('invoices:whatsYourRate', "What's your rate?")}
                   </Text>
                   <Text style={[styles.stepDescription, { color: Colors.secondaryText }]}>
-                    Enter your price per {selectedUnit || customUnit}
+                    {t('invoices:enterPricePer', 'Enter your price per {{unit}}', { unit: selectedUnit || customUnit })}
                   </Text>
 
                   <View style={styles.priceInputContainer}>
@@ -296,7 +298,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                       autoFocus
                     />
                     <Text style={[styles.unitSuffix, { color: Colors.secondaryText }]}>
-                      per {selectedUnit || customUnit}
+                      {t('invoices:perUnit', 'per {{unit}}', { unit: selectedUnit || customUnit })}
                     </Text>
                   </View>
 
@@ -304,7 +306,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                   {parseFloat(price) > 0 && !isNaN(parseFloat(price)) && (
                     <View style={[styles.previewCard, { backgroundColor: Colors.lightGray }]}>
                       <Text style={[styles.previewLabel, { color: Colors.secondaryText }]}>
-                        Example Calculation
+                        {t('invoices:exampleCalculation', 'Example Calculation')}
                       </Text>
                       <Text style={[styles.previewText, { color: Colors.primaryText }]}>
                         10 {selectedUnit || customUnit} × ${parseFloat(price).toFixed(2)} = ${(parseFloat(price) * 10).toFixed(2)}
@@ -315,11 +317,11 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                   {/* Summary */}
                   <View style={[styles.summaryCard, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
                     <Text style={[styles.summaryTitle, { color: Colors.primaryBlue }]}>
-                      Service Summary
+                      {t('invoices:serviceSummary', 'Service Summary')}
                     </Text>
                     <View style={styles.summaryRow}>
                       <Text style={[styles.summaryLabel, { color: Colors.primaryText }]}>
-                        Service:
+                        {t('invoices:service', 'Service:')}
                       </Text>
                       <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
                         {serviceName}
@@ -327,7 +329,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                     </View>
                     <View style={styles.summaryRow}>
                       <Text style={[styles.summaryLabel, { color: Colors.primaryText }]}>
-                        Unit:
+                        {t('invoices:unit', 'Unit:')}
                       </Text>
                       <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
                         {selectedUnit || customUnit}
@@ -336,10 +338,10 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
                     {parseFloat(price) > 0 && (
                       <View style={styles.summaryRow}>
                         <Text style={[styles.summaryLabel, { color: Colors.primaryText }]}>
-                          Rate:
+                          {t('invoices:rate', 'Rate:')}
                         </Text>
                         <Text style={[styles.summaryValue, { color: Colors.primaryBlue, fontWeight: '700' }]}>
-                          ${parseFloat(price).toFixed(2)} per {selectedUnit || customUnit}
+                          ${parseFloat(price).toFixed(2)} {t('invoices:perUnit', 'per {{unit}}', { unit: selectedUnit || customUnit })}
                         </Text>
                       </View>
                     )}
@@ -362,7 +364,7 @@ export default function AddCustomServiceModal({ visible, onClose, onAdd, tradeNa
               disabled={!isStepValid()}
             >
               <Text style={styles.actionButtonText}>
-                {step === 3 ? 'Add Service' : 'Next'}
+                {step === 3 ? t('invoices:addService', 'Add Service') : t('buttons.next', 'Next')}
               </Text>
               <Ionicons
                 name={step === 3 ? 'checkmark-circle' : 'arrow-forward'}

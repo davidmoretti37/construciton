@@ -1,46 +1,38 @@
 /**
  * ChatBubble
- * User/AI message bubbles with animations
+ * User/AI message bubbles with animated entrance
  */
 
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withDelay,
   withSpring,
-  withTiming,
+  withDelay,
 } from 'react-native-reanimated';
-import TypewriterText from './TypewriterText';
+import { Ionicons } from '@expo/vector-icons';
+import { ONBOARDING_COLORS } from '../../screens/onboarding/slides/constants';
 
+// NO SCALE - prevents iOS rasterization blur
 export default function ChatBubble({
   message,
   isUser = false,
-  typewriter = false,
-  typewriterDelay = 0,
+  animated = false,
   delay = 0,
-  isActive = true,
-  onTypewriterComplete,
 }) {
-  const translateX = useSharedValue(isUser ? 50 : -50);
-  const opacity = useSharedValue(0);
-  const scale = useSharedValue(0.8);
+  const translateX = useSharedValue(animated ? (isUser ? 100 : -100) : 0);
+  const opacity = useSharedValue(animated ? 0 : 1);
 
   useEffect(() => {
-    if (isActive) {
-      translateX.value = withDelay(delay, withSpring(0, { damping: 15 }));
-      opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-      scale.value = withDelay(delay, withSpring(1, { damping: 15 }));
+    if (animated) {
+      translateX.value = withDelay(delay, withSpring(0, { damping: 15, stiffness: 120 }));
+      opacity.value = withDelay(delay, withSpring(1, { damping: 20 }));
     }
-  }, [isActive, delay]);
+  }, [animated, delay]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { scale: scale.value },
-    ],
+    transform: [{ translateX: translateX.value }],
     opacity: opacity.value,
   }));
 
@@ -63,18 +55,9 @@ export default function ChatBubble({
           isUser ? styles.userBubble : styles.aiBubble,
         ]}
       >
-        {typewriter && !isUser ? (
-          <TypewriterText
-            text={message}
-            delay={typewriterDelay}
-            style={styles.aiText}
-            onComplete={onTypewriterComplete}
-          />
-        ) : (
-          <Text style={isUser ? styles.userText : styles.aiText}>
-            {message}
-          </Text>
-        )}
+        <Text style={isUser ? styles.userText : styles.aiText}>
+          {message}
+        </Text>
       </View>
     </Animated.View>
   );
@@ -99,7 +82,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    backgroundColor: `${ONBOARDING_COLORS.primary}33`,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -110,11 +93,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   userBubble: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: ONBOARDING_COLORS.primary,
     borderBottomRightRadius: 4,
   },
   aiBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: ONBOARDING_COLORS.border,
     borderBottomLeftRadius: 4,
   },
   userText: {
@@ -124,7 +107,7 @@ const styles = StyleSheet.create({
   },
   aiText: {
     fontSize: 15,
-    color: '#F8FAFC',
+    color: ONBOARDING_COLORS.textPrimary,
     lineHeight: 20,
   },
 });

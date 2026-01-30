@@ -71,7 +71,34 @@
     "clearChat": "Limpiar Conversación",
     "voiceInput": "Entrada de Voz",
     "attachFile": "Adjuntar Archivo",
-    "takePhoto": "Tomar Foto"
+    "takePhoto": "Tomar Foto",
+    "saveProject": "Guardar Proyecto",
+    "saving": "Guardando...",
+    "viewProject": "Ver Proyecto",
+    "cancel": "Cancelar",
+    "addTask": "Agregar Tarea",
+    "addService": "Agregar Servicio",
+    "saveChanges": "Guardar Cambios",
+    "convertToInvoice": "Convertir a Factura",
+    "done": "Hecho"
+  },
+  "project": {
+    "projectTitle": "PROYECTO",
+    "projectPhases": "Fases del Proyecto",
+    "days": "días",
+    "workingDays": "Días Laborales",
+    "scope": "Alcance",
+    "complexity": "Complejidad",
+    "tasks": "Tareas",
+    "services": "Servicios",
+    "projectTimeline": "Cronograma del Proyecto",
+    "acceptedReadyToConvert": "¡Proyecto guardado! Puedes verlo en la pestaña Proyectos.",
+    "shareProject": "Compartir Proyecto",
+    "sharePrompt": "¿Cómo te gustaría compartir este proyecto?",
+    "sharePdf": "Compartir PDF",
+    "emailPdf": "Enviar PDF por Email",
+    "textPdf": "Enviar PDF por Mensaje",
+    "project": "proyecto"
   },
   "messages": {
     "error": "Lo siento, algo salió mal. Por favor intenta de nuevo.",
@@ -241,5 +268,25 @@
     "netAvailable": "Neto Disponible:",
     "pending": "Pendiente:",
     "currentProfit": "Ganancia Actual"
+  },
+  "invoice": {
+    "title": "FACTURA",
+    "billTo": "Cobrar a:",
+    "project": "Proyecto:",
+    "dueDate": "Fecha de Vencimiento:",
+    "overdue": "(VENCIDA)",
+    "items": "ARTÍCULOS",
+    "contractTotal": "Total del Contrato:",
+    "previousPayments": "Pagos Anteriores:",
+    "thisInvoice": "Esta Factura ({{percentage}}% {{type}}):",
+    "downPayment": "Pago Inicial",
+    "progressPayment": "Pago de Avance",
+    "payment": "Pago",
+    "amountDue": "MONTO A PAGAR:",
+    "remainingBalance": "Saldo Restante:",
+    "paid": "Pagado:",
+    "balanceDue": "Saldo Pendiente:",
+    "previewPdf": "Ver PDF",
+    "sendInvoice": "Enviar Factura"
   }
 }

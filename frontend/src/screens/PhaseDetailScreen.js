@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, Spacing, FontSizes, BorderRadius, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -21,6 +22,7 @@ import { getPhaseWorkers } from '../utils/storage';
 import WorkerAssignmentModal from '../components/WorkerAssignmentModal';
 
 export default function PhaseDetailScreen({ navigation, route }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { phaseId, phaseName } = route.params;
@@ -66,7 +68,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
       setWorkers(phaseWorkers || []);
     } catch (error) {
       console.error('Error loading phase details:', error);
-      Alert.alert('Error', 'Failed to load phase details');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'phase details' }));
     } finally {
       setLoading(false);
     }
@@ -111,13 +113,13 @@ export default function PhaseDetailScreen({ navigation, route }) {
       loadPhaseDetails();
     } catch (error) {
       console.error('Error updating task:', error);
-      Alert.alert('Error', 'Failed to update task');
+      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
     }
   };
 
   const handleAddTask = async () => {
     if (!taskInput.trim()) {
-      Alert.alert('Error', 'Please enter a task description');
+      Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
       return;
     }
 
@@ -148,13 +150,13 @@ export default function PhaseDetailScreen({ navigation, route }) {
       loadPhaseDetails();
     } catch (error) {
       console.error('Error adding task:', error);
-      Alert.alert('Error', 'Failed to add task');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'task' }));
     }
   };
 
   const handleEditTask = async () => {
     if (!taskInput.trim()) {
-      Alert.alert('Error', 'Please enter a task description');
+      Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
       return;
     }
 
@@ -176,18 +178,18 @@ export default function PhaseDetailScreen({ navigation, route }) {
       setEditingTaskIndex(null);
     } catch (error) {
       console.error('Error editing task:', error);
-      Alert.alert('Error', 'Failed to edit task');
+      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
     }
   };
 
   const handleDeleteTask = async (taskIndex) => {
     Alert.alert(
-      'Delete Task',
-      'Are you sure you want to delete this task?',
+      t('alerts.confirm'),
+      t('alerts.deleteConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('buttons.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -212,7 +214,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               loadPhaseDetails();
             } catch (error) {
               console.error('Error deleting task:', error);
-              Alert.alert('Error', 'Failed to delete task');
+              Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'task' }));
             }
           }
         }

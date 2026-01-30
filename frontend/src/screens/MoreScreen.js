@@ -25,14 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const LANGUAGE_NAMES = {
   en: 'English',
   es: 'Español',
-  fr: 'Français',
-  de: 'Deutsch',
-  pt: 'Português',
-  it: 'Italiano',
-  zh: '中文',
-  ja: '日本語',
-  ko: '한국어',
-  ar: 'العربية',
+  'pt-BR': 'Português (Brasil)',
 };
 
 export default function MoreScreen({ navigation }) {
@@ -389,6 +382,21 @@ export default function MoreScreen({ navigation }) {
             {t('items.addNewService', 'Add New Service')}
           </Text>
         </TouchableOpacity>
+
+        {/* Account */}
+        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+          {t('sections.account', 'ACCOUNT')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+          <MenuItem
+            icon="diamond-outline"
+            iconColor={Colors.accent || '#8B5CF6'}
+            title={t('subscription.title', 'Subscription')}
+            subtitle={t('subscription.managePlan', 'Manage your plan')}
+            onPress={() => navigation.navigate('SubscriptionSettings')}
+            isLast
+          />
+        </View>
 
         {/* Preferences */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>

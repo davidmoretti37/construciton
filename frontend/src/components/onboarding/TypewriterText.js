@@ -1,10 +1,11 @@
 /**
  * TypewriterText
- * Character-by-character text animation with blinking cursor
+ * Text that types out character-by-character
+ * Uses React state for crisp text rendering (no worklet string operations)
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { StyleSheet, View, Text } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,66 +16,95 @@ import Animated, {
 
 export default function TypewriterText({
   text,
-  speed = 40,
-  delay = 0,
   style,
-  showCursor = true,
+  speed = 40, // ms per character
+  delay = 0, // initial delay before starting
   onComplete,
+  isActive = true, // Control when animation starts
+  showCursor = true, // Show blinking cursor
 }) {
   const [displayedText, setDisplayedText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
+  const intervalRef = useRef(null);
+  const timeoutRef = useRef(null);
+  const charIndexRef = useRef(0);
+
+  // Cursor animation using reanimated (this is safe - just opacity)
   const cursorOpacity = useSharedValue(1);
 
   useEffect(() => {
-    // Blinking cursor animation
-    cursorOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0, { duration: 500 }),
-        withTiming(1, { duration: 500 })
-      ),
-      -1
-    );
-  }, []);
+    // Cleanup function
+    const cleanup = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
 
-  useEffect(() => {
-    let charIndex = 0;
-    let timeoutId;
+    if (!isActive) {
+      cleanup();
+      setDisplayedText('');
+      setIsComplete(false);
+      charIndexRef.current = 0;
+      cursorOpacity.value = 1;
+      return;
+    }
 
-    const startTyping = () => {
-      const interval = setInterval(() => {
-        if (charIndex < text.length) {
-          setDisplayedText(text.slice(0, charIndex + 1));
-          charIndex++;
-        } else {
-          clearInterval(interval);
+    // Start cursor blinking
+    if (showCursor) {
+      cursorOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0, { duration: 400 }),
+          withTiming(1, { duration: 400 })
+        ),
+        -1,
+        true
+      );
+    }
+
+    // Start typing after delay
+    timeoutRef.current = setTimeout(() => {
+      charIndexRef.current = 0;
+
+      intervalRef.current = setInterval(() => {
+        charIndexRef.current += 1;
+
+        if (charIndexRef.current <= text.length) {
+          setDisplayedText(text.slice(0, charIndexRef.current));
+        }
+
+        if (charIndexRef.current >= text.length) {
+          cleanup();
           setIsComplete(true);
-          onComplete?.();
+          if (onComplete) {
+            onComplete();
+          }
         }
       }, speed);
+    }, delay);
 
-      return () => clearInterval(interval);
-    };
+    return cleanup;
+  }, [text, speed, delay, isActive, showCursor, onComplete]);
 
-    // Start after delay
-    timeoutId = setTimeout(startTyping, delay);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [text, speed, delay, onComplete]);
-
-  const cursorStyle = useAnimatedStyle(() => ({
-    opacity: isComplete ? 0 : cursorOpacity.value,
+  // Animated style for cursor (just opacity - safe for worklet)
+  const cursorAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: cursorOpacity.value,
   }));
 
   return (
     <View style={styles.container}>
       <Text style={[styles.text, style]}>
         {displayedText}
-        {showCursor && (
-          <Animated.Text style={[styles.cursor, style, cursorStyle]}>|</Animated.Text>
-        )}
       </Text>
+      {showCursor && !isComplete && (
+        <Animated.Text style={[styles.cursor, style, cursorAnimatedStyle]}>
+          |
+        </Animated.Text>
+      )}
     </View>
   );
 }
@@ -82,12 +112,16 @@ export default function TypewriterText({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
   },
   text: {
     fontSize: 16,
     color: '#94A3B8',
   },
   cursor: {
-    color: '#3B82F6',
+    fontSize: 16,
+    color: '#94A3B8',
+    opacity: 0.7,
   },
 });

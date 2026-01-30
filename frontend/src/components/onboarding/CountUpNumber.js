@@ -1,54 +1,63 @@
 /**
  * CountUpNumber
- * Animated number counting with slot machine effect
+ * Animated number that counts up from 0 to target value
  */
 
 import React, { useEffect } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
-  useDerivedValue,
-  withDelay,
   withTiming,
+  withDelay,
   Easing,
   runOnJS,
 } from 'react-native-reanimated';
 import { TextInput } from 'react-native';
 
+// Create animated TextInput for number display
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 export default function CountUpNumber({
   value,
   prefix = '',
   suffix = '',
-  duration = 1500,
-  delay = 0,
   style,
   decimals = 0,
-  onComplete,
+  duration = 1500,
+  delay = 0,
+  isActive = true,
 }) {
   const animatedValue = useSharedValue(0);
 
   useEffect(() => {
-    animatedValue.value = withDelay(
-      delay,
-      withTiming(value, {
-        duration,
-        easing: Easing.out(Easing.cubic),
-      }, (finished) => {
-        if (finished && onComplete) {
-          runOnJS(onComplete)();
-        }
-      })
-    );
-  }, [value, duration, delay]);
+    if (isActive) {
+      // Animate from 0 to target value
+      animatedValue.value = withDelay(
+        delay,
+        withTiming(value, {
+          duration: duration,
+          easing: Easing.out(Easing.cubic),
+        })
+      );
+    } else {
+      // Reset to 0 when inactive
+      animatedValue.value = 0;
+    }
+  }, [value, isActive, delay, duration]);
 
   const animatedProps = useAnimatedProps(() => {
-    const num = animatedValue.value;
-    const formatted = decimals > 0
-      ? num.toFixed(decimals)
-      : Math.floor(num).toLocaleString('en-US');
+    const currentValue = animatedValue.value;
+
+    // Format the number
+    let formatted;
+    if (decimals > 0) {
+      formatted = currentValue.toFixed(decimals);
+    } else {
+      // Add thousands separator
+      formatted = Math.floor(currentValue).toLocaleString('en-US');
+    }
+
     return {
       text: `${prefix}${formatted}${suffix}`,
       defaultValue: `${prefix}${formatted}${suffix}`,
@@ -57,6 +66,7 @@ export default function CountUpNumber({
 
   return (
     <AnimatedTextInput
+      underlineColorAndroid="transparent"
       editable={false}
       style={[styles.text, style]}
       animatedProps={animatedProps}
@@ -69,5 +79,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#F8FAFC',
+    padding: 0,
+    margin: 0,
   },
 });

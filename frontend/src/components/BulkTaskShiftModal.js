@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchTasksForSelection, bulkShiftTasks } from '../utils/storage/workerTasks';
@@ -24,6 +25,7 @@ export default function BulkTaskShiftModal({
   projectName,
   onTasksShifted,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -82,12 +84,12 @@ export default function BulkTaskShiftModal({
   const handleShift = async () => {
     const days = parseInt(daysToShift, 10);
     if (isNaN(days) || days === 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid number of days (not zero)');
+      Alert.alert(t('alerts.invalidInput'), t('messages.enterValidDays'));
       return;
     }
 
     if (selectedTaskIds.length === 0) {
-      Alert.alert('No Tasks Selected', 'Please select at least one task to shift');
+      Alert.alert(t('alerts.noTasksSelected'), t('messages.selectAtLeastOneTask'));
       return;
     }
 
@@ -101,11 +103,9 @@ export default function BulkTaskShiftModal({
       );
 
       if (result.success || result.updatedCount > 0) {
-        const direction = days > 0 ? 'forward' : 'backward';
-        const dayType = useWorkingDays ? 'working ' : '';
         Alert.alert(
-          'Tasks Shifted',
-          `Shifted ${result.updatedCount} task(s) ${Math.abs(days)} ${dayType}day(s) ${direction}.`,
+          t('alerts.success'),
+          t('messages.updatedSuccessfully'),
           [
             {
               text: 'OK',
@@ -117,10 +117,10 @@ export default function BulkTaskShiftModal({
           ]
         );
       } else {
-        Alert.alert('Error', result.errors?.join('\n') || 'Failed to shift tasks');
+        Alert.alert(t('alerts.error'), result.errors?.join('\n') || t('messages.failedToSave'));
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to shift tasks');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setShifting(false);
     }
@@ -146,9 +146,9 @@ export default function BulkTaskShiftModal({
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
           <TouchableOpacity onPress={handleClose}>
-            <Text style={[styles.cancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+            <Text style={[styles.cancelText, { color: Colors.primaryBlue }]}>{t('buttons.cancel')}</Text>
           </TouchableOpacity>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>Shift Tasks</Text>
+          <Text style={[styles.title, { color: Colors.primaryText }]}>{t('labels.shiftTasks')}</Text>
           <TouchableOpacity
             onPress={handleShift}
             disabled={shifting || selectedTaskIds.length === 0}
@@ -165,7 +165,7 @@ export default function BulkTaskShiftModal({
                   },
                 ]}
               >
-                Shift
+                {t('labels.shift')}
               </Text>
             )}
           </TouchableOpacity>
@@ -184,7 +184,7 @@ export default function BulkTaskShiftModal({
         {/* Shift Controls */}
         <View style={[styles.controlsSection, { backgroundColor: Colors.cardBackground }]}>
           <View style={styles.daysInputRow}>
-            <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>Shift by</Text>
+            <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>{t('labels.shiftBy')}</Text>
             <TextInput
               style={[
                 styles.daysInput,
@@ -196,11 +196,11 @@ export default function BulkTaskShiftModal({
               placeholder="1"
               placeholderTextColor={Colors.placeholderText}
             />
-            <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>days</Text>
+            <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>{t('labels.days')}</Text>
           </View>
 
           <Text style={[styles.helpText, { color: Colors.secondaryText }]}>
-            Use negative numbers to shift backward (e.g., -3)
+            {t('labels.shiftHelpText')}
           </Text>
 
           <TouchableOpacity
@@ -213,7 +213,7 @@ export default function BulkTaskShiftModal({
               color={Colors.primaryBlue}
             />
             <Text style={[styles.toggleLabel, { color: Colors.primaryText }]}>
-              Skip non-working days
+              {t('labels.skipNonWorkingDays')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -222,16 +222,16 @@ export default function BulkTaskShiftModal({
         <View style={[styles.selectionControls, { borderBottomColor: Colors.border }]}>
           <TouchableOpacity onPress={selectAll} style={styles.selectButton}>
             <Text style={[styles.selectButtonText, { color: Colors.primaryBlue }]}>
-              Select All
+              {t('labels.selectAll')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={selectNone} style={styles.selectButton}>
             <Text style={[styles.selectButtonText, { color: Colors.primaryBlue }]}>
-              Select None
+              {t('labels.selectNone')}
             </Text>
           </TouchableOpacity>
           <Text style={[styles.selectedCount, { color: Colors.secondaryText }]}>
-            {selectedTaskIds.length} of {tasks.length} selected
+            {t('labels.selectedCount', { selected: selectedTaskIds.length, total: tasks.length })}
           </Text>
         </View>
 
@@ -245,7 +245,7 @@ export default function BulkTaskShiftModal({
             />
           ) : tasks.length === 0 ? (
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No tasks found for this project
+              {t('emptyStates.noTasks')}
             </Text>
           ) : (
             tasks.map((task) => {

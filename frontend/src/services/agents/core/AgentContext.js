@@ -53,7 +53,7 @@ export const buildInitialContext = async () => {
   const { getUserProfile, getUserServices, fetchProjects, fetchEstimates, fetchInvoices, fetchContractDocuments, fetchWorkers, fetchScheduleEvents, fetchWorkSchedules, getClockedInWorkersToday, getStaleClockIns, getCompletedShiftsToday } = require('../../../utils/storage');
   const { getPricingHistory } = require('../../aiService');
   const { getSubcontractorQuotesGroupedByTrade } = require('../../../utils/storage/workers');
-  const { getSelectedLanguage, getAISettings } = require('../../../utils/storage');
+  const { getSelectedLanguage, getAISettings, getAutoTranslateEstimates } = require('../../../utils/storage');
 
   try {
     // Get date range for schedule events (all upcoming events)
@@ -72,6 +72,9 @@ export const buildInitialContext = async () => {
 
     // Get user's AI personalization settings
     const aiSettings = await getAISettings();
+
+    // Get auto-translate estimates setting
+    const autoTranslateEstimates = await getAutoTranslateEstimates();
 
     // Parallel fetch for speed (Promise.all instead of sequential awaits)
     const [userServices, projects, estimates, invoices, contractDocuments, workers, scheduleEvents, workSchedules, clockedInToday, staleClockIns, completedShiftsToday, pricingHistory, subcontractorQuotes] = await Promise.all([
@@ -171,6 +174,9 @@ export const buildInitialContext = async () => {
         aboutYou: aiSettings?.aboutYou || '',
         responseStyle: aiSettings?.responseStyle || '',
       },
+
+      // Auto-translate estimates to English (for PT/ES users)
+      autoTranslateEstimates: autoTranslateEstimates && userLanguage !== 'en',
 
       // User business info
       businessInfo: userProfile.businessInfo || {
@@ -297,7 +303,7 @@ export const fetchAgentSpecificContext = async (agentName) => {
   const { getUserProfile, getUserServices, fetchProjects, fetchEstimates, fetchInvoices, fetchContractDocuments, fetchWorkers, fetchScheduleEvents, fetchWorkSchedules, getClockedInWorkersToday, getStaleClockIns, getCompletedShiftsToday } = require('../../../utils/storage');
   const { getPricingHistory } = require('../../aiService');
   const { getSubcontractorQuotesGroupedByTrade } = require('../../../utils/storage/workers');
-  const { getSelectedLanguage, getAISettings } = require('../../../utils/storage');
+  const { getSelectedLanguage, getAISettings, getAutoTranslateEstimates } = require('../../../utils/storage');
 
   const startTime = Date.now();
   const requirements = AGENT_DATA_REQUIREMENTS[agentName] || [];
@@ -310,6 +316,7 @@ export const fetchAgentSpecificContext = async (agentName) => {
     const userId = userProfile?.id;
     const userLanguage = await getSelectedLanguage() || 'en';
     const aiSettings = await getAISettings();
+    const autoTranslateEstimates = await getAutoTranslateEstimates();
 
     // Get date info
     const now = new Date();
@@ -506,6 +513,7 @@ export const fetchAgentSpecificContext = async (agentName) => {
         aboutYou: aiSettings?.aboutYou || '',
         responseStyle: aiSettings?.responseStyle || '',
       },
+      autoTranslateEstimates: autoTranslateEstimates && userLanguage !== 'en',
       businessInfo: userProfile.businessInfo || { name: 'Your Business', phone: '', email: '' },
       services: serviceNames,
       pricing: formattedPricing,

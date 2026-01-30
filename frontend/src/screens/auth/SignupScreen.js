@@ -21,7 +21,6 @@ import subscriptionService from '../../services/subscriptionService';
 const COLORS = {
   glassBg: 'rgba(255, 255, 255, 0.05)',
   border: 'rgba(255, 255, 255, 0.1)',
-  borderFocus: '#3B82F6',
   textPrimary: '#F8FAFC',
   textSecondary: '#94A3B8',
   textMuted: '#64748B',
@@ -53,12 +52,8 @@ export default function SignupScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
-  const [confirmFocused, setConfirmFocused] = useState(false);
 
   const handleSignup = async () => {
-    // Validation
     if (!email || !password || !confirmPassword) {
       Alert.alert(t('signup.errors.missingFields'), t('signup.errors.fillAllFields'));
       return;
@@ -102,7 +97,6 @@ export default function SignupScreen({ navigation }) {
       if (data.user) {
         console.log('✅ Signup successful:', data.user.email);
 
-        // Check for pending subscription from guest checkout
         try {
           const linkResult = await subscriptionService.linkPendingSubscription();
           if (linkResult.linked) {
@@ -111,9 +105,6 @@ export default function SignupScreen({ navigation }) {
         } catch (linkError) {
           console.log('No pending subscription to link');
         }
-
-        // With email confirmation disabled, user is automatically logged in
-        // App.js will detect the session and navigate to language selection
       }
     } catch (error) {
       console.error('Signup error:', error);
@@ -129,13 +120,14 @@ export default function SignupScreen({ navigation }) {
       style={styles.container}
     >
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          bounces={false}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -143,21 +135,16 @@ export default function SignupScreen({ navigation }) {
               <Ionicons name="construct" size={48} color={COLORS.primary} />
             </View>
             <Text style={styles.title}>{t('signup.title')}</Text>
-            <Text style={styles.subtitle}>
-              {t('signup.subtitle')}
-            </Text>
+            <Text style={styles.subtitle}>{t('signup.subtitle')}</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
-            {/* Email Input */}
+            {/* Email */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('signup.emailLabel')}</Text>
-              <View style={[
-                styles.inputContainer,
-                emailFocused && styles.inputContainerFocused
-              ]}>
-                <Ionicons name="mail-outline" size={20} color={emailFocused ? COLORS.primary : COLORS.textMuted} />
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color={COLORS.textMuted} />
                 <TextInput
                   style={styles.input}
                   placeholder={t('signup.emailPlaceholder')}
@@ -167,20 +154,16 @@ export default function SignupScreen({ navigation }) {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  onFocus={() => setEmailFocused(true)}
-                  onBlur={() => setEmailFocused(false)}
+                  autoComplete="email"
                 />
               </View>
             </View>
 
-            {/* Password Input */}
+            {/* Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('signup.passwordLabel')}</Text>
-              <View style={[
-                styles.inputContainer,
-                passwordFocused && styles.inputContainerFocused
-              ]}>
-                <Ionicons name="lock-closed-outline" size={20} color={passwordFocused ? COLORS.primary : COLORS.textMuted} />
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color={COLORS.textMuted} />
                 <TextInput
                   style={styles.input}
                   placeholder={t('signup.passwordPlaceholder')}
@@ -189,8 +172,8 @@ export default function SignupScreen({ navigation }) {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
+                  autoComplete="off"
+                  textContentType="none"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons
@@ -202,14 +185,11 @@ export default function SignupScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Confirm Password Input */}
+            {/* Confirm Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('signup.confirmPasswordLabel')}</Text>
-              <View style={[
-                styles.inputContainer,
-                confirmFocused && styles.inputContainerFocused
-              ]}>
-                <Ionicons name="lock-closed-outline" size={20} color={confirmFocused ? COLORS.primary : COLORS.textMuted} />
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color={COLORS.textMuted} />
                 <TextInput
                   style={styles.input}
                   placeholder={t('signup.confirmPasswordPlaceholder')}
@@ -218,8 +198,8 @@ export default function SignupScreen({ navigation }) {
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
-                  onFocus={() => setConfirmFocused(true)}
-                  onBlur={() => setConfirmFocused(false)}
+                  autoComplete="off"
+                  textContentType="none"
                 />
                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                   <Ionicons
@@ -231,7 +211,7 @@ export default function SignupScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Signup Button */}
+            {/* Button */}
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignup}
@@ -248,11 +228,9 @@ export default function SignupScreen({ navigation }) {
               )}
             </TouchableOpacity>
 
-            {/* Login Link */}
+            {/* Footer */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                {t('signup.hasAccount')}{' '}
-              </Text>
+              <Text style={styles.footerText}>{t('signup.hasAccount')} </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
                 <Text style={styles.linkText}>{t('signup.signInLink')}</Text>
               </TouchableOpacity>
@@ -268,12 +246,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 80,
     paddingBottom: 40,
-    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
@@ -287,11 +267,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
   },
   title: {
     fontSize: 28,
@@ -303,7 +278,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 24,
   },
   form: {
     width: '100%',
@@ -325,36 +299,24 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
+    height: 52,
     gap: 12,
-  },
-  inputContainerFocused: {
-    borderColor: COLORS.borderFocus,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   input: {
     flex: 1,
-    paddingVertical: 14,
     fontSize: 16,
     color: COLORS.textPrimary,
+    height: '100%',
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primary,
-    paddingVertical: 16,
+    height: 52,
     borderRadius: 12,
     marginTop: 24,
     gap: 8,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
   buttonDisabled: {
     opacity: 0.6,

@@ -1,10 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, View, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import ProjectDetailView from '../components/ProjectDetailView';
 import { getProject, deleteProject } from '../utils/storage';
 
 export default function ProjectDetailScreen({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { project, projectId, onEdit, onDelete, onRefreshNeeded, isDemo } = route.params || {};
   const [currentProject, setCurrentProject] = React.useState(project || null);
   const [loading, setLoading] = React.useState(!project && !!projectId && !isDemo);
@@ -67,7 +69,7 @@ export default function ProjectDetailScreen({ route, navigation }) {
   const handleDelete = async () => {
     // Demo projects can't be deleted
     if (isDemo) {
-      Alert.alert('Demo Project', 'This is a demo project. Create your own project to get started!');
+      Alert.alert(t('alerts.info'), t('messages.featureComingSoon', { feature: 'Demo project editing' }));
       return;
     }
     const id = currentProject?.id || projectId;
@@ -75,14 +77,14 @@ export default function ProjectDetailScreen({ route, navigation }) {
       try {
         const success = await deleteProject(id);
         if (success) {
-          Alert.alert('Success', 'Project deleted successfully');
+          Alert.alert(t('alerts.success'), t('messages.deletedSuccessfully', { item: 'Project' }));
           navigation.goBack();
         } else {
-          Alert.alert('Error', 'Failed to delete project');
+          Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'project' }));
         }
       } catch (error) {
         console.error('Error deleting project:', error);
-        Alert.alert('Error', 'Failed to delete project');
+        Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'project' }));
       }
     }
   };

@@ -71,7 +71,34 @@
     "clearChat": "Clear Chat",
     "voiceInput": "Voice Input",
     "attachFile": "Attach File",
-    "takePhoto": "Take Photo"
+    "takePhoto": "Take Photo",
+    "saveProject": "Save Project",
+    "saving": "Saving...",
+    "viewProject": "View Project",
+    "cancel": "Cancel",
+    "addTask": "Add Task",
+    "addService": "Add Service",
+    "saveChanges": "Save Changes",
+    "convertToInvoice": "Convert to Invoice",
+    "done": "Done"
+  },
+  "project": {
+    "projectTitle": "PROJECT",
+    "projectPhases": "Project Phases",
+    "days": "days",
+    "workingDays": "Working Days",
+    "scope": "Scope",
+    "complexity": "Complexity",
+    "tasks": "Tasks",
+    "services": "Services",
+    "projectTimeline": "Project Timeline",
+    "acceptedReadyToConvert": "Project saved! You can view it in your Projects tab.",
+    "shareProject": "Share Project",
+    "sharePrompt": "How would you like to share this project?",
+    "sharePdf": "Share PDF",
+    "emailPdf": "Email PDF",
+    "textPdf": "Text PDF",
+    "project": "project"
   },
   "messages": {
     "error": "Sorry, something went wrong. Please try again.",
@@ -241,5 +268,25 @@
     "netAvailable": "Net Available:",
     "pending": "Pending:",
     "currentProfit": "Current Profit"
+  },
+  "invoice": {
+    "title": "INVOICE",
+    "billTo": "Bill To:",
+    "project": "Project:",
+    "dueDate": "Due Date:",
+    "overdue": "(OVERDUE)",
+    "items": "ITEMS",
+    "contractTotal": "Contract Total:",
+    "previousPayments": "Previous Payments:",
+    "thisInvoice": "This Invoice ({{percentage}}% {{type}}):",
+    "downPayment": "Down Payment",
+    "progressPayment": "Progress Payment",
+    "payment": "Payment",
+    "amountDue": "AMOUNT DUE:",
+    "remainingBalance": "Remaining Balance:",
+    "paid": "Paid:",
+    "balanceDue": "Balance Due:",
+    "previewPdf": "Preview PDF",
+    "sendInvoice": "Send Invoice"
   }
 }

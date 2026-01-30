@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -37,6 +38,7 @@ import { formatHoursMinutes } from '../../utils/calculations';
 export default function TimeClockScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,7 +128,9 @@ export default function TimeClockScreen({ navigation }) {
       if (workerData.owner_id) {
         await loadOwnerProjects(workerData.owner_id);
       } else {
-        console.error('No owner_id found for worker');
+        // Worker signed up independently, not yet assigned to a contractor
+        console.log('Worker not yet assigned to a contractor');
+        setAvailableProjects([]);
       }
 
       // Load recent clock-in history and today's hours
@@ -234,7 +238,7 @@ export default function TimeClockScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error toggling task:', error);
-      Alert.alert('Error', 'Failed to update task');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'task' }));
     }
   };
 
@@ -279,7 +283,7 @@ export default function TimeClockScreen({ navigation }) {
       await performClockOut();
     } catch (error) {
       console.error('Error submitting incomplete reasons:', error);
-      Alert.alert('Error', 'Failed to submit reasons. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'reasons' }));
     }
   };
 
@@ -300,21 +304,21 @@ export default function TimeClockScreen({ navigation }) {
         // Show success message with hours worked
         if (result.hours) {
           Alert.alert(
-            'Clocked Out',
+            t('alerts.success'),
             `Hours worked: ${result.hours.toFixed(2)}`
           );
         } else {
-          Alert.alert('Success', 'Clocked out successfully');
+          Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock out' }));
         }
 
         // Reload data to update history and hours
         await loadWorkerData();
       } else {
-        Alert.alert('Error', 'Failed to clock out. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'clock out' }));
       }
     } catch (error) {
       console.error('Error clocking out:', error);
-      Alert.alert('Error', 'Failed to clock out');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'clock out' }));
     } finally {
       setActionLoading(false);
     }
@@ -379,17 +383,17 @@ export default function TimeClockScreen({ navigation }) {
       if (session) {
         console.log('Setting activeSession:', session);
         setActiveSession(session);
-        Alert.alert('Success', 'Clocked in successfully');
+        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock in' }));
 
         // Get location in background and update the record
         getLocationAndUpdate(session.id);
       } else {
         console.log('clockIn returned null/undefined');
-        Alert.alert('Error', 'Failed to clock in. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'clock in' }));
       }
     } catch (error) {
       console.error('Error clocking in:', error);
-      Alert.alert('Error', 'Failed to clock in');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'clock in' }));
     } finally {
       setActionLoading(false);
     }
@@ -495,7 +499,14 @@ export default function TimeClockScreen({ navigation }) {
                 setShowClockOutModal(true);
               } else {
                 if (availableProjects.length === 0) {
-                  Alert.alert('No Projects', 'Your manager has not created any projects yet.');
+                  if (!ownerId) {
+                    Alert.alert(
+                      t('alerts.warning'),
+                      'You haven\'t been assigned to a contractor yet. Ask your contractor to send you an invite, or wait for them to add you to their team.'
+                    );
+                  } else {
+                    Alert.alert(t('alerts.noProjects'), t('emptyStates.noProjectsYet'));
+                  }
                 } else {
                   setShowProjectPicker(true);
                 }

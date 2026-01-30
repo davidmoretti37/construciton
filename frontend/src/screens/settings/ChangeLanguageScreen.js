@@ -18,19 +18,12 @@ import { getSelectedLanguage, saveLanguage } from '../../utils/storage';
 const LANGUAGES = [
   { id: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
   { id: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
-  { id: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
-  { id: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
   { id: 'pt-BR', name: 'Portuguese (Brazil)', nativeName: 'Português (Brasil)', flag: '🇧🇷' },
-  { id: 'pt', name: 'Portuguese (Portugal)', nativeName: 'Português (Portugal)', flag: '🇵🇹' },
-  { id: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
-  { id: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
-  { id: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
-  { id: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
-  { id: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
 ];
 
 export default function ChangeLanguageScreen({ navigation }) {
   const { t } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [selectedLanguage, setSelectedLanguage] = useState('en');
@@ -72,11 +65,11 @@ export default function ChangeLanguageScreen({ navigation }) {
           ]
         );
       } else {
-        Alert.alert('Error', 'Failed to update language. Please try again.');
+        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'language' }));
       }
     } catch (error) {
       console.error('Error saving language:', error);
-      Alert.alert('Error', 'Failed to update language. Please try again.');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'language' }));
     }
   };
 
@@ -185,6 +178,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Spacing.lg,
+    paddingBottom: 80, // Account for tab bar
   },
   languageList: {
     flex: 1,

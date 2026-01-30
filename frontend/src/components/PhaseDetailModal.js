@@ -11,6 +11,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import {
@@ -25,6 +26,7 @@ import {
 } from '../utils/storage';
 
 export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -94,11 +96,11 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
     try {
       await updatePhaseProgress(phase.id, completion);
-      Alert.alert('Success', 'Phase progress updated');
+      Alert.alert(t('alerts.success'), t('messages.progressUpdated'));
       if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error updating progress:', error);
-      Alert.alert('Error', 'Failed to update progress');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +108,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
   const handleExtendTimeline = async () => {
     if (!extensionDays || isNaN(parseInt(extensionDays))) {
-      Alert.alert('Error', 'Please enter a valid number of days');
+      Alert.alert(t('alerts.error'), t('messages.enterValidDays'));
       return;
     }
 
@@ -116,13 +118,13 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
     try {
       const days = parseInt(extensionDays);
       await extendPhaseTimeline(phase.id, days, extensionReason);
-      Alert.alert('Success', `Timeline extended by ${days} days`);
+      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully'));
       setExtensionDays('');
       setExtensionReason('');
       if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error extending timeline:', error);
-      Alert.alert('Error', 'Failed to extend timeline');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setIsLoading(false);
     }
@@ -130,12 +132,12 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
   const handleUpdateDates = async () => {
     if (!startDate || !endDate) {
-      Alert.alert('Error', 'Please set both start and end dates');
+      Alert.alert(t('alerts.error'), t('alerts.required'));
       return;
     }
 
     if (new Date(endDate) < new Date(startDate)) {
-      Alert.alert('Error', 'End date must be after start date');
+      Alert.alert(t('alerts.error'), t('alerts.invalidInput'));
       return;
     }
 
@@ -144,11 +146,11 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
     try {
       await updatePhaseDates(phase.id, { start_date: startDate, end_date: endDate });
-      Alert.alert('Success', 'Phase dates updated');
+      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully'));
       if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error updating dates:', error);
-      Alert.alert('Error', 'Failed to update dates');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setIsLoading(false);
     }
@@ -160,11 +162,11 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
     try {
       await startPhase(phase.id);
-      Alert.alert('Success', 'Phase started');
+      Alert.alert(t('alerts.success'), t('messages.phaseStarted'));
       if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error starting phase:', error);
-      Alert.alert('Error', 'Failed to start phase');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setIsLoading(false);
     }
@@ -172,23 +174,23 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
   const handleCompletePhase = async () => {
     Alert.alert(
-      'Complete Phase',
-      'Are you sure you want to mark this phase as completed?',
+      t('alerts.completePhase'),
+      t('messages.confirmComplete'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Complete',
+          text: t('buttons.complete'),
           onPress: async () => {
             if (isLoading) return;
             setIsLoading(true);
 
             try {
               await completePhase(phase.id);
-              Alert.alert('Success', 'Phase completed');
+              Alert.alert(t('alerts.success'), t('messages.phaseCompleted'));
               if (onUpdate) onUpdate();
             } catch (error) {
               console.error('Error completing phase:', error);
-              Alert.alert('Error', 'Failed to complete phase');
+              Alert.alert(t('alerts.error'), t('messages.failedToSave'));
             } finally {
               setIsLoading(false);
             }
@@ -200,7 +202,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
   const handleAddTask = async () => {
     if (!newTaskName.trim()) {
-      Alert.alert('Error', 'Please enter a task description');
+      Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
       return;
     }
 
@@ -217,11 +219,11 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
         setNewTaskName('');
         if (onUpdate) onUpdate();
       } else {
-        Alert.alert('Error', 'Failed to add task');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave'));
       }
     } catch (error) {
       console.error('Error adding task:', error);
-      Alert.alert('Error', 'Failed to add task');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setIsLoading(false);
     }
@@ -242,11 +244,11 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
         setTasks(updatedPhase.tasks || []);
         if (onUpdate) onUpdate();
       } else {
-        Alert.alert('Error', 'Failed to update task');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave'));
       }
     } catch (error) {
       console.error('Error toggling task:', error);
-      Alert.alert('Error', 'Failed to update task');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setIsLoading(false);
     }
@@ -254,12 +256,12 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
 
   const handleRemoveTask = async (taskId) => {
     Alert.alert(
-      'Remove Task',
-      'Are you sure you want to remove this task?',
+      t('alerts.removeTask'),
+      t('messages.confirmRemove'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('buttons.remove'),
           style: 'destructive',
           onPress: async () => {
             setIsLoading(true);
@@ -275,7 +277,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
               if (onUpdate) onUpdate();
             } catch (error) {
               console.error('Error removing task:', error);
-              Alert.alert('Error', 'Failed to remove task');
+              Alert.alert(t('alerts.error'), t('messages.failedToSave'));
             } finally {
               setIsLoading(false);
             }
@@ -493,7 +495,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
               <View style={styles.emptyState}>
                 <Ionicons name="list-outline" size={48} color={Colors.secondaryText} />
                 <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>
-                  No tasks added yet
+                  {t('emptyStates.noTasks')}
                 </Text>
               </View>
             ) : (

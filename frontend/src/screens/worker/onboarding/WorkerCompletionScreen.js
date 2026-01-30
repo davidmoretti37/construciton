@@ -1,3 +1,8 @@
+/**
+ * WorkerCompletionScreen
+ * Success screen with celebration animations
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,11 +13,20 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
+import {
+  useSuccessCelebration,
+  useTextSlideUp,
+  useSlideFromSide,
+  useButtonBounce,
+} from '../../../hooks/useOnboardingAnimations';
+
+const WORKER_GREEN = '#059669';
 
 export default function WorkerCompletionScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -22,6 +36,15 @@ export default function WorkerCompletionScreen({ route, navigation }) {
 
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Animation hooks (only activate after save completes)
+  const iconAnim = useSuccessCelebration(isAnimating, 0);
+  const titleAnim = useTextSlideUp(isAnimating, 400);
+  const subtitleAnim = useTextSlideUp(isAnimating, 600);
+  const infoBoxAnim = useSlideFromSide(isAnimating, 900, false);
+  const buttonAnim = useButtonBounce(isAnimating, 1200);
+  const progressAnim = useTextSlideUp(isAnimating, 1400);
 
   useEffect(() => {
     // Auto-save when screen loads
@@ -63,6 +86,11 @@ export default function WorkerCompletionScreen({ route, navigation }) {
 
       console.log('✅ Onboarding completed');
       setCompleted(true);
+
+      // Start animations after short delay
+      setTimeout(() => {
+        setIsAnimating(true);
+      }, 300);
     } catch (error) {
       console.error('❌ Error saving worker profile:', error);
       Alert.alert(
@@ -87,7 +115,7 @@ export default function WorkerCompletionScreen({ route, navigation }) {
       <View style={styles.content}>
         {saving ? (
           <>
-            <ActivityIndicator size="large" color="#059669" />
+            <ActivityIndicator size="large" color={WORKER_GREEN} />
             <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
               Setting up your profile...
             </Text>
@@ -95,54 +123,56 @@ export default function WorkerCompletionScreen({ route, navigation }) {
         ) : completed ? (
           <>
             {/* Success Icon */}
-            <View style={[styles.iconContainer, { backgroundColor: '#059669' + '20' }]}>
-              <Ionicons name="checkmark-circle" size={80} color="#059669" />
-            </View>
+            <Animated.View style={[styles.iconContainer, { backgroundColor: WORKER_GREEN + '20' }, iconAnim]}>
+              <Ionicons name="checkmark-circle" size={80} color={WORKER_GREEN} />
+            </Animated.View>
 
             {/* Success Text */}
             <View style={styles.textContainer}>
-              <Text style={[styles.title, { color: Colors.primaryText }]}>
+              <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
                 You're All Set!
-              </Text>
-              <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+              </Animated.Text>
+              <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
                 Your profile has been created. You're ready to start tracking your work hours and assignments.
-              </Text>
+              </Animated.Text>
             </View>
 
             {/* Info Box */}
-            <View style={[styles.infoBox, { backgroundColor: '#059669' + '10', borderColor: '#059669' + '30' }]}>
-              <Ionicons name="information-circle-outline" size={24} color="#059669" />
+            <Animated.View style={[styles.infoBox, { backgroundColor: WORKER_GREEN + '10', borderColor: WORKER_GREEN + '30' }, infoBoxAnim]}>
+              <Ionicons name="information-circle-outline" size={24} color={WORKER_GREEN} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.infoTitle, { color: '#059669' }]}>
+                <Text style={[styles.infoTitle, { color: WORKER_GREEN }]}>
                   Waiting for Approval
                 </Text>
-                <Text style={[styles.infoText, { color: '#059669' }]}>
+                <Text style={[styles.infoText, { color: WORKER_GREEN }]}>
                   Your contractor will need to approve your account before you can clock in and start working.
                 </Text>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Continue Button */}
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: '#059669' }]}
-              onPress={handleContinue}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buttonText}>Go to App</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </TouchableOpacity>
+            <Animated.View style={[{ width: '100%' }, buttonAnim]}>
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: WORKER_GREEN }]}
+                onPress={handleContinue}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.buttonText}>Go to App</Text>
+                <Ionicons name="arrow-forward" size={20} color="#fff" />
+              </TouchableOpacity>
+            </Animated.View>
 
             {/* Progress Indicator */}
-            <View style={styles.progressContainer}>
+            <Animated.View style={[styles.progressContainer, progressAnim]}>
               <View style={styles.progressDots}>
-                <View style={[styles.dot, { backgroundColor: '#059669' }]} />
-                <View style={[styles.dot, { backgroundColor: '#059669' }]} />
-                <View style={[styles.dot, styles.activeDot, { backgroundColor: '#059669' }]} />
+                <View style={[styles.dot, { backgroundColor: WORKER_GREEN }]} />
+                <View style={[styles.dot, { backgroundColor: WORKER_GREEN }]} />
+                <View style={[styles.dot, styles.activeDot, { backgroundColor: WORKER_GREEN }]} />
               </View>
               <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
                 Step 3 of 3
               </Text>
-            </View>
+            </Animated.View>
           </>
         ) : null}
       </View>
@@ -196,6 +226,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxl,
     gap: Spacing.md,
     alignItems: 'flex-start',
+    width: '100%',
   },
   infoTitle: {
     fontSize: FontSizes.body,

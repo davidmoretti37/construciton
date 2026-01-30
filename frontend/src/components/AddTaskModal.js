@@ -11,8 +11,10 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjectsBasic } from '../utils/storage';
@@ -25,6 +27,7 @@ export default function AddTaskModal({
   projects: providedProjects,
   editingTask,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const inputRef = useRef(null);
@@ -110,14 +113,14 @@ export default function AddTaskModal({
   const handleSave = async () => {
     // Validation
     if (!selectedProject) {
-      alert('Please select a project');
+      Alert.alert(t('alerts.error'), t('alerts.required'));
       return;
     }
 
     if (editingTask) {
       // Edit mode - save single task
       if (!title.trim()) {
-        alert('Please enter a task title');
+        Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
         return;
       }
 
@@ -134,14 +137,14 @@ export default function AddTaskModal({
         onClose();
       } catch (error) {
         console.error('Error saving task:', error);
-        alert('Failed to save task');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave'));
       } finally {
         setSaving(false);
       }
     } else {
       // Create mode - save all tasks in list
       if (taskList.length === 0) {
-        alert('Please add at least one task');
+        Alert.alert(t('alerts.error'), t('messages.selectAtLeastOneTask'));
         return;
       }
 
@@ -160,7 +163,7 @@ export default function AddTaskModal({
         onClose();
       } catch (error) {
         console.error('Error saving tasks:', error);
-        alert('Failed to save tasks');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave'));
       } finally {
         setSaving(false);
       }
@@ -195,17 +198,17 @@ export default function AddTaskModal({
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: Colors.border }]}>
             <TouchableOpacity onPress={onClose}>
-              <Text style={[styles.cancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: Colors.primaryBlue }]}>{t('buttons.cancel')}</Text>
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-              {isEditMode ? 'Edit Task' : 'Add Tasks'}
+              {isEditMode ? t('labels.editTask') : t('labels.addTasks')}
             </Text>
             <TouchableOpacity onPress={handleSave} disabled={saving}>
               {saving ? (
                 <ActivityIndicator size="small" color={Colors.primaryBlue} />
               ) : (
                 <Text style={[styles.saveText, { color: Colors.primaryBlue }]}>
-                  {isEditMode ? 'Save' : `Save${taskList.length > 0 ? ` (${taskList.length})` : ''}`}
+                  {isEditMode ? t('buttons.save') : `${t('buttons.save')}${taskList.length > 0 ? ` (${taskList.length})` : ''}`}
                 </Text>
               )}
             </TouchableOpacity>

@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
@@ -30,6 +31,7 @@ const FILTERS = [
 ];
 
 export default function NotificationsScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -78,7 +80,7 @@ export default function NotificationsScreen({ navigation }) {
 
         if (error) {
           console.error('Error fetching appointment:', error);
-          Alert.alert('Error', 'Could not load appointment details');
+          Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'appointment details' }));
           return;
         }
 
@@ -88,7 +90,7 @@ export default function NotificationsScreen({ navigation }) {
         }
       } catch (error) {
         console.error('Error fetching appointment:', error);
-        Alert.alert('Error', 'Could not load appointment details');
+        Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'appointment details' }));
       } finally {
         setAppointmentLoading(false);
       }
@@ -139,18 +141,18 @@ export default function NotificationsScreen({ navigation }) {
       setShowAppointmentPopup(false);
       setSelectedAppointment(null);
     } else {
-      Alert.alert('Error', 'Failed to reschedule appointment. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'appointment' }));
     }
-  }, []);
+  }, [t]);
 
   const handleCancelAppointment = useCallback(async (eventId) => {
     Alert.alert(
-      'Cancel Appointment',
-      'Are you sure you want to cancel this appointment?',
+      t('alerts.confirm'),
+      t('alerts.deleteConfirm'),
       [
-        { text: 'Keep', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Cancel Appointment',
+          text: t('buttons.delete'),
           style: 'destructive',
           onPress: async () => {
             const success = await deleteScheduleEvent(eventId);
@@ -158,13 +160,13 @@ export default function NotificationsScreen({ navigation }) {
               setShowAppointmentPopup(false);
               setSelectedAppointment(null);
             } else {
-              Alert.alert('Error', 'Failed to cancel appointment. Please try again.');
+              Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'appointment' }));
             }
           }
         }
       ]
     );
-  }, []);
+  }, [t]);
 
   const handleClosePopup = useCallback(() => {
     setShowAppointmentPopup(false);

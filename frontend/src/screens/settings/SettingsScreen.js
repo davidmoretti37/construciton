@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getUserProfile, getSelectedLanguage } from '../../utils/storage';
+import { getUserProfile, getSelectedLanguage, getAutoTranslateEstimates, updateAutoTranslateEstimates } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -20,23 +20,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const LANGUAGE_NAMES = {
   en: 'English',
   es: 'Español',
-  fr: 'Français',
-  de: 'Deutsch',
-  pt: 'Português',
-  it: 'Italiano',
-  zh: '中文',
-  ja: '日本語',
-  ko: '한국어',
-  ar: 'العربية',
+  'pt-BR': 'Português (Brasil)',
 };
 
 export default function SettingsScreen({ navigation }) {
-  const { t } = useTranslation('settings');
+  const { t } = useTranslation(['settings', 'common']);
   const { isDark = false, toggleTheme } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
   const [userProfile, setUserProfile] = useState(null);
   const [currentLanguage, setCurrentLanguage] = useState('en');
+  const [autoTranslateEstimates, setAutoTranslateEstimates] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -56,10 +50,22 @@ export default function SettingsScreen({ navigation }) {
     // Load current language
     const language = await getSelectedLanguage();
     setCurrentLanguage(language || 'en');
+
+    // Load auto-translate setting
+    const autoTranslate = await getAutoTranslateEstimates();
+    setAutoTranslateEstimates(autoTranslate);
   };
 
   const handleChangeLanguage = () => {
     navigation.navigate('ChangeLanguage');
+  };
+
+  const handleToggleAutoTranslate = async () => {
+    const newValue = !autoTranslateEstimates;
+    const success = await updateAutoTranslateEstimates(newValue);
+    if (success) {
+      setAutoTranslateEstimates(newValue);
+    }
   };
 
   const handleLogout = async () => {
@@ -96,7 +102,7 @@ export default function SettingsScreen({ navigation }) {
               // App.js will handle navigation to login screen via auth state listener
             } catch (error) {
               console.error('❌ LOGOUT FAILED:', error);
-              Alert.alert('Error', 'Failed to logout. Please try again.');
+              Alert.alert(t('common:alerts.error'), t('common:messages.failedToLogout'));
             }
           },
         },
@@ -159,6 +165,32 @@ export default function SettingsScreen({ navigation }) {
             </View>
             <Ionicons name={isDark ? "toggle" : "toggle-outline"} size={32} color={Colors.primaryBlue} />
           </TouchableOpacity>
+
+          {/* Auto-translate Estimates - only show for non-English users */}
+          {currentLanguage !== 'en' && (
+            <TouchableOpacity
+              style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+              onPress={handleToggleAutoTranslate}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
+                <Ionicons name="document-text-outline" size={24} color={Colors.primaryBlue} />
+              </View>
+              <View style={styles.itemContent}>
+                <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>
+                  {t('preferences.autoTranslateEstimates')}
+                </Text>
+                <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>
+                  {t('preferences.autoTranslateEstimatesDesc')}
+                </Text>
+              </View>
+              <Ionicons
+                name={autoTranslateEstimates ? "checkbox" : "square-outline"}
+                size={24}
+                color={Colors.primaryBlue}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* App Info Section */}

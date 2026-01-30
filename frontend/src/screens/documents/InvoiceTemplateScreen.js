@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -30,6 +31,7 @@ const PAYMENT_TERMS = [
 ];
 
 export default function InvoiceTemplateScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -97,7 +99,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant photo library access to upload a logo');
+        Alert.alert(t('alerts.permissionRequired', 'Permission needed'), t('permissions.photoLibraryRequired', 'Please grant photo library access to upload a logo'));
         return;
       }
 
@@ -113,7 +115,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking logo:', error);
-      Alert.alert('Error', 'Failed to pick logo image');
+      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to pick logo image'));
     }
   };
 
@@ -129,7 +131,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
           logoUrl = await uploadLogoToStorage(logoUri);
         } catch (uploadError) {
           console.error('Error uploading logo:', uploadError);
-          Alert.alert('Warning', 'Failed to upload logo. Template will be saved without logo.');
+          Alert.alert(t('alerts.warning', 'Warning'), t('invoiceTemplate.logoUploadFailed', 'Failed to upload logo. Template will be saved without logo.'));
           logoUrl = null;
         }
       }
@@ -150,12 +152,12 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Invoice template saved successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+      Alert.alert(t('alerts.success', 'Success'), t('messages.savedSuccessfully', 'Invoice template saved successfully'), [
+        { text: t('common.ok', 'OK'), onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
       console.error('Error saving template:', error);
-      Alert.alert('Error', 'Failed to save template');
+      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToSave', 'Failed to save template'));
     } finally {
       setSaving(false);
     }

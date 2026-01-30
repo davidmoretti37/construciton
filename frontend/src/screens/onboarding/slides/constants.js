@@ -148,3 +148,13 @@ export const ONBOARDING_ANIMATIONS = {
   stagger: 80,
   staggerBase: 100,
 };
+
+// Gradient presets for consistent styling
+export const ONBOARDING_GRADIENTS = {
+  // Primary CTA button gradient (blue to cyan)
+  button: ['#3B82F6', '#06B6D4'],
+  // Headline gradient text
+  headline: ['#3B82F6', '#06B6D4', '#60A5FA'],
+  // Background gradient
+  background: ['#0A0F1A', '#0F172A', '#1A1F3A'],
+};

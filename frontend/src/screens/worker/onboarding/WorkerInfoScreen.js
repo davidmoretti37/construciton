@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+/**
+ * WorkerInfoScreen
+ * Worker info form with choreographed animations
+ */
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,9 +17,19 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
+import {
+  useSlideDown,
+  useFormFieldPop,
+  useButtonBounce,
+  useTextSlideUp,
+} from '../../../hooks/useOnboardingAnimations';
+
+const WORKER_GREEN = '#059669';
 
 const TRADES = [
   { id: 'general', name: 'General Laborer' },
@@ -42,6 +57,7 @@ const ROLES = [
 export default function WorkerInfoScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -49,15 +65,30 @@ export default function WorkerInfoScreen({ navigation }) {
   const [trade, setTrade] = useState(TRADES[0].id);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showTradeModal, setShowTradeModal] = useState(false);
+  const [isScreenActive, setIsScreenActive] = useState(false);
+
+  // Trigger animations on mount
+  useEffect(() => {
+    setIsScreenActive(true);
+  }, []);
+
+  // Animation hooks
+  const headerAnim = useSlideDown(isScreenActive, 0);
+  const field1Anim = useFormFieldPop(isScreenActive, 0, 200);
+  const field2Anim = useFormFieldPop(isScreenActive, 1, 200);
+  const field3Anim = useFormFieldPop(isScreenActive, 2, 200);
+  const field4Anim = useFormFieldPop(isScreenActive, 3, 200);
+  const buttonAnim = useButtonBounce(isScreenActive, 800);
+  const progressAnim = useTextSlideUp(isScreenActive, 1000);
 
   const handleContinue = () => {
     // Validation
     if (!fullName.trim()) {
-      Alert.alert('Required Field', 'Please enter your full name');
+      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterName'));
       return;
     }
     if (!phone.trim()) {
-      Alert.alert('Required Field', 'Please enter your phone number');
+      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterPhone'));
       return;
     }
 
@@ -82,19 +113,19 @@ export default function WorkerInfoScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         >
           {/* Header */}
-          <View style={styles.header}>
+          <Animated.View style={[styles.header, headerAnim]}>
             <Text style={[styles.title, { color: Colors.primaryText }]}>
               Your Information
             </Text>
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
               Tell us a bit about yourself
             </Text>
-          </View>
+          </Animated.View>
 
           {/* Form */}
           <View style={styles.form}>
             {/* Full Name */}
-            <View style={styles.inputGroup}>
+            <Animated.View style={[styles.inputGroup, field1Anim]}>
               <Text style={[styles.label, { color: Colors.primaryText }]}>Full Name *</Text>
               <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="person-outline" size={20} color={Colors.secondaryText} />
@@ -107,10 +138,10 @@ export default function WorkerInfoScreen({ navigation }) {
                   autoCapitalize="words"
                 />
               </View>
-            </View>
+            </Animated.View>
 
             {/* Phone */}
-            <View style={styles.inputGroup}>
+            <Animated.View style={[styles.inputGroup, field2Anim]}>
               <Text style={[styles.label, { color: Colors.primaryText }]}>Phone Number *</Text>
               <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
@@ -123,10 +154,10 @@ export default function WorkerInfoScreen({ navigation }) {
                   keyboardType="phone-pad"
                 />
               </View>
-            </View>
+            </Animated.View>
 
             {/* Role in Company */}
-            <View style={styles.inputGroup}>
+            <Animated.View style={[styles.inputGroup, field3Anim]}>
               <Text style={[styles.label, { color: Colors.primaryText }]}>Role in Company</Text>
               <TouchableOpacity
                 style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
@@ -136,10 +167,10 @@ export default function WorkerInfoScreen({ navigation }) {
                 <Text style={[styles.selectText, { color: Colors.primaryText }]}>{role}</Text>
                 <Ionicons name="chevron-down" size={20} color={Colors.secondaryText} />
               </TouchableOpacity>
-            </View>
+            </Animated.View>
 
             {/* Trade/Specialty */}
-            <View style={styles.inputGroup}>
+            <Animated.View style={[styles.inputGroup, field4Anim]}>
               <Text style={[styles.label, { color: Colors.primaryText }]}>Trade / Specialty</Text>
               <TouchableOpacity
                 style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
@@ -151,30 +182,32 @@ export default function WorkerInfoScreen({ navigation }) {
                 </Text>
                 <Ionicons name="chevron-down" size={20} color={Colors.secondaryText} />
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
 
           {/* Continue Button */}
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: '#059669' }]}
-            onPress={handleContinue}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
-          </TouchableOpacity>
+          <Animated.View style={buttonAnim}>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: WORKER_GREEN }]}
+              onPress={handleContinue}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" />
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Progress Indicator */}
-          <View style={styles.progressContainer}>
+          <Animated.View style={[styles.progressContainer, progressAnim]}>
             <View style={styles.progressDots}>
-              <View style={[styles.dot, { backgroundColor: '#059669' }]} />
-              <View style={[styles.dot, styles.activeDot, { backgroundColor: '#059669' }]} />
+              <View style={[styles.dot, { backgroundColor: WORKER_GREEN }]} />
+              <View style={[styles.dot, styles.activeDot, { backgroundColor: WORKER_GREEN }]} />
               <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
             </View>
             <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
               Step 2 of 3
             </Text>
-          </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -200,7 +233,7 @@ export default function WorkerInfoScreen({ navigation }) {
                   style={[
                     styles.modalOption,
                     { borderBottomColor: Colors.border },
-                    role === r && { backgroundColor: '#059669' + '10' }
+                    role === r && { backgroundColor: WORKER_GREEN + '10' }
                   ]}
                   onPress={() => {
                     setRole(r);
@@ -208,7 +241,7 @@ export default function WorkerInfoScreen({ navigation }) {
                   }}
                 >
                   <Text style={[styles.modalOptionText, { color: Colors.primaryText }]}>{r}</Text>
-                  {role === r && <Ionicons name="checkmark" size={24} color="#059669" />}
+                  {role === r && <Ionicons name="checkmark" size={24} color={WORKER_GREEN} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -238,7 +271,7 @@ export default function WorkerInfoScreen({ navigation }) {
                   style={[
                     styles.modalOption,
                     { borderBottomColor: Colors.border },
-                    trade === t.id && { backgroundColor: '#059669' + '10' }
+                    trade === t.id && { backgroundColor: WORKER_GREEN + '10' }
                   ]}
                   onPress={() => {
                     setTrade(t.id);
@@ -246,7 +279,7 @@ export default function WorkerInfoScreen({ navigation }) {
                   }}
                 >
                   <Text style={[styles.modalOptionText, { color: Colors.primaryText }]}>{t.name}</Text>
-                  {trade === t.id && <Ionicons name="checkmark" size={24} color="#059669" />}
+                  {trade === t.id && <Ionicons name="checkmark" size={24} color={WORKER_GREEN} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>

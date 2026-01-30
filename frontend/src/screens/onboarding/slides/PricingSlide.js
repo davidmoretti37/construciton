@@ -1,19 +1,22 @@
 /**
  * PricingSlide
- * Screen 7: Plan selection with glowing cards
+ * Screen 7: Plan selection with entrance animations
+ * Benefits re-animate when switching plans
  */
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withDelay,
-  withTiming,
   withSpring,
+  withTiming,
+  Easing,
 } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import { PricingCard, ShimmerButton } from '../../../components/onboarding';
+import { useBounceAnimation, useScaleAnimation, useEntranceAnimation } from './useEntranceAnimation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -68,56 +71,83 @@ const BENEFITS = {
   ],
 };
 
-const BenefitItem = ({ icon, text, delay, isActive }) => {
+// Animated benefit item that pops in with stagger
+// NO SCALE - prevents iOS rasterization blur
+const AnimatedBenefitItem = ({ text, index, animationKey }) => {
   const opacity = useSharedValue(0);
-  const translateX = useSharedValue(-20);
+  const translateX = useSharedValue(-30);
 
   useEffect(() => {
-    if (isActive) {
-      opacity.value = withDelay(delay, withTiming(1, { duration: 300 }));
-      translateX.value = withDelay(delay, withSpring(0, { damping: 15 }));
-    }
-  }, [isActive, delay]);
+    // Reset and animate on key change
+    opacity.value = 0;
+    translateX.value = -30;
 
-  const style = useAnimatedStyle(() => ({
+    opacity.value = withDelay(index * 80, withSpring(1, { damping: 15 }));
+    translateX.value = withDelay(index * 80, withSpring(0, { damping: 12, stiffness: 100 }));
+  }, [animationKey, index]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [{ translateX: translateX.value }],
   }));
 
   return (
-    <Animated.View style={[styles.benefitItem, style]}>
+    <Animated.View style={[styles.benefitItem, animatedStyle]}>
       <Ionicons name="checkmark-circle" size={18} color="#34D399" />
       <Text style={styles.benefitText}>{text}</Text>
     </Animated.View>
   );
 };
 
-export default function PricingSlide({ isActive, selectedPlan, onSelectPlan, onStartTrial }) {
-  const headerOpacity = useSharedValue(0);
-  const cardsOpacity = useSharedValue(0);
-  const footerOpacity = useSharedValue(0);
+// Animated title that pulses on change
+// NO SCALE - prevents iOS rasterization blur, using opacity pulse instead
+const AnimatedBenefitsTitle = ({ planName, animationKey }) => {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(1);
 
   useEffect(() => {
-    if (isActive) {
-      headerOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
-      cardsOpacity.value = withDelay(400, withTiming(1, { duration: 400 }));
-      footerOpacity.value = withDelay(1200, withTiming(1, { duration: 400 }));
-    }
-  }, [isActive]);
+    // Subtle bounce effect on change
+    translateY.value = -5;
+    opacity.value = 0.5;
+    translateY.value = withSpring(0, { damping: 10, stiffness: 150 });
+    opacity.value = withTiming(1, { duration: 200 });
+  }, [animationKey]);
 
-  const headerStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
   }));
 
-  const cardsStyle = useAnimatedStyle(() => ({
-    opacity: cardsOpacity.value,
-  }));
+  return (
+    <Animated.Text style={[styles.benefitsTitle, animatedStyle]}>
+      What you get with {planName}:
+    </Animated.Text>
+  );
+};
 
-  const footerStyle = useAnimatedStyle(() => ({
-    opacity: footerOpacity.value,
-  }));
-
+export default function PricingSlide({ isActive = true, selectedPlan, onSelectPlan, onStartTrial }) {
   const currentBenefits = BENEFITS[selectedPlan] || BENEFITS.pro;
+  const currentPlanName = PLANS.find(p => p.id === selectedPlan)?.name || 'Pro';
+
+  // Track plan changes for re-animation
+  const [animationKey, setAnimationKey] = useState(0);
+  const prevPlanRef = useRef(selectedPlan);
+
+  useEffect(() => {
+    if (prevPlanRef.current !== selectedPlan) {
+      setAnimationKey(k => k + 1);
+      prevPlanRef.current = selectedPlan;
+    }
+  }, [selectedPlan]);
+
+  // Staggered entrance animations - bouncy pricing cards!
+  const headerAnim = useBounceAnimation(isActive, 0);
+  const card1Anim = useScaleAnimation(isActive, 150);
+  const card2Anim = useScaleAnimation(isActive, 250);
+  const card3Anim = useScaleAnimation(isActive, 350);
+  const benefitsAnim = useEntranceAnimation(isActive, 500);
+  const ctaAnim = useBounceAnimation(isActive, 650);
+  const footerAnim = useEntranceAnimation(isActive, 800);
 
   return (
     <ScrollView
@@ -126,61 +156,63 @@ export default function PricingSlide({ isActive, selectedPlan, onSelectPlan, onS
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
-      <Animated.View style={[styles.header, headerStyle]}>
+      <Animated.View style={[styles.header, headerAnim]}>
         <Text style={styles.title}>Choose Your Plan</Text>
         <Text style={styles.subtitle}>Start with 7 days free. Cancel anytime.</Text>
       </Animated.View>
 
       {/* Plan cards */}
-      <Animated.View style={[styles.cardsContainer, cardsStyle]}>
-        {PLANS.map((plan) => (
-          <PricingCard
-            key={plan.id}
-            plan={plan.name}
-            price={plan.price}
-            projects={plan.projects}
-            isSelected={selectedPlan === plan.id}
-            isBest={plan.isBest}
-            onSelect={() => onSelectPlan(plan.id)}
-          />
-        ))}
-      </Animated.View>
-
-      {/* Benefits list */}
-      <View style={styles.benefitsContainer}>
-        <Text style={styles.benefitsTitle}>
-          What you get with {PLANS.find(p => p.id === selectedPlan)?.name || 'Pro'}:
-        </Text>
-        {currentBenefits.map((benefit, index) => (
-          <BenefitItem
-            key={`${selectedPlan}-${benefit.text}`}
-            icon={benefit.icon}
-            text={benefit.text}
-            delay={100 + index * 80}
-            isActive={true}
-          />
-        ))}
-        {/* Trial benefit */}
-        <BenefitItem
-          key={`${selectedPlan}-trial`}
-          icon="gift"
-          text="7-day free trial included"
-          delay={100 + currentBenefits.length * 80}
-          isActive={true}
-        />
+      <View style={styles.cardsContainer}>
+        {PLANS.map((plan, index) => {
+          const cardAnim = index === 0 ? card1Anim : index === 1 ? card2Anim : card3Anim;
+          return (
+            <Animated.View key={plan.id} style={[{ flex: 1 }, cardAnim]}>
+              <PricingCard
+                plan={plan.name}
+                price={plan.price}
+                projects={plan.projects}
+                isSelected={selectedPlan === plan.id}
+                isBest={plan.isBest}
+                onSelect={() => onSelectPlan(plan.id)}
+              />
+            </Animated.View>
+          );
+        })}
       </View>
 
+      {/* Benefits list - re-animates on plan change */}
+      <Animated.View style={[styles.benefitsContainer, benefitsAnim]}>
+        <AnimatedBenefitsTitle planName={currentPlanName} animationKey={animationKey} />
+
+        {currentBenefits.map((benefit, index) => (
+          <AnimatedBenefitItem
+            key={`${selectedPlan}-${benefit.text}`}
+            text={benefit.text}
+            index={index}
+            animationKey={animationKey}
+          />
+        ))}
+
+        {/* Trial benefit - always last */}
+        <AnimatedBenefitItem
+          key={`${selectedPlan}-trial`}
+          text="7-day free trial included"
+          index={currentBenefits.length}
+          animationKey={animationKey}
+        />
+      </Animated.View>
+
       {/* CTA */}
-      <View style={styles.ctaContainer}>
+      <Animated.View style={[styles.ctaContainer, ctaAnim]}>
         <ShimmerButton
           title="Start Free Trial"
           onPress={onStartTrial}
           gradientColors={['#3B82F6', '#06B6D4']}
         />
-      </View>
+      </Animated.View>
 
       {/* Trust footer */}
-      <Animated.View style={[styles.trustFooter, footerStyle]}>
+      <Animated.View style={[styles.trustFooter, footerAnim]}>
         <View style={styles.trustItem}>
           <Ionicons name="shield-checkmark" size={14} color="#64748B" />
           <Text style={styles.trustText}>Secure</Text>
@@ -237,6 +269,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
+    overflow: 'hidden',
   },
   benefitsTitle: {
     fontSize: 15,

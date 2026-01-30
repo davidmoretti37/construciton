@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -21,6 +22,7 @@ import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../utils/storage';
 
 export default function ContractsScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -88,23 +90,23 @@ export default function ContractsScreen({ navigation }) {
 
   const handleUploadDocument = () => {
     Alert.alert(
-      'Add Contract Document',
-      'Choose a source',
+      t('contracts.addDocument', 'Add Contract Document'),
+      t('contracts.chooseSource', 'Choose a source'),
       [
         {
-          text: 'Take Photo',
+          text: t('contracts.takePhoto', 'Take Photo'),
           onPress: handleTakePhoto
         },
         {
-          text: 'Choose from Photos',
+          text: t('contracts.chooseFromPhotos', 'Choose from Photos'),
           onPress: handlePickImage
         },
         {
-          text: 'Choose Document',
+          text: t('contracts.chooseDocument', 'Choose Document'),
           onPress: handlePickDocument
         },
         {
-          text: 'Cancel',
+          text: t('common.cancel', 'Cancel'),
           style: 'cancel'
         }
       ]
@@ -115,7 +117,7 @@ export default function ContractsScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Camera permission is required to take photos');
+        Alert.alert(t('alerts.permissionRequired', 'Permission Required'), t('permissions.cameraRequired', 'Camera permission is required to take photos'));
         return;
       }
 
@@ -130,7 +132,7 @@ export default function ContractsScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo');
+      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to take photo'));
     }
   };
 
@@ -138,7 +140,7 @@ export default function ContractsScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Photo library permission is required');
+        Alert.alert(t('alerts.permissionRequired', 'Permission Required'), t('permissions.photoLibraryRequired', 'Photo library permission is required'));
         return;
       }
 
@@ -156,7 +158,7 @@ export default function ContractsScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to pick image'));
     }
   };
 
@@ -174,7 +176,7 @@ export default function ContractsScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document');
+      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to pick document'));
     }
   };
 
@@ -234,10 +236,10 @@ export default function ContractsScreen({ navigation }) {
       if (dbError) throw dbError;
 
       await loadContractDocuments();
-      Alert.alert('Success', 'Contract document uploaded successfully');
+      Alert.alert(t('alerts.success', 'Success'), t('messages.uploadedSuccessfully', 'Contract document uploaded successfully'));
     } catch (error) {
       console.error('Error uploading file:', error);
-      Alert.alert('Error', 'Failed to upload file. Please try again.');
+      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToSave', 'Failed to upload file. Please try again.'));
     } finally {
       setUploading(false);
     }
@@ -252,12 +254,12 @@ export default function ContractsScreen({ navigation }) {
 
   const handleDeleteDocument = (documentId, filePath) => {
     Alert.alert(
-      'Delete Document',
-      'Are you sure you want to delete this contract document?',
+      t('contracts.deleteDocument', 'Delete Document'),
+      t('contracts.confirmDeleteDocument', 'Are you sure you want to delete this contract document?'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete', 'Delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -276,10 +278,10 @@ export default function ContractsScreen({ navigation }) {
 
               if (dbError) throw dbError;
               await loadContractDocuments();
-              Alert.alert('Success', 'Document deleted successfully');
+              Alert.alert(t('alerts.success', 'Success'), t('messages.deletedSuccessfully', 'Document deleted successfully'));
             } catch (error) {
               console.error('Error deleting document:', error);
-              Alert.alert('Error', 'Failed to delete document');
+              Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to delete document'));
             }
           },
         },
@@ -309,7 +311,7 @@ export default function ContractsScreen({ navigation }) {
         }
       });
     } else {
-      Alert.alert('No File', 'This contract template doesn\'t have an attached file.');
+      Alert.alert(t('alerts.noFile', 'No File'), t('contracts.noAttachedFile', 'This contract template doesn\'t have an attached file.'));
     }
   };
 

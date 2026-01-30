@@ -16,11 +16,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { addUserService, getServiceItems } from '../../utils/storage';
 
 export default function AddServicePricingScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const { categoryId, categoryName, categoryIcon, phases = [] } = route.params;
 
   const [serviceItems, setServiceItems] = useState([]);
@@ -55,7 +57,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
       setPricing(initialPricing);
     } catch (error) {
       console.error('Error loading service items:', error);
-      Alert.alert('Error', 'Failed to load service details');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'service details' }));
     } finally {
       setLoading(false);
     }
@@ -88,12 +90,12 @@ export default function AddServicePricingScreen({ navigation, route }) {
 
   const handleDeleteItem = (itemId) => {
     Alert.alert(
-      'Delete Pricing Item',
-      'Are you sure you want to delete this item?',
+      t('alerts.cannotDelete'),
+      t('messages.confirmDeletePricing'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('buttons.delete'),
           style: 'destructive',
           onPress: () => {
             setServiceItems(prev => prev.filter(i => i.id !== itemId));
@@ -110,7 +112,7 @@ export default function AddServicePricingScreen({ navigation, route }) {
 
   const handleSaveItem = () => {
     if (!editItemName.trim()) {
-      Alert.alert('Missing Name', 'Please enter a name for the pricing item');
+      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'name' }));
       return;
     }
 
@@ -160,9 +162,9 @@ export default function AddServicePricingScreen({ navigation, route }) {
       const success = await addUserService(categoryId, pricing, phases);
 
       if (success) {
-        Alert.alert('Success', 'Service added successfully!', [
+        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'service' }), [
           {
-            text: 'OK',
+            text: t('buttons.ok'),
             onPress: () => {
               // Pop back 3 screens: Pricing -> Phases -> AddService
               navigation.pop(3);
@@ -170,11 +172,11 @@ export default function AddServicePricingScreen({ navigation, route }) {
           },
         ]);
       } else {
-        Alert.alert('Error', 'Failed to add service. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
       }
     } catch (error) {
       console.error('Error saving service:', error);
-      Alert.alert('Error', 'Failed to add service. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
     } finally {
       setSaving(false);
     }

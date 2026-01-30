@@ -28,7 +28,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import i18n from '../i18n';
+import { getSelectedLanguage } from '../utils/storage';
 
 const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 import OrbitalLoader from './OrbitalLoader';
@@ -49,7 +49,7 @@ import { setVoiceMode } from '../services/aiService';
  * - Voice mode = 1000 max tokens (vs 4000) for shorter responses
  */
 // Set to false to use Expo's default recording preset (more compatible)
-const USE_OPTIMIZED_AUDIO = false;
+const USE_OPTIMIZED_AUDIO = true;
 
 const AIInputWithSearch = ({
   placeholder = 'Type a message...',
@@ -332,7 +332,11 @@ const AIInputWithSearch = ({
     try {
       setIsTranscribing(true);
 
-      console.log('Starting transcription for:', audioUri);
+      // Get user's saved language preference from Supabase
+      const savedLanguage = await getSelectedLanguage();
+      const language = savedLanguage || 'en';
+
+      console.log('Starting transcription for:', audioUri, 'language:', language);
 
       // Read audio file as base64
       const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
@@ -356,7 +360,7 @@ const AIInputWithSearch = ({
           body: JSON.stringify({
             audio: base64Audio,
             contentType: 'audio/m4a',
-            language: i18n.language || 'en',
+            language: language,
           }),
           signal: controller.signal,
         }

@@ -71,7 +71,34 @@
     "clearChat": "Limpar Conversa",
     "voiceInput": "Entrada de Voz",
     "attachFile": "Anexar Arquivo",
-    "takePhoto": "Tirar Foto"
+    "takePhoto": "Tirar Foto",
+    "saveProject": "Salvar Projeto",
+    "saving": "Salvando...",
+    "viewProject": "Ver Projeto",
+    "cancel": "Cancelar",
+    "addTask": "Adicionar Tarefa",
+    "addService": "Adicionar Serviço",
+    "saveChanges": "Salvar Alterações",
+    "convertToInvoice": "Converter em Fatura",
+    "done": "Concluído"
+  },
+  "project": {
+    "projectTitle": "PROJETO",
+    "projectPhases": "Fases do Projeto",
+    "days": "dias",
+    "workingDays": "Dias Úteis",
+    "scope": "Escopo",
+    "complexity": "Complexidade",
+    "tasks": "Tarefas",
+    "services": "Serviços",
+    "projectTimeline": "Cronograma do Projeto",
+    "acceptedReadyToConvert": "Projeto salvo! Você pode vê-lo na aba Projetos.",
+    "shareProject": "Compartilhar Projeto",
+    "sharePrompt": "Como você gostaria de compartilhar este projeto?",
+    "sharePdf": "Compartilhar PDF",
+    "emailPdf": "Enviar PDF por Email",
+    "textPdf": "Enviar PDF por Mensagem",
+    "project": "projeto"
   },
   "messages": {
     "error": "Desculpe, algo deu errado. Por favor, tente novamente.",
@@ -241,5 +268,25 @@
     "netAvailable": "Disponível Líquido:",
     "pending": "Pendente:",
     "currentProfit": "Lucro Atual"
+  },
+  "invoice": {
+    "title": "FATURA",
+    "billTo": "Cobrar de:",
+    "project": "Projeto:",
+    "dueDate": "Data de Vencimento:",
+    "overdue": "(VENCIDA)",
+    "items": "ITENS",
+    "contractTotal": "Total do Contrato:",
+    "previousPayments": "Pagamentos Anteriores:",
+    "thisInvoice": "Esta Fatura ({{percentage}}% {{type}}):",
+    "downPayment": "Entrada",
+    "progressPayment": "Pagamento de Progresso",
+    "payment": "Pagamento",
+    "amountDue": "VALOR A PAGAR:",
+    "remainingBalance": "Saldo Restante:",
+    "paid": "Pago:",
+    "balanceDue": "Saldo Devedor:",
+    "previewPdf": "Ver PDF",
+    "sendInvoice": "Enviar Fatura"
   }
 }

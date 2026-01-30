@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getWorkerAssignments, getCurrentUserId, uploadPhoto } from '../../utils/storage';
@@ -34,6 +35,7 @@ const EXPENSE_CATEGORIES = [
 export default function ExpenseFormScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const [step, setStep] = useState(1); // 1: Project, 2: Upload, 3: Analyzing, 4: Review
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export default function ExpenseFormScreen({ navigation }) {
 
       if (workerError || !workerData) {
         console.error('Error fetching worker:', workerError);
-        Alert.alert('Error', 'Could not find worker profile');
+        Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'worker profile' }));
         setLoading(false);
         return;
       }
@@ -80,7 +82,7 @@ export default function ExpenseFormScreen({ navigation }) {
       setAssignedProjects(projects);
     } catch (error) {
       console.error('Error loading worker projects:', error);
-      Alert.alert('Error', 'Failed to load assigned projects');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'assigned projects' }));
     } finally {
       setLoading(false);
     }
@@ -95,7 +97,7 @@ export default function ExpenseFormScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow access to your camera');
+        Alert.alert(t('alerts.permissionRequired'), t('permissions.cameraRequired'));
         return;
       }
 
@@ -110,7 +112,7 @@ export default function ExpenseFormScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'photo' }));
     }
   };
 
@@ -118,7 +120,7 @@ export default function ExpenseFormScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow access to your photo library');
+        Alert.alert(t('alerts.permissionRequired'), t('permissions.photoLibraryRequired'));
         return;
       }
 
@@ -134,7 +136,7 @@ export default function ExpenseFormScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'image' }));
     }
   };
 
@@ -164,7 +166,7 @@ export default function ExpenseFormScreen({ navigation }) {
     } catch (error) {
       console.error('Error analyzing receipt:', error);
       Alert.alert(
-        'Analysis Failed',
+        t('alerts.error'),
         'Could not analyze the receipt. You can still fill in the details manually.',
         [{ text: 'OK', onPress: () => setStep(4) }]
       );
@@ -175,12 +177,12 @@ export default function ExpenseFormScreen({ navigation }) {
 
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Missing Information', 'Please enter a valid amount');
+      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'valid amount' }));
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert('Missing Information', 'Please enter a description');
+      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'description' }));
       return;
     }
 
@@ -207,8 +209,8 @@ export default function ExpenseFormScreen({ navigation }) {
       });
 
       Alert.alert(
-        'Success',
-        'Expense submitted successfully!',
+        t('alerts.success'),
+        t('messages.savedSuccessfully', { item: 'expense' }),
         [
           {
             text: 'OK',
@@ -220,7 +222,7 @@ export default function ExpenseFormScreen({ navigation }) {
       );
     } catch (error) {
       console.error('Error submitting expense:', error);
-      Alert.alert('Error', 'Failed to submit expense. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'expense' }));
     } finally {
       setSubmitting(false);
     }

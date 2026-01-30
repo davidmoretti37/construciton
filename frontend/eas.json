@@ -26,16 +26,17 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://your-production-backend.vercel.app"
+        "EXPO_PUBLIC_BACKEND_URL": "https://construction-production.up.railway.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dmhpzutqzqerfprstioc.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtaHB6dXRxenFlcmZwcnN0aW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMjQwMjEsImV4cCI6MjA3NzcwMDAyMX0.F7fb6jMU07xXJ1p36MOKf_UGD3Hz19bc3sXaGHyn64U"
       }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "your-apple-id@email.com",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "YOUR_TEAM_ID"
+        "ascAppId": "6758401232",
+        "appleTeamId": "TJ5BDPJ6XC"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",

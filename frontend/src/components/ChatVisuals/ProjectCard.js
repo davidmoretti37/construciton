@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import PhaseTimeline from '../PhaseTimeline';
 
 export default function ProjectCard({ data, onAction }) {
+  const { t } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [expandedPhases, setExpandedPhases] = useState({});
@@ -50,7 +52,7 @@ export default function ProjectCard({ data, onAction }) {
   const currentData = isEditing ? editedData : data;
   const {
     id,
-    name = 'Unnamed Project',
+    name = t('card.unnamedProject'),
     percentComplete = 0,
     status = 'active',
     workers = [],
@@ -151,9 +153,15 @@ export default function ProjectCard({ data, onAction }) {
               <View style={styles.phaseDates}>
                 <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
                 <Text style={[styles.phaseDateText, { color: Colors.secondaryText }]}>
-                  {new Date(phase.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {(() => {
+                    const [y, m, d] = phase.start_date.split('-').map(Number);
+                    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  })()}
                   {' → '}
-                  {new Date(phase.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {(() => {
+                    const [y, m, d] = phase.end_date.split('-').map(Number);
+                    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  })()}
                 </Text>
               </View>
             )}
@@ -162,7 +170,7 @@ export default function ProjectCard({ data, onAction }) {
             {hasTasks && (
               <View style={styles.tasksContainer}>
                 <Text style={[styles.tasksHeader, { color: Colors.primaryText }]}>
-                  Tasks:
+                  {t('card.tasks')}
                 </Text>
                 {phase.tasks.map((task, taskIndex) => (
                   <View key={taskIndex} style={styles.taskItem}>
@@ -217,7 +225,7 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="flag" size={14} color={Colors.warning} />
             <Text style={[styles.footerText, { color: Colors.warning, fontWeight: '600' }]}>
-              Due today
+              {t('card.dueToday')}
             </Text>
           </View>
         );
@@ -226,14 +234,14 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="alert-circle" size={14} color={Colors.error} />
             <Text style={[styles.footerText, { color: Colors.error, fontWeight: '600' }]}>
-              {Math.abs(daysRemaining)} days overdue
+              {t('card.daysOverdue', { days: Math.abs(daysRemaining) })}
             </Text>
           </View>
         );
       } else {
         return (
           <Text style={[styles.footerText, { color: Colors.primaryText }]}>
-            {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
+            {t('card.daysLeft', { days: daysRemaining, unit: daysRemaining === 1 ? t('card.day') : t('card.dayPlural') })}
           </Text>
         );
       }
@@ -257,7 +265,7 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="flag" size={14} color={Colors.warning} />
             <Text style={[styles.footerText, { color: Colors.warning, fontWeight: '600' }]}>
-              Due today
+              {t('card.dueToday')}
             </Text>
           </View>
         );
@@ -266,14 +274,14 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.timelineContainer}>
             <Ionicons name="alert-circle" size={14} color={Colors.error} />
             <Text style={[styles.footerText, { color: Colors.error, fontWeight: '600' }]}>
-              {Math.abs(diffDays)} days overdue
+              {t('card.daysOverdue', { days: Math.abs(diffDays) })}
             </Text>
           </View>
         );
       } else {
         return (
           <Text style={[styles.footerText, { color: Colors.primaryText }]}>
-            {diffDays} {diffDays === 1 ? 'day' : 'days'} left
+            {t('card.daysLeft', { days: diffDays, unit: diffDays === 1 ? t('card.day') : t('card.dayPlural') })}
           </Text>
         );
       }
@@ -338,7 +346,7 @@ export default function ProjectCard({ data, onAction }) {
               color={Colors.primaryBlue}
             />
             <Text style={[styles.paymentBadgeText, { color: Colors.primaryBlue }]}>
-              {currentData.payment_structure === 'per_phase' ? 'Pay per phase' : 'Pay in full'}
+              {currentData.payment_structure === 'per_phase' ? t('card.payPerPhase') : t('card.payInFull')}
             </Text>
           </View>
         </View>
@@ -368,7 +376,7 @@ export default function ProjectCard({ data, onAction }) {
                 if (!scopes[scopeId]) {
                   scopes[scopeId] = {
                     id: scopeId,
-                    name: phase.scope_name || 'Original Work',
+                    name: phase.scope_name || t('card.originalWork'),
                     phases: []
                   };
                 }
@@ -384,7 +392,7 @@ export default function ProjectCard({ data, onAction }) {
                       {scope.name}
                     </Text>
                     <Text style={[styles.scopePhaseCount, { color: Colors.secondaryText }]}>
-                      {scope.phases.length} phase{scope.phases.length !== 1 ? 's' : ''}
+                      {scope.phases.length} {scope.phases.length !== 1 ? t('card.phasePlural') : t('card.phase')}
                     </Text>
                   </View>
 
@@ -401,7 +409,7 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBarHeader}>
               <Text style={[styles.progressLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
-                Timeline
+                {t('card.timeline')}
               </Text>
               <Text style={[styles.progressPercentage, { color: Colors.primaryText, fontWeight: '700' }]}>
                 {percentComplete}%
@@ -425,7 +433,7 @@ export default function ProjectCard({ data, onAction }) {
             <View style={[styles.progressBarContainer, { opacity: 0.65, marginTop: 8 }]}>
               <View style={styles.progressBarHeader}>
                 <Text style={[styles.progressLabel, { color: Colors.secondaryText, fontWeight: '500' }]}>
-                  Work Complete
+                  {t('card.workComplete')}
                 </Text>
                 <Text style={[styles.progressPercentage, { color: Colors.secondaryText, fontWeight: '600' }]}>
                   {currentData.actual_progress || 0}%
@@ -448,7 +456,7 @@ export default function ProjectCard({ data, onAction }) {
           {/* Timeline Note */}
           {!currentData.startDate || !currentData.endDate ? (
             <Text style={[styles.progressNote, { color: Colors.secondaryText }]}>
-              No timeline set
+              {t('card.noTimeline')}
             </Text>
           ) : null}
 
@@ -473,8 +481,8 @@ export default function ProjectCard({ data, onAction }) {
                   />
                   <Text style={[styles.varianceText, { color: isBehind ? "#EF4444" : "#10B981" }]}>
                     {isBehind
-                      ? `${Math.round(variance)}% behind - Est: ${estimatedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (${daysLate}d late)`
-                      : `${Math.round(Math.abs(variance))}% ahead of schedule`
+                      ? t('card.behindWithDate', { percent: Math.round(variance), date: estimatedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), days: daysLate })
+                      : t('card.aheadOfSchedule', { percent: Math.round(Math.abs(variance)) })
                     }
                   </Text>
                 </View>
@@ -495,7 +503,7 @@ export default function ProjectCard({ data, onAction }) {
         {/* Contract Amount Header */}
         <View style={styles.financialRow}>
           <Text style={[styles.financialLabel, { color: Colors.primaryText }]}>
-            {extras.length > 0 ? 'Total Contract Amount' : 'Contract Amount'}
+            {extras.length > 0 ? t('financial.totalContractAmount') : t('financial.contractAmount')}
           </Text>
           <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
             ${(contractAmount || 0).toLocaleString()}
@@ -506,12 +514,12 @@ export default function ProjectCard({ data, onAction }) {
         {extras.length > 0 && (
           <View style={styles.extrasContainer}>
             <Text style={[styles.extrasHeader, { color: Colors.primaryText }]}>
-              • Base Contract: ${baseContract.toLocaleString()}
+              • {t('card.baseContract')}: ${baseContract.toLocaleString()}
             </Text>
             {extras.map((extra, index) => (
               <Text key={index} style={[styles.extrasItem, { color: Colors.primaryText }]}>
-                • {extra.description || 'Additional Work'}: ${(extra.amount || 0).toLocaleString()}
-                {extra.daysAdded ? ` (+${extra.daysAdded} days)` : ''}
+                • {extra.description || t('card.additionalWork')}: ${(extra.amount || 0).toLocaleString()}
+                {extra.daysAdded ? ` (+${extra.daysAdded} ${t('card.dayPlural')})` : ''}
               </Text>
             ))}
           </View>
@@ -524,19 +532,19 @@ export default function ProjectCard({ data, onAction }) {
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                  Expenses: <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: FontSizes.medium }}>${(expenses || 0).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round((expenses / contractAmount) * 100)}%)</Text>
+                  {t('financial.expenses')} <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: FontSizes.medium }}>${(expenses || 0).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round((expenses / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                  Net Available: <Text style={{ color: '#22C55E', fontWeight: '700', fontSize: FontSizes.medium }}>${Math.max(0, (incomeCollected || 0) - (expenses || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(Math.max(0, (incomeCollected - expenses) / contractAmount) * 100)}%)</Text>
+                  {t('financial.netAvailable')} <Text style={{ color: '#22C55E', fontWeight: '700', fontSize: FontSizes.medium }}>${Math.max(0, (incomeCollected || 0) - (expenses || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(Math.max(0, (incomeCollected - expenses) / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
               <View style={[styles.legendItem, { alignItems: 'center' }]}>
                 <View style={{ width: 8, marginRight: 6 }} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small, flex: 1 }]}>
-                  Pending: <Text style={{ color: '#9CA3AF', fontWeight: '700', fontSize: FontSizes.medium }}>${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)</Text>
+                  {t('financial.pending')} <Text style={{ color: '#9CA3AF', fontWeight: '700', fontSize: FontSizes.medium }}>${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
             </View>
@@ -586,7 +594,7 @@ export default function ProjectCard({ data, onAction }) {
         <View style={styles.profitContainer}>
           <View style={styles.financialRow}>
             <Text style={[styles.financialLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
-              Current Profit
+              {t('financial.currentProfit')}
             </Text>
             <Text
               style={[

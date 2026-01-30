@@ -1,15 +1,61 @@
-import React from 'react';
+/**
+ * WelcomeScreen
+ * Business owner welcome with choreographed animations
+ */
+
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import AnimatedText from '../../components/AnimatedText';
+import {
+  useIconWithGlow,
+  useTextSlideUp,
+  useStaggeredItem,
+  useButtonBounce,
+} from '../../hooks/useOnboardingAnimations';
+
+// Animated feature item with checkmark pop
+const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
+  const animStyle = useStaggeredItem(isActive, index, 800, 150);
+
+  return (
+    <Animated.View style={[styles.feature, animStyle]}>
+      <Ionicons name={icon} size={24} color={Colors.success} />
+      <Text style={[styles.featureText, { color: Colors.primaryText }]}>
+        {text}
+      </Text>
+    </Animated.View>
+  );
+};
 
 export default function WelcomeScreen({ navigation, onGoBack }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('onboarding');
+
+  const [isScreenActive, setIsScreenActive] = useState(false);
+
+  // Trigger animations on mount
+  useEffect(() => {
+    setIsScreenActive(true);
+  }, []);
+
+  // Animation hooks
+  const { containerStyle: iconContainerAnim, glowStyle: iconGlowAnim } = useIconWithGlow(isScreenActive, 0, Colors.primaryBlue);
+  const titleAnim = useTextSlideUp(isScreenActive, 300);
+  const subtitleAnim = useTextSlideUp(isScreenActive, 500);
+  const buttonAnim = useButtonBounce(isScreenActive, 1500);
+  const progressAnim = useTextSlideUp(isScreenActive, 1700);
+
+  const features = [
+    { icon: 'flash-outline', text: t('welcome.features.aiEstimates') },
+    { icon: 'calculator-outline', text: t('welcome.features.autoCalc') },
+    { icon: 'send-outline', text: t('welcome.features.sendVia') },
+    { icon: 'time-outline', text: t('welcome.features.setupTime') },
+  ];
 
   const handleContinue = () => {
     navigation.navigate('ServiceSelection'); // NEW: Use AI-powered service selection
@@ -35,66 +81,63 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
       )}
 
       <View style={styles.content}>
-        {/* Icon */}
-        <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
-          <Ionicons name="construct" size={80} color={Colors.primaryBlue} />
-        </View>
+        {/* Icon with glow */}
+        <Animated.View
+          style={[
+            styles.iconContainer,
+            { backgroundColor: Colors.primaryBlue + '20' },
+            iconContainerAnim,
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.iconGlow,
+              { shadowColor: Colors.primaryBlue },
+              iconGlowAnim,
+            ]}
+          >
+            <Ionicons name="construct" size={80} color={Colors.primaryBlue} />
+          </Animated.View>
+        </Animated.View>
 
         {/* Welcome Text */}
         <View style={styles.textContainer}>
-          <AnimatedText
-            text={t('welcome.title')}
-            delay={40}
-            textStyle={[styles.title, { color: Colors.primaryText }]}
-          />
-          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+          <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
+            {t('welcome.title')}
+          </Animated.Text>
+          <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
             {t('welcome.subtitle')}
-          </Text>
+          </Animated.Text>
         </View>
 
         {/* Features */}
         <View style={styles.featuresContainer}>
-          <View style={styles.feature}>
-            <Ionicons name="flash-outline" size={24} color={Colors.success} />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              {t('welcome.features.aiEstimates')}
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <Ionicons name="calculator-outline" size={24} color={Colors.success} />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              {t('welcome.features.autoCalc')}
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <Ionicons name="send-outline" size={24} color={Colors.success} />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              {t('welcome.features.sendVia')}
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <Ionicons name="time-outline" size={24} color={Colors.success} />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              {t('welcome.features.setupTime')}
-            </Text>
-          </View>
+          {features.map((feature, index) => (
+            <AnimatedFeature
+              key={feature.icon}
+              icon={feature.icon}
+              text={feature.text}
+              index={index}
+              isActive={isScreenActive}
+              Colors={Colors}
+            />
+          ))}
         </View>
 
         {/* Continue Button */}
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
-          onPress={handleContinue}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>{t('welcome.getStarted')}</Text>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
-        </TouchableOpacity>
+        <Animated.View style={[{ width: '100%' }, buttonAnim]}>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
+            onPress={handleContinue}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>{t('welcome.getStarted')}</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
+        <Animated.View style={[styles.progressContainer, progressAnim]}>
           <View style={styles.progressDots}>
             <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
             <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
@@ -104,7 +147,7 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
           <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
             {t('progress.step', { current: 1, total: 4 })}
           </Text>
-        </View>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
@@ -134,6 +177,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.xxl,
+  },
+  iconGlow: {
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 30,
+    elevation: 10,
   },
   textContainer: {
     alignItems: 'center',

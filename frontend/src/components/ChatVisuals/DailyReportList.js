@@ -21,10 +21,11 @@ export default function DailyReportList({ data, onAction }) {
   };
 
   const formatDate = (dateString) => {
-    // Handle YYYY-MM-DD format without timezone shift
-    // Add T12:00:00 to avoid timezone issues when parsing date-only strings
-    const dateStr = dateString.includes('T') ? dateString : `${dateString}T12:00:00`;
-    const date = new Date(dateStr);
+    if (!dateString) return '';
+    // Parse as local date to avoid timezone shift
+    const dateOnly = dateString.split('T')[0];
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',

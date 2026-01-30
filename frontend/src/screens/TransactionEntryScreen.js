@@ -12,11 +12,13 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { addProjectTransaction, updateTransaction } from '../utils/storage';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function TransactionEntryScreen({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { projectId, projectName, transaction, onSave } = route.params;
   const isEditing = !!transaction;
 
@@ -51,11 +53,11 @@ export default function TransactionEntryScreen({ route, navigation }) {
   const handleSave = async () => {
     // Validation
     if (!description.trim()) {
-      Alert.alert('Required', 'Please enter a description');
+      Alert.alert(t('alerts.required'), t('messages.pleaseEnter', { item: t('labels.description').toLowerCase() }));
       return;
     }
     if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Required', 'Please enter a valid amount');
+      Alert.alert(t('alerts.required'), t('messages.pleaseEnterValid', { item: t('labels.amount').toLowerCase() }));
       return;
     }
 
@@ -75,10 +77,10 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
       if (isEditing) {
         await updateTransaction(transaction.id, transactionData);
-        Alert.alert('Success', 'Transaction updated successfully');
+        Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'Transaction' }));
       } else {
         await addProjectTransaction(transactionData);
-        Alert.alert('Success', 'Transaction added successfully');
+        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'Transaction' }));
       }
 
       if (onSave) {
@@ -87,7 +89,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
       navigation.goBack();
     } catch (error) {
       console.error('Error saving transaction:', error);
-      Alert.alert('Error', 'Failed to save transaction');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'transaction' }));
     } finally {
       setSaving(false);
     }

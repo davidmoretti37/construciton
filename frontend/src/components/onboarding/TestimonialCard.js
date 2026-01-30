@@ -1,18 +1,16 @@
 /**
  * TestimonialCard
- * Swipeable review card for social proof
+ * Review card for social proof (no animation)
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withDelay,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import {
+  ONBOARDING_COLORS,
+  ONBOARDING_RADIUS,
+  ONBOARDING_SPACING,
+} from '../../screens/onboarding/slides/constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 80;
@@ -22,31 +20,9 @@ export default function TestimonialCard({
   author,
   role,
   rating = 5,
-  delay = 0,
-  isActive = true,
 }) {
-  const scale = useSharedValue(0.9);
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(20);
-
-  useEffect(() => {
-    if (isActive) {
-      scale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-      opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-      translateY.value = withDelay(delay, withSpring(0, { damping: 15 }));
-    }
-  }, [isActive, delay]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: scale.value },
-      { translateY: translateY.value },
-    ],
-    opacity: opacity.value,
-  }));
-
   return (
-    <Animated.View style={[styles.container, animatedStyle]}>
+    <View style={styles.container}>
       {/* Stars */}
       <View style={styles.starsRow}>
         {Array.from({ length: rating }).map((_, i) => (
@@ -69,19 +45,18 @@ export default function TestimonialCard({
           <Text style={styles.authorRole}>{role}</Text>
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: CARD_WIDTH,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 20,
+    width: '100%',
+    backgroundColor: ONBOARDING_COLORS.glassBg,
+    borderRadius: ONBOARDING_RADIUS.card,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 24,
-    marginHorizontal: 8,
+    borderColor: ONBOARDING_COLORS.border,
+    padding: ONBOARDING_SPACING.cardPadding,
   },
   starsRow: {
     flexDirection: 'row',
@@ -89,9 +64,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   quote: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    color: '#F8FAFC',
+    fontSize: 15,
+    color: ONBOARDING_COLORS.textPrimary,
     lineHeight: 24,
     marginBottom: 20,
   },
@@ -104,22 +78,22 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.3)',
+    backgroundColor: `${ONBOARDING_COLORS.primary}4D`,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#60A5FA',
+    color: ONBOARDING_COLORS.primaryLight,
   },
   authorName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: ONBOARDING_COLORS.textPrimary,
   },
   authorRole: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: ONBOARDING_COLORS.textSecondary,
   },
 });

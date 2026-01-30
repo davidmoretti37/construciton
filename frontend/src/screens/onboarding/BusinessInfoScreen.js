@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+/**
+ * BusinessInfoScreen
+ * Business info form with choreographed animations
+ */
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,10 +16,18 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import {
+  useSlideDown,
+  useFormFieldPop,
+  useButtonBounce,
+  useTextSlideUp,
+  useSlideFromSide,
+} from '../../hooks/useOnboardingAnimations';
 
 export default function BusinessInfoScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -27,6 +40,23 @@ export default function BusinessInfoScreen({ navigation, route }) {
   const [businessName, setBusinessName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [isScreenActive, setIsScreenActive] = useState(false);
+
+  // Trigger animations on mount
+  useEffect(() => {
+    setIsScreenActive(true);
+  }, []);
+
+  // Animation hooks
+  const headerAnim = useSlideDown(isScreenActive, 0);
+  const titleAnim = useTextSlideUp(isScreenActive, 100);
+  const subtitleAnim = useTextSlideUp(isScreenActive, 200);
+  const field1Anim = useFormFieldPop(isScreenActive, 0, 300);
+  const field2Anim = useFormFieldPop(isScreenActive, 1, 300);
+  const field3Anim = useFormFieldPop(isScreenActive, 2, 300);
+  const infoBoxAnim = useSlideFromSide(isScreenActive, 700, false);
+  const buttonAnim = useButtonBounce(isScreenActive, 900);
+  const progressAnim = useTextSlideUp(isScreenActive, 1100);
 
   const handleContinue = () => {
     if (!businessName.trim()) {
@@ -59,13 +89,13 @@ export default function BusinessInfoScreen({ navigation, route }) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <Animated.View style={[styles.header, headerAnim]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('businessInfo.headerTitle')}</Text>
         <View style={{ width: 40 }} />
-      </View>
+      </Animated.View>
 
       {/* Content */}
       <KeyboardAvoidingView
@@ -79,15 +109,15 @@ export default function BusinessInfoScreen({ navigation, route }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
+          <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
             {t('businessInfo.title')}
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+          </Animated.Text>
+          <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
             {t('businessInfo.subtitle')}
-          </Text>
+          </Animated.Text>
 
           {/* Business Name Input */}
-          <View style={styles.inputGroup}>
+          <Animated.View style={[styles.inputGroup, field1Anim]}>
             <Text style={[styles.label, { color: Colors.primaryText }]}>
               {t('businessInfo.businessName')} <Text style={{ color: Colors.error }}>{t('businessInfo.businessNameRequired')}</Text>
             </Text>
@@ -100,12 +130,14 @@ export default function BusinessInfoScreen({ navigation, route }) {
                 value={businessName}
                 onChangeText={setBusinessName}
                 autoCorrect={false}
+                textContentType="none"
+                autoComplete="off"
               />
             </View>
-          </View>
+          </Animated.View>
 
           {/* Phone Input */}
-          <View style={styles.inputGroup}>
+          <Animated.View style={[styles.inputGroup, field2Anim]}>
             <Text style={[styles.label, { color: Colors.primaryText }]}>
               {t('businessInfo.phone')} <Text style={{ color: Colors.error }}>{t('businessInfo.phoneRequired')}</Text>
             </Text>
@@ -119,15 +151,17 @@ export default function BusinessInfoScreen({ navigation, route }) {
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
                 autoCorrect={false}
+                textContentType="none"
+                autoComplete="off"
               />
             </View>
             <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
               {t('businessInfo.phoneHelper')}
             </Text>
-          </View>
+          </Animated.View>
 
           {/* Email Input */}
-          <View style={styles.inputGroup}>
+          <Animated.View style={[styles.inputGroup, field3Anim]}>
             <Text style={[styles.label, { color: Colors.primaryText }]}>
               {t('businessInfo.email')} <Text style={[styles.optional, { color: Colors.secondaryText }]}>{t('businessInfo.emailOptional')}</Text>
             </Text>
@@ -142,32 +176,36 @@ export default function BusinessInfoScreen({ navigation, route }) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                textContentType="none"
+                autoComplete="off"
               />
             </View>
-          </View>
+          </Animated.View>
 
           {/* Info Box */}
-          <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
+          <Animated.View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }, infoBoxAnim]}>
             <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
             <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
               {t('businessInfo.infoNote')}
             </Text>
-          </View>
+          </Animated.View>
         </ScrollView>
 
         {/* Bottom Section */}
         <View style={[styles.bottomSection, { backgroundColor: Colors.white, borderTopColor: Colors.border }]}>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
-            onPress={handleContinue}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.buttonText}>{t('buttons.continue')}</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
-          </TouchableOpacity>
+          <Animated.View style={buttonAnim}>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
+              onPress={handleContinue}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>{t('buttons.continue')}</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" />
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Progress */}
-          <View style={styles.progressContainer}>
+          <Animated.View style={[styles.progressContainer, progressAnim]}>
             <View style={styles.progressDots}>
               <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
               <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
@@ -175,7 +213,7 @@ export default function BusinessInfoScreen({ navigation, route }) {
               <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
             </View>
             <Text style={[styles.progressText, { color: Colors.secondaryText }]}>{t('progress.step', { current: 4, total: 4 })}</Text>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -21,6 +21,7 @@ import { getUserProfile, updateBusinessInfo } from '../../utils/storage';
 
 export default function EditBusinessInfoScreen({ navigation }) {
   const { t } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -45,7 +46,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading business info:', error);
-      Alert.alert('Error', 'Failed to load business information');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'business information' }));
     } finally {
       setLoading(false);
     }
@@ -54,19 +55,19 @@ export default function EditBusinessInfoScreen({ navigation }) {
   const handleSave = async () => {
     // Validation
     if (!businessName.trim()) {
-      Alert.alert('Missing Information', 'Please enter your business name');
+      Alert.alert(tCommon('alerts.missingInfo'), tCommon('messages.pleaseEnterValid', { item: 'business name' }));
       return;
     }
 
     if (!phone.trim()) {
-      Alert.alert('Missing Information', 'Please enter your phone number');
+      Alert.alert(tCommon('alerts.missingInfo'), tCommon('messages.pleaseEnterValid', { item: 'phone number' }));
       return;
     }
 
     // Basic phone validation
     const phoneDigits = phone.replace(/\D/g, '');
     if (phoneDigits.length < 10) {
-      Alert.alert('Invalid Phone', 'Please enter a valid phone number with at least 10 digits');
+      Alert.alert(tCommon('alerts.invalidPhone'), tCommon('messages.pleaseEnterValid', { item: 'phone number with at least 10 digits' }));
       return;
     }
 
@@ -74,7 +75,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
     if (email.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
-        Alert.alert('Invalid Email', 'Please enter a valid email address or leave it blank');
+        Alert.alert(tCommon('alerts.invalidEmail'), tCommon('messages.pleaseEnterValid', { item: 'email address or leave it blank' }));
         return;
       }
     }
@@ -93,7 +94,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
         email: email.trim(),
       });
 
-      Alert.alert('Success', 'Business information updated successfully', [
+      Alert.alert(tCommon('alerts.success'), tCommon('messages.updatedSuccessfully', { item: 'Business information' }), [
         {
           text: 'OK',
           onPress: () => navigation.goBack(),
@@ -101,7 +102,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
       ]);
     } catch (error) {
       console.error('Error saving business info:', error);
-      Alert.alert('Error', 'Failed to save business information. Please try again.');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'business information' }));
     } finally {
       setSaving(false);
     }

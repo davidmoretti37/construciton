@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getUserProfile, saveUserProfile, markFeatureUpdateComplete } from '../../utils/storage';
@@ -18,6 +19,7 @@ import { getUserProfile, saveUserProfile, markFeatureUpdateComplete } from '../.
 export default function PhaseTemplateSetupScreen({ navigation, route, onComplete, isUpdate = false }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const selectedServices = route?.params?.selectedServices || [];
 
@@ -113,7 +115,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
 
   const removePhase = (id) => {
     if (phases.length === 1) {
-      Alert.alert('Cannot Remove', 'You need at least one phase');
+      Alert.alert(t('alerts.cannotRemove'), t('messages.atLeastOne'));
       return;
     }
     setPhases(phases.filter((p) => p.id !== id));
@@ -160,7 +162,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
     const validPhases = phases.filter((p) => p.name.trim() !== '');
 
     if (validPhases.length === 0) {
-      Alert.alert('Required', 'Please add at least one phase or skip this step');
+      Alert.alert(t('alerts.required'), t('messages.atLeastOne'));
       return;
     }
 
@@ -186,7 +188,7 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
         }
       } catch (error) {
         console.error('Error saving phases template:', error);
-        Alert.alert('Error', 'Failed to save phases template. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave'));
       }
     } else {
       navigation.navigate('BusinessInfo', {

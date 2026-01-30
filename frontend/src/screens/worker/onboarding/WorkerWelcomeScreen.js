@@ -1,5 +1,11 @@
+/**
+ * WorkerWelcomeScreen
+ * Welcome screen with choreographed animations
+ */
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -7,6 +13,28 @@ import { useAuth } from '../../../contexts/AuthContext';
 import WorkerInviteHandler from '../../../components/WorkerInviteHandler';
 import { useWorkerInvites } from '../../../hooks/useWorkerInvites';
 import { supabase } from '../../../lib/supabase';
+import {
+  useIconBounce,
+  useTextSlideUp,
+  useStaggeredItem,
+  useButtonBounce,
+} from '../../../hooks/useOnboardingAnimations';
+
+const WORKER_GREEN = '#059669';
+
+// Animated feature item
+const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
+  const animStyle = useStaggeredItem(isActive, index, 700, 150);
+
+  return (
+    <Animated.View style={[styles.feature, animStyle]}>
+      <Ionicons name={icon} size={24} color={WORKER_GREEN} />
+      <Text style={[styles.featureText, { color: Colors.primaryText }]}>
+        {text}
+      </Text>
+    </Animated.View>
+  );
+};
 
 export default function WorkerWelcomeScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -14,7 +42,15 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
   const { refreshProfile } = useAuth();
   const { invites, loading: invitesLoading, refetch } = useWorkerInvites();
   const [showInvitePopup, setShowInvitePopup] = useState(false);
+  const [isScreenActive, setIsScreenActive] = useState(false);
   const onComplete = route?.params?.onComplete;
+
+  // Trigger animations on mount
+  useEffect(() => {
+    if (!invitesLoading) {
+      setIsScreenActive(true);
+    }
+  }, [invitesLoading]);
 
   // Check for invites when screen loads
   useEffect(() => {
@@ -23,14 +59,25 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
     }
   }, [invites, invitesLoading]);
 
+  // Animation hooks
+  const iconAnim = useIconBounce(isScreenActive, 0);
+  const titleAnim = useTextSlideUp(isScreenActive, 300);
+  const subtitleAnim = useTextSlideUp(isScreenActive, 500);
+  const buttonAnim = useButtonBounce(isScreenActive, 1400);
+  const progressAnim = useTextSlideUp(isScreenActive, 1600);
+
+  const features = [
+    { icon: 'time-outline', text: 'Clock in/out with location tracking' },
+    { icon: 'briefcase-outline', text: 'View your project assignments' },
+    { icon: 'calendar-outline', text: 'Track your hours and timesheet' },
+    { icon: 'chatbubble-outline', text: 'Message your contractor' },
+  ];
+
   const handleInvitesHandled = async () => {
     setShowInvitePopup(false);
 
-    // After accepting/rejecting invites, check if worker is now linked to an owner
-    // If so, mark profile as onboarded so navigation takes them to main app
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // Check if worker record now has owner_id (meaning invite was accepted)
       const { data: workerData } = await supabase
         .from('workers')
         .select('owner_id, is_onboarded')
@@ -38,14 +85,11 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
         .single();
 
       if (workerData?.owner_id) {
-        // Worker accepted invite - mark profile as onboarded
         await supabase
           .from('profiles')
           .update({ is_onboarded: true })
           .eq('id', user.id);
 
-        // Call onComplete to set userOnboarded=true in App.js
-        // This triggers navigation to the main worker app
         if (onComplete) {
           onComplete();
         }
@@ -65,7 +109,7 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.content, { justifyContent: 'center' }]}>
-          <ActivityIndicator size="large" color="#059669" />
+          <ActivityIndicator size="large" color={WORKER_GREEN} />
           <Text style={[styles.subtitle, { color: Colors.secondaryText, marginTop: 16 }]}>
             Checking for invitations...
           </Text>
@@ -83,72 +127,57 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
 
       <View style={styles.content}>
         {/* Icon */}
-        <View style={[styles.iconContainer, { backgroundColor: '#059669' + '20' }]}>
-          <Ionicons name="hammer" size={80} color="#059669" />
-        </View>
+        <Animated.View style={[styles.iconContainer, { backgroundColor: WORKER_GREEN + '20' }, iconAnim]}>
+          <Ionicons name="hammer" size={80} color={WORKER_GREEN} />
+        </Animated.View>
 
         {/* Welcome Text */}
         <View style={styles.textContainer}>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
+          <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
             Welcome, Worker!
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+          </Animated.Text>
+          <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
             Let's set up your profile so you can start tracking your work
-          </Text>
+          </Animated.Text>
         </View>
 
         {/* Features */}
         <View style={styles.featuresContainer}>
-          <View style={styles.feature}>
-            <Ionicons name="time-outline" size={24} color="#059669" />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              Clock in/out with location tracking
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <Ionicons name="briefcase-outline" size={24} color="#059669" />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              View your project assignments
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <Ionicons name="calendar-outline" size={24} color="#059669" />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              Track your hours and timesheet
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <Ionicons name="chatbubble-outline" size={24} color="#059669" />
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              Message your contractor
-            </Text>
-          </View>
+          {features.map((feature, index) => (
+            <AnimatedFeature
+              key={feature.icon}
+              icon={feature.icon}
+              text={feature.text}
+              index={index}
+              isActive={isScreenActive}
+              Colors={Colors}
+            />
+          ))}
         </View>
 
         {/* Continue Button */}
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: '#059669' }]}
-          onPress={handleContinue}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>Get Started</Text>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
-        </TouchableOpacity>
+        <Animated.View style={[{ width: '100%' }, buttonAnim]}>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: WORKER_GREEN }]}
+            onPress={handleContinue}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>Get Started</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
+        <Animated.View style={[styles.progressContainer, progressAnim]}>
           <View style={styles.progressDots}>
-            <View style={[styles.dot, styles.activeDot, { backgroundColor: '#059669' }]} />
+            <View style={[styles.dot, styles.activeDot, { backgroundColor: WORKER_GREEN }]} />
             <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
             <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
           </View>
           <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
             Step 1 of 3
           </Text>
-        </View>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );

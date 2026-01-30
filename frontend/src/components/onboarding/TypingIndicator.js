@@ -8,43 +8,32 @@ import { View, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withDelay,
   withRepeat,
   withSequence,
   withTiming,
+  withDelay,
+  Easing,
 } from 'react-native-reanimated';
 
-const Dot = ({ delay }) => {
+const BouncingDot = ({ delay }) => {
   const translateY = useSharedValue(0);
-  const opacity = useSharedValue(0.4);
 
   useEffect(() => {
     translateY.value = withDelay(
       delay,
       withRepeat(
         withSequence(
-          withTiming(-6, { duration: 300 }),
-          withTiming(0, { duration: 300 })
+          withTiming(-6, { duration: 300, easing: Easing.out(Easing.ease) }),
+          withTiming(0, { duration: 300, easing: Easing.in(Easing.ease) })
         ),
-        -1
+        -1, // Infinite
+        false
       )
     );
-
-    opacity.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 300 }),
-          withTiming(0.4, { duration: 300 })
-        ),
-        -1
-      )
-    );
-  }, [delay]);
+  }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
   }));
 
   return <Animated.View style={[styles.dot, animatedStyle]} />;
@@ -53,9 +42,9 @@ const Dot = ({ delay }) => {
 export default function TypingIndicator({ style }) {
   return (
     <View style={[styles.container, style]}>
-      <Dot delay={0} />
-      <Dot delay={150} />
-      <Dot delay={300} />
+      <BouncingDot delay={0} />
+      <BouncingDot delay={150} />
+      <BouncingDot delay={300} />
     </View>
   );
 }

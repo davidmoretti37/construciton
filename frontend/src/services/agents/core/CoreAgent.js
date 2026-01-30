@@ -32,6 +32,18 @@ const FAST_ROUTES = [
   { patterns: [/^(help|what can you do|how do you work)[\s!?.]*$/i],
     route: { agent: 'DocumentAgent', task: 'answer_general_question' } },
 
+  // ==================== ESTIMATES (CHECK BEFORE PROJECTS) ====================
+  // Estimate patterns MUST be checked before project patterns to avoid confusion
+  { patterns: [
+      /\b(create|new|make|generate|build)\b.*\bestimate\b/i,
+      /\bestimate\b.*\b(for|create)\b/i,
+      /\b(create|new|make)\b.*\bquote\b/i,
+      /\bhow much\b.*\b(cost|charge|would it)\b/i,
+    ],
+    route: { agent: 'EstimateInvoiceAgent', task: 'create_estimate' } },
+  { patterns: [/\b(show|list|find|get|see)\b.*\bestimates?\b/i, /\bmy estimates\b/i],
+    route: { agent: 'EstimateInvoiceAgent', task: 'find_estimates' } },
+
   // ==================== PROJECT CREATION ====================
   { patterns: [
       /\b(create|new|start|add|make)\b.*\b(project|job)\b/i,
@@ -40,12 +52,6 @@ const FAST_ROUTES = [
       /\b(install|replace|repair|fix)\b.*\b(toilet|faucet|sink|pipe|roof|floor|window|door|drywall)\b/i,  // Direct work descriptions
     ],
     route: { agent: 'ProjectAgent', task: 'start_project_creation' } },
-
-  // ==================== ESTIMATES ====================
-  { patterns: [/\b(create|new|make|generate|build)\b.*\bestimate\b/i, /\bestimate\b.*\b(for|create)\b/i],
-    route: { agent: 'EstimateInvoiceAgent', task: 'create_estimate' } },
-  { patterns: [/\b(show|list|find|get|see)\b.*\bestimates?\b/i, /\bmy estimates\b/i],
-    route: { agent: 'EstimateInvoiceAgent', task: 'find_estimates' } },
 
   // ==================== INVOICES ====================
   { patterns: [/\b(create|new|make|generate)\b.*\binvoice\b/i, /\binvoice\b.*\b(for|create)\b/i],
@@ -151,12 +157,26 @@ const responseIndicatesCompletion = (response) => {
 };
 
 /**
- * Helper: Check if user message is likely a new topic vs a short confirmation/response
- * Uses message length as a language-agnostic heuristic
+ * Helper: Check if user message is likely a new topic vs a response to agent's question
+ * Uses message length + topic-switch keywords as language-agnostic heuristics
  */
 const isNewTopicRequest = (message) => {
-  // Longer messages (>30 chars) are likely new requests, not simple confirmations
-  return message.trim().length > 30;
+  const trimmed = message.trim().toLowerCase();
+
+  // Check for explicit topic-switch keywords (works in EN/PT/ES)
+  const topicSwitchKeywords = [
+    'actually', 'nevermind', 'never mind', 'instead', 'wait', 'cancel',
+    'na verdade', 'deixa', 'cancela', 'esquece',  // Portuguese
+    'en realidad', 'mejor', 'cancela', 'olvida',   // Spanish
+  ];
+
+  if (topicSwitchKeywords.some(kw => trimmed.includes(kw))) {
+    return true;
+  }
+
+  // Only treat very long messages as new topics (user likely asking something new)
+  // Short-medium responses (even 100+ chars) are usually answers to agent questions
+  return trimmed.length > 150;
 };
 
 class CoreAgent {

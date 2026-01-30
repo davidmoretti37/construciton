@@ -15,11 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
-// Dark theme colors matching PricingSlide.js
+// Dark theme colors
 const COLORS = {
   glassBg: 'rgba(255, 255, 255, 0.05)',
   border: 'rgba(255, 255, 255, 0.1)',
-  borderFocus: '#3B82F6',
   textPrimary: '#F8FAFC',
   textSecondary: '#94A3B8',
   textMuted: '#64748B',
@@ -36,8 +35,6 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -53,8 +50,6 @@ export default function LoginScreen({ navigation }) {
       });
 
       if (error) throw error;
-
-      // Navigation will be handled by App.js listening to auth state changes
       console.log('Login successful:', data);
     } catch (error) {
       console.error('Login error:', error);
@@ -70,8 +65,8 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
     >
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.content}>
           {/* Header */}
@@ -80,21 +75,16 @@ export default function LoginScreen({ navigation }) {
               <Ionicons name="construct" size={48} color={COLORS.primary} />
             </View>
             <Text style={styles.title}>{t('login.title')}</Text>
-            <Text style={styles.subtitle}>
-              {t('login.subtitle')}
-            </Text>
+            <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
-            {/* Email Input */}
+            {/* Email */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('login.emailLabel')}</Text>
-              <View style={[
-                styles.inputContainer,
-                emailFocused && styles.inputContainerFocused
-              ]}>
-                <Ionicons name="mail-outline" size={20} color={emailFocused ? COLORS.primary : COLORS.textMuted} />
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color={COLORS.textMuted} />
                 <TextInput
                   style={styles.input}
                   placeholder={t('login.emailPlaceholder')}
@@ -104,20 +94,16 @@ export default function LoginScreen({ navigation }) {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  onFocus={() => setEmailFocused(true)}
-                  onBlur={() => setEmailFocused(false)}
+                  autoComplete="email"
                 />
               </View>
             </View>
 
-            {/* Password Input */}
+            {/* Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('login.passwordLabel')}</Text>
-              <View style={[
-                styles.inputContainer,
-                passwordFocused && styles.inputContainerFocused
-              ]}>
-                <Ionicons name="lock-closed-outline" size={20} color={passwordFocused ? COLORS.primary : COLORS.textMuted} />
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color={COLORS.textMuted} />
                 <TextInput
                   style={styles.input}
                   placeholder={t('login.passwordPlaceholder')}
@@ -126,8 +112,7 @@ export default function LoginScreen({ navigation }) {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
+                  autoComplete="password"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons
@@ -139,7 +124,7 @@ export default function LoginScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Login Button */}
+            {/* Button */}
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleLogin}
@@ -156,13 +141,11 @@ export default function LoginScreen({ navigation }) {
               )}
             </TouchableOpacity>
 
-            {/* Sign Up Link */}
+            {/* Footer */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                {t('login.noAccount')}{' '}
-              </Text>
+              <Text style={styles.footerText}>{t('login.noAccount')} </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                <Text style={styles.linkText}>{t('signup.signInLink')}</Text>
+                <Text style={styles.linkText}>{t('login.signUpLink')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -176,10 +159,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 80,
     justifyContent: 'center',
   },
   header: {
@@ -194,11 +180,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
   },
   title: {
     fontSize: 28,
@@ -210,7 +191,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 24,
   },
   form: {
     width: '100%',
@@ -232,36 +212,24 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
+    height: 52,
     gap: 12,
-  },
-  inputContainerFocused: {
-    borderColor: COLORS.borderFocus,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   input: {
     flex: 1,
-    paddingVertical: 14,
     fontSize: 16,
     color: COLORS.textPrimary,
+    height: '100%',
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primary,
-    paddingVertical: 16,
+    height: 52,
     borderRadius: 12,
     marginTop: 24,
     gap: 8,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
   buttonDisabled: {
     opacity: 0.6,

@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { updateWorker } from '../utils/storage';
@@ -20,6 +21,7 @@ import { updateWorker } from '../utils/storage';
 export default function EditWorkerPaymentScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const { worker } = route.params;
 
   const [paymentType, setPaymentType] = useState(worker.payment_type || 'hourly');
@@ -44,22 +46,22 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
 
       // Validate that the selected payment type has a rate
       if (paymentType === 'hourly' && !hourlyRate) {
-        Alert.alert('Error', 'Please enter an hourly rate');
+        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'hourly rate' }));
         setSaving(false);
         return;
       }
       if (paymentType === 'daily' && !dailyRate) {
-        Alert.alert('Error', 'Please enter a daily rate');
+        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'daily rate' }));
         setSaving(false);
         return;
       }
       if (paymentType === 'weekly' && !weeklySalary) {
-        Alert.alert('Error', 'Please enter a weekly salary');
+        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'weekly salary' }));
         setSaving(false);
         return;
       }
       if (paymentType === 'project_based' && !projectRate) {
-        Alert.alert('Error', 'Please enter a project rate');
+        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'project rate' }));
         setSaving(false);
         return;
       }
@@ -67,15 +69,15 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
       const success = await updateWorker(worker.id, paymentData);
 
       if (success) {
-        Alert.alert('Success', 'Payment information updated successfully', [
+        Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'payment information' }), [
           { text: 'OK', onPress: () => navigation.goBack() }
         ]);
       } else {
-        Alert.alert('Error', 'Failed to update payment information');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'payment information' }));
       }
     } catch (error) {
       console.error('Error updating payment:', error);
-      Alert.alert('Error', 'Failed to update payment information');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'payment information' }));
     } finally {
       setSaving(false);
     }

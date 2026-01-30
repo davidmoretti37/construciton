@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Construction Manager",
-    "slug": "constructionapp",
+    "slug": "consrcutionapp",
     "scheme": "constructionmanager",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
-      "buildNumber": "1",
+      "buildNumber": "6",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -51,7 +51,8 @@
         "SEND_SMS",
         "VIBRATE"
       ],
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -259,7 +259,9 @@
     "selectAtLeastOneTask": "Por favor, selecciona al menos una tarea para mover",
     "chooseMapApp": "Elige una aplicación de mapas",
     "selectPhasesDescription": "Selecciona las fases para este proyecto. Puedes reordenarlas y ajustar la duración de cada fase.",
-    "addCustomPhase": "Ingresa un nombre para la fase personalizada"
+    "addCustomPhase": "Ingresa un nombre para la fase personalizada",
+    "organizingTasks": "Organizando tareas...",
+    "failedToShare": "Error al compartir {{item}}"
   },
   "permissions": {
     "cameraRequired": "Se requiere permiso de cámara para tomar fotos",
@@ -326,6 +328,35 @@
   "currency": {
     "symbol": "$",
     "code": "USD"
+  },
+  "actions": {
+    "addService": "Agregar Servicio",
+    "addTask": "Agregar Tarea",
+    "cancel": "Cancelar",
+    "convertToInvoice": "Convertir a Factura",
+    "done": "Hecho",
+    "saveChanges": "Guardar Cambios",
+    "saveProject": "Guardar Proyecto",
+    "saving": "Guardando...",
+    "viewProject": "Ver Proyecto"
+  },
+  "project": {
+    "projectTitle": "PROYECTO",
+    "projectPhases": "Fases del Proyecto",
+    "days": "días",
+    "workingDays": "Días Laborales",
+    "scope": "Alcance",
+    "complexity": "Complejidad",
+    "tasks": "Tareas",
+    "services": "Servicios",
+    "projectTimeline": "Cronograma del Proyecto",
+    "acceptedReadyToConvert": "¡Proyecto guardado! Puedes verlo en la pestaña Proyectos.",
+    "shareProject": "Compartir Proyecto",
+    "sharePrompt": "¿Cómo te gustaría compartir este proyecto?",
+    "sharePdf": "Compartir PDF",
+    "emailPdf": "Enviar PDF por Email",
+    "textPdf": "Enviar PDF por Mensaje",
+    "project": "proyecto"
   },
   "units": {
     "hours": "horas",

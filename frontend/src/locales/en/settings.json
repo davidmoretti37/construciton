@@ -54,7 +54,9 @@
     "timeFormat": "Time Format",
     "defaultView": "Default View",
     "dark": "Dark",
-    "light": "Light"
+    "light": "Light",
+    "autoTranslateEstimates": "Auto-translate Estimates",
+    "autoTranslateEstimatesDesc": "Generate estimates and invoices in English"
   },
   "notifications": {
     "title": "Notifications",

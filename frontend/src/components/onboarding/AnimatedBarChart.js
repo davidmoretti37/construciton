@@ -1,6 +1,7 @@
 /**
  * AnimatedBarChart
- * Financial bar chart with bars growing from bottom
+ * Financial bar chart with dramatic bounce animation
+ * Bars overshoot, undershoot, then settle at final value
  */
 
 import React, { useEffect } from 'react';
@@ -9,26 +10,49 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withDelay,
+  withSequence,
+  withTiming,
   withSpring,
+  Easing,
 } from 'react-native-reanimated';
 
 const BAR_MAX_HEIGHT = 120;
 
-const AnimatedBar = ({ value, maxValue, label, color, delay, isActive }) => {
-  const height = useSharedValue(0);
+const AnimatedBar = ({ value, maxValue, label, color, index, isActive, dramatic = false }) => {
+  const targetHeight = (value / maxValue) * BAR_MAX_HEIGHT;
+  const animatedHeight = useSharedValue(0);
 
   useEffect(() => {
     if (isActive) {
-      const targetHeight = (value / maxValue) * BAR_MAX_HEIGHT;
-      height.value = withDelay(
-        delay,
-        withSpring(targetHeight, { damping: 12, stiffness: 100 })
-      );
+      if (dramatic) {
+        // Dramatic bounce: overshoot → undershoot → overshoot → settle
+        animatedHeight.value = withDelay(
+          index * 120,
+          withSequence(
+            // Shoot up past target (130%)
+            withTiming(targetHeight * 1.35, { duration: 300, easing: Easing.out(Easing.cubic) }),
+            // Drop below target (60%)
+            withTiming(targetHeight * 0.5, { duration: 200, easing: Easing.inOut(Easing.ease) }),
+            // Bounce back up (115%)
+            withTiming(targetHeight * 1.15, { duration: 180, easing: Easing.out(Easing.ease) }),
+            // Settle to final with spring
+            withSpring(targetHeight, { damping: 10, stiffness: 120 })
+          )
+        );
+      } else {
+        // Simple spring animation
+        animatedHeight.value = withDelay(
+          index * 100,
+          withSpring(targetHeight, { damping: 12, stiffness: 100 })
+        );
+      }
+    } else {
+      animatedHeight.value = 0;
     }
-  }, [isActive, value, maxValue, delay]);
+  }, [isActive, targetHeight, dramatic]);
 
-  const barStyle = useAnimatedStyle(() => ({
-    height: height.value,
+  const animatedStyle = useAnimatedStyle(() => ({
+    height: Math.max(4, animatedHeight.value),
   }));
 
   return (
@@ -37,8 +61,8 @@ const AnimatedBar = ({ value, maxValue, label, color, delay, isActive }) => {
         <Animated.View
           style={[
             styles.bar,
-            barStyle,
             { backgroundColor: color },
+            animatedStyle,
           ]}
         />
       </View>
@@ -47,11 +71,7 @@ const AnimatedBar = ({ value, maxValue, label, color, delay, isActive }) => {
   );
 };
 
-export default function AnimatedBarChart({
-  data,
-  delay = 0,
-  isActive = true,
-}) {
+export default function AnimatedBarChart({ data, isActive = true, dramatic = false }) {
   const maxValue = Math.max(...data.map(d => d.value));
 
   return (
@@ -64,8 +84,9 @@ export default function AnimatedBarChart({
             maxValue={maxValue}
             label={item.label}
             color={item.color || '#3B82F6'}
-            delay={delay + index * 150}
+            index={index}
             isActive={isActive}
+            dramatic={dramatic}
           />
         ))}
       </View>

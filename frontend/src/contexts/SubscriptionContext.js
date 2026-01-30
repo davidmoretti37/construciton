@@ -10,6 +10,12 @@ import { useAuth } from './AuthContext';
 import subscriptionService from '../services/subscriptionService';
 import logger from '../utils/logger';
 
+// =====================================================
+// TESTING MODE - Set to true to bypass all paywalls
+// Set back to false before production release!
+// =====================================================
+const TESTING_MODE = true;
+
 // Create context
 const SubscriptionContext = createContext();
 
@@ -168,7 +174,28 @@ export const SubscriptionProvider = ({ children }) => {
   }, []);
 
   // Build context value
-  const value = {
+  const value = TESTING_MODE ? {
+    // TESTING MODE: All features unlocked
+    subscription: { status: 'active', planTier: 'testing' },
+    projectStatus: { can_create: true, active_count: 0, limit: 999999 },
+    isLoading: false,
+    hasActiveSubscription: true,
+    planTier: 'testing',
+    status: 'active',
+    trialDaysRemaining: null,
+    trialEndsAt: null,
+    cancelAtPeriodEnd: false,
+    canCreateProject: true,
+    activeProjectCount: 0,
+    projectLimit: 999999,
+    limitReason: null,
+    isTrial: false,
+    refreshSubscription: loadSubscription,
+    checkCanCreateProject: async () => ({ can_create: true, active_count: 0, limit: 999999 }),
+    justSubscribed: false,
+    clearJustSubscribed: () => {},
+  } : {
+    // PRODUCTION MODE: Normal subscription checking
     // Raw data
     subscription,
     projectStatus,

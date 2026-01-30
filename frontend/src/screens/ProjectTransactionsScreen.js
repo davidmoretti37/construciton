@@ -11,11 +11,13 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getProjectTransactions, deleteTransaction } from '../utils/storage';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function ProjectTransactionsScreen({ route, navigation }) {
+  const { t } = useTranslation('common');
   const { projectId, projectName, transactionType } = route.params;
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -36,7 +38,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
       setTransactions(data);
     } catch (error) {
       console.error('Error loading transactions:', error);
-      Alert.alert('Error', 'Failed to load transaction history');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'transaction history' }));
     } finally {
       setLoading(false);
     }
@@ -54,19 +56,19 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
 
   const handleDeleteTransaction = (transaction) => {
     Alert.alert(
-      'Delete Transaction',
-      `Are you sure you want to delete this ${transaction.type}?`,
+      t('alerts.confirm'),
+      t('alerts.deleteConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('buttons.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteTransaction(transaction.id);
               await loadTransactions();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete transaction');
+              Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'transaction' }));
             }
           },
         },

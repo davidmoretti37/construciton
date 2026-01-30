@@ -9,7 +9,16 @@ import { supabase } from '../lib/supabase';
  * @param {object} businessInfo - Business information
  * @returns {string} - HTML string
  */
-export const generateInvoiceHTML = (invoiceData, businessInfo) => {
+export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => {
+  // Get styling options from businessInfo or options override
+  const accentColor = options.accentColor || businessInfo?.accentColor || '#000000';
+  const fontStyleId = options.fontStyle || businessInfo?.fontStyle || 'modern';
+  const fontFamily = fontStyleId === 'classic'
+    ? 'Georgia, Times, serif'
+    : fontStyleId === 'clean'
+    ? "'Helvetica Neue', Arial, sans-serif"
+    : "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
+
   const {
     invoice_number,
     invoiceNumber,
@@ -89,7 +98,7 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     }
 
     body {
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-family: ${fontFamily};
       font-size: 11px;
       line-height: 1.6;
       color: #000;
@@ -119,7 +128,7 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     .company-name {
       font-size: 28px;
       font-weight: 700;
-      color: #000;
+      color: ${accentColor};
       margin-bottom: 4px;
       letter-spacing: -0.5px;
     }
@@ -137,7 +146,7 @@ export const generateInvoiceHTML = (invoiceData, businessInfo) => {
     .invoice-title h1 {
       font-size: 36px;
       font-weight: 700;
-      color: #000;
+      color: ${accentColor};
       margin-bottom: 12px;
       letter-spacing: -0.5px;
     }

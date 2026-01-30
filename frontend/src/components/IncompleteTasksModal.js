@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -23,6 +24,7 @@ export default function IncompleteTasksModal({
   tasks = [],
   projectName,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -87,10 +89,10 @@ export default function IncompleteTasksModal({
           <View style={[styles.header, { borderBottomColor: Colors.border }]}>
             <View style={{ width: 60 }} />
             <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-              Incomplete Tasks
+              {t('schedule:incompleteTasks', 'Incomplete Tasks')}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={[styles.closeText, { color: Colors.secondaryText }]}>Later</Text>
+              <Text style={[styles.closeText, { color: Colors.secondaryText }]}>{t('schedule:later', 'Later')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -99,10 +101,10 @@ export default function IncompleteTasksModal({
             <Ionicons name="alert-circle" size={24} color={Colors.warningOrange} />
             <View style={styles.warningTextContainer}>
               <Text style={[styles.warningTitle, { color: Colors.warningOrange }]}>
-                Tasks Due Today
+                {t('schedule:tasksDueToday', 'Tasks Due Today')}
               </Text>
               <Text style={[styles.warningDescription, { color: Colors.primaryText }]}>
-                The following tasks were due today but weren't completed. Please provide a reason for each before clocking out.
+                {t('schedule:incompleteTasksMessage', "The following tasks were due today but weren't completed. Please provide a reason for each before clocking out.")}
               </Text>
             </View>
           </View>
@@ -135,7 +137,7 @@ export default function IncompleteTasksModal({
                 )}
 
                 <Text style={[styles.reasonLabel, { color: Colors.secondaryText }]}>
-                  Why wasn't this completed? *
+                  {t('schedule:whyNotCompleted', "Why wasn't this completed?")} *
                 </Text>
                 <TextInput
                   style={[
@@ -148,7 +150,7 @@ export default function IncompleteTasksModal({
                   ]}
                   value={reasons[task.id] || ''}
                   onChangeText={(text) => updateReason(task.id, text)}
-                  placeholder="e.g., Waiting for materials delivery..."
+                  placeholder={t('schedule:reasonPlaceholder', 'e.g., Waiting for materials delivery...')}
                   placeholderTextColor={Colors.secondaryText}
                   multiline
                   numberOfLines={2}
@@ -174,14 +176,14 @@ export default function IncompleteTasksModal({
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
                   <Text style={styles.submitButtonText}>
-                    Submit & Clock Out
+                    {t('schedule:submitAndClockOut', 'Submit & Clock Out')}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
 
             <Text style={[styles.footerHint, { color: Colors.secondaryText }]}>
-              Your supervisor will be notified of these reasons
+              {t('schedule:supervisorNotified', 'Your supervisor will be notified of these reasons')}
             </Text>
           </View>
         </KeyboardAvoidingView>

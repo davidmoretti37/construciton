@@ -15,12 +15,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, Spacing, FontSizes, BorderRadius, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId, fetchProjects } from '../../utils/storage';
 
 export default function PicturesScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -88,7 +90,7 @@ export default function PicturesScreen({ navigation }) {
       setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading pictures:', error);
-      Alert.alert('Error', 'Failed to load pictures');
+      Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to load pictures'));
     } finally {
       setLoading(false);
     }
@@ -102,17 +104,17 @@ export default function PicturesScreen({ navigation }) {
 
   const handleDeletePhoto = async (photo) => {
     if (!isAdmin) {
-      Alert.alert('Permission Denied', 'Only admins can delete photos');
+      Alert.alert(t('alerts.permissionDenied', 'Permission Denied'), t('pictures.onlyAdminsCanDelete', 'Only admins can delete photos'));
       return;
     }
 
     Alert.alert(
-      'Delete Photo',
-      'Are you sure you want to delete this photo? This action cannot be undone.',
+      t('pictures.deletePhoto', 'Delete Photo'),
+      t('pictures.confirmDeletePhoto', 'Are you sure you want to delete this photo? This action cannot be undone.'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete', 'Delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -139,10 +141,10 @@ export default function PicturesScreen({ navigation }) {
               // Close modal and reload
               setSelectedPhoto(null);
               await loadData();
-              Alert.alert('Success', 'Photo deleted successfully');
+              Alert.alert(t('alerts.success', 'Success'), t('messages.deletedSuccessfully', 'Photo deleted successfully'));
             } catch (error) {
               console.error('Error deleting photo:', error);
-              Alert.alert('Error', 'Failed to delete photo');
+              Alert.alert(t('alerts.error', 'Error'), t('messages.failedToLoad', 'Failed to delete photo'));
             }
           },
         },

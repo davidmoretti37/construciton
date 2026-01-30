@@ -14,9 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { getUserProfile, updateProfitMargin } from '../../utils/storage';
 
 export default function EditProfitMarginScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -55,7 +57,7 @@ export default function EditProfitMarginScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading profit margin:', error);
-      Alert.alert('Error', 'Failed to load profit margin');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'profit margin' }));
     } finally {
       setLoading(false);
     }
@@ -70,7 +72,7 @@ export default function EditProfitMarginScreen({ navigation }) {
       if (isCustom) {
         const customValue = parseFloat(customMargin);
         if (isNaN(customValue) || customValue <= 0 || customValue > 100) {
-          Alert.alert('Invalid Input', 'Please enter a valid profit margin between 1 and 100');
+          Alert.alert(t('alerts.invalidInput'), t('messages.pleaseEnterValid', { item: 'profit margin between 1 and 100' }));
           setSaving(false);
           return;
         }
@@ -79,7 +81,7 @@ export default function EditProfitMarginScreen({ navigation }) {
 
       await updateProfitMargin(marginToSave);
 
-      Alert.alert('Success', 'Profit margin updated successfully', [
+      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'Profit margin' }), [
         {
           text: 'OK',
           onPress: () => navigation.goBack(),
@@ -87,7 +89,7 @@ export default function EditProfitMarginScreen({ navigation }) {
       ]);
     } catch (error) {
       console.error('Error saving profit margin:', error);
-      Alert.alert('Error', 'Failed to save profit margin. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'profit margin' }));
     } finally {
       setSaving(false);
     }

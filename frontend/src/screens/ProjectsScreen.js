@@ -96,7 +96,7 @@ export default function ProjectsScreen({ navigation, route }) {
   const { t } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { hasActiveSubscription } = useSubscription();
+  const { hasActiveSubscription, checkCanCreateProject } = useSubscription();
 
   // Use custom hook for projects data
   const { projects, loading, hasLoadedOnce, loadProjects, addProject, updateProject, removeProject } = useProjects();
@@ -493,7 +493,7 @@ export default function ProjectsScreen({ navigation, route }) {
 
     // User has subscription - check if they're at their limit
     try {
-      const result = await subscriptionService.canCreateProject();
+      const result = await checkCanCreateProject();
       if (!result.can_create) {
         setSubscriptionInfo(result);
         setShowUpgradeModal(true);

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { getCurrentUserId } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
 
@@ -22,6 +23,7 @@ export default function EditPhasesScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation('common');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,7 +111,7 @@ export default function EditPhasesScreen({ navigation }) {
 
   const removePhase = (id) => {
     if (phases.length === 1) {
-      Alert.alert('Cannot Remove', 'You need at least one phase');
+      Alert.alert(t('alerts.cannotRemove'), t('messages.atLeastOne', { item: 'phase' }));
       return;
     }
     setPhases(phases.filter((p) => p.id !== id));
@@ -156,7 +158,7 @@ export default function EditPhasesScreen({ navigation }) {
     const validPhases = phases.filter((p) => p.name.trim() !== '');
 
     if (validPhases.length === 0) {
-      Alert.alert('Required', 'Please add at least one phase with a name');
+      Alert.alert(t('alerts.required'), t('messages.atLeastOne', { item: 'phase' }));
       return;
     }
 
@@ -192,12 +194,12 @@ export default function EditPhasesScreen({ navigation }) {
         }
       }
 
-      Alert.alert('Success', 'Your project phases have been updated!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'phases' }), [
+        { text: t('buttons.ok'), onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
       console.error('Error saving phases:', error);
-      Alert.alert('Error', 'Failed to save phases. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'phases' }));
     } finally {
       setSaving(false);
     }

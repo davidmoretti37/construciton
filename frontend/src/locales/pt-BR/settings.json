@@ -54,7 +54,9 @@
     "timeFormat": "Formato de Hora",
     "defaultView": "Visualização Padrão",
     "dark": "Escuro",
-    "light": "Claro"
+    "light": "Claro",
+    "autoTranslateEstimates": "Traduzir orçamentos automaticamente",
+    "autoTranslateEstimatesDesc": "Gerar orçamentos e faturas em inglês"
   },
   "notifications": {
     "title": "Notificações",

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, ActionSheetIOS, Platform, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -113,6 +114,7 @@ const normalizeProjectData = (projectData) => {
 };
 
 export default function ProjectPreview({ data, onAction }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [expandedPhases, setExpandedPhases] = useState({});
@@ -565,20 +567,20 @@ export default function ProjectPreview({ data, onAction }) {
       } else {
         // Android: Show alert with options
         Alert.alert(
-          'Share Project',
-          'How would you like to send this project?',
+          t('project.shareProject'),
+          t('project.sharePrompt'),
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: t('actions.cancel'), style: 'cancel' },
             {
-              text: 'Share PDF',
+              text: t('project.sharePdf'),
               onPress: async () => await shareProjectPDF(projectData)
             },
             {
-              text: 'Email PDF',
+              text: t('project.emailPdf'),
               onPress: async () => await emailProjectPDF(projectData, phoneNumber)
             },
             {
-              text: 'Text PDF',
+              text: t('project.textPdf'),
               onPress: async () => await smsProjectPDF(projectData)
             },
           ]
@@ -586,7 +588,7 @@ export default function ProjectPreview({ data, onAction }) {
       }
     } catch (error) {
       console.error('Error sharing project:', error);
-      Alert.alert('Error', 'Failed to share project. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToShare', { item: t('project.project') }));
     }
   };
 
@@ -646,7 +648,7 @@ export default function ProjectPreview({ data, onAction }) {
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <View>
           <Text style={[styles.title, { color: Colors.primaryText }]}>
-            📋 PROJECT
+            {t('project.projectTitle')}
           </Text>
           {projectNumber && (
             <Text style={[styles.projectNumber, { color: Colors.primaryBlue }]}>
@@ -694,24 +696,24 @@ export default function ProjectPreview({ data, onAction }) {
       {/* Client Info */}
       <View style={[styles.section, { borderTopColor: Colors.border }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Client:</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.client')}:</Text>
           <Text style={[styles.value, { color: Colors.primaryText }]}>{displayClientName}</Text>
         </View>
         {projectName && (
           <View style={styles.infoRow}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Project:</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.project')}:</Text>
             <Text style={[styles.value, { color: Colors.primaryText }]}>{projectName}</Text>
           </View>
         )}
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Start:</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.start')}:</Text>
           {isEditing ? (
             <TouchableOpacity
               style={[styles.datePickerButton, { borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
               onPress={() => openDatePicker('start')}
             >
               <Text style={[styles.value, { color: Colors.primaryText }]}>
-                {formatDate((editedData.schedule || schedule)?.startDate || date) || 'Select date'}
+                {formatDate((editedData.schedule || schedule)?.startDate || date) || t('placeholders.selectDate')}
               </Text>
               <Ionicons name="calendar-outline" size={16} color={Colors.primaryBlue} />
             </TouchableOpacity>
@@ -722,14 +724,14 @@ export default function ProjectPreview({ data, onAction }) {
           )}
         </View>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>End:</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.end')}:</Text>
           {isEditing ? (
             <TouchableOpacity
               style={[styles.datePickerButton, { borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
               onPress={() => openDatePicker('end')}
             >
               <Text style={[styles.value, { color: Colors.primaryText }]}>
-                {formatDate((editedData.schedule || schedule)?.estimatedEndDate || (editedData.schedule || schedule)?.projectdEndDate) || 'Select date'}
+                {formatDate((editedData.schedule || schedule)?.estimatedEndDate || (editedData.schedule || schedule)?.projectdEndDate) || t('placeholders.selectDate')}
               </Text>
               <Ionicons name="calendar-outline" size={16} color={Colors.primaryBlue} />
             </TouchableOpacity>
@@ -744,13 +746,13 @@ export default function ProjectPreview({ data, onAction }) {
       {/* Scope Summary */}
       {scope && scope.description && (
         <View style={[styles.section, { borderTopColor: Colors.border, backgroundColor: Colors.primaryBlue + '08' }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SCOPE</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('project.scope')}</Text>
           {isEditing ? (
             <TextInput
               style={[styles.editInput, styles.scopeText, { color: Colors.primaryText, borderColor: Colors.border }]}
               value={scope.description}
               onChangeText={(value) => handleUpdateScope('description', value)}
-              placeholder="Project scope description"
+              placeholder={t('placeholders.projectScopeDescription')}
               placeholderTextColor={Colors.secondaryText}
               multiline
               numberOfLines={3}
@@ -761,7 +763,7 @@ export default function ProjectPreview({ data, onAction }) {
           {scope.complexity && (
             <View style={styles.complexityBadge}>
               <Text style={[styles.complexityText, { color: Colors.secondaryText }]}>
-                Complexity: <Text style={{ fontWeight: '600' }}>{scope.complexity}</Text>
+                {t('project.complexity')}: <Text style={{ fontWeight: '600' }}>{scope.complexity}</Text>
               </Text>
             </View>
           )}
@@ -771,7 +773,7 @@ export default function ProjectPreview({ data, onAction }) {
       {/* Phase Breakdown */}
       {phases && phases.length > 0 && (
         <View style={[styles.section, { borderTopColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>PROJECT PHASES</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('project.projectPhases')}</Text>
           {phases.map((phase, index) => (
             <View key={index} style={[styles.phaseCard, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
               <TouchableOpacity
@@ -799,11 +801,11 @@ export default function ProjectPreview({ data, onAction }) {
                         placeholder="1"
                         selectTextOnFocus={true}
                       />
-                      <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>days</Text>
+                      <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>{t('project.days')}</Text>
                     </View>
                   ) : (
                     <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>
-                      {phase.plannedDays || phase.duration || 0} days
+                      {phase.plannedDays || phase.duration || 0} {t('project.days')}
                     </Text>
                   )}
                 </View>
@@ -815,14 +817,14 @@ export default function ProjectPreview({ data, onAction }) {
                   {phase.tasks && phase.tasks.length > 0 && (
                     <View style={styles.tasksSection}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
-                        <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>Tasks:</Text>
+                        <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>{t('project.tasks')}:</Text>
                         {isEditing && (
                           <TouchableOpacity
                             onPress={() => handleAddTask(index)}
                             style={[styles.addTaskButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
                           >
                             <Ionicons name="add" size={14} color={Colors.primaryBlue} />
-                            <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>Add Task</Text>
+                            <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>{t('actions.addTask')}</Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -835,7 +837,7 @@ export default function ProjectPreview({ data, onAction }) {
                                 style={[styles.editInput, styles.taskText, { color: Colors.primaryText, borderColor: Colors.border }]}
                                 value={task.description}
                                 onChangeText={(value) => handleUpdateTask(index, taskIndex, value)}
-                                placeholder="Task description"
+                                placeholder={t('placeholders.taskDescription')}
                                 placeholderTextColor={Colors.secondaryText}
                                 multiline
                               />
@@ -875,7 +877,7 @@ export default function ProjectPreview({ data, onAction }) {
             <View style={[styles.overallTimeline, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
               <Ionicons name="calendar" size={18} color={Colors.primaryBlue} />
               <View style={styles.timelineContent}>
-                <Text style={[styles.timelineLabel, { color: Colors.primaryText }]}>Project Timeline</Text>
+                <Text style={[styles.timelineLabel, { color: Colors.primaryText }]}>{t('project.projectTimeline')}</Text>
                 {isEditing ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <TextInput
@@ -907,7 +909,7 @@ export default function ProjectPreview({ data, onAction }) {
           <View style={[styles.workingDaysSection, { backgroundColor: Colors.successGreen + '10', borderColor: Colors.successGreen }]}>
             <View style={styles.workingDaysHeader}>
               <Ionicons name="today-outline" size={18} color={Colors.successGreen} />
-              <Text style={[styles.timelineLabel, { color: Colors.primaryText }]}>Working Days</Text>
+              <Text style={[styles.timelineLabel, { color: Colors.primaryText }]}>{t('project.workingDays')}</Text>
             </View>
             {isEditing ? (
               <WorkingDaysSelector
@@ -927,14 +929,14 @@ export default function ProjectPreview({ data, onAction }) {
       {(services && services.length > 0) || isEditing ? (
         <View style={[styles.section, { borderTopColor: Colors.border }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SERVICES</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('project.services')}</Text>
             {isEditing && (
               <TouchableOpacity
                 onPress={handleAddService}
                 style={[styles.addTaskButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
               >
                 <Ionicons name="add" size={14} color={Colors.primaryBlue} />
-                <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>Add Service</Text>
+                <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>{t('actions.addService')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -950,7 +952,7 @@ export default function ProjectPreview({ data, onAction }) {
                       style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
                       value={service.description?.replace(/^undefined\.\s*/i, '').trim() || service.description || ''}
                       onChangeText={(value) => handleUpdateService(index, value)}
-                      placeholder="Service description"
+                      placeholder={t('placeholders.serviceDescription')}
                       placeholderTextColor={Colors.secondaryText}
                     />
                     <TouchableOpacity
@@ -981,7 +983,7 @@ export default function ProjectPreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="close-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={styles.buttonText}>{t('actions.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.sendButton, { backgroundColor: Colors.primaryBlue, flex: 1 }]}
@@ -989,7 +991,7 @@ export default function ProjectPreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="checkmark-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Save Changes</Text>
+              <Text style={styles.buttonText}>{t('actions.saveChanges')}</Text>
             </TouchableOpacity>
           </>
         ) : status === 'accepted' ? (
@@ -998,7 +1000,7 @@ export default function ProjectPreview({ data, onAction }) {
             onPress={handleConvertToInvoice}
           >
             <Ionicons name="document-text-outline" size={18} color="#fff" />
-            <Text style={styles.buttonText}>Convert to Invoice</Text>
+            <Text style={styles.buttonText}>{t('actions.convertToInvoice')}</Text>
           </TouchableOpacity>
         ) : savedProjectId ? (
           <TouchableOpacity
@@ -1010,7 +1012,7 @@ export default function ProjectPreview({ data, onAction }) {
             }}
           >
             <Ionicons name="open-outline" size={18} color="#fff" />
-            <Text style={styles.buttonText}>View Project</Text>
+            <Text style={styles.buttonText}>{t('actions.viewProject')}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -1048,7 +1050,7 @@ export default function ProjectPreview({ data, onAction }) {
             ) : (
               <Ionicons name="save-outline" size={18} color="#fff" />
             )}
-            <Text style={styles.buttonText}>{isSaving ? 'Saving...' : 'Save Project'}</Text>
+            <Text style={styles.buttonText}>{isSaving ? t('actions.saving') : t('actions.saveProject')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1056,7 +1058,7 @@ export default function ProjectPreview({ data, onAction }) {
       {/* Footer Note */}
       {status === 'accepted' && (
         <Text style={[styles.footerNote, { color: Colors.secondaryText }]}>
-          Accepted - Ready to convert to invoice
+          {t('project.acceptedReadyToConvert')}
         </Text>
       )}
 
@@ -1077,13 +1079,13 @@ export default function ProjectPreview({ data, onAction }) {
             <View style={[styles.datePickerModalContent, { backgroundColor: Colors.cardBackground }]}>
               <View style={styles.datePickerHeader}>
                 <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                  <Text style={[styles.datePickerCancelText, { color: Colors.secondaryText }]}>Cancel</Text>
+                  <Text style={[styles.datePickerCancelText, { color: Colors.secondaryText }]}>{t('actions.cancel')}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.datePickerTitle, { color: Colors.primaryText }]}>
-                  {datePickerMode === 'start' ? 'Start Date' : 'End Date'}
+                  {datePickerMode === 'start' ? t('labels.startDate') : t('labels.endDate')}
                 </Text>
                 <TouchableOpacity onPress={handleDatePickerDone}>
-                  <Text style={[styles.datePickerDoneText, { color: Colors.primaryBlue }]}>Done</Text>
+                  <Text style={[styles.datePickerDoneText, { color: Colors.primaryBlue }]}>{t('actions.done')}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -1103,7 +1105,7 @@ export default function ProjectPreview({ data, onAction }) {
       {isDistributing && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Organizing tasks...</Text>
+          <Text style={styles.loadingText}>{t('messages.organizingTasks')}</Text>
         </View>
       )}
     </View>

@@ -11,12 +11,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getUserProfile } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
 
 export default function TwilioSetupScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -58,13 +60,13 @@ export default function TwilioSetupScreen({ navigation }) {
   const handleSave = async () => {
     // Validate inputs
     if (!accountSid.trim() || !authToken.trim() || !phoneNumber.trim()) {
-      Alert.alert('Missing Information', 'Please fill in all fields');
+      Alert.alert(t('alerts.missingInformation'), t('messages.fillAllFields'));
       return;
     }
 
     // Validate phone number format
     if (!phoneNumber.startsWith('+')) {
-      Alert.alert('Invalid Phone Number', 'Phone number must start with + and include country code (e.g., +1234567890)');
+      Alert.alert(t('alerts.invalidPhoneNumber'), t('messages.phoneNumberFormat'));
       return;
     }
 
@@ -88,13 +90,13 @@ export default function TwilioSetupScreen({ navigation }) {
       if (error) throw error;
 
       Alert.alert(
-        'Success',
-        'Twilio configuration saved successfully! You can now receive client messages.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        t('alerts.success'),
+        t('messages.twilioConfigSaved'),
+        [{ text: t('alerts.ok'), onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       console.error('Error saving Twilio config:', error);
-      Alert.alert('Error', 'Failed to save configuration. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'configuration' }));
     } finally {
       setIsSaving(false);
     }
@@ -102,7 +104,7 @@ export default function TwilioSetupScreen({ navigation }) {
 
   const handleTestConnection = async () => {
     if (!accountSid.trim() || !authToken.trim()) {
-      Alert.alert('Missing Credentials', 'Please enter Account SID and Auth Token first');
+      Alert.alert(t('alerts.missingCredentials'), t('messages.enterCredentialsFirst'));
       return;
     }
 
@@ -121,19 +123,19 @@ export default function TwilioSetupScreen({ navigation }) {
       if (response.ok) {
         const data = await response.json();
         Alert.alert(
-          'Connection Successful ✅',
-          `Account: ${data.friendly_name}\nStatus: ${data.status}\n\nYour Twilio credentials are valid!`
+          t('alerts.connectionSuccessful'),
+          t('messages.twilioConnectionSuccess', { name: data.friendly_name, status: data.status })
         );
       } else {
         const error = await response.json();
         Alert.alert(
-          'Connection Failed ❌',
-          `Error: ${error.message || 'Invalid credentials'}\n\nPlease check your Account SID and Auth Token.`
+          t('alerts.connectionFailed'),
+          t('messages.twilioConnectionFailed', { error: error.message || t('messages.invalidCredentials') })
         );
       }
     } catch (error) {
       console.error('Error testing Twilio connection:', error);
-      Alert.alert('Connection Failed', 'Unable to connect to Twilio. Please check your credentials and internet connection.');
+      Alert.alert(t('alerts.connectionFailed'), t('messages.unableToConnectTwilio'));
     } finally {
       setIsTesting(false);
     }
@@ -141,12 +143,12 @@ export default function TwilioSetupScreen({ navigation }) {
 
   const handleClear = () => {
     Alert.alert(
-      'Clear Configuration',
-      'This will remove all Twilio settings. Are you sure?',
+      t('alerts.clearConfiguration'),
+      t('messages.confirmClearTwilio'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('alerts.cancel'), style: 'cancel' },
         {
-          text: 'Clear',
+          text: t('alerts.clear'),
           style: 'destructive',
           onPress: () => {
             setAccountSid('');

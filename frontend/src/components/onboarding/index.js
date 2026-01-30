@@ -5,8 +5,10 @@
 
 export { default as AnimatedBackground } from './AnimatedBackground';
 export { default as PaginationDots } from './PaginationDots';
+// TypewriterText - original version with multiline support
 export { default as TypewriterText } from './TypewriterText';
-export { default as CountUpNumber } from './CountUpNumber';
+// CountUpNumber - V2 with worklet-safe formatting
+export { default as CountUpNumber } from './CountUpNumberV2';
 export { default as ShimmerButton } from './ShimmerButton';
 export { default as PhoneMockup } from './PhoneMockup';
 export { default as FeatureBullet } from './FeatureBullet';

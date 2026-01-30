@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import {
   fetchWorkers,
   assignWorkerToProject,
@@ -34,6 +35,7 @@ export default function WorkerAssignmentModal({
   assignmentName,
   onAssignmentsChange,
 }) {
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [allWorkers, setAllWorkers] = useState([]);
@@ -108,11 +110,11 @@ export default function WorkerAssignmentModal({
         onAssignmentsChange();
       }
 
-      Alert.alert('Success', 'Worker assignments updated successfully');
+      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully'));
       onClose();
     } catch (error) {
       console.error('Error saving assignments:', error);
-      Alert.alert('Error', 'Failed to update worker assignments');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setSaving(false);
     }
@@ -191,17 +193,17 @@ export default function WorkerAssignmentModal({
         {/* Minimalist Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.headerButton}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.cancelText}>{t('buttons.cancel')}</Text>
           </TouchableOpacity>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Assign Workers</Text>
+            <Text style={styles.title}>{t('labels.assignWorkers')}</Text>
             <Text style={styles.subtitle} numberOfLines={1}>
               {assignmentName}
             </Text>
           </View>
           <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerButton}>
             <Text style={[styles.saveText, { opacity: saving ? 0.5 : 1 }]}>
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? t('labels.saving') : t('buttons.save')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -266,7 +268,7 @@ export default function WorkerAssignmentModal({
               <View style={styles.emptyState}>
                 <Ionicons name="people-outline" size={64} color="#D1D5DB" />
                 <Text style={styles.emptyStateText}>
-                  {allWorkers.length === 0 ? 'No workers available' : 'No workers found'}
+                  {allWorkers.length === 0 ? t('emptyStates.noWorkersAvailable') : t('emptyStates.noWorkersFound')}
                 </Text>
               </View>
             ) : (

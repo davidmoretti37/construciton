@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -18,6 +19,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 export default function TypicalContractsScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const { selectedTrades, selectedServices, businessInfo, pricing, phasesTemplate, profitMargin, invoiceInfo } = route.params;
 
   const [contracts, setContracts] = useState([]);
@@ -36,7 +38,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to select document. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
     }
   };
 
@@ -44,7 +46,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need camera roll permissions to select photos');
+        Alert.alert(t('alerts.permissionDenied'), t('permissions.photoLibraryRequired'));
         return;
       }
 
@@ -60,7 +62,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error picking photo:', error);
-      Alert.alert('Error', 'Failed to select photo. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
     }
   };
 
@@ -68,7 +70,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need camera permissions to take photos');
+        Alert.alert(t('alerts.permissionDenied'), t('permissions.cameraRequired'));
         return;
       }
 
@@ -83,7 +85,7 @@ export default function TypicalContractsScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
     }
   };
 
@@ -104,12 +106,12 @@ export default function TypicalContractsScreen({ navigation, route }) {
 
   const handleDeleteContract = (id) => {
     Alert.alert(
-      'Delete Contract',
-      'Are you sure you want to remove this contract type?',
+      t('alerts.confirmDelete'),
+      t('messages.confirmDeleteItem'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('buttons.delete'),
           style: 'destructive',
           onPress: () => {
             setContracts(contracts.filter(c => c.id !== id));

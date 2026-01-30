@@ -20,11 +20,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { getPhaseTemplates } from '../../services/serviceDataService';
 
 export default function AddServicePhasesScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const { categoryId, categoryName, categoryIcon } = route.params || {};
 
   const [phases, setPhases] = useState([]);
@@ -50,7 +52,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
       setPhases(editablePhases);
     } catch (error) {
       console.error('Error loading phase templates:', error);
-      Alert.alert('Error', 'Failed to load phase templates');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'phase templates' }));
     } finally {
       setLoading(false);
     }
@@ -102,17 +104,17 @@ export default function AddServicePhasesScreen({ navigation, route }) {
 
   const handleDeletePhase = (index) => {
     if (phases.length === 1) {
-      Alert.alert('Cannot Delete', 'You need at least one phase for this service.');
+      Alert.alert(t('alerts.cannotDelete'), t('messages.atLeastOne', { item: 'phase' }));
       return;
     }
 
     Alert.alert(
-      'Delete Phase',
-      'Are you sure you want to delete this phase?',
+      t('alerts.cannotDelete'),
+      t('messages.confirmDeletePhase'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('buttons.delete'),
           style: 'destructive',
           onPress: () => {
             setPhases(phases.filter((_, i) => i !== index));
@@ -299,6 +301,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
             setEditingPhase(null);
           }}
           Colors={Colors}
+          t={t}
         />
       )}
     </SafeAreaView>
@@ -306,7 +309,7 @@ export default function AddServicePhasesScreen({ navigation, route }) {
 }
 
 // Phase Edit Modal Component
-function PhaseEditModal({ phase, onSave, onCancel, Colors }) {
+function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
   const [name, setName] = useState(phase.name || '');
   const [description, setDescription] = useState(phase.description || '');
   const [days, setDays] = useState((phase.defaultDays || 1).toString());
@@ -315,7 +318,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors }) {
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter a phase name');
+      Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'phase name' }));
       return;
     }
 

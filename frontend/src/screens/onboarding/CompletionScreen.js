@@ -1,5 +1,11 @@
-import React, { useEffect } from 'react';
+/**
+ * CompletionScreen
+ * Business owner completion with celebration animations
+ */
+
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTranslation } from 'react-i18next';
@@ -8,11 +14,49 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { completeOnboarding, saveUserProfile } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
 import { savePricingHistory } from '../../services/aiService';
+import {
+  useSuccessCelebration,
+  useTextSlideUp,
+  useStaggeredItem,
+  useButtonBounce,
+  useSlideFromSide,
+} from '../../hooks/useOnboardingAnimations';
+
+// Animated feature item
+const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
+  const animStyle = useStaggeredItem(isActive, index, 1200, 150);
+
+  return (
+    <Animated.View style={[styles.feature, animStyle]}>
+      <View style={[styles.featureIcon, { backgroundColor: Colors.primaryBlue + '20' }]}>
+        <Ionicons name={icon} size={20} color={Colors.primaryBlue} />
+      </View>
+      <Text style={[styles.featureText, { color: Colors.primaryText }]}>
+        {text}
+      </Text>
+    </Animated.View>
+  );
+};
 
 export default function CompletionScreen({ navigation, route, onComplete }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('onboarding');
+
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Animation hooks
+  const iconAnim = useSuccessCelebration(isAnimating, 0);
+  const titleAnim = useTextSlideUp(isAnimating, 500);
+  const subtitleAnim = useTextSlideUp(isAnimating, 700);
+  const buttonAnim = useButtonBounce(isAnimating, 1800);
+  const tipAnim = useSlideFromSide(isAnimating, 2000, false);
+
+  const features = [
+    { icon: 'flash', text: t('completion.features.aiPricing') },
+    { icon: 'calculator', text: t('completion.features.autoCalc') },
+    { icon: 'send', text: t('completion.features.oneTapSend') },
+  ];
 
   useEffect(() => {
     // Save all onboarding data and mark as complete
@@ -226,10 +270,16 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
           // Just mark as onboarded if no data was passed
           await completeOnboarding();
         }
+
+        // Start animations after data is saved
+        setTimeout(() => {
+          setIsAnimating(true);
+        }, 300);
       } catch (error) {
         console.error('Error saving onboarding data:', error);
         // Still mark as onboarded even if save fails
         await completeOnboarding();
+        setIsAnimating(true);
       }
     };
 
@@ -247,67 +297,53 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       <View style={styles.content}>
         {/* Success Animation/Icon */}
-        <View style={[styles.iconContainer, { backgroundColor: Colors.success + '20' }]}>
+        <Animated.View style={[styles.iconContainer, { backgroundColor: Colors.success + '20' }, iconAnim]}>
           <Ionicons name="checkmark-circle" size={120} color={Colors.success} />
-        </View>
+        </Animated.View>
 
         {/* Success Message */}
         <View style={styles.textContainer}>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
+          <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
             {t('completion.title')} {t('completion.titleEmoji')}
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+          </Animated.Text>
+          <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
             {t('completion.subtitle')}
-          </Text>
+          </Animated.Text>
         </View>
 
         {/* Features Recap */}
         <View style={styles.featuresContainer}>
-          <View style={styles.feature}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.primaryBlue + '20' }]}>
-              <Ionicons name="flash" size={20} color={Colors.primaryBlue} />
-            </View>
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              {t('completion.features.aiPricing')}
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.primaryBlue + '20' }]}>
-              <Ionicons name="calculator" size={20} color={Colors.primaryBlue} />
-            </View>
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              {t('completion.features.autoCalc')}
-            </Text>
-          </View>
-
-          <View style={styles.feature}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.primaryBlue + '20' }]}>
-              <Ionicons name="send" size={20} color={Colors.primaryBlue} />
-            </View>
-            <Text style={[styles.featureText, { color: Colors.primaryText }]}>
-              {t('completion.features.oneTapSend')}
-            </Text>
-          </View>
+          {features.map((feature, index) => (
+            <AnimatedFeature
+              key={feature.icon}
+              icon={feature.icon}
+              text={feature.text}
+              index={index}
+              isActive={isAnimating}
+              Colors={Colors}
+            />
+          ))}
         </View>
 
         {/* Start Button */}
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
-          onPress={handleStart}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>{t('completion.startButton')}</Text>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
-        </TouchableOpacity>
+        <Animated.View style={[{ width: '100%' }, buttonAnim]}>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
+            onPress={handleStart}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>{t('completion.startButton')}</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Tips */}
-        <View style={[styles.tipBox, { backgroundColor: Colors.lightGray }]}>
+        <Animated.View style={[styles.tipBox, { backgroundColor: Colors.lightGray }, tipAnim]}>
           <Ionicons name="bulb-outline" size={16} color={Colors.secondaryText} />
           <Text style={[styles.tipText, { color: Colors.secondaryText }]}>
             {t('completion.tip')}
           </Text>
-        </View>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );

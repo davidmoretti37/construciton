@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -23,6 +24,7 @@ export default function TaskMoveModal({
   task,
   onTaskMoved,
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -92,7 +94,7 @@ export default function TaskMoveModal({
     const daysDiff = calculateDaysDifference();
 
     if (daysDiff === 0) {
-      Alert.alert('Same Date', 'The task is already on this date.');
+      Alert.alert(t('alerts.sameDate'), t('messages.taskAlreadyOnDate'));
       return;
     }
 
@@ -117,17 +119,17 @@ export default function TaskMoveModal({
 
         if (result) {
           Alert.alert(
-            'Task Moved',
-            `"${task.title}" moved to ${formatDate(targetDate)}.`,
+            t('alerts.success'),
+            t('messages.updatedSuccessfully'),
             [{ text: 'OK', onPress: () => { onTaskMoved?.(); onClose(); } }]
           );
         } else {
-          Alert.alert('Error', 'Failed to move task.');
+          Alert.alert(t('alerts.error'), t('messages.failedToSave'));
         }
       } else {
         // Cascade: move this task and shift all subsequent tasks
         if (!task.project_id) {
-          Alert.alert('Error', 'Task has no associated project.');
+          Alert.alert(t('alerts.error'), t('alerts.invalidInput'));
           setLoading(false);
           return;
         }
@@ -146,7 +148,7 @@ export default function TaskMoveModal({
         const taskIds = tasksToShift.map(t => t.id);
 
         if (taskIds.length === 0) {
-          Alert.alert('No Tasks', 'No tasks found to shift.');
+          Alert.alert(t('alerts.noTasks'), t('messages.noTasksToShift'));
           setLoading(false);
           return;
         }
@@ -154,19 +156,18 @@ export default function TaskMoveModal({
         const result = await bulkShiftTasks(taskIds, daysDiff, workingDays, nonWorkingDates);
 
         if (result.success || result.updatedCount > 0) {
-          const direction = daysDiff > 0 ? 'forward' : 'backward';
           Alert.alert(
-            'Tasks Shifted',
-            `Shifted ${result.updatedCount} task(s) ${Math.abs(daysDiff)} day(s) ${direction}.`,
+            t('alerts.success'),
+            t('messages.updatedSuccessfully'),
             [{ text: 'OK', onPress: () => { onTaskMoved?.(); onClose(); } }]
           );
         } else {
-          Alert.alert('Error', result.errors?.join('\n') || 'Failed to shift tasks.');
+          Alert.alert(t('alerts.error'), result.errors?.join('\n') || t('messages.failedToSave'));
         }
       }
     } catch (error) {
       console.error('Error moving task:', error);
-      Alert.alert('Error', 'Failed to move task.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setLoading(false);
     }
@@ -188,9 +189,9 @@ export default function TaskMoveModal({
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
           <TouchableOpacity onPress={handleClose}>
-            <Text style={[styles.cancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+            <Text style={[styles.cancelText, { color: Colors.primaryBlue }]}>{t('buttons.cancel')}</Text>
           </TouchableOpacity>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>Move Task</Text>
+          <Text style={[styles.title, { color: Colors.primaryText }]}>{t('labels.moveTask')}</Text>
           <TouchableOpacity onPress={handleMove} disabled={loading || daysDiff === 0}>
             {loading ? (
               <ActivityIndicator size="small" color={Colors.primaryBlue} />
@@ -201,7 +202,7 @@ export default function TaskMoveModal({
                   { color: daysDiff !== 0 ? Colors.primaryBlue : Colors.secondaryText },
                 ]}
               >
-                Move
+                {t('labels.move')}
               </Text>
             )}
           </TouchableOpacity>

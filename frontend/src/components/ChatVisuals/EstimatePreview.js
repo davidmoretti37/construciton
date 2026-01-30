@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, ActionSheetIOS, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -9,6 +10,7 @@ import { getUserProfile, getAverageWorkerRate } from '../../utils/storage';
 import { recordPricingCorrection, extractServiceType } from '../../services/pricingIntelligence';
 
 export default function EstimatePreview({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [isEditing, setIsEditing] = useState(false);
@@ -379,6 +381,9 @@ export default function EstimatePreview({ data, onAction }) {
         businessEmail: businessInfo.email || '',
         businessPhone: businessInfo.phone || '',
         businessLogo: businessInfo.logoUrl || businessInfo.logo || '',
+        // Styling
+        accentColor: businessInfo.accentColor || '#3B82F6',
+        fontStyle: businessInfo.fontStyle || 'modern',
         // Client info - ensure proper mapping
         clientName: displayClientName,
         clientAddress: data.clientAddress || (typeof client === 'object' ? client?.address : '') || '',
@@ -543,13 +548,13 @@ export default function EstimatePreview({ data, onAction }) {
       {/* Client Info */}
       <View style={[styles.section, { borderTopColor: Colors.border }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Client:</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.client')}</Text>
           {isEditing ? (
             <TextInput
               style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
               value={editedData.clientName || displayClientName}
               onChangeText={(value) => handleUpdateClientField('clientName', value)}
-              placeholder="Client name"
+              placeholder={t('estimate.clientName')}
               placeholderTextColor={Colors.secondaryText}
             />
           ) : (
@@ -558,12 +563,12 @@ export default function EstimatePreview({ data, onAction }) {
         </View>
         {projectName && (
           <View style={styles.infoRow}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Project:</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.project')}</Text>
             <Text style={[styles.value, { color: Colors.primaryText }]}>{projectName}</Text>
           </View>
         )}
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Date:</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.date')}</Text>
           {isEditing ? (
             <TouchableOpacity
               style={[styles.datePickerButton, { borderColor: Colors.border }]}
@@ -593,14 +598,14 @@ export default function EstimatePreview({ data, onAction }) {
         {(displayClientAddress || isEditing) && (
           <>
             <View style={[styles.addressDivider, { borderTopColor: Colors.border }]} />
-            <Text style={[styles.addressSectionLabel, { color: Colors.secondaryText }]}>BILL TO</Text>
+            <Text style={[styles.addressSectionLabel, { color: Colors.secondaryText }]}>{t('estimate.billTo')}</Text>
             {isEditing ? (
               <View style={styles.addressEditContainer}>
                 <TextInput
                   style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, marginBottom: Spacing.xs }]}
                   value={editedData.clientAddress || clientAddress || ''}
                   onChangeText={(value) => handleUpdateClientField('clientAddress', value)}
-                  placeholder="Street address"
+                  placeholder={t('estimate.streetAddress')}
                   placeholderTextColor={Colors.secondaryText}
                 />
                 <View style={styles.addressRow}>
@@ -608,14 +613,14 @@ export default function EstimatePreview({ data, onAction }) {
                     style={[styles.editInput, styles.cityInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                     value={editedData.clientCity || clientCity || ''}
                     onChangeText={(value) => handleUpdateClientField('clientCity', value)}
-                    placeholder="City"
+                    placeholder={t('estimate.city')}
                     placeholderTextColor={Colors.secondaryText}
                   />
                   <TextInput
                     style={[styles.editInput, styles.stateInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                     value={editedData.clientState || clientState || ''}
                     onChangeText={(value) => handleUpdateClientField('clientState', value)}
-                    placeholder="State"
+                    placeholder={t('estimate.state')}
                     placeholderTextColor={Colors.secondaryText}
                     maxLength={2}
                     autoCapitalize="characters"
@@ -624,7 +629,7 @@ export default function EstimatePreview({ data, onAction }) {
                     style={[styles.editInput, styles.zipInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                     value={editedData.clientZip || clientZip || ''}
                     onChangeText={(value) => handleUpdateClientField('clientZip', value)}
-                    placeholder="ZIP"
+                    placeholder={t('estimate.zip')}
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="numeric"
                     maxLength={10}
@@ -642,13 +647,13 @@ export default function EstimatePreview({ data, onAction }) {
         {/* Client Phone */}
         {(phoneNumber || isEditing) && (
           <View style={[styles.infoRow, { marginTop: Spacing.sm }]}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone:</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.phone')}</Text>
             {isEditing ? (
               <TextInput
                 style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
                 value={editedData.clientPhone || phoneNumber || ''}
                 onChangeText={(value) => handleUpdateClientField('clientPhone', value)}
-                placeholder="(555) 555-5555"
+                placeholder={t('estimate.phoneFormat')}
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="phone-pad"
               />
@@ -661,13 +666,13 @@ export default function EstimatePreview({ data, onAction }) {
         {/* Client Email */}
         {(emailAddress || isEditing) && (
           <View style={styles.infoRow}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Email:</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.email')}</Text>
             {isEditing ? (
               <TextInput
                 style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
                 value={editedData.clientEmail || emailAddress || ''}
                 onChangeText={(value) => handleUpdateClientField('clientEmail', value)}
-                placeholder="client@email.com"
+                placeholder={t('estimate.emailFormat')}
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -682,13 +687,13 @@ export default function EstimatePreview({ data, onAction }) {
       {/* Scope Summary */}
       {scope && scope.description && (
         <View style={[styles.section, { borderTopColor: Colors.border, backgroundColor: Colors.primaryBlue + '08' }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SCOPE</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('estimate.scope')}</Text>
           {isEditing ? (
             <TextInput
               style={[styles.editInput, styles.scopeText, { color: Colors.primaryText, borderColor: Colors.border }]}
               value={scope.description}
               onChangeText={(value) => handleUpdateScope('description', value)}
-              placeholder="Project scope description"
+              placeholder={t('estimate.scopeDescription')}
               placeholderTextColor={Colors.secondaryText}
               multiline
               numberOfLines={3}
@@ -699,7 +704,7 @@ export default function EstimatePreview({ data, onAction }) {
           {scope.complexity && (
             <View style={styles.complexityBadge}>
               <Text style={[styles.complexityText, { color: Colors.secondaryText }]}>
-                Complexity: <Text style={{ fontWeight: '600' }}>{scope.complexity}</Text>
+                {t('estimate.complexity')} <Text style={{ fontWeight: '600' }}>{scope.complexity}</Text>
               </Text>
             </View>
           )}
@@ -709,7 +714,7 @@ export default function EstimatePreview({ data, onAction }) {
       {/* Tasks Section (flat list) */}
       {tasks && tasks.length > 0 && (
         <View style={[styles.section, { borderTopColor: Colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>TASKS</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('estimate.tasks')}</Text>
           {tasks.map((task, index) => (
             <View key={index} style={styles.taskRow}>
               <Ionicons name="checkbox-outline" size={16} color={Colors.secondaryText} />
@@ -724,14 +729,14 @@ export default function EstimatePreview({ data, onAction }) {
       {/* Line Items */}
       <View style={[styles.section, { borderTopColor: Colors.border }]}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>SERVICES</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('estimate.services')}</Text>
           {isEditing && (
             <TouchableOpacity
               onPress={handleAddLineItem}
               style={[styles.addItemButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
             >
               <Ionicons name="add" size={16} color={Colors.primaryBlue} />
-              <Text style={[styles.addItemText, { color: Colors.primaryBlue }]}>Add Service</Text>
+              <Text style={[styles.addItemText, { color: Colors.primaryBlue }]}>{t('estimate.addService')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -747,7 +752,7 @@ export default function EstimatePreview({ data, onAction }) {
                     style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
                     value={item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description}
                     onChangeText={(value) => handleUpdateLineItem(index, 'description', value)}
-                    placeholder="Item description"
+                    placeholder={t('estimate.itemDescription')}
                     placeholderTextColor={Colors.secondaryText}
                   />
                   <TouchableOpacity
@@ -799,7 +804,7 @@ export default function EstimatePreview({ data, onAction }) {
       {profit > 0 ? (
         <View style={[styles.costBreakdown, { borderColor: Colors.border }]}>
           <View style={styles.breakdownRow}>
-            <Text style={[styles.breakdownLabel, { color: Colors.secondaryText }]}>Services Total</Text>
+            <Text style={[styles.breakdownLabel, { color: Colors.secondaryText }]}>{t('estimate.servicesTotal')}</Text>
             <Text style={[styles.breakdownValue, { color: Colors.primaryText }]}>
               ${typeof subtotal === 'number' ? subtotal.toFixed(2) : (parseFloat(subtotal) || 0).toFixed(2)}
             </Text>
@@ -813,7 +818,7 @@ export default function EstimatePreview({ data, onAction }) {
             </Text>
           </View>
           <View style={[styles.totalSection, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue, marginTop: Spacing.sm }]}>
-            <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>CONTRACT TOTAL</Text>
+            <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>{t('estimate.contractTotal')}</Text>
             <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
               ${typeof total === 'number' ? total.toFixed(2) : (parseFloat(total) || 0).toFixed(2)}
             </Text>
@@ -821,7 +826,7 @@ export default function EstimatePreview({ data, onAction }) {
         </View>
       ) : (
         <View style={[styles.totalSection, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
-          <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>TOTAL</Text>
+          <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>{t('estimate.total')}</Text>
           <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
             ${typeof total === 'number' ? total.toFixed(2) : (parseFloat(total) || 0).toFixed(2)}
           </Text>
@@ -834,13 +839,13 @@ export default function EstimatePreview({ data, onAction }) {
           <View style={styles.laborHeader}>
             <Ionicons name="people-outline" size={18} color="#F59E0B" />
             <Text style={[styles.laborTitle, { color: Colors.primaryText }]}>
-              Estimated Labor Cost
+              {t('estimate.laborCost')}
             </Text>
           </View>
           {isEditing ? (
             <View style={styles.laborEditContainer}>
               <View style={styles.laborEditRow}>
-                <Text style={[styles.laborEditLabel, { color: Colors.secondaryText }]}>Workers needed:</Text>
+                <Text style={[styles.laborEditLabel, { color: Colors.secondaryText }]}>{t('estimate.workersNeeded')}</Text>
                 <TextInput
                   style={[styles.editInputSmall, { color: Colors.primaryText, borderColor: '#F59E0B' }]}
                   value={String(editedData.laborEstimate?.workersNeeded || laborEstimate?.workersNeeded || '')}
@@ -851,7 +856,7 @@ export default function EstimatePreview({ data, onAction }) {
                 />
               </View>
               <View style={styles.laborEditRow}>
-                <Text style={[styles.laborEditLabel, { color: Colors.secondaryText }]}>Days needed:</Text>
+                <Text style={[styles.laborEditLabel, { color: Colors.secondaryText }]}>{t('estimate.daysNeeded')}</Text>
                 <TextInput
                   style={[styles.editInputSmall, { color: Colors.primaryText, borderColor: '#F59E0B' }]}
                   value={String(editedData.laborEstimate?.daysNeeded || laborEstimate?.daysNeeded || '')}
@@ -865,13 +870,13 @@ export default function EstimatePreview({ data, onAction }) {
           ) : (
             <>
               <Text style={[styles.laborDetails, { color: Colors.secondaryText }]}>
-                {laborEstimate.workersNeeded} worker{laborEstimate.workersNeeded > 1 ? 's' : ''} × {laborEstimate.daysNeeded} day{laborEstimate.daysNeeded > 1 ? 's' : ''}
+                {laborEstimate.workersNeeded} {laborEstimate.workersNeeded > 1 ? t('estimate.workerPlural') : t('estimate.worker')} × {laborEstimate.daysNeeded} {laborEstimate.daysNeeded > 1 ? t('card.dayPlural', { ns: 'projects' }) : t('card.day', { ns: 'projects' })}
               </Text>
               <Text style={[styles.laborCost, { color: '#F59E0B' }]}>
                 ~${estimatedLaborCost.toFixed(2)}
               </Text>
               <Text style={[styles.laborNote, { color: Colors.secondaryText }]}>
-                Based on avg worker rate of ${workerRates.daily.toFixed(0)}/day
+                {t('estimate.avgWorkerRate', { rate: workerRates.daily.toFixed(0) })}
               </Text>
               {laborEstimate.reasoning && (
                 <Text style={[styles.laborReasoning, { color: Colors.secondaryText }]}>
@@ -893,7 +898,7 @@ export default function EstimatePreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="close-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={styles.buttonText}>{t('buttons.cancel', { ns: 'common' })}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.sendButton, { backgroundColor: Colors.primaryBlue, flex: 1 }]}
@@ -901,7 +906,7 @@ export default function EstimatePreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="checkmark-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Save Changes</Text>
+              <Text style={styles.buttonText}>{t('estimate.saveChanges')}</Text>
             </TouchableOpacity>
           </>
         ) : status === 'accepted' ? (
@@ -910,7 +915,7 @@ export default function EstimatePreview({ data, onAction }) {
             onPress={handleConvertToInvoice}
           >
             <Ionicons name="document-text-outline" size={18} color="#fff" />
-            <Text style={styles.buttonText}>Convert to Invoice</Text>
+            <Text style={styles.buttonText}>{t('estimate.convertToInvoice')}</Text>
           </TouchableOpacity>
         ) : !status ? (
           <>
@@ -924,7 +929,7 @@ export default function EstimatePreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="save-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Save</Text>
+              <Text style={styles.buttonText}>{t('buttons.save', { ns: 'common' })}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.sendButton, { backgroundColor: Colors.primaryBlue, flex: 1 }]}
@@ -932,7 +937,7 @@ export default function EstimatePreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="share-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Share</Text>
+              <Text style={styles.buttonText}>{t('buttons.share', { ns: 'common' })}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.sendButton, { backgroundColor: '#8B5CF6', flex: 1 }]}
@@ -944,7 +949,7 @@ export default function EstimatePreview({ data, onAction }) {
               activeOpacity={0.7}
             >
               <Ionicons name="eye-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Preview</Text>
+              <Text style={styles.buttonText}>{t('features.estimateCard.viewEstimate')}</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -953,7 +958,7 @@ export default function EstimatePreview({ data, onAction }) {
             onPress={handleShare}
           >
             <Ionicons name="share-outline" size={18} color="#fff" />
-            <Text style={styles.buttonText}>Share Estimate</Text>
+            <Text style={styles.buttonText}>{t('estimate.shareEstimate')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -963,7 +968,7 @@ export default function EstimatePreview({ data, onAction }) {
         <View style={[styles.helperTextContainer, { backgroundColor: Colors.lightGray }]}>
           <Ionicons name="information-circle-outline" size={16} color={Colors.primaryBlue} />
           <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-            After the client accepts this estimate, you can ask me to create a project from it. I can also modify it first if the client requests changes.
+            {t('estimate.afterAcceptance')}
           </Text>
         </View>
       )}
@@ -971,7 +976,7 @@ export default function EstimatePreview({ data, onAction }) {
       {/* Footer Note */}
       {status === 'accepted' && (
         <Text style={[styles.footerNote, { color: Colors.secondaryText }]}>
-          Accepted - Ready to convert to invoice
+          {t('estimate.acceptedReady')}
         </Text>
       )}
     </View>

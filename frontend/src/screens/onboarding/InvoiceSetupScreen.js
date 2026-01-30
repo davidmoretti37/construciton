@@ -15,6 +15,7 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { WebView } from 'react-native-webview';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -34,6 +35,7 @@ const PAYMENT_TERMS = [
 export default function InvoiceSetupScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const { selectedTrades, selectedServices, businessInfo, pricing, phasesTemplate, profitMargin } = route.params;
 
   const [setupNow, setSetupNow] = useState(null); // null = showing intro, true = showing form
@@ -79,7 +81,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need camera roll permissions to select a logo');
+        Alert.alert(t('alerts.permissionDenied'), t('permissions.photoLibraryRequired'));
         return;
       }
 
@@ -96,7 +98,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error picking logo:', error);
-      Alert.alert('Error', 'Failed to select logo. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
     }
   };
 
@@ -134,7 +136,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
       setLogoUrl(publicUrl);
     } catch (error) {
       console.error('Error uploading logo:', error);
-      Alert.alert('Upload Failed', 'Failed to upload logo. Please try again.');
+      Alert.alert(t('alerts.uploadFailed'), t('messages.failedToSave'));
     } finally {
       setUploadingLogo(false);
     }

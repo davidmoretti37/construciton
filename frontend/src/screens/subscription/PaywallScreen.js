@@ -31,19 +31,19 @@ import { AnimatedBackground, PricingCard, ShimmerButton } from '../../components
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Plan configurations (prices hidden for App Store compliance - shown on web)
+// Plan configurations
 const PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    price: null, // Hidden for App Store
+    price: 49,
     projects: 3,
     description: 'Solo contractors',
   },
   {
     id: 'pro',
     name: 'Pro',
-    price: null, // Hidden for App Store
+    price: 79,
     projects: 10,
     description: 'Growing teams',
     isBest: true,
@@ -51,7 +51,7 @@ const PLANS = [
   {
     id: 'business',
     name: 'Business',
-    price: null, // Hidden for App Store
+    price: 149,
     projects: 'Unlimited',
     description: 'Large companies',
   },
@@ -174,16 +174,16 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
   const handleStartTrial = async () => {
     try {
       setLoading(true);
-      // Open pricing page in browser (App Store compliant)
-      await subscriptionService.openPricingPage();
+      // Open Stripe checkout for the selected plan
+      await subscriptionService.startCheckout(selectedPlan);
 
       // User returned from browser - refresh subscription in case they subscribed
-      console.log('Returned from pricing page, refreshing subscription...');
+      console.log('Returned from Stripe checkout, refreshing subscription...');
       await refreshSubscription();
 
     } catch (error) {
-      Alert.alert('Error', 'Failed to open pricing page. Please try again.');
-      console.error('Pricing page error:', error);
+      Alert.alert('Error', 'Failed to open checkout. Please try again.');
+      console.error('Checkout error:', error);
     } finally {
       setLoading(false);
     }

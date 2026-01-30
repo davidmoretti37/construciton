@@ -12,12 +12,14 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 
 export default function ClientInfoScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -26,15 +28,15 @@ export default function ClientInfoScreen({ navigation }) {
   const handleContinue = () => {
     // Validation
     if (!fullName.trim()) {
-      Alert.alert('Required Field', 'Please enter your full name');
+      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterName'));
       return;
     }
     if (!phone.trim()) {
-      Alert.alert('Required Field', 'Please enter your phone number');
+      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterPhone'));
       return;
     }
     if (!address.trim()) {
-      Alert.alert('Required Field', 'Please enter your address');
+      Alert.alert(t('alerts.requiredField'), t('messages.pleaseEnterAddress'));
       return;
     }
 

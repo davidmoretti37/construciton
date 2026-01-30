@@ -2454,7 +2454,7 @@ export default function WorkersScreen({ navigation }) {
                         disabled={isEditingDetail}
                         onPress={() => {
                           if (!isEditingDetail && selectedWorker.email) {
-                            const options = ['Send Email', 'Share/Copy Email', 'Cancel'];
+                            const options = [t('contact.sendEmail', 'Send Email'), t('contact.shareEmail', 'Share/Copy Email'), t('actions.cancel', 'Cancel')];
                             if (Platform.OS === 'ios') {
                               ActionSheetIOS.showActionSheetWithOptions(
                                 { options, cancelButtonIndex: 2 },
@@ -2464,10 +2464,10 @@ export default function WorkersScreen({ navigation }) {
                                 }
                               );
                             } else {
-                              Alert.alert('Email', selectedWorker.email, [
-                                { text: 'Send Email', onPress: () => Linking.openURL(`mailto:${selectedWorker.email}`) },
-                                { text: 'Share/Copy', onPress: () => Share.share({ message: selectedWorker.email }) },
-                                { text: 'Cancel', style: 'cancel' },
+                              Alert.alert(t('contact.email', 'Email'), selectedWorker.email, [
+                                { text: t('contact.sendEmail', 'Send Email'), onPress: () => Linking.openURL(`mailto:${selectedWorker.email}`) },
+                                { text: t('contact.shareCopy', 'Share/Copy'), onPress: () => Share.share({ message: selectedWorker.email }) },
+                                { text: t('actions.cancel', 'Cancel'), style: 'cancel' },
                               ]);
                             }
                           }
@@ -2505,7 +2505,7 @@ export default function WorkersScreen({ navigation }) {
                         onPress={() => {
                           if (!isEditingDetail && selectedWorker.phone) {
                             const cleanPhone = selectedWorker.phone.replace(/\D/g, '');
-                            const options = ['Call', 'WhatsApp', 'Share/Copy Number', 'Cancel'];
+                            const options = [t('contact.call', 'Call'), t('contact.whatsapp', 'WhatsApp'), t('contact.shareNumber', 'Share/Copy Number'), t('actions.cancel', 'Cancel')];
                             if (Platform.OS === 'ios') {
                               ActionSheetIOS.showActionSheetWithOptions(
                                 { options, cancelButtonIndex: 3 },
@@ -2516,11 +2516,11 @@ export default function WorkersScreen({ navigation }) {
                                 }
                               );
                             } else {
-                              Alert.alert('Phone', selectedWorker.phone, [
-                                { text: 'Call', onPress: () => Linking.openURL(`tel:${cleanPhone}`) },
-                                { text: 'WhatsApp', onPress: () => Linking.openURL(`whatsapp://send?phone=1${cleanPhone}`) },
-                                { text: 'Share/Copy', onPress: () => Share.share({ message: selectedWorker.phone }) },
-                                { text: 'Cancel', style: 'cancel' },
+                              Alert.alert(t('contact.phone', 'Phone'), selectedWorker.phone, [
+                                { text: t('contact.call', 'Call'), onPress: () => Linking.openURL(`tel:${cleanPhone}`) },
+                                { text: t('contact.whatsapp', 'WhatsApp'), onPress: () => Linking.openURL(`whatsapp://send?phone=1${cleanPhone}`) },
+                                { text: t('contact.shareCopy', 'Share/Copy'), onPress: () => Share.share({ message: selectedWorker.phone }) },
+                                { text: t('actions.cancel', 'Cancel'), style: 'cancel' },
                               ]);
                             }
                           }

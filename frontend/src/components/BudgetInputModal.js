@@ -11,10 +11,12 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function BudgetInputModal({ visible, onClose, onConfirm, projectData }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -82,7 +84,7 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
             {/* Header */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: Colors.primaryText }]}>
-                Set Contract Amount
+                {t('projects:form.setContractAmount', 'Set Contract Amount')}
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color={Colors.secondaryText} />
@@ -93,11 +95,11 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
             {projectData && (
               <View style={[styles.projectInfo, { backgroundColor: Colors.lightGray }]}>
                 <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-                  {projectData.name || 'New Project'}
+                  {projectData.name || t('projects:newProject', 'New Project')}
                 </Text>
                 {projectData.client && (
                   <Text style={[styles.clientName, { color: Colors.secondaryText }]}>
-                    Client: {projectData.client}
+                    {t('projects:form.clientLabel', 'Client')}: {projectData.client}
                   </Text>
                 )}
               </View>
@@ -108,18 +110,18 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
               <View style={styles.inputLabel}>
                 <Ionicons name="cash-outline" size={20} color={Colors.primaryBlue} />
                 <Text style={[styles.labelText, { color: Colors.primaryText }]}>
-                  Contract Amount
+                  {t('projects:form.contractAmount', 'Contract Amount')}
                 </Text>
               </View>
               <Text style={[styles.helperText, { color: Colors.secondaryText, marginBottom: Spacing.sm }]}>
-                Total value of the contract with the client
+                {t('projects:form.contractAmountHelper', 'Total value of the contract with the client')}
               </Text>
 
               <View style={[styles.inputContainer, { borderColor: Colors.border }]}>
                 <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
                 <TextInput
                   style={[styles.input, { color: Colors.primaryText }]}
-                  placeholder="0.00"
+                  placeholder={t('projects:form.contractAmountPlaceholder', '0.00')}
                   placeholderTextColor={Colors.secondaryText}
                   value={contractAmount}
                   onChangeText={handleContractAmountChange}
@@ -142,7 +144,7 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
                 onPress={handleClose}
               >
                 <Text style={[styles.buttonText, { color: Colors.secondaryText }]}>
-                  Cancel
+                  {t('buttons.cancel', 'Cancel')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -158,7 +160,7 @@ export default function BudgetInputModal({ visible, onClose, onConfirm, projectD
                 disabled={!contractAmount || isNaN(parseFloat(contractAmount))}
               >
                 <Text style={[styles.buttonText, { color: Colors.white }]}>
-                  Set Contract Amount
+                  {t('projects:form.setContractAmount', 'Set Contract Amount')}
                 </Text>
               </TouchableOpacity>
             </View>

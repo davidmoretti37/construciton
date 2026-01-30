@@ -18,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import { getUserServices, getServiceCategories } from '../../utils/storage';
 import { discoverServices, getServiceDetails } from '../../services/serviceDiscoveryService';
 import { supabase } from '../../lib/supabase';
@@ -25,6 +26,7 @@ import { supabase } from '../../lib/supabase';
 export default function AddServiceScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const [loading, setLoading] = useState(true);
   const [userServiceCategoryIds, setUserServiceCategoryIds] = useState([]);
@@ -68,7 +70,7 @@ export default function AddServiceScreen({ navigation }) {
       setAllCategories(categories);
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load services');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'services' }));
     } finally {
       setLoading(false);
     }
@@ -110,11 +112,11 @@ export default function AddServiceScreen({ navigation }) {
           categoryIcon: newService.icon
         });
       } else {
-        Alert.alert('Error', 'Failed to create service. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
       }
     } catch (error) {
       console.error('Error creating service:', error);
-      Alert.alert('Error', 'Failed to create service. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'service' }));
     } finally {
       setIsCreatingService(false);
     }

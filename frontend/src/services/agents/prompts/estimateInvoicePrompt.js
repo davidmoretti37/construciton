@@ -21,7 +21,7 @@ const getLanguageName = (code) => ({
 }[code] || 'English');
 
 export const getEstimateInvoicePrompt = (context) => {
-  const { projects, pricing, phasesTemplate, userProfile, subcontractorQuotes, pricingHistory, currentDate, yesterdayDate, lastProjectPreview, lastEstimatePreview, estimates, invoices, userLanguage, userPersonalization } = context || {};
+  const { projects, pricing, phasesTemplate, userProfile, subcontractorQuotes, pricingHistory, currentDate, yesterdayDate, lastProjectPreview, lastEstimatePreview, estimates, invoices, userLanguage, userPersonalization, autoTranslateEstimates } = context || {};
   const contingency = userProfile?.profit_margin || 0.25; // Used for unknown services only
 
   // Get language for AI responses
@@ -32,6 +32,25 @@ You MUST respond in ${languageName} regardless of what language the user types i
 Even if the user writes in English, Spanish, or any other language, YOUR response MUST ALWAYS be in ${languageName}.
 All text in the "text" field must be in ${languageName}.
 Questions, confirmations, and all user-facing messages must be in ${languageName}.
+
+`
+    : '';
+
+  // Translation mode for estimates/invoices
+  const translateContentInstruction = autoTranslateEstimates
+    ? `# ESTIMATE/INVOICE CONTENT TRANSLATION - IMPORTANT
+The user wants estimates and invoices in ENGLISH for their clients.
+- UNDERSTAND the user's input in ${languageName}
+- RESPOND to the user in ${languageName} (questions, confirmations, the "text" field)
+- BUT generate ALL estimate/invoice CONTENT in ENGLISH:
+  - Item descriptions (e.g., "Drywall installation" not "Instalação de drywall")
+  - Project name and scope description
+  - Task descriptions
+  - Notes and payment terms
+- KEEP these in original form (don't translate):
+  - Client names (Maria stays Maria)
+  - Addresses
+  - Phone numbers
 
 `
     : '';
@@ -86,7 +105,7 @@ Consider these preferences when crafting your response, but always prioritize ac
     ).join('\n') + (invoices.length > 15 ? `\n... and ${invoices.length - 15} more` : '');
   };
 
-  return `${languageInstruction}# CRITICAL: ALWAYS RESPOND WITH VALID JSON
+  return `${languageInstruction}${translateContentInstruction}# CRITICAL: ALWAYS RESPOND WITH VALID JSON
 {"text": "message", "visualElements": [], "actions": []}
 First char must be '{', last must be '}'. No text outside JSON.
 

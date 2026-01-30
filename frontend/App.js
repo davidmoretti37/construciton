@@ -15,9 +15,8 @@ import RoleSelectionScreen from './src/screens/auth/RoleSelectionScreen';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
-import { SubscriptionProvider, useSubscription } from './src/contexts/SubscriptionContext';
-import PaywallScreen from './src/screens/subscription/PaywallScreen';
-import { isOnboarded, hasSelectedLanguage, saveLanguage, getSelectedLanguage, checkAndStartScheduledProjects } from './src/utils/storage';
+import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
+import { isOnboarded, saveLanguage, checkAndStartScheduledProjects } from './src/utils/storage';
 import { supabase } from './src/lib/supabase';
 import logger from './src/utils/logger';
 import './src/i18n'; // Initialize i18n
@@ -38,11 +37,10 @@ LogBox.ignoreLogs([
 
 function AppContent() {
   const { isDark = false } = useTheme() || {};
-  const { user, session, role, isLoading: authLoading, clearRole } = useAuth();
-  const { hasActiveSubscription, isLoading: subLoading } = useSubscription();
+  const { user, session, role, profile, isLoading: authLoading, clearRole } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [languageSelected, setLanguageSelected] = useState(false);
-  const [userOnboarded, setUserOnboarded] = useState(false);
+  const [languageSelected, setLanguageSelected] = useState(null); // null = not yet determined
+  const [userOnboarded, setUserOnboarded] = useState(null); // null = not yet determined
 
   useEffect(() => {
     logger.emoji('🚀', 'APP STARTING...');
@@ -57,15 +55,20 @@ function AppContent() {
           logger.debug('Supabase connected successfully');
         }
       });
-
-    checkAuth();
+    // Auth state is handled by the useEffect watching [session, authLoading, profile]
   }, []);
 
   // Monitor auth state from AuthContext
   useEffect(() => {
     if (!authLoading) {
       if (session) {
-        checkLanguageAndOnboarding();
+        // Wait for profile to actually be loaded before checking
+        // profile is null while loading, then gets set to the data
+        if (profile !== null) {
+          checkLanguageAndOnboarding();
+        }
+        // If profile is null but authLoading is false, profile is still propagating
+        // The useEffect will re-run when profile updates
       } else {
         logger.debug('No session - showing login');
         setLanguageSelected(false);
@@ -73,32 +76,15 @@ function AppContent() {
         setLoading(false);
       }
     }
-  }, [session, authLoading]);
-
-  const checkAuth = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      logger.debug('AUTH CHECK - Session:', session ? 'LOGGED IN' : 'NOT LOGGED IN');
-      logger.debug('User ID:', session?.user?.id || 'NONE');
-      if (session) {
-        await checkLanguageAndOnboarding();
-      } else {
-        logger.debug('No session found - showing LOGIN screen');
-      }
-    } catch (error) {
-      logger.error('Error checking auth:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [session, authLoading, profile]);
 
   const checkLanguageAndOnboarding = async () => {
     try {
-      const [langSelected, onboarded, savedLanguage] = await Promise.all([
-        hasSelectedLanguage(),
-        isOnboarded(),
-        getSelectedLanguage(),
-      ]);
+      // Use profile from AuthContext instead of making separate queries
+      // This avoids race conditions where supabase.auth.getUser() isn't ready yet
+      const savedLanguage = profile?.language || null;
+      const langSelected = savedLanguage !== null && savedLanguage !== '';
+      const onboarded = await isOnboarded();
 
       // Sync i18n with saved language preference
       if (savedLanguage) {
@@ -165,7 +151,11 @@ function AppContent() {
     }
   };
 
-  if (loading || authLoading) {
+  // Show loading while:
+  // - auth is loading
+  // - profile is being fetched (session exists but profile not yet)
+  // - language/onboarding state not yet determined (null)
+  if (loading || authLoading || (session && !profile) || languageSelected === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#2563EB" />
@@ -188,7 +178,7 @@ function AppContent() {
     }
 
     // Authenticated but no language selected → Show language selection
-    if (!languageSelected) {
+    if (languageSelected === false) {
       logger.debug('Showing: LANGUAGE SELECTION');
       return <LanguageSelectionScreen onLanguageSelected={handleLanguageSelected} />;
     }
@@ -200,7 +190,7 @@ function AppContent() {
     }
 
     // Role selected but not onboarded → Show role-specific onboarding
-    if (!userOnboarded) {
+    if (userOnboarded === false) {
       if (role === 'owner') {
         logger.debug('Showing: OWNER ONBOARDING');
         return <OnboardingNavigator onComplete={handleOnboardingComplete} onGoBack={handleGoBackToRoleSelection} />;
@@ -215,11 +205,6 @@ function AppContent() {
 
     // Fully set up → Show role-specific main app
     if (role === 'owner') {
-      // Check subscription for owners (workers/clients are never blocked)
-      if (!subLoading && !hasActiveSubscription) {
-        logger.debug('Showing: PAYWALL (no active subscription)');
-        return <PaywallScreen />;
-      }
       logger.debug('Showing: OWNER MAIN APP');
       return <MainNavigator />;
     } else if (role === 'worker') {

@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function InvoicePreview({ data, onAction }) {
+  const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -98,7 +100,7 @@ export default function InvoicePreview({ data, onAction }) {
             <Image source={{ uri: businessLogo }} style={styles.businessLogo} resizeMode="contain" />
           ) : (
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              🧾 INVOICE
+              🧾 {t('invoice.title')}
             </Text>
           )}
           <Text style={[styles.invoiceNumber, { color: Colors.primaryBlue }]}>
@@ -121,27 +123,27 @@ export default function InvoicePreview({ data, onAction }) {
       {/* Client & Due Date Info */}
       <View style={[styles.section, { borderBottomColor: Colors.border }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Bill To:</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoice.billTo')}</Text>
           <Text style={[styles.value, { color: Colors.primaryText }]}>{clientName || client}</Text>
         </View>
         {projectName && (
           <View style={styles.infoRow}>
-            <Text style={[styles.label, { color: Colors.secondaryText }]}>Project:</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoice.project')}</Text>
             <Text style={[styles.value, { color: Colors.primaryText }]}>{projectName}</Text>
           </View>
         )}
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>Due Date:</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('invoice.dueDate')}</Text>
           <Text style={[styles.value, { color: status === 'overdue' ? '#EF4444' : Colors.primaryText }]}>
             {formatDate(dueDate)}
-            {status === 'overdue' && ' (OVERDUE)'}
+            {status === 'overdue' && ` ${t('invoice.overdue')}`}
           </Text>
         </View>
       </View>
 
       {/* Line Items */}
       <View style={[styles.section, { borderBottomColor: Colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>ITEMS</Text>
+        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('invoice.items')}</Text>
         {items.map((item, index) => (
           <View key={index} style={styles.lineItem}>
             <View style={styles.itemHeader}>
@@ -169,7 +171,7 @@ export default function InvoicePreview({ data, onAction }) {
         {/* Show contract total for partial payments */}
         {isPartialPayment && (
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Contract Total:</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('invoice.contractTotal')}</Text>
             <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
               ${displayContractTotal.toFixed(2)}
             </Text>
@@ -180,7 +182,7 @@ export default function InvoicePreview({ data, onAction }) {
         {previousPayments > 0 && (
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: '#22C55E' }]}>
-              Previous Payments:
+              {t('invoice.previousPayments')}
             </Text>
             <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
               -${previousPayments.toFixed(2)}
@@ -192,7 +194,10 @@ export default function InvoicePreview({ data, onAction }) {
         {isPartialPayment && (
           <View style={[styles.summaryRow, { marginTop: Spacing.sm }]}>
             <Text style={[styles.summaryLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
-              This Invoice ({paymentPercentage}% {paymentType === 'down_payment' ? 'Down Payment' : paymentType === 'progress' ? 'Progress Payment' : 'Payment'}):
+              {t('invoice.thisInvoice', {
+                percentage: paymentPercentage,
+                type: paymentType === 'down_payment' ? t('invoice.downPayment') : paymentType === 'progress' ? t('invoice.progressPayment') : t('invoice.payment')
+              })}
             </Text>
             <Text style={[styles.summaryValue, { color: Colors.primaryText, fontWeight: '600' }]}>
               ${actualAmountDue.toFixed(2)}
@@ -202,7 +207,7 @@ export default function InvoicePreview({ data, onAction }) {
 
         {/* Amount Due - highlighted */}
         <View style={[styles.totalRow, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue }]}>
-          <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>AMOUNT DUE:</Text>
+          <Text style={[styles.totalLabel, { color: Colors.primaryText }]}>{t('invoice.amountDue')}</Text>
           <Text style={[styles.totalAmount, { color: Colors.primaryBlue }]}>
             ${actualAmountDue.toFixed(2)}
           </Text>
@@ -212,7 +217,7 @@ export default function InvoicePreview({ data, onAction }) {
         {isPartialPayment && remainingBalance > 0 && (
           <View style={[styles.summaryRow, { marginTop: Spacing.sm }]}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>
-              Remaining Balance:
+              {t('invoice.remainingBalance')}
             </Text>
             <Text style={[styles.summaryValue, { color: Colors.secondaryText }]}>
               ${remainingBalance.toFixed(2)}
@@ -225,7 +230,7 @@ export default function InvoicePreview({ data, onAction }) {
           <>
             <View style={[styles.summaryRow, styles.paidRow]}>
               <Text style={[styles.summaryLabel, { color: '#22C55E' }]}>
-                Paid:
+                {t('invoice.paid')}
               </Text>
               <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
                 -${amountPaid.toFixed(2)}
@@ -233,7 +238,7 @@ export default function InvoicePreview({ data, onAction }) {
             </View>
             <View style={[styles.summaryRow, styles.dueRow]}>
               <Text style={[styles.summaryLabel, { color: status === 'overdue' ? '#EF4444' : Colors.primaryText, fontWeight: '700' }]}>
-                Balance Due:
+                {t('invoice.balanceDue')}
               </Text>
               <Text style={[styles.summaryValue, { color: status === 'overdue' ? '#EF4444' : Colors.primaryText, fontWeight: '700' }]}>
                 ${(total - amountPaid).toFixed(2)}
@@ -250,7 +255,7 @@ export default function InvoicePreview({ data, onAction }) {
           onPress={handlePreviewPDF}
         >
           <Ionicons name="eye-outline" size={18} color="#fff" />
-          <Text style={styles.buttonText}>Preview PDF</Text>
+          <Text style={styles.buttonText}>{t('invoice.previewPdf')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -258,7 +263,7 @@ export default function InvoicePreview({ data, onAction }) {
           onPress={handleShareInvoice}
         >
           <Ionicons name="share-outline" size={18} color="#fff" />
-          <Text style={styles.buttonText}>Send Invoice</Text>
+          <Text style={styles.buttonText}>{t('invoice.sendInvoice')}</Text>
         </TouchableOpacity>
       </View>
     </View>

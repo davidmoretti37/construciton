@@ -1,67 +1,103 @@
 /**
  * AIAssistantSlide
- * Screen 5: AI Chat demo with typing animation
+ * Screen 5: AI Chat demo with choreographed chat simulation
+ * User sends message → typing indicator → AI types response
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  withSpring,
   withDelay,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
-import { ChatBubble, TypingIndicator, FeatureBullet } from '../../../components/onboarding';
+import { Ionicons } from '@expo/vector-icons';
+import { ChatBubble, TypingIndicator, TypewriterText, FeatureBullet } from '../../../components/onboarding';
+import {
+  ONBOARDING_COLORS,
+  ONBOARDING_TYPOGRAPHY,
+  ONBOARDING_SPACING,
+  ONBOARDING_RADIUS,
+} from './constants';
+import { useBounceAnimation, useCardAnimation, useEntranceAnimation } from './useEntranceAnimation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export default function AIAssistantSlide({ isActive }) {
-  const [showTyping, setShowTyping] = useState(false);
-  const [showAIResponse, setShowAIResponse] = useState(false);
-  const containerOpacity = useSharedValue(0);
-  const typingOpacity = useSharedValue(0);
+// Chat simulation states
+const CHAT_STATES = {
+  EMPTY: 'empty',
+  USER_SENT: 'user_sent',
+  AI_TYPING: 'ai_typing',
+  AI_RESPONDED: 'ai_responded',
+};
 
+const USER_MESSAGE = "Create an estimate for John's kitchen remodel job";
+const AI_RESPONSE = "Done! I've created estimate #EST-2024-042 for John's kitchen remodel. Total: $12,450. Would you like me to send it to him?";
+
+export default function AIAssistantSlide({ isActive = true }) {
+  const [chatState, setChatState] = useState(CHAT_STATES.EMPTY);
+  const [showFeatures, setShowFeatures] = useState(false);
+
+  // Entrance animations
+  const titleAnim = useBounceAnimation(isActive, 0);
+  const chatAnim = useCardAnimation(isActive, 200, true);
+
+  // Feature animations (triggered after AI responds)
+  const feature1Anim = useEntranceAnimation(showFeatures, 0);
+  const feature2Anim = useEntranceAnimation(showFeatures, 100);
+  const feature3Anim = useEntranceAnimation(showFeatures, 200);
+  const quoteAnim = useEntranceAnimation(showFeatures, 350);
+
+  // Chat simulation timeline
   useEffect(() => {
-    if (isActive) {
-      containerOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
-
-      // Show typing indicator after user message
-      const typingTimer = setTimeout(() => {
-        setShowTyping(true);
-        typingOpacity.value = withTiming(1, { duration: 300 });
-      }, 1200);
-
-      // Hide typing, show AI response
-      const responseTimer = setTimeout(() => {
-        setShowTyping(false);
-        typingOpacity.value = withTiming(0, { duration: 200 });
-        setShowAIResponse(true);
-      }, 2200);
-
-      return () => {
-        clearTimeout(typingTimer);
-        clearTimeout(responseTimer);
-      };
+    if (!isActive) {
+      setChatState(CHAT_STATES.EMPTY);
+      setShowFeatures(false);
+      return;
     }
+
+    // Timeline:
+    // 600ms - User message slides in
+    // 1400ms - Typing indicator appears
+    // 2800ms - AI starts typing response
+    // ~5500ms - AI finishes, show features
+
+    const timers = [];
+
+    timers.push(setTimeout(() => {
+      setChatState(CHAT_STATES.USER_SENT);
+    }, 600));
+
+    timers.push(setTimeout(() => {
+      setChatState(CHAT_STATES.AI_TYPING);
+    }, 1400));
+
+    timers.push(setTimeout(() => {
+      setChatState(CHAT_STATES.AI_RESPONDED);
+    }, 2800));
+
+    timers.push(setTimeout(() => {
+      setShowFeatures(true);
+    }, 5500));
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+    };
   }, [isActive]);
-
-  const containerStyle = useAnimatedStyle(() => ({
-    opacity: containerOpacity.value,
-  }));
-
-  const typingStyle = useAnimatedStyle(() => ({
-    opacity: typingOpacity.value,
-  }));
 
   return (
     <View style={styles.container}>
       {/* Title */}
-      <Text style={styles.title}>Your Business.</Text>
-      <Text style={styles.titleAccent}>Voice Activated.</Text>
+      <Animated.View style={titleAnim}>
+        <Text style={styles.title}>Your Business.</Text>
+        <Text style={styles.titleAccent}>Voice Activated.</Text>
+      </Animated.View>
 
       {/* Chat mockup */}
-      <Animated.View style={[styles.chatContainer, containerStyle]}>
+      <Animated.View style={[styles.chatContainer, chatAnim]}>
         {/* Chat header */}
         <View style={styles.chatHeader}>
           <View style={styles.aiAvatar}>
@@ -73,33 +109,46 @@ export default function AIAssistantSlide({ isActive }) {
           </View>
         </View>
 
-        {/* Chat area */}
+        {/* Chat area with simulation */}
         <View style={styles.chatArea}>
-          {/* User message */}
-          <ChatBubble
-            message="Create an estimate for John's kitchen remodel job"
-            isUser={true}
-            delay={400}
-            isActive={isActive}
-          />
-
-          {/* Typing indicator */}
-          {showTyping && (
-            <Animated.View style={[styles.typingContainer, typingStyle]}>
-              <TypingIndicator />
-            </Animated.View>
+          {/* User message - slides in from right */}
+          {(chatState === CHAT_STATES.USER_SENT ||
+            chatState === CHAT_STATES.AI_TYPING ||
+            chatState === CHAT_STATES.AI_RESPONDED) && (
+            <ChatBubble
+              message={USER_MESSAGE}
+              isUser={true}
+              animated={true}
+              delay={0}
+            />
           )}
 
-          {/* AI response */}
-          {showAIResponse && (
-            <ChatBubble
-              message="Done! I've created estimate #EST-2024-042 for John's kitchen remodel. Total: $12,450. Would you like me to send it to him?"
-              isUser={false}
-              typewriter={true}
-              typewriterDelay={0}
-              delay={0}
-              isActive={true}
-            />
+          {/* Typing indicator - bouncing dots */}
+          {chatState === CHAT_STATES.AI_TYPING && (
+            <View style={styles.typingContainer}>
+              <View style={styles.aiIconSmall}>
+                <Ionicons name="sparkles" size={12} color="#3B82F6" />
+              </View>
+              <TypingIndicator />
+            </View>
+          )}
+
+          {/* AI response - types out character by character */}
+          {chatState === CHAT_STATES.AI_RESPONDED && (
+            <View style={styles.aiResponseContainer}>
+              <View style={styles.aiIconSmall}>
+                <Ionicons name="sparkles" size={12} color="#3B82F6" />
+              </View>
+              <View style={styles.aiBubble}>
+                <TypewriterText
+                  text={AI_RESPONSE}
+                  style={styles.aiText}
+                  speed={25}
+                  delay={0}
+                  isActive={chatState === CHAT_STATES.AI_RESPONDED}
+                />
+              </View>
+            </View>
           )}
         </View>
 
@@ -110,38 +159,43 @@ export default function AIAssistantSlide({ isActive }) {
         </View>
       </Animated.View>
 
-      {/* Feature bullets */}
+      {/* Feature bullets - appear after AI responds */}
       <View style={styles.features}>
-        <FeatureBullet
-          icon="chatbubbles"
-          title="Just say what you need"
-          description="Natural language commands"
-          delay={2800}
-          isActive={isActive}
-          iconColor="#60A5FA"
-        />
-        <FeatureBullet
-          icon="bulb"
-          title="AI that knows your business"
-          description="Your clients, your prices, your style"
-          delay={3000}
-          isActive={isActive}
-          iconColor="#FBBF24"
-        />
-        <FeatureBullet
-          icon="flash"
-          title="Actions, not just answers"
-          description="It actually does the work for you"
-          delay={3200}
-          isActive={isActive}
-          iconColor="#A78BFA"
-        />
+        <Animated.View style={feature1Anim}>
+          <FeatureBullet
+            icon="chatbubbles"
+            title="Just say what you need"
+            description="Natural language commands"
+            iconColor="#60A5FA"
+          />
+        </Animated.View>
+        <Animated.View style={feature2Anim}>
+          <FeatureBullet
+            icon="bulb"
+            title="AI that knows your business"
+            description="Your clients, your prices, your style"
+            iconColor="#FBBF24"
+          />
+        </Animated.View>
+        <Animated.View style={feature3Anim}>
+          <FeatureBullet
+            icon="flash"
+            title="Actions, not just answers"
+            description="It actually does the work for you"
+            iconColor="#A78BFA"
+          />
+        </Animated.View>
       </View>
 
-      {/* Quote */}
-      <Text style={styles.quote}>
-        "Like having a $100K assistant for the price of a coffee."
-      </Text>
+      {/* Quote - types out */}
+      <Animated.View style={quoteAnim}>
+        <TypewriterText
+          text='"Like having a $100K assistant for the price of a coffee."'
+          style={styles.quote}
+          speed={30}
+          isActive={showFeatures}
+        />
+      </Animated.View>
     </View>
   );
 }
@@ -150,28 +204,28 @@ const styles = StyleSheet.create({
   container: {
     width: SCREEN_WIDTH,
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingHorizontal: ONBOARDING_SPACING.screenPaddingHorizontal,
+    paddingTop: ONBOARDING_SPACING.screenPaddingTop,
   },
   title: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: ONBOARDING_COLORS.textSecondary,
     textAlign: 'center',
   },
   titleAccent: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: ONBOARDING_COLORS.textPrimary,
     textAlign: 'center',
     marginBottom: 20,
   },
   chatContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
+    backgroundColor: ONBOARDING_COLORS.glassBg,
+    borderRadius: ONBOARDING_RADIUS.card,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 20,
+    borderColor: ONBOARDING_COLORS.border,
+    padding: ONBOARDING_SPACING.cardPadding,
     marginBottom: 20,
   },
   chatHeader: {
@@ -180,57 +234,82 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: ONBOARDING_COLORS.border,
     marginBottom: 12,
   },
   aiAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    backgroundColor: `${ONBOARDING_COLORS.primary}33`,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#3B82F6',
+    shadowColor: ONBOARDING_COLORS.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 8,
   },
   aiName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#F8FAFC',
+    ...ONBOARDING_TYPOGRAPHY.sectionTitle,
   },
   aiStatus: {
     fontSize: 12,
-    color: '#34D399',
+    color: ONBOARDING_COLORS.success,
   },
   chatArea: {
     minHeight: 140,
     gap: 12,
   },
   typingContainer: {
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  aiIconSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: `${ONBOARDING_COLORS.primary}33`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiResponseContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingRight: 20,
+  },
+  aiBubble: {
+    flex: 1,
+    backgroundColor: ONBOARDING_COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+  },
+  aiText: {
+    fontSize: 15,
+    color: ONBOARDING_COLORS.textPrimary,
+    lineHeight: 20,
   },
   inputHint: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+    backgroundColor: ONBOARDING_COLORS.glassBg,
+    borderRadius: ONBOARDING_RADIUS.input,
     padding: 12,
     marginTop: 12,
   },
   inputText: {
     fontSize: 14,
-    color: '#64748B',
+    color: ONBOARDING_COLORS.textTertiary,
   },
   features: {
     marginBottom: 16,
   },
   quote: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
+    ...ONBOARDING_TYPOGRAPHY.caption,
   },
 });

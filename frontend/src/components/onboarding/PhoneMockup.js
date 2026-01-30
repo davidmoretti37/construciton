@@ -1,59 +1,27 @@
 /**
  * PhoneMockup
- * Reusable 3D phone frame with tilt and slide-in animation
+ * Reusable 3D phone frame (no animation)
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withDelay,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { ONBOARDING_SHADOWS } from '../../screens/onboarding/slides/constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function PhoneMockup({
   children,
   tilt = 0,
-  slideInFrom = null,
-  delay = 0,
-  isActive = true,
   style,
 }) {
-  const translateX = useSharedValue(
-    slideInFrom === 'right' ? 300 : slideInFrom === 'left' ? -300 : 0
-  );
-  const translateY = useSharedValue(slideInFrom === 'bottom' ? 200 : 0);
-  const opacity = useSharedValue(slideInFrom ? 0 : 1);
-  const scale = useSharedValue(slideInFrom ? 0.9 : 1);
-
-  useEffect(() => {
-    if (isActive && slideInFrom) {
-      translateX.value = withDelay(delay, withSpring(0, { damping: 15, stiffness: 100 }));
-      translateY.value = withDelay(delay, withSpring(0, { damping: 15, stiffness: 100 }));
-      opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-      scale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-    }
-  }, [isActive, slideInFrom, delay]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { perspective: 1000 },
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { rotateY: `${tilt}deg` },
-      { scale: scale.value },
-    ],
-    opacity: opacity.value,
-  }));
-
   return (
-    <Animated.View style={[styles.container, animatedStyle, style]}>
-      {/* Phone frame */}
-      <View style={styles.phone}>
+    <View style={[styles.container, { transform: [{ perspective: 1000 }, { rotateY: `${tilt}deg` }] }, style]}>
+      {/* Phone frame - disable rasterization for high quality during animations */}
+      <View
+        style={styles.phone}
+        shouldRasterizeIOS={false}
+        renderToHardwareTextureAndroid={false}
+      >
         {/* Notch */}
         <View style={styles.notch} />
         {/* Screen content */}
@@ -63,7 +31,7 @@ export default function PhoneMockup({
         {/* Home indicator */}
         <View style={styles.homeIndicator} />
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -82,11 +50,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#2A2A4A',
     overflow: 'hidden',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.3,
-    shadowRadius: 40,
-    elevation: 15,
+    ...ONBOARDING_SHADOWS.phoneMockup,
   },
   notch: {
     position: 'absolute',

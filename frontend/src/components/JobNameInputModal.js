@@ -12,10 +12,12 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function JobNameInputModal({ visible, onClose, onConfirm, projectData }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -25,7 +27,7 @@ export default function JobNameInputModal({ visible, onClose, onConfirm, project
     const trimmedName = jobName.trim();
 
     if (!trimmedName) {
-      Alert.alert('Invalid Job Name', 'Please enter a valid job name.');
+      Alert.alert(t('alerts.invalidInput', 'Invalid Job Name'), t('messages.pleaseEnterValid', { item: t('projects:jobName', 'job name') }));
       return;
     }
 
@@ -67,7 +69,7 @@ export default function JobNameInputModal({ visible, onClose, onConfirm, project
             {/* Header */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: Colors.primaryText }]}>
-                Set Job Name
+                {t('projects:setJobName', 'Set Job Name')}
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color={Colors.secondaryText} />
@@ -79,7 +81,7 @@ export default function JobNameInputModal({ visible, onClose, onConfirm, project
               <View style={styles.inputLabel}>
                 <Ionicons name="briefcase-outline" size={20} color={Colors.primaryBlue} />
                 <Text style={[styles.labelText, { color: Colors.primaryText }]}>
-                  Job Name
+                  {t('projects:jobName', 'Job Name')}
                 </Text>
               </View>
 
@@ -92,7 +94,7 @@ export default function JobNameInputModal({ visible, onClose, onConfirm, project
                     backgroundColor: Colors.white,
                   }
                 ]}
-                placeholder="e.g., Kitchen Remodel, Bathroom Renovation"
+                placeholder={t('projects:jobNamePlaceholder', 'e.g., Kitchen Remodel, Bathroom Renovation')}
                 placeholderTextColor={Colors.secondaryText}
                 value={jobName}
                 onChangeText={setJobName}
@@ -101,7 +103,7 @@ export default function JobNameInputModal({ visible, onClose, onConfirm, project
               />
 
               <Text style={[styles.helpText, { color: Colors.secondaryText }]}>
-                Give this project a descriptive name
+                {t('projects:jobNameHelper', 'Give this project a descriptive name')}
               </Text>
             </View>
 
@@ -112,7 +114,7 @@ export default function JobNameInputModal({ visible, onClose, onConfirm, project
                 onPress={handleClose}
               >
                 <Text style={[styles.buttonText, { color: Colors.secondaryText }]}>
-                  Cancel
+                  {t('buttons.cancel', 'Cancel')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -128,7 +130,7 @@ export default function JobNameInputModal({ visible, onClose, onConfirm, project
                 disabled={!jobName.trim()}
               >
                 <Text style={[styles.buttonText, { color: Colors.white }]}>
-                  Set Job Name
+                  {t('projects:setJobName', 'Set Job Name')}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -22,9 +22,21 @@ export default function AppointmentCard({ data, onAction }) {
     color = '#3B82F6',
   } = data || {};
 
-  // Format date/time
+  // Format date/time - handle both date-only and full datetime strings
   const formatDateTime = (dateString) => {
     if (!dateString) return '';
+    // If it's a date-only string (YYYY-MM-DD), parse as local
+    if (dateString.length === 10 || !dateString.includes('T')) {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    }
+    // Full datetime with time/timezone - parse normally
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       weekday: 'long',

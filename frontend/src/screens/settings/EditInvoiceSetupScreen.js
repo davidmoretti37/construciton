@@ -15,6 +15,7 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,7 +34,25 @@ const PAYMENT_TERMS = [
   'Net 60',
 ];
 
+const ACCENT_COLORS = [
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#10B981', // Green
+  '#F59E0B', // Amber
+  '#EF4444', // Red
+  '#EC4899', // Pink
+  '#6366F1', // Indigo
+  '#000000', // Black (classic)
+];
+
+const FONT_STYLES = [
+  { id: 'modern', name: 'Modern', sample: 'Clean & professional' },
+  { id: 'classic', name: 'Classic', sample: 'Traditional serif' },
+  { id: 'clean', name: 'Clean', sample: 'Simple & minimal' },
+];
+
 export default function EditInvoiceSetupScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -51,6 +70,8 @@ export default function EditInvoiceSetupScreen({ navigation }) {
   const [businessEmail, setBusinessEmail] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('Net 30');
   const [footerText, setFooterText] = useState('');
+  const [accentColor, setAccentColor] = useState('#3B82F6');
+  const [fontStyle, setFontStyle] = useState('modern');
 
   // Payment method toggles
   const [enabledPayments, setEnabledPayments] = useState({
@@ -92,6 +113,8 @@ export default function EditInvoiceSetupScreen({ navigation }) {
         setLogoUrl(businessInfo.logoUrl || null);
         setPaymentTerms(businessInfo.paymentTerms || 'Net 30');
         setFooterText(businessInfo.footerText || '');
+        setAccentColor(businessInfo.accentColor || '#3B82F6');
+        setFontStyle(businessInfo.fontStyle || 'modern');
 
         // Parse payment info
         if (businessInfo.paymentInfo) {
@@ -192,7 +215,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading invoice data:', error);
-      Alert.alert('Error', 'Failed to load invoice settings');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'invoice settings' }));
     } finally {
       setLoading(false);
     }
@@ -209,7 +232,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need camera roll permissions to select a logo');
+        Alert.alert(t('permissions.denied'), t('permissions.photoLibraryRequired'));
         return;
       }
 
@@ -226,7 +249,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error picking logo:', error);
-      Alert.alert('Error', 'Failed to select logo. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSelect', { item: 'logo' }));
     }
   };
 
@@ -264,7 +287,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       setLogoUrl(publicUrl);
     } catch (error) {
       console.error('Error uploading logo:', error);
-      Alert.alert('Upload Failed', 'Failed to upload logo. Please try again.');
+      Alert.alert(t('alerts.uploadFailed'), t('messages.failedToUpload', { item: 'logo' }));
     } finally {
       setUploadingLogo(false);
     }
@@ -321,6 +344,8 @@ export default function EditInvoiceSetupScreen({ navigation }) {
       email: businessEmail,
       logoUrl: logoUrl,
       paymentInfo: paymentInfo.trim(),
+      accentColor: accentColor,
+      fontStyle: fontStyle,
     };
 
     return generateInvoiceHTML(sampleInvoiceData, businessInfoForPreview);
@@ -367,23 +392,25 @@ export default function EditInvoiceSetupScreen({ navigation }) {
         paymentTerms: paymentTerms,
         paymentInfo: paymentInfo.trim(),
         footerText: footerText.trim(),
+        accentColor: accentColor,
+        fontStyle: fontStyle,
       };
 
       const success = await updateBusinessInfo(updatedBusinessInfo);
 
       if (success) {
-        Alert.alert('Success', 'Invoice settings updated successfully', [
+        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'Invoice settings' }), [
           {
-            text: 'OK',
+            text: t('alerts.ok'),
             onPress: () => navigation.goBack(),
           },
         ]);
       } else {
-        Alert.alert('Error', 'Failed to save invoice settings');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'invoice settings' }));
       }
     } catch (error) {
       console.error('Error saving invoice settings:', error);
-      Alert.alert('Error', 'Failed to save changes. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSaveChanges'));
     } finally {
       setSaving(false);
     }
@@ -450,6 +477,63 @@ export default function EditInvoiceSetupScreen({ navigation }) {
                 <Text style={[styles.removeButtonText, { color: '#EF4444' }]}>Remove Logo</Text>
               </TouchableOpacity>
             )}
+          </View>
+
+          {/* Accent Color */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Accent Color</Text>
+            <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 0 }]}>
+              Choose your brand color for headings
+            </Text>
+            <View style={styles.colorGrid}>
+              {ACCENT_COLORS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: color },
+                    accentColor === color && styles.colorSelected,
+                  ]}
+                  onPress={() => setAccentColor(color)}
+                  activeOpacity={0.7}
+                >
+                  {accentColor === color && (
+                    <Ionicons name="checkmark" size={20} color={color === '#000000' ? '#fff' : '#fff'} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Font Style */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Font Style</Text>
+            {FONT_STYLES.map((font) => (
+              <TouchableOpacity
+                key={font.id}
+                style={[
+                  styles.fontOption,
+                  { backgroundColor: Colors.white, borderColor: Colors.border },
+                  fontStyle === font.id && { borderColor: Colors.primaryBlue, backgroundColor: Colors.primaryBlue + '10' },
+                ]}
+                onPress={() => setFontStyle(font.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.fontOptionContent}>
+                  <Text style={[styles.fontOptionTitle, { color: Colors.primaryText }]}>{font.name}</Text>
+                  <Text style={[
+                    styles.fontOptionSample,
+                    { color: Colors.secondaryText },
+                    font.id === 'classic' && { fontFamily: 'Georgia' },
+                  ]}>
+                    {font.sample}
+                  </Text>
+                </View>
+                {fontStyle === font.id && (
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.primaryBlue} />
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Business Information */}
@@ -826,11 +910,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    paddingHorizontal: 4,
     paddingBottom: 100,
   },
   section: {
     paddingHorizontal: 20,
-    marginBottom: 24,
+    marginBottom: 28,
   },
   sectionTitle: {
     fontSize: 17,
@@ -878,11 +963,11 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    marginBottom: 16,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    marginBottom: 12,
   },
   multilineInput: {
     minHeight: 60,
@@ -902,6 +987,43 @@ const styles = StyleSheet.create({
   termText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
+  },
+  colorOption: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  colorSelected: {
+    borderColor: '#000',
+  },
+  fontOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginBottom: 10,
+  },
+  fontOptionContent: {
+    flex: 1,
+  },
+  fontOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  fontOptionSample: {
+    fontSize: 14,
   },
   paymentMethodCard: {
     flexDirection: 'row',

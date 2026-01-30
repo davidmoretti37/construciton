@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +31,7 @@ import { supabase } from '../../lib/supabase';
 export default function DailyReportFormScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const { user } = useAuth();
 
   // Check if owner mode from route params
@@ -58,7 +60,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
       setAssignedProjects(projects || []);
     } catch (error) {
       console.error('Error loading owner projects:', error);
-      Alert.alert('Error', 'Failed to load projects');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'projects' }));
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
       if (workerError || !workerData) {
         console.error('Error fetching worker:', workerError);
-        Alert.alert('Error', 'Could not find worker profile');
+        Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'worker profile' }));
         setLoading(false);
         return;
       }
@@ -88,7 +90,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
       setAssignedProjects(projects);
     } catch (error) {
       console.error('Error loading worker projects:', error);
-      Alert.alert('Error', 'Failed to load assigned projects');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'assigned projects' }));
     } finally {
       setLoading(false);
     }
@@ -102,7 +104,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow access to your photo library');
+        Alert.alert(t('alerts.permissionRequired'), t('permissions.photoLibraryRequired'));
         return;
       }
 
@@ -118,7 +120,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'image' }));
     }
   };
 
@@ -126,7 +128,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow access to your camera');
+        Alert.alert(t('alerts.permissionRequired'), t('permissions.cameraRequired'));
         return;
       }
 
@@ -140,7 +142,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'photo' }));
     }
   };
 
@@ -150,13 +152,13 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
   const handleSubmit = async () => {
     if (!selectedProject) {
-      Alert.alert('Missing Information', 'Please select a project');
+      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseSelect', { item: 'project' }));
       return;
     }
 
     // Work done is mandatory
     if (!workDone.trim()) {
-      Alert.alert('Required', 'Please describe what was done today');
+      Alert.alert(t('alerts.required'), t('messages.pleaseEnter', { item: 'work description' }));
       return;
     }
 
@@ -174,7 +176,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
       // If user added photos but none uploaded successfully, abort
       if (photos.length > 0 && uploadedPhotoUrls.length === 0) {
-        Alert.alert('Upload Failed', 'Failed to upload photos. Please try again.');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'photos' }));
         setSubmitting(false);
         return;
       }
@@ -199,8 +201,8 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
       if (report) {
         Alert.alert(
-          'Success',
-          'Daily report submitted successfully!',
+          t('alerts.success'),
+          t('messages.savedSuccessfully', { item: 'daily report' }),
           [
             {
               text: 'OK',
@@ -209,11 +211,11 @@ export default function DailyReportFormScreen({ navigation, route }) {
           ]
         );
       } else {
-        Alert.alert('Error', 'Failed to submit daily report');
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'daily report' }));
       }
     } catch (error) {
       console.error('Error submitting daily report:', error);
-      Alert.alert('Error', 'Failed to submit daily report');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'daily report' }));
     } finally {
       setSubmitting(false);
     }

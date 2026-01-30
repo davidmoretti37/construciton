@@ -1,122 +1,91 @@
 /**
  * AnimatedBackground
- * Premium gradient background with floating particles
+ * Premium gradient background with floating particle stars
  */
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
-  withSequence,
   withTiming,
   withDelay,
+  withSequence,
   Easing,
 } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const PARTICLE_COUNT = 30;
+const PARTICLE_COUNT = 12;
 
-// Generate random particle configs once
+// Generate random particles once
 const generateParticles = () => {
   return Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
     id: i,
     x: Math.random() * SCREEN_WIDTH,
     y: Math.random() * SCREEN_HEIGHT,
-    size: 2 + Math.random() * 4,
-    opacity: 0.1 + Math.random() * 0.3,
-    duration: 4000 + Math.random() * 4000,
-    delay: Math.random() * 2000,
-    amplitude: 30 + Math.random() * 50,
+    size: 2 + Math.random() * 2, // 2-4px
+    baseOpacity: 0.1 + Math.random() * 0.3, // 0.1-0.4
+    duration: 15000 + Math.random() * 10000, // 15-25 seconds
+    delay: Math.random() * 5000, // 0-5 second delay
   }));
 };
 
-const Particle = ({ config }) => {
+const Particle = ({ particle }) => {
   const translateY = useSharedValue(0);
-  const translateX = useSharedValue(0);
-  const particleOpacity = useSharedValue(config.opacity);
+  const opacity = useSharedValue(particle.baseOpacity);
 
-  React.useEffect(() => {
-    // Vertical floating animation
+  useEffect(() => {
+    // Drift upward animation
     translateY.value = withDelay(
-      config.delay,
+      particle.delay,
       withRepeat(
-        withSequence(
-          withTiming(-config.amplitude, {
-            duration: config.duration,
-            easing: Easing.inOut(Easing.ease),
-          }),
-          withTiming(config.amplitude, {
-            duration: config.duration,
-            easing: Easing.inOut(Easing.ease),
-          })
-        ),
-        -1,
-        true
+        withTiming(-SCREEN_HEIGHT - 50, {
+          duration: particle.duration,
+          easing: Easing.linear,
+        }),
+        -1, // Infinite repeat
+        false
       )
     );
 
-    // Horizontal drift animation
-    translateX.value = withDelay(
-      config.delay + 500,
+    // Twinkle effect
+    opacity.value = withDelay(
+      particle.delay,
       withRepeat(
         withSequence(
-          withTiming(config.amplitude * 0.5, {
-            duration: config.duration * 1.2,
-            easing: Easing.inOut(Easing.ease),
-          }),
-          withTiming(-config.amplitude * 0.5, {
-            duration: config.duration * 1.2,
-            easing: Easing.inOut(Easing.ease),
-          })
+          withTiming(particle.baseOpacity * 2, { duration: 2000 }),
+          withTiming(particle.baseOpacity * 0.5, { duration: 2000 }),
+          withTiming(particle.baseOpacity, { duration: 1000 })
         ),
         -1,
-        true
-      )
-    );
-
-    // Subtle opacity pulsing
-    particleOpacity.value = withDelay(
-      config.delay,
-      withRepeat(
-        withSequence(
-          withTiming(config.opacity * 1.5, { duration: config.duration * 0.8 }),
-          withTiming(config.opacity * 0.5, { duration: config.duration * 0.8 })
-        ),
-        -1,
-        true
+        false
       )
     );
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: translateY.value },
-      { translateX: translateX.value },
-    ],
-    opacity: particleOpacity.value,
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
   }));
 
   return (
     <Animated.View
       style={[
         styles.particle,
-        animatedStyle,
         {
-          left: config.x,
-          top: config.y,
-          width: config.size,
-          height: config.size,
-          borderRadius: config.size / 2,
+          left: particle.x,
+          top: particle.y,
+          width: particle.size,
+          height: particle.size,
+          borderRadius: particle.size / 2,
         },
+        animatedStyle,
       ]}
     />
   );
 };
-
-const MemoizedParticle = React.memo(Particle);
 
 export default function AnimatedBackground({ children }) {
   const particles = useMemo(() => generateParticles(), []);
@@ -129,11 +98,14 @@ export default function AnimatedBackground({ children }) {
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       />
-      <View style={styles.particlesContainer}>
-        {particles.map((config) => (
-          <MemoizedParticle key={config.id} config={config} />
+
+      {/* Floating particles */}
+      <View style={styles.particleContainer}>
+        {particles.map((particle) => (
+          <Particle key={particle.id} particle={particle} />
         ))}
       </View>
+
       {children}
     </View>
   );
@@ -146,12 +118,12 @@ const styles = StyleSheet.create({
   gradient: {
     ...StyleSheet.absoluteFillObject,
   },
-  particlesContainer: {
+  particleContainer: {
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
   },
   particle: {
     position: 'absolute',
-    backgroundColor: '#60A5FA',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
   },
 });

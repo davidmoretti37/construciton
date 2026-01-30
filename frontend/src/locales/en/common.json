@@ -259,7 +259,9 @@
     "selectAtLeastOneTask": "Please select at least one task to shift",
     "chooseMapApp": "Choose a maps application",
     "selectPhasesDescription": "Select phases for this project. You can reorder them and adjust duration for each phase.",
-    "addCustomPhase": "Enter a name for the custom phase"
+    "addCustomPhase": "Enter a name for the custom phase",
+    "organizingTasks": "Organizing tasks...",
+    "failedToShare": "Failed to share {{item}}"
   },
   "permissions": {
     "cameraRequired": "Camera permission is required to take photos",
@@ -326,6 +328,35 @@
   "currency": {
     "symbol": "$",
     "code": "USD"
+  },
+  "actions": {
+    "addService": "Add Service",
+    "addTask": "Add Task",
+    "cancel": "Cancel",
+    "convertToInvoice": "Convert to Invoice",
+    "done": "Done",
+    "saveChanges": "Save Changes",
+    "saveProject": "Save Project",
+    "saving": "Saving...",
+    "viewProject": "View Project"
+  },
+  "project": {
+    "projectTitle": "PROJECT",
+    "projectPhases": "Project Phases",
+    "days": "days",
+    "workingDays": "Working Days",
+    "scope": "Scope",
+    "complexity": "Complexity",
+    "tasks": "Tasks",
+    "services": "Services",
+    "projectTimeline": "Project Timeline",
+    "acceptedReadyToConvert": "Project saved! You can view it in your Projects tab.",
+    "shareProject": "Share Project",
+    "sharePrompt": "How would you like to share this project?",
+    "sharePdf": "Share PDF",
+    "emailPdf": "Email PDF",
+    "textPdf": "Text PDF",
+    "project": "project"
   },
   "units": {
     "hours": "hours",

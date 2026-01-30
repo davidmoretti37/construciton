@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+/**
+ * RoleSelectionScreen
+ * Choose your role with choreographed animations
+ */
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,17 +13,121 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  useIconBounce,
+  useTextSlideUp,
+  useCardPop,
+} from '../../hooks/useOnboardingAnimations';
+
+// Animated role card component
+const AnimatedRoleCard = ({
+  role,
+  isSelected,
+  isDisabled,
+  onPress,
+  index,
+  isScreenActive,
+  Colors,
+}) => {
+  const cardAnim = useCardPop(isScreenActive, index, 600);
+  const selectionScale = useSharedValue(1);
+  const checkScale = useSharedValue(0);
+
+  useEffect(() => {
+    if (isSelected) {
+      // Pulse on selection
+      selectionScale.value = withSequence(
+        withTiming(1.03, { duration: 150 }),
+        withSpring(1, { damping: 10, stiffness: 100 })
+      );
+      checkScale.value = withSpring(1, { damping: 8, stiffness: 150 });
+    } else {
+      selectionScale.value = withSpring(1, { damping: 15 });
+      checkScale.value = withSpring(0, { damping: 15 });
+    }
+  }, [isSelected]);
+
+  const selectionStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: selectionScale.value }],
+  }));
+
+  const checkStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: checkScale.value }],
+    opacity: checkScale.value,
+  }));
+
+  return (
+    <Animated.View style={[cardAnim, selectionStyle]}>
+      <TouchableOpacity
+        style={[
+          styles.roleCard,
+          {
+            backgroundColor: Colors.white,
+            borderColor: isSelected ? role.color : Colors.border,
+            borderWidth: isSelected ? 2 : 1,
+            opacity: isDisabled ? 0.5 : 1,
+          },
+        ]}
+        onPress={onPress}
+        disabled={isDisabled}
+        activeOpacity={0.7}
+      >
+        {/* Icon */}
+        <View
+          style={[
+            styles.roleIconContainer,
+            { backgroundColor: role.color + '20' },
+          ]}
+        >
+          <Ionicons name={role.icon} size={32} color={role.color} />
+        </View>
+
+        {/* Content */}
+        <View style={styles.roleContent}>
+          <Text style={[styles.roleName, { color: Colors.primaryText }]}>
+            {role.name}
+          </Text>
+          <Text style={[styles.roleDescription, { color: Colors.secondaryText }]}>
+            {role.description}
+          </Text>
+        </View>
+
+        {/* Selection Indicator */}
+        {isSelected && isDisabled ? (
+          <ActivityIndicator size="small" color={role.color} />
+        ) : isSelected ? (
+          <Animated.View style={[styles.checkmark, { backgroundColor: role.color }, checkStyle]}>
+            <Ionicons name="checkmark" size={20} color="#fff" />
+          </Animated.View>
+        ) : (
+          <View style={styles.chevron}>
+            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
 export default function RoleSelectionScreen({ onRoleSelected }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { setRole } = useAuth();
   const { t } = useTranslation('auth');
+
+  const [isScreenActive, setIsScreenActive] = useState(false);
 
   const ROLES = [
     {
@@ -46,6 +155,16 @@ export default function RoleSelectionScreen({ onRoleSelected }) {
 
   const [selectedRole, setSelectedRole] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Trigger animations on mount
+  useEffect(() => {
+    setIsScreenActive(true);
+  }, []);
+
+  // Animation hooks
+  const iconAnim = useIconBounce(isScreenActive, 0);
+  const titleAnim = useTextSlideUp(isScreenActive, 200);
+  const subtitleAnim = useTextSlideUp(isScreenActive, 400);
 
   const handleRoleSelect = async (roleId) => {
     setSelectedRole(roleId);
@@ -84,72 +203,34 @@ export default function RoleSelectionScreen({ onRoleSelected }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
+          <Animated.View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }, iconAnim]}>
             <Ionicons name="people" size={48} color={Colors.primaryBlue} />
-          </View>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>{t('roleSelection.title')}</Text>
-          <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
+          </Animated.View>
+          <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
+            {t('roleSelection.title')}
+          </Animated.Text>
+          <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
             {t('roleSelection.subtitle')}
-          </Text>
+          </Animated.Text>
         </View>
 
         {/* Role Cards */}
         <View style={styles.rolesContainer}>
-          {ROLES.map((role) => {
+          {ROLES.map((role, index) => {
             const isSelected = selectedRole === role.id;
             const isDisabled = loading && !isSelected;
 
             return (
-              <TouchableOpacity
+              <AnimatedRoleCard
                 key={role.id}
-                style={[
-                  styles.roleCard,
-                  {
-                    backgroundColor: Colors.white,
-                    borderColor: isSelected ? role.color : Colors.border,
-                    borderWidth: isSelected ? 2 : 1,
-                    opacity: isDisabled ? 0.5 : 1,
-                  },
-                ]}
+                role={role}
+                index={index}
+                isSelected={isSelected}
+                isDisabled={isDisabled || loading}
                 onPress={() => !loading && handleRoleSelect(role.id)}
-                disabled={loading}
-                activeOpacity={0.7}
-              >
-                {/* Icon */}
-                <View
-                  style={[
-                    styles.roleIconContainer,
-                    {
-                      backgroundColor: role.color + '20',
-                    },
-                  ]}
-                >
-                  <Ionicons name={role.icon} size={32} color={role.color} />
-                </View>
-
-                {/* Content */}
-                <View style={styles.roleContent}>
-                  <Text style={[styles.roleName, { color: Colors.primaryText }]}>
-                    {role.name}
-                  </Text>
-                  <Text style={[styles.roleDescription, { color: Colors.secondaryText }]}>
-                    {role.description}
-                  </Text>
-                </View>
-
-                {/* Selection Indicator */}
-                {isSelected && loading ? (
-                  <ActivityIndicator size="small" color={role.color} />
-                ) : isSelected ? (
-                  <View style={[styles.checkmark, { backgroundColor: role.color }]}>
-                    <Ionicons name="checkmark" size={20} color="#fff" />
-                  </View>
-                ) : (
-                  <View style={[styles.chevron]}>
-                    <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-                  </View>
-                )}
-              </TouchableOpacity>
+                isScreenActive={isScreenActive}
+                Colors={Colors}
+              />
             );
           })}
         </View>

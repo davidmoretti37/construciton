@@ -12,11 +12,13 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { saveProject } from '../utils/storage';
 
 export default function EditProjectModal({ visible, onClose, projectData, onSave }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -169,7 +171,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
         <View style={[styles.modalContainer, { backgroundColor: Colors.white }]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: Colors.primaryText }]}>Edit Project</Text>
+            <Text style={[styles.title, { color: Colors.primaryText }]}>{t('projects:editProject', 'Edit Project')}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={Colors.secondaryText} />
             </TouchableOpacity>
@@ -178,10 +180,10 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Project Name */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Project Name *</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.projectName', 'Project Name')} *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="Enter project name"
+                placeholder={t('projects:form.projectNamePlaceholder', 'Enter project name')}
                 placeholderTextColor={Colors.placeholderText}
                 value={name}
                 onChangeText={setName}
@@ -190,10 +192,10 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
 
             {/* Client Name */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Client Name *</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.clientName', 'Client Name')} *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="Enter client name"
+                placeholder={t('projects:form.clientNamePlaceholder', 'Enter client name')}
                 placeholderTextColor={Colors.placeholderText}
                 value={client}
                 onChangeText={setClient}
@@ -202,10 +204,10 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
 
             {/* Client Phone Number */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Client Phone Number</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.clientPhone', 'Client Phone Number')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="+1 555 123 4567"
+                placeholder={t('projects:form.clientPhonePlaceholder', '+1 555 123 4567')}
                 placeholderTextColor={Colors.placeholderText}
                 value={clientPhone}
                 onChangeText={setClientPhone}
@@ -213,7 +215,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
                 autoComplete="tel"
               />
               <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-                For SMS/WhatsApp updates (include country code)
+                {t('projects:form.phoneHelper', 'For SMS/WhatsApp updates (include country code)')}
               </Text>
             </View>
 
@@ -221,9 +223,9 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
             {clientPhone.trim().length > 0 && (
               <View style={[styles.inputGroup, styles.toggleRow]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { color: Colors.primaryText }]}>Enable AI Auto-Responses</Text>
+                  <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.enableAiResponses', 'Enable AI Auto-Responses')}</Text>
                   <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-                    AI will respond to routine client questions automatically
+                    {t('projects:form.aiResponsesHelper', 'AI will respond to routine client questions automatically')}
                   </Text>
                 </View>
                 <Switch
@@ -237,49 +239,49 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
 
             {/* Contract Amount */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Contract Amount ($)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.contractAmount', 'Contract Amount')} ($)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="0.00"
+                placeholder={t('projects:form.contractAmountPlaceholder', '0.00')}
                 placeholderTextColor={Colors.placeholderText}
                 value={contractAmount}
                 onChangeText={handleContractAmountChange}
                 keyboardType="decimal-pad"
               />
               <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-                Total value of the contract with the client
+                {t('projects:form.contractAmountHelper', 'Total value of the contract with the client')}
               </Text>
             </View>
 
             {/* Income Collected */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Income Collected ($)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.incomeCollected', 'Income Collected')} ($)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="0.00"
+                placeholder={t('projects:form.contractAmountPlaceholder', '0.00')}
                 placeholderTextColor={Colors.placeholderText}
                 value={incomeCollected}
                 onChangeText={handleIncomeCollectedChange}
                 keyboardType="decimal-pad"
               />
               <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-                Money received from client so far
+                {t('projects:form.incomeCollectedHelper', 'Money received from client so far')}
               </Text>
             </View>
 
             {/* Expenses */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Expenses ($)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.expenses', 'Expenses')} ($)</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="0.00"
+                placeholder={t('projects:form.contractAmountPlaceholder', '0.00')}
                 placeholderTextColor={Colors.placeholderText}
                 value={expenses}
                 onChangeText={handleExpensesChange}
                 keyboardType="decimal-pad"
               />
               <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-                Materials, workers, and other costs
+                {t('projects:form.expensesHelper', 'Materials, workers, and other costs')}
               </Text>
             </View>
 
@@ -287,7 +289,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
             {(incomeCollected || expenses) && (
               <View style={[styles.inputGroup, styles.profitDisplay]}>
                 <Text style={[styles.label, { color: Colors.primaryText, fontWeight: '700' }]}>
-                  Current Profit
+                  {t('projects:financial.currentProfit', 'Current Profit')}
                 </Text>
                 <Text style={[
                   styles.profitValue,
@@ -301,7 +303,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
                   {(parseFloat(incomeCollected) || 0) - (parseFloat(expenses) || 0) >= 0 ? ' ✅' : ' ⚠️'}
                 </Text>
                 <Text style={[styles.helperText, { color: Colors.secondaryText, marginTop: 4 }]}>
-                  Calculated: Income Collected - Expenses
+                  {t('projects:form.profitCalculation', 'Calculated: Income Collected - Expenses')}
                 </Text>
               </View>
             )}
@@ -310,42 +312,42 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
 
             {/* Start Date */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Start Date</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.startDate', 'Start Date')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="YYYY-MM-DD"
+                placeholder={t('placeholders.dateFormat', 'YYYY-MM-DD')}
                 placeholderTextColor={Colors.placeholderText}
                 value={startDate}
                 onChangeText={setStartDate}
               />
               <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-                Format: YYYY-MM-DD (e.g., 2025-11-03)
+                {t('projects:form.dateFormatHelper', 'Format: YYYY-MM-DD (e.g., 2025-11-03)')}
               </Text>
             </View>
 
             {/* End Date */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>End Date (Deadline)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.endDate', 'End Date')} ({t('projects:form.deadline', 'Deadline')})</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
-                placeholder="YYYY-MM-DD"
+                placeholder={t('placeholders.dateFormat', 'YYYY-MM-DD')}
                 placeholderTextColor={Colors.placeholderText}
                 value={endDate}
                 onChangeText={setEndDate}
               />
               <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-                Format: YYYY-MM-DD (e.g., 2025-11-15)
+                {t('projects:form.dateFormatHelper', 'Format: YYYY-MM-DD (e.g., 2025-11-15)')}
               </Text>
               {endDate && (
                 <Text style={[styles.helperText, { color: Colors.primaryBlue, marginTop: 4 }]}>
-                  Days remaining: {calculateDaysRemaining(startDate, endDate)}
+                  {t('projects:details.daysRemaining', 'Days remaining')}: {calculateDaysRemaining(startDate, endDate)}
                 </Text>
               )}
             </View>
 
             {/* Status */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Status</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:status.label', 'Status')}</Text>
               <View style={styles.statusButtons}>
                 {['active', 'completed', 'archived'].map((statusOption) => (
                   <TouchableOpacity
@@ -362,7 +364,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
                       { color: Colors.primaryText },
                       status === statusOption && { color: Colors.white }
                     ]}>
-                      {statusOption.replace('-', ' ')}
+                      {t(`projects:status.${statusOption}`, statusOption.replace('-', ' '))}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -376,13 +378,13 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
               style={[styles.button, styles.cancelButton, { backgroundColor: Colors.lightGray }]}
               onPress={handleClose}
             >
-              <Text style={[styles.buttonText, { color: Colors.primaryText }]}>Cancel</Text>
+              <Text style={[styles.buttonText, { color: Colors.primaryText }]}>{t('buttons.cancel', 'Cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={handleSave}
             >
-              <Text style={[styles.buttonText, { color: Colors.white }]}>Save Changes</Text>
+              <Text style={[styles.buttonText, { color: Colors.white }]}>{t('buttons.saveChanges', 'Save Changes')}</Text>
             </TouchableOpacity>
           </View>
         </View>

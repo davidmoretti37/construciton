@@ -17,6 +17,7 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getServiceDetails } from '../../services/serviceDiscoveryService';
@@ -25,6 +26,7 @@ import { supabase } from '../../lib/supabase';
 export default function ServiceSelectionScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const [selectedServices, setSelectedServices] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -68,7 +70,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
       setFilteredServices(data || []);
     } catch (error) {
       console.error('Error loading services:', error);
-      Alert.alert('Error', 'Failed to load services. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
     } finally {
       setLoadingServices(false);
     }
@@ -78,7 +80,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
     // Check if already selected
     const isAlreadySelected = selectedServices.some(s => s.id === service.id);
     if (isAlreadySelected) {
-      Alert.alert('Already Added', `${service.name} is already in your service list`);
+      Alert.alert(t('alerts.alreadyAdded'), `${service.name} ${t('messages.alreadyInList')}`);
       return;
     }
 
@@ -96,7 +98,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
       setSelectedServices([...selectedServices, fullService]);
     } catch (error) {
       console.error('Error loading service details:', error);
-      Alert.alert('Error', 'Failed to load service details. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad'));
     } finally {
       setLoadingDetails(false);
     }
@@ -142,7 +144,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error creating service:', error);
-      Alert.alert('Error', 'Failed to create service. Please try again.');
+      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
     } finally {
       setLoadingDetails(false);
       setIsCreatingService(false);
@@ -151,7 +153,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
 
   const handleContinue = () => {
     if (selectedServices.length === 0) {
-      Alert.alert('Select Services', 'Please select at least one service you offer');
+      Alert.alert(t('alerts.selectServices'), t('messages.atLeastOne'));
       return;
     }
 

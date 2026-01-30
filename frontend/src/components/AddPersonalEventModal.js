@@ -14,11 +14,13 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function AddPersonalEventModal({ visible, onClose, onSave, initialDate }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -62,7 +64,7 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
   const handleSave = () => {
     // Validation
     if (!title.trim()) {
-      Alert.alert('Required Field', 'Please enter an event title');
+      Alert.alert(t('alerts.requiredField', 'Required Field'), t('messages.pleaseEnter', { item: t('schedule:eventTitle', 'event title') }));
       return;
     }
 
@@ -144,30 +146,30 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
           {/* Header */}
           <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
             <TouchableOpacity onPress={handleClose} style={styles.headerButton}>
-              <Text style={[styles.headerButtonText, { color: Colors.secondaryText }]}>Cancel</Text>
+              <Text style={[styles.headerButtonText, { color: Colors.secondaryText }]}>{t('buttons.cancel', 'Cancel')}</Text>
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Add Personal Event</Text>
+            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('schedule:addPersonalEvent', 'Add Personal Event')}</Text>
             <TouchableOpacity onPress={handleSave} style={styles.headerButton}>
-              <Text style={[styles.headerButtonText, styles.saveButton, { color: Colors.primaryBlue }]}>Save</Text>
+              <Text style={[styles.headerButtonText, styles.saveButton, { color: Colors.primaryBlue }]}>{t('buttons.save', 'Save')}</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Title */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Title *</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('schedule:title', 'Title')} *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 value={title}
                 onChangeText={setTitle}
-                placeholder="e.g., Client meeting, Site visit"
+                placeholder={t('schedule:titlePlaceholder', 'e.g., Client meeting, Site visit')}
                 placeholderTextColor={Colors.secondaryText}
               />
             </View>
 
             {/* Event Type */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Event Type</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('schedule:eventType', 'Event Type')}</Text>
               <View style={styles.eventTypeGrid}>
                 {eventTypes.map((type) => (
                   <TouchableOpacity
@@ -189,7 +191,7 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
                       { color: Colors.secondaryText },
                       eventType === type.value && { color: Colors.primaryBlue, fontWeight: '600' }
                     ]}>
-                      {type.label}
+                      {t(`schedule:eventTypes.${type.value}`, type.label)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -198,7 +200,7 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
 
             {/* Date */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Date</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('labels.date', 'Date')}</Text>
               <TouchableOpacity
                 style={[styles.dateTimeButton, { backgroundColor: Colors.white, borderColor: Colors.border }]}
                 onPress={() => setShowDatePicker(true)}
@@ -214,9 +216,9 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
             <View style={styles.section}>
               <View style={styles.switchRow}>
                 <View>
-                  <Text style={[styles.label, { color: Colors.primaryText }]}>All Day Event</Text>
+                  <Text style={[styles.label, { color: Colors.primaryText }]}>{t('schedule:allDayEvent', 'All Day Event')}</Text>
                   <Text style={[styles.hint, { color: Colors.secondaryText }]}>
-                    Event runs from 12:00 AM to 11:59 PM
+                    {t('schedule:allDayHint', 'Event runs from 12:00 AM to 11:59 PM')}
                   </Text>
                 </View>
                 <Switch
@@ -231,7 +233,7 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
             {/* Time (if not all day) */}
             {!allDay && (
               <View style={styles.section}>
-                <Text style={[styles.label, { color: Colors.primaryText }]}>Time</Text>
+                <Text style={[styles.label, { color: Colors.primaryText }]}>{t('labels.time', 'Time')}</Text>
                 <View style={styles.timeRow}>
                   <TouchableOpacity
                     style={[styles.timeButton, { backgroundColor: Colors.white, borderColor: Colors.border }]}
@@ -239,7 +241,7 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
                   >
                     <Ionicons name="time-outline" size={20} color={Colors.primaryBlue} />
                     <View style={styles.timeTextContainer}>
-                      <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>Start</Text>
+                      <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{t('schedule:start', 'Start')}</Text>
                       <Text style={[styles.timeText, { color: Colors.primaryText }]}>
                         {formatTime(startTime)}
                       </Text>
@@ -254,7 +256,7 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
                   >
                     <Ionicons name="time-outline" size={20} color={Colors.primaryBlue} />
                     <View style={styles.timeTextContainer}>
-                      <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>End</Text>
+                      <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{t('schedule:end', 'End')}</Text>
                       <Text style={[styles.timeText, { color: Colors.primaryText }]}>
                         {formatTime(endTime)}
                       </Text>
@@ -266,24 +268,24 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
 
             {/* Location */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Location</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('schedule:location', 'Location')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 value={location}
                 onChangeText={setLocation}
-                placeholder="e.g., Office, Client site"
+                placeholder={t('schedule:locationPlaceholder', 'e.g., Office, Client site')}
                 placeholderTextColor={Colors.secondaryText}
               />
             </View>
 
             {/* Description */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Description</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('labels.description', 'Description')}</Text>
               <TextInput
                 style={[styles.textArea, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Add notes or details about this event"
+                placeholder={t('schedule:descriptionPlaceholder', 'Add notes or details about this event')}
                 placeholderTextColor={Colors.secondaryText}
                 multiline
                 numberOfLines={4}
@@ -293,7 +295,7 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
 
             {/* Color */}
             <View style={styles.section}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Color</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('schedule:color', 'Color')}</Text>
               <View style={styles.colorGrid}>
                 {colors.map((color) => (
                   <TouchableOpacity
@@ -331,12 +333,12 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
           {showDatePicker && Platform.OS === 'ios' && (
             <View style={[styles.pickerContainer, { backgroundColor: Colors.white }]}>
               <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-                <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>Select Date</Text>
+                <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>{t('schedule:selectDate', 'Select Date')}</Text>
                 <TouchableOpacity
                   onPress={() => setShowDatePicker(false)}
                   style={[styles.pickerDoneButton, { backgroundColor: Colors.primaryBlue }]}
                 >
-                  <Text style={styles.pickerDoneButtonText}>Done</Text>
+                  <Text style={styles.pickerDoneButtonText}>{t('buttons.done', 'Done')}</Text>
                 </TouchableOpacity>
               </View>
               <View style={[styles.pickerWrapper, { backgroundColor: Colors.inputBackground }]}>
@@ -357,12 +359,12 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
           {showStartTimePicker && Platform.OS === 'ios' && (
             <View style={[styles.pickerContainer, { backgroundColor: Colors.white }]}>
               <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-                <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>Select Start Time</Text>
+                <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>{t('schedule:selectStartTime', 'Select Start Time')}</Text>
                 <TouchableOpacity
                   onPress={() => setShowStartTimePicker(false)}
                   style={[styles.pickerDoneButton, { backgroundColor: Colors.primaryBlue }]}
                 >
-                  <Text style={styles.pickerDoneButtonText}>Done</Text>
+                  <Text style={styles.pickerDoneButtonText}>{t('buttons.done', 'Done')}</Text>
                 </TouchableOpacity>
               </View>
               <View style={[styles.pickerWrapper, { backgroundColor: Colors.inputBackground }]}>
@@ -383,12 +385,12 @@ export default function AddPersonalEventModal({ visible, onClose, onSave, initia
           {showEndTimePicker && Platform.OS === 'ios' && (
             <View style={[styles.pickerContainer, { backgroundColor: Colors.white }]}>
               <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
-                <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>Select End Time</Text>
+                <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>{t('schedule:selectEndTime', 'Select End Time')}</Text>
                 <TouchableOpacity
                   onPress={() => setShowEndTimePicker(false)}
                   style={[styles.pickerDoneButton, { backgroundColor: Colors.primaryBlue }]}
                 >
-                  <Text style={styles.pickerDoneButtonText}>Done</Text>
+                  <Text style={styles.pickerDoneButtonText}>{t('buttons.done', 'Done')}</Text>
                 </TouchableOpacity>
               </View>
               <View style={[styles.pickerWrapper, { backgroundColor: Colors.inputBackground }]}>

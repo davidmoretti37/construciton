@@ -1,44 +1,24 @@
 /**
  * FeatureBullet
- * Animated icon + text bullet point
+ * Icon + text bullet point (no animation)
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withDelay,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import {
+  ONBOARDING_COLORS,
+  ONBOARDING_TYPOGRAPHY,
+} from '../../screens/onboarding/slides/constants';
 
 export default function FeatureBullet({
   icon,
   title,
   description,
-  delay = 0,
-  isActive = true,
-  iconColor = '#60A5FA',
+  iconColor = ONBOARDING_COLORS.primaryLight,
 }) {
-  const translateX = useSharedValue(-30);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    if (isActive) {
-      translateX.value = withDelay(delay, withSpring(0, { damping: 15 }));
-      opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-    }
-  }, [isActive, delay]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-    opacity: opacity.value,
-  }));
-
   return (
-    <Animated.View style={[styles.container, animatedStyle]}>
+    <View style={styles.container}>
       <View style={[styles.iconContainer, { backgroundColor: `${iconColor}20` }]}>
         <Ionicons name={icon} size={20} color={iconColor} />
       </View>
@@ -48,7 +28,7 @@ export default function FeatureBullet({
           <Text style={styles.description}>{description}</Text>
         )}
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -70,14 +50,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#F8FAFC',
+    ...ONBOARDING_TYPOGRAPHY.sectionTitle,
     marginBottom: 2,
   },
   description: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: 14,
+    color: ONBOARDING_COLORS.textSecondary,
     lineHeight: 18,
   },
 });

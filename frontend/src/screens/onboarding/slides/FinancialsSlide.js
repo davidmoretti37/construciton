@@ -1,20 +1,28 @@
 /**
  * FinancialsSlide
- * Screen 4: Financial Tracking with animated bar chart
+ * Screen 4: Financial Tracking with bar chart
+ * Bars bounce dramatically, stats count up, quote types out
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withDelay,
+  withSpring,
   withTiming,
-  withRepeat,
-  withSequence,
+  Easing,
 } from 'react-native-reanimated';
-import { AnimatedBarChart, CountUpNumber, FeatureBullet } from '../../../components/onboarding';
+import { Ionicons } from '@expo/vector-icons';
+import { AnimatedBarChart, CountUpNumber, FeatureBullet, TypewriterText } from '../../../components/onboarding';
+import {
+  ONBOARDING_COLORS,
+  ONBOARDING_TYPOGRAPHY,
+  ONBOARDING_SPACING,
+  ONBOARDING_RADIUS,
+} from './constants';
+import { useBounceAnimation, useCardAnimation, useEntranceAnimation } from './useEntranceAnimation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -33,50 +41,101 @@ const FINANCIALS = {
   profit: 16900,
 };
 
-export default function FinancialsSlide({ isActive }) {
-  const [showNumbers, setShowNumbers] = useState(false);
-  const containerOpacity = useSharedValue(0);
-  const profitGlow = useSharedValue(0);
+// Animated summary row that fades/slides in
+const AnimatedSummaryRow = ({ label, value, style, delay, isActive, showCheckmark = false }) => {
+  const opacity = useSharedValue(0);
+  const translateX = useSharedValue(-30);
 
   useEffect(() => {
     if (isActive) {
-      containerOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
-
-      // Show numbers after chart animates
-      const timer = setTimeout(() => setShowNumbers(true), 1200);
-
-      // Profit pulse animation
-      profitGlow.value = withDelay(
-        2500,
-        withRepeat(
-          withSequence(
-            withTiming(1, { duration: 600 }),
-            withTiming(0.4, { duration: 600 })
-          ),
-          3
-        )
-      );
-
-      return () => clearTimeout(timer);
+      opacity.value = withDelay(delay, withSpring(1, { damping: 15 }));
+      translateX.value = withDelay(delay, withSpring(0, { damping: 12, stiffness: 100 }));
+    } else {
+      opacity.value = 0;
+      translateX.value = -30;
     }
+  }, [isActive, delay]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.summaryRow, animatedStyle]}>
+      <Text style={style.label}>{label}</Text>
+      <View style={styles.valueRow}>
+        <CountUpNumber
+          value={value}
+          prefix="$"
+          style={style.value}
+          duration={1000}
+          delay={200}
+          isActive={isActive}
+        />
+        {showCheckmark && (
+          <Ionicons name="checkmark-circle" size={20} color="#34D399" />
+        )}
+      </View>
+    </Animated.View>
+  );
+};
+
+export default function FinancialsSlide({ isActive = true }) {
+  const [cardReady, setCardReady] = useState(false);
+  const [showRevenue, setShowRevenue] = useState(false);
+  const [showExpenses, setShowExpenses] = useState(false);
+  const [showProfit, setShowProfit] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
+
+  // Staggered entrance animations
+  const titleAnim = useBounceAnimation(isActive, 0);
+  const cardAnim = useCardAnimation(isActive, 200, true);
+
+  // Feature animations (triggered after card content)
+  const feature1Anim = useEntranceAnimation(showFeatures, 0);
+  const feature2Anim = useEntranceAnimation(showFeatures, 100);
+  const feature3Anim = useEntranceAnimation(showFeatures, 200);
+
+  // Timeline for card content
+  useEffect(() => {
+    if (!isActive) {
+      setCardReady(false);
+      setShowRevenue(false);
+      setShowExpenses(false);
+      setShowProfit(false);
+      setShowFeatures(false);
+      return;
+    }
+
+    const timers = [];
+
+    // Card ready for chart animation
+    timers.push(setTimeout(() => setCardReady(true), 400));
+
+    // Stagger summary rows
+    timers.push(setTimeout(() => setShowRevenue(true), 1400));
+    timers.push(setTimeout(() => setShowExpenses(true), 1700));
+    timers.push(setTimeout(() => setShowProfit(true), 2000));
+
+    // Show features after everything
+    timers.push(setTimeout(() => setShowFeatures(true), 2800));
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+    };
   }, [isActive]);
-
-  const containerStyle = useAnimatedStyle(() => ({
-    opacity: containerOpacity.value,
-  }));
-
-  const profitStyle = useAnimatedStyle(() => ({
-    opacity: profitGlow.value || 1,
-  }));
 
   return (
     <View style={styles.container}>
       {/* Title */}
-      <Text style={styles.title}>Know Your Numbers.</Text>
-      <Text style={styles.titleAccent}>Grow Your Business.</Text>
+      <Animated.View style={titleAnim}>
+        <Text style={styles.title}>Know Your Numbers.</Text>
+        <Text style={styles.titleAccent}>Grow Your Business.</Text>
+      </Animated.View>
 
       {/* Financial card */}
-      <Animated.View style={[styles.financialCard, containerStyle]}>
+      <Animated.View style={[styles.financialCard, cardAnim]}>
         {/* Header */}
         <View style={styles.cardHeader}>
           <View style={styles.headerLeft}>
@@ -86,101 +145,82 @@ export default function FinancialsSlide({ isActive }) {
           <Text style={styles.period}>November 2024</Text>
         </View>
 
-        {/* Chart */}
-        <AnimatedBarChart
-          data={CHART_DATA}
-          delay={400}
-          isActive={isActive}
-        />
+        {/* Chart with dramatic bounce */}
+        <AnimatedBarChart data={CHART_DATA} isActive={cardReady} dramatic={true} />
 
-        {/* Summary */}
+        {/* Summary with staggered reveals */}
         <View style={styles.summary}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Revenue</Text>
-            {showNumbers ? (
-              <CountUpNumber
-                value={FINANCIALS.revenue}
-                prefix="$"
-                duration={1000}
+          {showRevenue && (
+            <AnimatedSummaryRow
+              label="Revenue"
+              value={FINANCIALS.revenue}
+              style={{ label: styles.summaryLabel, value: styles.revenueValue }}
+              delay={0}
+              isActive={showRevenue}
+            />
+          )}
+
+          {showExpenses && (
+            <AnimatedSummaryRow
+              label="Expenses"
+              value={FINANCIALS.expenses}
+              style={{ label: styles.summaryLabel, value: styles.expenseValue }}
+              delay={0}
+              isActive={showExpenses}
+            />
+          )}
+
+          {showProfit && (
+            <>
+              <View style={styles.divider} />
+              <AnimatedSummaryRow
+                label="PROFIT"
+                value={FINANCIALS.profit}
+                style={{ label: styles.profitLabel, value: styles.profitValue }}
                 delay={0}
-                style={styles.revenueValue}
+                isActive={showProfit}
+                showCheckmark={true}
               />
-            ) : (
-              <Text style={styles.revenueValue}>$0</Text>
-            )}
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Expenses</Text>
-            {showNumbers ? (
-              <CountUpNumber
-                value={FINANCIALS.expenses}
-                prefix="$"
-                duration={1000}
-                delay={300}
-                style={styles.expenseValue}
-              />
-            ) : (
-              <Text style={styles.expenseValue}>$0</Text>
-            )}
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.profitLabel}>PROFIT</Text>
-            <View style={styles.profitRow}>
-              {showNumbers ? (
-                <CountUpNumber
-                  value={FINANCIALS.profit}
-                  prefix="$"
-                  duration={1000}
-                  delay={600}
-                  style={styles.profitValue}
-                />
-              ) : (
-                <Text style={styles.profitValue}>$0</Text>
-              )}
-              <Animated.View style={profitStyle}>
-                <Ionicons name="checkmark-circle" size={20} color="#34D399" />
-              </Animated.View>
-            </View>
-          </View>
+            </>
+          )}
         </View>
       </Animated.View>
 
       {/* Feature bullets */}
       <View style={styles.features}>
-        <FeatureBullet
-          icon="trending-up"
-          title="Real-time profit per project"
-          description="See what's making you money"
-          delay={1800}
-          isActive={isActive}
-          iconColor="#34D399"
-        />
-        <FeatureBullet
-          icon="document-text"
-          title="Create invoices in 30 seconds"
-          description="Professional, branded, done"
-          delay={2000}
-          isActive={isActive}
-          iconColor="#60A5FA"
-        />
-        <FeatureBullet
-          icon="cash"
-          title="Track who owes you"
-          description="Send reminders automatically"
-          delay={2200}
-          isActive={isActive}
-          iconColor="#F59E0B"
-        />
+        <Animated.View style={feature1Anim}>
+          <FeatureBullet
+            icon="trending-up"
+            title="Real-time profit per project"
+            description="See what's making you money"
+            iconColor="#34D399"
+          />
+        </Animated.View>
+        <Animated.View style={feature2Anim}>
+          <FeatureBullet
+            icon="document-text"
+            title="Create invoices in 30 seconds"
+            description="Professional, branded, done"
+            iconColor="#60A5FA"
+          />
+        </Animated.View>
+        <Animated.View style={feature3Anim}>
+          <FeatureBullet
+            icon="cash"
+            title="Track who owes you"
+            description="Send reminders automatically"
+            iconColor="#F59E0B"
+          />
+        </Animated.View>
       </View>
 
-      {/* Quote */}
-      <Text style={styles.quote}>
-        "Finally understand where every dollar goes."
-      </Text>
+      {/* Quote - types out */}
+      <TypewriterText
+        text='"Finally understand where every dollar goes."'
+        style={styles.quote}
+        speed={30}
+        isActive={showFeatures}
+      />
     </View>
   );
 }
@@ -189,28 +229,28 @@ const styles = StyleSheet.create({
   container: {
     width: SCREEN_WIDTH,
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingHorizontal: ONBOARDING_SPACING.screenPaddingHorizontal,
+    paddingTop: ONBOARDING_SPACING.screenPaddingTop,
   },
   title: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: ONBOARDING_COLORS.textSecondary,
     textAlign: 'center',
   },
   titleAccent: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: ONBOARDING_COLORS.textPrimary,
     textAlign: 'center',
     marginBottom: 20,
   },
   financialCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
+    backgroundColor: ONBOARDING_COLORS.glassBg,
+    borderRadius: ONBOARDING_RADIUS.card,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 20,
+    borderColor: ONBOARDING_COLORS.border,
+    padding: ONBOARDING_SPACING.cardPadding,
     marginBottom: 20,
   },
   cardHeader: {
@@ -227,12 +267,12 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#60A5FA',
+    color: ONBOARDING_COLORS.primaryLight,
     letterSpacing: 0.5,
   },
   period: {
     fontSize: 12,
-    color: '#64748B',
+    color: ONBOARDING_COLORS.textTertiary,
   },
   summary: {
     marginTop: 8,
@@ -243,46 +283,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
   },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   summaryLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: ONBOARDING_COLORS.textSecondary,
   },
   revenueValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: ONBOARDING_COLORS.textPrimary,
   },
   expenseValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#EF4444',
+    color: ONBOARDING_COLORS.error,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: ONBOARDING_COLORS.border,
     marginVertical: 8,
   },
   profitLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F8FAFC',
-  },
-  profitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    color: ONBOARDING_COLORS.textPrimary,
   },
   profitValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#34D399',
+    color: ONBOARDING_COLORS.success,
   },
   features: {
     marginBottom: 16,
   },
   quote: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
+    ...ONBOARDING_TYPOGRAPHY.caption,
   },
 });

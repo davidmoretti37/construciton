@@ -22,6 +22,7 @@ const RESPONSE_STYLE_LIMIT = 300;
 
 export default function AIPersonalityScreen({ navigation }) {
   const { t } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -70,11 +71,11 @@ export default function AIPersonalityScreen({ navigation }) {
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       } else {
-        Alert.alert('Error', 'Failed to save settings. Please try again.');
+        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'settings' }));
       }
     } catch (error) {
       console.error('Error saving AI settings:', error);
-      Alert.alert('Error', 'Failed to save settings. Please try again.');
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'settings' }));
     } finally {
       setSaving(false);
     }

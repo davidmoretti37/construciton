@@ -13,6 +13,7 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getAllTrades, getTradeById } from '../../constants/trades';
@@ -24,6 +25,7 @@ import {
 import SubcontractorQuoteCard from '../../components/SubcontractorQuoteCard';
 
 export default function ManageSubcontractorsScreen({ navigation }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -52,7 +54,7 @@ export default function ManageSubcontractorsScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading quotes:', error);
-      Alert.alert('Error', 'Failed to load subcontractor quotes');
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'subcontractor quotes' }));
     } finally {
       setLoading(false);
     }
@@ -70,25 +72,25 @@ export default function ManageSubcontractorsScreen({ navigation }) {
       // Reload quotes to reflect changes
       await loadQuotes();
     } else {
-      Alert.alert('Error', 'Failed to update preferred status');
+      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'preferred status' }));
     }
   };
 
   const handleDeleteQuote = (quoteId, contractorName) => {
     Alert.alert(
-      'Delete Quote',
-      `Are you sure you want to delete the quote from ${contractorName}?`,
+      t('alerts.deleteQuote'),
+      t('messages.confirmDeleteQuote', { name: contractorName }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('alerts.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('alerts.delete'),
           style: 'destructive',
           onPress: async () => {
             const success = await deleteSubcontractorQuote(quoteId);
             if (success) {
               await loadQuotes();
             } else {
-              Alert.alert('Error', 'Failed to delete quote');
+              Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'quote' }));
             }
           },
         },

@@ -38,7 +38,16 @@ export const generateEstimateHTML = (estimateData) => {
     notes = '',
     // Accent color - default olive/green like Atrium
     accentColor = '#8B9A46',
+    // Font style
+    fontStyle = 'modern',
   } = estimateData;
+
+  // Get font family based on style
+  const fontFamily = fontStyle === 'classic'
+    ? 'Georgia, Times, serif'
+    : fontStyle === 'clean'
+    ? "'Helvetica Neue', Arial, sans-serif"
+    : "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
 
   // Extract client info - handle both string and object formats
   const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || '';
@@ -121,7 +130,7 @@ export const generateEstimateHTML = (estimateData) => {
         }
 
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+          font-family: ${fontFamily};
           color: #333;
           line-height: 1.5;
           font-size: 14px;

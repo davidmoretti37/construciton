@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,6 +27,7 @@ export default function PhasePickerModal({
   initialPhases = [],
   userPhasesTemplate = null, // User's saved phases from profile
 }) {
+  const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -164,7 +166,7 @@ export default function PhasePickerModal({
 
   const handleAddCustomPhase = () => {
     if (!customPhaseName.trim()) {
-      Alert.alert('Phase Name Required', 'Please enter a name for the custom phase');
+      Alert.alert(t('alerts.phaseNameRequired'), t('messages.enterPhaseName'));
       return;
     }
 
@@ -266,7 +268,7 @@ export default function PhasePickerModal({
 
   const handleSave = () => {
     if (selectedPhases.length === 0) {
-      Alert.alert('No Phases Selected', 'Please select at least one phase');
+      Alert.alert(t('alerts.noPhasesSelected'), t('messages.selectAtLeastOnePhase'));
       return;
     }
 
@@ -292,10 +294,10 @@ export default function PhasePickerModal({
             <Ionicons name="close" size={28} color={Colors.primaryText} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: Colors.primaryText }]}>
-            Project Phases
+            {t('labels.projectPhases')}
           </Text>
           <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-            <Text style={[styles.saveText, { color: Colors.primaryBlue }]}>Save</Text>
+            <Text style={[styles.saveText, { color: Colors.primaryBlue }]}>{t('buttons.save')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -304,7 +306,7 @@ export default function PhasePickerModal({
           <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
             <Ionicons name="information-circle" size={20} color={Colors.primaryBlue} />
             <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-              Select phases for this project. You can reorder them and adjust duration for each phase.
+              {t('messages.selectPhasesInfo')}
             </Text>
           </View>
 
@@ -312,7 +314,7 @@ export default function PhasePickerModal({
           {userPhases.length > 0 && (
             <>
               <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                Your Phases
+                {t('labels.yourPhases')}
               </Text>
               <View style={styles.phaseGrid}>
                 {userPhases.map((phase, index) => {
@@ -352,12 +354,12 @@ export default function PhasePickerModal({
 
           {/* Service Picker */}
           <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginTop: userPhases.length > 0 ? Spacing.lg : 0 }]}>
-            Select a Service
+            {t('labels.selectAService')}
           </Text>
           {loadingServices ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={Colors.primaryBlue} />
-              <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading services...</Text>
+              <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('labels.loadingServices')}</Text>
             </View>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceScroll}>
@@ -406,7 +408,7 @@ export default function PhasePickerModal({
               {loadingPhases ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color={Colors.primaryBlue} />
-                  <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading phases...</Text>
+                  <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('labels.loadingPhases')}</Text>
                 </View>
               ) : servicePhases.length > 0 ? (
                 <View style={styles.phaseGrid}>
@@ -444,7 +446,7 @@ export default function PhasePickerModal({
                 </View>
               ) : (
                 <Text style={[styles.noDataText, { color: Colors.secondaryText }]}>
-                  No phases configured for this service yet.
+                  {t('emptyStates.noPhasesConfigured')}
                 </Text>
               )}
             </>
@@ -454,7 +456,7 @@ export default function PhasePickerModal({
           {fallbackPhases.length > 0 && !selectedService && (
             <>
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginTop: Spacing.lg }]}>
-                Suggested Phases
+                {t('labels.suggestedPhases')}
               </Text>
               <View style={styles.phaseGrid}>
                 {fallbackPhases.map((phase, index) => {
@@ -499,7 +501,7 @@ export default function PhasePickerModal({
           >
             <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
             <Text style={[styles.addCustomText, { color: Colors.primaryBlue }]}>
-              Add Custom Phase
+              {t('buttons.addCustomPhase')}
             </Text>
           </TouchableOpacity>
 
@@ -514,7 +516,7 @@ export default function PhasePickerModal({
                     color: Colors.primaryText,
                   },
                 ]}
-                placeholder="e.g., Site Preparation"
+                placeholder={t('placeholders.phaseName')}
                 placeholderTextColor={Colors.secondaryText}
                 value={customPhaseName}
                 onChangeText={setCustomPhaseName}
@@ -533,7 +535,7 @@ export default function PhasePickerModal({
           {selectedPhases.length > 0 && (
             <>
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginTop: Spacing.xl }]}>
-                Selected Phases ({selectedPhases.length})
+                {t('labels.selectedPhasesCount', { count: selectedPhases.length })}
               </Text>
               <View style={styles.selectedPhasesList}>
                 {selectedPhases.map((phase, index) => (
@@ -587,7 +589,7 @@ export default function PhasePickerModal({
                       {/* Duration Input */}
                       <View style={styles.durationInput}>
                         <Text style={[styles.durationLabel, { color: Colors.secondaryText }]}>
-                          Duration:
+                          {t('labels.duration')}:
                         </Text>
                         <TextInput
                           style={[
@@ -604,7 +606,7 @@ export default function PhasePickerModal({
                           maxLength={3}
                         />
                         <Text style={[styles.durationUnit, { color: Colors.secondaryText }]}>
-                          days
+                          {t('labels.days')}
                         </Text>
                       </View>
 
@@ -629,8 +631,8 @@ export default function PhasePickerModal({
                         />
                         <Text style={[styles.tasksToggleText, { color: Colors.primaryBlue }]}>
                           {phase.tasks && phase.tasks.length > 0
-                            ? `${phase.tasks.length} task${phase.tasks.length !== 1 ? 's' : ''}`
-                            : 'Add tasks'}
+                            ? t('labels.tasksCount', { count: phase.tasks.length })
+                            : t('buttons.addTasks')}
                         </Text>
                         <Ionicons
                           name={expandedPhaseIndex === index ? 'chevron-up' : 'chevron-down'}
@@ -678,7 +680,7 @@ export default function PhasePickerModal({
                                   color: Colors.primaryText,
                                 },
                               ]}
-                              placeholder="Add tasks (comma or line separated)"
+                              placeholder={t('placeholders.addTasksSeparated')}
                               placeholderTextColor={Colors.secondaryText}
                               value={taskInputs[index] || ''}
                               onChangeText={(text) => setTaskInputs({ ...taskInputs, [index]: text })}
@@ -719,7 +721,7 @@ export default function PhasePickerModal({
             onPress={handleSave}
           >
             <Text style={styles.saveBottomText}>
-              Save {selectedPhases.length} Phase{selectedPhases.length !== 1 ? 's' : ''}
+              {t('buttons.savePhasesCount', { count: selectedPhases.length })}
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,110 +1,92 @@
 /**
  * WelcomeSlide
- * Screen 1: Cinematic welcome with particles, gradient text, typewriter
+ * Screen 1: Welcome with gradient text, entrance animations, and breathing logo
  */
 
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import MaskedView from '@react-native-masked-view/masked-view';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withDelay,
-  withSpring,
-  withTiming,
   withRepeat,
   withSequence,
+  withTiming,
+  withDelay,
+  Easing,
 } from 'react-native-reanimated';
-import { TypewriterText, ShimmerButton } from '../../../components/onboarding';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { ShimmerButton } from '../../../components/onboarding';
+import {
+  ONBOARDING_COLORS,
+  ONBOARDING_SPACING,
+} from './constants';
+import { useBounceAnimation, useScaleAnimation, useEntranceAnimation } from './useEntranceAnimation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export default function WelcomeSlide({ isActive, onGetStarted }) {
-  // Logo animations
-  const logoScale = useSharedValue(0.5);
-  const logoOpacity = useSharedValue(0);
-  const logoGlow = useSharedValue(0.3);
+export default function WelcomeSlide({ isActive = true, onGetStarted }) {
+  // Staggered entrance animations - bouncy and playful
+  const logoAnim = useScaleAnimation(isActive, 0);           // Pop in with overshoot
+  const headlineAnim = useBounceAnimation(isActive, 200);    // Bouncy text
+  const subtitleAnim = useEntranceAnimation(isActive, 400);  // Smooth slide up
+  const badgeAnim = useScaleAnimation(isActive, 550);        // Pop in badge
+  const buttonAnim = useBounceAnimation(isActive, 700);      // Bouncy button
 
-  // Title animations
-  const titleOpacity = useSharedValue(0);
-  const titleTranslateY = useSharedValue(20);
-
-  // Social proof animation
-  const socialOpacity = useSharedValue(0);
-
-  // Button animation
-  const buttonOpacity = useSharedValue(0);
-  const buttonTranslateY = useSharedValue(20);
+  // Logo breathing animation (continuous after entrance)
+  const breathingScale = useSharedValue(1);
+  const breathingShadow = useSharedValue(0.5);
 
   useEffect(() => {
     if (isActive) {
-      // Logo entrance (0-400ms)
-      logoScale.value = withSpring(1, { damping: 12, stiffness: 100 });
-      logoOpacity.value = withTiming(1, { duration: 400 });
-
-      // Logo glow pulsing (continuous)
-      logoGlow.value = withDelay(
-        400,
+      // Start breathing animation after entrance completes (1 second delay)
+      breathingScale.value = withDelay(
+        1000,
         withRepeat(
           withSequence(
-            withTiming(0.7, { duration: 1500 }),
-            withTiming(0.3, { duration: 1500 })
+            withTiming(1.03, { duration: 1250, easing: Easing.inOut(Easing.ease) }),
+            withTiming(1.0, { duration: 1250, easing: Easing.inOut(Easing.ease) })
           ),
-          -1
+          -1, // Infinite
+          false
         )
       );
-
-      // Title entrance (400-800ms)
-      titleOpacity.value = withDelay(400, withTiming(1, { duration: 400 }));
-      titleTranslateY.value = withDelay(400, withSpring(0, { damping: 15 }));
-
-      // Social proof (1500ms)
-      socialOpacity.value = withDelay(1500, withTiming(1, { duration: 500 }));
-
-      // Button (2000ms)
-      buttonOpacity.value = withDelay(2000, withTiming(1, { duration: 400 }));
-      buttonTranslateY.value = withDelay(2000, withSpring(0, { damping: 15 }));
+      breathingShadow.value = withDelay(
+        1000,
+        withRepeat(
+          withSequence(
+            withTiming(0.7, { duration: 1250, easing: Easing.inOut(Easing.ease) }),
+            withTiming(0.4, { duration: 1250, easing: Easing.inOut(Easing.ease) })
+          ),
+          -1,
+          false
+        )
+      );
+    } else {
+      breathingScale.value = 1;
+      breathingShadow.value = 0.5;
     }
   }, [isActive]);
 
-  const logoStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: logoScale.value }],
-    opacity: logoOpacity.value,
-  }));
-
-  const glowStyle = useAnimatedStyle(() => ({
-    shadowOpacity: logoGlow.value,
-  }));
-
-  const titleStyle = useAnimatedStyle(() => ({
-    opacity: titleOpacity.value,
-    transform: [{ translateY: titleTranslateY.value }],
-  }));
-
-  const socialStyle = useAnimatedStyle(() => ({
-    opacity: socialOpacity.value,
-  }));
-
-  const buttonStyle = useAnimatedStyle(() => ({
-    opacity: buttonOpacity.value,
-    transform: [{ translateY: buttonTranslateY.value }],
+  const breathingStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: breathingScale.value }],
+    shadowOpacity: breathingShadow.value,
   }));
 
   return (
     <View style={styles.container}>
-      {/* Logo with glow */}
-      <Animated.View style={[styles.logoContainer, logoStyle]}>
-        <Animated.View style={[styles.logoGlow, glowStyle]}>
+      {/* Logo with glow and breathing animation */}
+      <Animated.View style={[styles.logoContainer, logoAnim]}>
+        <Animated.View style={[styles.logoGlow, breathingStyle]}>
           <View style={styles.logoInner}>
-            <Ionicons name="construct" size={48} color="#60A5FA" />
+            <Ionicons name="construct" size={48} color={ONBOARDING_COLORS.primaryLight} />
           </View>
         </Animated.View>
       </Animated.View>
 
       {/* Gradient headline */}
-      <Animated.View style={[styles.titleContainer, titleStyle]}>
+      <Animated.View style={[styles.titleContainer, headlineAnim]}>
         <MaskedView
           maskElement={
             <Text style={styles.headline}>Build Smarter</Text>
@@ -120,21 +102,15 @@ export default function WelcomeSlide({ isActive, onGetStarted }) {
         </MaskedView>
       </Animated.View>
 
-      {/* Typewriter subtitle */}
-      <View style={styles.subtitleContainer}>
-        {isActive && (
-          <TypewriterText
-            text="The AI-powered app for modern contractors"
-            speed={35}
-            delay={800}
-            style={styles.subtitle}
-            showCursor={false}
-          />
-        )}
-      </View>
+      {/* Subtitle */}
+      <Animated.View style={[styles.subtitleContainer, subtitleAnim]}>
+        <Text style={styles.subtitle}>
+          The AI-powered app for modern contractors
+        </Text>
+      </Animated.View>
 
       {/* Social proof badge */}
-      <Animated.View style={[styles.socialProof, socialStyle]}>
+      <Animated.View style={[styles.socialProof, badgeAnim]}>
         <View style={styles.starsRow}>
           {[1, 2, 3, 4, 5].map((i) => (
             <Ionicons key={i} name="star" size={14} color="#FBBF24" />
@@ -146,11 +122,10 @@ export default function WelcomeSlide({ isActive, onGetStarted }) {
       </Animated.View>
 
       {/* CTA Button */}
-      <Animated.View style={[styles.buttonContainer, buttonStyle]}>
+      <Animated.View style={[styles.buttonContainer, buttonAnim]}>
         <ShimmerButton
           title="Get Started"
           onPress={onGetStarted}
-          gradientColors={['#3B82F6', '#2563EB']}
         />
       </Animated.View>
     </View>
@@ -163,7 +138,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: ONBOARDING_SPACING.screenPaddingHorizontal,
   },
   logoContainer: {
     marginBottom: 32,
@@ -172,11 +147,12 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    backgroundColor: `${ONBOARDING_COLORS.primary}26`,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#60A5FA',
+    shadowColor: ONBOARDING_COLORS.primary,
     shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
     shadowRadius: 30,
     elevation: 20,
   },
@@ -184,7 +160,7 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+    backgroundColor: `${ONBOARDING_COLORS.primary}33`,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -195,7 +171,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: '800',
     letterSpacing: -1,
-    color: '#F8FAFC',
+    color: ONBOARDING_COLORS.textPrimary,
     textAlign: 'center',
   },
   subtitleContainer: {
@@ -204,14 +180,14 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
-    color: '#94A3B8',
+    color: ONBOARDING_COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
   socialProof: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: ONBOARDING_COLORS.glassBg,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
@@ -224,13 +200,13 @@ const styles = StyleSheet.create({
   },
   socialText: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: ONBOARDING_COLORS.textSecondary,
     fontWeight: '500',
   },
   divider: {
     width: 1,
     height: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: ONBOARDING_COLORS.divider,
   },
   buttonContainer: {
     width: '100%',
