@@ -920,7 +920,7 @@ export default function EstimatePreview({ data, onAction }) {
         ) : !status ? (
           <>
             <TouchableOpacity
-              style={[styles.sendButton, { backgroundColor: '#22C55E', flex: 1 }]}
+              style={[styles.iconButton, { backgroundColor: '#22C55E' }]}
               onPress={() => {
                 if (onAction) {
                   onAction({ type: 'save-estimate', data });
@@ -928,19 +928,17 @@ export default function EstimatePreview({ data, onAction }) {
               }}
               activeOpacity={0.7}
             >
-              <Ionicons name="save-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>{t('buttons.save', { ns: 'common' })}</Text>
+              <Ionicons name="save-outline" size={22} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sendButton, { backgroundColor: Colors.primaryBlue, flex: 1 }]}
+              style={[styles.iconButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={handleShare}
               activeOpacity={0.7}
             >
-              <Ionicons name="share-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>{t('buttons.share', { ns: 'common' })}</Text>
+              <Ionicons name="share-outline" size={22} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sendButton, { backgroundColor: '#8B5CF6', flex: 1 }]}
+              style={[styles.iconButton, { backgroundColor: '#8B5CF6' }]}
               onPress={() => {
                 if (onAction) {
                   onAction({ type: 'preview-estimate', data });
@@ -948,8 +946,7 @@ export default function EstimatePreview({ data, onAction }) {
               }}
               activeOpacity={0.7}
             >
-              <Ionicons name="eye-outline" size={18} color="#fff" />
-              <Text style={styles.buttonText}>{t('features.estimateCard.viewEstimate')}</Text>
+              <Ionicons name="eye-outline" size={22} color="#fff" />
             </TouchableOpacity>
           </>
         ) : (
@@ -1145,18 +1142,28 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     padding: Spacing.lg,
     paddingTop: Spacing.md,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   sendButton: {
     flex: 1,
+    minWidth: '30%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
+    gap: 4,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryButton: {
     width: '100%',
@@ -1169,7 +1176,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: FontSizes.small,
+    fontSize: FontSizes.tiny,
     fontWeight: '600',
   },
   helperTextContainer: {

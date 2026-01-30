@@ -163,13 +163,8 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
       const pdfUri = await generateInvoicePDF(invoiceData, userProfile.businessInfo);
 
       const invNumber = invoiceData.invoice_number || invoiceData.invoiceNumber;
-      const publicUrl = await uploadInvoicePDF(pdfUri, invNumber);
 
-      if (invoiceData.id) {
-        await updateInvoicePDF(invoiceData.id, publicUrl);
-      }
-
-      // Use local pdfUri instead of publicUrl to prevent exposing signed URL tokens
+      // Preview locally without uploading - just show the PDF
       await previewInvoicePDF(pdfUri, invNumber);
       return true;
     } catch (error) {
