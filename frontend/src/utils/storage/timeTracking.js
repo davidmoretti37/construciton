@@ -861,7 +861,8 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
   }
 };
 
-function calculateHourlyPayment(entries, hourlyRate) {
+// Exported for testing - pure calculation functions
+export function calculateHourlyPayment(entries, hourlyRate) {
   const byProject = {};
   const byDate = {};
 
@@ -907,7 +908,7 @@ function calculateHourlyPayment(entries, hourlyRate) {
   };
 }
 
-function calculateDailyPayment(entries, dailyRate) {
+export function calculateDailyPayment(entries, dailyRate) {
   const byProject = {};
   const byDate = {};
 
@@ -981,7 +982,7 @@ function calculateDailyPayment(entries, dailyRate) {
   };
 }
 
-function calculateWeeklyPayment(entries, weeklySalary, fromDate, toDate) {
+export function calculateWeeklyPayment(entries, weeklySalary, fromDate, toDate) {
   const start = new Date(fromDate);
   const end = new Date(toDate);
   const diffTime = Math.abs(end - start);
@@ -1016,7 +1017,7 @@ function calculateWeeklyPayment(entries, weeklySalary, fromDate, toDate) {
   };
 }
 
-function calculateProjectBasedPayment(entries, projectRate) {
+export function calculateProjectBasedPayment(entries, projectRate) {
   const byProject = {};
 
   entries.forEach(entry => {
@@ -1261,6 +1262,450 @@ export const endWorkerBreak = async (workerId) => {
     return { ...data, duration_minutes: durationMinutes };
   } catch (error) {
     console.error('Error in endWorkerBreak:', error);
+    return null;
+  }
+};
+
+// ============================================================
+// Supervisor Time Tracking Functions
+// ============================================================
+
+/**
+ * Clock in a supervisor
+ * @param {string} supervisorId - Supervisor's user ID
+ * @param {string} projectId - Project ID
+ * @param {object} location - Optional {latitude, longitude}
+ * @returns {Promise<object|null>} Time tracking record
+ */
+export const supervisorClockIn = async (supervisorId, projectId, location = null) => {
+  try {
+    const localTimestamp = getLocalTimestamp();
+
+    const { data, error } = await supabase
+      .from('supervisor_time_tracking')
+      .insert({
+        supervisor_id: supervisorId,
+        project_id: projectId,
+        clock_in: localTimestamp,
+        location_lat: location?.latitude,
+        location_lng: location?.longitude,
+      })
+      .select(`
+        *,
+        projects:project_id (id, name)
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error clocking in supervisor:', error);
+      return null;
+    }
+
+    console.log('Supervisor clock-in successful:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in supervisorClockIn:', error);
+    return null;
+  }
+};
+
+/**
+ * Clock out a supervisor and calculate labor costs
+ * @param {string} timeTrackingId - Time tracking record ID
+ * @param {string} notes - Optional notes
+ * @returns {Promise<{success: boolean, hours?: number, laborCost?: number}>}
+ */
+export const supervisorClockOut = async (timeTrackingId, notes = null) => {
+  try {
+    const clockOutTime = getLocalTimestamp();
+
+    // Get the time tracking record
+    const { data: record, error: fetchError } = await supabase
+      .from('supervisor_time_tracking')
+      .select('*, projects:project_id (id, name)')
+      .eq('id', timeTrackingId)
+      .single();
+
+    if (fetchError || !record) {
+      console.error('Error fetching supervisor time record:', fetchError);
+      return { success: false, error: 'Record not found' };
+    }
+
+    // Calculate hours worked
+    const clockIn = new Date(record.clock_in);
+    const clockOut = new Date(clockOutTime);
+    const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
+
+    // Update the record
+    const { error: updateError } = await supabase
+      .from('supervisor_time_tracking')
+      .update({ clock_out: clockOutTime, notes })
+      .eq('id', timeTrackingId);
+
+    if (updateError) {
+      console.error('Error updating supervisor clock-out:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    // Get supervisor's payment info
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('payment_type, hourly_rate, daily_rate, weekly_salary, project_rate')
+      .eq('id', record.supervisor_id)
+      .single();
+
+    // Calculate labor cost based on payment type
+    let laborCost = 0;
+    if (profile) {
+      switch (profile.payment_type) {
+        case 'hourly':
+          laborCost = hoursWorked * (profile.hourly_rate || 0);
+          break;
+        case 'daily':
+          // Full day if >= 5 hours, half day otherwise
+          laborCost = hoursWorked >= 5 ? profile.daily_rate : (profile.daily_rate || 0) * 0.5;
+          break;
+        case 'weekly':
+        case 'project_based':
+          // No automatic calculation for weekly/project-based
+          break;
+      }
+
+      // Create labor cost transaction if applicable
+      if (laborCost > 0) {
+        await supabase.from('project_transactions').insert({
+          project_id: record.project_id,
+          type: 'expense',
+          category: 'labor',
+          amount: laborCost,
+          description: `Supervisor labor - ${hoursWorked.toFixed(2)} hours`,
+          date: clockOutTime,
+          is_auto_generated: true,
+        });
+      }
+    }
+
+    console.log('Supervisor clock-out successful:', { hours: hoursWorked, laborCost });
+    return { success: true, hours: hoursWorked, laborCost };
+  } catch (error) {
+    console.error('Error in supervisorClockOut:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get supervisor's active clock-in session
+ * @param {string} supervisorId - Supervisor's user ID
+ * @returns {Promise<object|null>} Active session or null
+ */
+export const getActiveSupervisorClockIn = async (supervisorId) => {
+  try {
+    const { data, error } = await supabase
+      .from('supervisor_time_tracking')
+      .select(`
+        *,
+        projects:project_id (id, name)
+      `)
+      .eq('supervisor_id', supervisorId)
+      .is('clock_out', null)
+      .order('clock_in', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error getting active supervisor clock-in:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getActiveSupervisorClockIn:', error);
+    return null;
+  }
+};
+
+/**
+ * Get all supervisors currently clocked in TODAY
+ * @returns {Promise<array>} Array of today's active supervisor clock-ins
+ */
+export const getClockedInSupervisorsToday = async () => {
+  try {
+    // Use local day bounds for accurate "today" filtering
+    const { startOfDay, endOfDay } = getLocalDayBounds();
+
+    const { data, error } = await supabase
+      .from('supervisor_time_tracking')
+      .select(`
+        id,
+        supervisor_id,
+        project_id,
+        clock_in,
+        clock_out,
+        projects:project_id (
+          id,
+          name
+        )
+      `)
+      .gte('clock_in', startOfDay)
+      .lte('clock_in', endOfDay)
+      .is('clock_out', null)
+      .order('clock_in', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching clocked-in supervisors today:', error);
+      return [];
+    }
+
+    // Get supervisor profiles to add names
+    if (data && data.length > 0) {
+      const supervisorIds = [...new Set(data.map(d => d.supervisor_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, business_name, email, payment_type, hourly_rate, daily_rate, weekly_salary')
+        .in('id', supervisorIds);
+
+      const profileMap = {};
+      (profiles || []).forEach(p => {
+        profileMap[p.id] = p;
+      });
+
+      return data.map(entry => ({
+        ...entry,
+        supervisor: profileMap[entry.supervisor_id] || null,
+        supervisor_name: profileMap[entry.supervisor_id]?.business_name ||
+                        profileMap[entry.supervisor_id]?.email?.split('@')[0] ||
+                        'Supervisor',
+        isSupervisor: true, // Flag to identify supervisor entries
+      }));
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getClockedInSupervisorsToday:', error);
+    return [];
+  }
+};
+
+/**
+ * Get completed supervisor shifts for today (supervisors who clocked in AND out today)
+ * @returns {Promise<array>} Array of completed supervisor shifts
+ */
+export const getCompletedSupervisorShiftsToday = async () => {
+  try {
+    // Use local day bounds for accurate "today" filtering
+    const { startOfDay, endOfDay } = getLocalDayBounds();
+
+    const { data, error } = await supabase
+      .from('supervisor_time_tracking')
+      .select(`
+        id,
+        supervisor_id,
+        project_id,
+        clock_in,
+        clock_out,
+        projects:project_id (
+          id,
+          name
+        )
+      `)
+      .gte('clock_in', startOfDay)
+      .lte('clock_in', endOfDay)
+      .not('clock_out', 'is', null)
+      .order('clock_in', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching completed supervisor shifts today:', error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // Get supervisor profiles to add names and payment info
+    const supervisorIds = [...new Set(data.map(d => d.supervisor_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, business_name, email, payment_type, hourly_rate, daily_rate, weekly_salary')
+      .in('id', supervisorIds);
+
+    const profileMap = {};
+    (profiles || []).forEach(p => {
+      profileMap[p.id] = p;
+    });
+
+    // Calculate hours and enrich entries
+    return data.map(entry => {
+      const clockIn = new Date(entry.clock_in);
+      const clockOut = new Date(entry.clock_out);
+      const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
+      const supervisor = profileMap[entry.supervisor_id];
+
+      return {
+        ...entry,
+        hoursWorked: parseFloat(hoursWorked.toFixed(2)),
+        supervisor: supervisor || null,
+        supervisor_name: supervisor?.business_name ||
+                        supervisor?.email?.split('@')[0] ||
+                        'Supervisor',
+        // Add worker-like fields for consistency in AI context
+        workers: {
+          id: entry.supervisor_id,
+          full_name: supervisor?.business_name ||
+                    supervisor?.email?.split('@')[0] ||
+                    'Supervisor',
+          trade: 'Supervisor',
+          payment_type: supervisor?.payment_type,
+          hourly_rate: supervisor?.hourly_rate,
+          daily_rate: supervisor?.daily_rate,
+        },
+        worker_id: entry.supervisor_id, // For compatibility
+        isSupervisor: true, // Flag to identify supervisor entries
+      };
+    });
+  } catch (error) {
+    console.error('Error in getCompletedSupervisorShiftsToday:', error);
+    return [];
+  }
+};
+
+/**
+ * Get supervisor's time tracking history
+ * @param {string} supervisorId - Supervisor's user ID
+ * @param {object} dateRange - Optional { startDate, endDate }
+ * @returns {Promise<array>} Array of time tracking records
+ */
+export const getSupervisorTimesheet = async (supervisorId, dateRange = null) => {
+  try {
+    let query = supabase
+      .from('supervisor_time_tracking')
+      .select(`
+        *,
+        projects:project_id (id, name)
+      `)
+      .eq('supervisor_id', supervisorId)
+      .order('clock_in', { ascending: false });
+
+    if (dateRange?.startDate && dateRange?.endDate) {
+      const { startOfRange, endOfRange } = getDateRangeBoundsUTC(dateRange.startDate, dateRange.endDate);
+      query = query.gte('clock_in', startOfRange).lte('clock_in', endOfRange);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error getting supervisor timesheet:', error);
+      return [];
+    }
+
+    // Calculate hours for each entry
+    return (data || []).map(entry => {
+      let hours = 0;
+      if (entry.clock_in && entry.clock_out) {
+        const clockIn = new Date(entry.clock_in);
+        const clockOut = new Date(entry.clock_out);
+        hours = (clockOut - clockIn) / (1000 * 60 * 60);
+      }
+      return { ...entry, hours };
+    });
+  } catch (error) {
+    console.error('Error in getSupervisorTimesheet:', error);
+    return [];
+  }
+};
+
+/**
+ * Calculate payment for a supervisor based on their payment type for a given period
+ * @param {string} supervisorId - Supervisor ID (profile ID)
+ * @param {object} supervisor - Supervisor profile with payment info
+ * @param {string} fromDate - Start date (YYYY-MM-DD)
+ * @param {string} toDate - End date (YYYY-MM-DD)
+ * @returns {Promise<object>} Payment breakdown with project details
+ */
+export const calculateSupervisorPaymentForPeriod = async (supervisorId, supervisor, fromDate, toDate) => {
+  try {
+    // Convert date range to proper UTC bounds for accurate timezone-aware queries
+    const { startOfRange, endOfRange } = getDateRangeBoundsUTC(fromDate, toDate);
+
+    const { data: timeEntries, error: timeError } = await supabase
+      .from('supervisor_time_tracking')
+      .select(`
+        *,
+        projects:project_id (id, name)
+      `)
+      .eq('supervisor_id', supervisorId)
+      .not('clock_out', 'is', null)
+      .gte('clock_in', startOfRange)
+      .lte('clock_in', endOfRange)
+      .order('clock_in', { ascending: true });
+
+    if (timeError) {
+      console.error('Error fetching supervisor time entries:', timeError);
+      return null;
+    }
+
+    if (!timeEntries || timeEntries.length === 0) {
+      return {
+        supervisorId,
+        supervisorName: supervisor?.business_name || 'Supervisor',
+        totalAmount: 0,
+        totalHours: 0,
+        totalDays: 0,
+        dateRange: { from: fromDate, to: toDate },
+        paymentType: supervisor?.payment_type,
+        byProject: [],
+        byDate: []
+      };
+    }
+
+    const entriesWithHours = timeEntries.map(entry => {
+      const clockIn = new Date(entry.clock_in);
+      const clockOut = new Date(entry.clock_out);
+      const hours = (clockOut - clockIn) / (1000 * 60 * 60);
+      const date = clockIn.toISOString().split('T')[0];
+
+      return {
+        ...entry,
+        hours,
+        date
+      };
+    });
+
+    let paymentBreakdown;
+
+    switch (supervisor?.payment_type) {
+      case 'hourly':
+        paymentBreakdown = calculateHourlyPayment(entriesWithHours, supervisor.hourly_rate);
+        break;
+      case 'daily':
+        paymentBreakdown = calculateDailyPayment(entriesWithHours, supervisor.daily_rate);
+        break;
+      case 'weekly':
+        paymentBreakdown = calculateWeeklyPayment(entriesWithHours, supervisor.weekly_salary, fromDate, toDate);
+        break;
+      case 'project_based':
+        paymentBreakdown = calculateProjectBasedPayment(entriesWithHours, supervisor.project_rate);
+        break;
+      default:
+        paymentBreakdown = { totalAmount: 0, byProject: [], byDate: [] };
+    }
+
+    return {
+      ...paymentBreakdown,
+      supervisorId,
+      supervisorName: supervisor?.business_name || 'Supervisor',
+      totalHours: entriesWithHours.reduce((sum, e) => sum + e.hours, 0),
+      dateRange: { from: fromDate, to: toDate },
+      paymentType: supervisor?.payment_type,
+      rate: {
+        hourly: supervisor?.hourly_rate,
+        daily: supervisor?.daily_rate,
+        weekly: supervisor?.weekly_salary,
+        project: supervisor?.project_rate
+      }
+    };
+  } catch (error) {
+    console.error('Error calculating supervisor payment:', error);
     return null;
   }
 };

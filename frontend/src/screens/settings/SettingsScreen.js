@@ -93,9 +93,11 @@ export default function SettingsScreen({ navigation }) {
               }
               console.log('🚪 LOGOUT: Supabase signOut successful');
 
-              // Clear all AsyncStorage data for complete reset
+              // Clear all AsyncStorage data for complete reset (preserve onboarding flag)
               console.log('🚪 LOGOUT: Clearing AsyncStorage...');
+              const hasSeenOnboarding = await AsyncStorage.getItem('@hasSeenOnboarding');
               await AsyncStorage.clear();
+              if (hasSeenOnboarding) await AsyncStorage.setItem('@hasSeenOnboarding', hasSeenOnboarding);
               console.log('🚪 LOGOUT: AsyncStorage cleared');
 
               console.log('✅ LOGOUT COMPLETE - App should now show LOGIN screen');

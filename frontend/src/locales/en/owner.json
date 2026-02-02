@@ -1,0 +1,76 @@
+{
+  "dashboard": {
+    "greeting": "Welcome back",
+    "title": "Business Overview",
+    "fieldMode": "Field Mode",
+    "supervisors": "Supervisors",
+    "projects": "Total Projects",
+    "active": "Active Jobs",
+    "workers": "Workers",
+    "totalRevenue": "Total Contract Value",
+    "pendingInvites": "{{count}} pending supervisor invites",
+    "quickStart": "Quick Start",
+    "tip1": "Add supervisors to manage projects",
+    "tip2": "View supervisor performance from Supervisors tab",
+    "tip3": "Tap \"Go to Job\" to see full project details"
+  },
+  "supervisors": {
+    "title": "Supervisors",
+    "addNew": "Add Supervisor",
+    "pendingInvites": "PENDING INVITATIONS",
+    "active": "ACTIVE SUPERVISORS",
+    "emptyTitle": "No supervisors yet",
+    "emptyText": "Add supervisors to help manage your projects and workers",
+    "addFirst": "Add Your First Supervisor",
+    "email": "Email Address",
+    "fullName": "Full Name",
+    "phone": "Phone Number",
+    "inviteInfo": "The supervisor will receive an invitation when they sign up with this email address.",
+    "jobs": "jobs",
+    "workers": "workers"
+  },
+  "supervisorDetail": {
+    "jobs": "JOBS",
+    "noJobs": "No jobs yet",
+    "goToJob": "Go to Job",
+    "progress": "Progress",
+    "totalValue": "Total Contract Value"
+  },
+  "chat": {
+    "title": "Messages",
+    "emptyTitle": "No conversations yet",
+    "emptyText": "Add supervisors to start messaging with them",
+    "comingSoon": "Full messaging feature coming soon!"
+  },
+  "supervisorView": {
+    "exit": "Exit",
+    "viewingAs": "Viewing:"
+  },
+  "fieldMode": {
+    "exit": "Exit to Boss View",
+    "label": "Field Mode"
+  },
+  "supervisorOnboarding": {
+    "title": "Welcome, Supervisor!",
+    "hasInvites": "You have a pending invitation to join a company!",
+    "noInvites": "You need an invitation from a business owner to get started.",
+    "feature1": "Manage multiple projects",
+    "feature2": "Track your workers and schedules",
+    "feature3": "Handle finances and invoicing",
+    "feature4": "AI assistant to help you",
+    "viewInvite": "View Invitation",
+    "refresh": "Check for Invitations",
+    "waitingInfo": "Ask your business owner to send you an invitation using your email address.",
+    "checking": "Checking for invitations..."
+  },
+  "supervisorInvite": {
+    "title": "Supervisor Invitation",
+    "from": "FROM BUSINESS OWNER",
+    "details": "INVITATION DETAILS",
+    "invitedAs": "Invited as:",
+    "name": "Name:",
+    "message": "By accepting, you will join this company as a supervisor. You'll be able to manage projects, workers, and track finances.",
+    "reject": "Decline",
+    "accept": "Accept"
+  }
+}

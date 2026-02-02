@@ -5,6 +5,9 @@
  * Reduced from 1,045 lines → ~400 lines (62% reduction)
  */
 
+import { getReasoningPrompt } from '../core/ReasoningFramework';
+import { getSupervisorModeSection } from './supervisorModeSection';
+
 // Language name mapping for AI responses
 const getLanguageName = (code) => ({
   'pt-BR': 'Portuguese (Brazil)',
@@ -66,6 +69,18 @@ Consider these preferences when crafting your response, but always prioritize ac
 `
     : '';
 
+  // Learned facts from long-term memory (for personalized pricing and recommendations)
+  const learnedFactsSection = context?.learnedFacts || '';
+
+  // Chain-of-thought reasoning for estimates
+  const reasoningSection = getReasoningPrompt('estimating');
+
+  // Proactive conflict warnings from context
+  const conflictWarningsSection = context?.conflictWarnings || '';
+
+  // Supervisor mode section (for supervisor context awareness)
+  const supervisorModeSection = getSupervisorModeSection(context);
+
   // Calculate tomorrow's date
   const tomorrowDate = currentDate ? (() => {
     const tomorrow = new Date(currentDate);
@@ -114,7 +129,7 @@ Today: ${currentDate} | Yesterday: ${yesterdayDate} | Tomorrow: ${tomorrowDate}
 
 # ROLE
 Estimate & Invoice specialist. Create intelligent, detailed estimates using contractor's phase templates and pricing data.
-${personalizationSection}
+${personalizationSection}${supervisorModeSection}${learnedFactsSection}${reasoningSection}${conflictWarningsSection}
 
 # TASKS
 - **create_estimate**: Create detailed estimate with phases, tasks, schedule, pricing

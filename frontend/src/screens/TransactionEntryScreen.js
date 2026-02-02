@@ -10,20 +10,30 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { addProjectTransaction, updateTransaction } from '../utils/storage';
+import { fetchProjects } from '../utils/storage/projects';
+import { getCurrentUserId } from '../utils/storage/auth';
+import { supabase } from '../lib/supabase';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function TransactionEntryScreen({ route, navigation }) {
   const { t } = useTranslation('common');
-  const { projectId, projectName, transaction, onSave } = route.params;
+  const { projectId: initialProjectId, projectName: initialProjectName, transaction, onSave, fromQuickAction } = route.params || {};
   const isEditing = !!transaction;
+  const needsProjectPicker = fromQuickAction && !initialProjectId;
 
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { profile } = useAuth();
+  const isSupervisor = profile?.role === 'supervisor';
 
   const [type, setType] = useState(transaction?.type || 'expense');
   const [category, setCategory] = useState(transaction?.category || 'materials');
@@ -33,6 +43,55 @@ export default function TransactionEntryScreen({ route, navigation }) {
   const [paymentMethod, setPaymentMethod] = useState(transaction?.payment_method || 'cash');
   const [notes, setNotes] = useState(transaction?.notes || '');
   const [saving, setSaving] = useState(false);
+
+  // Project picker state (for quick action flow)
+  const [projects, setProjects] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(needsProjectPicker);
+  const [selectedProject, setSelectedProject] = useState(
+    initialProjectId ? { id: initialProjectId, name: initialProjectName } : null
+  );
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+
+  // Fetch projects when opened from quick action
+  useEffect(() => {
+    if (needsProjectPicker) {
+      loadProjects();
+    }
+  }, [needsProjectPicker, isSupervisor]);
+
+  const loadProjects = async () => {
+    try {
+      setLoadingProjects(true);
+
+      if (isSupervisor) {
+        // Supervisor: get assigned projects directly from Supabase
+        const currentUserId = await getCurrentUserId();
+        const { data: projectList, error } = await supabase
+          .from('projects')
+          .select('*')
+          .or(`assigned_supervisor_id.eq.${currentUserId},user_id.eq.${currentUserId}`)
+          .in('status', ['active', 'scheduled'])
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setProjects(projectList || []);
+      } else {
+        // Owner: use fetchProjects
+        const projectList = await fetchProjects();
+        // Filter to only active projects
+        const activeProjects = (projectList || []).filter(p => p.status === 'active' || p.status === 'scheduled');
+        setProjects(activeProjects);
+      }
+    } catch (error) {
+      console.error('Error loading projects:', error);
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // Computed values
+  const projectId = selectedProject?.id || initialProjectId;
+  const projectName = selectedProject?.name || initialProjectName;
 
   const expenseCategories = [
     { value: 'materials', label: 'Materials', icon: 'construct' },
@@ -52,6 +111,10 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
   const handleSave = async () => {
     // Validation
+    if (needsProjectPicker && !selectedProject) {
+      Alert.alert('Required', 'Please select a project');
+      return;
+    }
     if (!description.trim()) {
       Alert.alert(t('alerts.required'), t('messages.pleaseEnter', { item: t('labels.description').toLowerCase() }));
       return;
@@ -259,6 +322,81 @@ export default function TransactionEntryScreen({ route, navigation }) {
       height: 100,
       textAlignVertical: 'top',
     },
+    // Project picker styles
+    projectSelector: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: Colors.cardBackground,
+      borderRadius: 10,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: Colors.border,
+    },
+    projectSelectorEmpty: {
+      borderStyle: 'dashed',
+    },
+    projectSelectorText: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '500',
+      color: Colors.primaryText,
+    },
+    projectSelectorTextEmpty: {
+      color: Colors.placeholderText,
+    },
+    // Modal styles
+    modalContainer: {
+      flex: 1,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 12,
+    },
+    emptyText: {
+      fontSize: 16,
+    },
+    projectItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+    },
+    projectItemSelected: {
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    },
+    projectItemContent: {
+      flex: 1,
+    },
+    projectItemName: {
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    projectItemClient: {
+      fontSize: 14,
+      marginTop: 2,
+    },
   });
 
   return (
@@ -291,11 +429,27 @@ export default function TransactionEntryScreen({ route, navigation }) {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Project Name */}
-          <View style={styles.projectBadge}>
-            <Ionicons name="briefcase" size={14} color={Colors.secondaryText} />
-            <Text style={styles.projectName}>{projectName}</Text>
-          </View>
+          {/* Project Selection */}
+          {needsProjectPicker ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Project</Text>
+              <TouchableOpacity
+                style={[styles.projectSelector, !selectedProject && styles.projectSelectorEmpty]}
+                onPress={() => setShowProjectPicker(true)}
+              >
+                <Ionicons name="briefcase" size={18} color={selectedProject ? Colors.primaryText : Colors.placeholderText} />
+                <Text style={[styles.projectSelectorText, !selectedProject && styles.projectSelectorTextEmpty]}>
+                  {selectedProject?.name || 'Select a project...'}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.projectBadge}>
+              <Ionicons name="briefcase" size={14} color={Colors.secondaryText} />
+              <Text style={styles.projectName}>{projectName}</Text>
+            </View>
+          )}
 
           {/* Type Selection */}
           <View style={styles.section}>
@@ -450,6 +604,62 @@ export default function TransactionEntryScreen({ route, navigation }) {
             />
           </View>
         </ScrollView>
+
+        {/* Project Picker Modal */}
+        <Modal
+          visible={showProjectPicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowProjectPicker(false)}
+        >
+          <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
+              <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
+                <Ionicons name="close" size={24} color={Colors.primaryText} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
+              <View style={{ width: 24 }} />
+            </View>
+            {loadingProjects ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primaryBlue} />
+              </View>
+            ) : projects.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="folder-outline" size={48} color={Colors.secondaryText} />
+                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No active projects</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={projects}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.projectItem,
+                      { borderBottomColor: Colors.border },
+                      selectedProject?.id === item.id && styles.projectItemSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedProject({ id: item.id, name: item.name });
+                      setShowProjectPicker(false);
+                    }}
+                  >
+                    <View style={styles.projectItemContent}>
+                      <Text style={[styles.projectItemName, { color: Colors.primaryText }]}>{item.name}</Text>
+                      {item.client && (
+                        <Text style={[styles.projectItemClient, { color: Colors.secondaryText }]}>{item.client}</Text>
+                      )}
+                    </View>
+                    {selectedProject?.id === item.id && (
+                      <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </SafeAreaView>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

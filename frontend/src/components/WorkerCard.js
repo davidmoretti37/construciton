@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
-export default function WorkerCard({ worker, onPress, isClocked = false }) {
+export default function WorkerCard({ worker, onPress, isClocked = false, hidePayment = false }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
@@ -119,7 +119,7 @@ export default function WorkerCard({ worker, onPress, isClocked = false }) {
               {worker.status}
             </Text>
           </View>
-          {paymentDisplay && (
+          {!hidePayment && paymentDisplay && (
             <Text style={[styles.rateText, { color: Colors.primaryBlue }]}>
               {paymentDisplay}
             </Text>

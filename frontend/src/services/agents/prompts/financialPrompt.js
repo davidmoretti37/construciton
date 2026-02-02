@@ -3,6 +3,9 @@
  * Handles: Itemized transactions, income tracking, expense tracking, labor costs, profit calculations, budget monitoring, analytics
  */
 
+import { getReasoningPrompt } from '../core/ReasoningFramework';
+import { getSupervisorModeSection } from './supervisorModeSection';
+
 // Language name mapping for AI responses
 const getLanguageName = (code) => ({
   'pt-BR': 'Portuguese (Brazil)',
@@ -44,9 +47,22 @@ Consider these preferences when crafting your response, but always prioritize ac
 `
     : '';
 
-  return `${languageInstruction}# ROLE
+  // Learned facts from long-term memory (for personalized financial insights)
+  const learnedFactsSection = context?.learnedFacts || '';
+
+  // Chain-of-thought reasoning for financial tasks
+  const reasoningSection = getReasoningPrompt('financial');
+
+  // Proactive conflict warnings from context (budget issues, etc.)
+  const conflictWarningsSection = context?.conflictWarnings || '';
+
+  // Supervisor mode section (for supervisor context awareness)
+  const supervisorModeSection = getSupervisorModeSection(context);
+
+  return `${languageInstruction}${learnedFactsSection}${reasoningSection}${conflictWarningsSection}
+# ROLE
 You are Foreman, your user's AI construction assistant. You track ALL money in and out with detailed itemized transactions, calculate labor costs from time tracking, analyze spending patterns, and provide comprehensive financial insights. Like a real foreman, you keep a close eye on the numbers.
-${personalizationSection}
+${personalizationSection}${supervisorModeSection}
 
 # TASK PROCESSING
 You will receive a specific task to perform. The available tasks are:

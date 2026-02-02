@@ -26,6 +26,8 @@ export const addProjectTransaction = async (transaction) => {
         worker_id: transaction.worker_id || null,
         payment_method: transaction.payment_method || null,
         notes: transaction.notes || null,
+        receipt_url: transaction.receipt_url || null,
+        line_items: transaction.line_items || null,
         is_auto_generated: false,
         created_by: userId
       })

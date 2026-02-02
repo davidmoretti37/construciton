@@ -1,5 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { memoryService } from '../services/agents/core/MemoryService';
+import {
+  saveProfileToCache,
+  loadProfileFromCache,
+  clearProfileCache,
+} from '../services/profileCacheService';
 
 const AuthContext = createContext();
 
@@ -13,12 +19,17 @@ export const useAuth = () => {
       role: null,
       profile: null,
       isLoading: true,
+      loadError: null,
+      isUsingCache: false,
       isOwner: false,
+      isSupervisor: false,
       isWorker: false,
       isClient: false,
+      ownerId: null,
       setRole: () => {},
       clearRole: () => {},
       refreshProfile: () => {},
+      retryProfileLoad: () => {},
     };
   }
   return context;
@@ -30,8 +41,32 @@ export const AuthProvider = ({ children }) => {
   const [role, setRoleState] = useState(null);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [isUsingCache, setIsUsingCache] = useState(false);
+
+  // Owner/Supervisor hierarchy state
+  const [ownerId, setOwnerIdState] = useState(null); // For supervisors - their owner's ID
 
   useEffect(() => {
+    // Load cached profile first for instant UI
+    const loadCachedProfile = async () => {
+      try {
+        const { profile: cachedProfile, isStale } = await loadProfileFromCache();
+        if (cachedProfile) {
+          console.log('🔐 AuthContext - Loaded cached profile:', { isStale });
+          setProfile(cachedProfile);
+          setRoleState(cachedProfile?.role || null);
+          setOwnerIdState(cachedProfile?.owner_id || null);
+          setIsUsingCache(true);
+          setIsLoading(false); // Allow app to render immediately with cached data
+        }
+      } catch (err) {
+        console.warn('🔐 AuthContext - Failed to load cached profile:', err);
+      }
+    };
+
+    loadCachedProfile();
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -55,8 +90,15 @@ export const AuthProvider = ({ children }) => {
         } else {
           // User logged out - clear all state
           setRoleState(null);
+          setOwnerIdState(null);
           setProfile(null);
           setIsLoading(false);
+          setLoadError(null);
+          setIsUsingCache(false);
+          // Clear memory service cache on logout
+          memoryService.cache?.clear();
+          // Clear profile cache on logout
+          await clearProfileCache();
         }
       }
     );
@@ -66,10 +108,11 @@ export const AuthProvider = ({ children }) => {
 
   const loadUserProfile = async (userId, retryCount = 0) => {
     const MAX_RETRIES = 2;
-    const TIMEOUT_MS = 2000;
+    const TIMEOUT_MS = 3000; // Increased to 3s per attempt
 
     try {
       console.log('🔐 AuthContext - Loading profile for user:', userId, retryCount > 0 ? `(retry ${retryCount})` : '');
+      setLoadError(null);
 
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
@@ -88,32 +131,59 @@ export const AuthProvider = ({ children }) => {
 
       if (error) {
         console.error('🔐 AuthContext - Error loading profile:', error);
-        // Don't clear role state on error, just clear profile
-        setProfile(null);
+        // If we have a cached profile, keep using it; otherwise set error
+        if (!profile) {
+          setLoadError('Failed to load profile');
+        }
       } else if (!data) {
         console.log('🔐 AuthContext - No profile found for user (new account)');
-        // Don't clear role state when no profile exists (role might have just been set)
+        // New user - clear cache since there's no profile yet
+        await clearProfileCache();
         setProfile(null);
+        setIsUsingCache(false);
       } else {
         console.log('🔐 AuthContext - Profile loaded:', {
           role: data?.role,
+          owner_id: data?.owner_id,
           is_onboarded: data?.is_onboarded,
           has_language: !!data?.language
         });
         setRoleState(data?.role || null);
+        setOwnerIdState(data?.owner_id || null); // Track owner_id for supervisors
         setProfile(data);
+        setIsUsingCache(false);
+        setLoadError(null);
+
+        // Save to cache for next app launch
+        await saveProfileToCache(data);
+
+        // Initialize memory service for personalized AI responses
+        memoryService.initialize(userId).catch(err => {
+          console.warn('🧠 AuthContext - Memory service init warning:', err);
+        });
       }
       setIsLoading(false);
     } catch (error) {
       // Check if it was a timeout
-      if (error.message === 'TIMEOUT' && retryCount < MAX_RETRIES) {
-        console.warn('🔐 AuthContext - Profile load timed out, retrying...', retryCount + 1);
-        return loadUserProfile(userId, retryCount + 1);
+      if (error.message === 'TIMEOUT') {
+        // If we have a cached profile, don't retry - just use cache silently
+        if (profile) {
+          console.log('🔐 AuthContext - Timeout but using cached profile');
+          setIsLoading(false);
+          return;
+        }
+        // No cache - retry up to MAX_RETRIES
+        if (retryCount < MAX_RETRIES) {
+          console.warn('🔐 AuthContext - Profile load timed out, retrying...', retryCount + 1);
+          return loadUserProfile(userId, retryCount + 1);
+        }
       }
 
       console.error('🔐 AuthContext - Error loading profile:', error);
-      // Don't clear role state on catch, just clear profile
-      setProfile(null);
+      // If we have a cached profile, keep using it
+      if (!profile) {
+        setLoadError('Connection timed out');
+      }
       setIsLoading(false);
     }
   };
@@ -160,6 +230,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const retryProfileLoad = async () => {
+    if (user) {
+      setLoadError(null);
+      setIsLoading(true);
+      await loadUserProfile(user.id);
+    }
+  };
+
   const clearRole = async () => {
     if (!user) {
       console.error('🔐 AuthContext - Cannot clear role: No user logged in');
@@ -198,12 +276,20 @@ export const AuthProvider = ({ children }) => {
     role,
     profile,
     isLoading,
+    loadError,
+    isUsingCache,
+    // Role checks
     isOwner: role === 'owner',
+    isSupervisor: role === 'supervisor',
     isWorker: role === 'worker',
-    isClient: role === 'client',
+    isClient: role === 'client', // Kept for backward compatibility
+    // Owner/Supervisor hierarchy
+    ownerId, // For supervisors - their owner's ID
+    // Functions
     setRole,
     clearRole,
     refreshProfile,
+    retryProfileLoad,
   };
 
   return (

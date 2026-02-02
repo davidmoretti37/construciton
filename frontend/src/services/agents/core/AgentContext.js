@@ -4,9 +4,14 @@
  *
  * OPTIMIZATION: Now supports agent-specific context fetching
  * to avoid loading ALL data for every request.
+ *
+ * ENHANCEMENT: Includes learned facts from MemoryService for
+ * personalized AI responses.
  */
 
 import logger from '../../../utils/logger';
+import { memoryService } from './MemoryService';
+import { detectBudgetIssues, detectTimelineIssues, formatConflictsForPrompt } from './ConflictDetector';
 
 // Smart caching layer for static/semi-static data
 const contextCache = {
@@ -51,8 +56,13 @@ const getCached = async (cacheKey, fetchFn) => {
 export const buildInitialContext = async () => {
   // Import functions inside to avoid circular dependencies
   const { getUserProfile, getUserServices, fetchProjects, fetchEstimates, fetchInvoices, fetchContractDocuments, fetchWorkers, fetchScheduleEvents, fetchWorkSchedules, getClockedInWorkersToday, getStaleClockIns, getCompletedShiftsToday } = require('../../../utils/storage');
+  const { getClockedInSupervisorsToday, getCompletedSupervisorShiftsToday } = require('../../../utils/storage/timeTracking');
   const { getPricingHistory } = require('../../aiService');
-  const { getSubcontractorQuotesGroupedByTrade } = require('../../../utils/storage/workers');
+  const { getSubcontractorQuotesGroupedByTrade, getSupervisorsForOwner, fetchWorkersForOwner, getClockedInWorkersTodayForOwner, getCompanyHierarchy } = require('../../../utils/storage/workers');
+  const { fetchProjectsForOwner } = require('../../../utils/storage/projects');
+  const { fetchEstimatesForOwner } = require('../../../utils/storage/estimates');
+  const { fetchInvoicesForOwner } = require('../../../utils/storage/invoices');
+  const { getCurrentUserContext } = require('../../../utils/storage/auth');
   const { getSelectedLanguage, getAISettings, getAutoTranslateEstimates } = require('../../../utils/storage');
 
   try {
@@ -76,22 +86,57 @@ export const buildInitialContext = async () => {
     // Get auto-translate estimates setting
     const autoTranslateEstimates = await getAutoTranslateEstimates();
 
+    // Check if user is an owner (for company-wide data access)
+    const userContext = await getCurrentUserContext();
+    const isOwnerMode = userContext?.isOwner || false;
+    let supervisors = [];
+    let companyHierarchy = null;
+    if (isOwnerMode) {
+      supervisors = await getSupervisorsForOwner(userContext.userId);
+      companyHierarchy = await getCompanyHierarchy();
+      logger.debug('🏢 Owner mode: fetching company-wide data for', supervisors.length, 'supervisors');
+    }
+
+    // Check if user is a supervisor (for supervisor context)
+    const isSupervisorMode = userContext?.role === 'supervisor';
+    let ownerInfo = null;
+    if (isSupervisorMode && userContext?.ownerId) {
+      const { getOwnerInfoForSupervisor } = require('../../../utils/storage/workers');
+      ownerInfo = await getOwnerInfoForSupervisor(userContext.ownerId);
+      logger.debug('👷 Supervisor mode: owner is', ownerInfo?.name);
+    }
+
     // Parallel fetch for speed (Promise.all instead of sequential awaits)
-    const [userServices, projects, estimates, invoices, contractDocuments, workers, scheduleEvents, workSchedules, clockedInToday, staleClockIns, completedShiftsToday, pricingHistory, subcontractorQuotes] = await Promise.all([
+    // Use owner-aware functions if user is an owner
+    const [userServices, projects, estimates, invoices, contractDocuments, workers, scheduleEvents, workSchedules, clockedInWorkersToday, clockedInSupervisorsToday, staleClockIns, completedWorkerShiftsToday, completedSupervisorShiftsToday, pricingHistory, subcontractorQuotes] = await Promise.all([
       getUserServices(), // Get services from new system
-      fetchProjects(), // Projects change frequently, always fetch fresh
-      fetchEstimates(),
-      fetchInvoices(),
+      isOwnerMode ? fetchProjectsForOwner() : fetchProjects(), // Owner sees all projects
+      isOwnerMode ? fetchEstimatesForOwner() : fetchEstimates(), // Owner sees all estimates
+      isOwnerMode ? fetchInvoicesForOwner() : fetchInvoices(), // Owner sees all invoices
       fetchContractDocuments(),
-      fetchWorkers(), // Fetch all workers
+      isOwnerMode ? fetchWorkersForOwner() : fetchWorkers(), // Owner sees all workers
       fetchScheduleEvents(today.toISOString(), farFuture.toISOString()), // All upcoming schedule events (no limit)
       fetchWorkSchedules(today.toISOString().split('T')[0], today.toISOString().split('T')[0]), // Today's work schedules
-      getClockedInWorkersToday(), // Workers currently clocked in today
+      isOwnerMode ? getClockedInWorkersTodayForOwner() : getClockedInWorkersToday(), // Owner sees all clocked-in workers
+      getClockedInSupervisorsToday(), // Supervisors currently clocked in
       getStaleClockIns(), // Workers with forgotten clock-outs from previous days
       getCompletedShiftsToday(), // Workers who completed their shifts today (clocked in AND out)
+      getCompletedSupervisorShiftsToday(), // Supervisors who completed their shifts today
       userId ? getPricingHistory(userId) : Promise.resolve({ recentJobs: [], byService: {}, corrections: [], totalEntries: 0 }), // Pricing history for smart pricing
       getSubcontractorQuotesGroupedByTrade() // Subcontractor contacts (for reference)
     ]);
+
+    // Combine workers and supervisors into clockedInToday
+    const clockedInToday = [
+      ...(clockedInWorkersToday || []),
+      ...(clockedInSupervisorsToday || []),
+    ];
+
+    // Combine workers and supervisors into completedShiftsToday
+    const completedShiftsToday = [
+      ...(completedWorkerShiftsToday || []),
+      ...(completedSupervisorShiftsToday || []),
+    ];
 
     logger.debug('📊 AI Context: Projects:', projects?.length || 0);
 
@@ -161,10 +206,48 @@ export const buildInitialContext = async () => {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayDateString = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
 
+    // Get learned facts from long-term memory for personalized responses
+    const learnedFacts = memoryService.getMemoriesForPrompt('');
+
+    // Proactive conflict/issue detection across all projects
+    let detectedConflicts = [];
+    const currentDateObj = new Date(localDateString);
+    (projects || []).forEach(project => {
+      const budgetIssues = detectBudgetIssues(project);
+      const timelineIssues = detectTimelineIssues(project, currentDateObj);
+      if (budgetIssues.length) {
+        detectedConflicts.push(...budgetIssues.map(i => ({ ...i, projectName: project.name })));
+      }
+      if (timelineIssues.length) {
+        detectedConflicts.push(...timelineIssues.map(i => ({ ...i, projectName: project.name })));
+      }
+    });
+    // Format high-severity conflicts for prompt injection
+    const conflictWarnings = formatConflictsForPrompt(
+      detectedConflicts.filter(c => c.severity === 'critical' || c.severity === 'high'),
+      { maxItems: 5 }
+    );
+
     return {
       currentDate: localDateString, // Local date in YYYY-MM-DD format for accurate date parsing
       yesterdayDate: yesterdayDateString, // Yesterday's date pre-calculated
       currentDateTime: now.toISOString(), // Full ISO timestamp if needed
+
+      // Owner mode (for company-wide data access in Boss Portal)
+      isOwnerMode: isOwnerMode,
+      userRole: userContext?.role || 'contractor',
+      supervisors: supervisors.map(s => ({ id: s.id, name: s.business_name || 'Supervisor' })),
+      companyHierarchy: companyHierarchy, // Full hierarchy with counts (for owner)
+
+      // Supervisor mode (for supervisor context awareness)
+      isSupervisorMode: isSupervisorMode,
+      ownerInfo: ownerInfo, // { id, name, business_name } - supervisor's owner
+
+      // Learned facts from long-term memory (for personalized AI responses)
+      learnedFacts: learnedFacts,
+
+      // Proactive conflict warnings (budget issues, timeline issues)
+      conflictWarnings: conflictWarnings,
 
       // User's selected language for AI responses
       userLanguage: userLanguage,
@@ -257,6 +340,11 @@ export const buildInitialContext = async () => {
       currentDate: fallbackLocalDate,
       currentDateTime: fallbackNow.toISOString(),
       userLanguage: 'en', // Default to English in fallback
+      userRole: 'contractor', // Default role in fallback
+      isOwnerMode: false,
+      isSupervisorMode: false,
+      ownerInfo: null,
+      companyHierarchy: null,
       userPersonalization: { aboutYou: '', responseStyle: '' }, // Empty personalization in fallback
       businessInfo: { name: 'Your Business', phone: '', email: '' },
       services: [],
@@ -301,6 +389,7 @@ export const buildInitialContext = async () => {
  */
 export const fetchAgentSpecificContext = async (agentName) => {
   const { getUserProfile, getUserServices, fetchProjects, fetchEstimates, fetchInvoices, fetchContractDocuments, fetchWorkers, fetchScheduleEvents, fetchWorkSchedules, getClockedInWorkersToday, getStaleClockIns, getCompletedShiftsToday } = require('../../../utils/storage');
+  const { getClockedInSupervisorsToday, getCompletedSupervisorShiftsToday } = require('../../../utils/storage/timeTracking');
   const { getPricingHistory } = require('../../aiService');
   const { getSubcontractorQuotesGroupedByTrade } = require('../../../utils/storage/workers');
   const { getSelectedLanguage, getAISettings, getAutoTranslateEstimates } = require('../../../utils/storage');
@@ -370,7 +459,11 @@ export const fetchAgentSpecificContext = async (agentName) => {
     }
     if (requirements.includes('clockedInToday')) {
       fetchKeys.push('clockedInToday');
-      fetchPromises.push(getClockedInWorkersToday());
+      // Fetch both workers and supervisors clocked in today
+      fetchPromises.push(
+        Promise.all([getClockedInWorkersToday(), getClockedInSupervisorsToday()])
+          .then(([workers, supervisors]) => [...(workers || []), ...(supervisors || [])])
+      );
     }
     if (requirements.includes('staleClockIns')) {
       fetchKeys.push('staleClockIns');
@@ -378,7 +471,11 @@ export const fetchAgentSpecificContext = async (agentName) => {
     }
     if (requirements.includes('completedShiftsToday')) {
       fetchKeys.push('completedShiftsToday');
-      fetchPromises.push(getCompletedShiftsToday());
+      // Fetch both workers and supervisors completed shifts today
+      fetchPromises.push(
+        Promise.all([getCompletedShiftsToday(), getCompletedSupervisorShiftsToday()])
+          .then(([workers, supervisors]) => [...(workers || []), ...(supervisors || [])])
+      );
     }
     if (requirements.includes('pricingHistory')) {
       fetchKeys.push('pricingHistory');
@@ -504,10 +601,39 @@ export const fetchAgentSpecificContext = async (agentName) => {
     const latency = Date.now() - startTime;
     logger.debug(`⚡ [AgentContext] Fetched ${fetchKeys.length} data sources in ${latency}ms (vs 13 for full context)`);
 
+    // Get learned facts from long-term memory for personalized responses
+    const learnedFacts = memoryService.getMemoriesForPrompt('');
+
+    // Proactive conflict/issue detection across projects (if loaded)
+    let conflictWarnings = '';
+    if (data.projects?.length) {
+      const detectedConflicts = [];
+      const currentDateObj = new Date(localDateString);
+      data.projects.forEach(project => {
+        const budgetIssues = detectBudgetIssues(project);
+        const timelineIssues = detectTimelineIssues(project, currentDateObj);
+        if (budgetIssues.length) {
+          detectedConflicts.push(...budgetIssues.map(i => ({ ...i, projectName: project.name })));
+        }
+        if (timelineIssues.length) {
+          detectedConflicts.push(...timelineIssues.map(i => ({ ...i, projectName: project.name })));
+        }
+      });
+      // Format high-severity conflicts for prompt injection
+      conflictWarnings = formatConflictsForPrompt(
+        detectedConflicts.filter(c => c.severity === 'critical' || c.severity === 'high'),
+        { maxItems: 5 }
+      );
+    }
+
     return {
       currentDate: localDateString,
       yesterdayDate: yesterdayDateString,
       currentDateTime: now.toISOString(),
+      // Learned facts from long-term memory (for personalized AI responses)
+      learnedFacts: learnedFacts,
+      // Proactive conflict warnings (budget issues, timeline issues)
+      conflictWarnings: conflictWarnings,
       userLanguage: userLanguage,
       userPersonalization: {
         aboutYou: aiSettings?.aboutYou || '',

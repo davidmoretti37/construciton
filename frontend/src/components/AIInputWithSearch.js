@@ -592,9 +592,9 @@ const AIInputWithSearch = ({
 
               {/* Bottom Controls Bar */}
               <View style={styles.controlsBar}>
-                {/* Left Side Controls */}
+                {/* Left Side Controls - Document & Camera */}
                 <View style={styles.leftControls}>
-                  {/* Paperclip Button */}
+                  {/* Paperclip/Document Button */}
                   <TouchableOpacity
                     style={[styles.iconButton, { backgroundColor: iconBgColor }]}
                     onPress={onFileSelect}
@@ -602,41 +602,42 @@ const AIInputWithSearch = ({
                   >
                     <Ionicons
                       name="attach"
-                      size={18}
+                      size={22}
                       color={iconColor}
                     />
                   </TouchableOpacity>
+
+                  {/* Camera Button */}
+                  {!isTranscribing && (
+                    <TouchableOpacity
+                      style={[styles.iconButton, { backgroundColor: iconBgColor }]}
+                      onPress={onCameraPress}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="camera"
+                        size={22}
+                        color={iconColor}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
 
-                {/* Right Side - Action Buttons */}
+                {/* Right Side - Microphone (isolated) or Send */}
                 <View style={styles.rightControls}>
-                  {/* Show microphone and camera when no text */}
+                  {/* Show microphone when no text */}
                   {!(value && value.trim()) && !isTranscribing && (
-                    <>
-                      <TouchableOpacity
-                        style={[styles.iconButton, { backgroundColor: iconBgColor }]}
-                        onPress={handleMicrophonePress}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name="mic-outline"
-                          size={18}
-                          color={iconColor}
-                        />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.iconButton, { backgroundColor: iconBgColor }]}
-                        onPress={onCameraPress}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name="camera"
-                          size={18}
-                          color={iconColor}
-                        />
-                      </TouchableOpacity>
-                    </>
+                    <TouchableOpacity
+                      style={[styles.micButton, { backgroundColor: iconBgColor }]}
+                      onPress={handleMicrophonePress}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="mic-outline"
+                        size={24}
+                        color={iconColor}
+                      />
+                    </TouchableOpacity>
                   )}
 
                   {/* Show transcribing indicator */}
@@ -658,7 +659,7 @@ const AIInputWithSearch = ({
                     >
                       <Ionicons
                         name="send"
-                        size={18}
+                        size={20}
                         color={Colors.primaryBlue}
                       />
                     </TouchableOpacity>
@@ -702,7 +703,7 @@ const styles = StyleSheet.create({
   textInput: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 12,
+    paddingBottom: 56,
     fontSize: 16,
     lineHeight: 22,
     maxHeight: 140,
@@ -729,12 +730,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   controlsBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingBottom: 12,
-    height: 48,
+    paddingBottom: 6,
+    paddingTop: 10,
+    height: 56,
   },
   leftControls: {
     flexDirection: 'row',
@@ -747,9 +753,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
   },

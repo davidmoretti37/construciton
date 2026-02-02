@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import logger from '../logger';
-import { getCurrentUserId } from './auth';
+import { getCurrentUserId, getCurrentUserContext } from './auth';
 
 // ============================================================
 // Worker Management Functions
@@ -87,18 +87,26 @@ export const updateWorker = async (workerId, updates) => {
 };
 
 /**
- * Get all workers for the current owner
+ * Get all workers for the current user
+ * For supervisors: includes their owner's workers too (bidirectional visibility)
  * @returns {Promise<array>} Array of workers
  */
 export const fetchWorkers = async () => {
   try {
-    const userId = await getCurrentUserId();
-    if (!userId) return [];
+    const context = await getCurrentUserContext();
+    if (!context?.userId) return [];
+
+    // Build list of owner_ids to fetch workers from
+    // For supervisors: include their owner's workers too
+    const ownerIds = [context.userId];
+    if (context.ownerId) {
+      ownerIds.push(context.ownerId);
+    }
 
     const { data, error } = await supabase
       .from('workers')
       .select('*')
-      .eq('owner_id', userId)
+      .in('owner_id', ownerIds)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -887,6 +895,276 @@ export const getPreferredQuoteForTrade = async (tradeId) => {
     return data;
   } catch (error) {
     console.error('Error in getPreferredQuoteForTrade:', error);
+    return null;
+  }
+};
+
+// ============================================================
+// Owner Mode Functions (for Boss Portal AI Chat)
+// ============================================================
+
+/**
+ * Get all supervisors under an owner
+ * @param {string} ownerId - The owner's user ID
+ * @returns {Promise<Array<{id: string, business_name: string}>>} Array of supervisor objects
+ */
+export const getSupervisorsForOwner = async (ownerId) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, business_name, business_phone')
+      .eq('owner_id', ownerId)
+      .eq('role', 'supervisor');
+
+    if (error) {
+      logger.error('Error fetching supervisors for owner:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    logger.error('Error in getSupervisorsForOwner:', error);
+    return [];
+  }
+};
+
+/**
+ * Get owner info for a supervisor
+ * Used by supervisor's AI chat to know who their owner is
+ * @param {string} ownerId - The owner's user ID
+ * @returns {Promise<{id: string, name: string, business_name: string} | null>}
+ */
+export const getOwnerInfoForSupervisor = async (ownerId) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, business_name')
+      .eq('id', ownerId)
+      .single();
+
+    if (error) {
+      logger.error('Error fetching owner info for supervisor:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      name: data.business_name || 'Your Owner',
+      business_name: data.business_name || null
+    };
+  } catch (error) {
+    logger.error('Error in getOwnerInfoForSupervisor:', error);
+    return null;
+  }
+};
+
+/**
+ * Get all workers across all supervisors under this owner
+ * Used by owner's AI chat to see company-wide worker data
+ * Includes supervisor_name for attribution
+ * @returns {Promise<array>} Workers with supervisor info
+ */
+export const fetchWorkersForOwner = async () => {
+  try {
+    const context = await getCurrentUserContext();
+    if (!context) return [];
+
+    // If not owner, fall back to regular fetchWorkers
+    if (!context.isOwner) {
+      return fetchWorkers();
+    }
+
+    // Get all supervisors under this owner
+    const supervisors = await getSupervisorsForOwner(context.userId);
+    const supervisorIds = supervisors.map(s => s.id);
+    const supervisorNames = Object.fromEntries(
+      supervisors.map(s => [s.id, s.business_name || 'Supervisor'])
+    );
+
+    // Include owner's own workers too
+    const allIds = [context.userId, ...supervisorIds];
+
+    const { data, error } = await supabase
+      .from('workers')
+      .select('*')
+      .in('owner_id', allIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('Error fetching workers for owner:', error);
+      return [];
+    }
+
+    // Add supervisor name to each worker for attribution
+    return (data || []).map(w => ({
+      ...w,
+      supervisor_name: w.owner_id === context.userId
+        ? 'You (Owner)'
+        : (supervisorNames[w.owner_id] || 'Unknown Supervisor'),
+      supervisor_id: w.owner_id,
+    }));
+  } catch (error) {
+    logger.error('Error in fetchWorkersForOwner:', error);
+    return [];
+  }
+};
+
+/**
+ * Get all clocked-in workers today across all supervisors (for owner)
+ * @returns {Promise<array>} Clocked-in workers with supervisor attribution
+ */
+export const getClockedInWorkersTodayForOwner = async () => {
+  try {
+    const context = await getCurrentUserContext();
+    if (!context?.isOwner) {
+      // Fall back to regular function
+      const { getClockedInWorkersToday } = require('./index');
+      return getClockedInWorkersToday();
+    }
+
+    // Get all supervisors under this owner
+    const supervisors = await getSupervisorsForOwner(context.userId);
+    const supervisorIds = supervisors.map(s => s.id);
+    const supervisorNames = Object.fromEntries(
+      supervisors.map(s => [s.id, s.business_name || 'Supervisor'])
+    );
+
+    const allIds = [context.userId, ...supervisorIds];
+
+    // Get today's date range
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const { data, error } = await supabase
+      .from('time_tracking')
+      .select(`
+        *,
+        workers!inner (
+          id,
+          full_name,
+          trade,
+          owner_id
+        )
+      `)
+      .gte('clock_in', today.toISOString())
+      .lt('clock_in', tomorrow.toISOString())
+      .is('clock_out', null)
+      .in('workers.owner_id', allIds);
+
+    if (error) {
+      logger.error('Error fetching clocked-in workers for owner:', error);
+      return [];
+    }
+
+    return (data || []).map(entry => ({
+      ...entry,
+      worker_name: entry.workers?.full_name,
+      supervisor_name: entry.workers?.owner_id === context.userId
+        ? 'You (Owner)'
+        : (supervisorNames[entry.workers?.owner_id] || 'Unknown'),
+      supervisor_id: entry.workers?.owner_id,
+    }));
+  } catch (error) {
+    logger.error('Error in getClockedInWorkersTodayForOwner:', error);
+    return [];
+  }
+};
+
+/**
+ * Get full company hierarchy for owner
+ * Returns owner info, supervisors with their worker/project counts
+ * Used by AI context for hierarchy-aware responses
+ * @returns {Promise<object|null>} Company hierarchy object or null if not owner
+ */
+export const getCompanyHierarchy = async () => {
+  try {
+    const context = await getCurrentUserContext();
+    if (!context?.isOwner) return null;
+
+    // Get owner's profile info
+    const { data: ownerProfile } = await supabase
+      .from('profiles')
+      .select('id, business_name, business_phone, email')
+      .eq('id', context.userId)
+      .single();
+
+    // Get all supervisors under this owner
+    const supervisors = await getSupervisorsForOwner(context.userId);
+
+    // Get counts for each supervisor in parallel
+    const supervisorStats = await Promise.all(
+      supervisors.map(async (sup) => {
+        // Get worker count
+        const { count: workerCount } = await supabase
+          .from('workers')
+          .select('*', { count: 'exact', head: true })
+          .eq('owner_id', sup.id);
+
+        // Get project counts (owned + assigned)
+        const { data: projects } = await supabase
+          .from('projects')
+          .select('id, status')
+          .or(`user_id.eq.${sup.id},assigned_supervisor_id.eq.${sup.id}`);
+
+        const projectCount = projects?.length || 0;
+        const activeProjectCount = (projects || []).filter(
+          p => ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)
+        ).length;
+
+        return {
+          id: sup.id,
+          name: sup.business_name || 'Supervisor',
+          email: sup.email,
+          phone: sup.business_phone,
+          workerCount: workerCount || 0,
+          projectCount: projectCount,
+          activeProjectCount: activeProjectCount,
+        };
+      })
+    );
+
+    // Get owner's direct worker count
+    const { count: ownerWorkerCount } = await supabase
+      .from('workers')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_id', context.userId);
+
+    // Get owner's direct project count
+    const { data: ownerProjects } = await supabase
+      .from('projects')
+      .select('id, status, assigned_supervisor_id')
+      .eq('user_id', context.userId);
+
+    const ownerDirectProjects = (ownerProjects || []).filter(p => !p.assigned_supervisor_id);
+    const ownerAssignedProjects = (ownerProjects || []).filter(p => p.assigned_supervisor_id);
+
+    // Calculate totals
+    const totalSupervisorWorkers = supervisorStats.reduce((sum, s) => sum + s.workerCount, 0);
+    const totalSupervisorProjects = supervisorStats.reduce((sum, s) => sum + s.projectCount, 0);
+
+    return {
+      owner: {
+        id: context.userId,
+        name: ownerProfile?.business_name || 'Owner',
+        email: ownerProfile?.email,
+        phone: ownerProfile?.business_phone,
+        directWorkerCount: ownerWorkerCount || 0,
+        directProjectCount: ownerDirectProjects.length,
+        assignedProjectCount: ownerAssignedProjects.length,
+      },
+      supervisors: supervisorStats,
+      totals: {
+        supervisorCount: supervisorStats.length,
+        totalWorkers: totalSupervisorWorkers + (ownerWorkerCount || 0),
+        totalProjects: totalSupervisorProjects + ownerDirectProjects.length,
+        workersBySupervisors: totalSupervisorWorkers,
+        projectsBySupervisors: totalSupervisorProjects,
+      },
+    };
+  } catch (error) {
+    logger.error('Error in getCompanyHierarchy:', error);
     return null;
   }
 };

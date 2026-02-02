@@ -38,7 +38,10 @@ import AddCustomServiceModal from '../components/AddCustomServiceModal';
 import OrbitalLoader from '../components/OrbitalLoader';
 import StatusMessage from '../components/StatusMessage';
 import NotificationBell from '../components/NotificationBell';
+import OwnerHeader from '../components/OwnerHeader';
+import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import logger from '../utils/logger';
 
 // Action hooks
 import {
@@ -110,6 +113,9 @@ export default function ChatScreen({ navigation, route }) {
   const { t } = useTranslation(['chat', 'common']);
   const aiTimeoutRef = useRef(null); // Store timeout ID for AI response
   const { hasActiveSubscription } = useSubscription();
+  const { profile } = useAuth() || {};
+  const isOwner = profile?.role === 'owner';
+  const isSupervisor = profile?.role === 'supervisor';
 
   // Helper function to add AI messages programmatically
   const addAIMessage = useCallback((text) => {
@@ -978,7 +984,25 @@ export default function ChatScreen({ navigation, route }) {
   const handleAction = async (action) => {
     console.log('Action pressed:', action);
 
-    switch (action.type) {
+    // Supervisor restrictions - block certain actions
+    const SUPERVISOR_RESTRICTED_ACTIONS = [
+      'save-estimate', 'create-estimate', 'confirm-estimate', 'generate-estimate',
+      'convert-estimate-to-invoice', 'create-invoice', 'save-invoice',
+      'create-project', 'save-project', 'confirm-project',
+      'create-project-from-screenshot', 'create-project-from-estimate',
+      'get-worker-payment'
+    ];
+
+    if (isSupervisor && SUPERVISOR_RESTRICTED_ACTIONS.includes(action.type)) {
+      Alert.alert(
+        t('common:alerts.restricted', 'Restricted'),
+        t('common:messages.ownerOnly', 'This action is only available to owners.')
+      );
+      return;
+    }
+
+    try {
+      switch (action.type) {
       // Navigation & View Actions
       case 'view-project':
         console.log('View project:', action.data?.projectId || action.data?.id);
@@ -1352,6 +1376,13 @@ export default function ChatScreen({ navigation, route }) {
       default:
         console.error('Unknown action type:', action.type);
         Alert.alert(t('common:alerts.error'), t('common:messages.featureComingSoon', { feature: action.type }));
+    }
+    } catch (error) {
+      logger.error(`Action "${action.type}" failed:`, error);
+      Alert.alert(
+        t('common:alerts.error'),
+        t('common:messages.somethingWentWrong') || 'Something went wrong. Please try again.'
+      );
     }
   };
 
@@ -2621,11 +2652,17 @@ export default function ChatScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: Colors.background }]}>
       <SafeAreaView style={styles.safeArea}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={{ flex: 1 }} />
-        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
-      </View>
+      {/* Top Bar - OwnerHeader for owners, simple bar for others */}
+      {isOwner ? (
+        <OwnerHeader
+          rightComponent={<NotificationBell onPress={() => navigation.navigate('Notifications')} />}
+        />
+      ) : (
+        <View style={styles.topBar}>
+          <View style={{ flex: 1 }} />
+          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        </View>
+      )}
 
       {/* Chat Messages and Input Area */}
       <KeyboardAvoidingView

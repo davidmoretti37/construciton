@@ -5,33 +5,55 @@ import Animated, {
   useAnimatedStyle,
   withDelay,
   withTiming,
+  withSpring,
   withSequence,
+  Easing,
 } from 'react-native-reanimated';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const AnimatedChar = ({ char, index, delay = 50, textStyle = {} }) => {
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(20);
+  const translateY = useSharedValue(25);
+  const scale = useSharedValue(0.5);
 
   useEffect(() => {
     const animationDelay = index * delay;
 
+    // Fade in
     opacity.value = withDelay(
       animationDelay,
-      withTiming(1, { duration: 400 })
+      withTiming(1, { duration: 300 })
     );
 
+    // Bouncy spring for position
     translateY.value = withDelay(
       animationDelay,
-      withTiming(0, { duration: 400 })
+      withSpring(0, {
+        damping: 8,
+        stiffness: 150,
+        mass: 0.5,
+      })
+    );
+
+    // Bouncy scale effect
+    scale.value = withDelay(
+      animationDelay,
+      withSpring(1, {
+        damping: 6,
+        stiffness: 200,
+        mass: 0.4,
+      })
     );
   }, [index, delay]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
       opacity: opacity.value,
-      transform: [{ translateY: translateY.value }],
+      transform: [
+        { translateY: translateY.value },
+        { scale: scale.value },
+      ],
     };
   });
 

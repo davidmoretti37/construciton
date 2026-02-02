@@ -15,6 +15,7 @@ import { getCoreAgentPrompt } from '../prompts/coreAgentPrompt';
 import { setVoiceMode } from '../../aiService';
 import { checkDeterministicResponse } from './DeterministicResponder';
 import { responseCache } from './CacheService';
+import { memoryService } from './MemoryService';
 import logger from '../../../utils/logger';
 
 /**
@@ -94,6 +95,10 @@ const FAST_ROUTES = [
   { patterns: [/\b(add|create|schedule)\b.*\b(event|meeting|appointment)\b/i],
     route: { agent: 'WorkersSchedulingAgent', task: 'manage_schedule_event' } },
 
+  // ==================== DAILY REPORTS ====================
+  { patterns: [/\b(show|get|see|list|view)\b.*\bdaily\s*reports?\b/i, /\bdaily\s*reports?\b/i, /\breports?\s+today\b/i],
+    route: { agent: 'WorkersSchedulingAgent', task: 'retrieve_daily_reports' } },
+
   // ==================== PROJECTS LOOKUP ====================
   { patterns: [/\b(show|list|get|see|find)\b.*\b(projects?|jobs?)\b/i, /\bmy (projects|jobs)\b/i, /\b(active|current)\b.*\b(projects?|jobs?)\b/i],
     route: { agent: 'DocumentAgent', task: 'find_project' } },
@@ -107,9 +112,27 @@ const FAST_ROUTES = [
     route: { agent: 'SettingsConfigAgent', task: 'manage_service_catalog' } },
 ];
 
+// ⛔ Agents that supervisors cannot access
+const SUPERVISOR_RESTRICTED_AGENTS = ['ProjectAgent', 'EstimateInvoiceAgent'];
+
+// Helper to get supervisor blocking response
+const getSupervisorBlockingResponse = (attemptedAgent, attemptedTask) => {
+  let actionType = 'that feature';
+  if (attemptedAgent === 'ProjectAgent') actionType = 'creating projects';
+  else if (attemptedTask?.includes('estimate')) actionType = 'creating estimates';
+  else if (attemptedTask?.includes('invoice')) actionType = 'creating invoices';
+
+  return {
+    text: `As a supervisor, I can't help with ${actionType}. Only your owner can do that.\n\nI can help you with:\n• Viewing your assigned projects\n• Tracking worker hours and schedules\n• Submitting daily reports\n• Logging transactions\n\nWhat would you like help with?`,
+    visualElements: [],
+    actions: []
+  };
+};
+
 /**
  * Attempts to route a message using keyword matching.
- * Returns { agent, task, user_input } if matched, null otherwise.
+ * Returns { agent, task, user_input } for single intent,
+ * or an array of routes for compound queries (multiple intents).
  */
 const fastRouteMessage = (message) => {
   const trimmed = message.trim();
@@ -122,6 +145,43 @@ const fastRouteMessage = (message) => {
     return null;
   }
 
+  // Check for compound queries (multiple intents connected by "and", "also", etc.)
+  const hasCompoundConnector = /\b(and|also|then|plus)\s+(show|get|see|list|give|tell|what|who|how)/i.test(message);
+
+  if (hasCompoundConnector) {
+    // Split on compound connectors, preserving the connector for context
+    const parts = message.split(/\s+(?:and|also|then|plus)\s+/i).map(p => p.trim()).filter(p => p.length > 3);
+
+    if (parts.length >= 2) {
+      const routes = [];
+      const matchedTasks = new Set(); // Avoid duplicate tasks
+
+      for (const part of parts) {
+        for (const { patterns, route } of FAST_ROUTES) {
+          for (const pattern of patterns) {
+            if (pattern.test(part) && !matchedTasks.has(route.task)) {
+              logger.debug(`⚡ [FastRoute] Compound match: "${part}" -> ${route.agent} -> ${route.task}`);
+              routes.push({
+                ...route,
+                user_input: part
+              });
+              matchedTasks.add(route.task);
+              break; // Found a match for this part, move to next part
+            }
+          }
+          if (matchedTasks.has(route.task)) break;
+        }
+      }
+
+      // If we found multiple routes, return them as an array
+      if (routes.length > 1) {
+        logger.debug(`⚡ [FastRoute] Compound query detected with ${routes.length} intents`);
+        return routes;
+      }
+    }
+  }
+
+  // Single intent matching (original logic)
   for (const { patterns, route } of FAST_ROUTES) {
     for (const pattern of patterns) {
       if (pattern.test(message)) {
@@ -212,70 +272,104 @@ class CoreAgent {
         !isNewTopicRequest(userMessage);
 
       if (fastRoute) {
-        // ⚡ FAST PATH: We know the agent, fetch only its required data
-        logger.debug(`⚡ [CoreAgent] Fast route matched: ${fastRoute.agent} -> ${fastRoute.task}`);
+        // Check if this is a compound query (array of routes) or single route
+        const isCompoundQuery = Array.isArray(fastRoute);
+        const primaryRoute = isCompoundQuery ? fastRoute[0] : fastRoute;
 
-        // Fetch only agent-specific context (saves ~800ms)
-        fullContext = await fetchAgentSpecificContext(fastRoute.agent);
+        // ⚡ FAST PATH: We know the agent(s), fetch only required data
+        if (isCompoundQuery) {
+          logger.debug(`⚡ [CoreAgent] Compound query matched: ${fastRoute.length} intents`);
+          fastRoute.forEach((r, i) => logger.debug(`  ${i + 1}. ${r.agent} -> ${r.task}`));
+        } else {
+          logger.debug(`⚡ [CoreAgent] Fast route matched: ${fastRoute.agent} -> ${fastRoute.task}`);
+        }
+
+        // ⛔ SUPERVISOR CHECK: Block restricted agents for supervisors
+        const { getCurrentUserContext } = require('../../../utils/storage/auth');
+        const userContext = await getCurrentUserContext();
+        const isSupervisor = userContext?.role === 'supervisor';
+
+        if (isSupervisor && SUPERVISOR_RESTRICTED_AGENTS.includes(primaryRoute.agent)) {
+          logger.debug(`⛔ [CoreAgent] Blocking ${primaryRoute.agent} for supervisor`);
+          const blockingResponse = getSupervisorBlockingResponse(primaryRoute.agent, primaryRoute.task);
+          if (onChunk) onChunk(blockingResponse.text);
+          if (onComplete) onComplete(blockingResponse);
+          return;
+        }
+
+        // Fetch context for all agents involved in compound query
+        if (isCompoundQuery) {
+          const uniqueAgents = [...new Set(fastRoute.map(r => r.agent))];
+          // Fetch context for each unique agent and merge
+          const contextPromises = uniqueAgents.map(agent => fetchAgentSpecificContext(agent));
+          const contexts = await Promise.all(contextPromises);
+          fullContext = contexts.reduce((merged, ctx) => ({ ...merged, ...ctx }), {});
+        } else {
+          fullContext = await fetchAgentSpecificContext(primaryRoute.agent);
+        }
         fullContext.conversation = this.conversationState;
         fullContext.lastProjectPreview = this.conversationState.lastProjectPreview || null;
         fullContext.lastEstimatePreview = this.conversationState.lastEstimatePreview || null;
 
-        // ⚡⚡ DETERMINISTIC PATH: Try to answer without LLM (saves ~2500ms)
-        const deterministicResponse = checkDeterministicResponse(
-          userMessage,
-          fullContext,
-          fastRoute.agent,
-          fastRoute.task
-        );
+        // ⚡⚡ DETERMINISTIC PATH: Only for single-intent queries (compound queries need full execution)
+        if (!isCompoundQuery) {
+          const deterministicResponse = checkDeterministicResponse(
+            userMessage,
+            fullContext,
+            fastRoute.agent,
+            fastRoute.task
+          );
 
-        if (deterministicResponse) {
-          const deterministicLatency = Date.now() - startTime;
-          logger.debug(`⚡⚡ [CoreAgent] Deterministic response in ${deterministicLatency}ms (no LLM!)`);
+          if (deterministicResponse) {
+            const deterministicLatency = Date.now() - startTime;
+            logger.debug(`⚡⚡ [CoreAgent] Deterministic response in ${deterministicLatency}ms (no LLM!)`);
 
-          // Convert deterministic format to UI-expected format
-          const uiResponse = {
-            text: deterministicResponse.response,
-            visualElements: [],
-            actions: [],
-            _deterministic: true,
-            _data: deterministicResponse.data
-          };
+            // Convert deterministic format to UI-expected format
+            const uiResponse = {
+              text: deterministicResponse.response,
+              visualElements: [],
+              actions: [],
+              _deterministic: true,
+              _data: deterministicResponse.data
+            };
 
-          // Update conversation state
-          this.conversationState.lastResponse = deterministicResponse;
-          this.conversationState.activeAgent = fastRoute.agent;
+            // Update conversation state
+            this.conversationState.lastResponse = deterministicResponse;
+            this.conversationState.activeAgent = fastRoute.agent;
 
-          // Return immediately - no LLM call needed
-          if (onChunk) onChunk(uiResponse.text);
-          if (onComplete) onComplete(uiResponse);
-          return;
+            // Return immediately - no LLM call needed
+            if (onChunk) onChunk(uiResponse.text);
+            if (onComplete) onComplete(uiResponse);
+            return;
+          }
+
+          // ⚡ Check cache before LLM call (deterministic missed, try cache)
+          const cachedResponse = responseCache.get(userMessage, fastRoute.agent, fullContext);
+          if (cachedResponse) {
+            const cacheLatency = Date.now() - startTime;
+            logger.debug(`⚡ [CoreAgent] Cache hit in ${cacheLatency}ms (no LLM!)`);
+
+            // Update conversation state
+            this.conversationState.lastResponse = cachedResponse;
+            this.conversationState.activeAgent = fastRoute.agent;
+
+            // Return cached response
+            if (onChunk) onChunk(cachedResponse.text);
+            if (onComplete) onComplete(cachedResponse);
+            return;
+          }
         }
 
-        // ⚡ Check cache before LLM call (deterministic missed, try cache)
-        const cachedResponse = responseCache.get(userMessage, fastRoute.agent, fullContext);
-        if (cachedResponse) {
-          const cacheLatency = Date.now() - startTime;
-          logger.debug(`⚡ [CoreAgent] Cache hit in ${cacheLatency}ms (no LLM!)`);
-
-          // Update conversation state
-          this.conversationState.lastResponse = cachedResponse;
-          this.conversationState.activeAgent = fastRoute.agent;
-
-          // Return cached response
-          if (onChunk) onChunk(cachedResponse.text);
-          if (onComplete) onComplete(cachedResponse);
-          return;
-        }
-
-        // Fall through to LLM if deterministic and cache both missed
+        // Build execution plan (multi-step for compound, single-step for simple)
         plan = {
-          reasoning: "Fast keyword routing (optimized path - no LLM planning)",
-          plan: [fastRoute]
+          reasoning: isCompoundQuery
+            ? `Compound query routing (${fastRoute.length} intents detected - no LLM planning)`
+            : "Fast keyword routing (optimized path - no LLM planning)",
+          plan: isCompoundQuery ? fastRoute : [fastRoute]
         };
 
         const fastLatency = Date.now() - startTime;
-        logger.debug(`⚡ [CoreAgent] Fast path completed in ${fastLatency}ms (LLM still needed)`);
+        logger.debug(`⚡ [CoreAgent] Fast path completed in ${fastLatency}ms (LLM still needed for execution)`);
 
       } else if (hasContinuingConversation) {
         // ⚡ CONTINUATION PATH: Route back to active agent
@@ -412,6 +506,14 @@ class CoreAgent {
           const handoffTask = response.nextSteps[0]?.task;
           logger.debug(`🔀 [CoreAgent] Agent requested handoff to: ${handoffAgent}`);
 
+          // ⛔ SUPERVISOR CHECK: Block handoff to restricted agents
+          if (fullContext?.isSupervisorMode && SUPERVISOR_RESTRICTED_AGENTS.includes(handoffAgent)) {
+            logger.debug(`⛔ [CoreAgent] Blocking handoff to ${handoffAgent} for supervisor`);
+            const blockingResponse = getSupervisorBlockingResponse(handoffAgent, handoffTask);
+            if (onComplete) onComplete(blockingResponse);
+            return;
+          }
+
           // CRITICAL: Set the handoff agent as active BEFORE executing
           // This ensures if the handoff agent asks a question, we route back to them
           this.updateConversationState({
@@ -448,6 +550,18 @@ class CoreAgent {
             response,
             fastRoute.task
           );
+        }
+
+        // 🧠 Extract and save facts from this conversation turn (long-term memory)
+        try {
+          const facts = memoryService.extractFacts(userMessage, response);
+          if (facts.length > 0) {
+            memoryService.saveFacts(facts);
+            logger.debug(`🧠 [CoreAgent] Extracted ${facts.length} fact(s) from conversation`);
+          }
+        } catch (memoryError) {
+          // Don't let memory errors break the main flow
+          logger.warn('🧠 [CoreAgent] Memory extraction warning:', memoryError);
         }
 
         // Call original onComplete
@@ -616,6 +730,19 @@ class CoreAgent {
     // ⚡ FAST ROUTING: Try keyword matching first to skip AI planning call
     const fastRoute = fastRouteMessage(userMessage);
     if (fastRoute) {
+      // ⛔ SUPERVISOR CHECK: Block restricted agents in planning
+      if (context?.isSupervisorMode && SUPERVISOR_RESTRICTED_AGENTS.includes(fastRoute.agent)) {
+        logger.debug(`⛔ [CoreAgent] Blocking ${fastRoute.agent} plan for supervisor`);
+        return {
+          reasoning: "Supervisor cannot access this feature",
+          plan: [{
+            agent: "DocumentAgent",
+            task: "explain_supervisor_restriction",
+            user_input: `User tried: ${fastRoute.task}`
+          }]
+        };
+      }
+
       logger.debug(`⚡ [CoreAgent] Fast route matched - skipping AI planning`);
       return {
         reasoning: "Fast keyword routing (no AI planning needed)",

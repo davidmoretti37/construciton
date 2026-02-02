@@ -2,13 +2,17 @@ import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View, LogBox } from 'react-native';
+import { LogBox } from 'react-native';
+import AppLoadingScreen from './src/components/AppLoadingScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import WorkerMainNavigator from './src/navigation/WorkerMainNavigator';
 import ClientMainNavigator from './src/navigation/ClientMainNavigator';
+import OwnerMainNavigator from './src/navigation/OwnerMainNavigator';
+import OwnerMainWrapper from './src/components/OwnerMainWrapper';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import WorkerOnboardingNavigator from './src/navigation/WorkerOnboardingNavigator';
 import ClientOnboardingNavigator from './src/navigation/ClientOnboardingNavigator';
+import SupervisorOnboardingNavigator from './src/navigation/SupervisorOnboardingNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
 import RoleSelectionScreen from './src/screens/auth/RoleSelectionScreen';
@@ -37,7 +41,19 @@ LogBox.ignoreLogs([
 
 function AppContent() {
   const { isDark = false } = useTheme() || {};
-  const { user, session, role, profile, isLoading: authLoading, clearRole } = useAuth();
+  const {
+    user,
+    session,
+    role,
+    profile,
+    isLoading: authLoading,
+    loadError,
+    isUsingCache,
+    clearRole,
+    ownerId,
+    refreshProfile,
+    retryProfileLoad,
+  } = useAuth();
   const [loading, setLoading] = useState(true);
   const [languageSelected, setLanguageSelected] = useState(null); // null = not yet determined
   const [userOnboarded, setUserOnboarded] = useState(null); // null = not yet determined
@@ -61,15 +77,33 @@ function AppContent() {
   // Monitor auth state from AuthContext
   useEffect(() => {
     if (!authLoading) {
-      if (session) {
-        // Wait for profile to actually be loaded before checking
-        // profile is null while loading, then gets set to the data
-        if (profile !== null) {
-          checkLanguageAndOnboarding();
+      if (session && profile !== null) {
+        // Immediately set state from profile to prevent screen flash
+        const hasLang = profile?.language !== null && profile?.language !== '';
+        const isOnboarded = profile?.is_onboarded === true;
+        if (hasLang) setLanguageSelected(true);
+        if (isOnboarded) setUserOnboarded(true);
+        // Then do full check (syncs i18n, etc.)
+        checkLanguageAndOnboarding();
+      } else if (profile && !session && isUsingCache) {
+        // Have cached profile but session not loaded yet (initial app load only)
+        // Pre-set state from cached profile so we don't flash wrong screens
+        const cachedLanguage = profile?.language;
+        if (cachedLanguage) {
+          setLanguageSelected(true);
+          changeLanguage(cachedLanguage);
+          logger.debug('Pre-set language from cache:', cachedLanguage);
         }
-        // If profile is null but authLoading is false, profile is still propagating
-        // The useEffect will re-run when profile updates
-      } else {
+        // Also pre-set onboarded status from cache
+        if (profile?.is_onboarded !== undefined) {
+          setUserOnboarded(profile.is_onboarded);
+        }
+        // Set loading false so app can render with cached data
+        setLoading(false);
+        // Session will load soon and trigger a refresh
+      } else if (!session) {
+        // No session - user needs to login
+        // This handles both: initial load with no cached data, AND logout
         logger.debug('No session - showing login');
         setLanguageSelected(false);
         setUserOnboarded(false);
@@ -143,6 +177,13 @@ function AppContent() {
     setUserOnboarded(true);
   };
 
+  const handleSupervisorInviteComplete = async () => {
+    // Refresh profile to get updated owner_id and is_onboarded status
+    await refreshProfile();
+    // Re-check onboarding status
+    await checkLanguageAndOnboarding();
+  };
+
   const handleGoBackToRoleSelection = async () => {
     const success = await clearRole();
     if (success) {
@@ -152,14 +193,19 @@ function AppContent() {
   };
 
   // Show loading while:
+  // - local loading state is true
   // - auth is loading
-  // - profile is being fetched (session exists but profile not yet)
+  // - session exists but profile not loaded yet
   // - language/onboarding state not yet determined (null)
-  if (loading || authLoading || (session && !profile) || languageSelected === null) {
+  const needsLoading = loading || authLoading || (session && !profile) || languageSelected === null;
+
+  if (needsLoading || loadError) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
+      <AppLoadingScreen
+        error={loadError}
+        onRetry={retryProfileLoad}
+        timeoutMs={15000}
+      />
     );
   }
 
@@ -172,7 +218,13 @@ function AppContent() {
     });
 
     // Not authenticated → Show login/signup
+    // BUT only if we don't have a cached profile (which indicates user was logged in)
     if (!session) {
+      // If we have profile data (cached), user is likely logged in - wait for session
+      if (profile || isUsingCache) {
+        logger.debug('Showing: LOADING (waiting for session with cached profile)');
+        return <AppLoadingScreen timeoutMs={15000} />;
+      }
       logger.debug('Showing: LOGIN SCREEN');
       return <AuthNavigator />;
     }
@@ -192,8 +244,17 @@ function AppContent() {
     // Role selected but not onboarded → Show role-specific onboarding
     if (userOnboarded === false) {
       if (role === 'owner') {
+        // Owner uses a simpler onboarding (reuse existing for now)
         logger.debug('Showing: OWNER ONBOARDING');
         return <OnboardingNavigator onComplete={handleOnboardingComplete} onGoBack={handleGoBackToRoleSelection} />;
+      } else if (role === 'supervisor') {
+        // Supervisor uses simple onboarding (like workers):
+        // 1. Welcome - Accept invitation from owner
+        // 2. Info - Basic supervisor information (name, phone, title)
+        // 3. Completion - Save and finish
+        // Note: Supervisors use the owner's company settings (pricing, phases, etc.)
+        logger.debug('Showing: SUPERVISOR SIMPLE ONBOARDING');
+        return <SupervisorOnboardingNavigator onComplete={handleOnboardingComplete} />;
       } else if (role === 'worker') {
         logger.debug('Showing: WORKER ONBOARDING');
         return <WorkerOnboardingNavigator onComplete={handleOnboardingComplete} />;
@@ -205,7 +266,17 @@ function AppContent() {
 
     // Fully set up → Show role-specific main app
     if (role === 'owner') {
-      logger.debug('Showing: OWNER MAIN APP');
+      logger.debug('Showing: OWNER BOSS VIEW');
+      return <OwnerMainWrapper key="owner-main" />;
+    } else if (role === 'supervisor') {
+      // Supervisor needs to be linked to an owner to use the app
+      if (!ownerId) {
+        // Not linked to an owner - show invitation screen
+        logger.debug('Showing: SUPERVISOR INVITATION SCREEN (no owner linked)');
+        return <SupervisorOnboardingNavigator onComplete={handleSupervisorInviteComplete} />;
+      }
+      // Supervisor sees the full app (previously owner app)
+      logger.debug('Showing: SUPERVISOR MAIN APP');
       return <MainNavigator />;
     } else if (role === 'worker') {
       logger.debug('Showing: WORKER MAIN APP');

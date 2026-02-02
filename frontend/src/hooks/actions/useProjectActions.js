@@ -411,7 +411,18 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
 
       const savedProject = await saveProject(cleanProjectData);
 
-      if (savedProject) {
+      // Check for subscription limit error
+      if (savedProject?.error === 'limit_reached') {
+        logger.warn('⚠️ Project limit reached:', savedProject);
+        Alert.alert(
+          'Project Limit Reached',
+          savedProject.reason || 'You have reached your project limit. Upgrade your plan to create more projects.',
+          [{ text: 'OK' }]
+        );
+        return null;
+      }
+
+      if (savedProject && savedProject.id) {
         logger.debug('✅ Project saved successfully:', savedProject.id);
 
         // AI Task Distribution - distribute tasks intelligently across the timeline

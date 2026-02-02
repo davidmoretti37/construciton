@@ -76,12 +76,12 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     );
   };
 
-  const handleEditTransaction = (transaction) => {
-    navigation.navigate('TransactionEntry', {
+  const handleViewTransaction = (transaction) => {
+    navigation.navigate('TransactionDetail', {
+      transaction,
       projectId,
       projectName,
-      transaction,
-      onSave: loadTransactions,
+      onRefresh: loadTransactions,
     });
   };
 
@@ -214,7 +214,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
             <TouchableOpacity
               key={transaction.id}
               style={[styles.transactionCard, { backgroundColor: Colors.cardBackground }]}
-              onPress={() => handleEditTransaction(transaction)}
+              onPress={() => handleViewTransaction(transaction)}
               activeOpacity={0.7}
             >
               <View style={styles.transactionLeft}>

@@ -25,6 +25,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   fetchWorkers,
   createWorker,
@@ -62,14 +63,22 @@ import TaskMoveModal from '../components/TaskMoveModal';
 import FullscreenPhotoViewer from '../components/FullscreenPhotoViewer';
 import { formatHoursMinutes } from '../utils/calculations';
 
-export default function WorkersScreen({ navigation }) {
+export default function WorkersScreen({ navigation, route, ownerMode = false, activeTab: externalActiveTab, onTabChange, showHeader = true }) {
   const { t } = useTranslation('workers');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
+  const { isSupervisor } = useAuth() || {};
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState('schedule'); // 'schedule' | 'reports' | 'workers'
+  // Tab state - can be controlled externally in owner mode
+  const [internalActiveTab, setInternalActiveTab] = useState('schedule'); // 'schedule' | 'reports' | 'workers'
+
+  // Use external tab state if in owner mode, otherwise use internal
+  const activeTab = ownerMode && externalActiveTab ? externalActiveTab : internalActiveTab;
+  const setActiveTab = ownerMode && onTabChange ? onTabChange : setInternalActiveTab;
+
+  // Owner mode color (royal blue)
+  const accentColor = ownerMode ? '#1E40AF' : Colors.primaryBlue;
 
   const [loading, setLoading] = useState(true);
   const [scheduleLoading, setScheduleLoading] = useState(false);
@@ -167,9 +176,16 @@ export default function WorkersScreen({ navigation }) {
       if (!hasLoadedOnce) {
         loadData();
       }
+      // Check if we should open add modal (from quick action)
+      if (route?.params?.openAddModal) {
+        setShowAddModal(true);
+        setActiveTab('workers');
+        // Clear the param so it doesn't reopen on subsequent focus
+        navigation.setParams({ openAddModal: false });
+      }
     });
     return unsubscribe;
-  }, [navigation, hasLoadedOnce]);
+  }, [navigation, hasLoadedOnce, route?.params?.openAddModal]);
 
   useEffect(() => {
     filterData();
@@ -910,90 +926,137 @@ export default function WorkersScreen({ navigation }) {
     return activeClockIns[workerId] !== undefined;
   };
 
+  // Content wrapper - when showHeader is false, don't wrap in SafeAreaView
+  const ContentWrapper = showHeader ? SafeAreaView : View;
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <View style={styles.headerTop}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-            {activeTab === 'schedule' ? t('tabs.schedule', 'Schedule') : activeTab === 'reports' ? t('tabs.reports', 'Reports') : t('title')}
-          </Text>
-          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
-        </View>
+    <ContentWrapper style={[styles.container, { backgroundColor: Colors.white }]}>
+      {/* Header - only show when showHeader is true */}
+      {showHeader && (
+        <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+          <View style={styles.headerTop}>
+            {/* Left: placeholder */}
+            <View style={styles.headerLeft} />
+            {/* Center: Empty spacer */}
+            <View style={{ flex: 1 }} />
+            {/* Right: NotificationBell */}
+            <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+          </View>
 
-        {/* Tab Bar */}
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'schedule' && styles.activeTab]}
-            onPress={() => setActiveTab('schedule')}
-          >
-            <Ionicons
-              name={activeTab === 'schedule' ? "calendar" : "calendar-outline"}
-              size={20}
-              color={activeTab === 'schedule' ? Colors.primaryBlue : Colors.secondaryText}
-            />
-            <Text style={[
-              styles.tabText,
-              activeTab === 'schedule' && { ...styles.activeTabText, color: Colors.primaryBlue }
-            ]}>
-              {t('tabs.schedule', 'Schedule')}
-            </Text>
-          </TouchableOpacity>
+          {/* Tab Bar */}
+          <View style={styles.tabBar}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'schedule' && styles.activeTab, ownerMode && activeTab === 'schedule' && { borderBottomColor: accentColor }]}
+              onPress={() => setActiveTab('schedule')}
+            >
+              <Ionicons
+                name={activeTab === 'schedule' ? "calendar" : "calendar-outline"}
+                size={ownerMode ? 18 : 20}
+                color={activeTab === 'schedule' ? accentColor : Colors.secondaryText}
+              />
+              <Text style={[
+                styles.tabText,
+                ownerMode && { fontSize: 12 },
+                activeTab === 'schedule' && { ...styles.activeTabText, color: accentColor }
+              ]}>
+                {t('tabs.schedule', 'Schedule')}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'reports' && styles.activeTab]}
-            onPress={() => setActiveTab('reports')}
-          >
-            <Ionicons
-              name={activeTab === 'reports' ? "document-text" : "document-text-outline"}
-              size={20}
-              color={activeTab === 'reports' ? Colors.primaryBlue : Colors.secondaryText}
-            />
-            <Text style={[
-              styles.tabText,
-              activeTab === 'reports' && { ...styles.activeTabText, color: Colors.primaryBlue }
-            ]}>
-              {t('tabs.reports', 'Reports')}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'reports' && styles.activeTab, ownerMode && activeTab === 'reports' && { borderBottomColor: accentColor }]}
+              onPress={() => setActiveTab('reports')}
+            >
+              <Ionicons
+                name={activeTab === 'reports' ? "document-text" : "document-text-outline"}
+                size={ownerMode ? 18 : 20}
+                color={activeTab === 'reports' ? accentColor : Colors.secondaryText}
+              />
+              <Text style={[
+                styles.tabText,
+                ownerMode && { fontSize: 12 },
+                activeTab === 'reports' && { ...styles.activeTabText, color: accentColor }
+              ]}>
+                {t('tabs.reports', 'Reports')}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'workers' && styles.activeTab]}
-            onPress={() => setActiveTab('workers')}
-          >
-            <Ionicons
-              name={activeTab === 'workers' ? "people" : "people-outline"}
-              size={20}
-              color={activeTab === 'workers' ? Colors.primaryBlue : Colors.secondaryText}
-            />
-            <Text style={[
-              styles.tabText,
-              activeTab === 'workers' && { ...styles.activeTabText, color: Colors.primaryBlue }
-            ]}>
-              {t('title')}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {/* Workers tab - only in non-owner mode (supervisors see this) */}
+            {!ownerMode && (
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'workers' && styles.activeTab]}
+                onPress={() => setActiveTab('workers')}
+              >
+                <Ionicons
+                  name={activeTab === 'workers' ? "people" : "people-outline"}
+                  size={20}
+                  color={activeTab === 'workers' ? accentColor : Colors.secondaryText}
+                />
+                <Text style={[
+                  styles.tabText,
+                  activeTab === 'workers' && { ...styles.activeTabText, color: accentColor }
+                ]}>
+                  {t('title')}
+                </Text>
+              </TouchableOpacity>
+            )}
 
-        {/* Search Bar (only for Workers tab) */}
-        {activeTab === 'workers' && (
-          <View style={[styles.searchBar, { backgroundColor: Colors.lightGray }]}>
-            <Ionicons name="search" size={20} color={Colors.secondaryText} />
-            <TextInput
-              style={[styles.searchInput, { color: Colors.primaryText }]}
-              placeholder={t('searchPlaceholder')}
-              placeholderTextColor={Colors.secondaryText}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery !== '' && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+            {/* Team tab - only in owner mode (combined Supervisors + Workers) */}
+            {ownerMode && (
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'team' && styles.activeTab, activeTab === 'team' && { borderBottomColor: accentColor }]}
+                onPress={() => setActiveTab('team')}
+              >
+                <Ionicons
+                  name={activeTab === 'team' ? "people" : "people-outline"}
+                  size={18}
+                  color={activeTab === 'team' ? accentColor : Colors.secondaryText}
+                />
+                <Text style={[
+                  styles.tabText,
+                  { fontSize: 12 },
+                  activeTab === 'team' && { ...styles.activeTabText, color: accentColor }
+                ]}>
+                  Team
+                </Text>
               </TouchableOpacity>
             )}
           </View>
-        )}
-      </View>
+
+          {/* Search Bar (only for Workers tab) */}
+          {activeTab === 'workers' && (
+            <View style={[styles.searchBar, { backgroundColor: Colors.lightGray }]}>
+              <Ionicons name="search" size={20} color={Colors.secondaryText} />
+              <TextInput
+                style={[styles.searchInput, { color: Colors.primaryText }]}
+                placeholder={t('searchPlaceholder')}
+                placeholderTextColor={Colors.secondaryText}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery !== '' && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Add Worker Button (only for Workers tab) */}
+          {activeTab === 'workers' && (
+            <View style={styles.addWorkerButtonContainer}>
+              <TouchableOpacity
+                style={[styles.addWorkerButton, { backgroundColor: Colors.primaryBlue }]}
+                onPress={() => setShowAddModal(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                <Text style={styles.addWorkerButtonText}>{t('addWorker', 'Add Worker')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
       <ScrollView
         style={styles.content}
@@ -1727,15 +1790,6 @@ export default function WorkersScreen({ navigation }) {
                 ? t('noWorkersHint')
                 : t('emptyState.adjustSearch', 'Try adjusting your search or filter')}
             </Text>
-            {workers.length === 0 && (
-              <TouchableOpacity
-                style={[styles.emptyStateButton, { backgroundColor: Colors.primaryBlue }]}
-                onPress={() => setShowAddModal(true)}
-              >
-                <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.emptyStateButtonText}>{t('emptyState.addFirstWorker', 'Add Your First Worker')}</Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
 
@@ -1753,6 +1807,7 @@ export default function WorkersScreen({ navigation }) {
                     worker={worker}
                     isClocked={isClockedIn}
                     onPress={() => openDetailModal(worker)}
+                    hidePayment={isSupervisor}
                   />
                 );
               })}
@@ -1764,27 +1819,6 @@ export default function WorkersScreen({ navigation }) {
         )}
       </ScrollView>
 
-      {/* FAB Button for Owner to create daily report - Fixed position outside ScrollView */}
-      {activeTab === 'reports' && (
-        <TouchableOpacity
-          style={styles.reportsFab}
-          onPress={() => navigation.navigate('DailyReportForm', { isOwner: true })}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={28} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
-
-      {/* FAB Button for Workers tab - Add new worker */}
-      {activeTab === 'workers' && (
-        <TouchableOpacity
-          style={styles.workersFab}
-          onPress={() => setShowAddModal(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={28} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
 
       {/* Add Worker Modal */}
       <Modal
@@ -1906,7 +1940,8 @@ export default function WorkersScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Payment Details Section */}
+            {/* Payment Details Section - Hidden for supervisors */}
+            {!isSupervisor && (
             <View style={[styles.formCard, { backgroundColor: Colors.white }]}>
               <View style={styles.formCardHeader}>
                 <Ionicons name="wallet-outline" size={20} color={Colors.primaryBlue} />
@@ -2078,6 +2113,7 @@ export default function WorkersScreen({ navigation }) {
                 </View>
               )}
             </View>
+            )}
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -2203,7 +2239,8 @@ export default function WorkersScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Payment Details Section */}
+            {/* Payment Details Section - Hidden for supervisors */}
+            {!isSupervisor && (
             <View style={[styles.formCard, { backgroundColor: Colors.white }]}>
               <View style={styles.formCardHeader}>
                 <Ionicons name="wallet-outline" size={20} color={Colors.primaryBlue} />
@@ -2375,6 +2412,7 @@ export default function WorkersScreen({ navigation }) {
                 </View>
               )}
             </View>
+            )}
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -2570,8 +2608,8 @@ export default function WorkersScreen({ navigation }) {
                   </View>
                 )}
 
-                {/* Payment Card */}
-                {(selectedWorker.hourly_rate > 0 || selectedWorker.daily_rate > 0 || selectedWorker.weekly_salary > 0 || selectedWorker.project_rate > 0) && (
+                {/* Payment Card - Hidden for supervisors */}
+                {!isSupervisor && (selectedWorker.hourly_rate > 0 || selectedWorker.daily_rate > 0 || selectedWorker.weekly_salary > 0 || selectedWorker.project_rate > 0) && (
                   <View style={[styles.paymentCard, { backgroundColor: Colors.white }]}>
                     <View style={styles.paymentHeader}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -2630,17 +2668,19 @@ export default function WorkersScreen({ navigation }) {
                   </View>
                 )}
 
-                {/* View Payment History Button */}
-                <TouchableOpacity
-                  style={[styles.viewHistoryButton, { backgroundColor: Colors.primaryBlue }]}
-                  onPress={() => {
-                    setSelectedWorker(null);
-                    navigation.navigate('WorkerDetailHistory', { worker: selectedWorker });
-                  }}
-                >
-                  <Ionicons name="calendar-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.viewHistoryButtonText}>View Payment History</Text>
-                </TouchableOpacity>
+                {/* View Payment History Button - Hidden for supervisors */}
+                {!isSupervisor && (
+                  <TouchableOpacity
+                    style={[styles.viewHistoryButton, { backgroundColor: Colors.primaryBlue }]}
+                    onPress={() => {
+                      setSelectedWorker(null);
+                      navigation.navigate('WorkerDetailHistory', { worker: selectedWorker });
+                    }}
+                  >
+                    <Ionicons name="calendar-outline" size={20} color="#FFFFFF" />
+                    <Text style={styles.viewHistoryButtonText}>View Payment History</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Clock-In History */}
                 {selectedWorkerHistory && selectedWorkerHistory.length > 0 && (
@@ -2843,7 +2883,7 @@ export default function WorkersScreen({ navigation }) {
           </View>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </ContentWrapper>
   );
 }
 
@@ -2867,6 +2907,30 @@ const createStyles = (Colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.small,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.small,
+    minWidth: 80, // Balance with right side for centered title
+  },
+  exitFieldModeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  exitFieldModeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 28,
@@ -2898,6 +2962,7 @@ const createStyles = (Colors) => StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 12,
+    minHeight: 48,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -4148,21 +4213,22 @@ const createStyles = (Colors) => StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
-  workersFab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 100,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primaryBlue,
+  addWorkerButtonContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  addWorkerButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  addWorkerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   reportsHeader: {
     padding: 16,

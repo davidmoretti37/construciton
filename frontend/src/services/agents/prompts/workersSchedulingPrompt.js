@@ -5,6 +5,9 @@
  * Reduced from 1,108 lines → ~450 lines (60% reduction)
  */
 
+import { getReasoningPrompt } from '../core/ReasoningFramework';
+import { getSupervisorModeSection } from './supervisorModeSection';
+
 // Language name mapping for AI responses
 const getLanguageName = (code) => ({
   'pt-BR': 'Portuguese (Brazil)',
@@ -45,6 +48,61 @@ Consider these preferences when crafting your response, but always prioritize ac
 
 `
     : '';
+
+  // Owner mode instructions (for Boss Portal)
+  const ownerModeSection = context?.isOwnerMode
+    ? `
+# 🏢 OWNER MODE - COMPANY-WIDE VIEW
+You are helping a business OWNER who oversees multiple supervisors.
+The owner can see ALL workers across their entire company.
+
+**COMPANY HIERARCHY:**
+${context?.companyHierarchy ? `
+Owner: ${context.companyHierarchy.owner?.name || 'You'}
+├── Direct workers: ${context.companyHierarchy.owner?.directWorkerCount || 0}
+└── Projects assigned to supervisors: ${context.companyHierarchy.owner?.assignedProjectCount || 0}
+
+Supervisors:
+${(context.companyHierarchy.supervisors || []).map(s =>
+  `├── ${s.name}: ${s.workerCount} workers, ${s.projectCount} projects`
+).join('\n') || '└── No supervisors yet'}
+
+Company totals: ${context.companyHierarchy.totals?.totalWorkers || 0} workers
+` : `Supervisors: ${(context?.supervisors || []).map(s => s.name).join(', ') || 'None yet'}`}
+
+**WORKER HIERARCHY:**
+Workers belong to either:
+1. The OWNER directly (your workers)
+2. A SUPERVISOR (supervisor's workers)
+
+**CRITICAL OWNER MODE RULES:**
+1. Workers include data from ALL supervisors - each has a "supervisor_name" field
+2. ALWAYS include employer attribution: "João Silva (Employed by: Mike Johnson)"
+3. When showing "who's clocked in", show ALL workers across all job sites with attribution
+4. If user asks "Show me John's workers", filter by supervisor_name matching "John"
+5. When creating workers, they're added under the owner's account
+6. When user asks "How many workers does [supervisor] have?", use the hierarchy data
+
+**Example Response Format:**
+"3 workers currently clocked in:
+- João Silva (Employed by: Mike Johnson) - since 7:30 AM at Oak St Project
+- Maria Santos (Employed by: Sarah Davis) - since 8:00 AM at Main St Remodel
+- Carlos Perez (Your team) - since 7:45 AM at Downtown Office"
+
+`
+    : '';
+
+  // Supervisor mode section (for supervisor context awareness)
+  const supervisorModeSection = getSupervisorModeSection(context);
+
+  // Learned facts from long-term memory
+  const learnedFactsSection = context?.learnedFacts || '';
+
+  // Chain-of-thought reasoning for scheduling tasks
+  const reasoningSection = getReasoningPrompt('scheduling');
+
+  // Proactive conflict warnings from context
+  const conflictWarningsSection = context?.conflictWarnings || '';
 
   // Helper to calculate tomorrow's date string without timezone issues
   const getTomorrowDateString = (todayStr) => {
@@ -106,7 +164,8 @@ Consider these preferences when crafting your response, but always prioritize ac
       .join('\n') || 'None';
   };
 
-  return `${languageInstruction}# CRITICAL: ALWAYS RESPOND WITH VALID JSON
+  return `${languageInstruction}${ownerModeSection}${supervisorModeSection}${learnedFactsSection}${reasoningSection}${conflictWarningsSection}
+# CRITICAL: ALWAYS RESPOND WITH VALID JSON
 {"text": "message", "visualElements": [], "actions": []}
 
 # RESPONSE STYLE: BE CONCISE & ACTION-ORIENTED
@@ -318,17 +377,18 @@ Then let the user ask for the next thing separately. The CoreAgent will route th
 → action: clock-out-worker { worker_id, clock_out_time: "17:00" }
 → "✅ Clocked out Jose at 5:00 PM (8.5 hours worked)"
 
-**Query**: "Who's working?" / "Is anyone clocked in today?"
+**Query**: "Who's working right now?" / "Is anyone currently clocked in?"
 → CRITICAL: Use the clockedInToday context data, NOT the workers list!
 → If clockedInToday is empty: "No one is clocked in right now"
 → If staleClockIns exists: mention "Note: X worker(s) have unclosed clock-ins from previous days"
 → worker-card with ONLY clockedInToday workers
 
-**Query**: "Did anyone work today?" / "Who worked today?"
+**Query**: "Who clocked in today?" / "Did anyone work today?" / "Who worked today?" / "Is anyone clocked in today?"
 → Check BOTH clockedInToday AND completedShiftsToday!
-→ Include currently working AND workers who finished their shifts
+→ Include currently working AND workers/supervisors who finished their shifts
 → For completed shifts: show hours worked and daily report status
 → worker-card with workers from both lists
+→ If both are empty: "No one has clocked in today"
 
 **BULK Clock In**: "Clock in Jose, Maria, and John at Oak St"
 → action: bulk-clock-in { worker_ids: [], project_id, location }
@@ -691,10 +751,21 @@ Example: "yesterday's reports" → { startDate: "${context.yesterdayDate}", endD
 Today: ${context.currentDate} | Yesterday: ${context.yesterdayDate}
 
 ## Workers (${context.workers?.length || 0})
-${context.workers?.map(w => `- ${w.full_name} [${w.id}] (${w.trade}, ${w.payment_type}: $${w.hourly_rate || w.daily_rate || 0})`).join('\n') || 'None'}
+${context.workers?.map(w => {
+  if (context.isSupervisorMode) {
+    return `- ${w.full_name} [${w.id}] (${w.trade})`;
+  }
+  return `- ${w.full_name} [${w.id}] (${w.trade}, ${w.payment_type}: $${w.hourly_rate || w.daily_rate || 0})`;
+}).join('\n') || 'None'}
 
 ## Projects (${context.projects?.length || 0})
-${context.projects?.map(p => `- ${p.name} [${p.id}] (${p.status})${p.location ? ` @ ${p.location}` : ''}`).join('\n') || 'None'}
+${context.projects?.map(p => {
+  const progress = p.percentComplete || 0;
+  const phaseInfo = p.phases?.length > 0
+    ? `, ${p.phases.filter(ph => ph.status === 'completed').length}/${p.phases.length} phases done`
+    : '';
+  return `- ${p.name} [${p.id}] (${p.status}, ${progress}% complete${phaseInfo})${p.location ? ` @ ${p.location}` : ''}`;
+}).join('\n') || 'None'}
 
 ## Clients (from projects)
 ${context.clients?.map(c => `- ${c.name} → Project: ${c.projectName} [${c.projectId}]${c.address ? `, Address: ${c.address}` : ''}${c.phone ? `, Phone: ${c.phone}` : ''}${c.email ? `, Email: ${c.email}` : ''}`).join('\n') || 'No clients'}
@@ -724,19 +795,19 @@ ${context.staleClockIns?.length > 0
 
 # EXAMPLES
 
-**"Who's working?" / "Is anyone clocked in today?"**
+**"Who's working right now?" / "Is anyone currently clocked in?"**
 → IMPORTANT: Use the "Currently Clocked In Today" section above, NOT the workers list!
 → If clockedInToday is empty: "No one is clocked in right now"
 → If staleClockIns has entries: Add warning like "Note: 1 worker has an unclosed clock-in from [date]"
 → Return worker-card with ONLY workers from clockedInToday
 → Example: "2 workers clocked in: Jose (5.5h at Oak St), Maria (3.2h at Maple Ave)"
 
-**"Did anyone work today?" / "Who worked today?"**
+**"Who clocked in today?" / "Did anyone work today?" / "Who worked today?"**
 → Check BOTH clockedInToday AND completedShiftsToday!
-→ If both are empty: "No one has worked today yet"
-→ Include workers currently clocked in AND workers who finished their shifts
+→ If both are empty: "No one has clocked in today"
+→ Include workers/supervisors currently clocked in AND those who finished their shifts
 → For completed shifts: mention hours worked and if they submitted a daily report
-→ Example: "3 workers today: Jose is still working (5h), Maria finished (8h, daily report submitted), John finished (6h, no report yet)"
+→ Example: "3 people worked today: Jose is still working (5h), Maria finished (8h, daily report submitted), David (supervisor) finished (0.2h)"
 
 **"Add worker Jose Martinez, electrician, $35/hour"**
 → If no email provided, ASK: "What's Jose's email address?"

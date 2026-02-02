@@ -16,9 +16,9 @@ import { useTheme } from '../contexts/ThemeContext';
 const items = [
   { id: 0, icon: 'home', label: 'Home', routeIndex: 0 },
   { id: 1, icon: 'file-tray-full', label: 'Projects', routeIndex: 1 },
-  { id: 2, icon: 'chatbubbles', label: 'Chat', routeIndex: 3 },
-  { id: 3, icon: 'people', label: 'Workers', routeIndex: 2 },
-  { id: 4, icon: 'ellipsis-horizontal', label: 'More', routeIndex: 4 },
+  { id: 2, icon: 'chatbubbles', label: 'Chat', routeIndex: 2 },
+  { id: 3, icon: 'people', label: 'Workers', routeIndex: 3 },
+  { id: 4, icon: 'settings', label: 'Settings', routeIndex: 4 },
 ];
 
 const LumaBar = ({ state, navigation }) => {
@@ -141,8 +141,8 @@ const NavItem = ({ item, isActive, onPress, Colors }) => {
 // Static styles for NavItem (doesn't need dynamic colors)
 const navItemStyles = StyleSheet.create({
   navItem: {
-    width: 50,
-    height: 50,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 2,
@@ -155,10 +155,7 @@ const navItemStyles = StyleSheet.create({
 
 const createStyles = (Colors) => StyleSheet.create({
   container: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
+    // Positioning handled by parent SupervisorNavContainer
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -32,10 +32,11 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('common');
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Check if owner mode from route params
   const isOwner = route.params?.isOwner === true;
+  const isSupervisor = profile?.role === 'supervisor';
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -48,10 +49,12 @@ export default function DailyReportFormScreen({ navigation, route }) {
   useEffect(() => {
     if (isOwner) {
       loadOwnerProjects();
+    } else if (isSupervisor) {
+      loadSupervisorProjects();
     } else {
       loadWorkerProjects();
     }
-  }, [isOwner]);
+  }, [isOwner, isSupervisor]);
 
   const loadOwnerProjects = async () => {
     try {
@@ -60,6 +63,28 @@ export default function DailyReportFormScreen({ navigation, route }) {
       setAssignedProjects(projects || []);
     } catch (error) {
       console.error('Error loading owner projects:', error);
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'projects' }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSupervisorProjects = async () => {
+    try {
+      setLoading(true);
+      const currentUserId = await getCurrentUserId();
+
+      // Get projects assigned to supervisor OR created by supervisor
+      const { data: projects, error } = await supabase
+        .from('projects')
+        .select('*')
+        .or(`assigned_supervisor_id.eq.${currentUserId},user_id.eq.${currentUserId}`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAssignedProjects(projects || []);
+    } catch (error) {
+      console.error('Error loading supervisor projects:', error);
       Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'projects' }));
     } finally {
       setLoading(false);

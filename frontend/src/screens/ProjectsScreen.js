@@ -21,6 +21,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { saveProject, saveProjectPhases, fetchProjectPhases, deleteProject } from '../utils/storage';
 import { getUserProfile } from '../utils/storage/userProfile';
 import { ProjectCard } from '../components/ChatVisuals';
@@ -482,36 +483,6 @@ export default function ProjectsScreen({ navigation, route }) {
     setShowPhaseDetail(false);
   };
 
-  // Check subscription before creating new project
-  const handleNewProjectPress = async () => {
-    // First check if user has ANY subscription
-    if (!hasActiveSubscription) {
-      // No subscription at all - show the full paywall
-      navigation.navigate('Settings', { screen: 'Paywall' });
-      return;
-    }
-
-    // User has subscription - check if they're at their limit
-    try {
-      const result = await checkCanCreateProject();
-      if (!result.can_create) {
-        setSubscriptionInfo(result);
-        setShowUpgradeModal(true);
-        return;
-      }
-      // Navigate to Chat with initial message to create project via AI
-      navigation.navigate('Chat', {
-        initialMessage: 'I want to create a new project'
-      });
-    } catch (error) {
-      // If check fails, navigate to chat anyway (fail open)
-      logger.warn('Subscription check failed, navigating to chat:', error);
-      navigation.navigate('Chat', {
-        initialMessage: 'I want to create a new project'
-      });
-    }
-  };
-
   // OPTIMIZATION: FlatList optimizations
   const renderProjectItem = useCallback(({ item }) => (
     <SimpleProjectCard
@@ -553,6 +524,7 @@ export default function ProjectsScreen({ navigation, route }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.white, borderBottomColor: Colors.white }]}>
+        <View style={styles.topBarLeft} />
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('title')}</Text>
         <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
@@ -581,15 +553,6 @@ export default function ProjectsScreen({ navigation, route }) {
           initialNumToRender={10}
         />
       )}
-
-      {/* FAB Button for adding new project */}
-      <TouchableOpacity
-        style={[styles.projectsFab, { backgroundColor: Colors.primaryBlue, shadowColor: Colors.shadow }]}
-        onPress={handleNewProjectPress}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color={Colors.white} />
-      </TouchableOpacity>
 
       {/* Simple Edit Modal - Hide when timeline picker is open */}
       <Modal visible={editOpen && !showEditTimeline} transparent animationType="slide" onRequestClose={closeEdit}>
@@ -1015,6 +978,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     backgroundColor: LightColors.white,
   },
+  topBarLeft: {
+    minWidth: 40,
+    justifyContent: 'center',
+  },
+  exitFieldModeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  exitFieldModeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
@@ -1036,20 +1021,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.body,
     color: LightColors.primaryBlue,
     fontWeight: '600',
-  },
-  projectsFab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 100,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
   },
   searchSection: {
     backgroundColor: LightColors.white,

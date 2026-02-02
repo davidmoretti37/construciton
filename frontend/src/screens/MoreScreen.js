@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { getCurrentUserId, getUserProfile, getSelectedLanguage, getAISettings, updateAISettings } from '../utils/storage';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,6 +33,7 @@ export default function MoreScreen({ navigation }) {
   const { t } = useTranslation('settings');
   const { isDark = false, toggleTheme } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { isSupervisor } = useAuth() || {};
 
   // Content state
   const [loading, setLoading] = useState(true);
@@ -148,7 +150,9 @@ export default function MoreScreen({ navigation }) {
             try {
               const { error } = await supabase.auth.signOut();
               if (error) throw error;
+              const hasSeenOnboarding = await AsyncStorage.getItem('@hasSeenOnboarding');
               await AsyncStorage.clear();
+              if (hasSeenOnboarding) await AsyncStorage.setItem('@hasSeenOnboarding', hasSeenOnboarding);
             } catch (error) {
               console.error('Logout failed:', error);
               Alert.alert(t('errors.logoutFailed'), t('errors.logoutFailedMessage'));
@@ -216,12 +220,14 @@ export default function MoreScreen({ navigation }) {
               {userProfile?.email || ''}
             </Text>
           </View>
-          <TouchableOpacity
-            style={[styles.editProfileBtn, { backgroundColor: Colors.primaryBlue + '12' }]}
-            onPress={() => navigation.navigate('EditBusinessInfo')}
-          >
-            <Ionicons name="pencil" size={16} color={Colors.primaryBlue} />
-          </TouchableOpacity>
+          {!isSupervisor && (
+            <TouchableOpacity
+              style={[styles.editProfileBtn, { backgroundColor: Colors.primaryBlue + '12' }]}
+              onPress={() => navigation.navigate('EditBusinessInfo')}
+            >
+              <Ionicons name="pencil" size={16} color={Colors.primaryBlue} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* AI Personality Card */}
@@ -327,76 +333,89 @@ export default function MoreScreen({ navigation }) {
             iconColor={Colors.infoBlue}
             title={t('items.contracts', 'Contracts')}
             onPress={() => navigation.navigate('Contracts')}
+            isLast={isSupervisor}
           />
-          <MenuItem
-            icon="calculator-outline"
-            iconColor={Colors.success}
-            title={t('items.estimates', 'Estimates')}
-            onPress={() => navigation.navigate('EstimatesDetail')}
-          />
-          <MenuItem
-            icon="receipt-outline"
-            iconColor={Colors.warning}
-            title={t('items.invoices', 'Invoices')}
-            onPress={() => navigation.navigate('InvoicesDetail')}
-            isLast
-          />
-        </View>
-
-        {/* Services */}
-        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.business', 'YOUR SERVICES')}
-        </Text>
-        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-          {userServices && userServices.length > 0 ? (
-            userServices.map((userService, index) => {
-              const service = userService.service_categories;
-              if (!service) return null;
-              return (
-                <MenuItem
-                  key={userService.id}
-                  icon={service.icon || 'briefcase-outline'}
-                  iconColor={Colors.success}
-                  title={service.name}
-                  onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
-                  isLast={index === userServices.length - 1}
-                />
-              );
-            })
-          ) : (
-            <View style={styles.emptyServices}>
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                {t('business.noServices', 'No services added yet')}
-              </Text>
-            </View>
+          {!isSupervisor && (
+            <>
+              <MenuItem
+                icon="calculator-outline"
+                iconColor={Colors.success}
+                title={t('items.estimates', 'Estimates')}
+                onPress={() => navigation.navigate('EstimatesDetail')}
+              />
+              <MenuItem
+                icon="receipt-outline"
+                iconColor={Colors.warning}
+                title={t('items.invoices', 'Invoices')}
+                onPress={() => navigation.navigate('InvoicesDetail')}
+                isLast
+              />
+            </>
           )}
         </View>
 
-        <TouchableOpacity
-          style={[styles.addServiceBtn, { borderColor: Colors.primaryBlue }]}
-          onPress={() => navigation.navigate('AddService')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
-          <Text style={[styles.addServiceText, { color: Colors.primaryBlue }]}>
-            {t('items.addNewService', 'Add New Service')}
-          </Text>
-        </TouchableOpacity>
+        {/* Services - Hidden for supervisors */}
+        {!isSupervisor && (
+          <>
+            <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+              {t('sections.business', 'YOUR SERVICES')}
+            </Text>
+            <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+              {userServices && userServices.length > 0 ? (
+                userServices.map((userService, index) => {
+                  const service = userService.service_categories;
+                  if (!service) return null;
+                  return (
+                    <MenuItem
+                      key={userService.id}
+                      icon={service.icon || 'briefcase-outline'}
+                      iconColor={Colors.success}
+                      title={service.name}
+                      onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
+                      isLast={index === userServices.length - 1}
+                    />
+                  );
+                })
+              ) : (
+                <View style={styles.emptyServices}>
+                  <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+                    {t('business.noServices', 'No services added yet')}
+                  </Text>
+                </View>
+              )}
+            </View>
 
-        {/* Account */}
-        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.account', 'ACCOUNT')}
-        </Text>
-        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-          <MenuItem
-            icon="diamond-outline"
-            iconColor={Colors.accent || '#8B5CF6'}
-            title={t('subscription.title', 'Subscription')}
-            subtitle={t('subscription.managePlan', 'Manage your plan')}
-            onPress={() => navigation.navigate('SubscriptionSettings')}
-            isLast
-          />
-        </View>
+            <TouchableOpacity
+              style={[styles.addServiceBtn, { borderColor: Colors.primaryBlue }]}
+              onPress={() => navigation.navigate('AddService')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.addServiceText, { color: Colors.primaryBlue }]}>
+                {t('items.addNewService', 'Add New Service')}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Account - Hidden for supervisors */}
+        {!isSupervisor && (
+          <>
+            <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+              {t('sections.account', 'ACCOUNT')}
+            </Text>
+            <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+              <MenuItem
+                icon="diamond-outline"
+                iconColor={Colors.accent || '#8B5CF6'}
+                title={t('subscription.title', 'Subscription')}
+                subtitle={t('subscription.managePlan', 'Manage your plan')}
+                onPress={() => navigation.navigate('SubscriptionSettings')}
+                isLast
+              />
+            </View>
+          </>
+        )}
 
         {/* Preferences */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>

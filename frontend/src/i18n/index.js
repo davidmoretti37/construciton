@@ -14,6 +14,7 @@ import enChat from '../locales/en/chat.json';
 import enHome from '../locales/en/home.json';
 import enNavigation from '../locales/en/navigation.json';
 import enSchedule from '../locales/en/schedule.json';
+import enOwner from '../locales/en/owner.json';
 
 // Import Spanish translations
 import esCommon from '../locales/es/common.json';
@@ -27,6 +28,7 @@ import esChat from '../locales/es/chat.json';
 import esHome from '../locales/es/home.json';
 import esNavigation from '../locales/es/navigation.json';
 import esSchedule from '../locales/es/schedule.json';
+import esOwner from '../locales/es/owner.json';
 
 // Import Portuguese (Brazil) translations
 import ptBRCommon from '../locales/pt-BR/common.json';
@@ -40,6 +42,7 @@ import ptBRChat from '../locales/pt-BR/chat.json';
 import ptBRHome from '../locales/pt-BR/home.json';
 import ptBRNavigation from '../locales/pt-BR/navigation.json';
 import ptBRSchedule from '../locales/pt-BR/schedule.json';
+import ptBROwner from '../locales/pt-BR/owner.json';
 
 const resources = {
   en: {
@@ -54,6 +57,7 @@ const resources = {
     home: enHome,
     navigation: enNavigation,
     schedule: enSchedule,
+    owner: enOwner,
   },
   es: {
     common: esCommon,
@@ -67,6 +71,7 @@ const resources = {
     home: esHome,
     navigation: esNavigation,
     schedule: esSchedule,
+    owner: esOwner,
   },
   'pt-BR': {
     common: ptBRCommon,
@@ -80,6 +85,7 @@ const resources = {
     home: ptBRHome,
     navigation: ptBRNavigation,
     schedule: ptBRSchedule,
+    owner: ptBROwner,
   },
 };
 
@@ -105,7 +111,7 @@ i18n.use(initReactI18next).init({
   resources,
   lng: 'en', // Default to English, will be updated by user preference
   fallbackLng: 'en',
-  ns: ['common', 'auth', 'onboarding', 'projects', 'workers', 'invoices', 'settings', 'chat', 'home', 'navigation', 'schedule'],
+  ns: ['common', 'auth', 'onboarding', 'projects', 'workers', 'invoices', 'settings', 'chat', 'home', 'navigation', 'schedule', 'owner'],
   defaultNS: 'common',
   interpolation: {
     escapeValue: false, // React already handles escaping

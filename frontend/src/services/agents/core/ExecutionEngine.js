@@ -175,6 +175,21 @@ class ExecutionEngine {
       return;
     }
 
+    // ⛔ SUPERVISOR SAFETY CHECK: Block restricted agents (backup check)
+    const SUPERVISOR_RESTRICTED_AGENTS = ['ProjectAgent', 'EstimateInvoiceAgent'];
+    if (context?.isSupervisorMode && plan?.length > 0) {
+      const blockedStep = plan.find(step => SUPERVISOR_RESTRICTED_AGENTS.includes(step.agent));
+      if (blockedStep) {
+        logger.warn(`⛔ [Executor] Blocking ${blockedStep.agent} for supervisor`);
+        if (onComplete) onComplete({
+          text: `As a supervisor, I can't help with that action. Only your owner can create projects, estimates, and invoices.`,
+          visualElements: [],
+          actions: []
+        });
+        return;
+      }
+    }
+
     // SINGLE STEP - Use original fast path (no overhead)
     if (plan.length === 1) {
       const step = plan[0];
@@ -223,6 +238,9 @@ class ExecutionEngine {
     let lastNextSteps = null; // Track nextSteps from last step for handoffs
     let currentContext = context;
 
+    // Track execution errors for debugging and user feedback
+    const executionErrors = [];
+
     for (let i = 0; i < plan.length; i++) {
       const step = plan[i];
       const isLastStep = i === plan.length - 1;
@@ -231,6 +249,7 @@ class ExecutionEngine {
       if (!agent) {
         const errorMessage = `Agent "${step.agent}" not found.`;
         logger.error(`❌ [Executor] ${errorMessage}`);
+        executionErrors.push({ step: i + 1, agent: step.agent, error: errorMessage });
         // Continue to next step instead of failing entirely
         continue;
       }
@@ -270,14 +289,16 @@ class ExecutionEngine {
                 nextSteps: result.nextSteps, // Preserve for agent handoffs
               });
             },
-            // onError
+            // onError - track error but continue execution
             (error) => {
               logger.error(`❌ [Executor] Step ${i + 1} error:`, error);
-              // Resolve with empty result to continue chain
+              executionErrors.push({ step: i + 1, agent: step.agent, task: step.task, error: error.message || 'Unknown error' });
+              // Resolve with error indicator to continue chain
               resolve({
-                text: '',
+                text: `Step ${i + 1} encountered an issue.`,
                 visualElements: [],
                 actions: [],
+                _stepError: true,
               });
             }
           );
@@ -314,6 +335,7 @@ class ExecutionEngine {
                 currentAgent: step.agent,
                 currentTask: step.task,
                 pendingSteps: remainingSteps,
+                executionErrors: executionErrors.length > 0 ? executionErrors : undefined,
               }
             });
           }
@@ -330,6 +352,7 @@ class ExecutionEngine {
 
       } catch (error) {
         logger.error(`❌ [Executor] Error in step ${i + 1}:`, error);
+        executionErrors.push({ step: i + 1, agent: step.agent, task: step.task, error: error.message || 'Execution error' });
         // Continue to next step
       }
     }
@@ -341,6 +364,11 @@ class ExecutionEngine {
         visualElements: allVisualElements,
         actions: allActions,
         nextSteps: lastNextSteps, // Pass through for agent handoffs
+        // Include execution metadata for debugging and error awareness
+        _meta: executionErrors.length > 0 ? {
+          executionErrors,
+          partialSuccess: finalText.length > 0 || allVisualElements.length > 0,
+        } : undefined,
       });
     }
   }

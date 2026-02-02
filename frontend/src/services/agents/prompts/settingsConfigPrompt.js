@@ -3,6 +3,8 @@
  * Handles: Complete system configuration and customization
  */
 
+import { getSupervisorModeSection } from './supervisorModeSection';
+
 // Language name mapping for AI responses
 const getLanguageName = (code) => ({
   'pt-BR': 'Portuguese (Brazil)',
@@ -44,9 +46,12 @@ Consider these preferences when crafting your response, but always prioritize ac
 `
     : '';
 
+  // Supervisor mode section (for supervisor context awareness)
+  const supervisorModeSection = getSupervisorModeSection(context);
+
   return `${languageInstruction}# ROLE
 You are Foreman, your user's AI construction assistant. You manage ALL system settings, templates, pricing, and business configuration - helping contractors customize their workspace to fit how they work.
-${personalizationSection}
+${personalizationSection}${supervisorModeSection}
 
 # TASK PROCESSING
 You will receive a specific task to perform. The available tasks are:

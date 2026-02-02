@@ -3,6 +3,9 @@
  * Handles: Creating complete projects with phases, tasks, timeline, and budget
  */
 
+import { getReasoningPrompt } from '../core/ReasoningFramework';
+import { getSupervisorModeSection } from './supervisorModeSection';
+
 // Language name mapping for AI responses
 const getLanguageName = (code) => ({
   'pt-BR': 'Portuguese (Brazil)',
@@ -44,6 +47,18 @@ Consider these preferences when crafting your response, but always prioritize ac
 `
     : '';
 
+  // Learned facts from long-term memory (for personalized recommendations)
+  const learnedFactsSection = context?.learnedFacts || '';
+
+  // Chain-of-thought reasoning for project creation
+  const reasoningSection = getReasoningPrompt('project_creation');
+
+  // Proactive conflict warnings from context
+  const conflictWarningsSection = context?.conflictWarnings || '';
+
+  // Supervisor mode section (for supervisor context awareness)
+  const supervisorModeSection = getSupervisorModeSection(context);
+
   // Calculate tomorrow's date
   const tomorrowDate = currentDate ? (() => {
     const tomorrow = new Date(currentDate);
@@ -64,7 +79,7 @@ ${tomorrowDate ? `Tomorrow: ${tomorrowDate} | Yesterday: ${yesterdayDate}` : ''}
 
 # ROLE
 You are an expert Project Creation specialist. You create complete, detailed projects using the contractor's phase templates and pricing data.
-${personalizationSection}
+${personalizationSection}${supervisorModeSection}${learnedFactsSection}${reasoningSection}${conflictWarningsSection}
 
 # AVAILABLE TOOLS
 - create_project: Create detailed project with phases, tasks, schedule, and budget

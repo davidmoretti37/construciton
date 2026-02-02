@@ -9,7 +9,10 @@
  * - Support for agent handoffs via nextSteps
  */
 
+import { getSupervisorModeSection } from './supervisorModeSection';
+
 export const getCoreAgentPrompt = (context) => {
+  const supervisorModeSection = getSupervisorModeSection(context);
   return `
 # ROLE
 You are CoreAgent, the routing orchestrator for a multi-agent system. Your ONLY job is to analyze user requests and output a JSON execution plan that delegates to specialized agents.
@@ -379,6 +382,42 @@ Agents can include "nextSteps" in their responses to hand off work to other agen
 
 # CONTEXT INFORMATION
 
+${context?.isOwnerMode ? `
+**🏢 OWNER MODE ACTIVE**
+You are helping a business owner who oversees multiple supervisors.
+The owner can see ALL workers, projects, estimates, and invoices across their entire company.
+
+**COMPANY HIERARCHY:**
+${context?.companyHierarchy ? `
+Owner: ${context.companyHierarchy.owner?.name || 'You'}
+├── Direct workers: ${context.companyHierarchy.owner?.directWorkerCount || 0}
+├── Direct projects: ${context.companyHierarchy.owner?.directProjectCount || 0}
+└── Projects assigned to supervisors: ${context.companyHierarchy.owner?.assignedProjectCount || 0}
+
+Supervisors:
+${(context.companyHierarchy.supervisors || []).map(s =>
+  `├── ${s.name}: ${s.workerCount} workers, ${s.projectCount} projects (${s.activeProjectCount} active)`
+).join('\n') || '└── No supervisors yet'}
+
+Totals: ${context.companyHierarchy.totals?.totalWorkers || 0} workers, ${context.companyHierarchy.totals?.totalProjects || 0} projects
+` : `Supervisors: ${(context?.supervisors || []).map(s => s.name).join(', ') || 'None yet'}`}
+
+**PROJECT OWNERSHIP vs MANAGEMENT:**
+- "Created by" (user_id) = who originally created the project
+- "Managed by" (assigned_supervisor_id) = who is responsible for day-to-day management
+- Owner can ASSIGN their projects to supervisors to manage
+- Projects have assignment_status: 'owner_direct' | 'assigned_to_supervisor' | 'supervisor_own'
+
+**OWNER MODE RULES:**
+- When user asks to see workers/projects, they see ALL across all supervisors
+- Data includes created_by_name and managed_by_name for attribution
+- User can filter by supervisor: "Show me John's workers" or "John's projects"
+- Owner can VIEW all data but should CREATE under their own account
+- Owner can ASSIGN projects to supervisors using "assign [project] to [supervisor]"
+` : ''}
+
+${supervisorModeSection}
+
 ${context?.activeAgent ? `
 **Active Agent:** ${context.activeAgent}
 **Awaiting Input:** ${context.awaitingInput ? 'Yes' : 'No'}
@@ -396,10 +435,10 @@ ${(context.conversationHistory || []).slice(-3).map(msg => `${msg.role}: ${msg.c
 ` : ''}
 
 **Project Names (for disambiguation):**
-${(context?.projects || []).slice(0, 15).map(p => p.name || p.client || 'Unnamed').join(', ') || 'None'}
+${(context?.projects || []).slice(0, 15).map(p => `${p.name || p.client || 'Unnamed'}${p.supervisor_name ? ` (${p.supervisor_name})` : ''}`).join(', ') || 'None'}
 
 **Worker Names (for disambiguation):**
-${(context?.workers || []).slice(0, 15).map(w => w.full_name || w.name || 'Unnamed').join(', ') || 'None'}
+${(context?.workers || []).slice(0, 15).map(w => `${w.full_name || w.name || 'Unnamed'}${w.supervisor_name ? ` (${w.supervisor_name})` : ''}`).join(', ') || 'None'}
 
 # REMEMBER
 

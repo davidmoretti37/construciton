@@ -35,16 +35,18 @@ export const saveDailyReport = async (workerId, projectId, phaseId, photos, comp
       completed_steps: [], // Legacy field, no longer used
       custom_tasks: [], // Legacy field, no longer used
       notes: notes || '',
-      reporter_type: isOwner ? 'owner' : 'worker',
       tags: tags || [], // Now stores work description
     };
 
-    if (isOwner) {
+    // If owner OR if no workerId (supervisor case), use owner_id
+    if (isOwner || !workerId) {
       reportData.owner_id = userId;
       reportData.worker_id = null;
+      reportData.reporter_type = isOwner ? 'owner' : 'supervisor';
     } else {
       reportData.worker_id = workerId;
       reportData.owner_id = null;
+      reportData.reporter_type = 'worker';
     }
 
     const { data, error } = await supabase
@@ -106,10 +108,10 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
       .select(`
         *,
         workers (id, full_name, trade),
-        projects!inner (id, name, user_id),
+        projects!inner (id, name, user_id, assigned_supervisor_id),
         project_phases (id, name)
       `)
-      .eq('projects.user_id', user.id)
+      .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
       .order('report_date', { ascending: false });
 
     if (projectId) {
@@ -364,10 +366,10 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
       .select(`
         *,
         workers (id, full_name, trade),
-        projects!inner (id, name, user_id, location, status),
+        projects!inner (id, name, user_id, assigned_supervisor_id, location, status),
         project_phases (id, name, completion_percentage)
       `)
-      .eq('projects.user_id', user.id)
+      .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
       .order('report_date', { ascending: false });
 
     if (filters.projectId) {

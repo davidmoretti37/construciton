@@ -19,8 +19,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getWorkerAssignments, getCurrentUserId, uploadPhoto } from '../../utils/storage';
+import { useAuth } from '../../contexts/AuthContext';
+import { getWorkerAssignments, getCurrentUserId, uploadPhoto, addProjectTransaction } from '../../utils/storage';
 import { submitWorkerExpense } from '../../utils/storage/transactions';
+import { fetchProjects } from '../../utils/storage/projects';
 import { analyzeReceipt } from '../../services/aiService';
 import { supabase } from '../../lib/supabase';
 
@@ -36,6 +38,12 @@ export default function ExpenseFormScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('common');
+  const { profile } = useAuth();
+
+  // Detect user role
+  const isWorker = profile?.role === 'worker';
+  const isSupervisor = profile?.role === 'supervisor';
+  const isOwner = profile?.role === 'owner';
 
   const [step, setStep] = useState(1); // 1: Project, 2: Upload, 3: Analyzing, 4: Review
   const [loading, setLoading] = useState(true);
@@ -55,34 +63,55 @@ export default function ExpenseFormScreen({ navigation }) {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    loadWorkerProjects();
-  }, []);
+    loadProjects();
+  }, [isWorker, isSupervisor, isOwner]);
 
-  const loadWorkerProjects = async () => {
+  const loadProjects = async () => {
     try {
       setLoading(true);
-
       const currentUserId = await getCurrentUserId();
-      const { data: workerData, error: workerError } = await supabase
-        .from('workers')
-        .select('id')
-        .eq('user_id', currentUserId)
-        .single();
 
-      if (workerError || !workerData) {
-        console.error('Error fetching worker:', workerError);
-        Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'worker profile' }));
-        setLoading(false);
-        return;
+      if (isWorker) {
+        // Worker: get assigned projects through worker assignments
+        const { data: workerData, error: workerError } = await supabase
+          .from('workers')
+          .select('id')
+          .eq('user_id', currentUserId)
+          .single();
+
+        if (workerError || !workerData) {
+          console.error('Error fetching worker:', workerError);
+          Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'worker profile' }));
+          setLoading(false);
+          return;
+        }
+
+        setWorkerId(workerData.id);
+        const assignments = await getWorkerAssignments(workerData.id);
+        const projects = assignments.projects?.filter(Boolean) || [];
+        setAssignedProjects(projects);
+      } else if (isSupervisor) {
+        // Supervisor: get assigned projects directly
+        const { data: projects, error } = await supabase
+          .from('projects')
+          .select('*')
+          .or(`assigned_supervisor_id.eq.${currentUserId},user_id.eq.${currentUserId}`)
+          .in('status', ['active', 'scheduled'])
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setAssignedProjects(projects || []);
+      } else {
+        // Owner: get all their projects
+        const projects = await fetchProjects();
+        const activeProjects = (projects || []).filter(p =>
+          p.status === 'active' || p.status === 'scheduled'
+        );
+        setAssignedProjects(activeProjects);
       }
-
-      setWorkerId(workerData.id);
-      const assignments = await getWorkerAssignments(workerData.id);
-      const projects = assignments.projects?.filter(Boolean) || [];
-      setAssignedProjects(projects);
     } catch (error) {
-      console.error('Error loading worker projects:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'assigned projects' }));
+      console.error('Error loading projects:', error);
+      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'projects' }));
     } finally {
       setLoading(false);
     }
@@ -195,18 +224,33 @@ export default function ExpenseFormScreen({ navigation }) {
         receiptUrl = await uploadPhoto(receiptImage, 'expense-receipts');
       }
 
-      // Submit expense
-      await submitWorkerExpense({
-        projectId: selectedProject.id,
-        workerId: workerId,
-        amount: parseFloat(amount),
-        description: description.trim(),
-        category: category,
-        date: date,
-        receiptUrl: receiptUrl,
-        lineItems: lineItems.length > 0 ? lineItems : null,
-        notes: notes.trim() || null,
-      });
+      // Submit expense - use different method based on role
+      if (isWorker && workerId) {
+        await submitWorkerExpense({
+          projectId: selectedProject.id,
+          workerId: workerId,
+          amount: parseFloat(amount),
+          description: description.trim(),
+          category: category,
+          date: date,
+          receiptUrl: receiptUrl,
+          lineItems: lineItems.length > 0 ? lineItems : null,
+          notes: notes.trim() || null,
+        });
+      } else {
+        // Owner or Supervisor: use addProjectTransaction
+        await addProjectTransaction({
+          project_id: selectedProject.id,
+          type: 'expense',
+          amount: parseFloat(amount),
+          description: description.trim(),
+          category: category,
+          date: date,
+          receipt_url: receiptUrl,
+          line_items: lineItems.length > 0 ? lineItems : null,
+          notes: notes.trim() || null,
+        });
+      }
 
       Alert.alert(
         t('alerts.success'),

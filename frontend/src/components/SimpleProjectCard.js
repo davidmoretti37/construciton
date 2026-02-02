@@ -1,8 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LightColors, getColors } from '../constants/theme';
+import { LightColors, getColors, Spacing } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Calculate card width: screen width - padding (24*2) - gap (12) divided by 2
+const CARD_WIDTH = (SCREEN_WIDTH - (Spacing.lg * 2) - Spacing.md) / 2;
 
 export default function SimpleProjectCard({ project, onPress }) {
   const { isDark = false } = useTheme() || {};
@@ -91,7 +95,7 @@ export default function SimpleProjectCard({ project, onPress }) {
 
 const createStyles = (Colors) => StyleSheet.create({
   card: {
-    flex: 1,
+    width: CARD_WIDTH,
     borderRadius: 20,
     padding: 16,
     minHeight: 130,

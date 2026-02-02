@@ -1,7 +1,8 @@
 import { supabase } from '../../lib/supabase';
-import { getCurrentUserId } from './auth';
+import { getCurrentUserId, getCurrentUserContext } from './auth';
 import { validateWorkingDays } from './workerTasks';
 import subscriptionService from '../../services/subscriptionService';
+import { getSupervisorsForOwner } from './workers';
 
 // ============================================================
 // Project Management Functions
@@ -116,6 +117,10 @@ export const transformProjectFromDB = (dbProject) => {
     nonWorkingDates: dbProject.non_working_dates || [],
     createdAt: dbProject.created_at,
     updatedAt: dbProject.updated_at,
+    // Project assignment info (for hierarchy)
+    createdBy: dbProject.user_id,
+    assignedTo: dbProject.assigned_supervisor_id || null,
+    isAssigned: !!dbProject.assigned_supervisor_id,
   };
 };
 
@@ -182,7 +187,9 @@ export const saveProject = async (projectData) => {
     const isNewProject = !projectData.id || projectData.id.startsWith('temp-');
 
     // Check subscription limit before creating a new project
-    if (isNewProject) {
+    // Skip in development/testing mode (matches TESTING_MODE in SubscriptionContext)
+    const skipLimitCheck = __DEV__ || process.env.NODE_ENV === 'development';
+    if (isNewProject && !skipLimitCheck) {
       try {
         const limitCheck = await subscriptionService.canCreateProject();
         if (!limitCheck.can_create) {
@@ -285,6 +292,7 @@ export const fetchProjectsBasic = async () => {
 
 /**
  * Fetch all projects for the current user
+ * Includes both owned projects AND projects assigned to the user (for supervisors)
  * @returns {Promise<array>} Array of projects
  */
 export const fetchProjects = async () => {
@@ -293,6 +301,93 @@ export const fetchProjects = async () => {
     if (!userId) {
       return [];
     }
+
+    // Fetch projects where user is owner OR assigned supervisor
+    // This allows supervisors to see projects assigned to them by the owner
+    const { data, error } = await supabase
+      .from('projects')
+      .select(`
+        *,
+        project_phases (
+          id,
+          name,
+          planned_days,
+          start_date,
+          end_date,
+          budget,
+          tasks,
+          completion_percentage,
+          status,
+          order_index,
+          created_at,
+          updated_at
+        )
+      `)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ [fetchProjects] Error:', error);
+      return [];
+    }
+
+    // Note: Database trigger (trigger_update_project_totals) automatically updates
+    // projects.expenses and projects.income_collected when transactions are added/modified.
+    // No need to aggregate from transactions here.
+
+    const projects = (data || []).map((project) => {
+      const transformed = transformProjectFromDB(project);
+
+      if (project.project_phases && project.project_phases.length > 0) {
+        transformed.phases = project.project_phases.sort((a, b) =>
+          (a.order_index || 0) - (b.order_index || 0)
+        );
+        transformed.hasPhases = true;
+      }
+
+      // Add attribution for supervisor context awareness
+      // This helps the AI understand which projects the supervisor created vs which were assigned
+      transformed.isOwnedByMe = project.user_id === userId;
+      transformed.isAssignedToMe = project.assigned_supervisor_id === userId;
+      transformed.attribution = project.user_id === userId
+        ? 'created_by_you'
+        : 'assigned_to_you';
+
+      return transformed;
+    });
+
+    return projects;
+  } catch (error) {
+    console.error('❌ [fetchProjects] Exception:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch all projects across all supervisors under this owner
+ * Used by owner's AI chat to see company-wide project data
+ * Includes supervisor_name for attribution
+ * @returns {Promise<array>} Projects with supervisor info
+ */
+export const fetchProjectsForOwner = async () => {
+  try {
+    const context = await getCurrentUserContext();
+    if (!context) return [];
+
+    // If not owner, fall back to regular fetchProjects
+    if (!context.isOwner) {
+      return fetchProjects();
+    }
+
+    // Get all supervisors under this owner
+    const supervisors = await getSupervisorsForOwner(context.userId);
+    const supervisorIds = supervisors.map(s => s.id);
+    const supervisorNames = Object.fromEntries(
+      supervisors.map(s => [s.id, s.business_name || 'Supervisor'])
+    );
+
+    // Include owner's own projects too
+    const allIds = [context.userId, ...supervisorIds];
 
     const { data, error } = await supabase
       .from('projects')
@@ -313,19 +408,46 @@ export const fetchProjects = async () => {
           updated_at
         )
       `)
-      .eq('user_id', userId)
+      .in('user_id', allIds)
       .order('created_at', { ascending: false });
 
     if (error) {
+      console.error('Error fetching projects for owner:', error);
       return [];
     }
 
-    // Note: Database trigger (trigger_update_project_totals) automatically updates
-    // projects.expenses and projects.income_collected when transactions are added/modified.
-    // No need to aggregate from transactions here.
-
+    // Transform and add supervisor attribution with creator/manager distinction
     const projects = (data || []).map((project) => {
       const transformed = transformProjectFromDB(project);
+
+      // Determine who created and who manages
+      const creatorId = project.user_id;
+      const managerId = project.assigned_supervisor_id || project.user_id;
+
+      // Created by
+      transformed.created_by_id = creatorId;
+      transformed.created_by_name = creatorId === context.userId
+        ? 'You (Owner)'
+        : (supervisorNames[creatorId] || 'Unknown');
+
+      // Managed by (assigned supervisor, or creator if not assigned)
+      transformed.managed_by_id = managerId;
+      transformed.managed_by_name = managerId === context.userId
+        ? 'You (Owner)'
+        : (supervisorNames[managerId] || 'Unknown');
+
+      // Assignment status
+      if (creatorId === context.userId && !project.assigned_supervisor_id) {
+        transformed.assignment_status = 'owner_direct'; // Owner created, owner manages
+      } else if (creatorId === context.userId && project.assigned_supervisor_id) {
+        transformed.assignment_status = 'assigned_to_supervisor'; // Owner created, assigned to supervisor
+      } else {
+        transformed.assignment_status = 'supervisor_own'; // Supervisor created and manages
+      }
+
+      // Legacy field for backward compatibility
+      transformed.supervisor_name = transformed.managed_by_name;
+      transformed.supervisor_id = managerId;
 
       if (project.project_phases && project.project_phases.length > 0) {
         transformed.phases = project.project_phases.sort((a, b) =>
@@ -339,6 +461,7 @@ export const fetchProjects = async () => {
 
     return projects;
   } catch (error) {
+    console.error('Error in fetchProjectsForOwner:', error);
     return [];
   }
 };
@@ -620,6 +743,32 @@ export const updateNonWorkingDates = async (projectId, dates) => {
   } catch (error) {
     console.error('Error in updateNonWorkingDates:', error);
     return false;
+  }
+};
+
+/**
+ * Assign a project to a supervisor to manage
+ * Only owners can assign their own projects
+ * @param {string} projectId - Project ID
+ * @param {string|null} supervisorId - Supervisor ID (null to unassign)
+ * @returns {Promise<{success: boolean, error?: string, action?: string}>}
+ */
+export const assignProjectToSupervisor = async (projectId, supervisorId) => {
+  try {
+    const { data, error } = await supabase.rpc('assign_project_to_supervisor', {
+      p_project_id: projectId,
+      p_supervisor_id: supervisorId,
+    });
+
+    if (error) {
+      console.error('Error assigning project:', error);
+      return { success: false, error: error.message };
+    }
+
+    return data || { success: false, error: 'No response' };
+  } catch (error) {
+    console.error('Error in assignProjectToSupervisor:', error);
+    return { success: false, error: error.message };
   }
 };
 

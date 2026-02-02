@@ -15,19 +15,23 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ProjectCard } from '../components/ChatVisuals';
 import ProjectDetailView from '../components/ProjectDetailView';
 import { useProjects } from '../hooks/useProjects';
 import NotificationBell from '../components/NotificationBell';
 import TrialBanner from '../components/TrialBanner';
 import { fetchDailyReportsWithFilters, getProject } from '../utils/storage';
+import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet } from '../utils/storage/timeTracking';
 import logger from '../utils/logger';
+import { Alert } from 'react-native';
 
 export default function HomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
   const { t } = useTranslation('home');
+  const { user } = useAuth();
 
   // Use custom hook for projects data
   const { projects, loading, hasLoadedOnce, loadProjects } = useProjects();
@@ -39,6 +43,15 @@ export default function HomeScreen({ navigation }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showProjectDetail, setShowProjectDetail] = useState(false);
   const [todaysDailyReports, setTodaysDailyReports] = useState([]);
+
+  // Supervisor clock-in state
+  const [activeSession, setActiveSession] = useState(null);
+  const [clockLoading, setClockLoading] = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState('00:00:00');
+  const [supervisorTodayHours, setSupervisorTodayHours] = useState(0);
+  const [supervisorTimeHistory, setSupervisorTimeHistory] = useState([]);
+  const [showTimeHistory, setShowTimeHistory] = useState(false);
 
   // Load today's daily reports
   const loadTodaysDailyReports = useCallback(async () => {
@@ -63,8 +76,124 @@ export default function HomeScreen({ navigation }) {
         loadProjects();
       }
       loadTodaysDailyReports();
-    }, [hasLoadedOnce, loadProjects, loadTodaysDailyReports])
+      loadSupervisorTimeData();
+    }, [hasLoadedOnce, loadProjects, loadTodaysDailyReports, loadSupervisorTimeData])
   );
+
+  // Check for active supervisor clock-in session
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      if (user?.id) {
+        const session = await getActiveSupervisorClockIn(user.id);
+        setActiveSession(session);
+      }
+    };
+    checkActiveSession();
+  }, [user?.id]);
+
+  // Elapsed time timer for active clock-in
+  useEffect(() => {
+    if (!activeSession?.clock_in) return;
+
+    const updateElapsed = () => {
+      const start = new Date(activeSession.clock_in);
+      const now = new Date();
+      const diff = now - start;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+      setElapsedTime(
+        `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      );
+    };
+
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [activeSession?.clock_in]);
+
+  // Supervisor clock-in handler
+  const handleClockIn = async (projectId) => {
+    console.log('🕐 Supervisor clock-in attempt:', { userId: user?.id, projectId });
+    setClockLoading(true);
+    try {
+      const result = await supervisorClockIn(user.id, projectId);
+      console.log('🕐 Clock-in result:', result);
+      if (result) {
+        setActiveSession(result);
+        setShowProjectPicker(false);
+        Alert.alert('Success', 'You have clocked in successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to clock in. Please check if the supervisor_time_tracking table exists in your database.');
+      }
+    } catch (error) {
+      console.error('🕐 Clock-in error:', error);
+      Alert.alert('Error', `Failed to clock in: ${error.message || 'Unknown error'}`);
+    } finally {
+      setClockLoading(false);
+    }
+  };
+
+  // Supervisor clock-out handler
+  const handleClockOut = async () => {
+    if (!activeSession) return;
+
+    console.log('🕐 Supervisor clock-out attempt:', { sessionId: activeSession.id });
+    setClockLoading(true);
+    try {
+      const result = await supervisorClockOut(activeSession.id);
+      console.log('🕐 Clock-out result:', result);
+      if (result.success) {
+        Alert.alert('Clocked Out', `You worked ${result.hours?.toFixed(2)} hours`);
+        setActiveSession(null);
+        setElapsedTime('00:00:00');
+        loadSupervisorTimeData(); // Refresh today's hours and history
+      } else {
+        Alert.alert('Error', result.error || 'Failed to clock out');
+      }
+    } catch (error) {
+      console.error('🕐 Clock-out error:', error);
+      Alert.alert('Error', `Failed to clock out: ${error.message || 'Unknown error'}`);
+    } finally {
+      setClockLoading(false);
+    }
+  };
+
+  // Load supervisor's hours worked today and recent history
+  const loadSupervisorTimeData = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const timesheet = await getSupervisorTimesheet(user.id);
+
+      // Calculate today's hours
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayEntries = timesheet.filter(entry => {
+        const entryDate = new Date(entry.clock_in);
+        return entryDate >= today;
+      });
+      const totalHours = todayEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
+      setSupervisorTodayHours(totalHours);
+
+      // Store recent history (last 10 completed entries)
+      const completedEntries = timesheet.filter(e => e.clock_out).slice(0, 10);
+      setSupervisorTimeHistory(completedEntries);
+    } catch (error) {
+      console.error('Error loading supervisor time data:', error);
+    }
+  }, [user?.id]);
+
+  // Format date for history display
+  const formatHistoryDate = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -263,6 +392,103 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.welcomeText}>{t('welcome')} 👋</Text>
           <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
         </View>
+
+        {/* Supervisor Clock Section - Worker Style */}
+        <View style={[styles.clockCard, { backgroundColor: Colors.white || Colors.cardBackground }]}>
+          {/* Status Display */}
+          <View style={styles.clockStatusSection}>
+            <View style={[styles.clockStatusDot, { backgroundColor: activeSession ? (Colors.successGreen || '#10B981') : Colors.secondaryText }]} />
+            <Text style={[styles.clockStatusLabel, { color: Colors.secondaryText }]}>
+              {activeSession ? 'Active' : 'Offline'}
+            </Text>
+          </View>
+
+          {/* Large Timer Display */}
+          <View style={styles.clockTimerContainer}>
+            <Text style={[styles.clockTimerText, { color: Colors.primaryText }]}>
+              {activeSession ? elapsedTime : '--:--:--'}
+            </Text>
+            {activeSession?.projects?.name && (
+              <Text style={[styles.clockProjectText, { color: Colors.secondaryText }]}>
+                {activeSession.projects.name}
+              </Text>
+            )}
+          </View>
+
+          {/* Action Button */}
+          <TouchableOpacity
+            style={[styles.clockActionButton, { backgroundColor: Colors.primaryText }]}
+            onPress={() => {
+              if (activeSession) {
+                handleClockOut();
+              } else if (projects.length === 0) {
+                Alert.alert('No Projects', 'You need to have at least one project to clock in.');
+              } else {
+                setShowProjectPicker(true);
+              }
+            }}
+            disabled={clockLoading}
+            activeOpacity={0.7}
+          >
+            {clockLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.clockActionButtonText}>
+                {activeSession ? 'Clock Out' : 'Clock In'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={[styles.clockDivider, { backgroundColor: Colors.border }]} />
+
+          {/* Today's Hours */}
+          <View style={styles.clockTodayHoursSection}>
+            <Text style={[styles.clockTodayHoursLabel, { color: Colors.secondaryText }]}>Today's Hours</Text>
+            <Text style={[styles.clockTodayHoursValue, { color: Colors.primaryText }]}>{supervisorTodayHours.toFixed(1)}</Text>
+          </View>
+        </View>
+
+        {/* Collapsible Time History */}
+        <TouchableOpacity
+          style={[styles.timeHistoryHeader, { backgroundColor: Colors.white || Colors.cardBackground }]}
+          onPress={() => setShowTimeHistory(!showTimeHistory)}
+        >
+          <Text style={[styles.timeHistoryTitle, { color: Colors.primaryText }]}>
+            Recent Time History
+          </Text>
+          <Ionicons
+            name={showTimeHistory ? 'chevron-up' : 'chevron-down'}
+            size={20}
+            color={Colors.secondaryText}
+          />
+        </TouchableOpacity>
+
+        {showTimeHistory && (
+          <View style={[styles.timeHistoryContent, { backgroundColor: Colors.white || Colors.cardBackground }]}>
+            {supervisorTimeHistory.length === 0 ? (
+              <Text style={[styles.noHistoryText, { color: Colors.secondaryText }]}>
+                No time records yet
+              </Text>
+            ) : (
+              supervisorTimeHistory.map((entry) => (
+                <View key={entry.id} style={styles.timeHistoryItem}>
+                  <View style={styles.timeHistoryLeft}>
+                    <Text style={[styles.timeHistoryDate, { color: Colors.primaryText }]}>
+                      {formatHistoryDate(entry.clock_in)}
+                    </Text>
+                    <Text style={[styles.timeHistoryProject, { color: Colors.secondaryText }]}>
+                      {entry.projects?.name || 'Unknown Project'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.timeHistoryHours, { color: Colors.primaryBlue }]}>
+                    {entry.hours?.toFixed(1) || '0.0'}h
+                  </Text>
+                </View>
+              ))
+            )}
+          </View>
+        )}
 
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -493,6 +719,52 @@ export default function HomeScreen({ navigation }) {
         </SafeAreaView>
       </Modal>
 
+      {/* Project Picker Modal for Clock-in */}
+      <Modal
+        visible={showProjectPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowProjectPicker(false)}
+      >
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
+            <TouchableOpacity onPress={() => setShowProjectPicker(false)} style={styles.modalCloseButton}>
+              <Ionicons name="close" size={28} color={Colors.primaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <ScrollView style={{ flex: 1, padding: Spacing.lg }}>
+            {projects.length === 0 ? (
+              <View style={styles.emptyModalState}>
+                <Ionicons name="folder-open-outline" size={64} color={Colors.secondaryText} />
+                <Text style={[styles.emptyModalText, { color: Colors.secondaryText }]}>
+                  No projects available
+                </Text>
+              </View>
+            ) : (
+              projects.map((project) => (
+                <TouchableOpacity
+                  key={project.id}
+                  style={[styles.projectPickerItem, { backgroundColor: Colors.cardBackground }]}
+                  onPress={() => handleClockIn(project.id)}
+                >
+                  <Ionicons name="briefcase" size={24} color={Colors.primaryBlue} />
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Text style={[styles.projectPickerName, { color: Colors.primaryText }]}>{project.name}</Text>
+                    {project.address && (
+                      <Text style={[styles.projectPickerAddress, { color: Colors.secondaryText }]}>{project.address}</Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              ))
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* Project Detail View */}
       <ProjectDetailView
         visible={showProjectDetail}
@@ -523,7 +795,26 @@ const createStyles = (Colors) => StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   topBarLeft: {
-    width: 40,
+    minWidth: 40,
+    justifyContent: 'center',
+  },
+  exitFieldModeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  exitFieldModeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptySpace: {
     flex: 1,
@@ -538,10 +829,9 @@ const createStyles = (Colors) => StyleSheet.create({
     paddingBottom: 100,
   },
   welcomeSection: {
-    padding: Spacing.xl,
-    backgroundColor: Colors.cardBackground,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   welcomeText: {
     fontSize: FontSizes.header,
@@ -830,5 +1120,159 @@ const createStyles = (Colors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
+  },
+  // Clock Section - Worker Style
+  clockCard: {
+    borderRadius: 12,
+    padding: 24,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  clockStatusSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 40,
+  },
+  clockStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  clockStatusLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+  clockTimerContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  clockTimerText: {
+    fontSize: 72,
+    fontWeight: '300',
+    letterSpacing: -3,
+    fontVariant: ['tabular-nums'],
+  },
+  clockProjectText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 12,
+    letterSpacing: -0.3,
+  },
+  clockActionButton: {
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clockActionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  clockDivider: {
+    width: '100%',
+    height: 1,
+    marginVertical: 24,
+  },
+  clockTodayHoursSection: {
+    alignItems: 'center',
+  },
+  clockTodayHoursLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  clockTodayHoursValue: {
+    fontSize: 32,
+    fontWeight: '300',
+    letterSpacing: -1,
+  },
+  projectPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  projectPickerName: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  projectPickerAddress: {
+    fontSize: FontSizes.small,
+    marginTop: 2,
+  },
+  // Time History Styles
+  timeHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  timeHistoryTitle: {
+    fontSize: FontSizes.md || 16,
+    fontWeight: '600',
+  },
+  timeHistoryContent: {
+    marginHorizontal: Spacing.lg,
+    marginTop: 2,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  timeHistoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  timeHistoryLeft: {
+    flex: 1,
+  },
+  timeHistoryDate: {
+    fontSize: FontSizes.small || 14,
+    fontWeight: '500',
+  },
+  timeHistoryProject: {
+    fontSize: FontSizes.tiny || 12,
+    marginTop: 2,
+  },
+  timeHistoryHours: {
+    fontSize: FontSizes.md || 16,
+    fontWeight: '600',
+  },
+  noHistoryText: {
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });

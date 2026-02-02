@@ -22,7 +22,7 @@
  */
 
 // Authentication
-export { getCurrentUserId, DEFAULT_PROFILE } from './auth';
+export { getCurrentUserId, DEFAULT_PROFILE, getCurrentUserContext } from './auth';
 
 // User Profile & Services
 export {
@@ -72,6 +72,9 @@ export {
   addNonWorkingDate,
   removeNonWorkingDate,
   updateNonWorkingDates,
+  // Owner mode functions
+  fetchProjectsForOwner,
+  assignProjectToSupervisor,
 } from './projects';
 
 // Communication
@@ -95,6 +98,8 @@ export {
   createInvoiceFromEstimate,
   addEstimateToProject,
   createProjectFromEstimate,
+  // Owner mode function
+  fetchEstimatesForOwner,
 } from './estimates';
 
 // Invoices & Contract Documents
@@ -111,6 +116,8 @@ export {
   updateInvoiceTemplate,
   fetchContractDocuments,
   uploadContractDocument,
+  // Owner mode function
+  fetchInvoicesForOwner,
 } from './invoices';
 
 // Workers
@@ -140,6 +147,11 @@ export {
   togglePreferredStatus,
   deleteSubcontractorQuote,
   getPreferredQuoteForTrade,
+  // Owner mode functions
+  getSupervisorsForOwner,
+  fetchWorkersForOwner,
+  getClockedInWorkersTodayForOwner,
+  getCompanyHierarchy,
 } from './workers';
 
 // Time Tracking

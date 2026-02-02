@@ -133,23 +133,23 @@ export default function RoleSelectionScreen({ onRoleSelected }) {
     {
       id: 'owner',
       name: t('roleSelection.owner.title'),
-      icon: 'business',
+      icon: 'briefcase',
       description: t('roleSelection.owner.description'),
-      color: '#2563EB',
+      color: '#7C3AED', // Purple for top-level owner
+    },
+    {
+      id: 'supervisor',
+      name: t('roleSelection.supervisor.title'),
+      icon: 'business',
+      description: t('roleSelection.supervisor.description'),
+      color: '#2563EB', // Blue for supervisor
     },
     {
       id: 'worker',
       name: t('roleSelection.worker.title'),
       icon: 'hammer',
       description: t('roleSelection.worker.description'),
-      color: '#059669',
-    },
-    {
-      id: 'client',
-      name: t('roleSelection.client.title'),
-      icon: 'person',
-      description: t('roleSelection.client.description'),
-      color: '#7C3AED',
+      color: '#059669', // Green for worker
     },
   ];
 

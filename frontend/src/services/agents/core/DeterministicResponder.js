@@ -136,10 +136,79 @@ function handleWorkerStatusQuery(userMessage, context) {
     };
   }
 
-  // Pattern: "who is working" / "anyone working" / "who's clocked in"
+  // Pattern: "who clocked in today" / "who worked today" - includes completed shifts
+  if (/\bclocked\s+in\s+today\b/i.test(userMessage) ||
+      /\b(who|did\s+anyone)\s+(worked?|work)\s+today\b/i.test(userMessage) ||
+      /\bworking\s+today\b/i.test(userMessage)) {
+
+    const completedShifts = context.completedShiftsToday || [];
+    // Combine currently clocked in + completed shifts for "today" queries
+    const allTodayWorkers = [...clockedIn, ...completedShifts];
+
+    if (allTodayWorkers.length === 0) {
+      return {
+        response: "No one clocked in today.",
+        action: "none",
+        data: {
+          type: "deterministic_lookup",
+          query_type: "who_clocked_in_today",
+          result: { count: 0, workers: [], completed: [] }
+        }
+      };
+    }
+
+    const currentList = clockedIn.map(entry => {
+      const name = entry.workers?.full_name || entry.full_name || 'Unknown';
+      const time = formatTime(entry.clock_in);
+      const hours = calculateHours(entry.clock_in);
+      const role = entry.isSupervisor ? ' (Supervisor)' : '';
+      return `${name}${role} - currently working since ${time} (${hours}h so far)`;
+    });
+
+    const completedList = completedShifts.map(entry => {
+      const name = entry.workers?.full_name || entry.full_name || 'Unknown';
+      const inTime = formatTime(entry.clock_in);
+      const outTime = formatTime(entry.clock_out);
+      const hours = entry.hoursWorked || 0;
+      const role = entry.isSupervisor ? ' (Supervisor)' : '';
+      return `${name}${role} - worked ${hours}h (${inTime} - ${outTime})`;
+    });
+
+    let response = '';
+    if (currentList.length > 0) {
+      response += `Currently working:\n• ${currentList.join('\n• ')}`;
+    }
+    if (completedList.length > 0) {
+      if (response) response += '\n\n';
+      response += `Completed shifts today:\n• ${completedList.join('\n• ')}`;
+    }
+
+    return {
+      response,
+      action: "none",
+      data: {
+        type: "deterministic_lookup",
+        query_type: "who_clocked_in_today",
+        result: {
+          count: allTodayWorkers.length,
+          currently_working: clockedIn.length,
+          completed: completedShifts.length,
+          workers: allTodayWorkers.map(e => ({
+            id: e.workers?.id || e.id,
+            name: e.workers?.full_name || e.full_name,
+            clock_in: e.clock_in,
+            clock_out: e.clock_out,
+            project: e.projects?.name,
+            isSupervisor: e.isSupervisor
+          }))
+        }
+      }
+    };
+  }
+
+  // Pattern: "who is working right now" / "anyone currently clocked in" - only active
   if (/\b(who|anyone|anybody)\s+(is\s+)?(working|clocked|on.?site)/i.test(userMessage) ||
-      /\bworking\s+today\b/i.test(userMessage) ||
-      /\bclocked\s+in/i.test(userMessage)) {
+      /\bcurrently\s+(working|clocked)/i.test(userMessage)) {
 
     if (clockedIn.length === 0) {
       return {
@@ -154,10 +223,11 @@ function handleWorkerStatusQuery(userMessage, context) {
     }
 
     const workerList = clockedIn.map(entry => {
-      const name = entry.workers?.full_name || 'Unknown';
+      const name = entry.workers?.full_name || entry.full_name || 'Unknown';
       const time = formatTime(entry.clock_in);
       const hours = calculateHours(entry.clock_in);
-      return `${name} (since ${time}, ${hours}h)`;
+      const role = entry.isSupervisor ? ' (Supervisor)' : '';
+      return `${name}${role} (since ${time}, ${hours}h)`;
     });
 
     return {
@@ -169,10 +239,11 @@ function handleWorkerStatusQuery(userMessage, context) {
         result: {
           count: clockedIn.length,
           workers: clockedIn.map(e => ({
-            id: e.workers?.id,
-            name: e.workers?.full_name,
+            id: e.workers?.id || e.id,
+            name: e.workers?.full_name || e.full_name,
             clock_in: e.clock_in,
-            project: e.projects?.name
+            project: e.projects?.name,
+            isSupervisor: e.isSupervisor
           }))
         }
       }

@@ -27,7 +27,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjectPhases, getProjectWorkers, fetchProjectPhotosByPhase, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks } from '../utils/storage';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
+import SupervisorAssignmentModal from './SupervisorAssignmentModal';
 import WorkingDaysSelector from './WorkingDaysSelector';
+import { useAuth } from '../contexts/AuthContext';
 import BulkTaskShiftModal from './BulkTaskShiftModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
 import FullscreenPhotoViewer from './FullscreenPhotoViewer';
@@ -69,6 +71,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // Workers
   const [workers, setWorkers] = useState([]);
   const [showWorkerAssignment, setShowWorkerAssignment] = useState(false);
+
+  // Supervisor assignment (for owners)
+  const [showSupervisorAssignment, setShowSupervisorAssignment] = useState(false);
+  const { profile } = useAuth() || {};
+  const isOwner = profile?.role === 'owner';
+  const isSupervisor = profile?.role === 'supervisor';
+  const isOwnProject = project?.createdBy === profile?.id || project?.user_id === profile?.id;
+  const canAssignToSupervisor = isOwner && isOwnProject && !isDemo;
 
   // Expanded phase for showing tasks
   const [expandedPhaseId, setExpandedPhaseId] = useState(null);
@@ -1114,20 +1124,31 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           )}
 
-          {/* Assigned Workers Section */}
+          {/* Assigned Section */}
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="people-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
-                {t('labels.assignedWorkersCount', { count: workers.length })}
+                Assigned ({workers.length})
               </Text>
-              <TouchableOpacity
-                style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
-                onPress={() => setShowWorkerAssignment(true)}
-              >
-                <Ionicons name="add" size={16} color="#FFFFFF" />
-                <Text style={styles.assignButtonText}>{t('buttons.assign')}</Text>
-              </TouchableOpacity>
+              <View style={styles.assignButtonsRow}>
+                {canAssignToSupervisor && (
+                  <TouchableOpacity
+                    style={[styles.assignButton, { backgroundColor: '#1E40AF', marginRight: 8 }]}
+                    onPress={() => setShowSupervisorAssignment(true)}
+                  >
+                    <Ionicons name="briefcase" size={14} color="#FFFFFF" />
+                    <Text style={styles.assignButtonText}>Supervisor</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
+                  onPress={() => setShowWorkerAssignment(true)}
+                >
+                  <Ionicons name="person-add" size={14} color="#FFFFFF" />
+                  <Text style={styles.assignButtonText}>Worker</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {workers.length === 0 ? (
@@ -1336,29 +1357,32 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             )}
           </View>
 
-          {/* Estimates Section */}
+          {/* Estimates Section - Hidden for supervisors */}
+          {!isSupervisor && (
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="document-text-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
                 {t('labels.estimatesCount', { count: projectEstimates.length })}
               </Text>
-              <TouchableOpacity
-                style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
-                onPress={() => {
-                  // Navigate to chat with context to create estimate
-                  if (navigation) {
-                    onClose();
-                    navigation.navigate('Chat', {
-                      initialMessage: `Create estimate for ${project.name}`,
-                      projectIdForEstimate: project.id
-                    });
-                  }
-                }}
-              >
-                <Ionicons name="add" size={16} color="#FFFFFF" />
-                <Text style={styles.assignButtonText}>{t('buttons.create')}</Text>
-              </TouchableOpacity>
+              {!isSupervisor && (
+                <TouchableOpacity
+                  style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
+                  onPress={() => {
+                    // Navigate to chat with context to create estimate
+                    if (navigation) {
+                      onClose();
+                      navigation.navigate('Chat', {
+                        initialMessage: `Create estimate for ${project.name}`,
+                        projectIdForEstimate: project.id
+                      });
+                    }
+                  }}
+                >
+                  <Ionicons name="add" size={16} color="#FFFFFF" />
+                  <Text style={styles.assignButtonText}>{t('buttons.create')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {loadingEstimates ? (
@@ -1428,6 +1452,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             )}
           </View>
+          )}
 
           {/* Timeline Section */}
           {(project.startDate || project.endDate || isEditing) && (
@@ -1678,6 +1703,24 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         assignmentId={project?.id}
         assignmentName={project?.name}
         onAssignmentsChange={handleWorkersUpdated}
+      />
+
+      {/* Supervisor Assignment Modal (for owners to assign projects) */}
+      <SupervisorAssignmentModal
+        visible={showSupervisorAssignment}
+        onClose={() => setShowSupervisorAssignment(false)}
+        project={{
+          id: project?.id,
+          name: project?.name,
+          assignedTo: project?.assignedTo || project?.assigned_supervisor_id,
+        }}
+        onAssignmentChange={(newSupervisorId) => {
+          setShowSupervisorAssignment(false);
+          // Trigger refresh if callback provided
+          if (onRefreshNeeded) {
+            onRefreshNeeded();
+          }
+        }}
       />
 
       {/* Full-Screen Photo Viewer with Swipe Navigation */}
@@ -1992,6 +2035,17 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   editIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignButton: {
+    padding: 4,
+    marginRight: 4,
+  },
+  assignIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -2316,6 +2370,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
+  },
+  assignButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   assignButtonText: {
     color: '#FFFFFF',

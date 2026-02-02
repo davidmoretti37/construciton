@@ -3,6 +3,8 @@
  * Handles: Full lifecycle management of projects, estimates, invoices, contracts
  */
 
+import { getSupervisorModeSection } from './supervisorModeSection';
+
 // Language name mapping for AI responses
 const getLanguageName = (code) => ({
   'pt-BR': 'Portuguese (Brazil)',
@@ -44,7 +46,51 @@ Consider these preferences when crafting your response, but always prioritize ac
 `
     : '';
 
-  return `${languageInstruction}# ROLE
+  // Owner mode instructions (for Boss Portal)
+  const ownerModeSection = context?.isOwnerMode
+    ? `
+# 🏢 OWNER MODE - COMPANY-WIDE VIEW
+You are helping a business OWNER who oversees multiple supervisors.
+The owner can see ALL workers, projects, estimates, and invoices across their entire company.
+
+**COMPANY HIERARCHY:**
+${context?.companyHierarchy ? `
+Owner: ${context.companyHierarchy.owner?.name || 'You'}
+├── Direct projects: ${context.companyHierarchy.owner?.directProjectCount || 0}
+└── Projects assigned to supervisors: ${context.companyHierarchy.owner?.assignedProjectCount || 0}
+
+Supervisors:
+${(context.companyHierarchy.supervisors || []).map(s =>
+  `├── ${s.name}: ${s.workerCount} workers, ${s.projectCount} projects`
+).join('\n') || '└── No supervisors yet'}
+` : `Supervisors: ${(context?.supervisors || []).map(s => s.name).join(', ') || 'None yet'}`}
+
+**PROJECT OWNERSHIP vs MANAGEMENT:**
+- "Created by" (created_by_name) = who originally created the project
+- "Managed by" (managed_by_name) = who manages day-to-day operations
+- Assignment statuses: 'owner_direct', 'assigned_to_supervisor', 'supervisor_own'
+
+**CRITICAL OWNER MODE RULES:**
+1. When listing projects, show creator AND manager: "Smith Residence (Created: You → Managed by: Mike)"
+2. Each project has created_by_name, managed_by_name, and assignment_status
+3. When showing totals, break down by supervisor when relevant
+4. If user asks "Show me John's projects", filter by managed_by_name matching "John"
+5. Owner can VIEW all data but creating new items happens under their own account
+6. To assign a project: use action "assign_project" with project_id and supervisor_id
+
+**Example Response Format:**
+"You have 3 active projects:
+1. Martinez Kitchen (Created: You → Managed by: Mike Johnson) - 75% complete
+2. Oak Street Remodel (Created: Sarah Davis → Managed by: Sarah Davis) - 40% complete
+3. Downtown Office (Created: You → Managed by: You) - 90% complete"
+
+`
+    : '';
+
+  // Supervisor mode section (for supervisor context awareness)
+  const supervisorModeSection = getSupervisorModeSection(context);
+
+  return `${languageInstruction}${ownerModeSection}${supervisorModeSection}# ROLE
 You are Foreman, your user's AI construction assistant. You help manage the complete lifecycle of projects, estimates, invoices, and contracts including creation, updates, status changes, and deletion. Think of yourself as a digital foreman - always ready to help organize and track construction work.
 ${personalizationSection}
 
@@ -707,7 +753,11 @@ Today: ${context.currentDate}
 ${(context.projects || []).slice(0, 10).map(p => {
   const start = p.startDate ? new Date(p.startDate + 'T00:00:00').toLocaleDateString() : 'TBD';
   const end = p.endDate ? new Date(p.endDate + 'T00:00:00').toLocaleDateString() : 'TBD';
-  return `- ${p.name} [ID: ${p.id}] | Client: ${p.client || 'N/A'} | Status: ${p.status || 'active'} | Contract: $${p.contractAmount || 0} | Timeline: ${start} to ${end}${p.daysRemaining ? ` (${p.daysRemaining} days left)` : ''}`;
+  const progress = p.percentComplete || 0;
+  const phaseInfo = p.phases?.length > 0
+    ? ` | Phases: ${p.phases.filter(ph => ph.status === 'completed').length}/${p.phases.length} done`
+    : '';
+  return `- ${p.name} [ID: ${p.id}] | Client: ${p.client || 'N/A'} | Status: ${p.status || 'active'} | Progress: ${progress}%${phaseInfo} | Contract: $${p.contractAmount || 0} | Timeline: ${start} to ${end}${p.daysRemaining ? ` (${p.daysRemaining} days left)` : ''}`;
 }).join('\n') || 'None'}
 ${(context.projects?.length || 0) > 10 ? `... and ${context.projects.length - 10} more` : ''}
 

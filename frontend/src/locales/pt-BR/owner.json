@@ -1,0 +1,76 @@
+{
+  "dashboard": {
+    "greeting": "Bem-vindo de volta",
+    "title": "Viso Geral do Negcio",
+    "fieldMode": "Modo Campo",
+    "supervisors": "Supervisores",
+    "projects": "Total de Projetos",
+    "active": "Trabalhos Ativos",
+    "workers": "Trabalhadores",
+    "totalRevenue": "Valor Total de Contratos",
+    "pendingInvites": "{{count}} convites de supervisor pendentes",
+    "quickStart": "Incio Rpido",
+    "tip1": "Adicione supervisores para gerenciar projetos",
+    "tip2": "Veja o desempenho dos supervisores na aba Supervisores",
+    "tip3": "Toque em \"Ir ao Trabalho\" para ver detalhes completos"
+  },
+  "supervisors": {
+    "title": "Supervisores",
+    "addNew": "Adicionar Supervisor",
+    "pendingInvites": "CONVITES PENDENTES",
+    "active": "SUPERVISORES ATIVOS",
+    "emptyTitle": "Nenhum supervisor ainda",
+    "emptyText": "Adicione supervisores para ajudar a gerenciar seus projetos e trabalhadores",
+    "addFirst": "Adicione Seu Primeiro Supervisor",
+    "email": "Endereo de E-mail",
+    "fullName": "Nome Completo",
+    "phone": "Nmero de Telefone",
+    "inviteInfo": "O supervisor receber um convite quando se cadastrar com este e-mail.",
+    "jobs": "trabalhos",
+    "workers": "trabalhadores"
+  },
+  "supervisorDetail": {
+    "jobs": "TRABALHOS",
+    "noJobs": "Nenhum trabalho ainda",
+    "goToJob": "Ir ao Trabalho",
+    "progress": "Progresso",
+    "totalValue": "Valor Total de Contratos"
+  },
+  "chat": {
+    "title": "Mensagens",
+    "emptyTitle": "Nenhuma conversa ainda",
+    "emptyText": "Adicione supervisores para comear a enviar mensagens",
+    "comingSoon": "Recurso completo de mensagens em breve!"
+  },
+  "supervisorView": {
+    "exit": "Sair",
+    "viewingAs": "Visualizando:"
+  },
+  "fieldMode": {
+    "exit": "Voltar para Viso Geral",
+    "label": "Modo Campo"
+  },
+  "supervisorOnboarding": {
+    "title": "Bem-vindo, Supervisor!",
+    "hasInvites": "Voc tem um convite pendente para entrar em uma empresa!",
+    "noInvites": "Voc precisa de um convite do proprietrio do negcio para comear.",
+    "feature1": "Gerenciar mltiplos projetos",
+    "feature2": "Acompanhar seus trabalhadores e horrios",
+    "feature3": "Lidar com finanas e faturamento",
+    "feature4": "Assistente de IA para ajudar voc",
+    "viewInvite": "Ver Convite",
+    "refresh": "Verificar Convites",
+    "waitingInfo": "Pea ao proprietrio do negcio para enviar um convite usando seu endereo de e-mail.",
+    "checking": "Verificando convites..."
+  },
+  "supervisorInvite": {
+    "title": "Convite de Supervisor",
+    "from": "DO PROPRIETRIO DO NEGCIO",
+    "details": "DETALHES DO CONVITE",
+    "invitedAs": "Convidado como:",
+    "name": "Nome:",
+    "message": "Ao aceitar, voc se juntar a esta empresa como supervisor. Voc poder gerenciar projetos, trabalhadores e acompanhar finanas.",
+    "reject": "Recusar",
+    "accept": "Aceitar"
+  }
+}

@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
-import { getCurrentUserId } from './auth';
+import { getCurrentUserId, getCurrentUserContext } from './auth';
+import { getSupervisorsForOwner } from './workers';
 
 // ============================================================
 // Invoice Management Functions
@@ -116,6 +117,67 @@ export const fetchInvoices = async (filters = {}) => {
     return data || [];
   } catch (error) {
     console.error('Error in fetchInvoices:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch all invoices across all supervisors under this owner
+ * Used by owner's AI chat to see company-wide invoice data
+ * @param {object} filters - Optional filters (status, clientName)
+ * @returns {Promise<array>} Invoices with supervisor info
+ */
+export const fetchInvoicesForOwner = async (filters = {}) => {
+  try {
+    const context = await getCurrentUserContext();
+    if (!context) return [];
+
+    // If not owner, fall back to regular fetchInvoices
+    if (!context.isOwner) {
+      return fetchInvoices(filters);
+    }
+
+    // Get all supervisors under this owner
+    const supervisors = await getSupervisorsForOwner(context.userId);
+    const supervisorIds = supervisors.map(s => s.id);
+    const supervisorNames = Object.fromEntries(
+      supervisors.map(s => [s.id, s.business_name || 'Supervisor'])
+    );
+
+    // Include owner's own invoices too
+    const allIds = [context.userId, ...supervisorIds];
+
+    let query = supabase
+      .from('invoices')
+      .select('*')
+      .in('user_id', allIds)
+      .order('created_at', { ascending: false });
+
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters.clientName) {
+      query = query.ilike('client_name', `%${filters.clientName}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching invoices for owner:', error);
+      return [];
+    }
+
+    // Add supervisor attribution
+    return (data || []).map(invoice => ({
+      ...invoice,
+      supervisor_name: invoice.user_id === context.userId
+        ? 'You (Owner)'
+        : (supervisorNames[invoice.user_id] || 'Unknown Supervisor'),
+      supervisor_id: invoice.user_id,
+    }));
+  } catch (error) {
+    console.error('Error in fetchInvoicesForOwner:', error);
     return [];
   }
 };
