@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
 export default function BottomTabNavigator() {
   return (
     <Tab.Navigator
-      initialRouteName="Home"
+      initialRouteName="Chat"
       tabBar={(props) => <SupervisorNavContainer {...props} />}
       screenOptions={{
         headerShown: false,

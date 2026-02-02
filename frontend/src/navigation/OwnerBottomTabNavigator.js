@@ -41,6 +41,9 @@ const OwnerNavContainer = (props) => {
     } else if (action.id === 'expense') {
       // Navigate to expense form with AI receipt analysis
       props.navigation.navigate('ExpenseForm');
+    } else if (action.id === 'worker') {
+      // Navigate to Workers tab with flag to open add modal
+      props.navigation.navigate('Workers', { openAddWorker: true });
     }
   };
 
@@ -89,7 +92,7 @@ const styles = StyleSheet.create({
 export default function OwnerBottomTabNavigator() {
   return (
     <Tab.Navigator
-      initialRouteName="Home"
+      initialRouteName="Chat"
       tabBar={(props) => <OwnerNavContainer {...props} />}
       screenOptions={{
         headerShown: false,

@@ -23,8 +23,8 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import { BACKEND_URL } from '@env';
+import * as FileSystem from 'expo-file-system/legacy';
+import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSelectedLanguage } from '../utils/storage';
@@ -182,7 +182,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
       const response = await fetch(
-        `${BACKEND_URL}/api/transcribe`,
+        `${EXPO_PUBLIC_BACKEND_URL}/api/transcribe`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -259,96 +259,109 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Content */}
-          <View style={styles.content}>
-            <TextInput
-              ref={inputRef}
-              style={[
-                styles.textInput,
-                {
-                  backgroundColor: Colors.inputBackground || Colors.card,
-                  color: Colors.primaryText,
-                  borderColor: Colors.border,
-                },
-              ]}
-              placeholder={config.placeholder}
-              placeholderTextColor={Colors.tertiaryText || Colors.secondaryText}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              textAlignVertical="top"
-              autoCapitalize="sentences"
-            />
-
-            {/* Helper text */}
-            <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
-              Be as detailed as you want - the assistant will help fill in the rest.
-            </Text>
-          </View>
-
-          {/* Footer */}
-          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
-            <View style={styles.footerButtons}>
-              {/* Send Button */}
-              <TouchableOpacity
+          {/* Content - Input Container with integrated controls */}
+          <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
+            <View style={[
+              styles.inputContainer,
+              {
+                backgroundColor: Colors.inputBackground || Colors.card,
+                borderColor: Colors.border,
+              },
+            ]}>
+              {/* TextInput */}
+              <TextInput
+                ref={inputRef}
                 style={[
-                  styles.sendButton,
-                  {
-                    backgroundColor: inputText.trim() && !isRecording && !isTranscribing ? OWNER_PRIMARY : Colors.border,
-                  },
+                  styles.textInput,
+                  { color: Colors.primaryText },
                 ]}
-                onPress={handleSend}
-                disabled={!inputText.trim() || isRecording || isTranscribing}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="send"
-                  size={20}
-                  color={inputText.trim() && !isRecording && !isTranscribing ? '#fff' : Colors.secondaryText}
-                />
-                <Text
-                  style={[
-                    styles.sendButtonText,
-                    { color: inputText.trim() && !isRecording && !isTranscribing ? '#fff' : Colors.secondaryText },
-                  ]}
-                >
-                  Send to Assistant
-                </Text>
-              </TouchableOpacity>
+                placeholder={config.placeholder}
+                placeholderTextColor={Colors.tertiaryText || Colors.secondaryText}
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                textAlignVertical="top"
+                autoCapitalize="sentences"
+              />
 
-              {/* Voice Button - with pulse animation */}
-              <Animated.View style={[isRecording && pulseAnimatedStyle]}>
-                <TouchableOpacity
-                  style={[
-                    styles.voiceButton,
-                    {
-                      backgroundColor: isRecording ? '#EF4444' : isTranscribing ? Colors.card : Colors.card,
-                      borderColor: isRecording ? '#EF4444' : Colors.border,
-                    },
-                  ]}
-                  onPress={handleVoicePress}
-                  disabled={isTranscribing}
-                  activeOpacity={0.8}
-                >
-                  {isTranscribing ? (
-                    <OrbitalLoader size={28} color={OWNER_PRIMARY} />
+              {/* Recording/Transcribing overlay */}
+              {(isRecording || isTranscribing) && (
+                <View style={styles.recordingOverlay}>
+                  {isRecording ? (
+                    <Animated.View style={pulseAnimatedStyle}>
+                      <View style={styles.recordingIndicator}>
+                        <Ionicons name="mic" size={32} color="#EF4444" />
+                        <Text style={styles.recordingText}>Recording...</Text>
+                      </View>
+                    </Animated.View>
                   ) : (
-                    <Ionicons
-                      name={isRecording ? 'stop' : 'mic'}
-                      size={24}
-                      color={isRecording ? '#fff' : Colors.primaryText}
-                    />
+                    <View style={styles.transcribingIndicator}>
+                      <OrbitalLoader size={40} color={OWNER_PRIMARY} />
+                      <Text style={[styles.transcribingText, { color: OWNER_PRIMARY }]}>Transcribing...</Text>
+                    </View>
                   )}
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
+                </View>
+              )}
 
-            {/* Recording/Transcribing hint */}
-            {(isRecording || isTranscribing) && (
-              <Text style={[styles.recordingHint, { color: isRecording ? '#EF4444' : OWNER_PRIMARY }]}>
-                {isRecording ? 'Recording... Tap stop when done' : 'Transcribing...'}
-              </Text>
-            )}
+              {/* Controls Bar - inside the input container */}
+              <View style={[styles.controlsBar, { borderTopColor: Colors.border }]}>
+                {/* Helper text on left */}
+                <Text style={[styles.helperText, { color: Colors.secondaryText }]} numberOfLines={1}>
+                  Describe in detail
+                </Text>
+
+                {/* Right side controls */}
+                <View style={styles.rightControls}>
+                  {/* Show mic when no text, send when there is text */}
+                  {!inputText.trim() && !isTranscribing ? (
+                    <Animated.View style={[isRecording && pulseAnimatedStyle]}>
+                      <TouchableOpacity
+                        style={[
+                          styles.controlButton,
+                          {
+                            backgroundColor: isRecording ? '#EF4444' : `${OWNER_PRIMARY}15`,
+                          },
+                        ]}
+                        onPress={handleVoicePress}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons
+                          name={isRecording ? 'stop' : 'mic'}
+                          size={22}
+                          color={isRecording ? '#fff' : OWNER_PRIMARY}
+                        />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.sendButton,
+                        {
+                          backgroundColor: inputText.trim() && !isTranscribing ? OWNER_PRIMARY : Colors.border,
+                        },
+                      ]}
+                      onPress={handleSend}
+                      disabled={!inputText.trim() || isTranscribing}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="send"
+                        size={18}
+                        color={inputText.trim() && !isTranscribing ? '#fff' : Colors.secondaryText}
+                      />
+                      <Text
+                        style={[
+                          styles.sendButtonText,
+                          { color: inputText.trim() && !isTranscribing ? '#fff' : Colors.secondaryText },
+                        ]}
+                      >
+                        Send
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
@@ -392,60 +405,78 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
   },
+  inputContainer: {
+    flex: 1,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
   textInput: {
     flex: 1,
     fontSize: FontSizes.body,
     lineHeight: 24,
     padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    maxHeight: 300,
+    minHeight: 150,
   },
-  helperText: {
-    fontSize: FontSizes.small,
-    marginTop: Spacing.md,
-    textAlign: 'center',
-  },
-  footer: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-  },
-  footerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  voiceButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  recordingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  sendButton: {
-    flex: 1,
-    flexDirection: 'row',
+  recordingIndicator: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
     gap: Spacing.sm,
   },
-  sendButtonText: {
+  recordingText: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  transcribingIndicator: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  transcribingText: {
     fontSize: FontSizes.body,
     fontWeight: '600',
   },
-  recordingHint: {
+  controlsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+  },
+  helperText: {
     fontSize: FontSizes.small,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
-    fontWeight: '500',
+    flex: 1,
+  },
+  rightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  controlButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  sendButtonText: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
   },
 });
 

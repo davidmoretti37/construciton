@@ -14,7 +14,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   RefreshControl,
@@ -25,9 +24,10 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -101,7 +101,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors }) => {
 
 // Worker Card Horizontal (matches SupervisorCard style)
 const WorkerCardHorizontal = ({ worker, onPress, Colors }) => {
-  const initial = worker.name?.charAt(0)?.toUpperCase() || 'W';
+  const initial = worker.full_name?.charAt(0)?.toUpperCase() || 'W';
   const statusColor = worker.status === 'active' ? OWNER_COLORS.success : '#9CA3AF';
 
   // Format payment info
@@ -125,7 +125,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors }) => {
 
       <View style={styles.supervisorInfo}>
         <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
-          {worker.name || 'Worker'}
+          {worker.full_name || 'Worker'}
         </Text>
         {worker.trade && (
           <View style={styles.workerTradeRow}>
@@ -195,7 +195,19 @@ export default function OwnerWorkersScreen() {
   const { t } = useTranslation('workers');
   const { t: tOwner } = useTranslation('owner');
   const navigation = useNavigation();
+  const route = useRoute();
   const { user } = useAuth();
+
+  // Handle route param to auto-open add worker modal from QuickActionFAB
+  useEffect(() => {
+    if (route.params?.openAddWorker) {
+      // Switch to Team tab and open role picker
+      setActiveTab('team');
+      setShowRolePicker(true);
+      // Clear the param so it doesn't trigger again
+      navigation.setParams({ openAddWorker: undefined });
+    }
+  }, [route.params?.openAddWorker]);
 
   // Tab state - 3 tabs for owner (Schedule, Reports, Team)
   const [activeTab, setActiveTab] = useState('schedule'); // 'schedule' | 'reports' | 'team'
@@ -418,7 +430,7 @@ export default function OwnerWorkersScreen() {
         .from('workers')
         .insert({
           owner_id: user.id,
-          name: workerForm.name.trim(),
+          full_name: workerForm.name.trim(),
           email: workerForm.email.trim() || null,
           phone: workerForm.phone.trim() || null,
           trade: workerForm.trade.trim() || null,
@@ -448,7 +460,7 @@ export default function OwnerWorkersScreen() {
       fetchWorkers();
     } catch (error) {
       console.log('Add worker error:', error);
-      Alert.alert('Error', 'Failed to add worker');
+      Alert.alert('Error', `Failed to add worker: ${error.message || error.code || 'Unknown error'}`);
     } finally {
       setAddingWorker(false);
     }
@@ -516,7 +528,10 @@ export default function OwnerWorkersScreen() {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => setShowRolePicker(true)}
+            onPress={() => {
+              console.log('[OwnerWorkersScreen] Add Team Member pressed');
+              setShowRolePicker(true);
+            }}
             activeOpacity={0.8}
           >
             <Ionicons name="add-circle-outline" size={20} color="#fff" />
