@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, ActionSheetIOS, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, ActionSheetIOS, Platform, Modal, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { shareEstimatePDF, emailEstimatePDF } from '../../utils/estimatePDF';
+import { WebView } from 'react-native-webview';
+import { shareEstimatePDF, emailEstimatePDF, generateEstimateHTML } from '../../utils/estimatePDF';
 import { getUserProfile, getAverageWorkerRate } from '../../utils/storage';
 import { recordPricingCorrection, extractServiceType } from '../../services/pricingIntelligence';
 
@@ -16,6 +17,10 @@ export default function EstimatePreview({ data, onAction }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState(data);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [newItemIndex, setNewItemIndex] = useState(null);
+  const newItemRef = useRef(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewHTML, setPreviewHTML] = useState('');
 
   const {
     estimateNumber,
@@ -47,6 +52,14 @@ export default function EstimatePreview({ data, onAction }) {
   useEffect(() => {
     getAverageWorkerRate().then(setWorkerRates);
   }, []);
+
+  // Auto-focus newly added line item
+  useEffect(() => {
+    if (newItemIndex !== null && newItemRef.current) {
+      newItemRef.current.focus();
+      setNewItemIndex(null);
+    }
+  }, [newItemIndex]);
 
   // Calculate estimated labor cost (use editedData when editing for real-time updates)
   const currentLaborEstimate = isEditing ? (editedData.laborEstimate || laborEstimate) : laborEstimate;
@@ -105,7 +118,7 @@ export default function EstimatePreview({ data, onAction }) {
     const newTotal = newSubtotal + newProfit;
 
     // Also update phase budgets proportionally if phases exist
-    const newPhases = editedData.phases || phases;
+    const newPhases = editedData.phases || data.phases || [];
     const oldTotal = editedData.subtotal || subtotal || 1;
     const ratio = newSubtotal / oldTotal;
     const updatedPhases = newPhases.map(phase => ({
@@ -195,6 +208,7 @@ export default function EstimatePreview({ data, onAction }) {
     };
     newItems.push(newItem);
     setEditedData({ ...editedData, items: newItems });
+    setNewItemIndex(newItems.length - 1);
   };
 
   const handleRemoveLineItem = (index) => {
@@ -269,7 +283,7 @@ export default function EstimatePreview({ data, onAction }) {
 
   // Schedule update handlers
   const handleUpdatePhaseSchedule = (phaseIndex, field, value) => {
-    const newSchedule = { ...(editedData.schedule || schedule) };
+    const newSchedule = { ...(editedData.schedule || data.schedule || {}) };
     const newPhaseSchedule = [...(newSchedule.phaseSchedule || [])];
     newPhaseSchedule[phaseIndex] = { ...newPhaseSchedule[phaseIndex], [field]: value };
     newSchedule.phaseSchedule = newPhaseSchedule;
@@ -277,7 +291,7 @@ export default function EstimatePreview({ data, onAction }) {
   };
 
   const handleUpdateOverallSchedule = (field, value) => {
-    const newSchedule = { ...(editedData.schedule || schedule), [field]: value };
+    const newSchedule = { ...(editedData.schedule || data.schedule || {}), [field]: value };
     setEditedData({ ...editedData, schedule: newSchedule });
   };
 
@@ -452,6 +466,18 @@ export default function EstimatePreview({ data, onAction }) {
     } catch (error) {
       console.error('Error sharing estimate:', error);
       Alert.alert('Error', 'Failed to share estimate. Please try again.');
+    }
+  };
+
+  const handlePreview = async () => {
+    try {
+      const enrichedData = await getEnrichedEstimateData();
+      const html = generateEstimateHTML(enrichedData);
+      setPreviewHTML(html);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error previewing estimate:', error);
+      Alert.alert('Error', 'Failed to preview estimate. Please try again.');
     }
   };
 
@@ -749,8 +775,9 @@ export default function EstimatePreview({ data, onAction }) {
               {isEditing ? (
                 <>
                   <TextInput
+                    ref={index === newItemIndex ? newItemRef : undefined}
                     style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
-                    value={item.description?.replace(/^undefined\.\s*/i, '').trim() || item.description}
+                    value={item.description?.replace(/^undefined\.\s*/i, '') || item.description}
                     onChangeText={(value) => handleUpdateLineItem(index, 'description', value)}
                     placeholder={t('estimate.itemDescription')}
                     placeholderTextColor={Colors.secondaryText}
@@ -789,11 +816,11 @@ export default function EstimatePreview({ data, onAction }) {
                 </View>
               ) : (
                 <Text style={[styles.itemCalc, { color: Colors.secondaryText }]}>
-                  {item.quantity} {item.unit || 'unit'}{item.quantity > 1 ? 's' : ''} × ${item.price?.toFixed(2) || 0}
+                  {item.quantity} {item.unit || 'unit'}{item.quantity > 1 ? 's' : ''} × ${(parseFloat(item.price) || 0).toFixed(2)}
                 </Text>
               )}
               <Text style={[styles.itemTotal, { color: Colors.primaryText }]}>
-                ${item.total?.toFixed(2) || 0}
+                ${(parseFloat(item.total) || 0).toFixed(2)}
               </Text>
             </View>
           </View>
@@ -939,11 +966,7 @@ export default function EstimatePreview({ data, onAction }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: '#8B5CF6' }]}
-              onPress={() => {
-                if (onAction) {
-                  onAction({ type: 'preview-estimate', data });
-                }
-              }}
+              onPress={handlePreview}
               activeOpacity={0.7}
             >
               <Ionicons name="eye-outline" size={22} color="#fff" />
@@ -976,6 +999,28 @@ export default function EstimatePreview({ data, onAction }) {
           {t('estimate.acceptedReady')}
         </Text>
       )}
+
+      {/* Estimate Preview Modal */}
+      <Modal
+        visible={showPreview}
+        animationType="slide"
+        onRequestClose={() => setShowPreview(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+          <View style={[styles.previewHeader, { borderBottomColor: Colors.border }]}>
+            <TouchableOpacity onPress={() => setShowPreview(false)}>
+              <Ionicons name="close" size={28} color={Colors.primaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.previewTitle, { color: Colors.primaryText }]}>Estimate Preview</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <WebView
+            originWhitelist={['*']}
+            source={{ html: previewHTML }}
+            style={{ flex: 1 }}
+          />
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -1449,5 +1494,17 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     lineHeight: 20,
     marginBottom: Spacing.xs,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

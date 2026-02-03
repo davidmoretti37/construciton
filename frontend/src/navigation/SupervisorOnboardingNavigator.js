@@ -20,9 +20,9 @@ import SupervisorCompletionScreen from '../screens/supervisor/onboarding/Supervi
 
 const Stack = createStackNavigator();
 
-export default function SupervisorOnboardingNavigator({ onComplete }) {
+export default function SupervisorOnboardingNavigator({ onComplete, onGoBack }) {
   return (
-    <OnboardingProvider onComplete={onComplete}>
+    <OnboardingProvider onComplete={onComplete} onGoBack={onGoBack}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

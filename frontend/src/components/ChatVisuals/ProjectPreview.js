@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, ActionSheetIOS, Platform, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -136,6 +136,16 @@ export default function ProjectPreview({ data, onAction }) {
   const [isSaving, setIsSaving] = useState(false);
   const [savedProjectId, setSavedProjectId] = useState(null);
   const [isDistributing, setIsDistributing] = useState(false);  // Loading state for AI task distribution
+  const [newServiceIndex, setNewServiceIndex] = useState(null);
+  const newServiceRef = useRef(null);
+
+  // Auto-focus newly added service item
+  useEffect(() => {
+    if (newServiceIndex !== null && newServiceRef.current) {
+      newServiceRef.current.focus();
+      setNewServiceIndex(null);
+    }
+  }, [newServiceIndex]);
 
   const {
     projectNumber,
@@ -239,6 +249,7 @@ export default function ProjectPreview({ data, onAction }) {
     const newServices = [...(editedData.services || services)];
     newServices.push({ description: '' });
     setEditedData({ ...editedData, services: newServices });
+    setNewServiceIndex(newServices.length - 1);
   };
 
   const handleRemoveService = (index) => {
@@ -949,8 +960,9 @@ export default function ProjectPreview({ data, onAction }) {
                 {isEditing ? (
                   <>
                     <TextInput
+                      ref={index === newServiceIndex ? newServiceRef : undefined}
                       style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
-                      value={service.description?.replace(/^undefined\.\s*/i, '').trim() || service.description || ''}
+                      value={service.description?.replace(/^undefined\.\s*/i, '') || service.description || ''}
                       onChangeText={(value) => handleUpdateService(index, value)}
                       placeholder={t('placeholders.serviceDescription')}
                       placeholderTextColor={Colors.secondaryText}

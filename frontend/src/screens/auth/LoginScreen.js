@@ -69,6 +69,16 @@ export default function LoginScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.content}>
+          {/* Premium Onboarding Link */}
+          <TouchableOpacity
+            style={styles.premiumLink}
+            onPress={() => navigation.navigate('PremiumOnboarding')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="sparkles-outline" size={14} color={COLORS.primary} />
+            <Text style={styles.premiumLinkText}>See what's new</Text>
+          </TouchableOpacity>
+
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
@@ -112,7 +122,8 @@ export default function LoginScreen({ navigation }) {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
-                  autoComplete="password"
+                  autoComplete="off"
+                  textContentType="oneTimeCode"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons
@@ -167,6 +178,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 80,
     justifyContent: 'center',
+  },
+  premiumLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+    position: 'absolute',
+    top: 50,
+  },
+  premiumLinkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   header: {
     alignItems: 'center',

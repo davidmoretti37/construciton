@@ -249,6 +249,8 @@ export default function TwilioSetupScreen({ navigation }) {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="off"
+              textContentType="oneTimeCode"
             />
             <Text style={[styles.helperText, { color: Colors.secondaryText }]}>
               Click "Show" next to Auth Token in Twilio Console

@@ -17,9 +17,9 @@ export const useOnboarding = () => {
   return context;
 };
 
-export const OnboardingProvider = ({ onComplete, children }) => {
+export const OnboardingProvider = ({ onComplete, onGoBack, children }) => {
   return (
-    <OnboardingContext.Provider value={{ onComplete }}>
+    <OnboardingContext.Provider value={{ onComplete, onGoBack }}>
       {children}
     </OnboardingContext.Provider>
   );

@@ -65,6 +65,8 @@ export default function WorkerInfoScreen({ navigation }) {
   const [trade, setTrade] = useState(TRADES[0].id);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showTradeModal, setShowTradeModal] = useState(false);
+  const [showCustomTradeInput, setShowCustomTradeInput] = useState(false);
+  const [customTradeName, setCustomTradeName] = useState('');
   const [isScreenActive, setIsScreenActive] = useState(false);
 
   // Trigger animations on mount
@@ -97,7 +99,7 @@ export default function WorkerInfoScreen({ navigation }) {
       fullName: fullName.trim(),
       phone: phone.trim(),
       role,
-      trade,
+      trade: trade === 'custom' ? customTradeName.trim() : trade,
     });
   };
 
@@ -178,7 +180,7 @@ export default function WorkerInfoScreen({ navigation }) {
               >
                 <Ionicons name="construct-outline" size={20} color={Colors.secondaryText} />
                 <Text style={[styles.selectText, { color: Colors.primaryText }]}>
-                  {TRADES.find(t => t.id === trade)?.name}
+                  {trade === 'custom' ? customTradeName : TRADES.find(t => t.id === trade)?.name}
                 </Text>
                 <Ionicons name="chevron-down" size={20} color={Colors.secondaryText} />
               </TouchableOpacity>
@@ -254,17 +256,23 @@ export default function WorkerInfoScreen({ navigation }) {
         visible={showTradeModal}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setShowTradeModal(false)}
+        onRequestClose={() => {
+          setShowCustomTradeInput(false);
+          setShowTradeModal(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: Colors.white }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Trade</Text>
-              <TouchableOpacity onPress={() => setShowTradeModal(false)}>
+              <TouchableOpacity onPress={() => {
+                setShowCustomTradeInput(false);
+                setShowTradeModal(false);
+              }}>
                 <Ionicons name="close" size={24} color={Colors.secondaryText} />
               </TouchableOpacity>
             </View>
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               {TRADES.map((t) => (
                 <TouchableOpacity
                   key={t.id}
@@ -275,6 +283,7 @@ export default function WorkerInfoScreen({ navigation }) {
                   ]}
                   onPress={() => {
                     setTrade(t.id);
+                    setShowCustomTradeInput(false);
                     setShowTradeModal(false);
                   }}
                 >
@@ -282,6 +291,52 @@ export default function WorkerInfoScreen({ navigation }) {
                   {trade === t.id && <Ionicons name="checkmark" size={24} color={WORKER_GREEN} />}
                 </TouchableOpacity>
               ))}
+
+              {/* Other / Custom Trade Option */}
+              {!showCustomTradeInput ? (
+                <TouchableOpacity
+                  style={[
+                    styles.modalOption,
+                    { borderBottomColor: Colors.border },
+                    trade === 'custom' && { backgroundColor: WORKER_GREEN + '10' }
+                  ]}
+                  onPress={() => setShowCustomTradeInput(true)}
+                >
+                  <View style={styles.otherOptionRow}>
+                    <Ionicons name="add-circle-outline" size={20} color={WORKER_GREEN} />
+                    <Text style={[styles.modalOptionText, { color: WORKER_GREEN, fontWeight: '600' }]}>Other</Text>
+                  </View>
+                  {trade === 'custom' && <Ionicons name="checkmark" size={24} color={WORKER_GREEN} />}
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.customTradeContainer, { borderBottomColor: Colors.border }]}>
+                  <View style={[styles.customTradeInputContainer, { borderColor: WORKER_GREEN, backgroundColor: Colors.white }]}>
+                    <TextInput
+                      style={[styles.customTradeInput, { color: Colors.primaryText }]}
+                      placeholder="Enter your trade"
+                      placeholderTextColor={Colors.secondaryText}
+                      value={customTradeName}
+                      onChangeText={setCustomTradeName}
+                      autoFocus
+                      autoCapitalize="words"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.customTradeDone,
+                      { backgroundColor: customTradeName.trim() ? WORKER_GREEN : Colors.border },
+                    ]}
+                    disabled={!customTradeName.trim()}
+                    onPress={() => {
+                      setTrade('custom');
+                      setShowCustomTradeInput(false);
+                      setShowTradeModal(false);
+                    }}
+                  >
+                    <Text style={styles.customTradeDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -407,5 +462,34 @@ const styles = StyleSheet.create({
   },
   modalOptionText: {
     fontSize: FontSizes.body,
+  },
+  otherOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  customTradeContainer: {
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    gap: Spacing.md,
+  },
+  customTradeInputContainer: {
+    borderWidth: 2,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+  },
+  customTradeInput: {
+    paddingVertical: Spacing.md,
+    fontSize: FontSizes.body,
+  },
+  customTradeDone: {
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  customTradeDoneText: {
+    color: '#fff',
+    fontSize: FontSizes.body,
+    fontWeight: '600',
   },
 });

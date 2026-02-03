@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
+import PremiumOnboarding from '../screens/onboarding/PremiumOnboarding';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
 import RoleSelectionScreen from '../screens/auth/RoleSelectionScreen';
@@ -38,6 +39,7 @@ export default function AuthNavigator() {
       initialRouteName={initialRoute}
     >
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+      <Stack.Screen name="PremiumOnboarding" component={PremiumOnboarding} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Signup" component={SignupScreen} />
       <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />

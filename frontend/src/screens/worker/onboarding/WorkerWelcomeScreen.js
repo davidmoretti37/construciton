@@ -1,15 +1,18 @@
 /**
  * WorkerWelcomeScreen
  * Welcome screen with choreographed animations
+ * Workers must have an invitation to proceed (same pattern as supervisor)
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useOnboarding } from '../../../contexts/OnboardingContext';
 import WorkerInviteHandler from '../../../components/WorkerInviteHandler';
 import { useWorkerInvites } from '../../../hooks/useWorkerInvites';
 import { supabase } from '../../../lib/supabase';
@@ -36,14 +39,14 @@ const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
   );
 };
 
-export default function WorkerWelcomeScreen({ navigation, route }) {
+export default function WorkerWelcomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { refreshProfile } = useAuth();
+  const { onComplete, onGoBack } = useOnboarding();
   const { invites, loading: invitesLoading, refetch } = useWorkerInvites();
   const [showInvitePopup, setShowInvitePopup] = useState(false);
   const [isScreenActive, setIsScreenActive] = useState(false);
-  const onComplete = route?.params?.onComplete;
 
   // Trigger animations on mount
   useEffect(() => {
@@ -64,7 +67,6 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
   const titleAnim = useTextSlideUp(isScreenActive, 300);
   const subtitleAnim = useTextSlideUp(isScreenActive, 500);
   const buttonAnim = useButtonBounce(isScreenActive, 1400);
-  const progressAnim = useTextSlideUp(isScreenActive, 1600);
 
   const features = [
     { icon: 'time-outline', text: 'Clock in/out with location tracking' },
@@ -100,8 +102,8 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
     refetch();
   };
 
-  const handleContinue = () => {
-    navigation.navigate('WorkerInfo');
+  const handleCheckInvitations = () => {
+    refetch();
   };
 
   // Show loading while checking for invites
@@ -118,11 +120,27 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
     );
   }
 
+  const hasInvites = invites && invites.length > 0;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Show invite popup if there are pending invites */}
-      {showInvitePopup && invites && invites.length > 0 && (
+      {showInvitePopup && hasInvites && (
         <WorkerInviteHandler onInvitesHandled={handleInvitesHandled} />
+      )}
+
+      {/* Back button */}
+      {onGoBack && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onGoBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color={Colors.primaryText} />
+          <Text style={[styles.backText, { color: Colors.primaryText }]}>
+            Back
+          </Text>
+        </TouchableOpacity>
       )}
 
       <View style={styles.content}>
@@ -137,7 +155,9 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
             Welcome, Worker!
           </Animated.Text>
           <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
-            Let's set up your profile so you can start tracking your work
+            {hasInvites
+              ? 'You have a pending invitation to join a company!'
+              : 'You need an invitation from a business owner to get started.'}
           </Animated.Text>
         </View>
 
@@ -155,28 +175,37 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
           ))}
         </View>
 
-        {/* Continue Button */}
+        {/* Action Button */}
         <Animated.View style={[{ width: '100%' }, buttonAnim]}>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: WORKER_GREEN }]}
-            onPress={handleContinue}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.buttonText}>Get Started</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
-          </TouchableOpacity>
-        </Animated.View>
+          {hasInvites ? (
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: WORKER_GREEN }]}
+              onPress={() => setShowInvitePopup(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="mail" size={20} color="#fff" />
+              <Text style={styles.buttonText}>View Invitation</Text>
+            </TouchableOpacity>
+          ) : (
+            <View>
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: WORKER_GREEN }]}
+                onPress={handleCheckInvitations}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={20} color="#fff" />
+                <Text style={styles.buttonText}>Check for Invitations</Text>
+              </TouchableOpacity>
 
-        {/* Progress Indicator */}
-        <Animated.View style={[styles.progressContainer, progressAnim]}>
-          <View style={styles.progressDots}>
-            <View style={[styles.dot, styles.activeDot, { backgroundColor: WORKER_GREEN }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-          </View>
-          <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
-            Step 1 of 3
-          </Text>
+              {/* Info message */}
+              <View style={[styles.infoBox, { backgroundColor: WORKER_GREEN + '10' }]}>
+                <Ionicons name="information-circle" size={20} color={WORKER_GREEN} />
+                <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
+                  Ask your business owner to send you an invitation using your email address.
+                </Text>
+              </View>
+            </View>
+          )}
         </Animated.View>
       </View>
     </SafeAreaView>
@@ -186,6 +215,17 @@ export default function WorkerWelcomeScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  backText: {
+    fontSize: FontSizes.body,
+    fontWeight: '500',
   },
   content: {
     flex: 1,
@@ -247,24 +287,17 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.body,
     fontWeight: '600',
   },
-  progressContainer: {
-    marginTop: Spacing.xxl,
-    alignItems: 'center',
-  },
-  progressDots: {
+  infoBox: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
     gap: Spacing.sm,
-    marginBottom: Spacing.sm,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeDot: {
-    width: 24,
-  },
-  progressText: {
+  infoText: {
+    flex: 1,
     fontSize: FontSizes.small,
+    lineHeight: 20,
   },
 });

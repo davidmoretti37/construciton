@@ -146,12 +146,16 @@ function AppContent() {
         );
       });
 
-      setLanguageSelected(langSelected);
-      setUserOnboarded(onboarded);
+      // Use functional updates to prevent stale async calls from going backwards.
+      // Once languageSelected or userOnboarded is true, never revert to false
+      // (race condition: multiple checkLanguageAndOnboarding calls can overlap).
+      setLanguageSelected(prev => prev === true ? true : langSelected);
+      setUserOnboarded(prev => prev === true ? true : onboarded);
     } catch (error) {
       logger.error('Error checking language and onboarding:', error);
-      setLanguageSelected(false);
-      setUserOnboarded(false);
+      // Don't reset to false if already set to true (stale call protection)
+      setLanguageSelected(prev => prev === true ? true : false);
+      setUserOnboarded(prev => prev === true ? true : false);
     } finally {
       setLoading(false);
     }
@@ -254,10 +258,10 @@ function AppContent() {
         // 3. Completion - Save and finish
         // Note: Supervisors use the owner's company settings (pricing, phases, etc.)
         logger.debug('Showing: SUPERVISOR SIMPLE ONBOARDING');
-        return <SupervisorOnboardingNavigator onComplete={handleOnboardingComplete} />;
+        return <SupervisorOnboardingNavigator onComplete={handleOnboardingComplete} onGoBack={handleGoBackToRoleSelection} />;
       } else if (role === 'worker') {
         logger.debug('Showing: WORKER ONBOARDING');
-        return <WorkerOnboardingNavigator onComplete={handleOnboardingComplete} />;
+        return <WorkerOnboardingNavigator onComplete={handleOnboardingComplete} onGoBack={handleGoBackToRoleSelection} />;
       } else if (role === 'client') {
         logger.debug('Showing: CLIENT ONBOARDING');
         return <ClientOnboardingNavigator onComplete={handleOnboardingComplete} />;

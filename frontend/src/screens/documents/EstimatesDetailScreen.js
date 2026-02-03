@@ -17,7 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { fetchEstimates } from '../../utils/storage';
+import { fetchEstimates, updateEstimate } from '../../utils/storage';
 import EstimatePreview from '../../components/ChatVisuals/EstimatePreview';
 import { supabase } from '../../lib/supabase';
 
@@ -284,10 +284,25 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                   total: selectedEstimate.total || 0,
                   status: selectedEstimate.status,
                 }}
-                onAction={(action) => {
-                  console.log('Estimate action:', action);
-                  // Handle actions like share, convert to invoice, etc.
-                  setShowEstimateModal(false);
+                onAction={async (action) => {
+                  console.log('Estimate action:', action.type);
+                  if (action.type === 'update-estimate') {
+                    try {
+                      const updated = await updateEstimate(action.data);
+                      if (updated) {
+                        setSelectedEstimate(updated);
+                        await loadEstimates();
+                        Alert.alert(tCommon('alerts.success'), tCommon('messages.savedSuccessfully', { item: 'Estimate' }));
+                      } else {
+                        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'estimate' }));
+                      }
+                    } catch (error) {
+                      console.error('Error updating estimate:', error);
+                      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'estimate' }));
+                    }
+                  } else {
+                    setShowEstimateModal(false);
+                  }
                 }}
               />
             )}

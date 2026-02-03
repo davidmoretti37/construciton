@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useOnboarding } from '../../../contexts/OnboardingContext';
 import { supabase } from '../../../lib/supabase';
 import {
   useSuccessCelebration,
@@ -32,7 +33,8 @@ export default function WorkerCompletionScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { user } = useAuth();
-  const { fullName, phone, role, trade, onComplete } = route.params;
+  const { onComplete } = useOnboarding();
+  const { fullName, phone, role, trade } = route.params;
 
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);

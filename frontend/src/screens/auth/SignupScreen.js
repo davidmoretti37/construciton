@@ -173,7 +173,7 @@ export default function SignupScreen({ navigation }) {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoComplete="off"
-                  textContentType="none"
+                  textContentType="oneTimeCode"
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons
@@ -199,7 +199,7 @@ export default function SignupScreen({ navigation }) {
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   autoComplete="off"
-                  textContentType="none"
+                  textContentType="oneTimeCode"
                 />
                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                   <Ionicons

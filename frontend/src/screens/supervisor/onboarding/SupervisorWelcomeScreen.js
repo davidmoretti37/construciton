@@ -50,7 +50,7 @@ export default function SupervisorWelcomeScreen({ navigation }) {
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('owner');
   const { user, refreshProfile, ownerId } = useAuth();
-  const { onComplete } = useOnboarding();
+  const { onComplete, onGoBack } = useOnboarding();
   const { invites, loading: invitesLoading, refetch } = useSupervisorInvites();
   const [showInvitePopup, setShowInvitePopup] = useState(false);
   const [isScreenActive, setIsScreenActive] = useState(false);
@@ -168,6 +168,20 @@ export default function SupervisorWelcomeScreen({ navigation }) {
         <SupervisorInviteHandler onInvitesHandled={handleInvitesHandled} />
       )}
 
+      {/* Back to role selection */}
+      {onGoBack && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onGoBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color={Colors.primaryText} />
+          <Text style={[styles.backText, { color: Colors.primaryText }]}>
+            {t('common:buttons.back', 'Back')}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.content}>
         {/* Icon */}
         <Animated.View style={[styles.iconContainer, { backgroundColor: SUPERVISOR_BLUE + '20' }, iconAnim]}>
@@ -244,6 +258,17 @@ export default function SupervisorWelcomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  backText: {
+    fontSize: FontSizes.body,
+    fontWeight: '500',
   },
   content: {
     flex: 1,
