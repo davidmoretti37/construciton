@@ -15,12 +15,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
-      "buildNumber": "6",
+      "buildNumber": "8",
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "sms",
           "whatsapp",
           "sms"
         ],
@@ -31,6 +33,7 @@
         "NSPhotoLibraryAddUsageDescription": "This app saves project photos and documents to your photo library.",
         "NSLocationWhenInUseUsageDescription": "This app uses your location to calculate distances to job sites and provide location-based services.",
         "UIBackgroundModes": [
+          "remote-notification",
           "remote-notification"
         ]
       }
@@ -42,14 +45,22 @@
       },
       "package": "com.davidmoretti.constructionmanager",
       "permissions": [
-        "RECORD_AUDIO",
-        "CAMERA",
-        "READ_MEDIA_IMAGES",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "POST_NOTIFICATIONS",
-        "SEND_SMS",
-        "VIBRATE"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SEND_SMS",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SEND_SMS",
+        "android.permission.VIBRATE"
       ],
       "edgeToEdgeEnabled": true,
       "versionCode": 4
@@ -89,6 +100,12 @@
       "privacyPolicyUrl": "https://construciton-production.up.railway.app/privacy",
       "termsOfServiceUrl": "https://construciton-production.up.railway.app/terms"
     },
-    "owner": "davidmoretti"
+    "owner": "davidmoretti",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d77d2431-4ce6-4ed4-b447-acdc3e6d8f1c"
+    }
   }
 }

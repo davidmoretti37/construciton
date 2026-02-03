@@ -39,6 +39,7 @@
     "expo-sharing": "~14.0.7",
     "expo-sms": "~14.0.7",
     "expo-status-bar": "~3.0.8",
+    "expo-updates": "~29.0.16",
     "expo-web-browser": "~15.0.9",
     "i18next": "^25.7.1",
     "react": "19.1.0",
