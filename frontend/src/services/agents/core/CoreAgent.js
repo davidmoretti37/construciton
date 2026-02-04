@@ -274,7 +274,11 @@ class CoreAgent {
 
       // ⚡ OPTIMIZATION: Check fast routes FIRST (before any DB queries)
       // This can save 800-1200ms by avoiding full context fetch
-      const fastRoute = fastRouteMessage(userMessage);
+      // Strip attachment context so fast routes only match user's actual text
+      const userTextForRouting = userMessage.startsWith('[The user attached')
+        ? userMessage.replace(/^\[The user attached[\s\S]*?\]\n\n/, '').trim()
+        : userMessage;
+      const fastRoute = fastRouteMessage(userTextForRouting);
       let fullContext;
       let plan;
 
