@@ -845,10 +845,10 @@ export default function ChatScreen({ navigation, route }) {
             );
           }
 
-          // Update conversation history
+          // Update conversation history (use enhancedText so document/image descriptions are preserved for follow-up messages)
           setConversationHistory((prev) => [
             ...prev,
-            { role: 'user', content: text },
+            { role: 'user', content: enhancedText },
             { role: 'assistant', content: parsedResponse.text || '' },
           ]);
         },
@@ -932,7 +932,6 @@ export default function ChatScreen({ navigation, route }) {
 
   const handleFileSelect = async () => {
     try {
-      // Open system file picker for images and documents
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         copyToCacheDirectory: true,
@@ -941,11 +940,21 @@ export default function ChatScreen({ navigation, route }) {
       if (result.canceled || !result.assets || result.assets.length === 0) return;
 
       const asset = result.assets[0];
-      // Add to attachments array — user can add multiple and type a message before sending
+      // Read base64 immediately so it's ready for AI vision analysis
+      let base64 = null;
+      try {
+        base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (readError) {
+        console.warn('Could not read file base64:', readError);
+      }
+
       setChatAttachments(prev => [...prev, {
         uri: asset.uri,
         name: asset.name || 'document',
         mimeType: asset.mimeType || 'application/octet-stream',
+        base64,
       }]);
     } catch (error) {
       console.error('Error picking file:', error);
@@ -953,35 +962,71 @@ export default function ChatScreen({ navigation, route }) {
     }
   };
 
-  const handleCameraOpen = async () => {
-    try {
-      // Request permission
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(t('upload.takePhoto'), t('voice.permissionDenied'));
-        return;
-      }
-
-      // Open camera
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.5,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        // Add to attachments array
-        setChatAttachments(prev => [...prev, {
-          uri: asset.uri,
-          name: 'Photo',
-          mimeType: 'image/jpeg',
-          base64: asset.base64,
-        }]);
-      }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
-    }
+  const handleCameraOpen = () => {
+    Alert.alert(
+      t('common:buttons.upload', 'Add Image'),
+      null,
+      [
+        {
+          text: t('common:buttons.takePhoto', 'Take Photo'),
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert(t('upload.takePhoto'), t('voice.permissionDenied'));
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                quality: 0.7,
+                base64: true,
+              });
+              if (!result.canceled && result.assets?.length > 0) {
+                const asset = result.assets[0];
+                setChatAttachments(prev => [...prev, {
+                  uri: asset.uri,
+                  name: 'Photo',
+                  mimeType: 'image/jpeg',
+                  base64: asset.base64,
+                }]);
+              }
+            } catch (error) {
+              console.error('Error taking photo:', error);
+              Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
+            }
+          },
+        },
+        {
+          text: t('common:buttons.chooseFromPhotos', 'Choose from Library'),
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert(t('common:buttons.chooseFromPhotos'), t('voice.permissionDenied'));
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                quality: 0.7,
+                base64: true,
+                allowsMultipleSelection: true,
+              });
+              if (!result.canceled && result.assets?.length > 0) {
+                const newAttachments = result.assets.map(asset => ({
+                  uri: asset.uri,
+                  name: asset.fileName || 'Photo',
+                  mimeType: asset.mimeType || 'image/jpeg',
+                  base64: asset.base64,
+                }));
+                setChatAttachments(prev => [...prev, ...newAttachments]);
+              }
+            } catch (error) {
+              console.error('Error picking image:', error);
+              Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
+            }
+          },
+        },
+        { text: t('common:buttons.cancel', 'Cancel'), style: 'cancel' },
+      ]
+    );
   };
 
   const handleAction = async (action) => {

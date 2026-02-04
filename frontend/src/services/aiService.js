@@ -1373,6 +1373,7 @@ export const describeAttachments = async (attachments) => {
   for (let i = 0; i < attachments.length; i++) {
     const att = attachments[i];
     const isImage = att.mimeType?.startsWith('image/');
+    const isPDF = att.mimeType === 'application/pdf' || att.name?.toLowerCase().endsWith('.pdf');
 
     try {
       // Read base64 if not already available
@@ -1383,28 +1384,51 @@ export const describeAttachments = async (attachments) => {
         });
       })();
 
-      const mimeForApi = isImage ? 'image/jpeg' : 'application/pdf';
+      // PDFs: extract text directly on the backend (much more reliable than vision)
+      if (isPDF) {
+        try {
+          const extractResponse = await fetch(`${BACKEND_URL}/api/documents/extract-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64, fileName: att.name }),
+          });
 
+          if (extractResponse.ok) {
+            const { text: extractedText, scanned } = await extractResponse.json();
+            if (extractedText && extractedText.trim().length > 50) {
+              // Text-based PDF — use extracted text directly
+              descriptions.push(`${i + 1}. "${att.name}" (PDF document):\n${extractedText}`);
+              continue;
+            }
+            // Scanned PDF with little/no text — fall through to vision API
+          }
+        } catch (pdfError) {
+          logger.warn(`PDF text extraction failed for ${att.name}, trying vision:`, pdfError);
+          // Fall through to vision API
+        }
+      }
+
+      // Images and scanned PDFs: use vision API
       const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
+          model: 'openai/gpt-4o',
           messages: [{
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Describe the contents of this ${isImage ? 'image' : 'document'} in detail. Include any names, addresses, amounts, dates, tasks, scope of work, or project details you can see. Be thorough but concise.`
+                text: `Analyze this image thoroughly. Describe everything you see: text, numbers, names, addresses, amounts, dates, materials, measurements, brands, labels, handwriting, diagrams, floor plans, or any construction/project details. Extract ALL readable text exactly as written. Be thorough.`
               },
               {
                 type: 'image_url',
-                image_url: { url: `data:${mimeForApi};base64,${base64}` }
+                image_url: { url: `data:image/jpeg;base64,${base64}` }
               }
             ]
           }],
-          max_tokens: 800,
-          temperature: 0.3,
+          max_tokens: 1500,
+          temperature: 0.2,
         }),
       });
 

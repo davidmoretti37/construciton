@@ -5,6 +5,7 @@ const cors = require('cors');
 // Utilities
 const logger = require('./utils/logger');
 const { fetchOpenRouter, fetchOpenRouterVision, fetchOpenRouterStream, fetchGroq } = require('./utils/fetchWithRetry');
+const pdfParse = require('pdf-parse');
 
 // Routes
 const geocodingRoutes = require('./routes/geocoding');
@@ -1114,6 +1115,35 @@ app.post('/api/chat', aiLimiter, async (req, res) => {
 });
 
 // Vision model endpoint (with AI rate limiting)
+// PDF text extraction endpoint
+app.post('/api/documents/extract-text', aiLimiter, async (req, res) => {
+  const { base64, fileName } = req.body;
+
+  if (!base64) {
+    return res.status(400).json({ error: 'base64 content is required' });
+  }
+
+  try {
+    logger.info(`📄 Extracting text from PDF: ${fileName || 'unknown'}`);
+    const buffer = Buffer.from(base64, 'base64');
+    const data = await pdfParse(buffer);
+
+    const extractedText = (data.text || '').trim();
+    const isScanned = extractedText.length < 50;
+
+    logger.info(`✅ PDF extracted: ${extractedText.length} chars, ${data.numpages} pages${isScanned ? ' (likely scanned)' : ''}`);
+
+    res.json({
+      text: extractedText,
+      pageCount: data.numpages || 0,
+      scanned: isScanned,
+    });
+  } catch (error) {
+    logger.error('PDF extraction error:', error);
+    res.status(500).json({ error: 'Failed to extract text from PDF', scanned: true });
+  }
+});
+
 app.post('/api/chat/vision', aiLimiter, async (req, res) => {
   const { messages, model, max_tokens = 2000, temperature = 0.3 } = req.body;
 
