@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -89,7 +89,11 @@ export default function AIAssistantSlide({ isActive = true }) {
   }, [isActive]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Title */}
       <Animated.View style={titleAnim}>
         <Text style={styles.title}>Your Business.</Text>
@@ -196,7 +200,7 @@ export default function AIAssistantSlide({ isActive = true }) {
           isActive={showFeatures}
         />
       </Animated.View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -204,8 +208,11 @@ const styles = StyleSheet.create({
   container: {
     width: SCREEN_WIDTH,
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: ONBOARDING_SPACING.screenPaddingHorizontal,
     paddingTop: ONBOARDING_SPACING.screenPaddingTop,
+    paddingBottom: 20,
   },
   title: {
     fontSize: 24,

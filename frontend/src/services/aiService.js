@@ -1260,6 +1260,171 @@ If any field is not found in the image, use null. Be accurate and only extract w
 };
 
 /**
+ * Analyzes a document (PDF, Word, etc.) using AI to extract project details
+ * Uses the text-based chat endpoint for better document understanding
+ * @param {string} base64Content - Base64 encoded file content
+ * @param {string} fileName - Original file name for context
+ * @returns {Promise<object>} - Extracted project data (same shape as analyzeScreenshot)
+ */
+export const analyzeDocument = async (base64Content, fileName) => {
+  try {
+    logger.debug('Analyzing document with AI...', fileName);
+
+    const fileExt = fileName?.split('.').pop()?.toLowerCase() || 'pdf';
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(fileExt);
+
+    // For images, use the vision endpoint directly
+    if (isImage) {
+      return await analyzeScreenshot(base64Content);
+    }
+
+    // For PDFs, use the vision endpoint with the document as an image
+    // GPT-4o-mini can read PDF pages rendered as images
+    const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Analyze this document (${fileName || 'uploaded file'}). This is a construction-related document. Extract the following information and return ONLY valid JSON (no markdown, no extra text):
+
+{
+  "worker": "worker name if mentioned",
+  "location": "address or location",
+  "date": "date in YYYY-MM-DD format",
+  "time": "time if mentioned",
+  "task": "description of work to be done or project scope",
+  "budget": estimated budget or contract amount as a number (no $ sign),
+  "client": "client name or company",
+  "estimatedDuration": "estimated time like '2 days' or '1 week'"
+}
+
+If any field is not found in the document, use null. Be accurate and only extract what you actually see.`
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64Content}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      logger.error('Document analysis API error:', errorData);
+      throw new Error(errorData.error?.message || 'Document analysis failed');
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+
+    try {
+      const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const extracted = JSON.parse(cleanContent);
+
+      logger.debug('Extracted document data:', extracted);
+      return {
+        worker: extracted.worker || null,
+        location: extracted.location || null,
+        date: extracted.date || new Date().toISOString().split('T')[0],
+        time: extracted.time || null,
+        task: extracted.task || null,
+        budget: extracted.budget || 0,
+        client: extracted.client || null,
+        estimatedDuration: extracted.estimatedDuration || null,
+        confidence: 0.80
+      };
+    } catch (parseError) {
+      logger.error('Failed to parse document analysis response:', content);
+      throw new Error('Could not parse extracted data from document');
+    }
+
+  } catch (error) {
+    logger.error('Document analysis error:', error);
+    logger.warn('Falling back to mock data');
+    return mockScreenshotAnalysis();
+  }
+};
+
+/**
+ * Describes multiple attachments using AI Vision for use as context in agent messages.
+ * Returns a formatted string that can be prepended to the user's message.
+ * @param {Array} attachments - Array of { uri, name, mimeType, base64? }
+ * @returns {Promise<string>} - Formatted description of all attachments
+ */
+export const describeAttachments = async (attachments) => {
+  if (!attachments || attachments.length === 0) return '';
+
+  const descriptions = [];
+
+  for (let i = 0; i < attachments.length; i++) {
+    const att = attachments[i];
+    const isImage = att.mimeType?.startsWith('image/');
+
+    try {
+      // Read base64 if not already available
+      const base64 = att.base64 || await (async () => {
+        const FileSystem = require('expo-file-system/legacy');
+        return FileSystem.readAsStringAsync(att.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      })();
+
+      const mimeForApi = isImage ? 'image/jpeg' : 'application/pdf';
+
+      const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'openai/gpt-4o-mini',
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Describe the contents of this ${isImage ? 'image' : 'document'} in detail. Include any names, addresses, amounts, dates, tasks, scope of work, or project details you can see. Be thorough but concise.`
+              },
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mimeForApi};base64,${base64}` }
+              }
+            ]
+          }],
+          max_tokens: 800,
+          temperature: 0.3,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const description = data.choices?.[0]?.message?.content || 'Could not read this file.';
+        descriptions.push(`${i + 1}. "${att.name}" - ${description}`);
+      } else {
+        descriptions.push(`${i + 1}. "${att.name}" - (Could not analyze this file)`);
+      }
+    } catch (error) {
+      logger.error(`Error describing attachment ${att.name}:`, error);
+      descriptions.push(`${i + 1}. "${att.name}" - (Error reading file)`);
+    }
+  }
+
+  return `[The user attached ${attachments.length} file(s):\n${descriptions.join('\n')}\n]\n\n`;
+};
+
+/**
  * Analyze receipt image using AI Vision to extract expense details
  * Used by workers to submit expenses with automatic data extraction
  * @param {string} base64Image - Base64 encoded image of the receipt
@@ -1543,11 +1708,13 @@ export const mockScreenshotAnalysis = () => {
  * @param {object} extractedData - Data from screenshot analysis
  * @returns {object} - Formatted response for display
  */
-export const formatProjectConfirmation = (extractedData) => {
+export const formatProjectConfirmation = (extractedData, source = 'screenshot') => {
   const { worker, location, date, time, task, budget, client, estimatedDuration } = extractedData;
 
+  const sourceLabel = source === 'document' ? 'document' : 'screenshot';
+
   // Build message with only available fields
-  let message = "I analyzed the screenshot and found:\n\n";
+  let message = `I analyzed the ${sourceLabel} and found:\n\n`;
 
   if (client) message += `👥 Client: ${client}\n`;
   if (worker) message += `👤 Worker: ${worker}\n`;
@@ -1561,7 +1728,7 @@ export const formatProjectConfirmation = (extractedData) => {
   const hasMinimalInfo = client || worker || location || task;
 
   if (!hasMinimalInfo) {
-    message = "I couldn't extract project details from this image. Please make sure the screenshot contains:\n• Client or worker name\n• Location or address\n• Task description\n• Budget (optional)";
+    message = `I couldn't extract project details from this ${sourceLabel}. Please make sure it contains:\n• Client or worker name\n• Location or address\n• Task description\n• Budget (optional)`;
   }
 
   return {

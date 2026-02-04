@@ -159,6 +159,7 @@ Output ONLY valid JSON. No explanations. No reasoning. No markdown.
 - Upload contract → DocumentAgent (upload_contract_document)
 - Share/send contract → DocumentAgent (send_contract_document)
 - General questions/search → DocumentAgent (answer_general_question)
+- App help/how-to/permissions/roles/tutorial/instructions → DocumentAgent (answer_general_question)
 
 **Default fallback:**
 If no specific agent matches → DocumentAgent (answer_general_question)
@@ -320,6 +321,34 @@ Output:
 
 **Example 7: Social/acknowledgment**
 User: "thanks that's perfect"
+
+Output:
+{
+  "plan": [
+    {
+      "agent": "DocumentAgent",
+      "task": "answer_general_question",
+      "user_input": "FULL_MESSAGE"
+    }
+  ]
+}
+
+**Example 7b: App help question**
+User: "How do I add a worker?"
+
+Output:
+{
+  "plan": [
+    {
+      "agent": "DocumentAgent",
+      "task": "answer_general_question",
+      "user_input": "FULL_MESSAGE"
+    }
+  ]
+}
+
+**Example 7c: Role permissions question**
+User: "What can my supervisors access?"
 
 Output:
 {

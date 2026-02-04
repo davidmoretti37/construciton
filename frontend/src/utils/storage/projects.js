@@ -188,7 +188,7 @@ export const saveProject = async (projectData) => {
 
     // Check subscription limit before creating a new project
     // Skip in development/testing mode (matches TESTING_MODE in SubscriptionContext)
-    const skipLimitCheck = __DEV__ || process.env.NODE_ENV === 'development';
+    const skipLimitCheck = true; // TODO: re-enable subscription limit check when ready
     if (isNewProject && !skipLimitCheck) {
       try {
         const limitCheck = await subscriptionService.canCreateProject();

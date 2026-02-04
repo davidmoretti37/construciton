@@ -55,24 +55,15 @@ export const discoverServices = async (query, userId = null) => {
     // 4. Generate with AI (will be saved to DB for future users)
     console.log(`🤖 No results found, generating template for "${query}"`);
 
-    try {
-      const generatedService = await generateAndSaveTemplate(query);
+    const generatedService = await generateAndSaveTemplate(query);
 
-      // Log successful generation
-      await logServiceSearch(query, generatedService.id, userId, true);
+    // Log successful generation
+    await logServiceSearch(query, generatedService.id, userId, true);
 
-      return [generatedService];
-    } catch (aiError) {
-      console.error('AI generation failed:', aiError);
-
-      // Log failed generation
-      await logServiceSearch(query, null, userId, false);
-
-      return [];
-    }
+    return [generatedService];
   } catch (error) {
     console.error('Error in service discovery:', error);
-    return [];
+    throw error;
   }
 };
 

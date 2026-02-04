@@ -18,10 +18,12 @@ import { useTheme } from '../contexts/ThemeContext';
  *
  * @param {Object} props
  * @param {string} props.title - Screen title
+ * @param {React.ReactNode} props.leftComponent - Component on left side (e.g., reset button)
  * @param {React.ReactNode} props.rightComponent - Component on right side (e.g., NotificationBell)
  */
 const OwnerHeader = ({
   title,
+  leftComponent,
   rightComponent,
 }) => {
   const { isDark = false } = useTheme() || {};
@@ -30,8 +32,10 @@ const OwnerHeader = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {/* Left spacer for centering */}
-        <View style={styles.leftSpacer} />
+        {/* Left side: optional component or spacer for centering */}
+        <View style={styles.leftSpacer}>
+          {leftComponent}
+        </View>
 
         {/* Title - centered */}
         {title ? (
@@ -64,6 +68,8 @@ const styles = StyleSheet.create({
   },
   leftSpacer: {
     width: 40, // Match right container width for true centering
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   centeredTitle: {
     fontSize: 22,

@@ -30,7 +30,19 @@ const FAST_ROUTES = [
   // Route greetings/general questions to DocumentAgent for quick response
   { patterns: [/^(hello|hi|hey|good morning|good afternoon|good evening|what's up|howdy)[\s!?.]*$/i],
     route: { agent: 'DocumentAgent', task: 'answer_general_question' } },
-  { patterns: [/^(help|what can you do|how do you work)[\s!?.]*$/i],
+  { patterns: [
+      /^(help|what can you do|how do you work)[\s!?.]*$/i,
+      /\bhow\s+(do|can|to)\s+(i|we)\b/i,
+      /\bwhere\s+(is|are|can|do)\s+i\b/i,
+      /\bcan\s+(i|the|a|my)\s+(supervisor|worker|client|owner)s?\b/i,
+      /\bhow\s+does\b.*\bwork\b/i,
+      /\bwhat\s+(can|does)\s+(a|the|my)\s+(supervisor|worker|client|owner)s?\b/i,
+      /\bpermissions?\b/i,
+      /\btutorial\b/i,
+      /\bguide\s+me\b/i,
+      /\binstructions?\b/i,
+      /\bhow\s+to\s+use\b/i,
+    ],
     route: { agent: 'DocumentAgent', task: 'answer_general_question' } },
 
   // ==================== ESTIMATES (CHECK BEFORE PROJECTS) ====================

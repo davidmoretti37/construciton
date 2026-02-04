@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -127,7 +127,11 @@ export default function FinancialsSlide({ isActive = true }) {
   }, [isActive]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Title */}
       <Animated.View style={titleAnim}>
         <Text style={styles.title}>Know Your Numbers.</Text>
@@ -221,7 +225,7 @@ export default function FinancialsSlide({ isActive = true }) {
         speed={30}
         isActive={showFeatures}
       />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -229,8 +233,11 @@ const styles = StyleSheet.create({
   container: {
     width: SCREEN_WIDTH,
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: ONBOARDING_SPACING.screenPaddingHorizontal,
     paddingTop: ONBOARDING_SPACING.screenPaddingTop,
+    paddingBottom: 20,
   },
   title: {
     fontSize: 24,

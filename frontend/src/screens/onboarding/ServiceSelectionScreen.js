@@ -10,6 +10,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   SafeAreaView,
   ScrollView,
   Alert,
@@ -20,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getServiceDetails } from '../../services/serviceDiscoveryService';
+import { getServiceDetails, discoverServices } from '../../services/serviceDiscoveryService';
 import { supabase } from '../../lib/supabase';
 
 export default function ServiceSelectionScreen({ navigation, route }) {
@@ -109,10 +110,12 @@ export default function ServiceSelectionScreen({ navigation, route }) {
   };
 
   const handleOpenCreateService = () => {
-    // Focus on search input
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
+    // Small delay ensures focus works reliably on iOS after scroll/layout changes
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, 100);
   };
 
   const handleCreateNewService = async (serviceName) => {
@@ -121,8 +124,6 @@ export default function ServiceSelectionScreen({ navigation, route }) {
     setSearchQuery(''); // Clear search
 
     try {
-      // Use the discovery service to create AI-generated service
-      const { discoverServices } = require('../../services/serviceDiscoveryService');
       const results = await discoverServices(serviceName);
 
       if (results && results.length > 0) {
@@ -141,6 +142,11 @@ export default function ServiceSelectionScreen({ navigation, route }) {
 
         // Reload all services to include the new one
         loadAllServices();
+      } else {
+        Alert.alert(
+          t('alerts.error'),
+          `Could not create "${serviceName}". Please try a different service name.`
+        );
       }
     } catch (error) {
       console.error('Error creating service:', error);
@@ -183,7 +189,10 @@ export default function ServiceSelectionScreen({ navigation, route }) {
         </Text>
 
         {/* Search Input */}
-        <View style={[styles.searchInputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+        <Pressable
+          style={[styles.searchInputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+          onPress={() => searchInputRef.current?.focus()}
+        >
           <Ionicons name="search-outline" size={20} color={Colors.secondaryText} />
           <TextInput
             ref={searchInputRef}
@@ -200,7 +209,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
               <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
             </TouchableOpacity>
           )}
-        </View>
+        </Pressable>
       </View>
 
       {/* Content */}

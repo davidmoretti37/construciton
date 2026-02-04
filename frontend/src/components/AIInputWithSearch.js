@@ -5,6 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Text,
+  Image,
+  ScrollView,
   Platform,
   Alert,
   Dimensions,
@@ -57,6 +59,8 @@ const AIInputWithSearch = ({
   onFileSelect,
   onCameraPress,
   onPopulateInput, // New prop to expose setValue to parent
+  attachments = [], // Array of { uri, name, mimeType }
+  onRemoveAttachment, // Callback (index) => void
 }) => {
   const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
@@ -107,14 +111,15 @@ const AIInputWithSearch = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
+  const hasContent = (value && value.trim()) || attachments.length > 0;
+
   const handleSubmit = () => {
-    if (value && value.trim()) {
-      const textToSend = value.trim();
-      onSubmit?.(textToSend, false);
-      // Clear input and force re-render
-      setValue('');
-      setInputKey(prev => prev + 1);
-    }
+    if (!hasContent) return;
+    const textToSend = (value && value.trim()) ? value.trim() : '';
+    onSubmit?.(textToSend, false, attachments.length > 0 ? attachments : null);
+    // Clear input and force re-render
+    setValue('');
+    setInputKey(prev => prev + 1);
   };
 
   const toggleSearch = () => {
@@ -439,12 +444,12 @@ const AIInputWithSearch = ({
   });
 
   // Animated input wrapper style (press animation + circle transformation + pulse when recording)
+  const isAnimatingCircle = isRecording || isTranscribing;
   const animatedWrapperStyle = useAnimatedStyle(() => {
     return {
       width: containerWidth.value,
-      height: containerHeight.value,
       borderRadius: containerBorderRadius.value,
-      transform: [{ scale: pressScale.value * microphoneScale.value }], // Pulse the whole circle
+      transform: [{ scale: pressScale.value * microphoneScale.value }],
       shadowOpacity: 0.25 * pressShadow.value + glowIntensity.value * 0.5,
       shadowRadius: 20 + glowIntensity.value * 15,
       alignSelf: 'center',
@@ -515,7 +520,8 @@ const AIInputWithSearch = ({
               borderColor: (isRecording || isTranscribing) ? circleColor : '#000000',
               overflow: 'hidden',
             },
-            animatedWrapperStyle
+            animatedWrapperStyle,
+            isAnimatingCircle && { height: 80, minHeight: 80 },
           ]}
           onTouchStart={!(isRecording || isTranscribing) ? handlePressIn : undefined}
           onTouchEnd={!(isRecording || isTranscribing) ? handlePressOut : undefined}
@@ -572,6 +578,50 @@ const AIInputWithSearch = ({
                 pointerEvents="none"
               />
 
+              {/* Attachments Preview Row - above text input */}
+              {attachments.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.attachmentsRow}
+                  contentContainerStyle={styles.attachmentsRowContent}
+                >
+                  {attachments.map((att, index) => {
+                    const isImage = att.mimeType?.startsWith('image/');
+                    return isImage ? (
+                      // Image thumbnail with X badge inside
+                      <View key={`${att.uri}-${index}`} style={styles.attachmentImageWrap}>
+                        <Image source={{ uri: att.uri }} style={styles.attachmentThumbnail} />
+                        <TouchableOpacity
+                          style={styles.attachmentImageRemove}
+                          onPress={() => onRemoveAttachment?.(index)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="close" size={12} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      // Document card
+                      <View key={`${att.uri}-${index}`} style={[styles.attachmentDocCard, { backgroundColor: isDark ? Colors.border + '30' : '#F5F5F7', borderColor: isDark ? Colors.border : '#E5E5EA' }]}>
+                        <View style={[styles.attachmentDocBadge, { backgroundColor: Colors.primaryBlue + '18' }]}>
+                          <Ionicons name="document-text" size={18} color={Colors.primaryBlue} />
+                        </View>
+                        <Text style={[styles.attachmentDocName, { color: Colors.primaryText }]} numberOfLines={1}>
+                          {att.name || 'File'}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.attachmentDocRemove}
+                          onPress={() => onRemoveAttachment?.(index)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="close" size={14} color={Colors.secondaryText} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
               {/* Text Input Area */}
               <TextInput
                 ref={inputRef}
@@ -625,8 +675,8 @@ const AIInputWithSearch = ({
 
                 {/* Right Side - Microphone (isolated) or Send */}
                 <View style={styles.rightControls}>
-                  {/* Show microphone when no text */}
-                  {!(value && value.trim()) && !isTranscribing && (
+                  {/* Show microphone when no text and no attachment */}
+                  {!hasContent && !isTranscribing && (
                     <TouchableOpacity
                       style={[styles.micButton, { backgroundColor: iconBgColor }]}
                       onPress={handleMicrophonePress}
@@ -647,8 +697,8 @@ const AIInputWithSearch = ({
                     </View>
                   )}
 
-                  {/* Show send button when there's text */}
-                  {value && value.trim() && !isTranscribing && (
+                  {/* Show send button when there's text or attachment */}
+                  {hasContent && !isTranscribing && (
                     <TouchableOpacity
                       style={[
                         styles.sendButton,
@@ -683,6 +733,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
+    minHeight: 110,
     shadowOffset: {
       width: 0,
       height: 8,
@@ -707,7 +758,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     maxHeight: 140,
-    minHeight: 44,
+    minHeight: 80,
   },
   textInputRecording: {
     color: '#EF4444', // Red text when showing live transcript
@@ -728,6 +779,69 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 2,
+  },
+  attachmentsRow: {
+    paddingTop: 12,
+    paddingBottom: 4,
+    paddingHorizontal: 12,
+  },
+  attachmentsRowContent: {
+    gap: 8,
+    alignItems: 'flex-end',
+  },
+  // Image attachment
+  attachmentImageWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  attachmentThumbnail: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+  },
+  attachmentImageRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Document attachment
+  attachmentDocCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingLeft: 8,
+    paddingRight: 6,
+    gap: 8,
+    maxWidth: 200,
+  },
+  attachmentDocBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentDocName: {
+    fontSize: 13,
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  attachmentDocRemove: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   controlsBar: {
     position: 'absolute',

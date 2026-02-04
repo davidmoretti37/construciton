@@ -14,6 +14,9 @@ import {
   Linking,
   Share,
   ActionSheetIOS,
+  Modal,
+  FlatList,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,7 +27,10 @@ import AnimatedText from '../components/AnimatedText';
 import LinkifiedText from '../components/LinkifiedText';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
-import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, formatProjectConfirmation, setVoiceMode } from '../services/aiService';
+import * as FileSystem from 'expo-file-system/legacy';
+import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode } from '../services/aiService';
+import { uploadProjectDocument } from '../utils/storage/projectDocuments';
+import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
 import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard } from '../components/ChatVisuals';
 import { formatEstimate } from '../utils/estimateFormatter';
@@ -116,6 +122,35 @@ export default function ChatScreen({ navigation, route }) {
   const { profile } = useAuth() || {};
   const isOwner = profile?.role === 'owner';
   const isSupervisor = profile?.role === 'supervisor';
+
+  // Reset chat - clears all conversation state
+  const handleResetChat = useCallback(() => {
+    if (messages.length === 0) return;
+
+    Alert.alert(
+      t('actions.newChat'),
+      null,
+      [
+        { text: t('actions.cancel'), style: 'cancel' },
+        {
+          text: t('actions.clearChat'),
+          style: 'destructive',
+          onPress: () => {
+            if (aiTimeoutRef.current) {
+              clearTimeout(aiTimeoutRef.current);
+              aiTimeoutRef.current = null;
+            }
+            setMessages([]);
+            setConversationHistory([]);
+            setIsAIThinking(false);
+            setStatusMessage(null);
+            setPendingEstimateContext(null);
+            setCurrentProject(null);
+          },
+        },
+      ]
+    );
+  }, [messages.length, t]);
 
   // Helper function to add AI messages programmatically
   const addAIMessage = useCallback((text) => {
@@ -288,8 +323,8 @@ export default function ChatScreen({ navigation, route }) {
     handleNavigationParams();
   }, [route?.params?.initialMessage, route?.params?.projectIdForEstimate]);
 
-  const handleSend = async (text, withSearch) => {
-    if (text.trim() === '') return;
+  const handleSend = async (text, withSearch, attachments) => {
+    if (!text?.trim() && (!attachments || attachments.length === 0)) return;
 
     // Check subscription before allowing AI chat
     if (!hasActiveSubscription) {
@@ -306,20 +341,40 @@ export default function ChatScreen({ navigation, route }) {
       return;
     }
 
+    // Clear attachments from input
+    if (attachments && attachments.length > 0) {
+      setChatAttachments([]);
+    }
+
     // Generate unique IDs using timestamp + random to avoid collisions
     const userMessageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const aiMessageId = `${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Add user message to UI
+    // Add user message to UI (with attachments if present)
     const userMessage = {
       id: userMessageId,
-      text: text,
+      text: text || '',
       isUser: true,
       timestamp: new Date(),
       withSearch: withSearch,
+      attachments: attachments || null,
     };
 
     setMessages((prev) => [...prev, userMessage]);
+
+    // If there are attachments, describe them via vision API and prepend to message for the AI agent
+    let enhancedText = text || '';
+    if (attachments && attachments.length > 0) {
+      setStatusMessage(t('common:alerts.analyzingDocument'));
+      setIsAIThinking(true);
+      try {
+        const attachmentContext = await describeAttachments(attachments);
+        enhancedText = attachmentContext + (text?.trim() || 'What can you tell me about these files?');
+      } catch (error) {
+        console.error('Error describing attachments:', error);
+        enhancedText = `[The user attached ${attachments.length} file(s) but they could not be read.]\n\n` + (text?.trim() || 'I attached some files.');
+      }
+    }
 
     // Dismiss keyboard so user can see AI response
     Keyboard.dismiss();
@@ -357,7 +412,7 @@ export default function ChatScreen({ navigation, route }) {
     try {
       // Use CoreAgent for intelligent multi-agent routing with execution planning
       await CoreAgent.processStreaming(
-        text,
+        enhancedText,
         conversationHistory, // Pass conversation history
         // onChunk callback - Create bubble on first chunk, then update text
         (cleanText) => {
@@ -870,59 +925,31 @@ export default function ChatScreen({ navigation, route }) {
     }
   };
 
+  const [showProjectPickerModal, setShowProjectPickerModal] = useState(false);
+  const [pendingAttachFile, setPendingAttachFile] = useState(null);
+  const [projectsList, setProjectsList] = useState([]);
+  const [chatAttachments, setChatAttachments] = useState([]);
+
   const handleFileSelect = async () => {
     try {
-      // Request permission
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(t('upload.selectFile'), t('messages.error'));
-        return;
-      }
-
-      // Pick image
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.5,
-        base64: true,
+      // Open system file picker for images and documents
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        // Show analyzing message
-        const analyzingMessage = {
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          text: t('upload.uploading'),
-          isUser: false,
-          timestamp: new Date(),
-          visualElements: [],
-          actions: [],
-        };
-        setMessages((prev) => [...prev, analyzingMessage]);
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
 
-        // Analyze screenshot
-        const extracted = await analyzeScreenshot(result.assets[0].base64);
-
-        // Format confirmation
-        const confirmation = formatProjectConfirmation(extracted);
-
-        // Replace analyzing message with results
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== analyzingMessage.id);
-          return [
-            ...filtered,
-            {
-              id: `${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-              text: confirmation.text,
-              isUser: false,
-              timestamp: new Date(),
-              visualElements: confirmation.visualElements || [],
-              actions: confirmation.actions || [],
-            },
-          ];
-        });
-      }
+      const asset = result.assets[0];
+      // Add to attachments array — user can add multiple and type a message before sending
+      setChatAttachments(prev => [...prev, {
+        uri: asset.uri,
+        name: asset.name || 'document',
+        mimeType: asset.mimeType || 'application/octet-stream',
+      }]);
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert(t('messages.error'), t('upload.uploadFailed'));
+      console.error('Error picking file:', error);
+      Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
     }
   };
 
@@ -942,42 +969,18 @@ export default function ChatScreen({ navigation, route }) {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        // Show analyzing message
-        const analyzingMessage = {
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          text: t('voice.processing'),
-          isUser: false,
-          timestamp: new Date(),
-          visualElements: [],
-          actions: [],
-        };
-        setMessages((prev) => [...prev, analyzingMessage]);
-
-        // Analyze screenshot
-        const extracted = await analyzeScreenshot(result.assets[0].base64);
-
-        // Format confirmation
-        const confirmation = formatProjectConfirmation(extracted);
-
-        // Replace analyzing message with results
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== analyzingMessage.id);
-          return [
-            ...filtered,
-            {
-              id: `${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-              text: confirmation.text,
-              isUser: false,
-              timestamp: new Date(),
-              visualElements: confirmation.visualElements || [],
-              actions: confirmation.actions || [],
-            },
-          ];
-        });
+        const asset = result.assets[0];
+        // Add to attachments array
+        setChatAttachments(prev => [...prev, {
+          uri: asset.uri,
+          name: 'Photo',
+          mimeType: 'image/jpeg',
+          base64: asset.base64,
+        }]);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert(t('messages.error'), t('upload.uploadFailed'));
+      Alert.alert(t('common:alerts.error'), t('common:alerts.uploadFailed'));
     }
   };
 
@@ -2655,10 +2658,18 @@ export default function ChatScreen({ navigation, route }) {
       {/* Top Bar - OwnerHeader for owners, simple bar for others */}
       {isOwner ? (
         <OwnerHeader
+          leftComponent={
+            <TouchableOpacity onPress={handleResetChat} style={styles.resetChatButton}>
+              <Ionicons name="refresh-circle-outline" size={26} color={Colors.primaryText} />
+            </TouchableOpacity>
+          }
           rightComponent={<NotificationBell onPress={() => navigation.navigate('Notifications')} />}
         />
       ) : (
         <View style={styles.topBar}>
+          <TouchableOpacity onPress={handleResetChat} style={styles.resetChatButton}>
+            <Ionicons name="refresh-circle-outline" size={26} color={Colors.primaryText} />
+          </TouchableOpacity>
           <View style={{ flex: 1 }} />
           <NotificationBell onPress={() => navigation.navigate('Notifications')} />
         </View>
@@ -2691,6 +2702,34 @@ export default function ChatScreen({ navigation, route }) {
             return (
                 <View key={message.id} style={styles.messageContainer}>
                   {/* Text bubble - only show if there's text content */}
+                  {/* Attachments display in user messages */}
+                  {message.isUser && message.attachments && message.attachments.length > 0 && (
+                    <View style={[
+                      styles.messageBubble,
+                      { backgroundColor: Colors.primaryBlue },
+                      styles.userMessage,
+                      { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+                    ]}>
+                      {message.attachments.map((att, attIdx) => (
+                        att.mimeType?.startsWith('image/') ? (
+                          <Image
+                            key={attIdx}
+                            source={{ uri: att.uri }}
+                            style={styles.messageAttachmentImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View key={attIdx} style={styles.messageAttachmentDoc}>
+                            <Ionicons name="document-text" size={20} color="rgba(255,255,255,0.8)" />
+                            <Text style={styles.messageAttachmentDocName} numberOfLines={1}>
+                              {att.name}
+                            </Text>
+                          </View>
+                        )
+                      ))}
+                    </View>
+                  )}
+
                   {message.text && message.text.trim() !== '' && (
             <View
               style={[
@@ -2752,6 +2791,8 @@ export default function ChatScreen({ navigation, route }) {
             onSubmit={handleSend}
             onFileSelect={handleFileSelect}
             onCameraPress={handleCameraOpen}
+            attachments={chatAttachments}
+            onRemoveAttachment={(index) => setChatAttachments(prev => prev.filter((_, i) => i !== index))}
           />
           </View>
         </View>
@@ -2789,6 +2830,65 @@ export default function ChatScreen({ navigation, route }) {
         onAdd={handleCustomServiceAdd}
         tradeName="Custom"
       />
+
+      {/* Project Picker Modal for Attach to Project */}
+      <Modal
+        visible={showProjectPickerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowProjectPickerModal(false);
+          setPendingAttachFile(null);
+        }}
+      >
+        <View style={styles.projectPickerOverlay}>
+          <View style={[styles.projectPickerContainer, { backgroundColor: Colors.cardBackground }]}>
+            <View style={styles.projectPickerHeader}>
+              <Text style={[styles.projectPickerTitle, { color: Colors.primaryText }]}>
+                {t('common:alerts.selectProject')}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowProjectPickerModal(false);
+                  setPendingAttachFile(null);
+                }}
+              >
+                <Ionicons name="close" size={24} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={projectsList}
+              keyExtractor={(item) => item.id?.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.projectPickerItem, { borderBottomColor: Colors.border }]}
+                  onPress={() => handleProjectSelectedForAttach(item)}
+                >
+                  <View style={styles.projectPickerItemContent}>
+                    <Ionicons name="folder-outline" size={20} color={Colors.primaryBlue} />
+                    <View style={styles.projectPickerItemText}>
+                      <Text style={[styles.projectPickerItemName, { color: Colors.primaryText }]} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      {item.client && (
+                        <Text style={[styles.projectPickerItemClient, { color: Colors.secondaryText }]} numberOfLines={1}>
+                          {item.client}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={[styles.projectPickerEmpty, { color: Colors.secondaryText }]}>
+                  {t('common:alerts.noProjectsToAttach')}
+                </Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
     </View>
   );
@@ -2807,6 +2907,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
+  },
+  resetChatButton: {
+    padding: 8,
   },
   settingsButton: {
     padding: Spacing.sm,
@@ -2859,6 +2962,23 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: FontSizes.body,
   },
+  messageAttachmentImage: {
+    width: 200,
+    height: 150,
+    borderRadius: 10,
+  },
+  messageAttachmentDoc: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  messageAttachmentDocName: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
+  },
   visualElementsContainer: {
     width: '100%',
     marginBottom: Spacing.sm,
@@ -2878,5 +2998,59 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingVertical: Spacing.md,
     paddingLeft: Spacing.sm,
+  },
+  projectPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  projectPickerContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+    paddingBottom: 34,
+  },
+  projectPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  projectPickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  projectPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  projectPickerItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  projectPickerItemText: {
+    flex: 1,
+  },
+  projectPickerItemName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  projectPickerItemClient: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  projectPickerEmpty: {
+    textAlign: 'center',
+    padding: 40,
+    fontSize: 15,
   },
 });

@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSelectedLanguage } from '../utils/storage';
@@ -84,16 +85,28 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
     transform: [{ scale: pulseScale.value }],
   }));
 
-  // Clear input when modal opens
+  // Load saved draft when modal opens
   useEffect(() => {
-    if (visible) {
-      setInputText('');
-      // Focus input after modal animation
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 300);
+    if (visible && actionType) {
+      const loadDraft = async () => {
+        try {
+          const saved = await AsyncStorage.getItem(`@quickaction_draft_${actionType}`);
+          setInputText(saved || '');
+        } catch (e) {
+          setInputText('');
+        }
+      };
+      loadDraft();
+      setTimeout(() => inputRef.current?.focus(), 300);
     }
-  }, [visible]);
+  }, [visible, actionType]);
+
+  // Auto-save draft as user types
+  useEffect(() => {
+    if (actionType && visible) {
+      AsyncStorage.setItem(`@quickaction_draft_${actionType}`, inputText);
+    }
+  }, [inputText, actionType, visible]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -101,12 +114,12 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
     const message = config.messagePrefix + inputText.trim();
     onSubmit(message);
     setInputText('');
+    if (actionType) AsyncStorage.removeItem(`@quickaction_draft_${actionType}`);
   };
 
   const handleClose = () => {
     Keyboard.dismiss();
-    setInputText('');
-    // Stop any ongoing recording
+    // Don't clear inputText — draft persists via AsyncStorage
     if (recording) {
       recording.stopAndUnloadAsync();
       setRecording(null);
@@ -114,6 +127,12 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
     setIsRecording(false);
     setIsTranscribing(false);
     onClose();
+  };
+
+  const handleClearDraft = () => {
+    setInputText('');
+    if (actionType) AsyncStorage.removeItem(`@quickaction_draft_${actionType}`);
+    inputRef.current?.focus();
   };
 
   // Voice recording functions
@@ -241,6 +260,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
         <KeyboardAvoidingView
           style={[styles.container, { backgroundColor: Colors.background }]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 44 : 0}
         >
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: Colors.border }]}>
@@ -305,10 +325,26 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
 
               {/* Controls Bar - inside the input container */}
               <View style={[styles.controlsBar, { borderTopColor: Colors.border }]}>
-                {/* Helper text on left */}
-                <Text style={[styles.helperText, { color: Colors.secondaryText }]} numberOfLines={1}>
-                  Describe in detail
-                </Text>
+                {/* Left side: notes hint with delete, or default helper */}
+                {inputText.trim() ? (
+                  <View style={styles.notesRow}>
+                    <TouchableOpacity
+                      style={styles.clearButton}
+                      onPress={handleClearDraft}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={Colors.secondaryText} />
+                    </TouchableOpacity>
+                    <Ionicons name="document-text-outline" size={12} color={Colors.tertiaryText || Colors.secondaryText} />
+                    <Text style={[styles.notesHint, { color: Colors.tertiaryText || Colors.secondaryText }]}>
+                      Notes saved
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.helperText, { color: Colors.secondaryText }]} numberOfLines={1}>
+                    Notes
+                  </Text>
+                )}
 
                 {/* Right side controls */}
                 <View style={styles.rightControls}>
@@ -452,6 +488,18 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: FontSizes.small,
     flex: 1,
+  },
+  notesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  notesHint: {
+    fontSize: FontSizes.small - 1,
   },
   rightControls: {
     flexDirection: 'row',

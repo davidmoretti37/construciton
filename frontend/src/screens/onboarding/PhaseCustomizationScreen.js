@@ -31,7 +31,7 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
   const [editingPhase, setEditingPhase] = useState(null);
   const [showPhaseModal, setShowPhaseModal] = useState(false);
 
-  const handleAddPhase = () => {
+  const handleAddPhase = (insertAtIndex) => {
     const newPhase = {
       id: Date.now().toString(),
       name: '',
@@ -39,6 +39,7 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
       defaultDays: 1,
       tasks: [],
       isNew: true,
+      insertAt: insertAtIndex,
     };
     setEditingPhase(newPhase);
     setShowPhaseModal(true);
@@ -58,22 +59,22 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
 
     if (!service.phases) service.phases = [];
 
+    const phaseData = {
+      name: updatedPhase.name,
+      description: updatedPhase.description,
+      defaultDays: updatedPhase.defaultDays,
+      tasks: updatedPhase.tasks,
+    };
+
     if (updatedPhase.index !== undefined) {
       // Update existing phase
-      service.phases[updatedPhase.index] = {
-        name: updatedPhase.name,
-        description: updatedPhase.description,
-        defaultDays: updatedPhase.defaultDays,
-        tasks: updatedPhase.tasks,
-      };
+      service.phases[updatedPhase.index] = phaseData;
+    } else if (updatedPhase.insertAt !== undefined) {
+      // Insert new phase at specific position
+      service.phases.splice(updatedPhase.insertAt, 0, phaseData);
     } else {
-      // Add new phase
-      service.phases.push({
-        name: updatedPhase.name,
-        description: updatedPhase.description,
-        defaultDays: updatedPhase.defaultDays,
-        tasks: updatedPhase.tasks,
-      });
+      // Fallback: append to end
+      service.phases.push(phaseData);
     }
 
     updatedServices[serviceIndex] = service;
@@ -190,76 +191,88 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
           showsVerticalScrollIndicator={false}
         >
           {currentService && currentService.phases && currentService.phases.length > 0 ? (
-            currentService.phases.map((phase, index) => {
-              console.log('🔍 Phase object:', JSON.stringify(phase, null, 2));
-              return (
-              <View
-                key={index}
-                style={[
-                  styles.phaseCard,
-                  {
-                    backgroundColor: Colors.white,
-                    borderColor: Colors.border,
-                  },
-                ]}
-              >
-                {/* Phase Header with Edit/Delete */}
-                <View style={styles.phaseHeader}>
-                  <View style={styles.phaseHeaderLeft}>
-                    <View style={[styles.phaseNumber, { backgroundColor: Colors.primaryBlue }]}>
-                      <Text style={styles.phaseNumberText}>{index + 1}</Text>
-                    </View>
-                    <View style={styles.phaseInfo}>
-                      <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
-                        {phase.name || phase.phase_name || 'Unnamed Phase'}
-                      </Text>
-                      {phase.description && (
-                        <Text style={[styles.phaseDescription, { color: Colors.secondaryText }]}>
-                          {phase.description}
+            currentService.phases.map((phase, index) => (
+              <View key={index}>
+                {/* Insert button before this phase */}
+                <TouchableOpacity
+                  style={[styles.insertPhaseButton, { borderColor: Colors.primaryBlue + '40' }]}
+                  onPress={() => handleAddPhase(index)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.insertPhaseLine, { backgroundColor: Colors.primaryBlue + '30' }]} />
+                  <View style={[styles.insertPhaseIcon, { backgroundColor: Colors.background, borderColor: Colors.primaryBlue + '40' }]}>
+                    <Ionicons name="add" size={14} color={Colors.primaryBlue} />
+                  </View>
+                  <View style={[styles.insertPhaseLine, { backgroundColor: Colors.primaryBlue + '30' }]} />
+                </TouchableOpacity>
+
+                {/* Phase Card */}
+                <View
+                  style={[
+                    styles.phaseCard,
+                    {
+                      backgroundColor: Colors.white,
+                      borderColor: Colors.border,
+                    },
+                  ]}
+                >
+                  {/* Phase Header with Edit/Delete */}
+                  <View style={styles.phaseHeader}>
+                    <View style={styles.phaseHeaderLeft}>
+                      <View style={[styles.phaseNumber, { backgroundColor: Colors.primaryBlue }]}>
+                        <Text style={styles.phaseNumberText}>{index + 1}</Text>
+                      </View>
+                      <View style={styles.phaseInfo}>
+                        <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
+                          {phase.name || phase.phase_name || 'Unnamed Phase'}
                         </Text>
-                      )}
-                      <Text style={[styles.phaseDays, { color: Colors.secondaryText }]}>
-                        {t('phaseCustomization.days', { count: phase.defaultDays || phase.default_days || 1 })}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Edit/Delete Actions */}
-                  <View style={styles.phaseActions}>
-                    <TouchableOpacity
-                      onPress={() => handleEditPhase(phase, index)}
-                      style={styles.actionButton}
-                    >
-                      <Ionicons name="create-outline" size={22} color={Colors.primaryBlue} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeletePhase(index)}
-                      style={styles.actionButton}
-                    >
-                      <Ionicons name="trash-outline" size={22} color={Colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Tasks */}
-                {phase.tasks && phase.tasks.length > 0 && (
-                  <View style={[styles.tasksContainer, { borderTopColor: Colors.border }]}>
-                    <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>
-                      {t('phaseCustomization.tasks')}
-                    </Text>
-                    {phase.tasks.map((task, taskIndex) => (
-                      <View key={taskIndex} style={styles.taskItem}>
-                        <View style={[styles.taskBullet, { backgroundColor: Colors.primaryBlue }]} />
-                        <Text style={[styles.taskText, { color: Colors.primaryText }]}>
-                          {task}
+                        {phase.description && (
+                          <Text style={[styles.phaseDescription, { color: Colors.secondaryText }]}>
+                            {phase.description}
+                          </Text>
+                        )}
+                        <Text style={[styles.phaseDays, { color: Colors.secondaryText }]}>
+                          {t('phaseCustomization.days', { count: phase.defaultDays || phase.default_days || 1 })}
                         </Text>
                       </View>
-                    ))}
+                    </View>
+
+                    {/* Edit/Delete Actions */}
+                    <View style={styles.phaseActions}>
+                      <TouchableOpacity
+                        onPress={() => handleEditPhase(phase, index)}
+                        style={styles.actionButton}
+                      >
+                        <Ionicons name="create-outline" size={22} color={Colors.primaryBlue} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeletePhase(index)}
+                        style={styles.actionButton}
+                      >
+                        <Ionicons name="trash-outline" size={22} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                )}
+
+                  {/* Tasks */}
+                  {phase.tasks && phase.tasks.length > 0 && (
+                    <View style={[styles.tasksContainer, { borderTopColor: Colors.border }]}>
+                      <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>
+                        {t('phaseCustomization.tasks')}
+                      </Text>
+                      {phase.tasks.map((task, taskIndex) => (
+                        <View key={taskIndex} style={styles.taskItem}>
+                          <View style={[styles.taskBullet, { backgroundColor: Colors.primaryBlue }]} />
+                          <Text style={[styles.taskText, { color: Colors.primaryText }]}>
+                            {task}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
               </View>
-              );
-            })
+            ))
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="git-network-outline" size={64} color={Colors.secondaryText} />
@@ -269,10 +282,10 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Add Phase Button */}
+          {/* Insert button after the last phase (or as the only button when empty) */}
           <TouchableOpacity
             style={[styles.addPhaseButton, { borderColor: Colors.primaryBlue }]}
-            onPress={handleAddPhase}
+            onPress={() => handleAddPhase(currentService?.phases?.length || 0)}
             activeOpacity={0.7}
           >
             <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
@@ -634,6 +647,25 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: FontSizes.small,
+  },
+  insertPhaseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  insertPhaseLine: {
+    flex: 1,
+    height: 1,
+  },
+  insertPhaseIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: Spacing.sm,
   },
   addPhaseButton: {
     flexDirection: 'row',
