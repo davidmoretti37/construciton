@@ -27,6 +27,8 @@ app.use(cors());
 // Stripe webhook needs raw body - MUST be before express.json()
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
+// Document extraction can receive large PDF base64 payloads
+app.use('/api/documents', express.json({ limit: '50mb' }));
 app.use(express.json({ limit: '10mb' }));
 
 // Mount routes with rate limiting
@@ -1139,8 +1141,9 @@ app.post('/api/documents/extract-text', aiLimiter, async (req, res) => {
       scanned: isScanned,
     });
   } catch (error) {
-    logger.error('PDF extraction error:', error);
-    res.status(500).json({ error: 'Failed to extract text from PDF', scanned: true });
+    logger.error('PDF extraction error:', error.message, error.stack?.split('\n')[1]);
+    // Return scanned:true so frontend falls back to vision API
+    res.status(200).json({ text: '', pageCount: 0, scanned: true });
   }
 });
 

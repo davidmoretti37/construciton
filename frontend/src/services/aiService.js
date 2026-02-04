@@ -1387,6 +1387,7 @@ export const describeAttachments = async (attachments) => {
       // PDFs: extract text directly on the backend (much more reliable than vision)
       if (isPDF) {
         try {
+          logger.debug(`📄 [Attachments] Sending PDF to text extraction: ${att.name} (${(base64.length / 1024).toFixed(0)}KB base64)`);
           const extractResponse = await fetch(`${BACKEND_URL}/api/documents/extract-text`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1395,16 +1396,18 @@ export const describeAttachments = async (attachments) => {
 
           if (extractResponse.ok) {
             const { text: extractedText, scanned } = await extractResponse.json();
+            logger.debug(`📄 [Attachments] PDF extraction result: ${extractedText?.length || 0} chars, scanned=${scanned}`);
             if (extractedText && extractedText.trim().length > 50) {
-              // Text-based PDF — use extracted text directly
               descriptions.push(`${i + 1}. "${att.name}" (PDF document):\n${extractedText}`);
               continue;
             }
             // Scanned PDF with little/no text — fall through to vision API
+            logger.debug(`📄 [Attachments] PDF has insufficient text, falling back to vision API`);
+          } else {
+            logger.warn(`📄 [Attachments] PDF extraction HTTP error: ${extractResponse.status}`);
           }
         } catch (pdfError) {
-          logger.warn(`PDF text extraction failed for ${att.name}, trying vision:`, pdfError);
-          // Fall through to vision API
+          logger.warn(`📄 [Attachments] PDF text extraction failed for ${att.name}:`, pdfError.message);
         }
       }
 
