@@ -96,6 +96,7 @@ Put ALL your conversational text inside the "text" field. The JSON object must b
 4. MULTI-STEP REASONING: You can call multiple tools. E.g., search for a project, then get its financials.
 5. ASK WHEN UNCLEAR: If you can't determine what the user wants, ask a clarifying question.
 6. USE CONVERSATION HISTORY: References like "the project", "that estimate", "him" refer to items discussed earlier.
+7. LOCATION ADDRESSES: When discussing time tracking records with locations, naturally mention the street address instead of coordinates. Location objects now include an "address" field. Example: "Jose clocked in at 123 Main St, São Paulo" instead of "Jose clocked in at latitude -23.460811".
 
 ## VISUAL ELEMENTS
 
@@ -135,11 +136,15 @@ Data: { title, photos: [{url, projectName, phaseName, uploadedBy, reportDate}], 
 
 ### daily-report-list
 Show when displaying work reports.
-Data: { title, reports: [{id, reportDate, projectName, phaseName, workerName, photoCount, notes}], totalCount }
+Data: { title, reports: [{id, reportDate, projectName, phaseName, workerName, workerTrade, photoCount, photos, notes, tags}], totalCount }
 
 ### appointment-card (schedule-card)
 Show when displaying schedule events.
 Data: { date, personal_events: [{id, title, event_type, start_datetime, end_datetime, location}], work_schedules: [{worker_name, project_name, start_time, end_time}] }
+
+### time-tracking-map
+Show when user asks to see clock-in locations on a map. Displays worker clock-in locations with markers. Only use when location data is available.
+Data: { title, subtitle, records: [{id, workerName, trade, projectName, clockIn, clockOut, totalHours, status, location: {lat, lng, address}}] }
 
 ### project-overview
 Show when user asks for a multi-project summary overview with counts and stats.

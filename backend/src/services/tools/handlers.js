@@ -6,6 +6,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../../utils/logger');
+const { geocodingCache } = require('../../utils/geocodingCache');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -33,6 +34,29 @@ function buildWordSearch(query, fields) {
   return words
     .flatMap(w => fields.map(f => `${f}.ilike.%${w}%`))
     .join(',');
+}
+
+/**
+ * Enrich location coordinates with human-readable address
+ * Uses geocoding cache to minimize API calls
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @returns {Promise<Object|null>} { lat, lng, address } or null
+ */
+async function enrichLocationWithAddress(lat, lng) {
+  if (!lat || !lng) return null;
+
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lng);
+
+  // Get address from cache or geocode
+  const address = await geocodingCache.getAddress(latitude, longitude);
+
+  return {
+    lat: latitude,
+    lng: longitude,
+    address: address || `${latitude}, ${longitude}` // Fallback to coordinates
+  };
 }
 
 /**
@@ -832,22 +856,50 @@ async function get_transactions(userId, args = {}) {
 async function get_daily_reports(userId, args = {}) {
   const { project_id, worker_id, start_date, end_date } = args;
 
+  // Resolve project ID if name provided
+  let resolvedProjectId = null;
+  if (project_id) {
+    const projectResolved = await resolveProjectId(userId, project_id);
+    if (projectResolved.error) return projectResolved;
+    if (projectResolved.suggestions) return projectResolved;
+    resolvedProjectId = projectResolved.id;
+  }
+
+  // Resolve worker ID if name provided
+  let resolvedWorkerId = null;
+  if (worker_id) {
+    const workerResolved = await resolveWorkerId(userId, worker_id);
+    if (workerResolved.error) return workerResolved;
+    if (workerResolved.suggestions) return workerResolved;
+    resolvedWorkerId = workerResolved.id;
+  }
+
   // First get user's project IDs for security
-  const { data: userProjects } = await supabase
+  const { data: userProjects, error: projectError } = await supabase
     .from('projects')
     .select('id')
     .eq('user_id', userId);
 
+  if (projectError) {
+    logger.error('get_daily_reports - project query error:', projectError);
+    return { error: projectError.message };
+  }
+
   const projectIds = (userProjects || []).map(p => p.id);
-  if (projectIds.length === 0) return [];
+  logger.info(`get_daily_reports: Found ${projectIds.length} projects for user ${userId}`);
+
+  if (projectIds.length === 0) {
+    logger.warn('get_daily_reports: No projects found for user');
+    return [];
+  }
 
   let q = supabase
     .from('daily_reports')
     .select('id, report_date, notes, photos, custom_tasks, task_progress, tags, worker_id, project_id, phase_id, workers(full_name), projects(name), project_phases(name)')
     .in('project_id', projectIds);
 
-  if (project_id) q = q.eq('project_id', project_id);
-  if (worker_id) q = q.eq('worker_id', worker_id);
+  if (resolvedProjectId) q = q.eq('project_id', resolvedProjectId);
+  if (resolvedWorkerId) q = q.eq('worker_id', resolvedWorkerId);
   if (start_date) q = q.gte('report_date', start_date);
   if (end_date) q = q.lte('report_date', end_date);
 
@@ -857,6 +909,8 @@ async function get_daily_reports(userId, args = {}) {
     logger.error('get_daily_reports error:', error);
     return { error: error.message };
   }
+
+  logger.info(`get_daily_reports: Found ${(data || []).length} reports`);
 
   return (data || []).map(r => ({
     ...r,
@@ -870,14 +924,31 @@ async function get_daily_reports(userId, args = {}) {
 async function get_photos(userId, args = {}) {
   const { project_id, phase_id, start_date, end_date } = args;
 
+  // Resolve project ID if name provided
+  let resolvedProjectId = null;
+  if (project_id) {
+    const projectResolved = await resolveProjectId(userId, project_id);
+    if (projectResolved.error) return projectResolved;
+    if (projectResolved.suggestions) return projectResolved;
+    resolvedProjectId = projectResolved.id;
+  }
+
   // First get user's project IDs for security
-  const { data: userProjects } = await supabase
+  const { data: userProjects, error: projectError } = await supabase
     .from('projects')
     .select('id')
     .eq('user_id', userId);
 
+  if (projectError) {
+    logger.error('get_photos - project query error:', projectError);
+    return { error: projectError.message };
+  }
+
   const projectIds = (userProjects || []).map(p => p.id);
-  if (projectIds.length === 0) return { photos: [], totalCount: 0 };
+  if (projectIds.length === 0) {
+    logger.warn('get_photos: No projects found for user');
+    return { photos: [], totalCount: 0 };
+  }
 
   let q = supabase
     .from('daily_reports')
@@ -885,7 +956,7 @@ async function get_photos(userId, args = {}) {
     .in('project_id', projectIds)
     .not('photos', 'is', null);
 
-  if (project_id) q = q.eq('project_id', project_id);
+  if (resolvedProjectId) q = q.eq('project_id', resolvedProjectId);
   if (phase_id) q = q.eq('phase_id', phase_id);
   if (start_date) q = q.gte('report_date', start_date);
   if (end_date) q = q.lte('report_date', end_date);
@@ -913,6 +984,7 @@ async function get_photos(userId, args = {}) {
     }
   }
 
+  logger.info(`get_photos: Found ${photos.length} photos from ${(data || []).length} reports`);
   return { photos, totalCount: photos.length };
 }
 
@@ -981,7 +1053,7 @@ async function get_time_records(userId, args = {}) {
   }
 
   // Calculate hours and format response
-  return (data || []).map(record => {
+  return await Promise.all((data || []).map(async record => {
     let totalHours = 0;
     let status = 'active';
 
@@ -1011,12 +1083,12 @@ async function get_time_records(userId, args = {}) {
       totalHours: Math.round(totalHours * 100) / 100,
       status,
       notes: record.notes,
-      location: record.location_lat && record.location_lng ? {
-        lat: parseFloat(record.location_lat),
-        lng: parseFloat(record.location_lng)
-      } : null
+      location: await enrichLocationWithAddress(
+        record.location_lat,
+        record.location_lng
+      )
     };
-  });
+  }));
 }
 
 // ==================== SETTINGS ====================
