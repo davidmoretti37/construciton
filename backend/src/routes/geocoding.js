@@ -94,7 +94,16 @@ router.get('/reverse', async (req, res) => {
     }
 
     const data = await response.json();
-    res.json(data);
+
+    // Return simplified response with address
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      const address = data.results[0].formatted_address;
+      logger.info(`✅ Reverse geocoded ${lat},${lng} → ${address}`);
+      return res.json({ address });
+    } else {
+      logger.warn(`⚠️ No address found for ${lat},${lng} (status: ${data.status})`);
+      return res.status(404).json({ error: 'No address found for coordinates' });
+    }
   } catch (error) {
     logger.error('Reverse geocoding error:', error);
     const statusCode = error.isTimeout ? 504 : 500;

@@ -37,7 +37,6 @@ class GeocodingCache {
       const url = `http://localhost:${port}/api/reverse?lat=${lat}&lng=${lng}`;
 
       const response = await fetch(url, {
-        timeout: 5000,
         headers: { 'Content-Type': 'application/json' }
       });
 
