@@ -616,7 +616,7 @@ async function get_schedule_events(userId, args) {
   let workQuery = supabase
     .from('work_schedules')
     .select('*, workers(full_name, trade), projects(name)')
-    .eq('user_id', userId)
+    .eq('created_by', userId)
     .lte('start_date', endDate)
     .gte('end_date', start_date);
 
@@ -629,7 +629,7 @@ async function get_schedule_events(userId, args) {
   let tasksQuery = supabase
     .from('worker_tasks')
     .select('id, title, status, start_date, end_date, project_id, projects(name)')
-    .eq('user_id', userId)
+    .eq('owner_id', userId)
     .lte('start_date', endDate)
     .gte('end_date', start_date);
 
@@ -832,10 +832,19 @@ async function get_transactions(userId, args = {}) {
 async function get_daily_reports(userId, args = {}) {
   const { project_id, worker_id, start_date, end_date } = args;
 
+  // First get user's project IDs for security
+  const { data: userProjects } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('user_id', userId);
+
+  const projectIds = (userProjects || []).map(p => p.id);
+  if (projectIds.length === 0) return [];
+
   let q = supabase
     .from('daily_reports')
-    .select('id, report_date, notes, photos, completed_tasks, custom_tasks, task_progress, tags, worker_id, project_id, phase_id, workers(full_name), projects(name), project_phases(name)')
-    .or(`owner_id.eq.${userId},user_id.eq.${userId}`);
+    .select('id, report_date, notes, photos, custom_tasks, task_progress, tags, worker_id, project_id, phase_id, workers(full_name), projects(name), project_phases(name)')
+    .in('project_id', projectIds);
 
   if (project_id) q = q.eq('project_id', project_id);
   if (worker_id) q = q.eq('worker_id', worker_id);
@@ -861,10 +870,19 @@ async function get_daily_reports(userId, args = {}) {
 async function get_photos(userId, args = {}) {
   const { project_id, phase_id, start_date, end_date } = args;
 
+  // First get user's project IDs for security
+  const { data: userProjects } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('user_id', userId);
+
+  const projectIds = (userProjects || []).map(p => p.id);
+  if (projectIds.length === 0) return { photos: [], totalCount: 0 };
+
   let q = supabase
     .from('daily_reports')
     .select('id, report_date, photos, worker_id, project_id, phase_id, workers(full_name), projects(name), project_phases(name)')
-    .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
+    .in('project_id', projectIds)
     .not('photos', 'is', null);
 
   if (project_id) q = q.eq('project_id', project_id);
@@ -896,6 +914,109 @@ async function get_photos(userId, args = {}) {
   }
 
   return { photos, totalCount: photos.length };
+}
+
+// ==================== TIME TRACKING ====================
+
+async function get_time_records(userId, args = {}) {
+  const { worker_id, project_id, start_date, end_date, include_active = true } = args;
+
+  // Resolve worker ID if name provided
+  let resolvedWorkerId = null;
+  if (worker_id) {
+    const workerResolved = await resolveWorkerId(userId, worker_id);
+    if (workerResolved.error) return workerResolved;
+    if (workerResolved.suggestions) return workerResolved;
+    resolvedWorkerId = workerResolved.id;
+  }
+
+  // Resolve project ID if name provided
+  let resolvedProjectId = null;
+  if (project_id) {
+    const projectResolved = await resolveProjectId(userId, project_id);
+    if (projectResolved.error) return projectResolved;
+    if (projectResolved.suggestions) return projectResolved;
+    resolvedProjectId = projectResolved.id;
+  }
+
+  // Default date range: today
+  const startDate = start_date || today();
+  const endDate = end_date || startDate;
+
+  // Get user's worker IDs for security
+  const { data: userWorkers } = await supabase
+    .from('workers')
+    .select('id')
+    .eq('owner_id', userId);
+
+  const workerIds = (userWorkers || []).map(w => w.id);
+  if (workerIds.length === 0) return [];
+
+  // Build query
+  let q = supabase
+    .from('time_tracking')
+    .select('*, workers(full_name, trade), projects(name)')
+    .in('worker_id', workerIds)
+    .gte('clock_in', `${startDate}T00:00:00`)
+    .lte('clock_in', `${endDate}T23:59:59`)
+    .order('clock_in', { ascending: false });
+
+  if (resolvedWorkerId) {
+    q = q.eq('worker_id', resolvedWorkerId);
+  }
+
+  if (resolvedProjectId) {
+    q = q.eq('project_id', resolvedProjectId);
+  }
+
+  if (!include_active) {
+    q = q.not('clock_out', 'is', null);
+  }
+
+  const { data, error } = await q.limit(100);
+
+  if (error) {
+    logger.error('get_time_records error:', error);
+    return { error: error.message };
+  }
+
+  // Calculate hours and format response
+  return (data || []).map(record => {
+    let totalHours = 0;
+    let status = 'active';
+
+    if (record.clock_out) {
+      const clockIn = new Date(record.clock_in);
+      const clockOut = new Date(record.clock_out);
+      totalHours = (clockOut - clockIn) / (1000 * 60 * 60); // Convert ms to hours
+
+      // Subtract break time if exists
+      if (record.break_start && record.break_end) {
+        const breakStart = new Date(record.break_start);
+        const breakEnd = new Date(record.break_end);
+        const breakHours = (breakEnd - breakStart) / (1000 * 60 * 60);
+        totalHours -= breakHours;
+      }
+
+      status = 'completed';
+    }
+
+    return {
+      id: record.id,
+      workerName: record.workers?.full_name || 'Unknown',
+      trade: record.workers?.trade,
+      projectName: record.projects?.name || 'Unknown',
+      clockIn: record.clock_in,
+      clockOut: record.clock_out,
+      totalHours: Math.round(totalHours * 100) / 100,
+      status,
+      notes: record.notes,
+      location: record.location_lat && record.location_lng ? {
+        lat: parseFloat(record.location_lat),
+        lng: parseFloat(record.location_lng)
+      } : null
+    };
+  });
 }
 
 // ==================== SETTINGS ====================
@@ -1965,6 +2086,7 @@ const TOOL_HANDLERS = {
   get_transactions,
   get_daily_reports,
   get_photos,
+  get_time_records,
   get_business_settings,
   // Intelligent tools
   global_search,

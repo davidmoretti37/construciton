@@ -617,6 +617,39 @@ const toolDefinitions = [
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_time_records',
+      description: 'Get time tracking records (clock-ins/outs) for workers. Use when user asks about worker hours, who worked today, time tracking, clock-ins, or timesheet data. Returns time entries with calculated hours.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worker_id: {
+            type: 'string',
+            description: 'Filter by specific worker name or ID'
+          },
+          project_id: {
+            type: 'string',
+            description: 'Filter by specific project name or ID'
+          },
+          start_date: {
+            type: 'string',
+            description: 'Start date (YYYY-MM-DD). Defaults to today if not specified.'
+          },
+          end_date: {
+            type: 'string',
+            description: 'End date (YYYY-MM-DD). Defaults to start_date if not specified.'
+          },
+          include_active: {
+            type: 'boolean',
+            description: 'Include currently active clock-ins (not clocked out yet). Default true.'
+          }
+        },
+        required: []
+      }
+    }
+  },
 
   // ==================== SETTINGS ====================
   {
@@ -804,6 +837,7 @@ const TOOL_STATUS_MESSAGES = {
   get_transactions: 'Looking up transactions...',
   get_daily_reports: 'Retrieving daily reports...',
   get_photos: 'Finding project photos...',
+  get_time_records: 'Checking time tracking records...',
   get_business_settings: 'Checking your settings...',
   // Intelligent tools
   global_search: 'Searching across everything...',

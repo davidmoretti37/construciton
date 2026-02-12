@@ -101,6 +101,7 @@ function selectTools(intent, allTools) {
       'assign_worker',
       'create_work_schedule',
       'get_schedule_events',
+      'get_time_records',
       'search_projects', // Often need project context for assignments
     ],
 
@@ -122,6 +123,7 @@ function selectTools(intent, allTools) {
       'search_projects',
       'search_invoices',
       'get_workers',
+      'get_time_records',
       'get_financial_overview'
     ],
 
@@ -171,6 +173,7 @@ function selectTools(intent, allTools) {
       'get_estimate_details',
       'get_invoice_details',
       'get_worker_details',
+      'get_time_records',
 
       // Common mutations
       'record_expense',
