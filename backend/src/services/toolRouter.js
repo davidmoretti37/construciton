@@ -109,6 +109,7 @@ function selectTools(intent, allTools) {
     estimate: [
       'search_estimates',
       'get_estimate_details',
+      'update_estimate',
       'suggest_pricing',
       'share_document',
       'get_business_settings',

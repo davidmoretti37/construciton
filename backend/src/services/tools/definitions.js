@@ -366,6 +366,32 @@ const toolDefinitions = [
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'update_estimate',
+      description: 'Update an estimate - link it to a project or change its status. Use when user wants to associate an estimate with a project.',
+      parameters: {
+        type: 'object',
+        properties: {
+          estimate_id: {
+            type: 'string',
+            description: 'The estimate UUID (from search_estimates)'
+          },
+          project_id: {
+            type: 'string',
+            description: 'The project UUID to link this estimate to (optional)'
+          },
+          status: {
+            type: 'string',
+            enum: ['draft', 'sent', 'accepted', 'rejected'],
+            description: 'New status (optional)'
+          }
+        },
+        required: ['estimate_id']
+      }
+    }
+  },
 
   // ==================== INVOICES ====================
   {
@@ -827,6 +853,7 @@ const TOOL_STATUS_MESSAGES = {
   get_project_details: 'Getting project details...',
   search_estimates: 'Searching estimates...',
   get_estimate_details: 'Loading estimate details...',
+  update_estimate: 'Updating estimate...',
   search_invoices: 'Searching invoices...',
   get_invoice_details: 'Loading invoice details...',
   get_workers: 'Checking your workers...',

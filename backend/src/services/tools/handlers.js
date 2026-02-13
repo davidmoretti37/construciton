@@ -445,6 +445,47 @@ async function get_estimate_details(userId, args) {
   return data;
 }
 
+async function update_estimate(userId, args = {}) {
+  const { estimate_id, project_id, status } = args;
+
+  if (!estimate_id) {
+    return { error: 'estimate_id is required' };
+  }
+
+  const updates = {};
+  if (project_id !== undefined) updates.project_id = project_id;
+  if (status !== undefined) updates.status = status;
+
+  if (Object.keys(updates).length === 0) {
+    return { error: 'No fields to update' };
+  }
+
+  const { data, error } = await supabase
+    .from('estimates')
+    .update(updates)
+    .eq('id', estimate_id)
+    .eq('user_id', userId)
+    .select('*, projects(id, name)')
+    .single();
+
+  if (error) {
+    logger.error('update_estimate error:', error);
+    return { error: error.message };
+  }
+
+  return {
+    success: true,
+    estimate: {
+      id: data.id,
+      estimate_number: data.estimate_number,
+      client_name: data.client_name,
+      total: data.total,
+      project_id: data.project_id,
+      project_name: data.projects?.name || null
+    }
+  };
+}
+
 // ==================== INVOICES ====================
 
 async function search_invoices(userId, args = {}) {
@@ -2148,6 +2189,7 @@ const TOOL_HANDLERS = {
   delete_project,
   search_estimates,
   get_estimate_details,
+  update_estimate,
   search_invoices,
   get_invoice_details,
   get_workers,
