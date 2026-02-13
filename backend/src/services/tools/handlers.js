@@ -445,75 +445,6 @@ async function get_estimate_details(userId, args) {
   return data;
 }
 
-/**
- * Update an estimate (e.g., link to project, change status, etc.)
- * @param {string} userId - User ID
- * @param {object} args - { estimate_id, project_id?, status?, notes? }
- * @returns {Promise<object>} Updated estimate
- */
-async function update_estimate(userId, args = {}) {
-  const { estimate_id, project_id, status, notes } = args;
-
-  if (!estimate_id) {
-    return { error: 'estimate_id is required' };
-  }
-
-  // Build update object with only provided fields
-  const updates = {};
-  if (project_id !== undefined) updates.project_id = project_id;
-  if (status !== undefined) updates.status = status;
-  if (notes !== undefined) updates.notes = notes;
-
-  if (Object.keys(updates).length === 0) {
-    return { error: 'No fields to update' };
-  }
-
-  logger.info(`📝 Updating estimate ${estimate_id}: ${JSON.stringify(updates)}`);
-
-  // Update estimate
-  const { data, error } = await supabase
-    .from('estimates')
-    .update(updates)
-    .eq('id', estimate_id)
-    .eq('user_id', userId) // Security: user must own the estimate
-    .select(`
-      *,
-      projects (
-        id,
-        name,
-        client,
-        status
-      )
-    `)
-    .single();
-
-  if (error) {
-    logger.error('update_estimate error:', error);
-    return { error: error.message };
-  }
-
-  logger.info(`✅ Estimate updated successfully: ${data.estimate_number}`);
-
-  return {
-    success: true,
-    estimate: {
-      id: data.id,
-      estimate_number: data.estimate_number,
-      client_name: data.client_name,
-      project_name: data.project_name,
-      total: data.total,
-      status: data.status,
-      project_id: data.project_id,
-      project: data.projects ? {
-        id: data.projects.id,
-        name: data.projects.name,
-        client: data.projects.client,
-        status: data.projects.status
-      } : null
-    }
-  };
-}
-
 // ==================== INVOICES ====================
 
 async function search_invoices(userId, args = {}) {
@@ -2217,7 +2148,6 @@ const TOOL_HANDLERS = {
   delete_project,
   search_estimates,
   get_estimate_details,
-  update_estimate,
   search_invoices,
   get_invoice_details,
   get_workers,

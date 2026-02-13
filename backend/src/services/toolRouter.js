@@ -35,11 +35,6 @@ function categorizeIntent(userMessage) {
     return 'estimate';
   }
 
-  // Photo/report queries (CHECK THIS BEFORE "briefing" because "daily report for today" should be reports, not briefing)
-  if (msg.match(/photo|picture|image|daily report|work report|site report|documentation|progress pic/i)) {
-    return 'reports';
-  }
-
   // Daily briefing / overview
   if (msg.match(/morning|briefing|today|tomorrow|this week|update|overview|happening|summary|rundown/i)) {
     return 'briefing';
@@ -48,6 +43,11 @@ function categorizeIntent(userMessage) {
   // Search queries (find, lookup, show)
   if (msg.match(/find|search|show|list|get|lookup|where|locate/i)) {
     return 'search';
+  }
+
+  // Photo/report queries
+  if (msg.match(/photo|picture|image|report|daily|documentation|progress pic/i)) {
+    return 'reports';
   }
 
   // Settings queries
@@ -109,7 +109,6 @@ function selectTools(intent, allTools) {
     estimate: [
       'search_estimates',
       'get_estimate_details',
-      'update_estimate',
       'suggest_pricing',
       'share_document',
       'get_business_settings',
