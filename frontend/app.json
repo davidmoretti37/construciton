@@ -1,11 +1,14 @@
 {
   "expo": {
-    "name": "Construction Manager",
-    "slug": "consrcutionapp",
-    "scheme": "constructionmanager",
+    "name": "Plinth",
+    "slug": "plinth",
+    "scheme": "plinth",
     "version": "1.0.0",
     "orientation": "portrait",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
@@ -16,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
-      "buildNumber": "12",
+      "buildNumber": "13",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -42,7 +45,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1a1f3a"
       },
       "package": "com.davidmoretti.constructionmanager",
       "permissions": [

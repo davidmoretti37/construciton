@@ -17,6 +17,7 @@ import {
   Modal,
   FlatList,
   Image,
+  AppState,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,14 +29,17 @@ import LinkifiedText from '../components/LinkifiedText';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import * as FileSystem from 'expo-file-system/legacy';
-import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode } from '../services/aiService';
+import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode, sendAgentMessage } from '../services/aiService';
 import { uploadProjectDocument } from '../utils/storage/projectDocuments';
 import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
-import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard } from '../components/ChatVisuals';
+import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap } from '../components/ChatVisuals';
+import ChatHistorySidebar from '../components/ChatHistorySidebar';
+import { chatHistoryService } from '../services/chatHistoryService';
 import { formatEstimate } from '../utils/estimateFormatter';
 import { sendEstimateViaSMS, sendEstimateViaWhatsApp, isValidPhoneNumber } from '../utils/messaging';
-import { fetchWorkers, fetchProjects, getUserProfile, getUserServices, updateUserServicePricing, saveProject, transformScreenshotToProject, getProject, saveEstimate, updateEstimate, createInvoiceFromEstimate, markInvoiceAsPaid, updateInvoicePDF, getInvoice, updateTradePricing, updatePhaseProgress, extendPhaseTimeline, startPhase, completePhase, fetchProjectPhases, addTaskToPhase, saveDailyReport, savePhasePaymentAmount, deleteProject, createProjectFromEstimate, createWorker, updateWorker, clockIn, clockOut, getActiveClockIn, createScheduleEvent, updateScheduleEvent, deleteScheduleEvent, createWorkSchedule, updateWorkSchedule, deleteWorkSchedule, updateBusinessInfo, updatePhaseTemplate, addServiceToTrade, removeServiceFromTrade, updateServicePricing, updateProfitMargin, saveSubcontractorQuote, updateSubcontractorQuote, deleteSubcontractorQuote, updateInvoiceTemplate, updateInvoice, deleteInvoice, recordInvoicePayment, voidInvoice, uploadContractDocument, calculateWorkerPaymentForPeriod, fetchPhotosWithFilters, fetchDailyReportsWithFilters, fetchDailyReportById, getTodaysWorkersSchedule, editTimeEntry, createManualTimeEntry, deleteTimeEntry, createRecurringEvent, updateRecurringEvent, deleteRecurringEvent, setWorkerAvailability, setWorkerPTO, removeWorkerAvailability, createCrew, getCrew, updateCrew, deleteCrew, createShiftTemplate, applyShiftTemplate, deleteShiftTemplate, startWorkerBreak, endWorkerBreak, swapWorkerShifts, fetchScheduleEvents, getProjectWorkers, getAverageWorkerRate } from '../utils/storage';
+import { getCurrentUserId, fetchWorkers, fetchProjects, getUserProfile, getUserServices, updateUserServicePricing, saveProject, transformScreenshotToProject, getProject, saveEstimate, updateEstimate, createInvoiceFromEstimate, markInvoiceAsPaid, updateInvoicePDF, getInvoice, updateTradePricing, updatePhaseProgress, extendPhaseTimeline, startPhase, completePhase, fetchProjectPhases, addTaskToPhase, saveDailyReport, savePhasePaymentAmount, deleteProject, createProjectFromEstimate, createWorker, updateWorker, clockIn, clockOut, getActiveClockIn, createScheduleEvent, updateScheduleEvent, deleteScheduleEvent, createWorkSchedule, updateWorkSchedule, deleteWorkSchedule, updateBusinessInfo, updatePhaseTemplate, addServiceToTrade, removeServiceFromTrade, updateServicePricing, updateProfitMargin, saveSubcontractorQuote, updateSubcontractorQuote, deleteSubcontractorQuote, updateInvoiceTemplate, updateInvoice, deleteInvoice, recordInvoicePayment, voidInvoice, uploadContractDocument, calculateWorkerPaymentForPeriod, fetchPhotosWithFilters, fetchDailyReportsWithFilters, fetchDailyReportById, getTodaysWorkersSchedule, editTimeEntry, createManualTimeEntry, deleteTimeEntry, createRecurringEvent, updateRecurringEvent, deleteRecurringEvent, setWorkerAvailability, setWorkerPTO, removeWorkerAvailability, createCrew, getCrew, updateCrew, deleteCrew, createShiftTemplate, applyShiftTemplate, deleteShiftTemplate, startWorkerBreak, endWorkerBreak, swapWorkerShifts, fetchScheduleEvents, getProjectWorkers, getAverageWorkerRate, getSelectedLanguage, getAISettings } from '../utils/storage';
+import { memoryService } from '../services/agents/core/MemoryService';
 import { generateInvoicePDF, uploadInvoicePDF, previewInvoicePDF, shareInvoicePDF } from '../utils/pdfGenerator';
 import TimelinePickerModal from '../components/TimelinePickerModal';
 import BudgetInputModal from '../components/BudgetInputModal';
@@ -106,6 +110,7 @@ export default function ChatScreen({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false); // Track actual streaming state
   const [statusMessage, setStatusMessage] = useState(null);
   const scrollViewRef = useRef(null);
   const [showTimelinePicker, setShowTimelinePicker] = useState(false);
@@ -119,11 +124,195 @@ export default function ChatScreen({ navigation, route }) {
   const { t } = useTranslation(['chat', 'common']);
   const aiTimeoutRef = useRef(null); // Store timeout ID for AI response
   const { hasActiveSubscription } = useSubscription();
-  const { profile } = useAuth() || {};
+  const { user, profile } = useAuth() || {};
   const isOwner = profile?.role === 'owner';
   const isSupervisor = profile?.role === 'supervisor';
 
-  // Reset chat - clears all conversation state
+  // Chat history state
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+  const lastSavedMessageCount = useRef(0); // Track saved messages to avoid duplicates
+
+  // Create new chat session (ONLY when explicitly needed)
+  const createNewSession = useCallback(async () => {
+    try {
+      // IMPORTANT: This should ONLY create if current session has messages
+      // OR if there's no current session at all
+
+      const hasMessages = messages.length > 0;
+
+      if (currentSessionId && !hasMessages) {
+        // Current session is empty, just clear it and reuse
+        console.log('Clearing and reusing empty session:', currentSessionId);
+        setMessages([]);
+        setConversationHistory([]);
+        lastSavedMessageCount.current = 0;
+        if (aiTimeoutRef.current) {
+          clearTimeout(aiTimeoutRef.current);
+          aiTimeoutRef.current = null;
+        }
+        setIsAIThinking(false);
+        setStatusMessage(null);
+        setPendingEstimateContext(null);
+        setCurrentProject(null);
+        return;
+      }
+
+      // Create a new session only if:
+      // 1. No current session exists, OR
+      // 2. Current session has messages
+      console.log('Creating new session (current has messages or none exists)');
+      const session = await chatHistoryService.createSession();
+      setCurrentSessionId(session.id);
+      setMessages([]);
+      setConversationHistory([]);
+      lastSavedMessageCount.current = 0;
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+        aiTimeoutRef.current = null;
+      }
+      setIsAIThinking(false);
+      setStatusMessage(null);
+      setPendingEstimateContext(null);
+      setCurrentProject(null);
+    } catch (error) {
+      console.error('Error creating session:', error);
+    }
+  }, [currentSessionId, messages.length]);
+
+  // Load session messages
+  const loadSession = useCallback(async (sessionId) => {
+    try {
+      const sessionMessages = await chatHistoryService.getSessionMessages(sessionId);
+      setCurrentSessionId(sessionId);
+
+      // Convert database messages to UI format
+      const uiMessages = sessionMessages.map(m => ({
+        id: m.id,
+        text: m.content,
+        isUser: m.role === 'user',
+        timestamp: new Date(m.created_at),
+        visualElements: m.visual_elements || [],
+        actions: m.actions || []
+      }));
+
+      setMessages(uiMessages);
+      lastSavedMessageCount.current = uiMessages.length;
+
+      // Rebuild conversation history for API
+      setConversationHistory(sessionMessages.map(m => ({
+        role: m.role,
+        content: m.content
+      })));
+    } catch (error) {
+      console.error('Error loading session:', error);
+      Alert.alert('Error', 'Failed to load chat session');
+    }
+  }, []);
+
+  // Load or create initial session on mount
+  const initializeSession = useCallback(async () => {
+    try {
+      console.log('🔄 Initializing chat session...');
+      // First, try to get existing sessions
+      const sessions = await chatHistoryService.getSessions();
+      console.log('📋 Found', sessions?.length || 0, 'existing sessions');
+
+      if (sessions && sessions.length > 0) {
+        // Find the most recent empty session (no messages)
+        for (const session of sessions) {
+          const sessionMessages = await chatHistoryService.getSessionMessages(session.id);
+          if (sessionMessages.length === 0) {
+            // Found an empty session, reuse it!
+            console.log('✅ Reusing empty session:', session.id);
+            setCurrentSessionId(session.id);
+            setMessages([]);
+            setConversationHistory([]);
+            lastSavedMessageCount.current = 0;
+            return;
+          }
+        }
+
+        // All sessions have messages, load the most recent one
+        console.log('📥 Loading most recent session:', sessions[0].id);
+        await loadSession(sessions[0].id);
+      } else {
+        // No sessions exist, create a new one
+        console.log('🆕 Creating first session');
+        const session = await chatHistoryService.createSession();
+        console.log('✅ Created session:', session.id);
+        setCurrentSessionId(session.id);
+        setMessages([]);
+        setConversationHistory([]);
+        lastSavedMessageCount.current = 0;
+      }
+    } catch (error) {
+      console.error('❌ Error initializing session:', error);
+      console.error('Error details:', error.message);
+      // Fallback: create new session directly
+      try {
+        const session = await chatHistoryService.createSession();
+        console.log('✅ Fallback: Created session:', session.id);
+        setCurrentSessionId(session.id);
+        setMessages([]);
+        setConversationHistory([]);
+        lastSavedMessageCount.current = 0;
+      } catch (fallbackError) {
+        console.error('❌ Fallback failed:', fallbackError);
+        Alert.alert('Error', 'Failed to initialize chat session. Please restart the app.');
+      }
+    }
+  }, [loadSession]);
+
+  // Auto-save current message
+  const saveCurrentMessage = useCallback(async () => {
+    if (!currentSessionId) {
+      console.log('⏭️ Skipping save: No session ID');
+      return;
+    }
+
+    if (messages.length === 0) {
+      console.log('⏭️ Skipping save: No messages');
+      return;
+    }
+
+    if (messages.length <= lastSavedMessageCount.current) {
+      console.log('⏭️ Skipping save: Already saved', messages.length, 'messages');
+      return;
+    }
+
+    try {
+      // Save only new messages
+      const newMessages = messages.slice(lastSavedMessageCount.current);
+      console.log('💾 Saving', newMessages.length, 'new message(s) to session', currentSessionId.substring(0, 8));
+
+      for (const message of newMessages) {
+        await chatHistoryService.saveMessage(currentSessionId, {
+          role: message.isUser ? 'user' : 'assistant',
+          content: message.text,
+          visualElements: message.visualElements || [],
+          actions: message.actions || []
+        });
+        console.log('✅ Saved message:', message.text.substring(0, 50));
+      }
+
+      // Auto-generate AI-powered title from first user message (before updating lastSavedMessageCount)
+      // This should run when we're saving for the first time (empty session)
+      if (lastSavedMessageCount.current === 0 && messages.length >= 1 && messages[0].isUser) {
+        console.log('📝 Generating AI title from first message:', messages[0].text.substring(0, 50));
+        const title = await chatHistoryService.generateAITitle(messages[0].text);
+        await chatHistoryService.updateSessionTitle(currentSessionId, title);
+        console.log('✅ Updated session title to:', title);
+      }
+
+      lastSavedMessageCount.current = messages.length;
+    } catch (error) {
+      console.error('❌ Error saving message:', error);
+      console.error('Error details:', error.message);
+    }
+  }, [currentSessionId, messages]);
+
+  // Reset chat - now creates a new session instead of just clearing
   const handleResetChat = useCallback(() => {
     if (messages.length === 0) return;
 
@@ -135,22 +324,11 @@ export default function ChatScreen({ navigation, route }) {
         {
           text: t('actions.clearChat'),
           style: 'destructive',
-          onPress: () => {
-            if (aiTimeoutRef.current) {
-              clearTimeout(aiTimeoutRef.current);
-              aiTimeoutRef.current = null;
-            }
-            setMessages([]);
-            setConversationHistory([]);
-            setIsAIThinking(false);
-            setStatusMessage(null);
-            setPendingEstimateContext(null);
-            setCurrentProject(null);
-          },
+          onPress: createNewSession,
         },
       ]
     );
-  }, [messages.length, t]);
+  }, [messages.length, t, createNewSession]);
 
   // Helper function to add AI messages programmatically
   const addAIMessage = useCallback((text) => {
@@ -179,6 +357,40 @@ export default function ChatScreen({ navigation, route }) {
     // Auto-scroll to bottom when new messages appear or AI starts thinking
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages, isAIThinking]);
+
+  // Initialize session on mount
+  useEffect(() => {
+    initializeSession();
+  }, []); // Only run once on mount
+
+  // Auto-save messages ONLY when streaming fully completes
+  useEffect(() => {
+    // Only save when streaming is done AND we have unsaved messages
+    if (!isStreaming && currentSessionId && messages.length > lastSavedMessageCount.current) {
+      // Add a small delay to ensure message is fully rendered
+      const saveTimer = setTimeout(() => {
+        console.log('💾 Auto-save triggered (streaming complete)');
+        saveCurrentMessage();
+      }, 500);
+      return () => clearTimeout(saveTimer);
+    }
+  }, [isStreaming, currentSessionId]); // DO NOT include 'messages' to prevent saves during streaming
+
+  // Save messages when user navigates away from screen (app backgrounding)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // User is leaving the app - save current state immediately
+        if (currentSessionId && messages.length > lastSavedMessageCount.current) {
+          console.log('📱 App backgrounding, saving messages immediately');
+          saveCurrentMessage();
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [currentSessionId, messages, lastSavedMessageCount, saveCurrentMessage]);
 
   // Handle navigation params (e.g., from notification tap)
   useEffect(() => {
@@ -381,75 +593,101 @@ export default function ChatScreen({ navigation, route }) {
 
     // Show status message immediately (ChatGPT-style feedback)
     setIsAIThinking(true);
+    setIsStreaming(true); // Track that we're starting to stream
     setStatusMessage(t('thinking'));
     let messageCreated = false; // Track if we've created the message bubble
 
-    // Set 50-second timeout
-    aiTimeoutRef.current = setTimeout(() => {
-      console.log('⏱️ AI response timeout - 50 seconds elapsed');
+    // Timeout handler — fires if no events received for 50s
+    const handleTimeout = () => {
+      console.log('⏱️ AI response timeout - 50 seconds since last event');
       setIsAIThinking(false);
-      setStatusMessage(null); // Clear status on timeout
-
+      setStatusMessage(null);
       if (!messageCreated) {
-        const timeoutMessage = {
+        setMessages((prev) => [...prev, {
           id: aiMessageId,
           text: t('messages.error'),
           isUser: false,
           timestamp: new Date(),
           visualElements: [],
-          actions: [{
-            type: 'retry',
-            label: 'Retry',
-            data: { originalMessage: text }
-          }],
-        };
-
-        setMessages((prev) => [...prev, timeoutMessage]);
+          actions: [{ type: 'retry', label: 'Retry', data: { originalMessage: text } }],
+        }]);
         messageCreated = true;
       }
-    }, 50000); // 50 seconds
+    };
+    aiTimeoutRef.current = setTimeout(handleTimeout, 120000);
 
     try {
-      // Use CoreAgent for intelligent multi-agent routing with execution planning
-      await CoreAgent.processStreaming(
+      // Build lightweight context for the backend agent (business info, language, preferences)
+      // Heavy data (projects, workers, etc.) is fetched by backend tools
+      const userId = user?.id || profile?.id || await getCurrentUserId();
+      const userProfile = await getUserProfile();
+      const userLanguage = await getSelectedLanguage() || 'en';
+      const aiSettings = await getAISettings();
+      const learnedFacts = memoryService.getMemoriesForPrompt(enhancedText);
+
+      const agentContext = {
+        businessName: userProfile?.businessInfo?.name || '',
+        businessPhone: userProfile?.businessInfo?.phone || '',
+        businessEmail: userProfile?.businessInfo?.email || '',
+        businessAddress: userProfile?.businessInfo?.address || '',
+        userRole: profile?.role || 'owner',
+        userName: userProfile?.businessInfo?.name || profile?.business_name || '',
+        userLanguage,
+        learnedFacts,
+        aboutYou: aiSettings?.aboutYou || '',
+        responseStyle: aiSettings?.responseStyle || '',
+        isSupervisor: isSupervisor,
+        ownerName: profile?.owner_name || '',
+        phasesTemplate: userProfile?.phasesTemplate || [],
+        contingencyPercentage: userProfile?.contingencyPercentage || 10,
+        profitMargin: userProfile?.profitMargin || 20,
+      };
+
+      // Use unified agent with tool-calling for intelligent responses
+      await sendAgentMessage(
+        userId,
+        conversationHistory,
         enhancedText,
-        conversationHistory, // Pass conversation history
-        // onChunk callback - Create bubble on first chunk, then update text
-        (cleanText) => {
-          if (!messageCreated && cleanText) {
-            // First chunk arrived - clear timeout, hide status, create bubble with text
+        agentContext,
+        {
+        // onChunk callback - Append small drip-fed chunks from aiService animation
+        onChunk: (chunk) => {
+          if (!chunk) return;
+          if (!messageCreated) {
+            // First chunk — create the message bubble
             if (aiTimeoutRef.current) {
               clearTimeout(aiTimeoutRef.current);
               aiTimeoutRef.current = null;
             }
             setIsAIThinking(false);
-            setStatusMessage(null); // Hide status when response starts
+            setStatusMessage(null);
             messageCreated = true;
 
             const aiMessage = {
               id: aiMessageId,
-              text: cleanText,
+              text: chunk,
               isUser: false,
               timestamp: new Date(),
               visualElements: [],
               actions: [],
-                };
-
+            };
             setMessages((prev) => [...prev, aiMessage]);
-          } else if (messageCreated) {
-            // Update existing bubble with more text
+          } else {
+            // Append the small chunk to existing bubble
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === aiMessageId
-                  ? { ...msg, text: cleanText }
+                  ? { ...msg, text: (msg.text || '') + chunk }
                   : msg
               )
             );
           }
         },
         // onComplete callback - Add visual elements
-        (parsedResponse) => {
+        onComplete: (parsedResponse) => {
+          console.log('🏁 AI streaming complete:', parsedResponse.text?.substring(0, 50) + '...');
           setIsAIThinking(false);
+          setIsStreaming(false); // CRITICAL: Set to false ONLY when streaming actually completes
           setStatusMessage(null); // Clear status on complete
 
           // Disable voice mode after response completes
@@ -472,7 +710,7 @@ export default function ChatScreen({ navigation, route }) {
               if (msg.id === aiMessageId) {
                 return {
                   ...msg,
-                  text: parsedResponse.text || msg.text,
+                  text: parsedResponse.text || msg.text || '',
                   visualElements: parsedResponse.visualElements || [],
                   actions: parsedResponse.actions || [],
                   lastUpdated: Date.now(), // Force React to detect change
@@ -489,6 +727,14 @@ export default function ChatScreen({ navigation, route }) {
 
             return updated;
           });
+
+          // Show loading state if creating estimate (Part 1 of estimate fix)
+          const hasEstimatePreview = parsedResponse.visualElements?.some(v => v.type === 'estimate-preview');
+          if (hasEstimatePreview) {
+            setStatusMessage('Creating estimate...');
+            // Clear status after card appears
+            setTimeout(() => setStatusMessage(''), 800);
+          }
 
           // AUTO-EXECUTE financial update actions (deposit/expense)
           const updateAction = parsedResponse.actions?.find(action => action.type === 'update-project-finances');
@@ -538,15 +784,7 @@ export default function ChatScreen({ navigation, route }) {
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
-          // AUTO-EXECUTE delete all workers action
-          const deleteAllWorkersAction = parsedResponse.actions?.find(action => action.type === 'delete-all-workers');
-          if (deleteAllWorkersAction) {
-            console.log('🔄 Auto-executing delete all workers:', deleteAllWorkersAction.data);
-            workerActions.handleDeleteAllWorkers(deleteAllWorkersAction.data, { skipConfirmation: true });
-
-            // Remove the AI message entirely - the handler adds its own confirmation
-            setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
-          }
+          // delete-all-workers: NOT auto-executed — requires user to tap action button + confirm
 
           // AUTO-EXECUTE clock in/out actions
           const clockInAction = parsedResponse.actions?.find(action => action.type === 'clock-in-worker');
@@ -725,35 +963,16 @@ export default function ChatScreen({ navigation, route }) {
             setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
           }
 
-          // AUTO-EXECUTE delete project action
+          // AUTO-EXECUTE delete-project action (has confirmation dialog built in)
           const deleteProjectAction = parsedResponse.actions?.find(action => action.type === 'delete-project');
           if (deleteProjectAction) {
             console.log('🔄 Auto-executing project deletion:', deleteProjectAction.data);
-            projectActions.handleDeleteProject(deleteProjectAction.data, { skipConfirmation: true });
-
-            // Remove the AI message entirely - the handler adds its own confirmation
-            setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
+            projectActions.handleDeleteProject(deleteProjectAction.data);
+            setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
-          // AUTO-EXECUTE delete all projects action
-          const deleteAllProjectsAction = parsedResponse.actions?.find(action => action.type === 'delete-all-projects');
-          if (deleteAllProjectsAction) {
-            console.log('🔄 Auto-executing delete all projects:', deleteAllProjectsAction.data);
-            projectActions.handleDeleteAllProjects(deleteAllProjectsAction.data, { skipConfirmation: true });
-
-            // Remove the AI message entirely - the handler adds its own confirmation
-            setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
-          }
-
-          // AUTO-EXECUTE delete all estimates action
-          const deleteAllEstimatesAction = parsedResponse.actions?.find(action => action.type === 'delete-all-estimates');
-          if (deleteAllEstimatesAction) {
-            console.log('🔄 Auto-executing delete all estimates:', deleteAllEstimatesAction.data);
-            estimateActions.handleDeleteAllEstimates(deleteAllEstimatesAction.data, { skipConfirmation: true });
-
-            // Remove the AI message entirely - the handler adds its own confirmation
-            setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
-          }
+          // delete-all-projects, delete-all-estimates:
+          // NOT auto-executed — requires user to tap action button + confirm via Alert dialog
 
           // AUTO-EXECUTE sync tasks to calendar action
           const syncTasksAction = parsedResponse.actions?.find(action => action.type === 'sync-tasks-to-calendar');
@@ -851,9 +1070,19 @@ export default function ChatScreen({ navigation, route }) {
             { role: 'user', content: enhancedText },
             { role: 'assistant', content: parsedResponse.text || '' },
           ]);
+
+          // Extract and save facts from conversation for long-term memory
+          try {
+            const facts = memoryService.extractFacts(enhancedText, parsedResponse);
+            if (facts.length > 0) {
+              memoryService.saveFacts(facts);
+            }
+          } catch (memErr) {
+            // Non-critical - don't break flow
+          }
         },
         // onError callback
-        (error) => {
+        onError: (error) => {
           console.error('Streaming error:', error);
           // Clear timeout on error
           if (aiTimeoutRef.current) {
@@ -886,11 +1115,17 @@ export default function ChatScreen({ navigation, route }) {
             messageCreated = true;
           }
         },
-        // onStatusChange callback - Update status message for agent-specific feedback
-        (status) => {
+        // onStatus callback - Update status message + reset timeout
+        onStatus: (status) => {
           if (status) {
             setStatusMessage(status);
+            // Reset timeout — agent is still working
+            if (aiTimeoutRef.current) {
+              clearTimeout(aiTimeoutRef.current);
+              aiTimeoutRef.current = setTimeout(handleTimeout, 120000);
+            }
           }
+        }
         }
       );
     } catch (error) {
@@ -2653,6 +2888,30 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   const renderVisualElement = (element, index) => {
+    // Part 2 of estimate fix: Inject project_id into estimate data before rendering
+    if (element.type === 'estimate-preview') {
+      // If estimate doesn't have project_id, try to find a recent project
+      if (!element.data.project_id && !element.data.projectId) {
+        const recentProjects = messages
+          .filter(m => m.visualElements?.some(v => v.type === 'project-preview'))
+          .flatMap(m => m.visualElements?.filter(v => v.type === 'project-preview') || []);
+
+        // Inject project_id from most recent project if available
+        if (recentProjects.length > 0) {
+          const mostRecent = recentProjects[recentProjects.length - 1];
+          element.data.project_id = mostRecent.data.id;
+          element.data.projectName = mostRecent.data.projectName || mostRecent.data.name;
+
+          if (__DEV__) {
+            console.log('✅ Injected project_id into estimate:', {
+              project_id: element.data.project_id,
+              projectName: element.data.projectName
+            });
+          }
+        }
+      }
+    }
+
     switch (element.type) {
       case 'project-card':
         return <ProjectCard key={index} data={element.data} onAction={handleAction} />;
@@ -2692,6 +2951,8 @@ export default function ChatScreen({ navigation, route }) {
         return <DailyReportList key={index} data={element.data} onAction={handleAction} />;
       case 'appointment-card':
         return <AppointmentCard key={index} data={element.data} onAction={handleAction} />;
+      case 'time-tracking-map':
+        return <TimeTrackingMap key={index} data={element.data} />;
       default:
         return null;
     }
@@ -2704,16 +2965,16 @@ export default function ChatScreen({ navigation, route }) {
       {isOwner ? (
         <OwnerHeader
           leftComponent={
-            <TouchableOpacity onPress={handleResetChat} style={styles.resetChatButton}>
-              <Ionicons name="refresh-circle-outline" size={26} color={Colors.primaryText} />
+            <TouchableOpacity onPress={() => setShowHistorySidebar(true)} style={styles.resetChatButton}>
+              <Ionicons name="time-outline" size={26} color={Colors.primaryText} />
             </TouchableOpacity>
           }
           rightComponent={<NotificationBell onPress={() => navigation.navigate('Notifications')} />}
         />
       ) : (
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={handleResetChat} style={styles.resetChatButton}>
-            <Ionicons name="refresh-circle-outline" size={26} color={Colors.primaryText} />
+          <TouchableOpacity onPress={() => setShowHistorySidebar(true)} style={styles.resetChatButton}>
+            <Ionicons name="time-outline" size={26} color={Colors.primaryText} />
           </TouchableOpacity>
           <View style={{ flex: 1 }} />
           <NotificationBell onPress={() => navigation.navigate('Notifications')} />
@@ -2934,6 +3195,15 @@ export default function ChatScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
+
+      {/* Chat History Sidebar */}
+      <ChatHistorySidebar
+        visible={showHistorySidebar}
+        onClose={() => setShowHistorySidebar(false)}
+        currentSessionId={currentSessionId}
+        onSelectSession={loadSession}
+        onNewChat={createNewSession}
+      />
     </SafeAreaView>
     </View>
   );
