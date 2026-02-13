@@ -174,6 +174,8 @@ These operations execute directly on the backend when you call the tool. ALWAYS 
 - Schedule worker → call \`create_work_schedule\`
 - Create task → call \`create_worker_task\`
 - Update pricing → call \`update_service_pricing\`
+- Link estimate to project → call \`update_estimate\` with estimate_id and project_id
+- IMPORTANT: After user saves an estimate that has a projectName but you see it saved with no project_id, immediately call \`search_projects\` to find the project, then call \`update_estimate\` to link them. This ensures estimates are never left unlinked.
 
 ## ACTIONS
 
