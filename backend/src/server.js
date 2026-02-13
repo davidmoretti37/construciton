@@ -1289,6 +1289,63 @@ app.post('/api/chat/stream', aiLimiter, async (req, res) => {
   }
 });
 
+// 🤖 UNIFIED AGENT ENDPOINT - Tool-calling agent with Claude
+// Replaces the multi-agent routing system with a single intelligent agent
+const { processAgentRequest } = require('./services/agentService');
+
+app.post('/api/chat/agent', aiLimiter, async (req, res) => {
+  const { messages, user_id, context } = req.body;
+
+  if (!messages || !Array.isArray(messages)) {
+    return res.status(400).json({ error: 'Invalid messages format' });
+  }
+
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id is required' });
+  }
+
+  if (!process.env.OPENROUTER_API_KEY) {
+    return res.status(500).json({ error: 'OpenRouter API key not configured' });
+  }
+
+  try {
+    // Set headers for Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    logger.info(`🤖 Agent request from user ${user_id.substring(0, 8)}...`);
+
+    // Run the agentic loop (pass req for disconnect detection)
+    await processAgentRequest(messages, user_id, context || {}, res, req);
+
+    // End the SSE stream
+    res.end();
+
+  } catch (error) {
+    logger.error('Agent endpoint error:', error);
+    const message = error.isTimeout ? 'Agent timed out. Please try again.' : error.message;
+
+    // Try to send error via SSE if headers already sent
+    if (res.headersSent) {
+      try {
+        res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+        res.end();
+      } catch (e) {
+        // Client already disconnected
+      }
+    } else {
+      res.status(500).json({ error: message });
+    }
+  }
+
+  // Handle client disconnect
+  req.on('close', () => {
+    logger.info('⚠️ Agent client disconnected');
+  });
+});
+
 // ⚡ GROQ PLANNING ENDPOINT - Ultra-fast inference for agent routing
 // Uses Groq's Llama 3.1 70B for 300+ tokens/sec planning
 app.post('/api/chat/planning', aiLimiter, async (req, res) => {
@@ -1386,6 +1443,7 @@ app.listen(PORT, '0.0.0.0', () => {
   logger.info(`🚀 Backend server running on port ${PORT}`);
   logger.info(`   Health check: http://localhost:${PORT}/health`);
   logger.info(`   AI Chat: http://localhost:${PORT}/api/chat/stream`);
+  logger.info(`   🤖 Agent: http://localhost:${PORT}/api/chat/agent`);
   logger.info(`   ⚡ Fast Planning: http://localhost:${PORT}/api/chat/planning`);
   logger.info(`   Geocoding: http://localhost:${PORT}/api/geocode`);
   logger.info(`   Transcription: http://localhost:${PORT}/api/transcribe`);
