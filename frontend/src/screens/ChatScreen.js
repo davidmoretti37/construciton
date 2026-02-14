@@ -249,18 +249,17 @@ export default function ChatScreen({ navigation, route }) {
     } catch (error) {
       console.error('❌ Error initializing session:', error);
       console.error('Error details:', error.message);
-      // Fallback: create new session directly
-      try {
-        const session = await chatHistoryService.createSession();
-        console.log('✅ Fallback: Created session:', session.id);
-        setCurrentSessionId(session.id);
-        setMessages([]);
-        setConversationHistory([]);
-        lastSavedMessageCount.current = 0;
-      } catch (fallbackError) {
-        console.error('❌ Fallback failed:', fallbackError);
-        Alert.alert('Error', 'Failed to initialize chat session. Please restart the app.');
-      }
+
+      // IMPORTANT: Chat history is optional - if database tables don't exist yet,
+      // just continue without session tracking (app will still work)
+      console.warn('⚠️ Chat history not available - continuing without session tracking');
+      console.warn('💡 Run database migration to enable chat history feature');
+
+      // Set session ID to null - app will work without it
+      setCurrentSessionId(null);
+      setMessages([]);
+      setConversationHistory([]);
+      lastSavedMessageCount.current = 0;
     }
   }, [loadSession]);
 
@@ -1536,9 +1535,9 @@ export default function ChatScreen({ navigation, route }) {
         await projectActions.handleAddEstimateToProjectChoice(action.data);
         break;
 
-      // Estimate Actions (from useEstimateActions)
+      // Estimate Actions
       case 'save-estimate':
-        await estimateActions.handleSaveEstimate(action.data);
+        await handleSaveEstimate(action.data); // Use local version with confirmation dialog
         break;
       case 'update-estimate':
         await estimateActions.handleUpdateEstimate(action.data);
