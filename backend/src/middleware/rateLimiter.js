@@ -60,8 +60,23 @@ const generalLimiter = rateLimit({
   message: 'Too many requests'
 });
 
+/**
+ * Chat History Rate Limiter (Very Lenient)
+ * For: /api/chat/sessions endpoints
+ * These are just database CRUD operations, allow frequent saves during streaming
+ */
+const chatHistoryLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 200, // 200 requests per minute (allows frequent auto-save during streaming)
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: createRateLimitHandler('chat-history'),
+  message: 'Too many chat history requests'
+});
+
 module.exports = {
   aiLimiter,
   servicesLimiter,
-  generalLimiter
+  generalLimiter,
+  chatHistoryLimiter
 };

@@ -1,11 +1,18 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 
 // Utilities
 const logger = require('./utils/logger');
 const { fetchOpenRouter, fetchOpenRouterVision, fetchOpenRouterStream, fetchGroq } = require('./utils/fetchWithRetry');
 const pdfParse = require('pdf-parse');
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 // Routes
 const geocodingRoutes = require('./routes/geocoding');
@@ -13,7 +20,7 @@ const transcriptionRoutes = require('./routes/transcription');
 const stripeRoutes = require('./routes/stripe');
 
 // Rate Limiters
-const { aiLimiter, servicesLimiter } = require('./middleware/rateLimiter');
+const { aiLimiter, servicesLimiter, chatHistoryLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1434,6 +1441,212 @@ app.post('/api/chat/planning', aiLimiter, async (req, res) => {
     const statusCode = error.isTimeout ? 504 : 500;
     const message = error.isTimeout ? 'Planning service timed out. Please try again.' : error.message;
     res.status(statusCode).json({ error: message });
+  }
+});
+
+// ==================== CHAT HISTORY ENDPOINTS ====================
+
+// List all chat sessions for a user
+app.get('/api/chat/sessions', chatHistoryLimiter, async (req, res) => {
+  try {
+    const userId = req.query.userId;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const { data: sessions, error } = await supabase
+      .from('chat_sessions')
+      .select('id, title, created_at, updated_at, last_message_at, is_archived')
+      .eq('user_id', userId)
+      .eq('is_archived', false)
+      .order('last_message_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    res.json({ sessions: sessions || [] });
+  } catch (error) {
+    logger.error('Error fetching chat sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch chat sessions' });
+  }
+});
+
+// Get messages for a specific session
+app.get('/api/chat/sessions/:sessionId/messages', chatHistoryLimiter, async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    const { sessionId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Verify session ownership
+    const { data: session } = await supabase
+      .from('chat_sessions')
+      .select('id')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Get messages
+    const { data: messages, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    res.json({ messages: messages || [] });
+  } catch (error) {
+    logger.error('Error fetching messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Create a new chat session
+app.post('/api/chat/sessions', chatHistoryLimiter, async (req, res) => {
+  try {
+    const { userId, title } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const { data: session, error } = await supabase
+      .from('chat_sessions')
+      .insert({
+        user_id: userId,
+        title: title || 'New Chat',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_message_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    logger.info(`✅ Created chat session ${session.id} for user ${userId}`);
+    res.json({ session });
+  } catch (error) {
+    logger.error('Error creating chat session:', error);
+    res.status(500).json({ error: 'Failed to create chat session' });
+  }
+});
+
+// Save a message to a session
+app.post('/api/chat/sessions/:sessionId/messages', chatHistoryLimiter, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { userId, role, content, visualElements, actions } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Verify session ownership
+    const { data: session } = await supabase
+      .from('chat_sessions')
+      .select('id')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Save message
+    const { data: message, error } = await supabase
+      .from('chat_messages')
+      .insert({
+        session_id: sessionId,
+        user_id: userId,
+        role,
+        content,
+        visual_elements: visualElements || [],
+        actions: actions || [],
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Update session's last_message_at
+    await supabase
+      .from('chat_sessions')
+      .update({
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId);
+
+    res.json({ message });
+  } catch (error) {
+    logger.error('Error saving message:', error);
+    res.status(500).json({ error: 'Failed to save message' });
+  }
+});
+
+// Update session title
+app.patch('/api/chat/sessions/:sessionId', chatHistoryLimiter, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { userId, title } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const { data: session, error } = await supabase
+      .from('chat_sessions')
+      .update({ title, updated_at: new Date().toISOString() })
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    logger.info(`✅ Updated session ${sessionId} title to: ${title}`);
+    res.json({ session });
+  } catch (error) {
+    logger.error('Error updating session:', error);
+    res.status(500).json({ error: 'Failed to update session' });
+  }
+});
+
+// Delete a session
+app.delete('/api/chat/sessions/:sessionId', chatHistoryLimiter, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const userId = req.query.userId;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const { error } = await supabase
+      .from('chat_sessions')
+      .delete()
+      .eq('id', sessionId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    logger.info(`✅ Deleted chat session ${sessionId}`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error deleting session:', error);
+    res.status(500).json({ error: 'Failed to delete session' });
   }
 });
 
