@@ -26,74 +26,50 @@ import logger from '../../../utils/logger';
  * This saves 500ms-2000ms on obvious requests by avoiding the planning AI call.
  */
 const FAST_ROUTES = [
-  // ==================== GREETINGS & GENERAL ====================
-  // Route greetings/general questions to DocumentAgent for quick response
+  // ==================== GREETINGS (standalone only) ====================
   { patterns: [/^(hello|hi|hey|good morning|good afternoon|good evening|what's up|howdy)[\s!?.]*$/i],
-    route: { agent: 'DocumentAgent', task: 'answer_general_question' } },
-  { patterns: [
-      /^(help|what can you do|how do you work)[\s!?.]*$/i,
-      /\bhow\s+(do|can|to)\s+(i|we)\b/i,
-      /\bwhere\s+(is|are|can|do)\s+i\b/i,
-      /\bcan\s+(i|the|a|my)\s+(supervisor|worker|client|owner)s?\b/i,
-      /\bhow\s+does\b.*\bwork\b/i,
-      /\bwhat\s+(can|does)\s+(a|the|my)\s+(supervisor|worker|client|owner)s?\b/i,
-      /\bpermissions?\b/i,
-      /\btutorial\b/i,
-      /\bguide\s+me\b/i,
-      /\binstructions?\b/i,
-      /\bhow\s+to\s+use\b/i,
-    ],
     route: { agent: 'DocumentAgent', task: 'answer_general_question' } },
 
   // ==================== ESTIMATES (CHECK BEFORE PROJECTS) ====================
-  // Estimate patterns MUST be checked before project patterns to avoid confusion
+  // Estimate LOOKUP first — "show/find/get estimate" should never be creation
+  { patterns: [/\b(show|list|find|get|see|view)\b.*\bestimates?\b/i, /\bmy estimates\b/i],
+    route: { agent: 'EstimateInvoiceAgent', task: 'find_estimates' } },
+  // Estimate SEND
+  { patterns: [/\b(send|email|share|text)\b.*\bestimate\b/i, /\bestimate\b.*\b(send|email|share)\b/i],
+    route: { agent: 'EstimateInvoiceAgent', task: 'send_estimate' } },
+  // Estimate CREATION — only explicit creation verbs (removed greedy "estimate.*for" pattern)
   { patterns: [
-      /\b(create|new|make|generate|build)\b.*\bestimate\b/i,
-      /\bestimate\b.*\b(for|create)\b/i,
-      /\b(create|new|make)\b.*\bquote\b/i,
-      /\bhow much\b.*\b(cost|charge|would it)\b/i,
+      /\b(create|new|make|generate|build)\b.*\bestimate\b/i,              // "create an estimate"
+      /\b(create|new|make)\b.*\bquote\b/i,                                // "create a quote"
+      /\bhow much\b.*\b(cost|charge|would it)\b/i,                        // "how much would it cost"
+      /\bestimate\b.*\bcreate\b/i,                                        // "estimate create" (only matches "create", not "for")
     ],
     route: { agent: 'EstimateInvoiceAgent', task: 'create_estimate' } },
-  { patterns: [/\b(show|list|find|get|see)\b.*\bestimates?\b/i, /\bmy estimates\b/i],
-    route: { agent: 'EstimateInvoiceAgent', task: 'find_estimates' } },
-
-  // ==================== PROJECT CREATION ====================
-  { patterns: [
-      /\b(create|new|start|add|make)\b.*\b(project|job)\b/i,
-      /\bproject\b.*\b(create|new|start)\b/i,
-      /\b(got|have|need)\b.*\b(a |an )?(job|project)\b.*\b(to |for )/i,  // "I got a job to install..."
-      /\b(install|replace|repair|fix)\b.*\b(toilet|faucet|sink|pipe|roof|floor|window|door|drywall)\b/i,  // Direct work descriptions
-    ],
-    route: { agent: 'ProjectAgent', task: 'start_project_creation' } },
 
   // ==================== INVOICES ====================
-  { patterns: [/\b(create|new|make|generate)\b.*\binvoice\b/i, /\binvoice\b.*\b(for|create)\b/i],
-    route: { agent: 'EstimateInvoiceAgent', task: 'create_invoice' } },
-  { patterns: [/\b(show|list|find|get|see)\b.*\binvoices?\b/i, /\bmy invoices\b/i],
+  // Invoice LOOKUP first
+  { patterns: [/\b(show|list|find|get|see|view)\b.*\binvoices?\b/i, /\bmy invoices\b/i],
     route: { agent: 'EstimateInvoiceAgent', task: 'find_invoices' } },
+  // Invoice SEND
+  { patterns: [/\b(send|email|share|text)\b.*\binvoice\b/i, /\binvoice\b.*\b(send|email|share)\b/i],
+    route: { agent: 'EstimateInvoiceAgent', task: 'send_estimate' } },
+  // Invoice CREATION
+  { patterns: [/\b(create|new|make|generate)\b.*\binvoice\b/i, /\binvoice\b.*\bcreate\b/i],
+    route: { agent: 'EstimateInvoiceAgent', task: 'create_invoice' } },
 
-  // ==================== FINANCIAL ====================
-  { patterns: [/\b(how much|total|sum)\b.*\b(income|earned|made|revenue)\b/i, /\b(income|earnings|revenue)\b.*\b(total|this|last)\b/i],
-    route: { agent: 'FinancialAgent', task: 'analyze_financials' } },
-  { patterns: [/\b(record|add|log)\b.*\b(expense|payment|transaction)\b/i],
-    route: { agent: 'FinancialAgent', task: 'record_transaction' } },
-  { patterns: [/\b(show|list|get)\b.*\b(expenses?|transactions?|payments?)\b/i],
-    route: { agent: 'FinancialAgent', task: 'query_transactions' } },
-  { patterns: [/\bprofit\b/i, /\bmargin\b/i, /\bhow.*(doing|going)\b.*\b(financially|money)\b/i],
-    route: { agent: 'FinancialAgent', task: 'analyze_financials' } },
-
-  // ==================== WORKERS ====================
+  // ==================== WORKERS (CHECK BEFORE PROJECT UPDATE) ====================
+  // Worker management — must be before project update so "add worker to project" isn't stolen
   { patterns: [/\b(add|create|new|hire)\b.*\bworker\b/i, /\bworker\b.*\b(add|create|new)\b/i],
     route: { agent: 'WorkersSchedulingAgent', task: 'manage_worker' } },
   { patterns: [/\b(show|list|get|see|who)\b.*\bworkers?\b/i, /\bmy (workers|crew|team)\b/i],
     route: { agent: 'WorkersSchedulingAgent', task: 'query_workers' } },
-  { patterns: [/\b(assign|send|schedule)\b.*\bworker\b/i],
+  { patterns: [/\b(assign|send)\b.*\bworker\b/i, /\bworker\b.*\b(assign|send)\b/i],
     route: { agent: 'WorkersSchedulingAgent', task: 'assign_worker' } },
-  // ⚡ NEW: Common worker status queries (saves ~2-3 seconds on these)
+  // Worker status queries
   { patterns: [
-      /\bis\s+\w+\s+working/i,                           // "is João working", "is Jose working today"
-      /\b(who|anyone|anybody)\s+(is\s+)?(working|clocked|on.?site)/i,  // "who is working", "anyone working today"
-      /\b(who('s)?|anyone)\s+clocked\s+in/i,             // "who's clocked in", "anyone clocked in"
+      /\bis\s+\w+\s+working/i,                           // "is João working"
+      /\b(who|anyone|anybody)\s+(is\s+)?(working|clocked|on.?site)/i,  // "who is working"
+      /\b(who('s)?|anyone)\s+clocked\s+in/i,             // "who's clocked in"
       /\bworking\s+today\b/i,                            // "working today?"
       /\bclocked\s+in\s+today\b/i,                       // "clocked in today"
     ],
@@ -102,26 +78,121 @@ const FAST_ROUTES = [
     route: { agent: 'WorkersSchedulingAgent', task: 'track_time' } },
 
   // ==================== SCHEDULE ====================
-  { patterns: [/\b(show|get|what('s)?)\b.*\b(schedule|calendar)\b/i, /\bmy (schedule|calendar)\b/i],
+  { patterns: [/\b(show|get|check|what('s)?)\b.*\b(schedule|calendar)\b/i, /\bmy (schedule|calendar)\b/i],
     route: { agent: 'WorkersSchedulingAgent', task: 'retrieve_schedule_events' } },
-  { patterns: [/\b(add|create|schedule)\b.*\b(event|meeting|appointment)\b/i],
+  { patterns: [/\b(add|create|schedule|update|change)\b.*\b(event|meeting|appointment)\b/i],
     route: { agent: 'WorkersSchedulingAgent', task: 'manage_schedule_event' } },
 
   // ==================== DAILY REPORTS ====================
   { patterns: [/\b(show|get|see|list|view)\b.*\bdaily\s*reports?\b/i, /\bdaily\s*reports?\b/i, /\breports?\s+today\b/i],
     route: { agent: 'WorkersSchedulingAgent', task: 'retrieve_daily_reports' } },
 
-  // ==================== PROJECTS LOOKUP ====================
-  { patterns: [/\b(show|list|get|see|find)\b.*\b(projects?|jobs?)\b/i, /\bmy (projects|jobs)\b/i, /\b(active|current)\b.*\b(projects?|jobs?)\b/i],
-    route: { agent: 'DocumentAgent', task: 'find_project' } },
+  // ==================== FINANCIAL ====================
+  // Financial RECORDING — "record/log expense" (check before project update so "add expense" isn't stolen)
+  { patterns: [
+      /\b(record|log)\b.*\b(expense|payment|transaction|income)\b/i,       // "record expense", "log payment"
+      /\b(add|record|log)\b.*\b(expense|payment|transaction)\b(?!.*\b(project|job)\b)/i,  // "add expense" but NOT "add expense to project"
+    ],
+    route: { agent: 'FinancialAgent', task: 'record_transaction' } },
+  { patterns: [/\b(how much|total|sum)\b.*\b(income|earned|made|revenue)\b/i, /\b(income|earnings|revenue)\b.*\b(total|this|last)\b/i],
+    route: { agent: 'FinancialAgent', task: 'analyze_financials' } },
+  { patterns: [/\b(show|list|get)\b.*\b(expenses?|transactions?|payments?)\b/i],
+    route: { agent: 'FinancialAgent', task: 'query_transactions' } },
+  // Profit/financial analysis — require more context (bare "profit" alone is too broad)
+  { patterns: [
+      /\b(what('s)?|how much|total|show|my)\b.*\bprofit\b/i,               // "what's my profit", "how much profit"
+      /\bhow.*(doing|going)\b.*\b(financially|money)\b/i,                  // "how am I doing financially"
+      /\b(analyze|analysis|breakdown)\b.*\b(financ|money|budget)\b/i,      // "analyze finances"
+    ],
+    route: { agent: 'FinancialAgent', task: 'analyze_financials' } },
 
   // ==================== SETTINGS ====================
-  { patterns: [/\b(show|get|update|change)\b.*\b(settings?|preferences?)\b/i, /\bmy settings\b/i],
+  // Profit MARGINS settings (must be before generic financial analysis)
+  { patterns: [
+      /\b(set|update|change|adjust|edit)\b.*\b(profit\s*)?margins?\b/i,    // "set profit margins", "change margins"
+      /\bmargins?\b.*\b(set|update|change|adjust)\b/i,                     // "margins update"
+    ],
+    route: { agent: 'SettingsConfigAgent', task: 'manage_profit_margins' } },
+  { patterns: [/\b(show|get|view)\b.*\b(settings?|preferences?)\b/i, /\bmy settings\b/i],
     route: { agent: 'SettingsConfigAgent', task: 'query_settings' } },
-  { patterns: [/\b(update|change|edit)\b.*\b(business|company)\b.*\b(info|name|details)\b/i],
+  { patterns: [/\b(update|change|edit)\b.*\b(settings?|preferences?)\b/i],
+    route: { agent: 'SettingsConfigAgent', task: 'manage_business_settings' } },
+  { patterns: [/\b(update|change|edit)\b.*\b(business|company)\b.*\b(info|name|details|address|phone|email|logo)\b/i],
     route: { agent: 'SettingsConfigAgent', task: 'manage_business_settings' } },
   { patterns: [/\b(service|pricing)\b.*\b(catalog|list|prices?)\b/i, /\bmy (services|prices)\b/i],
     route: { agent: 'SettingsConfigAgent', task: 'manage_service_catalog' } },
+
+  // ==================== PROJECTS LOOKUP (CHECK BEFORE UPDATE/CREATION) ====================
+  // Must be before creation so "show me the new project" matches lookup, not creation
+  { patterns: [
+      /\b(show|list|get|see|find|view)\b.*\b(projects?|jobs?)\b/i,         // "show my projects", "find the project"
+      /\bmy (projects|jobs)\b/i,                                            // "my projects"
+      /\b(active|current)\b.*\b(projects?|jobs?)\b/i,                      // "active projects"
+    ],
+    route: { agent: 'DocumentAgent', task: 'find_project' } },
+
+  // ==================== PROJECT DELETE ====================
+  { patterns: [/\b(delete|remove)\b.*\b(project|job)s?\b/i, /\b(project|job)s?\b.*\b(delete|remove)\b/i],
+    route: { agent: 'DocumentAgent', task: 'delete_project' } },
+
+  // ==================== PROJECT UPDATES ====================
+  // Tighter patterns — only match when the verb directly applies to the project itself
+  { patterns: [
+      /\b(update|change|edit|modify)\b.*\b(the |my |this )?(project|job)\b/i,   // "update the project", "change my project"
+      /\b(project|job)\b.*\b(update|change|edit|modify|needs?\s+update)\b/i,    // "project needs update"
+      /\badd\b.*\b(details?|info|data|numbers?|budget|amount|phase|timeline)\b.*\b(to|for|in|on)\b.*\b(project|job)\b/i,  // "add details to the project" (specific nouns only)
+      /\badd\b.*\b(to|into)\b.*\b(the |my |this )(project|job)\b(?!.*\bnew\b)/i,  // "add this to the project" (but not "add a new project")
+    ],
+    route: { agent: 'DocumentAgent', task: 'update_project' } },
+
+  // ==================== PROJECT CREATION ====================
+  { patterns: [
+      /\b(create|new|start)\b.*\b(project|job)\b/i,                         // "create/new/start a project"
+      /\bproject\b.*\b(create|new|start)\b/i,                               // "project create/new/start"
+      /\b(got|have)\b.*\b(a |an )?(job|project)\b.*\b(to |for )/i,          // "I got a job to install..." (removed "need" — too ambiguous)
+      /\b(install|replace|repair|fix)\b.*\b(toilet|faucet|sink|pipe|roof|floor|window|door|drywall)\b/i,  // Direct work descriptions
+      /\bmake\b.*\b(a |an ).*\b(new )?(project|job)\b/i,                    // "make a new project" (requires "a/an")
+      /\badd\b.*\b(a |an )\b.*\bnew\b.*\b(project|job)\b/i,                 // "add a new project" — explicit "new" = creation
+    ],
+    route: { agent: 'ProjectAgent', task: 'start_project_creation' } },
+
+  // ==================== PHOTOS ====================
+  { patterns: [
+      /\b(show|get|see|view|find)\b.*\b(photos?|pictures?|images?)\b/i,    // "show me project photos"
+      /\b(job\s*site|project)\b.*\b(photos?|pictures?)\b/i,                // "job site photos"
+    ],
+    route: { agent: 'WorkersSchedulingAgent', task: 'retrieve_photos' } },
+
+  // ==================== WORKER PAYMENTS ====================
+  { patterns: [
+      /\b(how much|what)\b.*\b(owe|pay)\b.*\bworker\b/i,                  // "how much do I owe the worker"
+      /\b(calculate|compute)\b.*\b(worker|crew)\b.*\bpay\b/i,             // "calculate worker pay"
+      /\bworker\b.*\bpay(ment|roll)?\b/i,                                  // "worker payment"
+    ],
+    route: { agent: 'WorkersSchedulingAgent', task: 'query_worker_payment' } },
+
+  // ==================== CONTRACTS ====================
+  { patterns: [
+      /\b(show|get|view|list)\b.*\bcontracts?\b/i,                        // "show my contracts"
+      /\bmy contracts\b/i,
+    ],
+    route: { agent: 'DocumentAgent', task: 'list_contract_documents' } },
+
+  // ==================== HELP & GENERAL (CHECKED LAST — fallback) ====================
+  // Moved to end so "how do I create a project" matches project creation FIRST,
+  // and only truly general help questions land here
+  { patterns: [
+      /^(help|what can you do|how do you work)[\s!?.]*$/i,                 // standalone help
+      /\bcan\s+(i|the|a|my)\s+(supervisor|worker|client|owner)s?\b/i,     // role capability questions
+      /\bwhat\s+(can|does)\s+(a|the|my)\s+(supervisor|worker|client|owner)s?\b/i,  // "what can my supervisor do"
+      /\bpermissions?\b.*\b(supervisor|worker|client|owner)\b/i,           // "supervisor permissions" (tighter — requires role noun)
+      /\btutorial\b/i,
+      /\bguide\s+me\b/i,
+      /\binstructions?\b/i,
+      /\bhow\s+to\s+use\b/i,                                              // "how to use the app"
+      /\bhow\s+does\b.*\b(app|feature|system)\b.*\bwork\b/i,              // "how does this feature work" (requires "app/feature/system")
+    ],
+    route: { agent: 'DocumentAgent', task: 'answer_general_question' } },
 ];
 
 // ⛔ Agents that supervisors cannot access

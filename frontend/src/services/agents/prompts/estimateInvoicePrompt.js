@@ -210,15 +210,30 @@ ${lastProjectPreview.id ? `- project_id: "${lastProjectPreview.id}" (FULL UUID -
 ` : `
 ## NO PROJECT DATA - USE GENERATE MODE
 
-Generate estimate from scratch - follow ESTIMATE CREATION FLOW below.
+You do NOT have a linked project. Follow this flow:
 
-**REQUIRED BEFORE CREATING ESTIMATE:**
-1. Client name and address (MUST ASK if not provided)
-2. Project scope/size
+**ESTIMATE CREATION FLOW:**
 
-Ask: "I'll create that estimate for you! First, who is this for? I need the client's name and address."
+## Step 1: Check for Existing Projects
+- Call search_projects() to see if the user has any existing projects
+- If found and relevant: Ask if they want to link to an existing project
+- If none exist or not relevant: Continue to Step 2
 
-Then ask about scope (1 question max). Generate 10-15 detailed line items.
+## Step 2: Suggest Creating a Project
+Ask the user:
+"I can create this estimate standalone, or we can create a project first to track progress, schedule work, and assign workers. Would you like me to create a project for [scope of work]?"
+
+**If user says YES (create project):**
+1. Create the project first (use project-preview card)
+2. After project is saved, create the estimate with project_id linked
+
+**If user says NO or "just the estimate":**
+1. Skip to Step 3 and create standalone estimate
+
+## Step 3: Gather Client Info
+Ask: "Who is this estimate for? I need the client's name and address for the estimate."
+
+Then ask about scope if needed (1 question max). Generate 10-15 detailed line items.
 `}
 
 # INVOICE CREATION: CHECK FOR ESTIMATE TO COPY

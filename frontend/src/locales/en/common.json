@@ -42,7 +42,9 @@
     "shiftTasks": "Shift Tasks",
     "loadMore": "Load More ({{count}})",
     "deleteProject": "Delete Project",
-    "saveChanges": "Save Changes"
+    "saveChanges": "Save Changes",
+    "accept": "Accept",
+    "reject": "Reject"
   },
   "labels": {
     "email": "Email",
@@ -268,7 +270,10 @@
     "selectPhasesDescription": "Select phases for this project. You can reorder them and adjust duration for each phase.",
     "addCustomPhase": "Enter a name for the custom phase",
     "organizingTasks": "Organizing tasks...",
-    "failedToShare": "Failed to share {{item}}"
+    "failedToShare": "Failed to share {{item}}",
+    "inviteMessage": "You've been invited to join as a {{trade}}. Accept to start working!",
+    "failedToAcceptInvite": "Failed to accept invitation. Please try again.",
+    "failedToRejectInvite": "Failed to reject invitation. Please try again."
   },
   "permissions": {
     "cameraRequired": "Camera permission is required to take photos",

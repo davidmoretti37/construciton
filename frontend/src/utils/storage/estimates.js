@@ -72,9 +72,14 @@ export const saveEstimate = async (estimateData) => {
         const updateData = {};
 
         if (mergeMode && existingProject) {
-          updateData.budget = (existingProject.budget || 0) + (estimateData.total || 0);
+          const newTotal = (existingProject.budget || 0) + (estimateData.total || 0);
+          updateData.budget = newTotal;
+          updateData.contract_amount = newTotal;
+          updateData.base_contract = newTotal;
         } else {
           updateData.budget = estimateData.total;
+          updateData.contract_amount = estimateData.total;
+          updateData.base_contract = estimateData.total;
         }
 
         if (estimateData.schedule && estimateData.schedule.startDate) {
@@ -269,7 +274,9 @@ export const updateEstimate = async (estimateData) => {
     if (estimateData.projectId && data) {
       try {
         const updateData = {
-          budget: estimateData.total
+          budget: estimateData.total,
+          contract_amount: estimateData.total,
+          base_contract: estimateData.total,
         };
 
         if (estimateData.schedule && estimateData.schedule.startDate) {

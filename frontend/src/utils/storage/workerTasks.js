@@ -305,13 +305,17 @@ export const updateProjectProgressFromTasks = async (projectId) => {
  */
 export const completeTask = async (taskId, workerId) => {
   try {
+    const updateData = {
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+    };
+    if (workerId) {
+      updateData.completed_by = workerId;
+    }
+
     const { data, error } = await supabase
       .from('worker_tasks')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        completed_by: workerId,
-      })
+      .update(updateData)
       .eq('id', taskId)
       .select()
       .single();

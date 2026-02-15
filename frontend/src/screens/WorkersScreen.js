@@ -61,6 +61,7 @@ import AddTaskModal from '../components/AddTaskModal';
 import NotificationBell from '../components/NotificationBell';
 import TaskMoveModal from '../components/TaskMoveModal';
 import FullscreenPhotoViewer from '../components/FullscreenPhotoViewer';
+import AssignWorkerModal from '../components/modals/AssignWorkerModal';
 import { formatHoursMinutes } from '../utils/calculations';
 
 export default function WorkersScreen({ navigation, route, ownerMode = false, activeTab: externalActiveTab, onTabChange, showHeader = true }) {
@@ -90,6 +91,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const [assignmentCounts, setAssignmentCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
@@ -100,6 +102,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   // Schedule tab state
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calendarViewMode, setCalendarViewMode] = useState('week'); // 'week' | 'month'
+  const [expandedProjects, setExpandedProjects] = useState({});
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [workSchedules, setWorkSchedules] = useState([]);
   const [activeProjects, setActiveProjects] = useState([]);
@@ -183,9 +186,16 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         // Clear the param so it doesn't reopen on subsequent focus
         navigation.setParams({ openAddModal: false });
       }
+      // Check if we should open assign modal (from quick action)
+      if (route?.params?.openAssignModal) {
+        setShowAssignModal(true);
+        setActiveTab('workers');
+        // Clear the param so it doesn't reopen on subsequent focus
+        navigation.setParams({ openAssignModal: false });
+      }
     });
     return unsubscribe;
-  }, [navigation, hasLoadedOnce, route?.params?.openAddModal]);
+  }, [navigation, hasLoadedOnce]);
 
   useEffect(() => {
     filterData();
@@ -1076,7 +1086,11 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </Text>
                 )}
-                {calendarViewMode === 'week' && <View style={{ flex: 1 }} />}
+                {calendarViewMode === 'week' && (
+                  <Text style={[styles.calendarTitle, { color: Colors.primaryText, fontSize: 16 }]}>
+                    {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </Text>
+                )}
 
                 {/* View Toggle */}
                 <View style={[styles.calendarViewToggle, { backgroundColor: Colors.lightGray }]}>
@@ -1141,11 +1155,11 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   }}
                 />
               )}
-            </View>
 
-            {/* Schedule Actions */}
-            <View style={styles.scheduleSection}>
-              <View style={styles.scheduleActionsRow}>
+              {/* Divider before buttons */}
+              <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 12, marginTop: 6 }} />
+              {/* Action Buttons inside calendar container */}
+              <View style={[styles.scheduleActionsRow, { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 2, marginBottom: 0 }]}>
                 <TouchableOpacity
                   style={[styles.addEventButton, { backgroundColor: Colors.primaryBlue }]}
                   onPress={() => setShowAddEventModal(true)}
@@ -1164,7 +1178,10 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   <Text style={styles.addTaskButtonText}>{t('schedule.addTask', 'Add Task')}</Text>
                 </TouchableOpacity>
               </View>
+            </View>
 
+            {/* Schedule Content */}
+            <View style={styles.scheduleSection}>
               {/* Loading indicator for schedule data */}
               {scheduleLoading && (
                 <View style={styles.scheduleLoadingContainer}>
@@ -1255,13 +1272,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                 </View>
               )}
 
-              {/* Worker Tasks Section */}
+              {/* Tasks Section */}
               {!scheduleLoading && (
                 <View style={styles.scheduleCategory}>
                   <View style={styles.categoryHeader}>
                     <Ionicons name="checkbox-outline" size={20} color={Colors.warningOrange} />
                     <Text style={[styles.categoryTitle, { color: Colors.warningOrange }]}>
-                      {t('schedule.workerTasks', 'Tasks')}
+                      Tasks
                     </Text>
                   </View>
 
@@ -1276,7 +1293,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                       </Text>
                     </View>
                   ) : (
-                    // Group tasks by project
+                    // Group tasks by project with collapsible dropdowns
                     Object.entries(
                       scheduleTasks.reduce((acc, task) => {
                         const projectName = task.projects?.name || 'Unknown Project';
@@ -1286,211 +1303,122 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                         acc[projectName].push(task);
                         return acc;
                       }, {})
-                    ).map(([projectName, tasks]) => (
-                      <View key={projectName} style={styles.taskProjectGroup}>
-                        <View style={[styles.taskProjectHeader, { backgroundColor: Colors.warningOrange + '15' }]}>
-                          <Ionicons name="business-outline" size={16} color={Colors.warningOrange} />
-                          <Text style={[styles.taskProjectName, { color: Colors.warningOrange }]}>
-                            {projectName}
-                          </Text>
-                          <View style={[styles.taskCountBadge, { backgroundColor: Colors.warningOrange + '30' }]}>
-                            <Text style={[styles.taskCountText, { color: Colors.warningOrange }]}>
-                              {tasks.length}
+                    ).map(([projectName, tasks]) => {
+                      const isExpanded = expandedProjects[projectName];
+                      const completedCount = tasks.filter(t => t.status === 'completed').length;
+                      return (
+                        <View key={projectName} style={styles.taskProjectGroup}>
+                          <TouchableOpacity
+                            style={[styles.taskProjectHeader, { backgroundColor: Colors.white, borderLeftWidth: 4, borderLeftColor: Colors.warningOrange, borderWidth: 1, borderColor: Colors.border }]}
+                            onPress={() => setExpandedProjects(prev => ({ ...prev, [projectName]: !prev[projectName] }))}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="business-outline" size={18} color={Colors.warningOrange} />
+                            <Text style={[styles.taskProjectName, { color: Colors.primaryText, flex: 1 }]} numberOfLines={1}>
+                              {projectName}
                             </Text>
-                          </View>
-                        </View>
-                        {tasks.map((task) => (
-                          <View
-                            key={task.id}
-                            style={[
-                              styles.taskCard,
-                              { backgroundColor: Colors.white, borderLeftColor: Colors.warningOrange, borderLeftWidth: 3 }
-                            ]}
-                          >
-                            <View style={styles.taskCardContent}>
-                              <TouchableOpacity
-                                style={styles.taskStatusIcon}
-                                onPress={() => handleToggleTaskComplete(task)}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                              >
-                                <Ionicons
-                                  name={task.status === 'completed' ? 'checkbox' : task.status === 'incomplete' ? 'close-circle' : 'square-outline'}
-                                  size={22}
-                                  color={task.status === 'completed' ? Colors.successGreen : task.status === 'incomplete' ? Colors.errorRed : Colors.secondaryText}
-                                />
-                              </TouchableOpacity>
-                              <View style={styles.taskDetails}>
-                                <Text style={[
-                                  styles.taskTitle,
-                                  { color: Colors.primaryText },
-                                  task.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
-                                ]}>
-                                  {task.title}
-                                </Text>
-                                {task.description && (
-                                  <Text style={[styles.taskDescription, { color: Colors.secondaryText }]} numberOfLines={2}>
-                                    {task.description}
-                                  </Text>
-                                )}
-                                <View style={styles.taskMeta}>
-                                  {task.start_date !== task.end_date && (
-                                    <View style={[styles.taskDateBadge, { backgroundColor: Colors.lightGray }]}>
-                                      <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
-                                      <Text style={[styles.taskDateText, { color: Colors.secondaryText }]}>
-                                        {new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                        {' - '}
-                                        {new Date(task.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            <Text style={[{ color: Colors.secondaryText, fontSize: 13, fontWeight: '500', marginRight: 8 }]}>
+                              {completedCount}/{tasks.length}
+                            </Text>
+                            <Ionicons
+                              name={isExpanded ? 'chevron-down' : 'chevron-forward'}
+                              size={20}
+                              color={Colors.secondaryText}
+                            />
+                          </TouchableOpacity>
+                          {isExpanded && (
+                            <View style={{ backgroundColor: Colors.lightGray + '40', paddingHorizontal: 10, paddingVertical: 8, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
+                              {tasks.map((task) => (
+                                <View
+                                  key={task.id}
+                                  style={[
+                                    styles.taskCard,
+                                    { backgroundColor: Colors.white, borderLeftColor: Colors.warningOrange, borderLeftWidth: 3 }
+                                  ]}
+                                >
+                                  <View style={styles.taskCardContent}>
+                                    <TouchableOpacity
+                                      style={styles.taskStatusIcon}
+                                      onPress={() => handleToggleTaskComplete(task)}
+                                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    >
+                                      <Ionicons
+                                        name={task.status === 'completed' ? 'checkbox' : task.status === 'incomplete' ? 'close-circle' : 'square-outline'}
+                                        size={22}
+                                        color={task.status === 'completed' ? Colors.successGreen : task.status === 'incomplete' ? Colors.errorRed : Colors.secondaryText}
+                                      />
+                                    </TouchableOpacity>
+                                    <View style={styles.taskDetails}>
+                                      <Text style={[
+                                        styles.taskTitle,
+                                        { color: Colors.primaryText },
+                                        task.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
+                                      ]}>
+                                        {task.title}
                                       </Text>
+                                      {task.description && (
+                                        <Text style={[styles.taskDescription, { color: Colors.secondaryText }]} numberOfLines={2}>
+                                          {task.description}
+                                        </Text>
+                                      )}
+                                      <View style={styles.taskMeta}>
+                                        {task.start_date !== task.end_date && (
+                                          <View style={[styles.taskDateBadge, { backgroundColor: Colors.lightGray }]}>
+                                            <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
+                                            <Text style={[styles.taskDateText, { color: Colors.secondaryText }]}>
+                                              {new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                              {' - '}
+                                              {new Date(task.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                            </Text>
+                                          </View>
+                                        )}
+                                        {task.status === 'completed' && task.completed_worker && (
+                                          <View style={[styles.taskCompletedBadge, { backgroundColor: Colors.successGreen + '15' }]}>
+                                            <Ionicons name="checkmark-circle" size={12} color={Colors.successGreen} />
+                                            <Text style={[styles.taskCompletedText, { color: Colors.successGreen }]}>
+                                              {task.completed_worker.full_name}
+                                            </Text>
+                                          </View>
+                                        )}
+                                        {task.status === 'incomplete' && task.incomplete_reason && (
+                                          <View style={[styles.taskIncompleteBadge, { backgroundColor: Colors.errorRed + '15' }]}>
+                                            <Ionicons name="alert-circle" size={12} color={Colors.errorRed} />
+                                            <Text style={[styles.taskIncompleteText, { color: Colors.errorRed }]} numberOfLines={1}>
+                                              {task.incomplete_reason}
+                                            </Text>
+                                          </View>
+                                        )}
+                                      </View>
                                     </View>
-                                  )}
-                                  {task.status === 'completed' && task.completed_worker && (
-                                    <View style={[styles.taskCompletedBadge, { backgroundColor: Colors.successGreen + '15' }]}>
-                                      <Ionicons name="checkmark-circle" size={12} color={Colors.successGreen} />
-                                      <Text style={[styles.taskCompletedText, { color: Colors.successGreen }]}>
-                                        {task.completed_worker.full_name}
-                                      </Text>
+                                    <View style={styles.taskActions}>
+                                      <TouchableOpacity
+                                        style={styles.taskActionButton}
+                                        onPress={() => handleMoveTask(task)}
+                                      >
+                                        <Ionicons name="swap-horizontal-outline" size={18} color={Colors.primaryBlue} />
+                                      </TouchableOpacity>
+                                      <TouchableOpacity
+                                        style={styles.taskActionButton}
+                                        onPress={() => handleEditTask(task)}
+                                      >
+                                        <Ionicons name="pencil-outline" size={18} color={Colors.primaryBlue} />
+                                      </TouchableOpacity>
+                                      <TouchableOpacity
+                                        style={styles.taskActionButton}
+                                        onPress={() => handleDeleteTask(task.id)}
+                                      >
+                                        <Ionicons name="trash-outline" size={18} color={Colors.errorRed} />
+                                      </TouchableOpacity>
                                     </View>
-                                  )}
-                                  {task.status === 'incomplete' && task.incomplete_reason && (
-                                    <View style={[styles.taskIncompleteBadge, { backgroundColor: Colors.errorRed + '15' }]}>
-                                      <Ionicons name="alert-circle" size={12} color={Colors.errorRed} />
-                                      <Text style={[styles.taskIncompleteText, { color: Colors.errorRed }]} numberOfLines={1}>
-                                        {task.incomplete_reason}
-                                      </Text>
-                                    </View>
-                                  )}
+                                  </View>
                                 </View>
-                              </View>
-                              <View style={styles.taskActions}>
-                                <TouchableOpacity
-                                  style={styles.taskActionButton}
-                                  onPress={() => handleMoveTask(task)}
-                                >
-                                  <Ionicons name="swap-horizontal-outline" size={18} color={Colors.primaryBlue} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  style={styles.taskActionButton}
-                                  onPress={() => handleEditTask(task)}
-                                >
-                                  <Ionicons name="pencil-outline" size={18} color={Colors.primaryBlue} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  style={styles.taskActionButton}
-                                  onPress={() => handleDeleteTask(task.id)}
-                                >
-                                  <Ionicons name="trash-outline" size={18} color={Colors.errorRed} />
-                                </TouchableOpacity>
-                              </View>
+                              ))}
                             </View>
-                          </View>
-                        ))}
-                      </View>
-                    ))
+                          )}
+                        </View>
+                      );
+                    })
                   )}
-                </View>
-              )}
-
-              {/* Projects - Jobs happening on this date */}
-              {!scheduleLoading && activeProjects.length > 0 && (
-                <View style={styles.scheduleCategory}>
-                  {activeProjects.map((project) => (
-                    <TouchableOpacity
-                      key={project.id}
-                      style={[styles.projectCard, { backgroundColor: Colors.white }]}
-                      onPress={() => navigation.navigate('Projects', { projectId: project.id })}
-                    >
-                      {/* Project Header */}
-                      <View style={styles.projectCardHeader}>
-                        <Text style={[styles.projectCardTitle, { color: Colors.primaryText }]}>
-                          {project.name}
-                        </Text>
-                        <View
-                          style={[
-                            styles.projectStatusBadge,
-                            {
-                              backgroundColor:
-                                project.status === 'active'
-                                  ? Colors.primaryBlue + '20'
-                                  : project.status === 'completed'
-                                  ? Colors.successGreen + '20'
-                                  : Colors.secondaryText + '20',
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.projectStatusText,
-                              {
-                                color:
-                                  project.status === 'active'
-                                    ? Colors.primaryBlue
-                                    : project.status === 'completed'
-                                    ? Colors.successGreen
-                                    : Colors.secondaryText,
-                              },
-                            ]}
-                          >
-                            {project.status === 'active'
-                              ? t('schedule.projectActive', 'Active')
-                              : project.status === 'completed'
-                              ? t('schedule.projectCompleted', 'Completed')
-                              : t('schedule.projectArchived', 'Archived')}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Project Timeline */}
-                      <View style={styles.projectTimeline}>
-                        <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
-                        <Text style={[styles.projectTimelineText, { color: Colors.secondaryText }]}>
-                          {project.startDate && new Date(project.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          {project.endDate && ` - ${new Date(project.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                          {!project.endDate && ` - ${t('schedule.ongoing', 'Ongoing')}`}
-                        </Text>
-                      </View>
-
-                      {/* Active Phases for this project */}
-                      {project.phases && project.phases.length > 0 && (
-                        <View style={styles.projectPhases}>
-                          <Text style={[styles.projectPhasesLabel, { color: Colors.secondaryText }]}>
-                            {t('schedule.phases', 'Phases')}:
-                          </Text>
-                          {project.phases.map((phase, index) => (
-                            <View
-                              key={phase.id}
-                              style={[
-                                styles.phaseTag,
-                                {
-                                  backgroundColor:
-                                    phase.status === 'in_progress'
-                                      ? Colors.successGreen + '20'
-                                      : phase.status === 'completed'
-                                      ? Colors.secondaryText + '20'
-                                      : Colors.lightGray,
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.phaseTagText,
-                                  {
-                                    color:
-                                      phase.status === 'in_progress'
-                                        ? Colors.successGreen
-                                        : phase.status === 'completed'
-                                        ? Colors.secondaryText
-                                        : Colors.secondaryText,
-                                  },
-                                ]}
-                              >
-                                {phase.name}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
                 </View>
               )}
 
@@ -2883,6 +2811,16 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
           </View>
         </SafeAreaView>
       </Modal>
+
+      {/* Assign Worker Modal */}
+      <AssignWorkerModal
+        visible={showAssignModal}
+        onClose={() => setShowAssignModal(false)}
+        onSuccess={() => {
+          // Reload data after successful assignment
+          loadData();
+        }}
+      />
     </ContentWrapper>
   );
 }
@@ -3699,9 +3637,10 @@ const createStyles = (Colors) => StyleSheet.create({
   },
   // Schedule Tab Styles
   calendarContainer: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
+    borderRadius: 14,
+    padding: 12,
+    paddingTop: 12,
+    marginBottom: 16,
     elevation: 2,
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
@@ -3715,7 +3654,8 @@ const createStyles = (Colors) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
   calendarTitle: {
     fontSize: 18,
@@ -3755,8 +3695,9 @@ const createStyles = (Colors) => StyleSheet.create({
   },
   scheduleActionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
     paddingHorizontal: 4,
     marginBottom: 16,
   },
@@ -3768,10 +3709,10 @@ const createStyles = (Colors) => StyleSheet.create({
   addEventButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
+    borderRadius: 10,
+    gap: 6,
   },
   addEventButtonText: {
     color: '#FFFFFF',
@@ -3782,14 +3723,14 @@ const createStyles = (Colors) => StyleSheet.create({
   addTaskButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
   },
   addTaskButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   emptyTasksContainer: {
@@ -3809,19 +3750,25 @@ const createStyles = (Colors) => StyleSheet.create({
     textAlign: 'center',
   },
   taskProjectGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 1,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
   taskProjectHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginBottom: 8,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 25,
+    borderRadius: 14,
   },
   taskProjectName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     flex: 1,
   },
@@ -3842,8 +3789,8 @@ const createStyles = (Colors) => StyleSheet.create({
   taskCardContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 12,
-    gap: 10,
+    padding: 14,
+    gap: 12,
   },
   taskStatusIcon: {
     paddingTop: 2,
@@ -3928,11 +3875,11 @@ const createStyles = (Colors) => StyleSheet.create({
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 14,
   },
   categoryTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
   },
   scheduleCard: {

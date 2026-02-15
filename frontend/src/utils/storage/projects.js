@@ -140,23 +140,24 @@ export const saveProject = async (projectData) => {
     const endDate = projectData.endDate || projectData.schedule?.estimatedEndDate || null;
     const autoPercentComplete = calculateTimeBasedCompletion(startDate, endDate);
 
-    let calculatedBudget = projectData.budget || projectData.baseContract || projectData.contractAmount || 0;
+    let calculatedBudget = projectData.budget || projectData.baseContract || projectData.contractAmount || projectData.contract_amount || projectData.base_contract || 0;
 
-    if (projectData.phases && projectData.phases.length > 0) {
+    // Only recalculate from phases/lineItems if no explicit budget/contract amount was provided
+    if (calculatedBudget === 0 && projectData.phases && projectData.phases.length > 0) {
       calculatedBudget = projectData.phases.reduce((sum, phase) => {
         return sum + (parseFloat(phase.budget) || 0);
       }, 0);
-    } else if (projectData.lineItems && projectData.lineItems.length > 0) {
+    } else if (calculatedBudget === 0 && projectData.lineItems && projectData.lineItems.length > 0) {
       calculatedBudget = projectData.lineItems.reduce((sum, item) => {
         return sum + (parseFloat(item.total) || 0);
       }, 0);
-    } else if (projectData.total) {
+    } else if (calculatedBudget === 0 && projectData.total) {
       calculatedBudget = parseFloat(projectData.total) || 0;
     }
 
     const dbProject = {
       user_id: userId,
-      name: projectData.projectName || projectData.name || `${projectData.client} - Project`,
+      name: projectData.projectName || projectData.name || `${projectData.client || 'New'} - Project`,
       client_phone: projectData.phone || projectData.clientPhone || null,
       client_email: projectData.email || projectData.clientEmail || null,
       location: projectData.location || null,

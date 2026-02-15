@@ -130,13 +130,24 @@ export const recordEstimatePricing = async (estimate) => {
     }
 
     for (const item of estimate.items) {
+      // Calculate total amount - items use 'price' not 'pricePerUnit'
+      const pricePerUnit = item.price || item.pricePerUnit || 0;
+      const quantity = item.quantity || 0;
+      const totalAmount = item.total || (quantity * pricePerUnit);
+
+      // Skip if totalAmount is invalid (null, NaN, or 0)
+      if (!totalAmount || isNaN(totalAmount)) {
+        console.warn('Skipping pricing history - invalid totalAmount:', { item, totalAmount });
+        continue;
+      }
+
       await savePricingHistory({
         serviceType: item.serviceType || extractServiceType(item.description),
         workDescription: item.description,
-        quantity: item.quantity,
+        quantity: quantity,
         unit: item.unit,
-        pricePerUnit: item.pricePerUnit,
-        totalAmount: item.total || (item.quantity * item.pricePerUnit),
+        pricePerUnit: pricePerUnit,
+        totalAmount: totalAmount,
         scopeKeywords: extractKeywords(item.description),
         sourceType: 'estimate',
         sourceId: estimate.id,

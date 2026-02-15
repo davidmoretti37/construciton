@@ -9,8 +9,10 @@ const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// Initialize Stripe (only if key is configured)
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
 
 // Initialize Supabase Admin Client (uses service role key for backend operations)
 const supabaseAdmin = createClient(
@@ -30,6 +32,15 @@ const PRICE_TO_TIER = {};
 Object.entries(PRICE_IDS).forEach(([tier, priceId]) => {
   if (priceId) PRICE_TO_TIER[priceId] = tier;
 });
+
+// Guard middleware: return 503 if Stripe is not configured
+const requireStripe = (req, res, next) => {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe is not configured' });
+  }
+  next();
+};
+router.use(requireStripe);
 
 // ============================================================
 // AUTHENTICATION MIDDLEWARE

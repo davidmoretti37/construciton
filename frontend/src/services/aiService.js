@@ -1781,3 +1781,236 @@ export const formatProjectConfirmation = (extractedData, source = 'screenshot') 
     ],
   };
 };
+
+// ==================== UNIFIED AGENT (Tool-Calling) ====================
+
+/**
+ * Sends a message to the unified agent endpoint with real-time streaming.
+ * Uses XMLHttpRequest + onprogress for SSE processing (React Native compatible).
+ * The backend streams thinking/tool_start/tool_end/delta/done events.
+ *
+ * @param {string} userId - Authenticated user's Supabase ID
+ * @param {Array} conversationHistory - Previous messages [{role, content}]
+ * @param {string} userMessage - Current user message
+ * @param {object} context - User context (business info, preferences, etc.)
+ * @param {object} callbacks - { onChunk, onComplete, onError, onStatus }
+ */
+export const sendAgentMessage = async (
+  userId,
+  conversationHistory,
+  userMessage,
+  context,
+  callbacks
+) => {
+  const { onChunk, onComplete, onError, onStatus } = callbacks;
+  const startTime = Date.now();
+
+  const messages = [
+    ...conversationHistory,
+    { role: 'user', content: userMessage }
+  ];
+
+  logger.debug(`🤖 [Agent] Sending to ${BACKEND_URL}/api/chat/agent`);
+  logger.debug(`🤖 [Agent] Messages: ${messages.length}, userId: ${userId?.substring(0, 8)}`);
+
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    let lastProcessedIndex = 0;
+    let lineBuffer = '';
+    let firstTokenTime = null;
+    let displayedText = '';           // Full clean text received so far
+    let sentLength = 0;               // How many chars we've drip-fed to UI
+    let animationTimer = null;        // setInterval ID for typing animation
+    let streamDone = false;           // True when 'done' event received
+    let completionCalled = false;     // Prevents double onComplete
+    let completionData = null;        // Parsed response for deferred onComplete
+    let pendingVisualElements = [];   // From backend metadata event
+    let pendingActions = [];          // From backend metadata event
+
+    /**
+     * Drip-feed text to UI at a smooth pace (adaptive 3-15 chars per 20ms tick).
+     */
+    function startAnimation() {
+      if (animationTimer) return;
+      animationTimer = setInterval(() => {
+        if (sentLength < displayedText.length) {
+          const remaining = displayedText.length - sentLength;
+          const charsPerTick = Math.max(3, Math.min(15, Math.ceil(remaining / 10)));
+          const end = Math.min(sentLength + charsPerTick, displayedText.length);
+          const chunk = displayedText.substring(sentLength, end);
+          sentLength = end;
+          onChunk?.(chunk);
+        } else if (streamDone) {
+          clearInterval(animationTimer);
+          animationTimer = null;
+          handleCompletion();
+        }
+      }, 20);
+    }
+
+    /**
+     * Flush all remaining text to UI immediately (called before onComplete).
+     */
+    function flushAnimation() {
+      if (animationTimer) {
+        clearInterval(animationTimer);
+        animationTimer = null;
+      }
+      if (sentLength < displayedText.length) {
+        onChunk?.(displayedText.substring(sentLength));
+        sentLength = displayedText.length;
+      }
+    }
+
+    /**
+     * Trigger onComplete exactly once, after animation finishes.
+     */
+    function handleCompletion() {
+      if (completionCalled) return;
+      completionCalled = true;
+      flushAnimation();
+      if (completionData) {
+        onComplete?.(completionData);
+      }
+      resolve();
+    }
+
+    /**
+     * Process new SSE data from the stream.
+     * Delta events contain CLEAN TEXT (backend extracts from JSON).
+     * Metadata events contain visualElements/actions as structured data.
+     */
+    function processNewData(newData) {
+      lineBuffer += newData;
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const event = JSON.parse(data);
+
+          switch (event.type) {
+            case 'thinking':
+              onStatus?.('Thinking...');
+              break;
+            case 'tool_start':
+              onStatus?.(event.message || `Using ${event.tool}...`);
+              break;
+            case 'tool_end':
+              break;
+            case 'clear':
+              // Backend says: discard text from tool call round, it's not the final response
+              displayedText = '';
+              sentLength = 0;
+              pendingVisualElements = [];
+              pendingActions = [];
+              if (animationTimer) {
+                clearInterval(animationTimer);
+                animationTimer = null;
+              }
+              break;
+            case 'delta':
+              // Content is already clean text (backend extracted from JSON "text" field)
+              if (event.content) {
+                if (!firstTokenTime) {
+                  firstTokenTime = Date.now();
+                  logger.debug(`⚡ [Agent] First token: ${firstTokenTime - startTime}ms`);
+                }
+                displayedText += event.content;
+                startAnimation();
+              }
+              break;
+            case 'metadata':
+              // Structured data from backend (visualElements, actions)
+              pendingVisualElements = event.visualElements || [];
+              pendingActions = event.actions || [];
+              logger.debug(`📦 [Agent] Metadata: ${pendingVisualElements.length} visualElements, ${pendingActions.length} actions`);
+              break;
+            case 'done':
+              streamDone = true;
+              break;
+            case 'error':
+              logger.error('🤖 [Agent] Server error:', event.message);
+              break;
+            case 'status':
+              onStatus?.(event.message);
+              break;
+            default:
+              break;
+          }
+        } catch (parseError) {
+          // Skip malformed chunks
+        }
+      }
+    }
+
+    // Process SSE events as they arrive (real-time streaming)
+    xhr.onprogress = () => {
+      const newData = xhr.responseText.substring(lastProcessedIndex);
+      lastProcessedIndex = xhr.responseText.length;
+      if (newData) processNewData(newData);
+    };
+
+    // Final processing when request completes
+    xhr.onload = () => {
+      const remaining = xhr.responseText.substring(lastProcessedIndex);
+      if (remaining) processNewData(remaining);
+      streamDone = true;
+
+      const totalTime = Date.now() - startTime;
+      logger.debug(`✅ [Agent] Complete in ${totalTime}ms`);
+
+      completionData = {
+        text: displayedText || 'Unable to process response',
+        visualElements: pendingVisualElements,
+        actions: pendingActions,
+      };
+
+      // If no animation running, complete immediately
+      if (!animationTimer) {
+        handleCompletion();
+        return;
+      }
+
+      // Animation is draining — safety: force complete after 3 seconds max
+      setTimeout(() => {
+        if (!completionCalled) {
+          flushAnimation();
+          handleCompletion();
+        }
+      }, 3000);
+    };
+
+    xhr.onerror = () => {
+      flushAnimation();
+      completionCalled = true;
+      logger.error('🤖 [Agent] XHR error');
+      onError?.(new Error('Network error'));
+      resolve();
+    };
+
+    xhr.ontimeout = () => {
+      flushAnimation();
+      completionCalled = true;
+      logger.error('🤖 [Agent] XHR timeout');
+      onError?.(new Error('Request timed out'));
+      resolve();
+    };
+
+    xhr.timeout = 120000; // 2 minutes
+
+    xhr.open('POST', `${BACKEND_URL}/api/chat/agent`);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+
+    xhr.send(JSON.stringify({
+      messages,
+      user_id: userId,
+      context: context || {},
+    }));
+  });
+};

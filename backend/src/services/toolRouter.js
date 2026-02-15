@@ -89,6 +89,7 @@ function selectTools(intent, allTools) {
       'get_project_financials',
       'update_phase_progress',
       'delete_project',
+      'update_project',
       'create_worker_task',
       'assign_worker',
       'global_search'
@@ -121,6 +122,8 @@ function selectTools(intent, allTools) {
     briefing: [
       'get_daily_briefing',
       'get_schedule_events',
+      'get_daily_reports',
+      'get_photos',
       'search_projects',
       'search_invoices',
       'get_workers',

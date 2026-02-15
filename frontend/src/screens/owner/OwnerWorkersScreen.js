@@ -207,7 +207,16 @@ export default function OwnerWorkersScreen() {
       // Clear the param so it doesn't trigger again
       navigation.setParams({ openAddWorker: undefined });
     }
-  }, [route.params?.openAddWorker]);
+    if (route.params?.initialTab) {
+      setActiveTab(route.params.initialTab);
+      navigation.setParams({ initialTab: undefined });
+    }
+    if (route.params?.openAddSupervisor) {
+      setActiveTab('team');
+      setShowAddModal(true);
+      navigation.setParams({ openAddSupervisor: undefined });
+    }
+  }, [route.params?.openAddWorker, route.params?.initialTab, route.params?.openAddSupervisor]);
 
   // Tab state - 3 tabs for owner (Schedule, Reports, Team)
   const [activeTab, setActiveTab] = useState('schedule'); // 'schedule' | 'reports' | 'team'
@@ -426,6 +435,10 @@ export default function OwnerWorkersScreen() {
 
     setAddingWorker(true);
     try {
+      // If worker has email, set status to 'pending' so they can accept the invitation
+      // If no email, set to 'active' immediately (owner manages them directly)
+      const hasEmail = workerForm.email.trim();
+
       const { error } = await supabase
         .from('workers')
         .insert({
@@ -439,12 +452,22 @@ export default function OwnerWorkersScreen() {
           daily_rate: parseFloat(workerForm.dailyRate) || 0,
           weekly_salary: parseFloat(workerForm.weeklySalary) || 0,
           project_rate: parseFloat(workerForm.projectRate) || 0,
-          status: 'active',
+          status: hasEmail ? 'pending' : 'active',
+          user_id: null, // Will be set when worker accepts invitation
         });
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Worker added successfully');
+      // Show different message based on whether worker has email
+      if (hasEmail) {
+        Alert.alert(
+          'Success',
+          `${workerForm.name.trim()} added! They can now sign up at ${workerForm.email.trim()} to accept the invitation.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Success', 'Worker added successfully');
+      }
       setShowAddWorkerModal(false);
       setWorkerForm({
         name: '',

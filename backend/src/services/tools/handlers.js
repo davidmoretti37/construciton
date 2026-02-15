@@ -141,7 +141,7 @@ async function resolveProjectId(userId, idOrName) {
   const { data } = await supabase
     .from('projects')
     .select('id, name, status')
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .or(filter)
     .limit(5);
 
@@ -201,7 +201,7 @@ async function resolveEstimateId(userId, idOrName) {
   const { data } = await supabase
     .from('estimates')
     .select('id, estimate_number, client_name, project_name, status')
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .or(filter)
     .limit(5);
 
@@ -231,7 +231,7 @@ async function resolveInvoiceId(userId, idOrName) {
   const { data } = await supabase
     .from('invoices')
     .select('id, invoice_number, client_name, project_name, status')
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .or(filter)
     .limit(5);
 
@@ -255,7 +255,7 @@ async function search_projects(userId, args = {}) {
   let q = supabase
     .from('projects')
     .select('*')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   if (query) {
     const filter = buildWordSearch(query, ['name', 'location']);
@@ -289,12 +289,12 @@ async function get_project_details(userId, args) {
   if (resolved.suggestions) return resolved;
   project_id = resolved.id;
 
-  // Get project
+  // Get project (support supervisors)
   const { data: project, error } = await supabase
     .from('projects')
     .select('*')
     .eq('id', project_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (error || !project) {
@@ -376,7 +376,7 @@ async function delete_project(userId, { project_id }) {
     .from('projects')
     .select('name')
     .eq('id', resolved.id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (!project) return { error: 'Project not found or access denied' };
@@ -385,10 +385,69 @@ async function delete_project(userId, { project_id }) {
     .from('projects')
     .delete()
     .eq('id', resolved.id)
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   if (error) return { error: `Failed to delete: ${error.message}` };
   return { success: true, deletedProject: project.name };
+}
+
+async function update_project(userId, args = {}) {
+  const { project_id, contract_amount, status, budget, start_date, end_date } = args;
+
+  if (!project_id) {
+    return { error: 'project_id is required' };
+  }
+
+  // Build updates object with only provided fields
+  const updates = {};
+  // Map contract_amount to base_contract to work with database trigger
+  // The trigger auto-calculates contract_amount from base_contract + extras
+  if (contract_amount !== undefined) {
+    updates.base_contract = contract_amount;
+    updates.extras = [];  // Clear extras to ensure clean calculation
+  }
+  if (status !== undefined) updates.status = status;
+  if (budget !== undefined) updates.budget = budget;
+  if (start_date !== undefined) updates.start_date = start_date;
+  if (end_date !== undefined) updates.end_date = end_date;
+
+  if (Object.keys(updates).length === 0) {
+    return { error: 'No fields to update' };
+  }
+
+  const { data, error } = await supabase
+    .from('projects')
+    .update(updates)
+    .eq('id', project_id)
+    // REMOVED .or() filter - service role bypasses RLS, filter was blocking updates
+    .select('id, name, contract_amount, status, budget, start_date, end_date')
+    .single();
+
+  if (error) {
+    logger.error('update_project error:', error);
+    return { error: error.message };
+  }
+
+  // Check if update actually matched any rows
+  if (!data) {
+    logger.error(`update_project failed: project ${project_id} not found or update matched 0 rows`);
+    return { error: 'Project not found or update failed' };
+  }
+
+  logger.info(`✅ Updated project ${project_id}:`, updates);
+
+  return {
+    success: true,
+    project: {
+      id: data.id,
+      name: data.name,
+      contract_amount: data.contract_amount,
+      status: data.status,
+      budget: data.budget,
+      start_date: data.start_date,
+      end_date: data.end_date
+    }
+  };
 }
 
 // ==================== ESTIMATES ====================
@@ -399,7 +458,7 @@ async function search_estimates(userId, args = {}) {
   let q = supabase
     .from('estimates')
     .select('id, estimate_number, client_name, project_name, total, status, created_at, project_id')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   if (query) {
     const filter = buildWordSearch(query, ['client_name', 'project_name', 'estimate_number']);
@@ -435,7 +494,7 @@ async function get_estimate_details(userId, args) {
     .from('estimates')
     .select('*')
     .eq('id', estimate_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (error || !data) {
@@ -464,13 +523,29 @@ async function update_estimate(userId, args = {}) {
     .from('estimates')
     .update(updates)
     .eq('id', estimate_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('*, projects(id, name)')
     .single();
 
   if (error) {
     logger.error('update_estimate error:', error);
     return { error: error.message };
+  }
+
+  // Auto-update project contract_amount when linking estimate to project
+  if (project_id && data.total) {
+    const { error: projectError } = await supabase
+      .from('projects')
+      .update({ contract_amount: data.total })
+      .eq('id', project_id)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+
+    if (projectError) {
+      logger.error('Failed to update project contract_amount:', projectError);
+      // Don't fail the whole operation - estimate is still linked
+    } else {
+      logger.info(`✅ Auto-updated project ${project_id} contract_amount to ${data.total}`);
+    }
   }
 
   return {
@@ -494,7 +569,7 @@ async function search_invoices(userId, args = {}) {
   let q = supabase
     .from('invoices')
     .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date, created_at, estimate_id, project_id')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   if (query) {
     const filter = buildWordSearch(query, ['client_name', 'project_name', 'invoice_number']);
@@ -527,7 +602,7 @@ async function get_invoice_details(userId, args) {
     .from('invoices')
     .select('*')
     .eq('id', invoice_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (error || !data) {
@@ -670,7 +745,7 @@ async function get_schedule_events(userId, args) {
   let eventsQuery = supabase
     .from('schedule_events')
     .select('*')
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .gte('start_datetime', `${start_date}T00:00:00`)
     .lte('start_datetime', `${endDate}T23:59:59`);
 
@@ -725,7 +800,7 @@ async function get_project_financials(userId, args) {
     .from('projects')
     .select('id, name, budget, base_contract, contract_amount, expenses, income_collected, extras')
     .eq('id', project_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (!project) return { error: 'Project not found' };
@@ -767,7 +842,7 @@ async function get_project_financials(userId, args) {
     .from('invoices')
     .select('id, invoice_number, total, amount_paid, status')
     .eq('project_id', project_id)
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   return {
     project: project.name,
@@ -791,7 +866,7 @@ async function get_financial_overview(userId, args = {}) {
   const { data: projects } = await supabase
     .from('projects')
     .select('id, name, status, budget, base_contract, contract_amount, expenses, income_collected, extras')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   // Get transactions with optional date filter
   let txQuery = supabase
@@ -825,7 +900,7 @@ async function get_financial_overview(userId, args = {}) {
   const { data: invoices } = await supabase
     .from('invoices')
     .select('total, amount_paid, status')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   let totalInvoiced = 0, totalCollected = 0, totalOutstanding = 0;
   if (invoices) {
@@ -860,13 +935,21 @@ async function get_financial_overview(userId, args = {}) {
 }
 
 async function get_transactions(userId, args = {}) {
-  const { project_id, type, category, start_date, end_date } = args;
+  let { project_id, type, category, start_date, end_date } = args;
+
+  // Resolve project name to UUID if needed
+  if (project_id) {
+    const resolved = await resolveProjectId(userId, project_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    project_id = resolved.id;
+  }
 
   // Get user's project IDs for security
   const { data: projects } = await supabase
     .from('projects')
     .select('id')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   const projectIds = (projects || []).map(p => p.id);
   if (projectIds.length === 0) return [];
@@ -915,11 +998,11 @@ async function get_daily_reports(userId, args = {}) {
     resolvedWorkerId = workerResolved.id;
   }
 
-  // First get user's project IDs for security
+  // First get user's project IDs for security (include supervisor-assigned projects)
   const { data: userProjects, error: projectError } = await supabase
     .from('projects')
     .select('id')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   if (projectError) {
     logger.error('get_daily_reports - project query error:', projectError);
@@ -936,8 +1019,8 @@ async function get_daily_reports(userId, args = {}) {
 
   let q = supabase
     .from('daily_reports')
-    .select('id, report_date, notes, photos, custom_tasks, task_progress, tags, worker_id, project_id, phase_id, workers(full_name), projects(name), project_phases(name)')
-    .in('project_id', projectIds);
+    .select('id, report_date, notes, photos, custom_tasks, task_progress, tags, worker_id, owner_id, reporter_type, project_id, phase_id, workers(full_name), projects(name), project_phases(name)')
+    .or(`project_id.in.(${projectIds.join(',')}),owner_id.eq.${userId}`);
 
   if (resolvedProjectId) q = q.eq('project_id', resolvedProjectId);
   if (resolvedWorkerId) q = q.eq('worker_id', resolvedWorkerId);
@@ -955,7 +1038,7 @@ async function get_daily_reports(userId, args = {}) {
 
   return (data || []).map(r => ({
     ...r,
-    workerName: r.workers?.full_name,
+    workerName: r.workers?.full_name || (r.reporter_type === 'owner' ? 'Owner' : 'Unknown'),
     projectName: r.projects?.name,
     phaseName: r.project_phases?.name,
     photoCount: r.photos?.length || 0
@@ -974,11 +1057,11 @@ async function get_photos(userId, args = {}) {
     resolvedProjectId = projectResolved.id;
   }
 
-  // First get user's project IDs for security
+  // First get user's project IDs for security (include supervisor-assigned projects)
   const { data: userProjects, error: projectError } = await supabase
     .from('projects')
     .select('id')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   if (projectError) {
     logger.error('get_photos - project query error:', projectError);
@@ -1195,7 +1278,7 @@ async function global_search(userId, args = {}) {
     supabase
       .from('projects')
       .select('id, name, status, budget, contract_amount, start_date, end_date, location')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .or(projectFilter)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -1203,7 +1286,7 @@ async function global_search(userId, args = {}) {
     supabase
       .from('estimates')
       .select('id, estimate_number, client_name, project_name, total, status, created_at')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .or(estimateFilter)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -1211,7 +1294,7 @@ async function global_search(userId, args = {}) {
     supabase
       .from('invoices')
       .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .or(invoiceFilter)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -1245,12 +1328,20 @@ async function get_daily_briefing(userId, args = {}) {
   const todayStart = `${todayStr}T00:00:00`;
   const todayEnd = `${todayStr}T23:59:59`;
 
-  const [scheduleRes, overdueRes, projectsRes, workersRes, clockInsRes] = await Promise.all([
+  // Get user's project IDs for daily reports query
+  const { data: userProjects } = await supabase
+    .from('projects')
+    .select('id')
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+
+  const projectIds = (userProjects || []).map(p => p.id);
+
+  const [scheduleRes, overdueRes, projectsRes, workersRes, clockInsRes, dailyReportsRes] = await Promise.all([
     // Today's schedule events
     supabase
       .from('schedule_events')
       .select('id, title, event_type, start_datetime, end_datetime, location')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .gte('start_datetime', todayStart)
       .lte('start_datetime', todayEnd)
       .order('start_datetime', { ascending: true }),
@@ -1259,14 +1350,14 @@ async function get_daily_briefing(userId, args = {}) {
     supabase
       .from('invoices')
       .select('id, invoice_number, client_name, total, amount_paid, due_date')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .eq('status', 'overdue'),
 
     // All active projects (check for behind/over-budget)
     supabase
       .from('projects')
       .select('id, name, status, budget, contract_amount, expenses, end_date')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .in('status', ['active', 'on-track', 'behind', 'over-budget']),
 
     // All active workers
@@ -1282,6 +1373,15 @@ async function get_daily_briefing(userId, args = {}) {
       .select('worker_id, clock_in, project_id, projects(name), workers(full_name)')
       .eq('clock_out', null)
       .gte('clock_in', todayStart),
+
+    // Today's daily reports
+    projectIds.length > 0
+      ? supabase
+          .from('daily_reports')
+          .select('id, report_date, project_id, worker_id, owner_id, reporter_type, photos, projects(name), workers(full_name)')
+          .or(`project_id.in.(${projectIds.join(',')}),owner_id.eq.${userId}`)
+          .eq('report_date', todayStr)
+      : Promise.resolve({ data: [] })
   ]);
 
   // Build alerts
@@ -1316,6 +1416,18 @@ async function get_daily_briefing(userId, args = {}) {
   const workerIds = new Set((workersRes.data || []).map(w => w.id));
   const clockedIn = (clockInsRes.data || []).filter(ci => workerIds.has(ci.worker_id));
 
+  const dailyReports = dailyReportsRes.data || [];
+
+  logger.info(`get_daily_briefing: Found ${projectIds.length} projects, ${dailyReports.length} daily reports for ${todayStr}`);
+  if (dailyReports.length > 0) {
+    logger.info(`Daily reports details:`, dailyReports.map(r => ({
+      id: r.id,
+      project: r.projects?.name,
+      reporter_type: r.reporter_type,
+      report_date: r.report_date
+    })));
+  }
+
   return {
     date: todayStr,
     schedule: scheduleRes.data || [],
@@ -1331,6 +1443,14 @@ async function get_daily_briefing(userId, args = {}) {
       })),
     },
     activeProjects: (projectsRes.data || []).length,
+    dailyReports: dailyReports.map(r => ({
+      id: r.id,
+      project: r.projects?.name,
+      worker: r.workers?.full_name || (r.reporter_type === 'owner' ? 'Owner' : (r.reporter_type === 'supervisor' ? 'Supervisor' : 'Unknown')),
+      reporterType: r.reporter_type,
+      photoCount: r.photos?.length || 0,
+    })),
+    dailyReportsCount: dailyReports.length,
   };
 }
 
@@ -1351,7 +1471,7 @@ async function get_project_summary(userId, args) {
       .from('projects')
       .select('*')
       .eq('id', project_id)
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .single(),
 
     supabase
@@ -1464,7 +1584,7 @@ async function suggest_pricing(userId, args) {
   const { data: history } = await supabase
     .from('pricing_history')
     .select('work_description, quantity, unit, price_per_unit, total_amount, complexity, confidence_weight, scope_keywords')
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .order('created_at', { ascending: false })
     .limit(500);
 
@@ -1472,7 +1592,7 @@ async function suggest_pricing(userId, args) {
   const { data: userServices } = await supabase
     .from('user_services')
     .select('pricing, custom_items, service_categories(name)')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   const suggestions = [];
 
@@ -1564,22 +1684,31 @@ async function assign_worker(userId, args) {
   if (resolvedWorker.suggestions) return resolvedWorker;
   worker_id = resolvedWorker.id;
 
-  // Verify project ownership and get dates
+  // Verify project ownership and get dates (support supervisors)
   const { data: project, error: projErr } = await supabase
     .from('projects')
-    .select('id, name, start_date, end_date, status')
+    .select('id, name, start_date, end_date, status, user_id')
     .eq('id', project_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (projErr || !project) return { error: 'Project not found' };
 
-  // Verify worker ownership
+  // Get supervisor's owner_id if they're a supervisor
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('owner_id, role')
+    .eq('id', userId)
+    .single();
+
+  const ownerId = profile?.role === 'supervisor' ? profile.owner_id : userId;
+
+  // Verify worker ownership (use parent owner for supervisors)
   const { data: worker, error: wrkErr } = await supabase
     .from('workers')
     .select('id, full_name, trade')
     .eq('id', worker_id)
-    .eq('owner_id', userId)
+    .eq('owner_id', ownerId)
     .single();
 
   if (wrkErr || !worker) return { error: 'Worker not found' };
@@ -1629,7 +1758,7 @@ async function generate_summary_report(userId, args) {
     .from('projects')
     .select('id, name')
     .eq('id', project_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (!project) return { error: 'Project not found' };
@@ -1716,7 +1845,7 @@ async function share_document(userId, args) {
     .from(table)
     .select('id, client_name, client_phone, client_email')
     .eq('id', document_id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (docErr || !doc) return { error: `${document_type} not found` };
@@ -1804,6 +1933,234 @@ async function record_expense(userId, { project_id, type, amount, category, desc
   };
 }
 
+async function delete_expense(userId, { transaction_id, project_id }) {
+  // OWNER-ONLY: Check if user is a supervisor
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.role === 'supervisor') {
+    return { error: 'Access denied - expense management is owner-only' };
+  }
+
+  // Resolve transaction if description/name provided
+  let resolvedId = transaction_id;
+
+  // If not a UUID, try to resolve from description + project
+  if (!transaction_id.match(/^[0-9a-f]{8}-/i)) {
+    // Get owner's projects (not supervisor's)
+    const { data: userProjects } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('user_id', userId);  // Only owner's projects
+
+    const projectIds = (userProjects || []).map(p => p.id);
+    if (projectIds.length === 0) {
+      return { error: 'No projects found' };
+    }
+
+    // Get transactions from user's projects
+    let query = supabase
+      .from('project_transactions')
+      .select('id, description, amount, category, date, project_id, created_by')
+      .in('project_id', projectIds);  // Search all transactions in user's projects
+
+    if (project_id) {
+      const projectResolved = await resolveProjectId(userId, project_id);
+      if (projectResolved.error) return projectResolved;
+      if (projectResolved.suggestions) return projectResolved;
+      query = query.eq('project_id', projectResolved.id);
+    }
+
+    const { data: transactions } = await query.limit(10);
+
+    if (!transactions || transactions.length === 0) {
+      return { error: `Transaction not found matching "${transaction_id}"` };
+    }
+
+    // Try to match description or amount
+    const searchLower = transaction_id.toLowerCase();
+    const amountMatch = transaction_id.match(/\$?(\d+(?:\.\d+)?)/);
+    const searchAmount = amountMatch ? parseFloat(amountMatch[1]) : null;
+
+    const match = transactions.find(t =>
+      t.description?.toLowerCase().includes(searchLower) ||
+      (searchAmount && Math.abs(parseFloat(t.amount) - searchAmount) < 0.01)
+    );
+
+    if (!match && transactions.length === 1) {
+      resolvedId = transactions[0].id;
+    } else if (match) {
+      resolvedId = match.id;
+    } else {
+      return {
+        suggestions: transactions.map(t => ({
+          id: t.id,
+          description: t.description,
+          amount: t.amount,
+          category: t.category,
+          date: t.date
+        })),
+        message: `Multiple transactions found. Which one did you mean?`
+      };
+    }
+  }
+
+  // Verify project ownership (not just transaction creator)
+  const { data: transaction, error: fetchErr } = await supabase
+    .from('project_transactions')
+    .select('id, description, amount, category, project_id, created_by')
+    .eq('id', resolvedId)
+    .single();
+
+  if (fetchErr || !transaction) {
+    return { error: 'Transaction not found' };
+  }
+
+  // Verify user OWNS the project (not just supervises)
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', transaction.project_id)
+    .eq('user_id', userId)  // Only project owner
+    .single();
+
+  if (!project) {
+    return { error: 'Access denied - you do not own this project' };
+  }
+
+  const projectId = transaction.project_id;
+
+  // Delete the transaction
+  const { error: deleteErr } = await supabase
+    .from('project_transactions')
+    .delete()
+    .eq('id', resolvedId);
+
+  if (deleteErr) {
+    return { error: `Failed to delete transaction: ${deleteErr.message}` };
+  }
+
+  // Get updated project totals
+  const { data: remainingTransactions } = await supabase
+    .from('project_transactions')
+    .select('type, amount')
+    .eq('project_id', projectId);
+
+  const totalExpenses = (remainingTransactions || [])
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  const totalIncome = (remainingTransactions || [])
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  logger.info(`✅ Deleted expense ${resolvedId}: ${transaction.description} ($${transaction.amount})`);
+
+  return {
+    success: true,
+    deletedTransaction: {
+      id: transaction.id,
+      description: transaction.description,
+      amount: transaction.amount,
+      category: transaction.category,
+    },
+    projectTotals: {
+      totalExpenses,
+      totalIncome,
+      profit: totalIncome - totalExpenses,
+    }
+  };
+}
+
+async function update_expense(userId, { transaction_id, amount, category, description, date }) {
+  // Resolve transaction ID if needed
+  let resolvedId = transaction_id;
+
+  // For now, require UUID - can enhance later with resolution logic
+  if (!transaction_id.match(/^[0-9a-f]{8}-/i)) {
+    return { error: 'Please provide the transaction UUID. Use get_transactions to find the transaction ID first.' };
+  }
+
+  // Build updates object
+  const updates = {};
+  if (amount !== undefined) updates.amount = parseFloat(amount);
+  if (category !== undefined) updates.category = category;
+  if (description !== undefined) updates.description = description;
+  if (date !== undefined) updates.date = date;
+
+  if (Object.keys(updates).length === 0) {
+    return { error: 'No fields to update. Provide at least one field: amount, category, description, or date.' };
+  }
+
+  // First, get the transaction to verify project ownership
+  const { data: transaction } = await supabase
+    .from('project_transactions')
+    .select('id, project_id')
+    .eq('id', resolvedId)
+    .single();
+
+  if (!transaction) {
+    return { error: 'Transaction not found' };
+  }
+
+  // Verify user OWNS the project (not just supervises)
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', transaction.project_id)
+    .eq('user_id', userId)  // Only project owner
+    .single();
+
+  if (!project) {
+    return { error: 'Access denied - you do not own this project' };
+  }
+
+  // Now update the transaction
+  const { data, error } = await supabase
+    .from('project_transactions')
+    .update(updates)
+    .eq('id', resolvedId)
+    .select('id, description, amount, category, date, type, project_id')
+    .single();
+
+  if (error || !data) {
+    return { error: 'Failed to update transaction' };
+  }
+
+  // Get updated project totals
+  const { data: transactions } = await supabase
+    .from('project_transactions')
+    .select('type, amount')
+    .eq('project_id', data.project_id);
+
+  const totalExpenses = (transactions || [])
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  const totalIncome = (transactions || [])
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  logger.info(`✅ Updated expense ${resolvedId}:`, updates);
+
+  return {
+    success: true,
+    transaction: {
+      id: data.id,
+      description: data.description,
+      amount: data.amount,
+      category: data.category,
+      date: data.date,
+    },
+    projectTotals: {
+      totalExpenses,
+      totalIncome,
+      profit: totalIncome - totalExpenses,
+    }
+  };
+}
+
 // ==================== PHASE MUTATIONS ====================
 
 async function update_phase_progress(userId, { project_id, phase_name, percentage }) {
@@ -1871,7 +2228,7 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
     .from('estimates')
     .select('*')
     .eq('id', resolved.id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .single();
 
   if (estErr || !estimate) return { error: 'Estimate not found' };
@@ -1913,7 +2270,7 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
     .from('estimates')
     .update({ status: 'accepted', accepted_date: new Date().toISOString() })
     .eq('id', estimate.id)
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
 
   return {
     success: true,
@@ -1977,7 +2334,7 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
     .from('invoices')
     .update(updates)
     .eq('id', resolved.id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('invoice_number, status, amount_paid, total, due_date')
     .single();
 
@@ -2004,7 +2361,7 @@ async function void_invoice(userId, { invoice_id }) {
     .from('invoices')
     .update({ status: 'cancelled' })
     .eq('id', resolved.id)
-    .eq('user_id', userId)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('invoice_number')
     .single();
 
@@ -2187,6 +2544,7 @@ const TOOL_HANDLERS = {
   search_projects,
   get_project_details,
   delete_project,
+  update_project,
   search_estimates,
   get_estimate_details,
   update_estimate,
@@ -2211,6 +2569,8 @@ const TOOL_HANDLERS = {
   generate_summary_report,
   share_document,
   record_expense,
+  delete_expense,
+  update_expense,
   // New mutation tools
   update_phase_progress,
   convert_estimate_to_invoice,

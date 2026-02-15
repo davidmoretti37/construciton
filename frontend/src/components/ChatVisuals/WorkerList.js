@@ -53,7 +53,7 @@ export default function WorkerList({ data }) {
               <Ionicons name={getStatusIcon(worker.status)} size={20} color={getStatusColor(worker.status)} />
             </View>
             <View style={styles.nameSection}>
-              <Text style={[styles.workerName, { color: Colors.primaryText }]}>{worker.name}</Text>
+              <Text style={[styles.workerName, { color: Colors.primaryText }]}>{worker.full_name || worker.name}</Text>
               {worker.currentProject && (
                 <Text style={[styles.projectName, { color: Colors.secondaryText }]}>
                   {worker.currentProject}

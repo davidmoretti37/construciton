@@ -5,6 +5,8 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ProjectOverview({ data, onAction }) {
+  if (!data?.projects?.length && !data?.summary?.total) return null;
+
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);

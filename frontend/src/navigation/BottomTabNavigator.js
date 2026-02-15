@@ -72,9 +72,13 @@ const SupervisorNavContainer = (props) => {
     } else if (action.id === 'expense') {
       // Navigate to expense form with AI receipt analysis
       props.navigation.navigate('ExpenseForm');
-    } else if (action.id === 'worker') {
-      // Navigate to Workers tab and open add modal
-      props.navigation.navigate('Workers', { openAddModal: true });
+    } else if (action.id === 'assign-worker') {
+      // Navigate to Workers tab and open assign modal
+      // Add timestamp to force fresh navigation and prevent stale state
+      props.navigation.navigate('Workers', {
+        openAssignModal: true,
+        timestamp: Date.now()
+      });
     }
   };
 

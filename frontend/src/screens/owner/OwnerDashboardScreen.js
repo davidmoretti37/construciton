@@ -16,12 +16,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import NotificationBell from '../../components/NotificationBell';
+import { fetchProjectsForOwner } from '../../utils/storage/projects';
+import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
 
 // Color palette for owner theme
 const OWNER_COLORS = {
@@ -67,33 +69,47 @@ export default function OwnerDashboardScreen() {
     if (!user?.id) return;
 
     try {
-      // Fetch stats
-      const { data: statsData, error: statsError } = await supabase.rpc('get_owner_dashboard_stats', {
-        p_owner_id: user.id,
-      });
+      // Use the same fetch functions as the Projects and Workers tabs
+      // This guarantees consistent counts across all screens
+      const [projects, workers, supervisorList] = await Promise.all([
+        fetchProjectsForOwner(),
+        fetchWorkersForOwner(),
+        getSupervisorsForOwner(user.id),
+      ]);
 
-      if (!statsError && statsData) {
-        setStats({
-          totalSupervisors: statsData.total_supervisors || 0,
-          totalProjects: statsData.total_projects || 0,
-          activeProjects: statsData.active_projects || 0,
-          totalWorkers: statsData.total_workers || 0,
-          totalRevenue: statsData.total_revenue || 0,
-          totalContractValue: statsData.total_contract_value || 0,
-          totalExpenses: statsData.total_expenses || 0,
-          pendingInvites: statsData.pending_invites || 0,
-        });
+      // Fetch pending invites (table may not exist yet)
+      let pendingInviteCount = 0;
+      try {
+        const { data: invitesData } = await supabase
+          .from('supervisor_invites')
+          .select('id')
+          .eq('owner_id', user.id)
+          .eq('status', 'pending');
+        pendingInviteCount = (invitesData || []).length;
+      } catch (e) {
+        // supervisor_invites table may not exist
       }
 
-      // Fetch supervisors for list
-      const { data: supervisorData } = await supabase
-        .from('profiles')
-        .select('id, business_name, business_phone')
-        .eq('owner_id', user.id)
-        .eq('role', 'supervisor')
-        .limit(5);
+      // Compute stats from the fetched arrays
+      const totalContractValue = projects.reduce((sum, p) => sum + (p.contractAmount || 0), 0);
+      const totalRevenue = projects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0);
+      const totalExpenses = projects.reduce((sum, p) => sum + (p.expenses || 0), 0);
+      const activeProjects = projects.filter(
+        (p) => ['active', 'on-track', 'over-budget', 'behind'].includes(p.status)
+      ).length;
 
-      setSupervisors(supervisorData || []);
+      setStats({
+        totalSupervisors: supervisorList.length,
+        totalProjects: projects.length,
+        activeProjects,
+        totalWorkers: workers.length,
+        totalRevenue,
+        totalContractValue,
+        totalExpenses,
+        pendingInvites: pendingInviteCount,
+      });
+
+      setSupervisors(supervisorList.slice(0, 5));
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -102,9 +118,11 @@ export default function OwnerDashboardScreen() {
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboardData();
+    }, [fetchDashboardData])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -165,12 +183,14 @@ export default function OwnerDashboardScreen() {
 
         {/* Quick Stats Cards */}
         <View style={styles.statsRow}>
-          <View
+          <TouchableOpacity
             style={[styles.statCard, { backgroundColor: Colors.cardBackground, borderLeftColor: OWNER_COLORS.primary }]}
+            onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
+            activeOpacity={0.7}
           >
             <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalSupervisors}</Text>
             <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Supervisors</Text>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.statCard, { backgroundColor: Colors.cardBackground, borderLeftColor: OWNER_COLORS.success }]}
@@ -183,7 +203,7 @@ export default function OwnerDashboardScreen() {
 
           <TouchableOpacity
             style={[styles.statCard, { backgroundColor: Colors.cardBackground, borderLeftColor: OWNER_COLORS.warning }]}
-            onPress={() => navigation.navigate('Workers')}
+            onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
             activeOpacity={0.7}
           >
             <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalWorkers}</Text>
@@ -228,6 +248,10 @@ export default function OwnerDashboardScreen() {
               <View style={styles.statRow}>
                 <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Revenue</Text>
                 <Text style={[styles.statRowValue, { color: OWNER_COLORS.success }]}>{formatCurrency(stats.totalRevenue)}</Text>
+              </View>
+              <View style={styles.statRow}>
+                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Expenses</Text>
+                <Text style={[styles.statRowValue, { color: OWNER_COLORS.error }]}>{formatCurrency(stats.totalExpenses)}</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Workers</Text>
@@ -275,7 +299,7 @@ export default function OwnerDashboardScreen() {
               </Text>
               <TouchableOpacity
                 style={[styles.emptyButton, { backgroundColor: OWNER_COLORS.primary }]}
-                onPress={() => navigation.navigate('Workers')}
+                onPress={() => navigation.navigate('Workers', { initialTab: 'team', openAddSupervisor: true })}
               >
                 <Text style={styles.emptyButtonText}>Add Supervisor</Text>
               </TouchableOpacity>

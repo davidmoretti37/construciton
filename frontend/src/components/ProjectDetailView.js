@@ -24,7 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjectPhases, getProjectWorkers, fetchProjectPhotosByPhase, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks } from '../utils/storage';
+import { fetchProjectPhases, getProjectWorkers, fetchProjectPhotosByPhase, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
 import SupervisorAssignmentModal from './SupervisorAssignmentModal';
@@ -266,7 +266,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       // Reset editing state
       setIsEditing(false);
     }
-  }, [project?.id, project?.hasPhases, visible, isDemo]);
+  }, [project?.id, project?.hasPhases, project?.contract_amount, project?.updated_at, visible, isDemo]);
 
   // Sync modal visibility with prop
   useEffect(() => {
@@ -368,6 +368,60 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     } else {
       setExpandedPhaseId(phase.id); // Expand this phase
     }
+  };
+
+  const handleTaskToggle = (task, phase) => {
+    if (!task.workerTaskId) return;
+    const newCompleted = !task.completed;
+
+    // Optimistic UI update — instant feedback
+    setPhases(prev => prev.map(p => {
+      if (p.id !== phase.id) return p;
+      const updatedTasks = p.tasks.map(t =>
+        t.workerTaskId === task.workerTaskId ? { ...t, completed: newCompleted } : t
+      );
+      const completedCount = updatedTasks.filter(t => t.completed).length;
+      return {
+        ...p,
+        tasks: updatedTasks,
+        completion_percentage: updatedTasks.length > 0
+          ? Math.round((completedCount / updatedTasks.length) * 100) : 0,
+      };
+    }));
+
+    // Optimistic overall progress update
+    setCalculatedProgress(prev => {
+      let totalTasks = 0;
+      let totalCompleted = 0;
+      phases.forEach(p => {
+        if (p.tasks) {
+          p.tasks.forEach(t => {
+            totalTasks++;
+            const isThis = t.workerTaskId === task.workerTaskId;
+            totalCompleted += (isThis ? newCompleted : t.completed) ? 1 : 0;
+          });
+        }
+      });
+      return totalTasks > 0 ? Math.round((totalCompleted / totalTasks) * 100) : 0;
+    });
+
+    // Sync with DB in the background
+    (async () => {
+      try {
+        if (newCompleted) {
+          await completeTask(task.workerTaskId, null);
+        } else {
+          await uncompleteTask(task.workerTaskId);
+        }
+      } catch (error) {
+        console.error('Error toggling task:', error);
+        // Revert on failure
+        const updated = await fetchProjectPhases(project.id);
+        setPhases(updated);
+        const { progress } = await calculateProjectProgressFromTasks(project.id);
+        setCalculatedProgress(progress);
+      }
+    })();
   };
 
   const handleAddressPress = (address) => {
@@ -1053,6 +1107,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 phases={phases}
                 projectProgress={calculatedProgress}
                 onPhasePress={handlePhasePress}
+                onTaskToggle={handleTaskToggle}
                 compact={false}
                 expandedPhaseId={expandedPhaseId}
                 isEditing={isEditingPhases}

@@ -22,6 +22,7 @@ import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../utils/storage/auth';
 import { addProjectTransaction } from '../../utils/storage/transactions';
 import CoreAgent from '../../services/agents/core/CoreAgent';
+import { emitProjectUpdated } from '../../services/eventEmitter';
 
 // Helper: Resolve partial project UUID to full UUID
 const resolveProjectId = (projects, id) => {
@@ -732,6 +733,11 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
         });
 
         CoreAgent.updateConversationState({ lastProjectPreview: updatedProject });
+
+        // Emit event to notify all screens that project data changed
+        emitProjectUpdated(updatedProject.id);
+        console.log('✅ Project updated, event emitted for project:', updatedProject.id);
+
         return updatedProject;
       }
       return null;

@@ -591,7 +591,7 @@ export const fetchProjectPhases = async (projectId) => {
     // No owner_id filter - workers need to see task completion status too
     const { data: workerTasks, error: taskError } = await supabase
       .from('worker_tasks')
-      .select('phase_task_id, status')
+      .select('id, phase_task_id, status')
       .eq('project_id', projectId)
       .not('phase_task_id', 'is', null);
 
@@ -599,11 +599,14 @@ export const fetchProjectPhases = async (projectId) => {
       console.error('Error fetching worker_tasks:', taskError);
     }
 
-    // Create a map of phase_task_id -> completion status
+    // Create a map of phase_task_id -> { completed, workerTaskId }
     const taskStatusMap = {};
     if (workerTasks) {
       for (const wt of workerTasks) {
-        taskStatusMap[wt.phase_task_id] = wt.status === 'completed';
+        taskStatusMap[wt.phase_task_id] = {
+          completed: wt.status === 'completed',
+          workerTaskId: wt.id,
+        };
       }
     }
 
@@ -626,7 +629,8 @@ export const fetchProjectPhases = async (projectId) => {
 
           for (const phaseTaskId of possibleIds) {
             if (taskStatusMap.hasOwnProperty(phaseTaskId)) {
-              task.completed = taskStatusMap[phaseTaskId];
+              task.completed = taskStatusMap[phaseTaskId].completed;
+              task.workerTaskId = taskStatusMap[phaseTaskId].workerTaskId;
               break;
             }
           }

@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import ProjectDetailView from '../components/ProjectDetailView';
 import { getProject, deleteProject } from '../utils/storage';
+import { onProjectUpdated } from '../services/eventEmitter';
 
 export default function ProjectDetailScreen({ route, navigation }) {
   const { t } = useTranslation('common');
@@ -53,6 +54,32 @@ export default function ProjectDetailScreen({ route, navigation }) {
       refreshOnFocus();
     }, [currentProject?.id, projectId, isDemo])
   );
+
+  // Listen for project updates from agent
+  React.useEffect(() => {
+    if (isDemo) return; // Skip for demo projects
+
+    const handleProjectUpdated = async (updatedProjectId) => {
+      const id = currentProject?.id || projectId;
+      if (updatedProjectId === id) {
+        console.log('🔄 Project updated by agent, refreshing data for:', currentProject?.name || id);
+        try {
+          const refreshedProject = await getProject(id);
+          if (refreshedProject) {
+            setCurrentProject(refreshedProject);
+          }
+        } catch (error) {
+          console.error('Error refreshing project after agent update:', error);
+        }
+      }
+    };
+
+    const unsubscribe = onProjectUpdated(handleProjectUpdated);
+
+    return () => {
+      unsubscribe(); // Cleanup listener on unmount
+    };
+  }, [currentProject?.id, projectId, isDemo]);
 
   const handleClose = () => {
     navigation.goBack();

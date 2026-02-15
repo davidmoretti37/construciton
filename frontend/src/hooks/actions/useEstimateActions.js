@@ -93,6 +93,21 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
         }
       }
 
+      // Fallback: if still no projectId but we have a projectName, search for it
+      if (!completeEstimateData.projectId && completeEstimateData.projectName) {
+        logger.debug('🔍 No projectId found, searching by projectName:', completeEstimateData.projectName);
+        const projects = await fetchProjects();
+        const searchName = completeEstimateData.projectName.toLowerCase();
+        const match = projects.find(p =>
+          p.name?.toLowerCase().includes(searchName) ||
+          searchName.includes(p.name?.toLowerCase())
+        );
+        if (match) {
+          logger.debug('✅ Found project by name:', match.name, match.id);
+          completeEstimateData.projectId = match.id;
+        }
+      }
+
       const savedEstimate = await saveEstimate(completeEstimateData);
 
       if (savedEstimate) {

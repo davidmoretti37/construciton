@@ -67,6 +67,45 @@ const toolDefinitions = [
     }
   },
 
+  {
+    type: 'function',
+    function: {
+      name: 'update_project',
+      description: 'Update project details like contract amount, status, budget, or dates. Use when user wants to modify project information.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'The project UUID (from search_projects or get_project_details)'
+          },
+          contract_amount: {
+            type: 'number',
+            description: 'New contract amount (optional)'
+          },
+          status: {
+            type: 'string',
+            enum: ['draft', 'on-track', 'behind', 'over-budget', 'completed'],
+            description: 'New project status (optional)'
+          },
+          budget: {
+            type: 'number',
+            description: 'New budget amount (optional)'
+          },
+          start_date: {
+            type: 'string',
+            description: 'New start date in YYYY-MM-DD format (optional)'
+          },
+          end_date: {
+            type: 'string',
+            description: 'New end date in YYYY-MM-DD format (optional)'
+          }
+        },
+        required: ['project_id']
+      }
+    }
+  },
+
   // ==================== FINANCIAL MUTATIONS ====================
   {
     type: 'function',
@@ -104,6 +143,63 @@ const toolDefinitions = [
           }
         },
         required: ['project_id', 'type', 'amount', 'category', 'description']
+      }
+    }
+  },
+
+  {
+    type: 'function',
+    function: {
+      name: 'delete_expense',
+      description: 'Delete an expense transaction by description, amount, or UUID. OWNER-ONLY. Automatically finds and matches the transaction - just provide enough detail to identify it (e.g., "Home Depot", "$53.22", "drywall screws"). Requires explicit user confirmation before deleting. Returns updated project totals.',
+      parameters: {
+        type: 'object',
+        properties: {
+          transaction_id: {
+            type: 'string',
+            description: 'Description, amount, or partial match of the expense. Examples: "Home Depot", "drywall screws", "$53.22", or UUID if you have it. Will automatically find and match the transaction - you do NOT need to call get_transactions first.'
+          },
+          project_id: {
+            type: 'string',
+            description: 'Project name or UUID (optional, helps with ambiguous transaction descriptions)'
+          }
+        },
+        required: ['transaction_id']
+      }
+    }
+  },
+
+  {
+    type: 'function',
+    function: {
+      name: 'update_expense',
+      description: 'Update an existing expense transaction by description or UUID. OWNER-ONLY. Automatically finds the transaction - just provide enough detail to identify it. Use to correct amount, category, description, or date of an expense. All fields are optional - only provided fields will be updated.',
+      parameters: {
+        type: 'object',
+        properties: {
+          transaction_id: {
+            type: 'string',
+            description: 'Description, amount, or UUID of the transaction. Examples: "Home Depot", "$53.22", or UUID. Will automatically find and match the transaction.'
+          },
+          amount: {
+            type: 'number',
+            description: 'New expense amount'
+          },
+          category: {
+            type: 'string',
+            enum: ['materials', 'labor', 'permits', 'equipment', 'subcontractor', 'misc', 'other'],
+            description: 'New expense category'
+          },
+          description: {
+            type: 'string',
+            description: 'New description for the expense'
+          },
+          date: {
+            type: 'string',
+            description: 'New date in YYYY-MM-DD format'
+          }
+        },
+        required: ['transaction_id']
       }
     }
   },
@@ -559,7 +655,7 @@ const toolDefinitions = [
         properties: {
           project_id: {
             type: 'string',
-            description: 'Filter by project'
+            description: 'Project name or UUID to filter transactions. Names are resolved automatically (e.g., "Mark", "Kitchen Remodel").'
           },
           type: {
             type: 'string',

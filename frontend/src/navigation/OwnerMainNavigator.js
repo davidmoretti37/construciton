@@ -46,8 +46,9 @@ import AddServicePricingScreen from '../screens/settings/AddServicePricingScreen
 // Import notifications screen
 import NotificationsScreen from '../screens/NotificationsScreen';
 
-// Import daily report screen
+// Import daily report screens
 import DailyReportFormScreen from '../screens/worker/DailyReportFormScreen';
+import DailyReportDetailScreen from '../screens/worker/DailyReportDetailScreen';
 
 // Import expense form screen (with AI receipt analysis)
 import ExpenseFormScreen from '../screens/worker/ExpenseFormScreen';
@@ -164,10 +165,14 @@ export default function OwnerMainNavigator() {
         component={AddServicePricingScreen}
       />
 
-      {/* Daily Report Screen */}
+      {/* Daily Report Screens */}
       <Stack.Screen
         name="DailyReportForm"
         component={DailyReportFormScreen}
+      />
+      <Stack.Screen
+        name="DailyReportDetail"
+        component={DailyReportDetailScreen}
       />
 
       {/* Expense Form Screen (with AI receipt analysis) */}

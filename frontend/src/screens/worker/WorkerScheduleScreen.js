@@ -195,18 +195,20 @@ export default function WorkerScheduleScreen({ navigation }) {
         }
       >
         {/* Weekly Calendar */}
-        <WeeklyCalendar
-          selectedDate={selectedDate}
-          onDateSelect={handleDateSelect}
-          theme={{
-            primaryBlue: Colors.primaryBlue,
-            primaryText: Colors.primaryText,
-            secondaryText: Colors.secondaryText,
-            white: Colors.white,
-            border: Colors.border,
-          }}
-          eventDates={taskDates}
-        />
+        <View style={[styles.calendarCard, { backgroundColor: Colors.white }]}>
+          <WeeklyCalendar
+            selectedDate={selectedDate}
+            onDateSelect={handleDateSelect}
+            theme={{
+              primaryBlue: Colors.primaryBlue,
+              primaryText: Colors.primaryText,
+              secondaryText: Colors.secondaryText,
+              white: Colors.white,
+              border: Colors.border,
+            }}
+            eventDates={taskDates}
+          />
+        </View>
 
         {/* Tasks Section */}
         <View style={styles.tasksSection}>
@@ -235,9 +237,9 @@ export default function WorkerScheduleScreen({ navigation }) {
           ) : (
             Object.entries(groupedTasks).map(([projectName, projectTasks]) => (
               <View key={projectName} style={styles.projectGroup}>
-                <View style={[styles.projectHeader, { backgroundColor: Colors.primaryBlue + '10' }]}>
-                  <Ionicons name="business-outline" size={16} color={Colors.primaryBlue} />
-                  <Text style={[styles.projectName, { color: Colors.primaryBlue }]}>
+                <View style={[styles.projectHeader, { backgroundColor: Colors.white, borderLeftWidth: 4, borderLeftColor: Colors.primaryBlue, borderWidth: 1, borderColor: Colors.border }]}>
+                  <Ionicons name="business-outline" size={18} color={Colors.primaryBlue} />
+                  <Text style={[styles.projectName, { color: Colors.primaryText }]}>
                     {projectName}
                   </Text>
                 </View>
@@ -336,6 +338,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 100,
   },
+  calendarCard: {
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
   tasksSection: {
     marginTop: 8,
   },
@@ -378,18 +390,25 @@ const styles = StyleSheet.create({
   },
   projectGroup: {
     marginBottom: 16,
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
   projectHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginBottom: 8,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 25,
+    borderRadius: 14,
+    marginBottom: 0,
   },
   projectName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
   tasksList: {

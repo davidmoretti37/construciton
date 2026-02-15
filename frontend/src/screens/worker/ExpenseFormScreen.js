@@ -96,10 +96,13 @@ export default function ExpenseFormScreen({ navigation }) {
           .from('projects')
           .select('*')
           .or(`assigned_supervisor_id.eq.${currentUserId},user_id.eq.${currentUserId}`)
-          .in('status', ['active', 'scheduled'])
+          .in('status', ['active', 'scheduled', 'on-track', 'behind', 'over-budget', 'draft'])
           .order('created_at', { ascending: false });
 
         if (error) throw error;
+        console.log('📊 Supervisor projects loaded:', projects);
+        console.log('📊 Project count:', projects?.length);
+        console.log('📊 Supervisor ID:', currentUserId);
         setAssignedProjects(projects || []);
       } else {
         // Owner: get all their projects

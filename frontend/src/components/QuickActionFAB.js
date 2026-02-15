@@ -13,7 +13,7 @@ import { useTheme } from '../contexts/ThemeContext';
 
 // Quick actions configuration - order is bottom to top when expanded
 const QUICK_ACTIONS = [
-  { id: 'worker', icon: 'person-add-outline', label: 'Add Worker', type: 'form', color: '#EC4899' },
+  { id: 'assign-worker', icon: 'person-add-outline', label: 'Assign Worker', type: 'form', color: '#EC4899' },
   { id: 'expense', icon: 'receipt-outline', label: 'Log Transaction', type: 'form', color: '#10B981' },
   { id: 'report', icon: 'document-text-outline', label: 'Daily Report', type: 'form', color: '#F59E0B' },
   { id: 'estimate', icon: 'calculator-outline', label: 'New Estimate', type: 'ai', color: '#8B5CF6' },
@@ -37,9 +37,10 @@ const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'su
   const fabColor = variant === 'owner' ? '#1E40AF' : primaryColor;
 
   // Supervisors can only access expense and report - no estimates or projects
+  // Owners see "Add Worker" instead of "Assign Worker"
   const availableActions = variant === 'supervisor'
     ? QUICK_ACTIONS.filter(a => !['estimate', 'project'].includes(a.id))
-    : QUICK_ACTIONS;
+    : QUICK_ACTIONS.map(a => a.id === 'assign-worker' ? { ...a, label: 'Add Worker' } : a);
 
   const toggleExpand = () => {
     const newValue = isExpanded ? 0 : 1;

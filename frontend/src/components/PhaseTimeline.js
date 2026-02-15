@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 export default function PhaseTimeline({
   phases,
   onPhasePress,
+  onTaskToggle,
   compact = false,
   expandedPhaseId = null,
   projectProgress = null,
@@ -264,13 +265,15 @@ export default function PhaseTimeline({
               {isExpanded && phaseTasks.length > 0 && (
                 <View style={[styles.tasksContainer, { backgroundColor: Colors.lightGray + '50' }]}>
                   {phaseTasks.map((task, taskIndex) => (
-                    <View
+                    <TouchableOpacity
                       key={task.id || taskIndex}
                       style={[
                         styles.taskItem,
                         { borderBottomColor: Colors.border },
                         taskIndex === phaseTasks.length - 1 && styles.lastTaskItem,
                       ]}
+                      activeOpacity={onTaskToggle ? 0.6 : 1}
+                      onPress={() => onTaskToggle && onTaskToggle(task, phase)}
                     >
                       <View
                         style={[
@@ -296,7 +299,7 @@ export default function PhaseTimeline({
                       >
                         {task.description || task.name}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               )}

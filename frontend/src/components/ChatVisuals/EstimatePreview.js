@@ -68,7 +68,7 @@ export default function EstimatePreview({ data, onAction }) {
     : 0;
 
   // Extract client name - handle both string and object formats
-  const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || 'N/A';
+  const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || null;
 
   // Get phone number from any possible field
   const phoneNumber = clientPhone || client_phone || client?.phone || data.phone;
@@ -330,7 +330,9 @@ export default function EstimatePreview({ data, onAction }) {
       text += `${businessName}\n`;
     }
     text += `\n`;
-    text += `Client: ${displayClientName}\n`;
+    if (displayClientName) {
+      text += `Client: ${displayClientName}\n`;
+    }
     if (projectName) {
       text += `Project: ${projectName}\n`;
     }
@@ -573,20 +575,22 @@ export default function EstimatePreview({ data, onAction }) {
 
       {/* Client Info */}
       <View style={[styles.section, { borderTopColor: Colors.border }]}>
-        <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.client')}</Text>
-          {isEditing ? (
-            <TextInput
-              style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
-              value={editedData.clientName || displayClientName}
-              onChangeText={(value) => handleUpdateClientField('clientName', value)}
-              placeholder={t('estimate.clientName')}
-              placeholderTextColor={Colors.secondaryText}
-            />
-          ) : (
-            <Text style={[styles.value, { color: Colors.primaryText }]}>{displayClientName}</Text>
-          )}
-        </View>
+        {(displayClientName || isEditing) && (
+          <View style={styles.infoRow}>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.client')}</Text>
+            {isEditing ? (
+              <TextInput
+                style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border }]}
+                value={editedData.clientName || displayClientName || ''}
+                onChangeText={(value) => handleUpdateClientField('clientName', value)}
+                placeholder={t('estimate.clientName')}
+                placeholderTextColor={Colors.secondaryText}
+              />
+            ) : (
+              <Text style={[styles.value, { color: Colors.primaryText }]}>{displayClientName}</Text>
+            )}
+          </View>
+        )}
         {projectName && (
           <View style={styles.infoRow}>
             <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('estimate.project')}</Text>

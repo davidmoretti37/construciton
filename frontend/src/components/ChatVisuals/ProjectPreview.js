@@ -165,7 +165,7 @@ export default function ProjectPreview({ data, onAction }) {
   } = editedData;  // Always use editedData - it's initialized from data and persists after save
 
   // Extract client name - handle both string and object formats
-  const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || 'N/A';
+  const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || null;
 
   // Get phone number from any possible field
   const phoneNumber = clientPhone || client_phone || client?.phone || data.phone;
@@ -539,7 +539,9 @@ export default function ProjectPreview({ data, onAction }) {
       text += `${businessName}\n`;
     }
     text += `\n`;
-    text += `Client: ${displayClientName}\n`;
+    if (displayClientName) {
+      text += `Client: ${displayClientName}\n`;
+    }
     if (projectName) {
       text += `Project: ${projectName}\n`;
     }
@@ -706,10 +708,12 @@ export default function ProjectPreview({ data, onAction }) {
 
       {/* Client Info */}
       <View style={[styles.section, { borderTopColor: Colors.border }]}>
-        <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.client')}:</Text>
-          <Text style={[styles.value, { color: Colors.primaryText }]}>{displayClientName}</Text>
-        </View>
+        {displayClientName && (
+          <View style={styles.infoRow}>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.client')}:</Text>
+            <Text style={[styles.value, { color: Colors.primaryText }]}>{displayClientName}</Text>
+          </View>
+        )}
         {projectName && (
           <View style={styles.infoRow}>
             <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.project')}:</Text>

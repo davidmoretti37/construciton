@@ -56,51 +56,53 @@ export default function ChatHistorySidebar({
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      // Show modal first, then animate in
+      setModalVisible(true);
       loadSessions();
 
-      // CRITICAL: Reset animations to starting positions before playing
       slideAnim.setValue(-SIDEBAR_WIDTH);
       fadeAnim.setValue(0);
 
-      // Small delay to ensure reset completes before animation starts
       requestAnimationFrame(() => {
-        // Slide in with fade in - SMOOTHER EASING
         Animated.parallel([
           Animated.timing(slideAnim, {
             toValue: 0,
-            duration: 350, // Slightly longer for smoothness
+            duration: 300,
             useNativeDriver: true,
-            easing: Easing.out(Easing.cubic), // Smooth deceleration curve
+            easing: Easing.out(Easing.cubic),
           }),
           Animated.timing(fadeAnim, {
             toValue: 1,
-            duration: 350, // Match slide duration
+            duration: 300,
             useNativeDriver: true,
-            easing: Easing.out(Easing.quad), // Gentle fade
+            easing: Easing.out(Easing.cubic),
           }),
         ]).start();
       });
-    } else {
-      // Slide out with fade out - FASTER, CRISP EXIT
+    } else if (modalVisible) {
+      // Animate out, THEN hide modal
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: -SIDEBAR_WIDTH,
-          duration: 250, // Faster exit than entrance
+          duration: 250,
           useNativeDriver: true,
-          easing: Easing.in(Easing.quad), // Quick acceleration
+          easing: Easing.in(Easing.cubic),
         }),
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 200, // Fade out slightly faster
+          duration: 200,
           useNativeDriver: true,
-          easing: Easing.linear, // Simple fade out
+          easing: Easing.in(Easing.quad),
         }),
-      ]).start();
+      ]).start(() => {
+        setModalVisible(false);
+      });
     }
   }, [visible]);
 
@@ -182,7 +184,7 @@ export default function ChatHistorySidebar({
 
   return (
     <Modal
-      visible={visible}
+      visible={modalVisible}
       animationType="none"
       transparent={true}
       onRequestClose={onClose}

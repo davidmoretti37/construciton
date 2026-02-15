@@ -41,8 +41,8 @@ const OwnerNavContainer = (props) => {
     } else if (action.id === 'expense') {
       // Navigate to expense form with AI receipt analysis
       props.navigation.navigate('ExpenseForm');
-    } else if (action.id === 'worker') {
-      // Navigate to Workers tab with flag to open add modal
+    } else if (action.id === 'assign-worker' || action.id === 'worker') {
+      // Navigate to Workers tab with flag to open add worker modal
       props.navigation.navigate('Workers', { openAddWorker: true });
     }
   };

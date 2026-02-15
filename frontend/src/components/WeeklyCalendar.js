@@ -177,22 +177,22 @@ const WeeklyCalendar = ({ selectedDate, onDateSelect, theme, eventDates = [] }) 
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 12,
-    marginBottom: 16,
+    paddingBottom: 6,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
     paddingHorizontal: 4,
   },
   navButton: {
     padding: 8,
   },
   weekRangeText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   weekStrip: {
@@ -202,38 +202,38 @@ const styles = StyleSheet.create({
   dayCell: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    borderRadius: 10,
     marginHorizontal: 2,
   },
   selectedDay: {
-    borderRadius: 12,
+    borderRadius: 10,
   },
   todayDay: {
     borderWidth: 2,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   dayName: {
     fontSize: 11,
     fontWeight: '600',
-    marginBottom: 6,
+    marginBottom: 4,
     textTransform: 'uppercase',
   },
   dayNumber: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
   },
   dotContainer: {
-    height: 8,
-    marginTop: 6,
+    height: 6,
+    marginTop: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   eventDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
 });
 
