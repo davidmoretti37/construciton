@@ -90,9 +90,10 @@ export default function MoreScreen({ navigation }) {
       const aiSettings = await getAISettings();
       setAboutYou(aiSettings?.aboutYou || '');
       setResponseStyle(aiSettings?.responseStyle || '');
+      setProjectInstructions(aiSettings?.projectInstructions || '');
 
       // Auto-expand if user has AI settings configured
-      if (aiSettings?.aboutYou || aiSettings?.responseStyle) {
+      if (aiSettings?.aboutYou || aiSettings?.responseStyle || aiSettings?.projectInstructions) {
         setAiExpanded(true);
       }
 
@@ -119,12 +120,14 @@ export default function MoreScreen({ navigation }) {
   }, []);
 
   // Auto-save AI settings with debounce
+  const [projectInstructions, setProjectInstructions] = useState('');
+
   const handleAboutYouChange = (text) => {
     const trimmed = text.slice(0, 500);
     setAboutYou(trimmed);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateAISettings({ aboutYou: trimmed, responseStyle });
+      updateAISettings({ aboutYou: trimmed, responseStyle, projectInstructions });
     }, 1000);
   };
 
@@ -133,7 +136,16 @@ export default function MoreScreen({ navigation }) {
     setResponseStyle(trimmed);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateAISettings({ aboutYou, responseStyle: trimmed });
+      updateAISettings({ aboutYou, responseStyle: trimmed, projectInstructions });
+    }, 1000);
+  };
+
+  const handleProjectInstructionsChange = (text) => {
+    const trimmed = text.slice(0, 2000);
+    setProjectInstructions(trimmed);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      updateAISettings({ aboutYou, responseStyle, projectInstructions: trimmed });
     }, 1000);
   };
 
@@ -311,6 +323,33 @@ export default function MoreScreen({ navigation }) {
                 />
                 <Text style={[styles.aiCharCount, { color: Colors.secondaryText }]}>
                   {responseStyle.length}/300
+                </Text>
+              </View>
+
+              <View style={styles.aiField}>
+                <Text style={[styles.aiLabel, { color: Colors.secondaryText }]}>
+                  {t('aiPersonality.projectInstructions', 'Project Instructions')}
+                </Text>
+                <TextInput
+                  style={[
+                    styles.aiInput,
+                    {
+                      backgroundColor: Colors.background,
+                      color: Colors.primaryText,
+                      borderColor: Colors.border,
+                      minHeight: 100,
+                    }
+                  ]}
+                  placeholder={t('aiPersonality.projectInstructionsPlaceholder', 'Default checklists, scope of work templates...')}
+                  placeholderTextColor={Colors.secondaryText + '70'}
+                  value={projectInstructions}
+                  onChangeText={handleProjectInstructionsChange}
+                  multiline
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                />
+                <Text style={[styles.aiCharCount, { color: Colors.secondaryText }]}>
+                  {projectInstructions.length}/2000
                 </Text>
               </View>
             </View>

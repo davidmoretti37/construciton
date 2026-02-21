@@ -86,6 +86,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // Manual progress override
   // Note: Progress override removed - progress is now calculated from task completion in schedule
 
+  // Delete confirmation modal (type-to-confirm)
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
   // Phase progress editing
   const [isEditingPhases, setIsEditingPhases] = useState(false);
   const [phaseProgressValues, setPhaseProgressValues] = useState({});
@@ -565,25 +569,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   };
 
   const handleDeleteProject = () => {
-    Alert.alert(
-      t('alerts.deleteProject'),
-      t('messages.confirmDeleteProject', { name: project.name }),
-      [
-        {
-          text: t('buttons.cancel'),
-          style: 'cancel'
-        },
-        {
-          text: t('buttons.delete'),
-          style: 'destructive',
-          onPress: () => {
-            if (onDelete) {
-              onDelete(project.id);
-            }
-          }
-        }
-      ]
-    );
+    setDeleteConfirmText('');
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteProject = () => {
+    setShowDeleteModal(false);
+    setDeleteConfirmText('');
+    if (onDelete) {
+      onDelete(project.id);
+    }
   };
 
   // Note: Progress override functions removed - progress is now calculated from task completion
@@ -1729,24 +1724,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           )}
 
-          {/* Delete Project Section */}
-          <View style={[styles.section, { backgroundColor: Colors.cardBackground, borderColor: '#EF4444' + '30' }]}>
-            <View style={styles.dangerZoneHeader}>
-              <Ionicons name="warning-outline" size={20} color="#EF4444" />
-              <Text style={[styles.dangerZoneTitle, { color: '#EF4444' }]}>{t('labels.dangerZone')}</Text>
-            </View>
-            <Text style={[styles.dangerZoneDescription, { color: Colors.secondaryText }]}>
-              {t('messages.deleteProjectWarning')}
-            </Text>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={handleDeleteProject}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.deleteButtonText}>{t('buttons.deleteProject')}</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Delete Project - subtle link */}
+          <TouchableOpacity
+            style={styles.deleteProjectLink}
+            onPress={handleDeleteProject}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="trash-outline" size={14} color={'#EF4444' + '80'} />
+            <Text style={styles.deleteProjectLinkText}>{t('buttons.deleteProject')}</Text>
+          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
 
@@ -2040,6 +2026,64 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <View style={{ height: 40 }} />
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Delete Confirmation Modal - type DELETE to confirm */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.deleteModalOverlay}>
+          <View style={[styles.deleteModalContent, { backgroundColor: Colors.cardBackground }]}>
+            <Text style={[styles.deleteModalTitle, { color: Colors.primaryText }]}>
+              Delete "{project?.name}"?
+            </Text>
+            <Text style={[styles.deleteModalSubtitle, { color: Colors.secondaryText }]}>
+              This action cannot be undone. All project data, phases, tasks, and documents will be permanently removed.
+            </Text>
+            <Text style={[styles.deleteModalInstruction, { color: Colors.secondaryText }]}>
+              Type <Text style={{ fontWeight: '700', color: '#EF4444' }}>DELETE</Text> to confirm:
+            </Text>
+            <TextInput
+              style={[styles.deleteModalInput, {
+                backgroundColor: Colors.background,
+                color: Colors.primaryText,
+                borderColor: deleteConfirmText === 'DELETE' ? '#EF4444' : Colors.border,
+              }]}
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder="Type DELETE"
+              placeholderTextColor={Colors.secondaryText + '60'}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <View style={styles.deleteModalButtons}>
+              <TouchableOpacity
+                style={[styles.deleteModalCancelBtn, { borderColor: Colors.border }]}
+                onPress={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.deleteModalCancelText, { color: Colors.primaryText }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.deleteModalConfirmBtn,
+                  { backgroundColor: deleteConfirmText === 'DELETE' ? '#EF4444' : Colors.border },
+                ]}
+                onPress={confirmDeleteProject}
+                disabled={deleteConfirmText !== 'DELETE'}
+                activeOpacity={0.8}
+              >
+                <Text style={[
+                  styles.deleteModalConfirmText,
+                  { color: deleteConfirmText === 'DELETE' ? '#FFFFFF' : Colors.secondaryText },
+                ]}>Delete Project</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -2480,33 +2524,79 @@ const styles = StyleSheet.create({
   workerChipTrade: {
     fontSize: 11,
   },
-  dangerZoneHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  dangerZoneTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  dangerZoneDescription: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 14,
-  },
-  deleteButton: {
+  deleteProjectLink: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#EF4444',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+    gap: 6,
+    paddingVertical: 16,
+    marginTop: 8,
+    marginBottom: 20,
   },
-  deleteButtonText: {
-    color: '#FFFFFF',
+  deleteProjectLinkText: {
+    color: '#EF4444' + '80',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  deleteModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 24,
+  },
+  deleteModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
+  },
+  deleteModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  deleteModalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  deleteModalInstruction: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  deleteModalInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 2,
+    marginBottom: 20,
+  },
+  deleteModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  deleteModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  deleteModalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  deleteModalConfirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  deleteModalConfirmText: {
     fontSize: 15,
     fontWeight: '600',
   },

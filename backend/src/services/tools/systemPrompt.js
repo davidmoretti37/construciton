@@ -18,6 +18,7 @@ function buildSystemPrompt(context = {}) {
     learnedFacts = '',
     aboutYou = '',
     responseStyle = '',
+    projectInstructions = '',
     isSupervisor = false,
     ownerName = '',
     phasesTemplate = [],
@@ -171,6 +172,8 @@ These operations execute directly on the backend when you call the tool. ALWAYS 
 - Update expense → call \`update_expense\` with description directly - do NOT call get_transactions first! (owner only)
 - Delete project → call \`delete_project\`
 - Phase progress → call \`update_phase_progress\`
+- Add checklist/tasks to project → call \`add_project_checklist\`
+- Create a new phase → call \`create_project_phase\`
 - Estimate → invoice → call \`convert_estimate_to_invoice\`
 - Update invoice → call \`update_invoice\`
 - Void invoice → call \`void_invoice\`
@@ -223,8 +226,10 @@ CRITICAL: The FRONTEND executes actions — you CANNOT execute them yourself.
 - "delete-schedule-event": data = { id }
 - "retrieve-schedule-events": data = { date?, startDate?, endDate? }
 
-### Phase Actions
+### Phase & Checklist Actions
 - Updating phase progress → call the \`update_phase_progress\` tool directly.
+- Adding checklist items to a project → call the \`add_project_checklist\` tool directly. This handles bulk items efficiently. Do NOT loop through \`create_worker_task\` for checklists.
+- Creating a new phase for a project → call the \`create_project_phase\` tool directly. You can include tasks in the phase.
 
 ### Financial Actions
 - Recording expenses or income → call the \`record_expense\` tool directly. Do NOT just say "I recorded it" — you MUST call the tool or nothing happens.
@@ -310,6 +315,7 @@ You CAN:
 ${learnedFacts ? `## KNOWN FACTS ABOUT THIS USER\n${learnedFacts}\n` : ''}
 ${aboutYou ? `## USER'S SELF-DESCRIPTION\n${aboutYou}\n` : ''}
 ${responseStyle ? `## PREFERRED RESPONSE STYLE\n${responseStyle}\n` : ''}
+${projectInstructions ? `## PROJECT INSTRUCTIONS & TEMPLATES\nThe user has defined these default instructions. ALWAYS follow these when creating new projects, adding phases, or building checklists:\n${projectInstructions}\n` : ''}
 `;
 }
 

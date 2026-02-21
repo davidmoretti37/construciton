@@ -19,6 +19,7 @@ import { getAISettings, updateAISettings } from '../../utils/storage';
 
 const ABOUT_YOU_LIMIT = 500;
 const RESPONSE_STYLE_LIMIT = 300;
+const PROJECT_INSTRUCTIONS_LIMIT = 2000;
 
 export default function AIPersonalityScreen({ navigation }) {
   const { t } = useTranslation('settings');
@@ -28,10 +29,11 @@ export default function AIPersonalityScreen({ navigation }) {
 
   const [aboutYou, setAboutYou] = useState('');
   const [responseStyle, setResponseStyle] = useState('');
+  const [projectInstructions, setProjectInstructions] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [originalSettings, setOriginalSettings] = useState({ aboutYou: '', responseStyle: '' });
+  const [originalSettings, setOriginalSettings] = useState({ aboutYou: '', responseStyle: '', projectInstructions: '' });
 
   useEffect(() => {
     loadSettings();
@@ -40,15 +42,17 @@ export default function AIPersonalityScreen({ navigation }) {
   useEffect(() => {
     const changed =
       aboutYou !== originalSettings.aboutYou ||
-      responseStyle !== originalSettings.responseStyle;
+      responseStyle !== originalSettings.responseStyle ||
+      projectInstructions !== originalSettings.projectInstructions;
     setHasChanges(changed);
-  }, [aboutYou, responseStyle, originalSettings]);
+  }, [aboutYou, responseStyle, projectInstructions, originalSettings]);
 
   const loadSettings = async () => {
     try {
       const settings = await getAISettings();
       setAboutYou(settings.aboutYou || '');
       setResponseStyle(settings.responseStyle || '');
+      setProjectInstructions(settings.projectInstructions || '');
       setOriginalSettings(settings);
     } catch (error) {
       console.error('Error loading AI settings:', error);
@@ -62,9 +66,9 @@ export default function AIPersonalityScreen({ navigation }) {
 
     setSaving(true);
     try {
-      const success = await updateAISettings({ aboutYou, responseStyle });
+      const success = await updateAISettings({ aboutYou, responseStyle, projectInstructions });
       if (success) {
-        setOriginalSettings({ aboutYou, responseStyle });
+        setOriginalSettings({ aboutYou, responseStyle, projectInstructions });
         Alert.alert(
           t('aiPersonality.saved', 'Settings Saved'),
           t('aiPersonality.savedMessage', 'Your AI personality preferences have been updated.'),
@@ -93,9 +97,10 @@ export default function AIPersonalityScreen({ navigation }) {
           onPress: async () => {
             setAboutYou('');
             setResponseStyle('');
-            const success = await updateAISettings({ aboutYou: '', responseStyle: '' });
+            setProjectInstructions('');
+            const success = await updateAISettings({ aboutYou: '', responseStyle: '', projectInstructions: '' });
             if (success) {
-              setOriginalSettings({ aboutYou: '', responseStyle: '' });
+              setOriginalSettings({ aboutYou: '', responseStyle: '', projectInstructions: '' });
             }
           },
         },
@@ -211,6 +216,40 @@ export default function AIPersonalityScreen({ navigation }) {
             </Text>
           </View>
 
+          {/* Project Instructions Section */}
+          <View style={[styles.section, { backgroundColor: Colors.white }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="document-text-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
+                {t('aiPersonality.projectInstructions', 'Project Instructions & Templates')}
+              </Text>
+            </View>
+            <Text style={[styles.sectionDescription, { color: Colors.secondaryText }]}>
+              {t('aiPersonality.projectInstructionsDesc', 'Define default checklists, scope of work, and preferences the AI should follow when creating new projects.')}
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                styles.textInputLarge,
+                {
+                  backgroundColor: Colors.lightBackground,
+                  color: Colors.primaryText,
+                  borderColor: Colors.border,
+                },
+              ]}
+              placeholder={t('aiPersonality.projectInstructionsPlaceholder', "Every project should include these checklist items:\n- Site prep & protection\n- Demo and hauling\n- Rough plumbing/electrical\n- Inspection\n- Drywall\n- Paint\n- Final cleanup & walkthrough\n\nAlways use my standard phase structure:\nDemo → Rough-In → Drywall → Finish → Punch List")}
+              placeholderTextColor={Colors.secondaryText + '60'}
+              value={projectInstructions}
+              onChangeText={(text) => setProjectInstructions(text.slice(0, PROJECT_INSTRUCTIONS_LIMIT))}
+              multiline
+              numberOfLines={8}
+              textAlignVertical="top"
+            />
+            <Text style={[styles.charCount, { color: Colors.secondaryText }]}>
+              {projectInstructions.length}/{PROJECT_INSTRUCTIONS_LIMIT}
+            </Text>
+          </View>
+
           {/* Info Note */}
           <View style={[styles.infoNote, { backgroundColor: Colors.primaryBlue + '10' }]}>
             <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
@@ -220,7 +259,7 @@ export default function AIPersonalityScreen({ navigation }) {
           </View>
 
           {/* Reset Button */}
-          {(aboutYou || responseStyle) && (
+          {(aboutYou || responseStyle || projectInstructions) && (
             <TouchableOpacity
               style={styles.resetButton}
               onPress={handleReset}
@@ -329,6 +368,9 @@ const styles = StyleSheet.create({
   },
   textInputSmall: {
     minHeight: 80,
+  },
+  textInputLarge: {
+    minHeight: 160,
   },
   charCount: {
     fontSize: FontSizes.small,

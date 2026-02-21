@@ -11,7 +11,7 @@ const logger = require('../utils/logger');
 // Intent patterns — each keyword scores 1 point for its intent
 const INTENT_PATTERNS = {
   financial: [/invoice/g, /payment/g, /bill/g, /paid/g, /due/g, /owe/g, /collect/g, /deposit/g, /expense/g, /spent/g, /income/g, /financial/g, /profit/g, /loss/g],
-  project: [/project/g, /phase/g, /progress/g, /complete/g, /status/g, /behind/g, /over.*budget/g, /timeline/g, /milestone/g],
+  project: [/project/g, /phase/g, /progress/g, /complete/g, /status/g, /behind/g, /over.*budget/g, /timeline/g, /milestone/g, /checklist/g, /task list/g],
   worker: [/worker/g, /employee/g, /crew/g, /team\b/g, /schedule/g, /assign/g, /clock/g, /shift/g, /attendance/g, /timesheet/g],
   estimate: [/estimate/g, /quote/g, /proposal/g, /bid/g, /cost/g],
   briefing: [/morning/g, /briefing/g, /today/g, /tomorrow/g, /this week/g, /overview/g, /summary/g, /rundown/g],
@@ -30,7 +30,8 @@ const TOOL_GROUPS = {
   project: [
     'search_projects', 'get_project_details', 'get_project_summary',
     'get_project_financials', 'update_phase_progress', 'delete_project',
-    'update_project', 'create_worker_task', 'assign_worker', 'global_search'
+    'update_project', 'create_worker_task', 'assign_worker', 'global_search',
+    'add_project_checklist', 'create_project_phase'
   ],
   worker: [
     'get_workers', 'get_worker_details', 'assign_worker',
@@ -64,7 +65,8 @@ const TOOL_GROUPS = {
     'search_projects', 'search_estimates', 'search_invoices', 'get_workers',
     'get_project_details', 'get_estimate_details', 'get_invoice_details',
     'get_worker_details', 'get_time_records',
-    'record_expense', 'update_phase_progress', 'create_worker_task'
+    'record_expense', 'update_phase_progress', 'create_worker_task',
+    'add_project_checklist', 'create_project_phase'
   ]
 };
 

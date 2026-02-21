@@ -635,6 +635,7 @@ export default function ChatScreen({ navigation, route }) {
         learnedFacts,
         aboutYou: aiSettings?.aboutYou || '',
         responseStyle: aiSettings?.responseStyle || '',
+        projectInstructions: aiSettings?.projectInstructions || '',
         isSupervisor: isSupervisor,
         ownerName: profile?.owner_name || '',
         phasesTemplate: userProfile?.phasesTemplate || [],

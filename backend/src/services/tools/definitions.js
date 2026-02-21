@@ -352,6 +352,64 @@ const toolDefinitions = [
     }
   },
 
+  // ==================== PHASE & CHECKLIST MUTATIONS ====================
+  {
+    type: 'function',
+    function: {
+      name: 'add_project_checklist',
+      description: 'Add checklist items (tasks) to a project phase. Creates the phase if it doesn\'t exist. Use when the user provides a list of tasks, a checklist, or says "add these items to the project". Handles many items at once efficiently.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project name or UUID. Names are resolved automatically.'
+          },
+          phase_name: {
+            type: 'string',
+            description: 'Name of the phase to add items to (e.g., "Demolition", "Rough-In", "General"). If the phase doesn\'t exist, it will be created. Defaults to "General" if not specified.'
+          },
+          items: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of checklist item descriptions (e.g., ["Site prep and protection", "Remove existing fixtures", "Rough plumbing inspection"])'
+          }
+        },
+        required: ['project_id', 'items']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_project_phase',
+      description: 'Create a new phase/stage for an existing project with optional checklist tasks. Use when user says "add a demolition phase" or "create a plumbing phase with these tasks".',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project name or UUID. Names are resolved automatically.'
+          },
+          phase_name: {
+            type: 'string',
+            description: 'Name of the phase (e.g., "Demolition", "Rough Plumbing", "Finish Work")'
+          },
+          planned_days: {
+            type: 'number',
+            description: 'Estimated number of working days for this phase. Defaults to 5.'
+          },
+          tasks: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional array of checklist task descriptions for this phase'
+          }
+        },
+        required: ['project_id', 'phase_name']
+      }
+    }
+  },
+
   // ==================== TASK MUTATIONS ====================
   {
     type: 'function',
@@ -979,6 +1037,8 @@ const TOOL_STATUS_MESSAGES = {
   void_invoice: 'Voiding invoice...',
   create_work_schedule: 'Creating work schedule...',
   create_worker_task: 'Creating task...',
+  add_project_checklist: 'Adding checklist items...',
+  create_project_phase: 'Creating project phase...',
   update_service_pricing: 'Updating pricing...',
 };
 

@@ -2229,6 +2229,224 @@ async function update_phase_progress(userId, { project_id, phase_name, percentag
   };
 }
 
+// ==================== CHECKLIST & PHASE CREATION ====================
+
+async function add_project_checklist(userId, { project_id, phase_name, items }) {
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return resolved;
+  if (resolved.suggestions) return resolved;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { error: 'No checklist items provided. Please provide an array of task descriptions.' };
+  }
+
+  const targetPhaseName = phase_name || 'General';
+
+  // Build new task objects for the JSONB array
+  const newTasks = items.map((desc, i) => ({
+    id: `task-${Date.now()}-${i}`,
+    description: typeof desc === 'string' ? desc : desc.description || 'Untitled task',
+    order: i,
+    completed: false,
+  }));
+
+  // Check if phase already exists for this project
+  const { data: existingPhases } = await supabase
+    .from('project_phases')
+    .select('id, name, tasks, order_index')
+    .eq('project_id', resolved.id);
+
+  let phase = null;
+  if (existingPhases && existingPhases.length > 0) {
+    // Try fuzzy match on phase name
+    const filter = buildWordSearch(targetPhaseName, ['name']);
+    if (filter) {
+      const { data: matchedPhases } = await supabase
+        .from('project_phases')
+        .select('id, name, tasks, order_index')
+        .eq('project_id', resolved.id)
+        .or(filter);
+      phase = matchedPhases?.[0];
+    }
+  }
+
+  if (phase) {
+    // Append to existing phase's tasks JSONB
+    const existingTasks = Array.isArray(phase.tasks) ? phase.tasks : [];
+    // Reorder new tasks to continue after existing ones
+    const startOrder = existingTasks.length;
+    newTasks.forEach((t, i) => { t.order = startOrder + i; });
+    const mergedTasks = [...existingTasks, ...newTasks];
+
+    const { error: updateErr } = await supabase
+      .from('project_phases')
+      .update({ tasks: mergedTasks })
+      .eq('id', phase.id);
+
+    if (updateErr) return { error: `Failed to update phase tasks: ${updateErr.message}` };
+  } else {
+    // Create new phase
+    const maxOrder = existingPhases
+      ? Math.max(-1, ...existingPhases.map(p => p.order_index || 0))
+      : -1;
+
+    const { error: insertErr } = await supabase
+      .from('project_phases')
+      .insert({
+        project_id: resolved.id,
+        name: targetPhaseName,
+        order_index: maxOrder + 1,
+        planned_days: 5,
+        tasks: newTasks,
+        completion_percentage: 0,
+        status: 'not_started',
+      });
+
+    if (insertErr) return { error: `Failed to create phase: ${insertErr.message}` };
+
+    // Mark project as having phases
+    await supabase
+      .from('projects')
+      .update({ has_phases: true })
+      .eq('id', resolved.id);
+  }
+
+  // Also create worker_tasks entries for calendar/schedule visibility
+  const workerTasks = newTasks.map(t => ({
+    owner_id: userId,
+    project_id: resolved.id,
+    title: t.description,
+    description: `Phase: ${targetPhaseName}`,
+    start_date: today(),
+    end_date: today(),
+    status: 'pending',
+    phase_task_id: t.id,
+  }));
+
+  if (workerTasks.length > 0) {
+    const { error: taskErr } = await supabase
+      .from('worker_tasks')
+      .insert(workerTasks);
+
+    if (taskErr) {
+      logger.warn('Worker tasks creation failed (checklist still saved):', taskErr.message);
+    }
+  }
+
+  // Get project name for response
+  const { data: proj } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', resolved.id)
+    .single();
+
+  return {
+    success: true,
+    project_name: proj?.name,
+    phase_name: phase ? phase.name : targetPhaseName,
+    items_added: newTasks.length,
+    phase_existed: !!phase,
+    items: newTasks.map(t => t.description),
+  };
+}
+
+async function create_project_phase(userId, { project_id, phase_name, planned_days, tasks }) {
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return resolved;
+  if (resolved.suggestions) return resolved;
+
+  if (!phase_name || phase_name.trim().length === 0) {
+    return { error: 'Phase name is required.' };
+  }
+
+  // Check for duplicate phase name
+  const { data: existingPhases } = await supabase
+    .from('project_phases')
+    .select('id, name, order_index')
+    .eq('project_id', resolved.id);
+
+  const duplicate = existingPhases?.find(
+    p => p.name.toLowerCase() === phase_name.trim().toLowerCase()
+  );
+  if (duplicate) {
+    return { error: `A phase named "${duplicate.name}" already exists in this project. Use add_project_checklist to add items to it.` };
+  }
+
+  const maxOrder = existingPhases
+    ? Math.max(-1, ...existingPhases.map(p => p.order_index || 0))
+    : -1;
+
+  // Build tasks JSONB
+  const phaseTasks = (tasks || []).map((desc, i) => ({
+    id: `task-${Date.now()}-${i}`,
+    description: typeof desc === 'string' ? desc : 'Untitled task',
+    order: i,
+    completed: false,
+  }));
+
+  const { data: newPhase, error: insertErr } = await supabase
+    .from('project_phases')
+    .insert({
+      project_id: resolved.id,
+      name: phase_name.trim(),
+      order_index: maxOrder + 1,
+      planned_days: planned_days || 5,
+      tasks: phaseTasks,
+      completion_percentage: 0,
+      status: 'not_started',
+    })
+    .select('id, name, order_index, planned_days')
+    .single();
+
+  if (insertErr) return { error: `Failed to create phase: ${insertErr.message}` };
+
+  // Mark project as having phases
+  await supabase
+    .from('projects')
+    .update({ has_phases: true })
+    .eq('id', resolved.id);
+
+  // Create worker_tasks if tasks were provided
+  if (phaseTasks.length > 0) {
+    const workerTasks = phaseTasks.map(t => ({
+      owner_id: userId,
+      project_id: resolved.id,
+      title: t.description,
+      description: `Phase: ${phase_name.trim()}`,
+      start_date: today(),
+      end_date: today(),
+      status: 'pending',
+      phase_task_id: t.id,
+    }));
+
+    const { error: taskErr } = await supabase
+      .from('worker_tasks')
+      .insert(workerTasks);
+
+    if (taskErr) {
+      logger.warn('Worker tasks creation failed (phase still created):', taskErr.message);
+    }
+  }
+
+  // Get project name
+  const { data: proj } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', resolved.id)
+    .single();
+
+  return {
+    success: true,
+    project_name: proj?.name,
+    phase: {
+      id: newPhase.id,
+      name: newPhase.name,
+      planned_days: newPhase.planned_days,
+      task_count: phaseTasks.length,
+    },
+  };
+}
+
 // ==================== INVOICE MUTATIONS ====================
 
 async function convert_estimate_to_invoice(userId, { estimate_id }) {
@@ -2585,6 +2803,8 @@ const TOOL_HANDLERS = {
   delete_expense,
   update_expense,
   // New mutation tools
+  add_project_checklist,
+  create_project_phase,
   update_phase_progress,
   convert_estimate_to_invoice,
   update_invoice,

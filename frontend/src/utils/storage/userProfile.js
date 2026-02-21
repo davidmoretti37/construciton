@@ -740,37 +740,38 @@ export const updateAutoTranslateEstimates = async (enabled) => {
 
 /**
  * Get AI personalization settings
- * @returns {Promise<object>} AI settings with aboutYou and responseStyle
+ * @returns {Promise<object>} AI settings with aboutYou, responseStyle, and projectInstructions
  */
 export const getAISettings = async () => {
   try {
     const userId = await getCurrentUserId();
-    if (!userId) return { aboutYou: '', responseStyle: '' };
+    if (!userId) return { aboutYou: '', responseStyle: '', projectInstructions: '' };
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('ai_about_you, ai_response_style')
+      .select('ai_about_you, ai_response_style, ai_project_instructions')
       .eq('id', userId)
       .maybeSingle();
 
     if (error) {
       logger.error('Error getting AI settings:', error);
-      return { aboutYou: '', responseStyle: '' };
+      return { aboutYou: '', responseStyle: '', projectInstructions: '' };
     }
 
     return {
       aboutYou: data?.ai_about_you || '',
       responseStyle: data?.ai_response_style || '',
+      projectInstructions: data?.ai_project_instructions || '',
     };
   } catch (error) {
     logger.error('Error in getAISettings:', error);
-    return { aboutYou: '', responseStyle: '' };
+    return { aboutYou: '', responseStyle: '', projectInstructions: '' };
   }
 };
 
 /**
  * Update AI personalization settings
- * @param {object} settings - Settings with aboutYou and responseStyle
+ * @param {object} settings - Settings with aboutYou, responseStyle, and projectInstructions
  * @returns {Promise<boolean>} Success status
  */
 export const updateAISettings = async (settings) => {
@@ -781,12 +782,14 @@ export const updateAISettings = async (settings) => {
     // Enforce character limits
     const aboutYou = (settings.aboutYou || '').slice(0, 500);
     const responseStyle = (settings.responseStyle || '').slice(0, 300);
+    const projectInstructions = (settings.projectInstructions || '').slice(0, 2000);
 
     const { error } = await supabase
       .from('profiles')
       .update({
         ai_about_you: aboutYou,
         ai_response_style: responseStyle,
+        ai_project_instructions: projectInstructions,
       })
       .eq('id', userId);
 
