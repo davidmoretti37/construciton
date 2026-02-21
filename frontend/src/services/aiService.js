@@ -44,7 +44,7 @@ const CACHE_TTL = 300000; // 5 minutes (common queries like "updates" don't chan
  * - gpt-4o: ~400-600ms ⚡⚡
  */
 const FAST_MODEL = 'anthropic/claude-haiku-4.5'; // Haiku 4.5 for simple queries
-const POWERFUL_MODEL = 'anthropic/claude-sonnet-4'; // Sonnet 4 for complex tasks
+const POWERFUL_MODEL = 'anthropic/claude-sonnet-4.5'; // Sonnet 4.5 for complex tasks (matches backend modelRouter)
 
 /**
  * TASK COMPLEXITY MAPPING
@@ -100,7 +100,7 @@ export function getTaskComplexity(task) {
 function getModelByName(name) {
   const models = {
     'haiku': 'anthropic/claude-haiku-4.5',
-    'sonnet': 'anthropic/claude-sonnet-4',
+    'sonnet': 'anthropic/claude-sonnet-4.5',
     'groq': 'groq/llama-3.3-70b-versatile',
     'groq-small': 'groq/llama-3.1-8b-instant'
   };
@@ -219,10 +219,12 @@ export const sendPlanningRequest = async (message, systemPrompt) => {
       },
     ];
 
+    const token = await getAuthToken();
     const response = await fetch(`${BACKEND_URL}/api/chat/planning`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         messages,
@@ -316,10 +318,12 @@ export const sendMessageToAI = async (message, projectContext, conversationHisto
       },
     ];
 
+    const token = await getAuthToken();
     const response = await fetch(`${BACKEND_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         model: selectModel(message, customSystemPrompt), // Smart model routing: Haiku for simple, Sonnet for complex
@@ -1188,10 +1192,12 @@ export const analyzeScreenshot = async (base64Image) => {
   try {
     logger.debug('Analyzing screenshot with AI Vision...');
 
+    const token = await getAuthToken();
     const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini', // Vision model
@@ -1291,10 +1297,12 @@ export const analyzeDocument = async (base64Content, fileName) => {
 
     // For PDFs, use the vision endpoint with the document as an image
     // GPT-4o-mini can read PDF pages rendered as images
+    const token = await getAuthToken();
     const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini',
@@ -1472,10 +1480,12 @@ export const analyzeReceipt = async (base64Image) => {
   try {
     logger.debug('Analyzing receipt with AI Vision...');
 
+    const token = await getAuthToken();
     const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini',
@@ -1597,10 +1607,12 @@ export const analyzeSubcontractorQuote = async (base64Image, tradeId = null) => 
     logger.debug('🔍 Analyzing subcontractor quote with AI Vision...');
     logger.debug('📋 Trade ID:', tradeId);
 
+    const token = await getAuthToken();
     const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini', // Vision model

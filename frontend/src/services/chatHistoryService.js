@@ -134,8 +134,8 @@ Respond with ONLY the title, nothing else.`;
         systemPrompt
       );
 
-      // Extract the title from the response
-      let title = response.trim();
+      // Extract the title from the response (may be string or {text, visualElements, actions})
+      let title = (typeof response === 'string' ? response : response?.text || '').trim();
 
       // Remove quotes if AI added them
       title = title.replace(/^["']|["']$/g, '');

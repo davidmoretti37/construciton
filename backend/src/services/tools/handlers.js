@@ -370,6 +370,17 @@ async function get_project_details(userId, args) {
 // ==================== PROJECT MUTATIONS ====================
 
 async function delete_project(userId, { project_id }) {
+  // Supervisors cannot delete projects — only owners can
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.role === 'supervisor') {
+    return { error: 'Supervisors cannot delete projects. Please ask the project owner to delete it.' };
+  }
+
   const resolved = await resolveProjectId(userId, project_id);
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
@@ -379,19 +390,18 @@ async function delete_project(userId, { project_id }) {
     .from('projects')
     .select('name')
     .eq('id', resolved.id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
-    .single();
+    .eq('user_id', userId);
 
-  if (!project) return { error: 'Project not found or access denied' };
+  if (!project || project.length === 0) return { error: 'Project not found or access denied' };
 
   const { error } = await supabase
     .from('projects')
     .delete()
     .eq('id', resolved.id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+    .eq('user_id', userId);
 
   if (error) return { error: `Failed to delete: ${error.message}` };
-  return { success: true, deletedProject: project.name };
+  return { success: true, deletedProject: project[0].name };
 }
 
 async function update_project(userId, args = {}) {
