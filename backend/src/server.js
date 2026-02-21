@@ -87,9 +87,130 @@ app.use('/api', servicesLimiter, transcriptionRoutes);
 app.use('/api/stripe', servicesLimiter, stripeRoutes);
 app.use('/api/subscription', servicesLimiter, stripeRoutes);
 
-// Health check
+// ============================================================
+// HEALTH & READINESS CHECKS
+// ============================================================
+
+/**
+ * Liveness probe — confirms the process is running.
+ * Use for container orchestrators (Railway, K8s) to detect crashed processes.
+ */
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+/**
+ * Deep readiness probe — checks all external dependencies.
+ * Returns 200 only when ALL services are reachable.
+ * Use this before routing traffic to a new deployment.
+ */
+app.get('/ready', async (req, res) => {
+  const checks = {};
+  const startTime = Date.now();
+
+  // 1. Supabase — query a lightweight table
+  try {
+    const { error } = await supabase.from('profiles').select('id').limit(1);
+    checks.supabase = error ? { status: 'fail', error: error.message } : { status: 'ok' };
+  } catch (e) {
+    checks.supabase = { status: 'fail', error: e.message };
+  }
+
+  // 2. OpenRouter — check API key validity with a models list call
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      const controller = new (require('abort-controller'))();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const resp = await require('node-fetch')('https://openrouter.ai/api/v1/models', {
+        headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      checks.openrouter = resp.ok ? { status: 'ok' } : { status: 'fail', error: `HTTP ${resp.status}` };
+    } catch (e) {
+      checks.openrouter = { status: 'fail', error: e.message };
+    }
+  } else {
+    checks.openrouter = { status: 'fail', error: 'OPENROUTER_API_KEY not set' };
+  }
+
+  // 3. Stripe — verify key by fetching balance (lightweight)
+  if (process.env.STRIPE_SECRET_KEY) {
+    try {
+      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      await stripe.balance.retrieve();
+      checks.stripe = { status: 'ok' };
+    } catch (e) {
+      checks.stripe = { status: 'fail', error: e.message };
+    }
+  } else {
+    checks.stripe = { status: 'skip', reason: 'STRIPE_SECRET_KEY not set' };
+  }
+
+  // 4. Google Maps — ping geocoding endpoint
+  if (process.env.GOOGLE_MAPS_API_KEY) {
+    try {
+      const controller = new (require('abort-controller'))();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const resp = await require('node-fetch')(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=test&key=${process.env.GOOGLE_MAPS_API_KEY}`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      const data = await resp.json();
+      checks.google_maps = data.status !== 'REQUEST_DENIED'
+        ? { status: 'ok' }
+        : { status: 'fail', error: data.error_message || 'REQUEST_DENIED' };
+    } catch (e) {
+      checks.google_maps = { status: 'fail', error: e.message };
+    }
+  } else {
+    checks.google_maps = { status: 'skip', reason: 'GOOGLE_MAPS_API_KEY not set' };
+  }
+
+  // 5. Deepgram — check API key with a usage endpoint
+  if (process.env.DEEPGRAM_API_KEY) {
+    try {
+      const controller = new (require('abort-controller'))();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const resp = await require('node-fetch')('https://api.deepgram.com/v1/projects', {
+        headers: { 'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      checks.deepgram = resp.ok ? { status: 'ok' } : { status: 'fail', error: `HTTP ${resp.status}` };
+    } catch (e) {
+      checks.deepgram = { status: 'fail', error: e.message };
+    }
+  } else {
+    checks.deepgram = { status: 'skip', reason: 'DEEPGRAM_API_KEY not set' };
+  }
+
+  // 6. Environment variables — verify required vars are set
+  const requiredVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'OPENROUTER_API_KEY'];
+  const missingVars = requiredVars.filter(v => !process.env[v]);
+  checks.env = missingVars.length === 0
+    ? { status: 'ok' }
+    : { status: 'fail', missing: missingVars };
+
+  // 7. Tool definitions — verify all tool handlers are registered
+  const { toolDefinitions } = require('./services/tools/definitions');
+  const { TOOL_HANDLERS } = require('./services/tools/handlers');
+  const definedTools = toolDefinitions.map(t => t.function.name);
+  const missingHandlers = definedTools.filter(name => !TOOL_HANDLERS[name]);
+  checks.tools = missingHandlers.length === 0
+    ? { status: 'ok', count: definedTools.length }
+    : { status: 'fail', missingHandlers };
+
+  const duration = Date.now() - startTime;
+  const allOk = Object.values(checks).every(c => c.status === 'ok' || c.status === 'skip');
+
+  res.status(allOk ? 200 : 503).json({
+    status: allOk ? 'ready' : 'degraded',
+    timestamp: new Date().toISOString(),
+    duration: `${duration}ms`,
+    checks,
+  });
 });
 
 // Subscription success page (shown after Stripe checkout completes)
@@ -684,22 +805,28 @@ app.delete('/api/chat/sessions/:sessionId', chatHistoryLimiter, authenticateUser
   }
 });
 
-// Start server - bind to 0.0.0.0 for Railway/Docker compatibility
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${PORT}`);  // Always visible in production
-  logger.info(`🚀 Backend server running on port ${PORT}`);
-  logger.info(`   Health check: http://localhost:${PORT}/health`);
-  logger.info(`   AI Chat: http://localhost:${PORT}/api/chat/stream`);
-  logger.info(`   🤖 Agent: http://localhost:${PORT}/api/chat/agent`);
-  logger.info(`   ⚡ Fast Planning: http://localhost:${PORT}/api/chat/planning`);
-  logger.info(`   Geocoding: http://localhost:${PORT}/api/geocode`);
-  logger.info(`   Transcription: http://localhost:${PORT}/api/transcribe`);
-  logger.info(`   💳 Stripe: http://localhost:${PORT}/api/stripe/*`);
-  logger.info(`   Rate limits: AI=20/min, Services=60/min`);
-  if (process.env.GROQ_API_KEY) {
-    logger.info(`   ⚡ Groq enabled for ultra-fast planning`);
-  }
-  if (process.env.STRIPE_SECRET_KEY) {
-    logger.info(`   💳 Stripe payments enabled`);
-  }
-});
+// Export app for testing with supertest (before listen)
+module.exports = app;
+
+// Start server only when run directly (not when imported by tests)
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+    logger.info(`Backend server running on port ${PORT}`);
+    logger.info(`   Health check: http://localhost:${PORT}/health`);
+    logger.info(`   Readiness: http://localhost:${PORT}/ready`);
+    logger.info(`   AI Chat: http://localhost:${PORT}/api/chat/stream`);
+    logger.info(`   Agent: http://localhost:${PORT}/api/chat/agent`);
+    logger.info(`   Fast Planning: http://localhost:${PORT}/api/chat/planning`);
+    logger.info(`   Geocoding: http://localhost:${PORT}/api/geocode`);
+    logger.info(`   Transcription: http://localhost:${PORT}/api/transcribe`);
+    logger.info(`   Stripe: http://localhost:${PORT}/api/stripe/*`);
+    logger.info(`   Rate limits: AI=20/min, Services=60/min`);
+    if (process.env.GROQ_API_KEY) {
+      logger.info(`   Groq enabled for ultra-fast planning`);
+    }
+    if (process.env.STRIPE_SECRET_KEY) {
+      logger.info(`   Stripe payments enabled`);
+    }
+  });
+}

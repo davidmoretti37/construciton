@@ -7,7 +7,10 @@ on:
     branches: [main, master]
 
 jobs:
-  test:
+  # ============================================================
+  # BACKEND TESTS — API smoke tests, tool integrity, unit tests
+  # ============================================================
+  backend-test:
     runs-on: ubuntu-latest
 
     strategy:
@@ -23,12 +26,46 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: ./backend
+
+      - name: Run backend tests
+        run: npm test
+        working-directory: ./backend
+        env:
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: test-key
+          OPENROUTER_API_KEY: test-key
+
+  # ============================================================
+  # FRONTEND TESTS — Component tests, hook tests, utils
+  # ============================================================
+  frontend-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
         run: npm ci --legacy-peer-deps
         working-directory: ./frontend
 
-      - name: Run tests
+      - name: Run frontend tests
         run: npm test
         working-directory: ./frontend
 
@@ -37,6 +74,9 @@ jobs:
         working-directory: ./frontend
         continue-on-error: true
 
+  # ============================================================
+  # LINT — Type checking
+  # ============================================================
   lint:
     runs-on: ubuntu-latest
 
@@ -49,6 +89,7 @@ jobs:
         with:
           node-version: 20.x
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
@@ -59,9 +100,12 @@ jobs:
         working-directory: ./frontend
         continue-on-error: true
 
+  # ============================================================
+  # BUILD — Requires both backend and frontend tests to pass
+  # ============================================================
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [backend-test, frontend-test]
 
     steps:
       - name: Checkout repository
@@ -72,8 +116,9 @@ jobs:
         with:
           node-version: 20.x
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: npm ci --legacy-peer-deps
         working-directory: ./frontend
 
