@@ -24,7 +24,7 @@ const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions')
 const { executeTool } = require('./tools/handlers');
 const { buildSystemPrompt } = require('./tools/systemPrompt');
 const { routeTools } = require('./toolRouter');
-const { selectModel } = require('./modelRouter');
+const { selectModel, trackUsage } = require('./modelRouter');
 const memory = require('./requestMemory');
 
 // Configuration
@@ -442,7 +442,15 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
       }
 
       const totalTime = Date.now() - startTime;
-      logger.info(`✅ Agent complete in ${totalTime}ms (${toolRound} rounds, model: ${model})`);
+
+      // Estimate tokens (chars / 4 is a rough approximation)
+      const inputChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
+      const outputChars = messages.filter(m => m.role === 'assistant').reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
+      const estInput = Math.round(inputChars / 4);
+      const estOutput = Math.round(outputChars / 4);
+      trackUsage(model, estInput, estOutput);
+
+      logger.info(`📊 Agent: ${toolRound} rounds, model=${model.includes('haiku') ? 'haiku' : 'sonnet'}, ~${estInput}+${estOutput} tokens, ${totalTime}ms`);
 
       // Signal completion
       sendSSE(res, { type: 'done' });

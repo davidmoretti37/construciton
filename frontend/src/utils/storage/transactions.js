@@ -31,7 +31,7 @@ export const addProjectTransaction = async (transaction) => {
         is_auto_generated: false,
         created_by: userId
       })
-      .select()
+      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
       .single();
 
     if (error) throw error;
@@ -53,12 +53,14 @@ export const getProjectTransactions = async (projectId, type = null) => {
     let query = supabase
       .from('project_transactions')
       .select(`
-        *,
+        id, project_id, type, category, description, amount, date, worker_id,
+        payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at,
         workers (id, full_name)
       `)
       .eq('project_id', projectId)
       .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (type) {
       query = query.eq('type', type);
@@ -95,7 +97,7 @@ export const updateTransaction = async (transactionId, updates) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', transactionId)
-      .select()
+      .select('id, project_id, type, category, description, amount, date, payment_method, notes, updated_at, created_at')
       .single();
 
     if (error) throw error;
@@ -195,7 +197,7 @@ export const syncProjectTotalsFromTransactions = async (projectId) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', projectId)
-      .select()
+      .select('id, name, expenses, income_collected, updated_at')
       .single();
 
     if (error) {
@@ -234,7 +236,7 @@ export const getTransactionsByCategory = async (category, projectId = null) => {
 
     let query = supabase
       .from('project_transactions')
-      .select('*')
+      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, created_at')
       .eq('user_id', user.id)
       .eq('category', category)
       .order('transaction_date', { ascending: false });
@@ -243,7 +245,7 @@ export const getTransactionsByCategory = async (category, projectId = null) => {
       query = query.eq('project_id', projectId);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(100);
 
     if (error) {
       console.error('Error fetching transactions by category:', error);
@@ -274,7 +276,7 @@ export const getTransactionsByDateRange = async (startDate, endDate, projectId =
 
     let query = supabase
       .from('project_transactions')
-      .select('*')
+      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, created_at')
       .eq('user_id', user.id)
       .gte('transaction_date', startDate)
       .lte('transaction_date', endDate)
@@ -284,7 +286,7 @@ export const getTransactionsByDateRange = async (startDate, endDate, projectId =
       query = query.eq('project_id', projectId);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(100);
 
     if (error) {
       console.error('Error fetching transactions by date range:', error);
@@ -314,7 +316,7 @@ export const getTransactionsByPaymentMethod = async (paymentMethod, projectId = 
 
     let query = supabase
       .from('project_transactions')
-      .select('*')
+      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, created_at')
       .eq('user_id', user.id)
       .eq('payment_method', paymentMethod)
       .order('transaction_date', { ascending: false });
@@ -323,7 +325,7 @@ export const getTransactionsByPaymentMethod = async (paymentMethod, projectId = 
       query = query.eq('project_id', projectId);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(100);
 
     if (error) {
       console.error('Error fetching transactions by payment method:', error);
@@ -355,7 +357,7 @@ export const calculateLaborCostsFromTimeTracking = async (projectId = null, star
     let query = supabase
       .from('clock_in_records')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in_time, clock_out_time,
         workers:worker_id (
           id,
           full_name,
@@ -442,7 +444,7 @@ export const getSpendingTrendsByCategory = async (projectId = null, months = 3) 
 
     let query = supabase
       .from('project_transactions')
-      .select('*')
+      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, created_at')
       .eq('user_id', user.id)
       .eq('type', 'expense')
       .gte('transaction_date', startDate.toISOString());
@@ -451,7 +453,7 @@ export const getSpendingTrendsByCategory = async (projectId = null, months = 3) 
       query = query.eq('project_id', projectId);
     }
 
-    const { data: transactions, error } = await query;
+    const { data: transactions, error } = await query.limit(100);
 
     if (error) {
       console.error('Error fetching spending trends:', error);
@@ -485,7 +487,7 @@ export const detectCostOverruns = async (projectId) => {
   try {
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('*, phases:project_phases(*)')
+      .select('id, name, contract_amount, phases:project_phases(id, name, status, payment_amount)')
       .eq('id', projectId)
       .single();
 
@@ -496,7 +498,7 @@ export const detectCostOverruns = async (projectId) => {
 
     const { data: expenses, error: expensesError } = await supabase
       .from('project_transactions')
-      .select('*')
+      .select('id, amount')
       .eq('project_id', projectId)
       .eq('type', 'expense');
 
@@ -541,9 +543,10 @@ export const predictCashFlow = async (months = 3) => {
 
     const { data: projects, error } = await supabase
       .from('projects')
-      .select('*, phases:project_phases(*)')
+      .select('id, name, contract_amount, income_collected, status, phases:project_phases(id, name, status, payment_amount, end_date)')
       .eq('user_id', user.id)
-      .in('status', ['active', 'on-track', 'behind', 'over-budget']);
+      .in('status', ['active', 'on-track', 'behind', 'over-budget'])
+      .limit(100);
 
     if (error) {
       console.error('Error fetching projects:', error);
@@ -647,7 +650,7 @@ export const submitWorkerExpense = async (expense) => {
         is_auto_generated: false,
         created_by: userId
       })
-      .select()
+      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
       .single();
 
     if (error) throw error;
@@ -668,14 +671,15 @@ export const getWorkerExpenses = async (workerId) => {
     const { data, error } = await supabase
       .from('project_transactions')
       .select(`
-        *,
+        id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, created_at,
         projects (id, name)
       `)
       .eq('worker_id', workerId)
       .eq('type', 'expense')
       .neq('category', 'labor') // Exclude labor costs (payments) - workers shouldn't see payment info
       .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) throw error;
     return data || [];

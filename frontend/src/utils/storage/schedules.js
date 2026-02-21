@@ -80,7 +80,7 @@ export const createScheduleEvent = async (eventData) => {
     const { data, error } = await supabase
       .from('schedule_events')
       .insert(insertData)
-      .select()
+      .select('id, owner_id, worker_id, title, description, event_type, location, address, formatted_address, latitude, longitude, place_id, start_datetime, end_datetime, all_day, recurring, recurring_pattern, recurring_id, color, estimated_travel_time_minutes, created_at')
       .single();
 
     if (error) {
@@ -142,11 +142,12 @@ export const fetchScheduleEvents = async (startDate, endDate, eventType = null) 
 
     let query = supabase
       .from('schedule_events')
-      .select('*')
+      .select('id, owner_id, worker_id, title, description, event_type, location, address, formatted_address, latitude, longitude, place_id, start_datetime, end_datetime, all_day, recurring, recurring_pattern, recurring_id, color, estimated_travel_time_minutes, created_at')
       .eq('owner_id', user.id)
       .lte('start_datetime', endUTC)
       .or(`start_datetime.gte.${startUTC},end_datetime.gte.${startUTC},end_datetime.is.null`)
-      .order('start_datetime', { ascending: true });
+      .order('start_datetime', { ascending: true })
+      .limit(50);
 
     if (eventType) {
       query = query.eq('event_type', eventType);
@@ -204,7 +205,7 @@ export const fetchActiveProjectsForDate = async (date) => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        *,
+        id, name, status, start_date, end_date, location, user_id,
         project_phases (
           id,
           name,
@@ -217,7 +218,8 @@ export const fetchActiveProjectsForDate = async (date) => {
       .eq('user_id', user.id)
       .lte('start_date', date)
       .or(`end_date.gte.${date},end_date.is.null`)
-      .order('start_date', { ascending: true });
+      .order('start_date', { ascending: true })
+      .limit(50);
 
     if (error) {
       console.error('Error fetching active projects:', error);
@@ -254,7 +256,7 @@ export const fetchWorkSchedules = async (startDate, endDate) => {
     const { data, error } = await supabase
       .from('worker_schedules')
       .select(`
-        *,
+        id, worker_id, project_id, phase_id, start_date, end_date, start_time, end_time, recurring, recurring_days, notes, created_by, created_at,
         workers (
           id,
           full_name,
@@ -276,7 +278,8 @@ export const fetchWorkSchedules = async (startDate, endDate) => {
       .lte('start_date', endDate)
       .or(`end_date.gte.${startDate},end_date.is.null`)
       .order('start_date', { ascending: true })
-      .order('start_time', { ascending: true });
+      .order('start_time', { ascending: true })
+      .limit(50);
 
     if (error) {
       console.error('Error fetching work schedules:', error);
@@ -318,7 +321,7 @@ export const createWorkSchedule = async (scheduleData) => {
         notes: scheduleData.notes,
         created_by: user.id,
       })
-      .select()
+      .select('id, worker_id, project_id, phase_id, start_date, end_date, start_time, end_time, recurring, recurring_days, notes, created_by, created_at')
       .single();
 
     if (error) {
@@ -603,7 +606,7 @@ export const createRecurringEvent = async (eventData) => {
       const { data, error } = await supabase
         .from('schedule_events')
         .insert(instances)
-        .select();
+        .select('id, owner_id, title, event_type, start_datetime, end_datetime, location, all_day, recurring, recurring_id, color, created_at');
 
       if (error) {
         console.error('Error creating recurring events:', error);
@@ -706,7 +709,7 @@ export const setWorkerAvailability = async (data) => {
         reason,
         time_range: time_range ? JSON.stringify(time_range) : null
       })
-      .select()
+      .select('id, user_id, worker_id, start_date, end_date, status, reason, time_range')
       .single();
 
     if (error) {
@@ -772,7 +775,7 @@ export const getWorkerAvailability = async (workerId, startDate, endDate) => {
 
     const { data, error } = await supabase
       .from('worker_availability')
-      .select('*')
+      .select('id, user_id, worker_id, start_date, end_date, status, reason, time_range')
       .eq('worker_id', workerId)
       .gte('start_date', startDate)
       .lte('end_date', endDate);
@@ -813,7 +816,7 @@ export const createCrew = async (crewData) => {
         worker_ids,
         default_project_id
       })
-      .select()
+      .select('id, user_id, name, worker_ids, default_project_id, created_at')
       .single();
 
     if (error) {
@@ -837,7 +840,7 @@ export const getCrew = async (crewId) => {
   try {
     const { data, error } = await supabase
       .from('worker_crews')
-      .select('*')
+      .select('id, user_id, name, worker_ids, default_project_id, created_at')
       .eq('id', crewId)
       .single();
 
@@ -915,8 +918,9 @@ export const fetchCrews = async () => {
 
     const { data, error } = await supabase
       .from('worker_crews')
-      .select('*')
-      .eq('user_id', user.id);
+      .select('id, user_id, name, worker_ids, default_project_id, created_at')
+      .eq('user_id', user.id)
+      .limit(50);
 
     if (error) return [];
     return data || [];
@@ -952,7 +956,7 @@ export const createShiftTemplate = async (templateData) => {
         break_duration: break_duration || 0,
         days: days || ['mon', 'tue', 'wed', 'thu', 'fri']
       })
-      .select()
+      .select('id, user_id, name, start_time, end_time, break_duration, days, created_at')
       .single();
 
     if (error) {
@@ -980,7 +984,7 @@ export const applyShiftTemplate = async (templateId, workerId, projectId, startD
   try {
     const { data: template, error: templateError } = await supabase
       .from('shift_templates')
-      .select('*')
+      .select('id, name, start_time, end_time, break_duration, days')
       .eq('id', templateId)
       .single();
 
@@ -1051,8 +1055,9 @@ export const fetchShiftTemplates = async () => {
 
     const { data, error } = await supabase
       .from('shift_templates')
-      .select('*')
-      .eq('user_id', user.id);
+      .select('id, user_id, name, start_time, end_time, break_duration, days, created_at')
+      .eq('user_id', user.id)
+      .limit(50);
 
     if (error) return [];
     return data || [];
@@ -1076,13 +1081,13 @@ export const swapWorkerShifts = async (shift1Id, shift2Id) => {
   try {
     const { data: shift1 } = await supabase
       .from('worker_schedules')
-      .select('*')
+      .select('id, worker_id')
       .eq('id', shift1Id)
       .single();
 
     const { data: shift2 } = await supabase
       .from('worker_schedules')
-      .select('*')
+      .select('id, worker_id')
       .eq('id', shift2Id)
       .single();
 
@@ -1119,9 +1124,10 @@ export const findReplacementWorkers = async (projectId, date, trade = null) => {
 
     let query = supabase
       .from('workers')
-      .select('*')
+      .select('id, full_name, trade, phone, email, status, payment_type, hourly_rate, daily_rate, weekly_salary, owner_id')
       .eq('user_id', user.id)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .limit(50);
 
     if (trade) {
       query = query.ilike('trade', `%${trade}%`);

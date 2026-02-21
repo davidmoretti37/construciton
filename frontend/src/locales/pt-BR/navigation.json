@@ -50,12 +50,6 @@
     "reports": "Relatórios",
     "messages": "Mensagens"
   },
-  "client": {
-    "projects": "Meus Projetos",
-    "invoices": "Notas Fiscais",
-    "photos": "Fotos",
-    "messages": "Mensagens"
-  },
   "back": "Voltar",
   "close": "Fechar"
 }

@@ -24,7 +24,7 @@ export function useSubscription() {
         return 'Pro';
       case 'business':
         return 'Business';
-      case 'worker_client':
+      case 'worker':
         return 'Team Member';
       default:
         return 'No Plan';

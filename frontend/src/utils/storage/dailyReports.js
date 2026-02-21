@@ -52,7 +52,7 @@ export const saveDailyReport = async (workerId, projectId, phaseId, photos, comp
     const { data, error } = await supabase
       .from('daily_reports')
       .insert(reportData)
-      .select()
+      .select('id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, created_at')
       .single();
 
     if (error) throw error;
@@ -76,7 +76,7 @@ export const fetchDailyReportById = async (reportId) => {
     const { data, error } = await supabase
       .from('daily_reports')
       .select(`
-        *,
+        id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, task_progress, created_at,
         workers (id, full_name, trade),
         projects (id, name, location, status),
         project_phases (id, name, completion_percentage)
@@ -106,7 +106,7 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
     let query = supabase
       .from('daily_reports')
       .select(`
-        *,
+        id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, created_at,
         workers (id, full_name, trade),
         projects!inner (id, name, user_id, assigned_supervisor_id),
         project_phases (id, name)
@@ -133,6 +133,8 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
     if (filters.endDate) {
       query = query.lte('report_date', filters.endDate);
     }
+
+    query = query.limit(30);
 
     const { data, error } = await query;
 
@@ -161,7 +163,8 @@ export const fetchProjectPhotosByPhase = async (projectId) => {
         project_phases (id, name)
       `)
       .eq('project_id', projectId)
-      .order('report_date', { ascending: false });
+      .order('report_date', { ascending: false })
+      .limit(50);
 
     if (error) throw error;
 
@@ -208,10 +211,16 @@ export const fetchWorkerDailyReports = async (workerId, date) => {
   try {
     const { data, error } = await supabase
       .from('daily_reports')
-      .select('*, projects(*), project_phases(*)')
+      .select(`
+        id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags,
+        completed_steps, custom_tasks, reporter_type, created_at,
+        projects (id, name, location, status),
+        project_phases (id, name, completion_percentage)
+      `)
       .eq('worker_id', workerId)
       .eq('report_date', date)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(30);
 
     if (error) throw error;
     return data || [];
@@ -364,7 +373,7 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
     let query = supabase
       .from('daily_reports')
       .select(`
-        *,
+        id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, task_progress, created_at,
         workers (id, full_name, trade),
         projects!inner (id, name, user_id, assigned_supervisor_id, location, status),
         project_phases (id, name, completion_percentage)

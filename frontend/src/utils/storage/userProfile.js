@@ -20,7 +20,7 @@ export const getUserServices = async () => {
     const { data: services, error } = await supabase
       .from('user_services')
       .select(`
-        *,
+        id, user_id, category_id, pricing, custom_phases, is_active, created_at, updated_at,
         service_categories(id, name, icon, description)
       `)
       .eq('user_id', userId)
@@ -51,7 +51,7 @@ export const getUserServiceByCategory = async (categoryId) => {
     const { data, error } = await supabase
       .from('user_services')
       .select(`
-        *,
+        id, user_id, category_id, pricing, custom_phases, is_active, created_at, updated_at,
         service_categories(id, name, icon, description)
       `)
       .eq('user_id', userId)
@@ -79,7 +79,7 @@ export const getUserServiceById = async (serviceId) => {
     const { data, error } = await supabase
       .from('user_services')
       .select(`
-        *,
+        id, user_id, category_id, pricing, custom_phases, is_active, created_at, updated_at,
         service_categories(id, name, icon, description),
         service_items:service_categories(
           items:service_items(id, name, unit, default_price, order_index)
@@ -191,9 +191,10 @@ export const getServiceCategories = async () => {
   try {
     const { data, error } = await supabase
       .from('service_categories')
-      .select('*')
+      .select('id, name, icon, description, is_active, times_used')
       .eq('is_active', true)
-      .order('times_used', { ascending: false });
+      .order('times_used', { ascending: false })
+      .limit(50);
 
     if (error) {
       return [];
@@ -214,9 +215,10 @@ export const getServiceItems = async (categoryId) => {
   try {
     const { data, error } = await supabase
       .from('service_items')
-      .select('*')
+      .select('id, category_id, name, unit, default_price, order_index')
       .eq('category_id', categoryId)
-      .order('order_index');
+      .order('order_index')
+      .limit(50);
 
     if (error) {
       return [];
@@ -246,7 +248,7 @@ export const getUserProfile = async () => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, is_onboarded, business_name, business_phone, business_email, business_logo, business_address, payment_info, payment_terms, footer_text, accent_color, font_style, phases_template, profit_margin')
       .eq('id', userId)
       .maybeSingle();
 

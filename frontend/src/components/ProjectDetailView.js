@@ -6,7 +6,6 @@ import {
   Modal,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   Linking,
   Platform,
@@ -17,6 +16,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';

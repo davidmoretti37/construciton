@@ -1,18 +1,25 @@
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
-import { getCurrentUserId } from '../utils/storage';
 import { sendMessageToAI } from './aiService';
+import { supabase } from '../lib/supabase';
 
 const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+
+const getAuthHeaders = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+};
 
 export const chatHistoryService = {
   // List all sessions
   async getSessions() {
-    const userId = await getCurrentUserId();
-    const response = await fetch(`${BACKEND_URL}/api/chat/sessions?userId=${userId}`, {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/sessions`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -25,12 +32,10 @@ export const chatHistoryService = {
 
   // Get messages for a session
   async getSessionMessages(sessionId) {
-    const userId = await getCurrentUserId();
-    const response = await fetch(`${BACKEND_URL}/api/chat/sessions/${sessionId}/messages?userId=${userId}`, {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/sessions/${sessionId}/messages`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -43,13 +48,11 @@ export const chatHistoryService = {
 
   // Create new session
   async createSession(title = 'New Chat') {
-    const userId = await getCurrentUserId();
+    const headers = await getAuthHeaders();
     const response = await fetch(`${BACKEND_URL}/api/chat/sessions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, title }),
+      headers,
+      body: JSON.stringify({ title }),
     });
 
     if (!response.ok) {
@@ -62,13 +65,11 @@ export const chatHistoryService = {
 
   // Save message
   async saveMessage(sessionId, message) {
-    const userId = await getCurrentUserId();
+    const headers = await getAuthHeaders();
     const response = await fetch(`${BACKEND_URL}/api/chat/sessions/${sessionId}/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, ...message }),
+      headers,
+      body: JSON.stringify(message),
     });
 
     if (!response.ok) {
@@ -81,13 +82,11 @@ export const chatHistoryService = {
 
   // Update session title
   async updateSessionTitle(sessionId, title) {
-    const userId = await getCurrentUserId();
+    const headers = await getAuthHeaders();
     const response = await fetch(`${BACKEND_URL}/api/chat/sessions/${sessionId}`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, title }),
+      headers,
+      body: JSON.stringify({ title }),
     });
 
     if (!response.ok) {
@@ -100,12 +99,10 @@ export const chatHistoryService = {
 
   // Delete session
   async deleteSession(sessionId) {
-    const userId = await getCurrentUserId();
-    const response = await fetch(`${BACKEND_URL}/api/chat/sessions/${sessionId}?userId=${userId}`, {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/api/chat/sessions/${sessionId}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {

@@ -34,7 +34,6 @@ export function useSubscriptionBlock() {
       return !user?.owner_id;
     }
 
-    // Clients - not blocked for now
     return false;
   }, [role, hasActiveSubscription, user?.owner_id, subLoading]);
 

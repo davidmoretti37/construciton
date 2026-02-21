@@ -50,12 +50,6 @@
     "reports": "Reports",
     "messages": "Messages"
   },
-  "client": {
-    "projects": "My Projects",
-    "invoices": "Invoices",
-    "photos": "Photos",
-    "messages": "Messages"
-  },
   "back": "Back",
   "close": "Close"
 }

@@ -11,6 +11,9 @@
 
 const logger = require('../utils/logger');
 
+const MAX_ENTRIES_PER_USER = 200;
+const MAX_USERS = 5000;
+
 class RequestMemory {
   constructor() {
     // userId -> Map(key -> { value, timestamp, toolName })
@@ -34,10 +37,42 @@ class RequestMemory {
    */
   remember(userId, key, value, toolName = 'unknown') {
     if (!this.cache.has(userId)) {
+      // Evict user with fewest entries if at capacity
+      if (this.cache.size >= MAX_USERS) {
+        let minUser = null;
+        let minSize = Infinity;
+        for (const [uid, uc] of this.cache.entries()) {
+          if (uc.size < minSize) {
+            minSize = uc.size;
+            minUser = uid;
+          }
+        }
+        if (minUser) {
+          this.cache.delete(minUser);
+          logger.debug(`🧹 Evicted user ${minUser.substring(0, 8)} (${minSize} entries) — user cap reached`);
+        }
+      }
       this.cache.set(userId, new Map());
     }
 
     const userCache = this.cache.get(userId);
+
+    // Evict oldest entry if at per-user capacity
+    if (!userCache.has(key) && userCache.size >= MAX_ENTRIES_PER_USER) {
+      let oldestKey = null;
+      let oldestTime = Infinity;
+      for (const [k, entry] of userCache.entries()) {
+        if (entry.timestamp < oldestTime) {
+          oldestTime = entry.timestamp;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) {
+        userCache.delete(oldestKey);
+        logger.debug(`🧹 Evicted entry ${oldestKey} for user ${userId.substring(0, 8)} — per-user cap reached`);
+      }
+    }
+
     userCache.set(key, {
       value,
       timestamp: Date.now(),
@@ -220,8 +255,11 @@ class RequestMemory {
 
     const stats = {
       users: this.cache.size,
+      maxUsers: MAX_USERS,
       entries: totalEntries,
+      maxEntriesPerUser: MAX_ENTRIES_PER_USER,
       avgEntriesPerUser: this.cache.size > 0 ? Math.round((totalEntries / this.cache.size) * 10) / 10 : 0,
+      userCapacity: `${this.cache.size}/${MAX_USERS}`,
       oldestEntryAge: totalEntries > 0 ? Math.round((Date.now() - oldestEntry) / 1000) : 0,
       newestEntryAge: totalEntries > 0 ? Math.round((Date.now() - newestEntry) / 1000) : 0
     };

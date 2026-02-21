@@ -44,7 +44,7 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
         location_lat: location?.latitude,
         location_lng: location?.longitude,
       })
-      .select()
+      .select('id, worker_id, project_id, clock_in, clock_out, notes, location_lat, location_lng, created_at')
       .single();
 
     if (insertError) {
@@ -56,7 +56,7 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in, clock_out, notes, location_lat, location_lng, created_at,
         projects:project_id (
           id,
           name
@@ -112,7 +112,7 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
     const { data: timeEntry, error: fetchError } = await supabase
       .from('time_tracking')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in, clock_out, notes,
         workers!inner (
           id,
           full_name,
@@ -223,7 +223,7 @@ export const getActiveClockIn = async (workerId) => {
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in, clock_out, break_start, break_end, breaks, notes,
         projects:project_id (
           id,
           name
@@ -443,7 +443,7 @@ export const getWorkerTimesheet = async (workerId, dateRange = null) => {
     let query = supabase
       .from('time_tracking')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in, clock_out, break_start, break_end, notes, created_at,
         projects:project_id (
           id,
           name,
@@ -451,7 +451,8 @@ export const getWorkerTimesheet = async (workerId, dateRange = null) => {
         )
       `)
       .eq('worker_id', workerId)
-      .order('clock_in', { ascending: false });
+      .order('clock_in', { ascending: false })
+      .limit(50);
 
     if (dateRange) {
       if (dateRange.startDate) {
@@ -505,7 +506,7 @@ export const getWorkerProjectHours = async (workerId, projectId) => {
   try {
     const { data, error } = await supabase
       .from('time_tracking')
-      .select('*')
+      .select('id, worker_id, project_id, clock_in, clock_out, break_start, break_end, status, notes, created_at')
       .eq('worker_id', workerId)
       .eq('project_id', projectId)
       .not('clock_out', 'is', null);
@@ -559,7 +560,7 @@ export const getTodaysWorkersSchedule = async () => {
 
     const { data: allWorkers, error: workersError } = await supabase
       .from('workers')
-      .select('*')
+      .select('id, full_name, trade, payment_type, daily_rate, hourly_rate, status')
       .eq('owner_id', user.id)
       .eq('status', 'active');
 
@@ -568,7 +569,11 @@ export const getTodaysWorkersSchedule = async () => {
     const { data: todayClockIns, error: clockInsError } = await supabase
       .from('time_tracking')
       .select(`
-        *,
+        id,
+        worker_id,
+        project_id,
+        clock_in,
+        clock_out,
         projects:project_id (
           id,
           name
@@ -655,7 +660,7 @@ export const getWorkerClockInHistory = async (workerId, limit = 30) => {
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in, clock_out, notes, created_at,
         projects:project_id (
           id,
           name
@@ -698,7 +703,7 @@ export const getWorkerStats = async (workerId) => {
 
     const { data, error } = await supabase
       .from('time_tracking')
-      .select('*')
+      .select('id, worker_id, project_id, clock_in, clock_out')
       .eq('worker_id', workerId)
       .not('clock_out', 'is', null)
       .gte('clock_in', startOfMonth.toISOString());
@@ -766,7 +771,7 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
   try {
     const { data: worker, error: workerError } = await supabase
       .from('workers')
-      .select('*')
+      .select('id, full_name, name, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate')
       .eq('id', workerId)
       .single();
 
@@ -781,14 +786,15 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
     const { data: timeEntries, error: timeError } = await supabase
       .from('time_tracking')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in, clock_out, notes,
         projects (id, name)
       `)
       .eq('worker_id', workerId)
       .not('clock_out', 'is', null)
       .gte('clock_in', startOfRange)
       .lte('clock_in', endOfRange)
-      .order('clock_in', { ascending: true });
+      .order('clock_in', { ascending: true })
+      .limit(200);
 
     if (timeError) {
       console.error('Error fetching time entries:', timeError);
@@ -1063,7 +1069,7 @@ export const editTimeEntry = async (timeTrackingId, updates) => {
     if (updates.clock_in || updates.clock_out) {
       const { data: existing } = await supabase
         .from('time_tracking')
-        .select('*')
+        .select('id, clock_in, clock_out')
         .eq('id', timeTrackingId)
         .single();
 
@@ -1116,7 +1122,7 @@ export const createManualTimeEntry = async (workerId, projectId, clockInTime, cl
         hours_worked: hoursWorked,
         is_manual: true
       })
-      .select()
+      .select('id, worker_id, project_id, clock_in, clock_out, hours_worked, is_manual, created_at')
       .single();
 
     if (error) {
@@ -1191,7 +1197,7 @@ export const startWorkerBreak = async (workerId, breakType = 'lunch') => {
       .from('time_tracking')
       .update(updateData)
       .eq('id', activeRecord.id)
-      .select()
+      .select('id, worker_id, project_id, clock_in, clock_out, break_start, break_end, breaks, notes')
       .single();
 
     if (error) {
@@ -1251,7 +1257,7 @@ export const endWorkerBreak = async (workerId) => {
       .from('time_tracking')
       .update(updateData)
       .eq('id', activeRecord.id)
-      .select()
+      .select('id, worker_id, project_id, clock_in, clock_out, break_start, break_end, breaks, notes')
       .single();
 
     if (error) {
@@ -1291,7 +1297,7 @@ export const supervisorClockIn = async (supervisorId, projectId, location = null
         location_lng: location?.longitude,
       })
       .select(`
-        *,
+        id, supervisor_id, project_id, clock_in, clock_out, notes, location_lat, location_lng, created_at,
         projects:project_id (id, name)
       `)
       .single();
@@ -1322,7 +1328,7 @@ export const supervisorClockOut = async (timeTrackingId, notes = null) => {
     // Get the time tracking record
     const { data: record, error: fetchError } = await supabase
       .from('supervisor_time_tracking')
-      .select('*, projects:project_id (id, name)')
+      .select('id, supervisor_id, project_id, clock_in, clock_out, notes, projects:project_id (id, name)')
       .eq('id', timeTrackingId)
       .single();
 
@@ -1403,7 +1409,7 @@ export const getActiveSupervisorClockIn = async (supervisorId) => {
     const { data, error } = await supabase
       .from('supervisor_time_tracking')
       .select(`
-        *,
+        id, supervisor_id, project_id, clock_in, clock_out, notes, location_lat, location_lng,
         projects:project_id (id, name)
       `)
       .eq('supervisor_id', supervisorId)
@@ -1580,7 +1586,7 @@ export const getSupervisorTimesheet = async (supervisorId, dateRange = null) => 
     let query = supabase
       .from('supervisor_time_tracking')
       .select(`
-        *,
+        id, supervisor_id, project_id, clock_in, clock_out, notes, created_at,
         projects:project_id (id, name)
       `)
       .eq('supervisor_id', supervisorId)
@@ -1590,6 +1596,8 @@ export const getSupervisorTimesheet = async (supervisorId, dateRange = null) => 
       const { startOfRange, endOfRange } = getDateRangeBoundsUTC(dateRange.startDate, dateRange.endDate);
       query = query.gte('clock_in', startOfRange).lte('clock_in', endOfRange);
     }
+
+    query = query.limit(50);
 
     const { data, error } = await query;
 
@@ -1630,14 +1638,15 @@ export const calculateSupervisorPaymentForPeriod = async (supervisorId, supervis
     const { data: timeEntries, error: timeError } = await supabase
       .from('supervisor_time_tracking')
       .select(`
-        *,
+        id, supervisor_id, project_id, clock_in, clock_out, notes,
         projects:project_id (id, name)
       `)
       .eq('supervisor_id', supervisorId)
       .not('clock_out', 'is', null)
       .gte('clock_in', startOfRange)
       .lte('clock_in', endOfRange)
-      .order('clock_in', { ascending: true });
+      .order('clock_in', { ascending: true })
+      .limit(200);
 
     if (timeError) {
       console.error('Error fetching supervisor time entries:', timeError);

@@ -16,6 +16,54 @@ const logger = require('../utils/logger');
 const TOOL_THRESHOLD = 10; // Use Sonnet if query needs 10+ tools
 const ERROR_THRESHOLD = 2; // Switch to Sonnet after 2 consecutive errors
 
+// In-memory usage tracking
+const usageStats = {
+  totalRequests: 0,
+  haikuRequests: 0,
+  sonnetRequests: 0,
+  estimatedInputTokens: 0,
+  estimatedOutputTokens: 0,
+  estimatedCost: 0, // USD
+  startedAt: new Date().toISOString(),
+};
+
+// Approximate pricing per 1M tokens (OpenRouter rates)
+const PRICING = {
+  'claude-haiku-4.5': { input: 0.80, output: 4.00 },
+  'claude-sonnet-4.5': { input: 3.00, output: 15.00 },
+};
+
+/**
+ * Track usage after a request completes
+ */
+function trackUsage(model, inputTokens, outputTokens) {
+  usageStats.totalRequests++;
+
+  if (model.includes('haiku')) {
+    usageStats.haikuRequests++;
+  } else {
+    usageStats.sonnetRequests++;
+  }
+
+  usageStats.estimatedInputTokens += inputTokens;
+  usageStats.estimatedOutputTokens += outputTokens;
+
+  const pricing = PRICING[model] || PRICING['claude-haiku-4.5'];
+  usageStats.estimatedCost += (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output;
+
+  // Log summary every 100 requests
+  if (usageStats.totalRequests % 100 === 0) {
+    logger.info(`📊 Usage milestone: ${usageStats.totalRequests} requests | Haiku: ${usageStats.haikuRequests} | Sonnet: ${usageStats.sonnetRequests} | Est. cost: $${usageStats.estimatedCost.toFixed(4)}`);
+  }
+}
+
+/**
+ * Get current usage statistics
+ */
+function getUsageStats() {
+  return { ...usageStats };
+}
+
 /**
  * Selects the appropriate model based on tool count and conversation history
  *
@@ -100,6 +148,8 @@ function getModelStats(selectionHistory) {
 module.exports = {
   selectModel,
   getModelStats,
+  trackUsage,
+  getUsageStats,
   TOOL_THRESHOLD,
   ERROR_THRESHOLD
 };

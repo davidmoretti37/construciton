@@ -6,7 +6,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
   Keyboard,
@@ -19,6 +18,7 @@ import {
   Image,
   AppState,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -538,7 +538,7 @@ export default function ChatScreen({ navigation, route }) {
     if (!text?.trim() && (!attachments || attachments.length === 0)) return;
 
     // Check subscription before allowing AI chat
-    if (!hasActiveSubscription) {
+    if (!hasActiveSubscription && !__DEV__) {
       navigation.navigate('Settings', { screen: 'Paywall' });
       return;
     }

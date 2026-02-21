@@ -24,7 +24,6 @@ export const useAuth = () => {
       isOwner: false,
       isSupervisor: false,
       isWorker: false,
-      isClient: false,
       ownerId: null,
       setRole: () => {},
       clearRole: () => {},
@@ -282,7 +281,6 @@ export const AuthProvider = ({ children }) => {
     isOwner: role === 'owner',
     isSupervisor: role === 'supervisor',
     isWorker: role === 'worker',
-    isClient: role === 'client', // Kept for backward compatibility
     // Owner/Supervisor hierarchy
     ownerId, // For supervisors - their owner's ID
     // Functions

@@ -96,7 +96,7 @@ export const createTask = async (taskData) => {
         status: 'pending',
       })
       .select(`
-        *,
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name)
       `)
       .single();
@@ -132,7 +132,7 @@ export const fetchTasksForProject = async (projectId, date) => {
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
-        *,
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name),
         completed_worker:completed_by (id, full_name),
         reporter:incomplete_reported_by (id, full_name)
@@ -165,7 +165,7 @@ export const fetchTasksForDate = async (date) => {
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
-        *,
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
       .eq('owner_id', userId)
@@ -213,7 +213,7 @@ export const fetchUpcomingTasks = async (projectId, afterDate) => {
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
-        *,
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, phase_task_id, created_at,
         projects:project_id (id, name)
       `)
       .eq('project_id', projectId)
@@ -317,7 +317,7 @@ export const completeTask = async (taskId, workerId) => {
       .from('worker_tasks')
       .update(updateData)
       .eq('id', taskId)
-      .select()
+      .select('id, project_id, status, completed_at, completed_by')
       .single();
 
     if (error) {
@@ -350,7 +350,7 @@ export const uncompleteTask = async (taskId) => {
         completed_by: null,
       })
       .eq('id', taskId)
-      .select()
+      .select('id, project_id, status, completed_at, completed_by')
       .single();
 
     if (error) {
@@ -384,7 +384,7 @@ export const markTaskIncomplete = async (taskId, workerId, reason) => {
         incomplete_reported_at: new Date().toISOString(),
       })
       .eq('id', taskId)
-      .select()
+      .select('id, project_id, status, incomplete_reason, incomplete_reported_by, incomplete_reported_at')
       .single();
 
     if (error) {
@@ -406,7 +406,7 @@ export const getOverdueTasks = async (projectId, date) => {
   try {
     const { data, error } = await supabase
       .from('worker_tasks')
-      .select('*')
+      .select('id, project_id, title, description, start_date, end_date, status, created_at')
       .eq('project_id', projectId)
       .eq('end_date', date)
       .eq('status', 'pending');
@@ -442,7 +442,7 @@ export const updateTask = async (taskId, updates) => {
       .eq('id', taskId)
       .eq('owner_id', userId)
       .select(`
-        *,
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name)
       `)
       .single();
@@ -494,7 +494,7 @@ export const fetchAllTasks = async (filters = {}) => {
     let query = supabase
       .from('worker_tasks')
       .select(`
-        *,
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name),
         completed_worker:completed_by (id, full_name),
         reporter:incomplete_reported_by (id, full_name)
@@ -515,7 +515,7 @@ export const fetchAllTasks = async (filters = {}) => {
       query = query.lte('end_date', filters.endDate);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(200);
 
     if (error) {
       console.error('Error fetching all tasks:', error);
@@ -540,7 +540,7 @@ export const fetchTasksForWorker = async (ownerId, date) => {
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
-        *,
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
       .eq('owner_id', ownerId)

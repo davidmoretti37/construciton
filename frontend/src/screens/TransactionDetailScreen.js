@@ -6,10 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   Modal,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';

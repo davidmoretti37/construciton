@@ -73,7 +73,7 @@ export const uploadProjectDocument = async (projectId, fileUri, fileName, fileTy
         notes: notes,
         visible_to_workers: visibleToWorkers,
       })
-      .select()
+      .select('id, project_id, file_name, file_url, file_type, category, uploaded_by, notes, visible_to_workers, created_at')
       .single();
 
     if (dbError) {
@@ -99,7 +99,7 @@ export const fetchProjectDocuments = async (projectId, workerView = false) => {
 
     let query = supabase
       .from('project_documents')
-      .select('*')
+      .select('id, project_id, file_name, file_url, file_type, category, uploaded_by, notes, visible_to_workers, created_at')
       .eq('project_id', projectId);
 
     // If worker view, only show documents marked as visible to workers
@@ -160,7 +160,7 @@ export const deleteProjectDocument = async (documentId) => {
     // First get the document to check ownership and get file path
     const { data: doc, error: fetchError } = await supabase
       .from('project_documents')
-      .select('*, projects!inner(user_id)')
+      .select('id, file_url, project_id, projects!inner(user_id)')
       .eq('id', documentId)
       .single();
 

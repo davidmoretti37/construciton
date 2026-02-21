@@ -39,7 +39,7 @@ export const saveInvoice = async (invoiceData) => {
         notes: invoiceData.notes || '',
         status: 'unpaid'
       })
-      .select()
+      .select('id, invoice_number, estimate_id, project_name, client_name, client_contact_person, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, payment_method, paid_date, pdf_url, notes, created_at, updated_at, user_id')
       .single();
 
     if (error) {
@@ -95,7 +95,7 @@ export const fetchInvoices = async (filters = {}) => {
 
     let query = supabase
       .from('invoices')
-      .select('*')
+      .select('id, invoice_number, client_name, project_name, status, due_date, items, total, amount_paid, created_at, user_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -107,7 +107,7 @@ export const fetchInvoices = async (filters = {}) => {
       query = query.ilike('client_name', `%${filters.clientName}%`);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(50);
 
     if (error) {
       console.error('Error fetching invoices:', error);
@@ -149,7 +149,7 @@ export const fetchInvoicesForOwner = async (filters = {}) => {
 
     let query = supabase
       .from('invoices')
-      .select('*')
+      .select('id, invoice_number, client_name, project_name, status, due_date, items, total, amount_paid, created_at, user_id')
       .in('user_id', allIds)
       .order('created_at', { ascending: false });
 
@@ -161,7 +161,7 @@ export const fetchInvoicesForOwner = async (filters = {}) => {
       query = query.ilike('client_name', `%${filters.clientName}%`);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(50);
 
     if (error) {
       console.error('Error fetching invoices for owner:', error);
@@ -191,7 +191,7 @@ export const getInvoice = async (invoiceId) => {
   try {
     const { data, error } = await supabase
       .from('invoices')
-      .select('*')
+      .select('id, invoice_number, estimate_id, project_name, client_name, client_contact_person, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, payment_method, paid_date, pdf_url, notes, created_at, updated_at, user_id')
       .eq('id', invoiceId)
       .single();
 
@@ -344,7 +344,7 @@ export const recordInvoicePayment = async (invoiceId, paymentAmount, paymentMeth
   try {
     const { data: invoice, error: fetchError } = await supabase
       .from('invoices')
-      .select('*')
+      .select('id, total, amount_paid, status')
       .eq('id', invoiceId)
       .single();
 
@@ -484,9 +484,10 @@ export const fetchContractDocuments = async () => {
 
     const { data, error } = await supabase
       .from('contract_documents')
-      .select('*')
+      .select('id, file_name, file_url, file_path, file_type, created_at, user_id')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error('Error fetching contract documents:', error);
@@ -544,7 +545,7 @@ export const uploadContractDocument = async (fileUri, fileName, fileType) => {
         file_path: filePath,
         file_type: fileType,
       })
-      .select()
+      .select('id, file_name, file_url, file_path, file_type, created_at, user_id')
       .single();
 
     if (dbError) throw dbError;

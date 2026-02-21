@@ -6,12 +6,12 @@ import { LogBox } from 'react-native';
 import AppLoadingScreen from './src/components/AppLoadingScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import WorkerMainNavigator from './src/navigation/WorkerMainNavigator';
-import ClientMainNavigator from './src/navigation/ClientMainNavigator';
+
 import OwnerMainNavigator from './src/navigation/OwnerMainNavigator';
 import OwnerMainWrapper from './src/components/OwnerMainWrapper';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import WorkerOnboardingNavigator from './src/navigation/WorkerOnboardingNavigator';
-import ClientOnboardingNavigator from './src/navigation/ClientOnboardingNavigator';
+
 import SupervisorOnboardingNavigator from './src/navigation/SupervisorOnboardingNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
@@ -22,6 +22,7 @@ import { NotificationProvider } from './src/contexts/NotificationContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { isOnboarded, saveLanguage, checkAndStartScheduledProjects } from './src/utils/storage';
 import { supabase } from './src/lib/supabase';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import logger from './src/utils/logger';
 import './src/i18n'; // Initialize i18n
 import { changeLanguage } from './src/i18n';
@@ -262,9 +263,6 @@ function AppContent() {
       } else if (role === 'worker') {
         logger.debug('Showing: WORKER ONBOARDING');
         return <WorkerOnboardingNavigator onComplete={handleOnboardingComplete} onGoBack={handleGoBackToRoleSelection} />;
-      } else if (role === 'client') {
-        logger.debug('Showing: CLIENT ONBOARDING');
-        return <ClientOnboardingNavigator onComplete={handleOnboardingComplete} />;
       }
     }
 
@@ -285,9 +283,6 @@ function AppContent() {
     } else if (role === 'worker') {
       logger.debug('Showing: WORKER MAIN APP');
       return <WorkerMainNavigator />;
-    } else if (role === 'client') {
-      logger.debug('Showing: CLIENT MAIN APP');
-      return <ClientMainNavigator />;
     }
 
     // Fallback
@@ -298,21 +293,25 @@ function AppContent() {
   return (
     <NavigationContainer>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {getNavigator()}
+      <ErrorBoundary>
+        {getNavigator()}
+      </ErrorBoundary>
     </NavigationContainer>
   );
 }
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <SubscriptionProvider>
-          <NotificationProvider>
-            <AppContent />
-          </NotificationProvider>
-        </SubscriptionProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <SubscriptionProvider>
+            <NotificationProvider>
+              <AppContent />
+            </NotificationProvider>
+          </SubscriptionProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';

@@ -45,7 +45,7 @@ export const saveEstimate = async (estimateData) => {
         notes: estimateData.notes || '',
         status: 'draft'
       })
-      .select()
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
       .single();
 
     if (error) {
@@ -63,7 +63,7 @@ export const saveEstimate = async (estimateData) => {
         if (mergeMode) {
           const { data: proj } = await supabase
             .from('projects')
-            .select('*')
+            .select('id, budget, contract_amount, base_contract, task_description')
             .eq('id', estimateData.projectId)
             .single();
           existingProject = proj;
@@ -101,8 +101,7 @@ export const saveEstimate = async (estimateData) => {
         const { error: projectError } = await supabase
           .from('projects')
           .update(updateData)
-          .eq('id', estimateData.projectId)
-          .select();
+          .eq('id', estimateData.projectId);
 
         if (projectError) {
           console.error('Error updating project with estimate data:', projectError);
@@ -157,7 +156,7 @@ export const saveEstimate = async (estimateData) => {
           if (mergeMode) {
             const { data: existingPhases } = await supabase
               .from('project_phases')
-              .select('*')
+              .select('id, name, order_index, planned_days, start_date, end_date, completion_percentage, status, tasks, budget, services')
               .eq('project_id', estimateData.projectId)
               .order('order_index');
 
@@ -262,7 +261,7 @@ export const updateEstimate = async (estimateData) => {
         notes: estimateData.notes || '',
       })
       .eq('id', estimateId)
-      .select()
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
       .single();
 
     if (error) {
@@ -294,8 +293,7 @@ export const updateEstimate = async (estimateData) => {
         const { error: projectError } = await supabase
           .from('projects')
           .update(updateData)
-          .eq('id', estimateData.projectId)
-          .select();
+          .eq('id', estimateData.projectId);
 
         if (projectError) {
           console.error('Error updating project with estimate data:', projectError);
@@ -332,9 +330,10 @@ export const fetchEstimates = async (filters = {}) => {
 
     let query = supabase
       .from('estimates')
-      .select('*')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (filters.status) {
       query = query.eq('status', filters.status);
@@ -386,9 +385,10 @@ export const fetchEstimatesForOwner = async (filters = {}) => {
 
     let query = supabase
       .from('estimates')
-      .select('*')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
       .in('user_id', allIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (filters.status) {
       query = query.eq('status', filters.status);
@@ -428,7 +428,7 @@ export const getEstimate = async (estimateId) => {
   try {
     const { data, error } = await supabase
       .from('estimates')
-      .select('*')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
       .eq('id', estimateId)
       .single();
 
@@ -459,10 +459,11 @@ export const getEstimateByProjectName = async (projectName) => {
 
     const { data, error } = await supabase
       .from('estimates')
-      .select('*')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
       .eq('user_id', userId)
       .ilike('project_name', `%${projectName}%`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(1);
 
     if (error) {
       console.error('Error fetching estimate by project name:', error);
@@ -493,7 +494,8 @@ export const fetchEstimatesByProjectId = async (projectId) => {
       .select('id, client_name, project_name, status, total, created_at')
       .eq('user_id', userId)
       .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error('Error fetching estimates for project:', error);
@@ -588,7 +590,7 @@ export const createInvoiceFromEstimate = async (estimateId) => {
 
     const { data: estimate, error: fetchError } = await supabase
       .from('estimates')
-      .select('*')
+      .select('id, client_name, client_phone, client_email, client_address, project_name, items, subtotal, tax_rate, tax_amount, total, payment_terms, notes')
       .eq('id', estimateId)
       .eq('user_id', userId)
       .single();
@@ -621,7 +623,7 @@ export const createInvoiceFromEstimate = async (estimateId) => {
         notes: estimate.notes,
         status: 'unpaid'
       })
-      .select()
+      .select('id, invoice_number, estimate_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, notes, created_at, updated_at, user_id')
       .single();
 
     if (createError) {

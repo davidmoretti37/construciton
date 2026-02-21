@@ -19,9 +19,10 @@ export const fetchConversations = async (projectId) => {
 
     const { data, error } = await supabase
       .from('conversations')
-      .select('*')
+      .select('id, project_id, from_number, to_number, message_type, direction, message_body, handled_by, needs_attention, created_at')
       .eq('project_id', projectId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(200);
 
     if (error) {
       return [];
@@ -48,7 +49,7 @@ export const sendManualMessage = async (projectId, message) => {
 
     const { data: project } = await supabase
       .from('projects')
-      .select('*, profiles!inner(*)')
+      .select('id, client_phone, profiles!inner(twilio_account_sid, twilio_auth_token, business_phone_number)')
       .eq('id', projectId)
       .eq('user_id', userId)
       .single();

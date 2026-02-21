@@ -14,7 +14,7 @@ import logger from '../utils/logger';
 // TESTING MODE - Set to true to bypass all paywalls
 // Set back to false before production release!
 // =====================================================
-const TESTING_MODE = true;
+const TESTING_MODE = false;
 
 // Create context
 const SubscriptionContext = createContext();
@@ -74,18 +74,18 @@ export const SubscriptionProvider = ({ children }) => {
       return;
     }
 
-    // Workers and clients don't need subscription checks
+    // Workers and supervisors don't need subscription checks
     if (role && role !== 'owner') {
       setSubscription({
-        hasSubscription: true, // Workers/clients are never blocked
-        planTier: 'worker_client',
+        hasSubscription: true, // Workers are never blocked
+        planTier: 'worker',
         status: 'active',
       });
       setProjectStatus({
         can_create: true,
         active_count: 0,
         limit: 999999,
-        plan_tier: 'worker_client',
+        plan_tier: 'worker',
       });
       setIsLoading(false);
       return;

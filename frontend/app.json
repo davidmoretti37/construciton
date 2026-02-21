@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Plinth",
+    "name": "Sylk",
     "slug": "consrcutionapp",
-    "scheme": "plinth",
+    "scheme": "sylk",
     "version": "1.0.0",
     "orientation": "portrait",
     "platforms": [
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "config": {
         "usesNonExemptEncryption": false
       },

@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';

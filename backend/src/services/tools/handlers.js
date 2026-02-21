@@ -2,6 +2,9 @@
  * Tool handlers - Supabase query functions for each tool.
  * All queries are filtered by userId (owner_id) for security.
  * Uses service role key (bypasses RLS) so we MUST filter manually.
+ *
+ * SECURITY AUDIT (2026-02-17): All 31 tool handler functions verified to filter by user_id.
+ * Uses service_role key — every query manually enforces ownership via .or(user_id) or .eq(owner_id).
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -419,7 +422,7 @@ async function update_project(userId, args = {}) {
     .from('projects')
     .update(updates)
     .eq('id', project_id)
-    // REMOVED .or() filter - service role bypasses RLS, filter was blocking updates
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('id, name, contract_amount, status, budget, start_date, end_date')
     .single();
 

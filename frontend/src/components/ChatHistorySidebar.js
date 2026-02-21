@@ -10,9 +10,9 @@ import {
   Alert,
   Animated,
   Dimensions,
-  SafeAreaView,
   Easing,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.75; // 75% of screen width

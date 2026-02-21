@@ -183,9 +183,9 @@ const FAST_ROUTES = [
   // and only truly general help questions land here
   { patterns: [
       /^(help|what can you do|how do you work)[\s!?.]*$/i,                 // standalone help
-      /\bcan\s+(i|the|a|my)\s+(supervisor|worker|client|owner)s?\b/i,     // role capability questions
-      /\bwhat\s+(can|does)\s+(a|the|my)\s+(supervisor|worker|client|owner)s?\b/i,  // "what can my supervisor do"
-      /\bpermissions?\b.*\b(supervisor|worker|client|owner)\b/i,           // "supervisor permissions" (tighter — requires role noun)
+      /\bcan\s+(i|the|a|my)\s+(supervisor|worker|owner)s?\b/i,     // role capability questions
+      /\bwhat\s+(can|does)\s+(a|the|my)\s+(supervisor|worker|owner)s?\b/i,  // "what can my supervisor do"
+      /\bpermissions?\b.*\b(supervisor|worker|owner)\b/i,           // "supervisor permissions" (tighter — requires role noun)
       /\btutorial\b/i,
       /\bguide\s+me\b/i,
       /\binstructions?\b/i,

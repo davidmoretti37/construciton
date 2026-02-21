@@ -2,9 +2,18 @@
 // import { getSystemPrompt } from './agentPrompt';
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import logger from '../utils/logger';
+import { supabase } from '../lib/supabase';
 
 // Backend API URL for AI calls (keeps API keys secure on server)
 const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+
+/**
+ * Get the current Supabase auth token for authenticated API calls
+ */
+const getAuthToken = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token;
+};
 
 /**
  * DEPRECATED: Legacy single-agent prompt function
@@ -491,10 +500,12 @@ export const sendMessageToAIStreaming = async (
     logger.debug(`🔍 [AI] Sending request to: ${BACKEND_URL}/api/chat/stream`);
 
     // Route through backend for security (API key stays on server)
+    const token = await getAuthToken();
     const response = await fetch(`${BACKEND_URL}/api/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         model: selectedModel, // Task-based model selection (set above)
@@ -1813,6 +1824,9 @@ export const sendAgentMessage = async (
   logger.debug(`🤖 [Agent] Sending to ${BACKEND_URL}/api/chat/agent`);
   logger.debug(`🤖 [Agent] Messages: ${messages.length}, userId: ${userId?.substring(0, 8)}`);
 
+  // Get auth token before starting XHR
+  const authToken = await getAuthToken();
+
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     let lastProcessedIndex = 0;
@@ -2006,6 +2020,9 @@ export const sendAgentMessage = async (
 
     xhr.open('POST', `${BACKEND_URL}/api/chat/agent`);
     xhr.setRequestHeader('Content-Type', 'application/json');
+    if (authToken) {
+      xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+    }
 
     xhr.send(JSON.stringify({
       messages,

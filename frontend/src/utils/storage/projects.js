@@ -189,7 +189,7 @@ export const saveProject = async (projectData) => {
 
     // Check subscription limit before creating a new project
     // Skip in development/testing mode (matches TESTING_MODE in SubscriptionContext)
-    const skipLimitCheck = true; // TODO: re-enable subscription limit check when ready
+    const skipLimitCheck = false;
     if (isNewProject && !skipLimitCheck) {
       try {
         const limitCheck = await subscriptionService.canCreateProject();
@@ -215,7 +215,7 @@ export const saveProject = async (projectData) => {
         .update(dbProject)
         .eq('id', projectData.id)
         .eq('user_id', userId)
-        .select()
+        .select('id, name, client, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
         .single();
 
       if (error) throw error;
@@ -225,7 +225,7 @@ export const saveProject = async (projectData) => {
       const { data, error } = await supabase
         .from('projects')
         .insert(dbProject)
-        .select()
+        .select('id, name, client, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
         .single();
 
       if (error) throw error;
@@ -308,24 +308,20 @@ export const fetchProjects = async () => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        *,
+        id, name, client, client_phone, client_email, ai_responses_enabled,
+        base_contract, contract_amount, extras, income_collected, expenses, spent,
+        actual_progress, status, workers, days_remaining, last_activity, location,
+        start_date, end_date, task_description, estimated_duration, has_phases,
+        working_days, non_working_dates, created_at, updated_at, user_id,
+        assigned_supervisor_id, budget,
         project_phases (
-          id,
-          name,
-          planned_days,
-          start_date,
-          end_date,
-          budget,
-          tasks,
-          completion_percentage,
-          status,
-          order_index,
-          created_at,
-          updated_at
+          id, name, planned_days, start_date, end_date, budget, tasks,
+          completion_percentage, status, order_index, created_at, updated_at
         )
       `)
       .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error('❌ [fetchProjects] Error:', error);
@@ -393,24 +389,20 @@ export const fetchProjectsForOwner = async () => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        *,
+        id, name, client, client_phone, client_email, ai_responses_enabled,
+        base_contract, contract_amount, extras, income_collected, expenses, spent,
+        actual_progress, status, workers, days_remaining, last_activity, location,
+        start_date, end_date, task_description, estimated_duration, has_phases,
+        working_days, non_working_dates, created_at, updated_at, user_id,
+        assigned_supervisor_id, budget,
         project_phases (
-          id,
-          name,
-          planned_days,
-          start_date,
-          end_date,
-          budget,
-          tasks,
-          completion_percentage,
-          status,
-          order_index,
-          created_at,
-          updated_at
+          id, name, planned_days, start_date, end_date, budget, tasks,
+          completion_percentage, status, order_index, created_at, updated_at
         )
       `)
       .in('user_id', allIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error('Error fetching projects for owner:', error);
@@ -482,20 +474,15 @@ export const getProject = async (projectId) => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        *,
+        id, name, client, client_phone, client_email, ai_responses_enabled,
+        base_contract, contract_amount, extras, income_collected, expenses, spent,
+        actual_progress, status, workers, days_remaining, last_activity, location,
+        start_date, end_date, task_description, estimated_duration, has_phases,
+        working_days, non_working_dates, created_at, updated_at, user_id,
+        assigned_supervisor_id, budget,
         project_phases (
-          id,
-          name,
-          planned_days,
-          start_date,
-          end_date,
-          budget,
-          tasks,
-          completion_percentage,
-          status,
-          order_index,
-          created_at,
-          updated_at
+          id, name, planned_days, start_date, end_date, budget, tasks,
+          completion_percentage, status, order_index, created_at, updated_at
         )
       `)
       .eq('id', projectId)

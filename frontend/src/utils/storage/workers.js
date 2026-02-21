@@ -35,7 +35,7 @@ export const createWorker = async (workerData) => {
         status: workerData.status || 'pending',
         is_onboarded: false,
       })
-      .select()
+      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at')
       .single();
 
     if (error) {
@@ -105,9 +105,10 @@ export const fetchWorkers = async () => {
 
     const { data, error } = await supabase
       .from('workers')
-      .select('*')
+      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at')
       .in('owner_id', ownerIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) {
       console.error('Error fetching workers:', error);
@@ -168,7 +169,7 @@ export const getWorker = async (workerId) => {
   try {
     const { data, error } = await supabase
       .from('workers')
-      .select('*')
+      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at')
       .eq('id', workerId)
       .single();
 
@@ -333,7 +334,7 @@ export const getProjectWorkers = async (projectId) => {
     const { data, error } = await supabase
       .from('project_assignments')
       .select(`
-        *,
+        id, worker_id, project_id,
         workers:worker_id (
           id,
           full_name,
@@ -397,7 +398,7 @@ export const getPhaseWorkers = async (phaseId) => {
     const { data, error } = await supabase
       .from('phase_assignments')
       .select(`
-        *,
+        id, worker_id, phase_id, notes, assigned_at,
         workers:worker_id (
           id,
           full_name,
@@ -440,7 +441,7 @@ export const getWorkerAssignments = async (workerId) => {
     const { data: projectData, error: projectError } = await supabase
       .from('project_assignments')
       .select(`
-        *,
+        id, worker_id, project_id,
         projects:project_id (
           id,
           name,
@@ -461,7 +462,7 @@ export const getWorkerAssignments = async (workerId) => {
     const { data: phaseResult, error: phaseError } = await supabase
       .from('phase_assignments')
       .select(`
-        *,
+        id, worker_id, phase_id, notes, assigned_at,
         project_phases:phase_id (
           id,
           name,
@@ -515,7 +516,7 @@ export const getPendingInvites = async (workerEmail) => {
   try {
     const { data: workers, error: workersError } = await supabase
       .from('workers')
-      .select('*')
+      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at')
       .eq('email', workerEmail)
       .eq('status', 'pending')
       .is('user_id', null);
@@ -642,7 +643,7 @@ export const saveSubcontractorQuote = async (quoteData) => {
         services: quoteData.services || [],
         notes: quoteData.notes || null,
       })
-      .select()
+      .select('id, user_id, trade_id, subcontractor_name, contact_phone, contact_email, is_preferred, document_url, services, notes, created_at, updated_at')
       .single();
 
     if (error) {
@@ -670,9 +671,10 @@ export const getAllSubcontractorQuotes = async () => {
 
     const { data, error } = await supabase
       .from('subcontractor_quotes')
-      .select('*')
+      .select('id, user_id, trade_id, subcontractor_name, contact_phone, contact_email, is_preferred, document_url, services, notes, created_at, updated_at')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       // Silently handle missing table (migration not yet applied)
@@ -704,11 +706,12 @@ export const getSubcontractorQuotesByTrade = async (tradeId) => {
 
     const { data, error } = await supabase
       .from('subcontractor_quotes')
-      .select('*')
+      .select('id, user_id, trade_id, subcontractor_name, contact_phone, contact_email, is_preferred, document_url, services, notes, created_at, updated_at')
       .eq('user_id', userId)
       .eq('trade_id', tradeId)
       .order('is_preferred', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       // Silently handle missing table (migration not yet applied)
@@ -878,7 +881,7 @@ export const getPreferredQuoteForTrade = async (tradeId) => {
 
     const { data, error } = await supabase
       .from('subcontractor_quotes')
-      .select('*')
+      .select('id, user_id, trade_id, subcontractor_name, contact_phone, contact_email, is_preferred, document_url, services, notes, created_at, updated_at')
       .eq('user_id', userId)
       .eq('trade_id', tradeId)
       .eq('is_preferred', true)
@@ -986,9 +989,10 @@ export const fetchWorkersForOwner = async () => {
 
     const { data, error } = await supabase
       .from('workers')
-      .select('*')
+      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at')
       .in('owner_id', allIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) {
       logger.error('Error fetching workers for owner:', error);
@@ -1040,7 +1044,7 @@ export const getClockedInWorkersTodayForOwner = async () => {
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        *,
+        id, worker_id, project_id, clock_in, clock_out,
         workers!inner (
           id,
           full_name,

@@ -26,7 +26,7 @@ export const redistributeAllTasksWithAI = async (projectId, ownerId, phases, tim
     // 1. Fetch ALL existing tasks for this project (including manually added ones)
     const { data: existingTasks } = await supabase
       .from('worker_tasks')
-      .select('*')
+      .select('id, title, phase_task_id')
       .eq('project_id', projectId);
 
     // 2. Collect tasks from phases
@@ -213,7 +213,7 @@ const createSimpleDistribution = async (projectId, ownerId, phases, timeline) =>
   // 1. Fetch manual tasks BEFORE deleting (phase_task_id is NULL for manual tasks)
   const { data: existingTasks } = await supabase
     .from('worker_tasks')
-    .select('*')
+    .select('id, title, start_date, end_date, status, phase_task_id')
     .eq('project_id', projectId)
     .is('phase_task_id', null);
 
@@ -574,7 +574,7 @@ export const fetchProjectPhases = async (projectId) => {
   try {
     const { data: phases, error } = await supabase
       .from('project_phases')
-      .select('*')
+      .select('id, project_id, name, order_index, planned_days, start_date, end_date, actual_start_date, actual_end_date, completion_percentage, status, time_extensions, tasks, budget, services')
       .eq('project_id', projectId)
       .order('order_index', { ascending: true });
 
@@ -704,7 +704,7 @@ export const extendPhaseTimeline = async (phaseId, extraDays, reason = '') => {
   try {
     const { data: phase, error: fetchError } = await supabase
       .from('project_phases')
-      .select('*')
+      .select('id, time_extensions, end_date, planned_days')
       .eq('id', phaseId)
       .single();
 
@@ -914,7 +914,7 @@ export const addTaskToPhase = async (phaseId, taskDescription, order) => {
       .from('project_phases')
       .update({ tasks: updatedTasks })
       .eq('id', phaseId)
-      .select()
+      .select('id, project_id, name, order_index, planned_days, start_date, end_date, completion_percentage, status, tasks')
       .single();
 
     if (error) throw error;
@@ -950,7 +950,7 @@ export const updatePhaseTask = async (phaseId, taskId, updates) => {
       .from('project_phases')
       .update({ tasks: updatedTasks })
       .eq('id', phaseId)
-      .select()
+      .select('id, project_id, name, order_index, planned_days, start_date, end_date, completion_percentage, status, tasks')
       .single();
 
     if (error) throw error;

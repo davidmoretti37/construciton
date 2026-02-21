@@ -31,7 +31,7 @@ export const createSupervisorInvite = async (inviteData) => {
       phone: inviteData.phone?.trim() || null,
       status: 'pending',
     })
-    .select()
+    .select('id, owner_id, email, full_name, phone, status, created_at')
     .single();
 
   if (error) throw error;
@@ -45,7 +45,7 @@ export const createSupervisorInvite = async (inviteData) => {
 export const getPendingSupervisorInvites = async (email) => {
   const { data, error } = await supabase
     .from('supervisor_invites')
-    .select('*')
+    .select('id, owner_id, email, full_name, phone, status, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate, created_at')
     .eq('email', email.toLowerCase())
     .eq('status', 'pending');
 
@@ -158,10 +158,11 @@ export const fetchPendingInvites = async () => {
 
   const { data, error } = await supabase
     .from('supervisor_invites')
-    .select('*')
+    .select('id, owner_id, email, full_name, phone, status, created_at')
     .eq('owner_id', ownerId)
     .eq('status', 'pending')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   if (error) throw error;
   return data || [];
@@ -226,9 +227,10 @@ export const getOwnerDashboardStats = async () => {
 export const fetchSupervisorProjects = async (supervisorId) => {
   const { data, error } = await supabase
     .from('projects')
-    .select('*')
+    .select('id, name, status, start_date, end_date, contract_amount, expenses, income_collected, location, user_id, assigned_supervisor_id, created_at')
     .eq('user_id', supervisorId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   if (error) throw error;
   return data || [];
@@ -240,9 +242,10 @@ export const fetchSupervisorProjects = async (supervisorId) => {
 export const fetchSupervisorWorkers = async (supervisorId) => {
   const { data, error } = await supabase
     .from('workers')
-    .select('*')
+    .select('id, full_name, trade, phone, email, status, payment_type, hourly_rate, daily_rate, weekly_salary, owner_id, created_at')
     .eq('owner_id', supervisorId)
-    .order('full_name', { ascending: true });
+    .order('full_name', { ascending: true })
+    .limit(100);
 
   if (error) throw error;
   return data || [];

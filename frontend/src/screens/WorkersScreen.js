@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   Modal,
   Alert,
@@ -19,6 +18,7 @@ import {
   ActionSheetIOS,
   Share,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
