@@ -46,6 +46,7 @@ export default function MoreScreen({ navigation }) {
   // AI Personality state
   const [aboutYou, setAboutYou] = useState('');
   const [responseStyle, setResponseStyle] = useState('');
+  const [projectInstructions, setProjectInstructions] = useState('');
   const [aiExpanded, setAiExpanded] = useState(false);
   const saveTimeoutRef = useRef(null);
   const [userServices, setUserServices] = useState([]);
@@ -120,8 +121,6 @@ export default function MoreScreen({ navigation }) {
   }, []);
 
   // Auto-save AI settings with debounce
-  const [projectInstructions, setProjectInstructions] = useState('');
-
   const handleAboutYouChange = (text) => {
     const trimmed = text.slice(0, 500);
     setAboutYou(trimmed);

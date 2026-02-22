@@ -90,7 +90,7 @@ export const transformProjectFromDB = (dbProject) => {
   return {
     id: dbProject.id,
     name: dbProject.name,
-    client: dbProject.client,
+    client: dbProject.client || null,
     clientPhone: dbProject.client_phone,
     clientEmail: dbProject.client_email,
     aiResponsesEnabled: dbProject.ai_responses_enabled !== false,
@@ -215,7 +215,7 @@ export const saveProject = async (projectData) => {
         .update(dbProject)
         .eq('id', projectData.id)
         .eq('user_id', userId)
-        .select('id, name, client, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
+        .select('id, name, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
         .single();
 
       if (error) throw error;
@@ -225,7 +225,7 @@ export const saveProject = async (projectData) => {
       const { data, error } = await supabase
         .from('projects')
         .insert(dbProject)
-        .select('id, name, client, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
+        .select('id, name, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
         .single();
 
       if (error) throw error;
@@ -308,7 +308,7 @@ export const fetchProjects = async () => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        id, name, client, client_phone, client_email, ai_responses_enabled,
+        id, name, client_phone, client_email, ai_responses_enabled,
         base_contract, contract_amount, extras, income_collected, expenses, spent,
         actual_progress, status, workers, days_remaining, last_activity, location,
         start_date, end_date, task_description, estimated_duration, has_phases,
@@ -386,10 +386,12 @@ export const fetchProjectsForOwner = async () => {
     // Include owner's own projects too
     const allIds = [context.userId, ...supervisorIds];
 
+    console.log('🟢🟢🟢 PATCHED fetchProjectsForOwner running - NO client column');
+
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        id, name, client, client_phone, client_email, ai_responses_enabled,
+        id, name, client_phone, client_email, ai_responses_enabled,
         base_contract, contract_amount, extras, income_collected, expenses, spent,
         actual_progress, status, workers, days_remaining, last_activity, location,
         start_date, end_date, task_description, estimated_duration, has_phases,
@@ -474,7 +476,7 @@ export const getProject = async (projectId) => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        id, name, client, client_phone, client_email, ai_responses_enabled,
+        id, name, client_phone, client_email, ai_responses_enabled,
         base_contract, contract_amount, extras, income_collected, expenses, spent,
         actual_progress, status, workers, days_remaining, last_activity, location,
         start_date, end_date, task_description, estimated_duration, has_phases,
