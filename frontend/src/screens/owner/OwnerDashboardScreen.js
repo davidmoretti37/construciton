@@ -24,6 +24,7 @@ import { supabase } from '../../lib/supabase';
 import NotificationBell from '../../components/NotificationBell';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
+import { getReconciliationSummary } from '../../services/plaidService';
 
 // Color palette for owner theme
 const OWNER_COLORS = {
@@ -53,6 +54,7 @@ export default function OwnerDashboardScreen() {
     pendingInvites: 0,
   });
   const [supervisors, setSupervisors] = useState([]);
+  const [reconciliation, setReconciliation] = useState(null);
 
   // Calculate monthly stats
   const monthlyStats = useMemo(() => {
@@ -110,6 +112,15 @@ export default function OwnerDashboardScreen() {
       });
 
       setSupervisors(supervisorList.slice(0, 5));
+
+      // Fetch bank reconciliation summary (non-blocking)
+      try {
+        const reconSummary = await getReconciliationSummary();
+        setReconciliation(reconSummary);
+      } catch (e) {
+        // Bank integration may not be set up yet - that's OK
+        setReconciliation(null);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -225,6 +236,15 @@ export default function OwnerDashboardScreen() {
               <View style={[styles.progressBar, { width: `${Math.min(monthlyStats.percentage, 100)}%`, backgroundColor: OWNER_COLORS.primary }]} />
             </View>
             <Text style={[styles.percentageText, { color: Colors.secondaryText }]}>{monthlyStats.percentage}%</Text>
+            <TouchableOpacity
+              style={styles.reportLink}
+              onPress={() => navigation.navigate('FinancialReport')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="bar-chart-outline" size={16} color={OWNER_COLORS.primary} />
+              <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>View Full P&L Report</Text>
+              <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -274,6 +294,42 @@ export default function OwnerDashboardScreen() {
               </Text>
               <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.warning} />
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Bank Reconciliation Alert */}
+        {reconciliation && !reconciliation.message && reconciliation.total_transactions > 0 && (
+          <View style={styles.section}>
+            {reconciliation.unmatched > 0 || reconciliation.suggested_matches > 0 ? (
+              <TouchableOpacity
+                style={[styles.alertBanner, { backgroundColor: `${OWNER_COLORS.error}10` }]}
+                onPress={() => navigation.navigate('BankReconciliation', { filter: 'unmatched' })}
+              >
+                <Ionicons name="card" size={20} color={OWNER_COLORS.error} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.alertText, { color: OWNER_COLORS.error }]}>
+                    {reconciliation.unmatched + (reconciliation.suggested_matches || 0)} card transaction{reconciliation.unmatched + (reconciliation.suggested_matches || 0) !== 1 ? 's' : ''} need attention
+                  </Text>
+                  {reconciliation.unmatched_amount > 0 && (
+                    <Text style={[{ fontSize: FontSizes.tiny, color: OWNER_COLORS.error, marginTop: 2 }]}>
+                      ${reconciliation.unmatched_amount.toFixed(2)} in unrecorded expenses
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.error} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.alertBanner, { backgroundColor: `${OWNER_COLORS.success}10` }]}
+                onPress={() => navigation.navigate('BankReconciliation')}
+              >
+                <Ionicons name="checkmark-circle" size={20} color={OWNER_COLORS.success} />
+                <Text style={[styles.alertText, { color: OWNER_COLORS.success }]}>
+                  All card transactions reconciled
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.success} />
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -464,6 +520,20 @@ const createStyles = (Colors) => StyleSheet.create({
   percentageText: {
     fontSize: FontSizes.small,
     textAlign: 'right',
+  },
+  reportLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  reportLinkText: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
   },
   statsGrid: {
     gap: Spacing.md,

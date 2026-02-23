@@ -13,7 +13,6 @@ import GeneralContractorSetupScreen from '../screens/settings/GeneralContractorS
 import ManageSubcontractorsScreen from '../screens/settings/ManageSubcontractorsScreen';
 import ChangeLanguageScreen from '../screens/settings/ChangeLanguageScreen';
 import TwilioSetupScreen from '../screens/settings/TwilioSetupScreen';
-import AIPersonalityScreen from '../screens/settings/AIPersonalityScreen';
 import PicturesScreen from '../screens/media/PicturesScreen';
 import EstimatesDetailScreen from '../screens/documents/EstimatesDetailScreen';
 import InvoicesDetailScreen from '../screens/documents/InvoicesDetailScreen';
@@ -92,11 +91,7 @@ export default function SettingsNavigator() {
         name="ChangeLanguage"
         component={ChangeLanguageScreen}
       />
-      <Stack.Screen
-        name="AIPersonality"
-        component={AIPersonalityScreen}
-      />
-      <Stack.Screen
+<Stack.Screen
         name="TwilioSetup"
         component={TwilioSetupScreen}
       />

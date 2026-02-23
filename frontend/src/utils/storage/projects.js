@@ -276,7 +276,7 @@ export const fetchProjectsBasic = async () => {
     const { data, error } = await supabase
       .from('projects')
       .select('id, name')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .order('name', { ascending: true });
 
     if (error) {
@@ -488,7 +488,7 @@ export const getProject = async (projectId) => {
         )
       `)
       .eq('id', projectId)
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .single();
 
     if (error) {

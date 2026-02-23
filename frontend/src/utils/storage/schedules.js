@@ -205,7 +205,7 @@ export const fetchActiveProjectsForDate = async (date) => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        id, name, status, start_date, end_date, location, user_id,
+        id, name, status, start_date, end_date, location, user_id, assigned_supervisor_id,
         project_phases (
           id,
           name,
@@ -215,7 +215,7 @@ export const fetchActiveProjectsForDate = async (date) => {
           order_index
         )
       `)
-      .eq('user_id', user.id)
+      .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`)
       .lte('start_date', date)
       .or(`end_date.gte.${date},end_date.is.null`)
       .order('start_date', { ascending: true })

@@ -2770,6 +2770,264 @@ async function update_service_pricing(userId, { service_name, item_name, price, 
 
 // ==================== TOOL EXECUTOR ====================
 
+// ==================== BANK RECONCILIATION ====================
+
+async function get_bank_transactions(userId, args = {}) {
+  const { match_status, start_date, end_date, bank_account_id } = args;
+
+  // Verify user is an owner
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.role !== 'owner') {
+    return { error: 'Bank transactions are only available to business owners.' };
+  }
+
+  let q = supabase
+    .from('bank_transactions')
+    .select(`
+      id, amount, date, description, merchant_name, category,
+      match_status, match_confidence, matched_at,
+      matched_transaction:matched_transaction_id (
+        id, description, amount, category, project_id,
+        project:project_id ( id, name )
+      ),
+      assigned_project:assigned_project_id ( id, name ),
+      bank_account:bank_account_id ( institution_name, account_mask )
+    `)
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .limit(30);
+
+  if (match_status) q = q.eq('match_status', match_status);
+  if (bank_account_id) q = q.eq('bank_account_id', bank_account_id);
+  if (start_date) q = q.gte('date', start_date);
+  if (end_date) q = q.lte('date', end_date);
+
+  const { data, error } = await q;
+
+  if (error) {
+    logger.error('get_bank_transactions error:', error);
+    return { error: error.message };
+  }
+
+  return {
+    transactions: data || [],
+    count: (data || []).length,
+    hint: 'Use assign_bank_transaction to assign unmatched transactions to projects.'
+  };
+}
+
+async function assign_bank_transaction(userId, args = {}) {
+  const { bank_transaction_id, project_id, category, description } = args;
+
+  if (!bank_transaction_id || !project_id) {
+    return { error: 'Both bank_transaction_id and project_id are required.' };
+  }
+
+  // Verify user is an owner
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.role !== 'owner') {
+    return { error: 'Bank transaction assignment is only available to business owners.' };
+  }
+
+  // Resolve bank transaction - try UUID first, then fuzzy match
+  let bankTx = null;
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (isUUID.test(bank_transaction_id)) {
+    const { data } = await supabase
+      .from('bank_transactions')
+      .select('*')
+      .eq('id', bank_transaction_id)
+      .eq('user_id', userId)
+      .single();
+    bankTx = data;
+  }
+
+  // Fuzzy match by description, merchant name, or amount
+  if (!bankTx) {
+    const searchTerm = bank_transaction_id.toLowerCase();
+    const { data: candidates } = await supabase
+      .from('bank_transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .in('match_status', ['unmatched', 'suggested_match'])
+      .order('date', { ascending: false })
+      .limit(100);
+
+    if (candidates) {
+      // Try to match by amount (e.g., "$432" or "432")
+      const amountSearch = parseFloat(searchTerm.replace(/[$,]/g, ''));
+
+      bankTx = candidates.find(tx => {
+        const desc = (tx.description || '').toLowerCase();
+        const merchant = (tx.merchant_name || '').toLowerCase();
+        // Match by description or merchant name
+        if (desc.includes(searchTerm) || merchant.includes(searchTerm)) return true;
+        // Match by amount
+        if (!isNaN(amountSearch) && Math.abs(tx.amount) === amountSearch) return true;
+        return false;
+      });
+    }
+  }
+
+  if (!bankTx) {
+    return { error: `Could not find a bank transaction matching "${bank_transaction_id}". Try providing more specific details.` };
+  }
+
+  if (bankTx.match_status === 'created' || bankTx.match_status === 'manually_matched' || bankTx.match_status === 'auto_matched') {
+    return { error: `This bank transaction is already matched/assigned.` };
+  }
+
+  // Resolve project
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return resolved;
+  if (resolved.suggestions) return resolved;
+  const resolvedProjectId = resolved.id;
+
+  // Get project name
+  const { data: project } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', resolvedProjectId)
+    .single();
+
+  // Create project_transaction
+  const txAmount = Math.abs(bankTx.amount);
+  const txType = bankTx.amount > 0 ? 'expense' : 'income';
+
+  const { data: projectTx, error: insertError } = await supabase
+    .from('project_transactions')
+    .insert({
+      project_id: resolvedProjectId,
+      type: txType,
+      category: category || bankTx.category || 'misc',
+      description: description || bankTx.merchant_name || bankTx.description,
+      amount: txAmount,
+      date: bankTx.date,
+      payment_method: 'card',
+      notes: `Imported from bank: ${bankTx.description}`,
+      created_by: userId,
+      bank_transaction_id: bankTx.id,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    logger.error('assign_bank_transaction insert error:', insertError);
+    return { error: insertError.message };
+  }
+
+  // Update bank transaction status
+  await supabase
+    .from('bank_transactions')
+    .update({
+      match_status: 'created',
+      matched_transaction_id: projectTx.id,
+      matched_at: new Date().toISOString(),
+      matched_by: 'ai',
+      assigned_project_id: resolvedProjectId,
+      assigned_category: category || bankTx.category || 'misc',
+    })
+    .eq('id', bankTx.id);
+
+  return {
+    success: true,
+    message: `Assigned $${txAmount.toFixed(2)} ${txType} to "${project?.name || 'project'}" as ${category || 'misc'}.`,
+    project_transaction: projectTx,
+    bank_transaction_id: bankTx.id,
+  };
+}
+
+async function get_reconciliation_summary(userId, args = {}) {
+  const { start_date, end_date } = args;
+
+  // Verify user is an owner
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.role !== 'owner') {
+    return { error: 'Reconciliation summary is only available to business owners.' };
+  }
+
+  let q = supabase
+    .from('bank_transactions')
+    .select('match_status, amount')
+    .eq('user_id', userId);
+
+  if (start_date) q = q.gte('date', start_date);
+  if (end_date) q = q.lte('date', end_date);
+
+  const { data, error } = await q;
+
+  if (error) {
+    logger.error('get_reconciliation_summary error:', error);
+    return { error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    // Check if they have connected accounts
+    const { data: accounts } = await supabase
+      .from('connected_bank_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .neq('sync_status', 'disconnected');
+
+    if (!accounts || accounts.length === 0) {
+      return { message: 'No bank accounts connected yet. Connect a bank account or upload a CSV statement to start reconciling transactions.' };
+    }
+    return { message: 'No bank transactions found for the selected period.' };
+  }
+
+  const summary = {
+    total_transactions: data.length,
+    auto_matched: 0,
+    suggested_matches: 0,
+    manually_matched: 0,
+    created_from_bank: 0,
+    unmatched: 0,
+    ignored: 0,
+    unmatched_amount: 0,
+    total_amount: 0,
+  };
+
+  for (const tx of data) {
+    const absAmount = Math.abs(tx.amount);
+    summary.total_amount += absAmount;
+
+    switch (tx.match_status) {
+      case 'auto_matched': summary.auto_matched++; break;
+      case 'suggested_match': summary.suggested_matches++; break;
+      case 'manually_matched': summary.manually_matched++; break;
+      case 'created': summary.created_from_bank++; break;
+      case 'ignored': summary.ignored++; break;
+      case 'unmatched':
+        summary.unmatched++;
+        summary.unmatched_amount += absAmount;
+        break;
+    }
+  }
+
+  summary.total_matched = summary.auto_matched + summary.manually_matched + summary.created_from_bank;
+  summary.needs_attention = summary.unmatched + summary.suggested_matches;
+  summary.unmatched_amount = parseFloat(summary.unmatched_amount.toFixed(2));
+  summary.total_amount = parseFloat(summary.total_amount.toFixed(2));
+
+  return summary;
+}
+
 const TOOL_HANDLERS = {
   // Granular tools
   search_projects,
@@ -2812,6 +3070,10 @@ const TOOL_HANDLERS = {
   create_work_schedule,
   create_worker_task,
   update_service_pricing,
+  // Bank reconciliation tools
+  get_bank_transactions,
+  assign_bank_transaction,
+  get_reconciliation_summary,
 };
 
 /**

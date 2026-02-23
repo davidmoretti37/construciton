@@ -31,7 +31,7 @@ export default function HomeScreen({ navigation }) {
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
   const { t } = useTranslation('home');
-  const { user } = useAuth();
+  const { user, profile, ownerHidesContract } = useAuth();
 
   // Use custom hook for projects data
   const { projects, loading, hasLoadedOnce, loadProjects } = useProjects();
@@ -553,12 +553,14 @@ export default function HomeScreen({ navigation }) {
                     <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalProjects')}</Text>
                     <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{projects.length}</Text>
                   </View>
-                  <View style={styles.statRow}>
-                    <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalContractValue')}</Text>
-                    <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>
-                      ${projects.reduce((sum, p) => sum + (p.contractAmount || 0), 0).toLocaleString()}
-                    </Text>
-                  </View>
+                  {!(profile?.role === 'supervisor' && ownerHidesContract) && (
+                    <View style={styles.statRow}>
+                      <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalContractValue')}</Text>
+                      <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>
+                        ${projects.reduce((sum, p) => sum + (p.contractAmount || 0), 0).toLocaleString()}
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.statRow}>
                     <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalIncomeCollected')}</Text>
                     <Text style={[styles.statRowValue, { color: Colors.successGreen }]}>

@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 // Import screens
@@ -29,7 +29,7 @@ import LumaBar from '../components/LumaBar';
 import QuickActionFAB from '../components/QuickActionFAB';
 import QuickActionSheet from '../components/QuickActionSheet';
 
-const Tab = createBottomTabNavigator();
+const Tab = createMaterialTopTabNavigator();
 const Stack = createStackNavigator();
 
 // Create a stack navigator for Projects to enable navigation to PhaseDetail
@@ -129,8 +129,12 @@ export default function BottomTabNavigator() {
     <Tab.Navigator
       initialRouteName="Chat"
       tabBar={(props) => <SupervisorNavContainer {...props} />}
+      tabBarPosition="bottom"
       screenOptions={{
         headerShown: false,
+        swipeEnabled: true,
+        lazy: true,
+        lazyPreloadDistance: 1,
       }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />

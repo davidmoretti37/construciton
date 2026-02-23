@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 
 // Import owner screens
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
@@ -23,7 +23,7 @@ import OwnerLumaBar from '../components/OwnerLumaBar';
 import QuickActionFAB from '../components/QuickActionFAB';
 import QuickActionSheet from '../components/QuickActionSheet';
 
-const Tab = createBottomTabNavigator();
+const Tab = createMaterialTopTabNavigator();
 
 // Wrapper component that combines LumaBar + FAB
 const OwnerNavContainer = (props) => {
@@ -94,8 +94,12 @@ export default function OwnerBottomTabNavigator() {
     <Tab.Navigator
       initialRouteName="Chat"
       tabBar={(props) => <OwnerNavContainer {...props} />}
+      tabBarPosition="bottom"
       screenOptions={{
         headerShown: false,
+        swipeEnabled: true,
+        lazy: true,
+        lazyPreloadDistance: 1,
       }}
     >
       <Tab.Screen name="Home" component={OwnerDashboardScreen} />

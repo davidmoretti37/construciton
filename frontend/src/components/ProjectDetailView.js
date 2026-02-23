@@ -74,9 +74,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   // Supervisor assignment (for owners)
   const [showSupervisorAssignment, setShowSupervisorAssignment] = useState(false);
-  const { profile } = useAuth() || {};
+  const [supervisorName, setSupervisorName] = useState(null);
+  const { profile, ownerHidesContract, refreshProfile } = useAuth() || {};
   const isOwner = profile?.role === 'owner';
   const isSupervisor = profile?.role === 'supervisor';
+  const [localHideContract, setLocalHideContract] = useState(profile?.hide_contract_from_supervisors || false);
   const isOwnProject = project?.createdBy === profile?.id || project?.user_id === profile?.id;
   const canAssignToSupervisor = isOwner && isOwnProject && !isDemo;
 
@@ -177,6 +179,24 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         } catch (error) {
           console.error('Error loading workers:', error);
           setWorkers([]);
+        }
+
+        // Load assigned supervisor name
+        const supervisorId = project?.assignedTo || project?.assigned_supervisor_id;
+        if (supervisorId) {
+          try {
+            const { data: supProfile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', supervisorId)
+              .single();
+            setSupervisorName(supProfile?.full_name || null);
+          } catch (error) {
+            console.error('Error loading supervisor:', error);
+            setSupervisorName(null);
+          }
+        } else {
+          setSupervisorName(null);
         }
 
         // Load manual tasks (tasks added outside of phases)
@@ -568,6 +588,26 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     }
   };
 
+  const handleToggleContractVisibility = async () => {
+    const newValue = !localHideContract;
+    setLocalHideContract(newValue);
+    try {
+      await supabase
+        .from('profiles')
+        .update({ hide_contract_from_supervisors: newValue })
+        .eq('id', profile.id);
+      Alert.alert(
+        newValue ? 'Hidden from supervisors' : 'Visible to supervisors',
+        newValue
+          ? 'Supervisors will not see the contract amount.'
+          : 'Supervisors can now see the contract amount.'
+      );
+    } catch (err) {
+      setLocalHideContract(!newValue);
+      console.error('Error toggling contract visibility:', err);
+    }
+  };
+
   const handleDeleteProject = () => {
     setDeleteConfirmText('');
     setShowDeleteModal(true);
@@ -951,13 +991,30 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <View style={styles.financialRow}>
               {/* Contract Amount */}
               <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
+                {isOwner && (
+                  <TouchableOpacity
+                    onPress={handleToggleContractVisibility}
+                    style={{ position: 'absolute', top: 10, right: 10, zIndex: 1, padding: 4 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name={localHideContract ? 'eye-off-outline' : 'eye-outline'}
+                      size={16}
+                      color={localHideContract ? '#EF4444' : Colors.secondaryText + '60'}
+                    />
+                  </TouchableOpacity>
+                )}
                 <View style={[styles.iconBadge, { backgroundColor: '#3B82F6' + '15' }]}>
                   <Ionicons name="document-text" size={18} color="#3B82F6" />
                 </View>
                 <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>{t('labels.contract')}</Text>
-                <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
-                  ${contractAmount.toLocaleString()}
-                </Text>
+                {isSupervisor && ownerHidesContract ? (
+                  <Text style={[styles.financialValue, { color: Colors.secondaryText }]}>---</Text>
+                ) : (
+                  <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
+                    ${contractAmount.toLocaleString()}
+                  </Text>
+                )}
               </View>
 
               {/* Income Collected */}
@@ -1201,14 +1258,31 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             </View>
 
-            {workers.length === 0 ? (
+            {/* Assigned Supervisor */}
+            {supervisorName && (
+              <View style={[styles.supervisorChip, { backgroundColor: Colors.lightGray, borderLeftWidth: 3, borderLeftColor: '#1E40AF' }]}>
+                <View style={[styles.workerAvatar, { backgroundColor: '#1E40AF' }]}>
+                  <Text style={styles.workerAvatarText}>{getInitials(supervisorName)}</Text>
+                </View>
+                <View style={styles.workerChipInfo}>
+                  <Text style={[styles.workerChipName, { color: Colors.primaryText }]} numberOfLines={1}>
+                    {supervisorName}
+                  </Text>
+                  <Text style={[styles.workerChipTrade, { color: '#1E40AF' }]} numberOfLines={1}>
+                    Supervisor
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {workers.length === 0 && !supervisorName ? (
               <View style={styles.emptyWorkers}>
                 <Ionicons name="people-outline" size={40} color={Colors.secondaryText} />
                 <Text style={[styles.emptyWorkersText, { color: Colors.secondaryText }]}>
                   {t('emptyStates.noWorkersAssigned')}
                 </Text>
               </View>
-            ) : (
+            ) : workers.length > 0 ? (
               <View style={styles.workersGrid}>
                 {workers.map((worker) => (
                   <View key={worker.id} style={[styles.workerChip, { backgroundColor: Colors.lightGray }]}>
@@ -1228,7 +1302,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   </View>
                 ))}
               </View>
-            )}
+            ) : null}
           </View>
 
           {/* Photos Section */}
@@ -1755,8 +1829,23 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           name: project?.name,
           assignedTo: project?.assignedTo || project?.assigned_supervisor_id,
         }}
-        onAssignmentChange={(newSupervisorId) => {
+        onAssignmentChange={async (newSupervisorId) => {
           setShowSupervisorAssignment(false);
+          // Update supervisor name display
+          if (newSupervisorId) {
+            try {
+              const { data: supProfile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', newSupervisorId)
+                .single();
+              setSupervisorName(supProfile?.full_name || null);
+            } catch (e) {
+              setSupervisorName(null);
+            }
+          } else {
+            setSupervisorName(null);
+          }
           // Trigger refresh if callback provided
           if (onRefreshNeeded) {
             onRefreshNeeded();
@@ -2492,6 +2581,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 8,
+  },
+  supervisorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   workerChip: {
     flexDirection: 'row',

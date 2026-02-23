@@ -53,6 +53,14 @@ import DailyReportDetailScreen from '../screens/worker/DailyReportDetailScreen';
 // Import expense form screen (with AI receipt analysis)
 import ExpenseFormScreen from '../screens/worker/ExpenseFormScreen';
 
+// Import financial report screen
+import FinancialReportScreen from '../screens/owner/FinancialReportScreen';
+
+// Import bank integration screens
+import BankConnectionScreen from '../screens/owner/BankConnectionScreen';
+import BankReconciliationScreen from '../screens/owner/BankReconciliationScreen';
+import BankTransactionAssignScreen from '../screens/owner/BankTransactionAssignScreen';
+
 const Stack = createStackNavigator();
 
 export default function OwnerMainNavigator() {
@@ -83,6 +91,12 @@ export default function OwnerMainNavigator() {
         options={{
           presentation: 'modal',
         }}
+      />
+
+      {/* Financial Report */}
+      <Stack.Screen
+        name="FinancialReport"
+        component={FinancialReportScreen}
       />
 
       {/* Team Screens (from More tab) */}
@@ -179,6 +193,23 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="ExpenseForm"
         component={ExpenseFormScreen}
+      />
+
+      {/* Bank Integration Screens */}
+      <Stack.Screen
+        name="BankConnection"
+        component={BankConnectionScreen}
+      />
+      <Stack.Screen
+        name="BankReconciliation"
+        component={BankReconciliationScreen}
+      />
+      <Stack.Screen
+        name="BankTransactionAssign"
+        component={BankTransactionAssignScreen}
+        options={{
+          presentation: 'modal',
+        }}
       />
     </Stack.Navigator>
   );

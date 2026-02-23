@@ -19,14 +19,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
-      "buildNumber": "15",
+      "buildNumber": "20",
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
-          "whatsapp",
-          "sms",
           "whatsapp",
           "sms"
         ],
@@ -37,7 +35,6 @@
         "NSPhotoLibraryAddUsageDescription": "This app saves project photos and documents to your photo library.",
         "NSLocationWhenInUseUsageDescription": "This app uses your location to calculate distances to job sites and provide location-based services.",
         "UIBackgroundModes": [
-          "remote-notification",
           "remote-notification"
         ]
       }
@@ -49,14 +46,6 @@
       },
       "package": "com.davidmoretti.constructionmanager",
       "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.SEND_SMS",
-        "android.permission.VIBRATE",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",

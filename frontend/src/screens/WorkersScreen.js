@@ -46,7 +46,9 @@ import {
   getWorkerAssignmentCounts,
   getWorkerClockInHistory,
   fetchTasksForDate,
+  fetchTasksForDateRange,
   fetchTasksForSupervisor,
+  fetchTasksForSupervisorDateRange,
   regenerateProjectSchedule,
   createTask,
   updateTask,
@@ -56,8 +58,9 @@ import {
 } from '../utils/storage';
 import WorkerCard from '../components/WorkerCard';
 import WorkerScheduleCard from '../components/WorkerScheduleCard';
+import AppleCalendarMonth from '../components/AppleCalendarMonth';
+import AppleCalendarYear from '../components/AppleCalendarYear';
 import CustomCalendar from '../components/CustomCalendar';
-import WeeklyCalendar from '../components/WeeklyCalendar';
 import AddPersonalEventModal from '../components/AddPersonalEventModal';
 import AddTaskModal from '../components/AddTaskModal';
 import NotificationBell from '../components/NotificationBell';
@@ -102,8 +105,11 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const [selectedWorkerHistory, setSelectedWorkerHistory] = useState([]);
 
   // Schedule tab state
+  const [calendarView, setCalendarView] = useState('month'); // 'month' | 'year'
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarViewMode, setCalendarViewMode] = useState('week'); // 'week' | 'month'
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [monthTasks, setMonthTasks] = useState([]);
+  const [monthEvents, setMonthEvents] = useState([]);
   const [expandedProjects, setExpandedProjects] = useState({});
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [workSchedules, setWorkSchedules] = useState([]);
@@ -251,55 +257,121 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
     }
   };
 
-  // Load data for Schedule tab
-  const loadScheduleTabData = async () => {
+  // Load all tasks and events for the displayed month
+  const loadMonthData = async (monthDate) => {
     try {
       setScheduleLoading(true);
 
-      // Get the selected date in local timezone (YYYY-MM-DD format)
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateString = `${year}-${month}-${day}`;
+      const yr = monthDate.getFullYear();
+      const mo = monthDate.getMonth();
+      const monthStart = `${yr}-${String(mo + 1).padStart(2, '0')}-01`;
+      const lastDayNum = new Date(yr, mo + 1, 0).getDate();
+      const monthEnd = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`;
 
-      // Create UTC date range for the full local day
-      const startDate = new Date(selectedDate);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(selectedDate);
-      endDate.setHours(23, 59, 59, 999);
+      const startISO = new Date(yr, mo, 1, 0, 0, 0).toISOString();
+      const endISO = new Date(yr, mo + 1, 0, 23, 59, 59).toISOString();
 
-      const [events, work, projects, tasks] = await Promise.all([
-        fetchScheduleEvents(startDate.toISOString(), endDate.toISOString()),
-        fetchWorkSchedules(dateString, dateString),
-        fetchActiveProjectsForDate(dateString),
-        isSupervisor ? fetchTasksForSupervisor(dateString) : fetchTasksForDate(dateString)
+      const [tasks, events] = await Promise.all([
+        isSupervisor
+          ? fetchTasksForSupervisorDateRange(monthStart, monthEnd)
+          : fetchTasksForDateRange(monthStart, monthEnd),
+        fetchScheduleEvents(startISO, endISO),
       ]);
 
-      setScheduleEvents(events);
-      setWorkSchedules(work);
-      setActiveProjects(projects);
-
-      // Auto-sync: if no tasks found but projects exist, regenerate stale worker_tasks
-      if (tasks.length === 0 && projects.length > 0) {
-        try {
-          console.log('🔄 [AUTO-SYNC] No tasks found, regenerating for', projects.length, 'projects');
-          for (const proj of projects) {
-            await regenerateProjectSchedule(proj.id, proj.user_id);
-          }
-          // Re-fetch tasks after regeneration
-          const refreshedTasks = isSupervisor
-            ? await fetchTasksForSupervisor(dateString)
-            : await fetchTasksForDate(dateString);
-          setScheduleTasks(refreshedTasks);
-        } catch (syncErr) {
-          console.error('🔄 [AUTO-SYNC] Error:', syncErr);
-          setScheduleTasks(tasks);
-        }
-      } else {
-        setScheduleTasks(tasks);
-      }
+      setMonthTasks(tasks);
+      setMonthEvents(events);
     } catch (error) {
-      console.error('Error loading schedule tab data:', error);
+      console.error('Error loading month data:', error);
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  // Load day-specific detail for the selected date (filters from month data + fetches work schedules)
+  const loadDayDetail = async (date, mTasks, mEvents) => {
+    const yr = date.getFullYear();
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    const dy = String(date.getDate()).padStart(2, '0');
+    const dateString = `${yr}-${mo}-${dy}`;
+
+    // Filter month tasks to this day
+    const dayTasks = (mTasks || monthTasks).filter(task => {
+      if (task.start_date > dateString || task.end_date < dateString) return false;
+      const project = task.projects;
+      if (!project) return true;
+      const workingDays = project.working_days || [1, 2, 3, 4, 5];
+      const nonWorkingDates = project.non_working_dates || [];
+      if (nonWorkingDates.includes(dateString)) return false;
+      const dateObj = new Date(dateString + 'T00:00:00');
+      const jsDay = dateObj.getDay();
+      const isoDay = jsDay === 0 ? 7 : jsDay;
+      return workingDays.includes(isoDay);
+    });
+
+    // Filter month events to this day
+    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+    const dayEvents = (mEvents || monthEvents).filter(event => {
+      const eventStart = new Date(event.start_datetime);
+      const eventEnd = event.end_datetime ? new Date(event.end_datetime) : eventStart;
+      return eventStart <= dayEnd && eventEnd >= dayStart;
+    });
+
+    // Fetch day-specific data
+    const [workScheduleData, projectsData] = await Promise.all([
+      fetchWorkSchedules(dateString, dateString),
+      fetchActiveProjectsForDate(dateString),
+    ]);
+
+    setScheduleTasks(dayTasks);
+    setScheduleEvents(dayEvents);
+    setWorkSchedules(workScheduleData);
+    setActiveProjects(projectsData);
+
+    // Auto-sync: regenerate stale tasks if none found but projects exist
+    if (dayTasks.length === 0 && projectsData.length > 0) {
+      try {
+        for (const proj of projectsData) {
+          await regenerateProjectSchedule(proj.id, proj.user_id);
+        }
+        // Re-fetch month data after regeneration
+        await loadMonthData(currentMonth);
+      } catch (syncErr) {
+        console.error('🔄 [AUTO-SYNC] Error:', syncErr);
+      }
+    }
+  };
+
+  // Wrapper for reloading schedule after mutations (event/task create/delete/update)
+  const reloadScheduleData = async () => {
+    if (calendarView === 'year') {
+      await loadYearData(currentMonth.getFullYear());
+    } else {
+      await loadMonthData(currentMonth);
+      await loadDayDetail(selectedDate);
+    }
+  };
+
+  // Load all tasks and events for an entire year (for year view)
+  const loadYearData = async (yr) => {
+    try {
+      setScheduleLoading(true);
+      const yearStart = `${yr}-01-01`;
+      const yearEnd = `${yr}-12-31`;
+      const startISO = new Date(yr, 0, 1, 0, 0, 0).toISOString();
+      const endISO = new Date(yr, 11, 31, 23, 59, 59).toISOString();
+
+      const [tasks, events] = await Promise.all([
+        isSupervisor
+          ? fetchTasksForSupervisorDateRange(yearStart, yearEnd)
+          : fetchTasksForDateRange(yearStart, yearEnd),
+        fetchScheduleEvents(startISO, endISO),
+      ]);
+
+      setMonthTasks(tasks);
+      setMonthEvents(events);
+    } catch (error) {
+      console.error('Error loading year data:', error);
     } finally {
       setScheduleLoading(false);
     }
@@ -366,7 +438,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       if (result) {
         Alert.alert(t('success.title', 'Success'), t('success.eventAdded', 'Personal event added successfully'));
         // Reload schedule data to show the new event
-        loadScheduleTabData();
+        reloadScheduleData();
       } else {
         Alert.alert(t('errors.error', 'Error'), t('errors.createEventFailed', 'Failed to create event. Please try again.'));
       }
@@ -395,7 +467,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               if (success) {
                 Alert.alert(t('success.title', 'Success'), t('success.eventDeleted', 'Event deleted successfully'));
                 // Reload schedule data to remove the deleted event
-                loadScheduleTabData();
+                reloadScheduleData();
               } else {
                 Alert.alert(t('errors.error', 'Error'), t('errors.deleteEventFailed', 'Failed to delete event. Please try again.'));
               }
@@ -424,7 +496,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
       if (result) {
         // Reload schedule data to show the new/updated task
-        loadScheduleTabData();
+        reloadScheduleData();
       } else {
         Alert.alert(t('errors.error', 'Error'), t('errors.saveTaskFailed', 'Failed to save task. Please try again.'));
       }
@@ -451,7 +523,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
             try {
               const success = await deleteTask(taskId);
               if (success) {
-                loadScheduleTabData();
+                reloadScheduleData();
               } else {
                 Alert.alert(t('errors.error', 'Error'), t('errors.deleteTaskFailed', 'Failed to delete task. Please try again.'));
               }
@@ -480,7 +552,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
   // Handle task moved - reload tasks
   const handleTaskMoved = () => {
-    loadScheduleTabData();
+    reloadScheduleData();
   };
 
   // Handle toggling task completion
@@ -642,26 +714,40 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
     await loadData();
   };
 
-  // Load tab-specific data when tab changes
+  // Load data when schedule tab becomes active, month changes, or view mode changes
   useEffect(() => {
-    switch (activeTab) {
-      case 'schedule':
-        loadScheduleTabData();
-        break;
-      case 'reports':
-        loadReportsTabData();
-        break;
-      case 'workers':
-        loadWorkersTabData();
-        break;
+    if (activeTab === 'schedule') {
+      if (calendarView === 'year') {
+        loadYearData(currentMonth.getFullYear());
+      } else {
+        loadMonthData(currentMonth).then(() => {
+          loadDayDetail(selectedDate);
+        });
+      }
     }
-  }, [activeTab, selectedDate, selectedReportDate]);
+  }, [activeTab, currentMonth, calendarView]);
+
+  // Load day detail when selected date changes within month view
+  useEffect(() => {
+    if (activeTab === 'schedule' && calendarView === 'month' && (monthTasks.length > 0 || monthEvents.length > 0)) {
+      loadDayDetail(selectedDate);
+    }
+  }, [selectedDate]);
+
+  // Load non-schedule tabs
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      loadReportsTabData();
+    } else if (activeTab === 'workers') {
+      loadWorkersTabData();
+    }
+  }, [activeTab, selectedReportDate]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     switch (activeTab) {
       case 'schedule':
-        await loadScheduleTabData();
+        await reloadScheduleData();
         break;
       case 'reports':
         await loadReportsTabData();
@@ -965,15 +1051,6 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       {/* Header - only show when showHeader is true */}
       {showHeader && (
         <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <View style={styles.headerTop}>
-            {/* Left: placeholder */}
-            <View style={styles.headerLeft} />
-            {/* Center: Empty spacer */}
-            <View style={{ flex: 1 }} />
-            {/* Right: NotificationBell */}
-            <NotificationBell onPress={() => navigation.navigate('Notifications')} />
-          </View>
-
           {/* Tab Bar */}
           <View style={styles.tabBar}>
             <TouchableOpacity
@@ -1098,111 +1175,87 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         {/* SCHEDULE TAB */}
         {activeTab === 'schedule' && (
           <>
-            {/* Calendar with Week/Month Toggle */}
+            {/* Calendar View: Year or Month */}
             <View style={[styles.calendarContainer, { backgroundColor: Colors.white }]}>
-              {/* Toggle and Header Row */}
-              <View style={styles.calendarHeaderRow}>
-                {calendarViewMode === 'month' && (
-                  <Text style={[styles.calendarTitle, { color: Colors.primaryText }]}>
-                    {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                  </Text>
-                )}
-                {calendarViewMode === 'week' && (
-                  <Text style={[styles.calendarTitle, { color: Colors.primaryText, fontSize: 16 }]}>
-                    {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  </Text>
-                )}
-
-                {/* View Toggle */}
-                <View style={[styles.calendarViewToggle, { backgroundColor: Colors.lightGray }]}>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggleButton,
-                      calendarViewMode === 'week' && [styles.toggleButtonActive, { backgroundColor: Colors.white }]
-                    ]}
-                    onPress={() => setCalendarViewMode('week')}
-                  >
-                    <Text style={[
-                      styles.toggleButtonText,
-                      { color: Colors.secondaryText },
-                      calendarViewMode === 'week' && { color: Colors.primaryBlue, fontWeight: '600' }
-                    ]}>Week</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggleButton,
-                      calendarViewMode === 'month' && [styles.toggleButtonActive, { backgroundColor: Colors.white }]
-                    ]}
-                    onPress={() => setCalendarViewMode('month')}
-                  >
-                    <Text style={[
-                      styles.toggleButtonText,
-                      { color: Colors.secondaryText },
-                      calendarViewMode === 'month' && { color: Colors.primaryBlue, fontWeight: '600' }
-                    ]}>Month</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Conditional Calendar Rendering */}
-              {calendarViewMode === 'week' ? (
-                <WeeklyCalendar
-                  selectedDate={selectedDate}
-                  onDateSelect={(dateString) => {
-                    const [year, month, day] = dateString.split('-').map(Number);
-                    setSelectedDate(new Date(year, month - 1, day));
+              {calendarView === 'year' ? (
+                <AppleCalendarYear
+                  currentYear={currentMonth.getFullYear()}
+                  onYearChange={(yr) => setCurrentMonth(new Date(yr, currentMonth.getMonth(), 1))}
+                  onMonthSelect={(monthIdx) => {
+                    setCurrentMonth(new Date(currentMonth.getFullYear(), monthIdx, 1));
+                    setCalendarView('month');
                   }}
+                  tasks={monthTasks}
+                  events={monthEvents}
                   theme={{
                     primaryBlue: Colors.primaryBlue,
                     primaryText: Colors.primaryText,
                     secondaryText: Colors.secondaryText,
                     white: Colors.white,
                     border: Colors.border,
+                    lightGray: Colors.lightGray,
+                    errorRed: Colors.errorRed,
                   }}
                 />
               ) : (
-                <CustomCalendar
+                <AppleCalendarMonth
+                  currentMonth={currentMonth}
+                  selectedDate={(() => {
+                    const y = selectedDate.getFullYear();
+                    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                    const d = String(selectedDate.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${d}`;
+                  })()}
                   onDateSelect={(dateString) => {
                     const [year, month, day] = dateString.split('-').map(Number);
                     setSelectedDate(new Date(year, month - 1, day));
                   }}
-                  selectedStart={selectedDate.toISOString().split('T')[0]}
-                  selectedEnd={selectedDate.toISOString().split('T')[0]}
+                  onMonthChange={(newMonth) => setCurrentMonth(newMonth)}
+                  onTitlePress={() => setCalendarView('year')}
+                  tasks={monthTasks}
+                  events={monthEvents}
                   theme={{
                     primaryBlue: Colors.primaryBlue,
                     primaryText: Colors.primaryText,
-                    white: '#FFFFFF',
+                    secondaryText: Colors.secondaryText,
+                    white: Colors.white,
                     border: Colors.border,
+                    lightGray: Colors.lightGray,
+                    errorRed: Colors.errorRed,
                   }}
                 />
               )}
-
-              {/* Divider before buttons */}
-              <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 12, marginTop: 6 }} />
-              {/* Action Buttons inside calendar container */}
-              <View style={[styles.scheduleActionsRow, { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 2, marginBottom: 0 }]}>
-                <TouchableOpacity
-                  style={[styles.addEventButton, { backgroundColor: Colors.primaryBlue }]}
-                  onPress={() => setShowAddEventModal(true)}
-                >
-                  <Ionicons name="add" size={18} color="#FFFFFF" />
-                  <Text style={styles.addEventButtonText}>{t('schedule.addEvent', 'Add Event')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.addTaskButton, { backgroundColor: Colors.warningOrange }]}
-                  onPress={() => {
-                    setEditingTask(null);
-                    setShowAddTaskModal(true);
-                  }}
-                >
-                  <Ionicons name="add" size={18} color="#FFFFFF" />
-                  <Text style={styles.addTaskButtonText}>{t('schedule.addTask', 'Add Task')}</Text>
-                </TouchableOpacity>
-              </View>
             </View>
 
-            {/* Schedule Content */}
-            <View style={styles.scheduleSection}>
+            {/* Day Detail Section (only visible in month view) */}
+            {calendarView === 'month' && <View style={styles.scheduleSection}>
+              {/* Date header row with inline action links */}
+              <View style={styles.dayDetailHeader}>
+                <Text style={[styles.dayDetailDate, { color: Colors.primaryText }]}>
+                  {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </Text>
+                <View style={styles.dayDetailActions}>
+                  <TouchableOpacity
+                    style={styles.inlineActionButton}
+                    onPress={() => setShowAddEventModal(true)}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  >
+                    <Ionicons name="add" size={16} color={Colors.primaryBlue} />
+                    <Text style={[styles.inlineActionText, { color: Colors.primaryBlue }]}>Event</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.inlineActionButton}
+                    onPress={() => {
+                      setEditingTask(null);
+                      setShowAddTaskModal(true);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  >
+                    <Ionicons name="add" size={16} color={Colors.warningOrange} />
+                    <Text style={[styles.inlineActionText, { color: Colors.warningOrange }]}>Task</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
               {/* Loading indicator for schedule data */}
               {scheduleLoading && (
                 <View style={styles.scheduleLoadingContainer}>
@@ -1210,15 +1263,12 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                 </View>
               )}
 
-              {/* Personal Events - PRIORITY FIRST */}
+              {/* Personal Events */}
               {!scheduleLoading && scheduleEvents.length > 0 && (
                 <View style={styles.scheduleCategory}>
-                  <View style={styles.categoryHeader}>
-                    <Ionicons name="calendar" size={20} color={Colors.successGreen} />
-                    <Text style={[styles.categoryTitle, { color: Colors.successGreen }]}>
-                      {t('schedule.personal', 'Personal')}
-                    </Text>
-                  </View>
+                  <Text style={[styles.categoryLabel, { color: Colors.successGreen }]}>
+                    {t('schedule.personal', 'Personal')}
+                  </Text>
                   {scheduleEvents.map((event) => (
                     <View
                       key={event.id}
@@ -1296,12 +1346,9 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               {/* Tasks Section */}
               {!scheduleLoading && (
                 <View style={styles.scheduleCategory}>
-                  <View style={styles.categoryHeader}>
-                    <Ionicons name="checkbox-outline" size={20} color={Colors.warningOrange} />
-                    <Text style={[styles.categoryTitle, { color: Colors.warningOrange }]}>
-                      Tasks
-                    </Text>
-                  </View>
+                  <Text style={[styles.categoryLabel, { color: Colors.warningOrange }]}>
+                    Tasks
+                  </Text>
 
                   {scheduleTasks.length === 0 ? (
                     <View style={[styles.emptyTasksContainer, { backgroundColor: Colors.white }]}>
@@ -1446,12 +1493,9 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               {/* Project Work Schedules */}
               {!scheduleLoading && workSchedules.length > 0 && (
                 <View style={styles.scheduleCategory}>
-                  <View style={styles.categoryHeader}>
-                    <Ionicons name="briefcase" size={20} color={Colors.primaryBlue} />
-                    <Text style={[styles.categoryTitle, { color: Colors.primaryBlue }]}>
-                      {t('schedule.projectWork', 'Project Work')}
-                    </Text>
-                  </View>
+                  <Text style={[styles.categoryLabel, { color: Colors.primaryBlue }]}>
+                    {t('schedule.projectWork', 'Project Work')}
+                  </Text>
                   {workSchedules.map((schedule) => (
                     <View key={schedule.id} style={[styles.scheduleCard, { backgroundColor: Colors.white }]}>
                       <View style={styles.scheduleCardHeader}>
@@ -1490,7 +1534,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               )}
 
               {/* Empty State */}
-              {!scheduleLoading && workSchedules.length === 0 && scheduleEvents.length === 0 && activeProjects.length === 0 && (
+              {!scheduleLoading && workSchedules.length === 0 && scheduleEvents.length === 0 && scheduleTasks.length === 0 && (
                 <View style={styles.emptyScheduleState}>
                   <Ionicons name="calendar-outline" size={64} color={Colors.secondaryText} />
                   <Text style={[styles.emptyScheduleTitle, { color: Colors.primaryText }]}>
@@ -1501,7 +1545,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   </Text>
                 </View>
               )}
-            </View>
+            </View>}
           </>
         )}
 
@@ -2857,15 +2901,15 @@ const createStyles = (Colors) => StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: Spacing.small,
-    paddingBottom: Spacing.medium,
-    borderBottomWidth: 1,
+    paddingTop: 4,
+    paddingBottom: 0,
+    borderBottomWidth: 0,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.small,
+    marginBottom: 4,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -2912,7 +2956,7 @@ const createStyles = (Colors) => StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    marginBottom: 16,
+    marginBottom: 0,
   },
   tab: {
     flex: 1,
@@ -2982,9 +3026,9 @@ const createStyles = (Colors) => StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: Spacing.large,
-    paddingBottom: Spacing.xlarge * 2,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 100,
   },
   statsRow: {
     flexDirection: 'row',
@@ -3658,15 +3702,12 @@ const createStyles = (Colors) => StyleSheet.create({
   },
   // Schedule Tab Styles
   calendarContainer: {
-    borderRadius: 14,
-    padding: 12,
-    paddingTop: 12,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderRadius: 12,
+    paddingTop: 8,
+    paddingHorizontal: 4,
+    paddingBottom: 2,
+    marginBottom: 4,
+    backgroundColor: Colors.white,
   },
   calendarHeader: {
     marginBottom: 16,
@@ -3705,8 +3746,34 @@ const createStyles = (Colors) => StyleSheet.create({
     fontWeight: '500',
   },
   scheduleSection: {
-    marginTop: 16,
+    marginTop: 4,
     marginBottom: 20,
+  },
+  dayDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  dayDetailDate: {
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
+  dayDetailActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  inlineActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  inlineActionText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   scheduleSectionHeader: {
     flexDirection: 'row',
@@ -3891,17 +3958,25 @@ const createStyles = (Colors) => StyleSheet.create({
     justifyContent: 'center',
   },
   scheduleCategory: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   categoryTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
+  },
+  categoryLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
   scheduleCard: {
     borderRadius: 12,

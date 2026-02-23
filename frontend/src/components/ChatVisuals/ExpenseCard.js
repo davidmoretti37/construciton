@@ -3,10 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ExpenseCard({ data }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { profile, ownerHidesContract } = useAuth() || {};
+  const hideContract = profile?.role === 'supervisor' && ownerHidesContract;
 
   const {
     jobs = [],
@@ -52,7 +55,7 @@ export default function ExpenseCard({ data }) {
             {/* Financial Details */}
             <View style={styles.financialDetails}>
               <Text style={[styles.detailText, { color: Colors.secondaryText }]}>
-                Contract: {formatCurrency(job.contractAmount || 0)} | Collected: {formatCurrency(job.incomeCollected)} | Profit: {formatCurrency(job.profit || 0)}
+                {hideContract ? '' : `Contract: ${formatCurrency(job.contractAmount || 0)} | `}Collected: {formatCurrency(job.incomeCollected)}{hideContract ? '' : ` | Profit: ${formatCurrency(job.profit || 0)}`}
               </Text>
             </View>
 

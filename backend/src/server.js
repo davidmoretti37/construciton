@@ -31,6 +31,7 @@ const supabase = createClient(
 const geocodingRoutes = require('./routes/geocoding');
 const transcriptionRoutes = require('./routes/transcription');
 const stripeRoutes = require('./routes/stripe');
+const plaidRoutes = require('./routes/plaid');
 
 // Rate Limiters
 const { aiLimiter, servicesLimiter, chatHistoryLimiter } = require('./middleware/rateLimiter');
@@ -86,6 +87,7 @@ app.use('/api', servicesLimiter, geocodingRoutes);
 app.use('/api', servicesLimiter, transcriptionRoutes);
 app.use('/api/stripe', servicesLimiter, stripeRoutes);
 app.use('/api/subscription', servicesLimiter, stripeRoutes);
+app.use('/api/plaid', servicesLimiter, plaidRoutes);
 
 // ============================================================
 // HEALTH & READINESS CHECKS
@@ -186,7 +188,14 @@ app.get('/ready', async (req, res) => {
     checks.deepgram = { status: 'skip', reason: 'DEEPGRAM_API_KEY not set' };
   }
 
-  // 6. Environment variables — verify required vars are set
+  // 6. Plaid — check if configured
+  if (process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET) {
+    checks.plaid = { status: 'ok', env: process.env.PLAID_ENV || 'sandbox' };
+  } else {
+    checks.plaid = { status: 'skip', reason: 'PLAID_CLIENT_ID or PLAID_SECRET not set' };
+  }
+
+  // 7. Environment variables — verify required vars are set
   const requiredVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'OPENROUTER_API_KEY'];
   const missingVars = requiredVars.filter(v => !process.env[v]);
   checks.env = missingVars.length === 0
@@ -827,6 +836,9 @@ if (require.main === module) {
     }
     if (process.env.STRIPE_SECRET_KEY) {
       logger.info(`   Stripe payments enabled`);
+    }
+    if (process.env.PLAID_CLIENT_ID) {
+      logger.info(`   Plaid bank integration enabled (${process.env.PLAID_ENV || 'sandbox'})`);
     }
   });
 }

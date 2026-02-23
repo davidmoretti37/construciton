@@ -22,6 +22,7 @@
     "helmet": "^8.1.0",
     "node-fetch": "^2.7.0",
     "pdf-parse": "^1.1.1",
+    "plaid": "^41.3.0",
     "stripe": "^20.2.0"
   },
   "devDependencies": {

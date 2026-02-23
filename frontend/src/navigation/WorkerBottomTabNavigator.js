@@ -1,20 +1,24 @@
 import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import TimeClockScreen from '../screens/worker/TimeClockScreen';
 import WorkerScheduleScreen from '../screens/worker/WorkerScheduleScreen';
 import WorkerAssignmentsScreen from '../screens/worker/WorkerAssignmentsScreen';
 import WorkerDailyReportScreen from '../screens/WorkerDailyReportScreen';
 import WorkerLumaBar from '../components/WorkerLumaBar';
 
-const Tab = createBottomTabNavigator();
+const Tab = createMaterialTopTabNavigator();
 
 export default function WorkerBottomTabNavigator() {
   return (
     <Tab.Navigator
       initialRouteName="TimeClock"
       tabBar={(props) => <WorkerLumaBar {...props} />}
+      tabBarPosition="bottom"
       screenOptions={{
         headerShown: false,
+        swipeEnabled: true,
+        lazy: true,
+        lazyPreloadDistance: 1,
       }}
     >
       <Tab.Screen name="TimeClock" component={TimeClockScreen} />

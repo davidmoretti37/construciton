@@ -494,12 +494,6 @@ export default function OwnerWorkersScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
       {/* Unified Header with Tabs - always rendered */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft} />
-          <View style={{ flex: 1 }} />
-          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
-        </View>
-
         {/* Tab Bar - 3 tabs */}
         <View style={styles.tabBar}>
           <TouchableOpacity

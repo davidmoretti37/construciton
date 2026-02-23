@@ -18,6 +18,7 @@ const INTENT_PATTERNS = {
   search: [/\bfind\b/g, /\bsearch\b/g, /\blookup\b/g, /\blocate\b/g],
   reports: [/photo/g, /picture/g, /image/g, /\breport\b/g, /daily/g, /documentation/g, /progress pic/g],
   settings: [/setting/g, /business info/g, /profit margin/g, /service catalog/g, /pricing catalog/g, /configure/g],
+  bank: [/bank/g, /card/g, /reconcil/g, /unmatched/g, /statement/g, /plaid/g, /csv/g, /bank transaction/g, /card transaction/g],
 };
 
 // Tool groups for each intent
@@ -25,7 +26,8 @@ const TOOL_GROUPS = {
   financial: [
     'search_invoices', 'get_invoice_details', 'update_invoice', 'void_invoice',
     'convert_estimate_to_invoice', 'record_expense', 'get_financial_overview',
-    'get_transactions', 'get_project_financials'
+    'get_transactions', 'get_project_financials',
+    'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary'
   ],
   project: [
     'search_projects', 'get_project_details', 'get_project_summary',
@@ -59,6 +61,10 @@ const TOOL_GROUPS = {
   settings: [
     'get_business_settings', 'update_service_pricing'
   ],
+  bank: [
+    'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
+    'search_projects', 'get_transactions', 'get_financial_overview'
+  ],
   general: [
     'global_search', 'get_daily_briefing', 'get_project_summary',
     'suggest_pricing', 'assign_worker', 'share_document',
@@ -66,7 +72,8 @@ const TOOL_GROUPS = {
     'get_project_details', 'get_estimate_details', 'get_invoice_details',
     'get_worker_details', 'get_time_records',
     'record_expense', 'update_phase_progress', 'create_worker_task',
-    'add_project_checklist', 'create_project_phase'
+    'add_project_checklist', 'create_project_phase',
+    'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary'
   ]
 };
 

@@ -68,8 +68,12 @@ export default function OwnerSettingsScreen() {
   // AI Personality state
   const [aboutYou, setAboutYou] = useState('');
   const [responseStyle, setResponseStyle] = useState('');
+  const [projectInstructions, setProjectInstructions] = useState('');
   const [aiExpanded, setAiExpanded] = useState(false);
   const saveTimeoutRef = useRef(null);
+
+  // Supervisor permissions state
+  const [hideContractFromSupervisors, setHideContractFromSupervisors] = useState(false);
 
   // Load data
   const loadData = async () => {
@@ -106,13 +110,25 @@ export default function OwnerSettingsScreen() {
       const language = await getSelectedLanguage();
       setCurrentLanguage(language || 'en');
 
+      // Load supervisor permission settings
+      const ownerId = await getCurrentUserId();
+      if (ownerId) {
+        const { data: ownerFlags } = await supabase
+          .from('profiles')
+          .select('hide_contract_from_supervisors')
+          .eq('id', ownerId)
+          .maybeSingle();
+        setHideContractFromSupervisors(ownerFlags?.hide_contract_from_supervisors || false);
+      }
+
       // Load AI settings
       const aiSettings = await getAISettings();
       setAboutYou(aiSettings?.aboutYou || '');
       setResponseStyle(aiSettings?.responseStyle || '');
+      setProjectInstructions(aiSettings?.projectInstructions || '');
 
       // Auto-expand if user has AI settings configured
-      if (aiSettings?.aboutYou || aiSettings?.responseStyle) {
+      if (aiSettings?.aboutYou || aiSettings?.responseStyle || aiSettings?.projectInstructions) {
         setAiExpanded(true);
       }
 
@@ -144,7 +160,7 @@ export default function OwnerSettingsScreen() {
     setAboutYou(trimmed);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateAISettings({ aboutYou: trimmed, responseStyle });
+      updateAISettings({ aboutYou: trimmed, responseStyle, projectInstructions });
     }, 1000);
   };
 
@@ -153,8 +169,33 @@ export default function OwnerSettingsScreen() {
     setResponseStyle(trimmed);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateAISettings({ aboutYou, responseStyle: trimmed });
+      updateAISettings({ aboutYou, responseStyle: trimmed, projectInstructions });
     }, 1000);
+  };
+
+  const handleProjectInstructionsChange = (text) => {
+    const trimmed = text.slice(0, 2000);
+    setProjectInstructions(trimmed);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      updateAISettings({ aboutYou, responseStyle, projectInstructions: trimmed });
+    }, 1000);
+  };
+
+  const handleToggleHideContract = async (value) => {
+    setHideContractFromSupervisors(value);
+    try {
+      const id = await getCurrentUserId();
+      if (id) {
+        await supabase
+          .from('profiles')
+          .update({ hide_contract_from_supervisors: value })
+          .eq('id', id);
+      }
+    } catch (error) {
+      console.error('Error updating supervisor permission:', error);
+      setHideContractFromSupervisors(!value); // revert on failure
+    }
   };
 
   const handleLogout = async () => {
@@ -348,8 +389,61 @@ export default function OwnerSettingsScreen() {
                   {responseStyle.length}/300
                 </Text>
               </View>
+
+              <View style={styles.aiField}>
+                <Text style={[styles.aiLabel, { color: Colors.secondaryText }]}>
+                  {t('aiPersonality.projectInstructions', 'Project Instructions')}
+                </Text>
+                <TextInput
+                  style={[
+                    styles.aiInput,
+                    {
+                      backgroundColor: Colors.background,
+                      color: Colors.primaryText,
+                      borderColor: Colors.border,
+                      minHeight: 100,
+                    }
+                  ]}
+                  placeholder={t('aiPersonality.projectInstructionsPlaceholder', 'Default checklists, scope of work templates...')}
+                  placeholderTextColor={Colors.secondaryText + '70'}
+                  value={projectInstructions}
+                  onChangeText={handleProjectInstructionsChange}
+                  multiline
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                />
+                <Text style={[styles.aiCharCount, { color: Colors.secondaryText }]}>
+                  {projectInstructions.length}/2000
+                </Text>
+              </View>
             </View>
           )}
+        </View>
+
+        {/* Supervisor Permissions */}
+        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+          SUPERVISOR PERMISSIONS
+        </Text>
+        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleInfo}>
+              <Ionicons name="eye-off-outline" size={22} color={Colors.primaryText} />
+              <View style={styles.toggleTextContainer}>
+                <Text style={[styles.toggleLabel, { color: Colors.primaryText }]}>
+                  Hide contract amounts
+                </Text>
+                <Text style={[styles.toggleDescription, { color: Colors.secondaryText }]}>
+                  Supervisors won't see contract amounts on projects
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={hideContractFromSupervisors}
+              onValueChange={handleToggleHideContract}
+              trackColor={{ false: Colors.border, true: '#3B82F6' }}
+              thumbColor="#fff"
+            />
+          </View>
         </View>
 
         {/* Documents & Financials */}
@@ -435,6 +529,13 @@ export default function OwnerSettingsScreen() {
             title={t('subscription.title', 'Subscription')}
             subtitle={t('subscription.managePlan', 'Manage your plan')}
             onPress={() => navigation.navigate('SubscriptionSettings')}
+          />
+          <MenuItem
+            icon="card-outline"
+            iconColor={OWNER_COLORS.primary}
+            title="Connected Accounts"
+            subtitle="Bank & card integration"
+            onPress={() => navigation.navigate('BankConnection')}
             isLast
           />
         </View>
@@ -730,6 +831,32 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'right',
     marginTop: 4,
+  },
+
+  // Supervisor Permissions
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  toggleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+    gap: 12,
+  },
+  toggleTextContainer: {
+    flex: 1,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  toggleDescription: {
+    fontSize: 12,
+    marginTop: 2,
   },
 
   // Services

@@ -206,6 +206,78 @@ export const fetchTasksForDate = async (date) => {
 };
 
 /**
+ * Fetch all tasks overlapping a date range (owner view)
+ * Used for month-view calendar to get all tasks in one query
+ * @param {string} startDate - Range start (YYYY-MM-DD)
+ * @param {string} endDate - Range end (YYYY-MM-DD)
+ * @returns {Promise<Array>} Array of task objects with nested projects
+ */
+export const fetchTasksForDateRange = async (startDate, endDate) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+      .from('worker_tasks')
+      .select(`
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        projects:project_id (id, name, working_days, non_working_dates)
+      `)
+      .eq('owner_id', userId)
+      .lte('start_date', endDate)
+      .gte('end_date', startDate)
+      .order('created_at', { ascending: true })
+      .limit(500);
+
+    if (error) {
+      console.error('Error fetching tasks for date range:', error);
+      return [];
+    }
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchTasksForDateRange:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch all tasks overlapping a date range (supervisor view)
+ * Uses SECURITY DEFINER RPC to handle both owner and supervisor access
+ * @param {string} startDate - Range start (YYYY-MM-DD)
+ * @param {string} endDate - Range end (YYYY-MM-DD)
+ * @returns {Promise<Array>} Array of task objects with nested projects shape
+ */
+export const fetchTasksForSupervisorDateRange = async (startDate, endDate) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { data, error } = await supabase.rpc('fetch_tasks_for_supervisor_range', {
+      range_start: startDate,
+      range_end: endDate,
+    });
+
+    if (error) {
+      console.error('Error fetching tasks for supervisor range:', error);
+      return [];
+    }
+
+    return (data || []).map(task => ({
+      ...task,
+      projects: {
+        id: task.project_id,
+        name: task.project_name,
+        working_days: task.working_days,
+        non_working_dates: task.non_working_dates,
+      }
+    }));
+  } catch (error) {
+    console.error('Error in fetchTasksForSupervisorDateRange:', error);
+    return [];
+  }
+};
+
+/**
  * Fetch all tasks for a date (supervisor view - their own + assigned projects)
  * Uses SECURITY DEFINER RPC to bypass RLS issues with nested policy evaluation
  * Tasks are filtered to only show on their project's working days

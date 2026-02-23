@@ -995,6 +995,88 @@ const toolDefinitions = [
         required: ['document_id', 'document_type']
       }
     }
+  },
+  // ==================== BANK RECONCILIATION ====================
+  {
+    type: 'function',
+    function: {
+      name: 'get_bank_transactions',
+      description: 'Get bank/card transactions pulled from connected accounts. Filter by match status, date range, or account. Use when owner asks about unmatched transactions, bank reconciliation, or card spending. Returns transaction list with match status and linked project info.',
+      parameters: {
+        type: 'object',
+        properties: {
+          match_status: {
+            type: 'string',
+            enum: ['auto_matched', 'suggested_match', 'manually_matched', 'unmatched', 'ignored', 'created'],
+            description: 'Filter by reconciliation status. Use "unmatched" for transactions not yet assigned to projects.'
+          },
+          start_date: {
+            type: 'string',
+            description: 'Start date filter (YYYY-MM-DD)'
+          },
+          end_date: {
+            type: 'string',
+            description: 'End date filter (YYYY-MM-DD)'
+          },
+          bank_account_id: {
+            type: 'string',
+            description: 'Filter by specific connected bank account UUID'
+          }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'assign_bank_transaction',
+      description: 'Assign an unmatched bank/card transaction to a project as an expense. Creates a new project_transaction and links it to the bank transaction. Use when owner says "put that Home Depot charge on the Smith project" or "assign the $432 transaction to the kitchen remodel".',
+      parameters: {
+        type: 'object',
+        properties: {
+          bank_transaction_id: {
+            type: 'string',
+            description: 'Bank transaction description, merchant name, amount, or UUID. Will auto-resolve to the best match.'
+          },
+          project_id: {
+            type: 'string',
+            description: 'Project name or UUID to assign the expense to.'
+          },
+          category: {
+            type: 'string',
+            enum: ['materials', 'labor', 'equipment', 'permits', 'subcontractor', 'misc'],
+            description: 'Expense category. Suggest based on merchant name if possible.'
+          },
+          description: {
+            type: 'string',
+            description: 'Optional override for the expense description. Defaults to bank transaction description.'
+          }
+        },
+        required: ['bank_transaction_id', 'project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_reconciliation_summary',
+      description: 'Get a summary of bank reconciliation status: how many transactions are matched, unmatched, or need review. Also shows total unmatched spending amount. Use when owner asks "how is my reconciliation looking?" or "are there unmatched transactions?" or "bank summary".',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: {
+            type: 'string',
+            description: 'Start date filter (YYYY-MM-DD)'
+          },
+          end_date: {
+            type: 'string',
+            description: 'End date filter (YYYY-MM-DD)'
+          }
+        },
+        required: []
+      }
+    }
   }
 ];
 
@@ -1040,6 +1122,10 @@ const TOOL_STATUS_MESSAGES = {
   add_project_checklist: 'Adding checklist items...',
   create_project_phase: 'Creating project phase...',
   update_service_pricing: 'Updating pricing...',
+  // Bank reconciliation tools
+  get_bank_transactions: 'Checking bank transactions...',
+  assign_bank_transaction: 'Assigning transaction to project...',
+  get_reconciliation_summary: 'Checking reconciliation status...',
 };
 
 function getToolStatusMessage(toolName) {

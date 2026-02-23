@@ -5,10 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import PhaseTimeline from '../PhaseTimeline';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ProjectCard({ data, onAction }) {
   const { t } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
+  const { profile, ownerHidesContract } = useAuth() || {};
+  const hideContract = profile?.role === 'supervisor' && ownerHidesContract;
   const Colors = getColors(isDark) || LightColors;
   const [expandedPhases, setExpandedPhases] = useState({});
   const [isEditing, setIsEditing] = useState(false);
@@ -501,14 +504,16 @@ export default function ProjectCard({ data, onAction }) {
       {/* Financial Section */}
       <View style={styles.financialSection}>
         {/* Contract Amount Header */}
-        <View style={styles.financialRow}>
-          <Text style={[styles.financialLabel, { color: Colors.primaryText }]}>
-            {extras.length > 0 ? t('financial.totalContractAmount') : t('financial.contractAmount')}
-          </Text>
-          <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
-            ${(contractAmount || 0).toLocaleString()}
-          </Text>
-        </View>
+        {!hideContract && (
+          <View style={styles.financialRow}>
+            <Text style={[styles.financialLabel, { color: Colors.primaryText }]}>
+              {extras.length > 0 ? t('financial.totalContractAmount') : t('financial.contractAmount')}
+            </Text>
+            <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
+              ${(contractAmount || 0).toLocaleString()}
+            </Text>
+          </View>
+        )}
 
         {/* Extras/Additions Breakdown */}
         {extras.length > 0 && (

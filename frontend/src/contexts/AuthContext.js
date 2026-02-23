@@ -45,6 +45,7 @@ export const AuthProvider = ({ children }) => {
 
   // Owner/Supervisor hierarchy state
   const [ownerId, setOwnerIdState] = useState(null); // For supervisors - their owner's ID
+  const [ownerHidesContract, setOwnerHidesContract] = useState(false); // Owner's setting for supervisors
 
   useEffect(() => {
     // Load cached profile first for instant UI
@@ -152,6 +153,22 @@ export const AuthProvider = ({ children }) => {
         setProfile(data);
         setIsUsingCache(false);
         setLoadError(null);
+
+        // For supervisors, fetch owner's visibility settings
+        if (data?.role === 'supervisor' && data?.owner_id) {
+          try {
+            const { data: ownerProfile } = await supabase
+              .from('profiles')
+              .select('hide_contract_from_supervisors')
+              .eq('id', data.owner_id)
+              .maybeSingle();
+            setOwnerHidesContract(ownerProfile?.hide_contract_from_supervisors || false);
+          } catch (err) {
+            console.warn('AuthContext - Could not fetch owner settings:', err);
+          }
+        } else {
+          setOwnerHidesContract(false);
+        }
 
         // Save to cache for next app launch
         await saveProfileToCache(data);
@@ -283,6 +300,7 @@ export const AuthProvider = ({ children }) => {
     isWorker: role === 'worker',
     // Owner/Supervisor hierarchy
     ownerId, // For supervisors - their owner's ID
+    ownerHidesContract, // Whether owner hides contract amounts from supervisors
     // Functions
     setRole,
     clearRole,
