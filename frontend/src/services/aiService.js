@@ -8,11 +8,31 @@ import { supabase } from '../lib/supabase';
 const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
 /**
- * Get the current Supabase auth token for authenticated API calls
+ * Get the current Supabase auth token for authenticated API calls.
+ * Retries if session isn't loaded yet (race condition with AsyncStorage).
  */
-const getAuthToken = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token;
+const getAuthToken = async (retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) return session.access_token;
+    // Session not loaded yet — wait and retry
+    if (i < retries - 1) {
+      logger.debug(`🔑 [Auth] No session on attempt ${i + 1}, retrying in ${(i + 1) * 200}ms...`);
+      await new Promise(r => setTimeout(r, (i + 1) * 200));
+    }
+  }
+  // Final fallback: try refreshing the session explicitly
+  try {
+    const { data: { session } } = await supabase.auth.refreshSession();
+    if (session?.access_token) {
+      logger.debug('🔑 [Auth] Got token after explicit refresh');
+      return session.access_token;
+    }
+  } catch (e) {
+    logger.warn('🔑 [Auth] refreshSession failed:', e.message);
+  }
+  logger.warn('🔑 [Auth] Could not obtain auth token after retries');
+  return null;
 };
 
 /**
@@ -1836,8 +1856,13 @@ export const sendAgentMessage = async (
   logger.debug(`🤖 [Agent] Sending to ${BACKEND_URL}/api/chat/agent`);
   logger.debug(`🤖 [Agent] Messages: ${messages.length}, userId: ${userId?.substring(0, 8)}`);
 
-  // Get auth token before starting XHR
-  const authToken = await getAuthToken();
+  // Get auth token before starting XHR (with retries for session loading race condition)
+  const authToken = await getAuthToken(3);
+  if (!authToken) {
+    logger.error('🤖 [Agent] No auth token available — cannot send request');
+    onError?.(new Error('Not authenticated. Please restart the app and try again.'));
+    return;
+  }
 
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
@@ -2032,9 +2057,7 @@ export const sendAgentMessage = async (
 
     xhr.open('POST', `${BACKEND_URL}/api/chat/agent`);
     xhr.setRequestHeader('Content-Type', 'application/json');
-    if (authToken) {
-      xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
-    }
+    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
 
     xhr.send(JSON.stringify({
       messages,
