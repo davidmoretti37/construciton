@@ -270,6 +270,8 @@ export {
   createTask,
   fetchTasksForProject,
   fetchTasksForDate,
+  fetchTasksForSupervisor,
+  regenerateProjectSchedule,
   fetchUpcomingTasks,
   completeTask,
   uncompleteTask,

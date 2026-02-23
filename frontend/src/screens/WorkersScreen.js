@@ -46,6 +46,8 @@ import {
   getWorkerAssignmentCounts,
   getWorkerClockInHistory,
   fetchTasksForDate,
+  fetchTasksForSupervisor,
+  regenerateProjectSchedule,
   createTask,
   updateTask,
   deleteTask,
@@ -270,13 +272,32 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         fetchScheduleEvents(startDate.toISOString(), endDate.toISOString()),
         fetchWorkSchedules(dateString, dateString),
         fetchActiveProjectsForDate(dateString),
-        fetchTasksForDate(dateString)
+        isSupervisor ? fetchTasksForSupervisor(dateString) : fetchTasksForDate(dateString)
       ]);
 
       setScheduleEvents(events);
       setWorkSchedules(work);
       setActiveProjects(projects);
-      setScheduleTasks(tasks);
+
+      // Auto-sync: if no tasks found but projects exist, regenerate stale worker_tasks
+      if (tasks.length === 0 && projects.length > 0) {
+        try {
+          console.log('🔄 [AUTO-SYNC] No tasks found, regenerating for', projects.length, 'projects');
+          for (const proj of projects) {
+            await regenerateProjectSchedule(proj.id, proj.user_id);
+          }
+          // Re-fetch tasks after regeneration
+          const refreshedTasks = isSupervisor
+            ? await fetchTasksForSupervisor(dateString)
+            : await fetchTasksForDate(dateString);
+          setScheduleTasks(refreshedTasks);
+        } catch (syncErr) {
+          console.error('🔄 [AUTO-SYNC] Error:', syncErr);
+          setScheduleTasks(tasks);
+        }
+      } else {
+        setScheduleTasks(tasks);
+      }
     } catch (error) {
       console.error('Error loading schedule tab data:', error);
     } finally {

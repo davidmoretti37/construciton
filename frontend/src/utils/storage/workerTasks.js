@@ -206,6 +206,252 @@ export const fetchTasksForDate = async (date) => {
 };
 
 /**
+ * Fetch all tasks for a date (supervisor view - their own + assigned projects)
+ * Uses SECURITY DEFINER RPC to bypass RLS issues with nested policy evaluation
+ * Tasks are filtered to only show on their project's working days
+ */
+export const fetchTasksForSupervisor = async (date) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { data, error } = await supabase.rpc('fetch_tasks_for_supervisor', {
+      task_date: date
+    });
+
+    if (error) {
+      console.error('Error fetching tasks for supervisor:', error);
+      return [];
+    }
+
+    // Map RPC results to match the shape expected by the UI
+    // (RPC returns flat fields; UI expects nested projects object)
+    const mappedData = (data || []).map(task => ({
+      ...task,
+      projects: {
+        id: task.project_id,
+        name: task.project_name,
+        working_days: task.working_days,
+        non_working_dates: task.non_working_dates,
+      }
+    }));
+
+    // Filter tasks to only show on working days for their project
+    const filteredData = mappedData.filter(task => {
+      const project = task.projects;
+      if (!project) return true;
+
+      const workingDays = project.working_days || [1, 2, 3, 4, 5];
+      const nonWorkingDates = project.non_working_dates || [];
+
+      if (nonWorkingDates.includes(date)) return false;
+
+      const dateObj = new Date(date + 'T00:00:00');
+      const jsDay = dateObj.getDay();
+      const isoDay = jsDay === 0 ? 7 : jsDay;
+
+      return workingDays.includes(isoDay);
+    });
+
+    return filteredData;
+  } catch (error) {
+    console.error('Error in fetchTasksForSupervisor:', error);
+    return [];
+  }
+};
+
+/**
+ * Regenerate worker_tasks from project phases with current dates.
+ * Used when tasks have stale dates and need to be redistributed.
+ * Uses SECURITY DEFINER RPC to bypass RLS for delete+insert.
+ * @param {string} projectId - Project ID
+ * @param {string} ownerId - Project owner ID
+ * @returns {Promise<{success: boolean, count: number}>}
+ */
+export const regenerateProjectSchedule = async (projectId, ownerId) => {
+  try {
+    console.log('🔄 [REGEN] Regenerating schedule for project:', projectId);
+
+    // 1. Fetch project settings
+    const { data: project, error: projErr } = await supabase
+      .from('projects')
+      .select('start_date, end_date, working_days, non_working_dates')
+      .eq('id', projectId)
+      .single();
+
+    if (projErr || !project?.start_date || !project?.end_date) {
+      console.warn('🔄 [REGEN] Project missing start/end dates');
+      return { success: false, count: 0 };
+    }
+
+    // 2. Fetch phases with tasks
+    const { data: phases, error: phaseErr } = await supabase
+      .from('project_phases')
+      .select('id, name, order_index, tasks')
+      .eq('project_id', projectId)
+      .order('order_index', { ascending: true });
+
+    if (phaseErr || !phases || phases.length === 0) {
+      console.warn('🔄 [REGEN] No phases found');
+      return { success: false, count: 0 };
+    }
+
+    // 3. Collect all tasks from phases
+    const CLEANUP_KW = ['cleanup', 'clean up', 'final', 'inspection', 'walkthrough', 'test all'];
+    const PREP_KW = ['prep', 'preparation', 'site assessment', 'layout', 'remove existing', 'check plumbing', 'site prep'];
+
+    const allTasks = [];
+    for (const phase of phases) {
+      if (!phase.tasks?.length) continue;
+      phase.tasks.forEach((task, taskIndex) => {
+        allTasks.push({
+          ...task,
+          phaseName: phase.name,
+          phaseOrder: phase.order_index || 0,
+          taskIndex,
+        });
+      });
+    }
+
+    if (allTasks.length === 0) {
+      console.log('🔄 [REGEN] No tasks in phases');
+      return { success: false, count: 0 };
+    }
+
+    // 4. Sort: prep first, cleanup last, then by phase/task order
+    allTasks.sort((a, b) => {
+      const aDesc = (a.description || a.name || '').toLowerCase();
+      const bDesc = (b.description || b.name || '').toLowerCase();
+      const aIsCleanup = CLEANUP_KW.some(kw => aDesc.includes(kw));
+      const bIsCleanup = CLEANUP_KW.some(kw => bDesc.includes(kw));
+      const aIsPrep = PREP_KW.some(kw => aDesc.includes(kw));
+      const bIsPrep = PREP_KW.some(kw => bDesc.includes(kw));
+      if (aIsPrep && !bIsPrep) return -1;
+      if (!aIsPrep && bIsPrep) return 1;
+      if (aIsCleanup && !bIsCleanup) return 1;
+      if (!aIsCleanup && bIsCleanup) return -1;
+      if (a.phaseOrder !== b.phaseOrder) return a.phaseOrder - b.phaseOrder;
+      return a.taskIndex - b.taskIndex;
+    });
+
+    // 5. Separate cleanup from regular tasks
+    const cleanupTasks = allTasks.filter(t => {
+      const desc = (t.description || t.name || '').toLowerCase();
+      return CLEANUP_KW.some(kw => desc.includes(kw));
+    });
+    const regularTasks = allTasks.filter(t => !cleanupTasks.includes(t));
+
+    // 6. Calculate available working days across the project timeline
+    const workingDays = project.working_days || [1, 2, 3, 4, 5];
+    const nonWorkingDates = project.non_working_dates || [];
+    const projectStart = new Date(project.start_date + 'T00:00:00');
+    const projectEnd = new Date(project.end_date + 'T00:00:00');
+
+    const availableWorkingDays = [];
+    const countDate = new Date(projectStart);
+    while (countDate <= projectEnd) {
+      if (isWorkingDay(countDate, workingDays, nonWorkingDates)) {
+        availableWorkingDays.push(new Date(countDate));
+      }
+      countDate.setDate(countDate.getDate() + 1);
+    }
+
+    if (availableWorkingDays.length === 0) {
+      console.warn('🔄 [REGEN] No working days in timeline');
+      return { success: false, count: 0 };
+    }
+
+    // 7. Distribute regular tasks across non-final days, cleanup on last day
+    const totalDays = availableWorkingDays.length;
+    const lastDay = availableWorkingDays[totalDays - 1];
+    const daysForRegular = totalDays > 1
+      ? availableWorkingDays.slice(0, -1)
+      : availableWorkingDays;
+
+    const tasksToCreate = [];
+
+    if (regularTasks.length > 0 && daysForRegular.length > 0) {
+      const tasksPerDay = Math.ceil(regularTasks.length / daysForRegular.length);
+      let dayIndex = 0;
+      let tasksOnCurrentDay = 0;
+
+      for (const task of regularTasks) {
+        if (dayIndex >= daysForRegular.length) dayIndex = daysForRegular.length - 1;
+        const dateString = daysForRegular[dayIndex].toISOString().split('T')[0];
+
+        tasksToCreate.push({
+          owner_id: ownerId,
+          project_id: projectId,
+          title: task.description || task.name || 'Task',
+          description: `Phase: ${task.phaseName}`,
+          start_date: dateString,
+          end_date: dateString,
+          status: 'pending',
+          phase_task_id: task.id || `${task.phaseName}-${task.taskIndex}`,
+        });
+
+        tasksOnCurrentDay++;
+        if (tasksOnCurrentDay >= tasksPerDay && dayIndex < daysForRegular.length - 1) {
+          dayIndex++;
+          tasksOnCurrentDay = 0;
+        }
+      }
+    }
+
+    if (cleanupTasks.length > 0) {
+      const lastDayString = lastDay.toISOString().split('T')[0];
+      for (const task of cleanupTasks) {
+        tasksToCreate.push({
+          owner_id: ownerId,
+          project_id: projectId,
+          title: task.description || task.name || 'Task',
+          description: `Phase: ${task.phaseName}`,
+          start_date: lastDayString,
+          end_date: lastDayString,
+          status: 'pending',
+          phase_task_id: task.id || `${task.phaseName}-${task.taskIndex}`,
+        });
+      }
+    }
+
+    // 8. Fill gaps — extend each task's end_date to day before next task
+    if (tasksToCreate.length > 1) {
+      tasksToCreate.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+      for (let i = 0; i < tasksToCreate.length - 1; i++) {
+        const nextStart = new Date(tasksToCreate[i + 1].start_date + 'T00:00:00');
+        nextStart.setDate(nextStart.getDate() - 1);
+        const newEndDate = nextStart.toISOString().split('T')[0];
+        if (new Date(newEndDate) > new Date(tasksToCreate[i].end_date)) {
+          tasksToCreate[i].end_date = newEndDate;
+        }
+      }
+      const lastTask = tasksToCreate[tasksToCreate.length - 1];
+      const projectEndStr = projectEnd.toISOString().split('T')[0];
+      if (new Date(projectEndStr) > new Date(lastTask.end_date)) {
+        lastTask.end_date = projectEndStr;
+      }
+    }
+
+    // 9. Call RPC to delete old phase tasks and insert new ones
+    const { data, error } = await supabase.rpc('replace_project_phase_tasks', {
+      p_project_id: projectId,
+      p_tasks: tasksToCreate,
+    });
+
+    if (error) {
+      console.error('🔄 [REGEN] RPC error:', error);
+      return { success: false, count: 0 };
+    }
+
+    console.log('🔄 [REGEN] Regenerated', data, 'tasks for project', projectId);
+    return { success: true, count: data || tasksToCreate.length };
+  } catch (error) {
+    console.error('🔄 [REGEN] Error:', error);
+    return { success: false, count: 0 };
+  }
+};
+
+/**
  * Fetch upcoming tasks for a project (tomorrow and beyond)
  */
 export const fetchUpcomingTasks = async (projectId, afterDate) => {
