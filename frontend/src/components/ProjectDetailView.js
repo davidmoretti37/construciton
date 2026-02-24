@@ -51,7 +51,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [loadingManualTasks, setLoadingManualTasks] = useState(false);
 
   // Calculated progress (from tasks, not from stale parent prop)
-  const [calculatedProgress, setCalculatedProgress] = useState(0);
+  const [calculatedProgress, setCalculatedProgress] = useState(null);
 
   // Main editing mode (controls all editing)
   const [isEditing, setIsEditing] = useState(false);
@@ -157,11 +157,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
       if (project?.id) {
         // Load phases if project has them
+        let loadedPhases = [];
         if (project?.hasPhases) {
           setLoadingPhases(true);
           try {
             const projectPhases = await fetchProjectPhases(project.id);
-            setPhases(projectPhases || []);
+            loadedPhases = projectPhases || [];
+            setPhases(loadedPhases);
           } catch (error) {
             console.error('Error loading phases:', error);
             setPhases([]);
@@ -210,9 +212,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             .order('start_date', { ascending: true });
           setManualTasks(tasks || []);
 
-          // Calculate progress directly from all tasks (phase + manual)
-          const { progress } = await calculateProjectProgressFromTasks(project.id);
-          setCalculatedProgress(progress);
+          // Calculate progress: use phase completion if phases exist, otherwise worker_tasks
+          if (loadedPhases.length > 0) {
+            const phaseProgress = Math.round(
+              loadedPhases.reduce((sum, p) => sum + (p.completion_percentage || 0), 0) / loadedPhases.length
+            );
+            setCalculatedProgress(phaseProgress);
+          } else {
+            const { progress } = await calculateProjectProgressFromTasks(project.id);
+            setCalculatedProgress(progress);
+          }
         } catch (error) {
           console.error('Error loading manual tasks:', error);
           setManualTasks([]);

@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from './auth';
-import { isWorkingDay } from './workerTasks';
+import { isWorkingDay, updateProjectProgressFromTasks } from './workerTasks';
 import { sendPlanningRequest } from '../../services/aiService';
 
 // ============================================================
@@ -638,12 +638,18 @@ export const fetchProjectPhases = async (projectId) => {
           globalTaskIndex++;
         });
 
-        // Calculate phase completion percentage from tasks
-        const totalTasks = phase.tasks.length;
-        const completedTasks = phase.tasks.filter(t => t.completed).length;
-        phase.completion_percentage = totalTasks > 0
-          ? Math.round((completedTasks / totalTasks) * 100)
-          : 0;
+        // If phase is marked completed, force 100% and mark all tasks done
+        if (phase.status === 'completed') {
+          phase.completion_percentage = 100;
+          phase.tasks.forEach(t => { t.completed = true; });
+        } else {
+          // Calculate phase completion percentage from tasks
+          const totalTasks = phase.tasks.length;
+          const completedTasks = phase.tasks.filter(t => t.completed).length;
+          phase.completion_percentage = totalTasks > 0
+            ? Math.round((completedTasks / totalTasks) * 100)
+            : 0;
+        }
       }
     }
 
@@ -856,6 +862,19 @@ export const startPhase = async (phaseId) => {
  */
 export const completePhase = async (phaseId) => {
   try {
+    // 1. Fetch phase to get project_id, name, and tasks
+    const { data: phase, error: fetchError } = await supabase
+      .from('project_phases')
+      .select('id, project_id, name, tasks')
+      .eq('id', phaseId)
+      .single();
+
+    if (fetchError || !phase) {
+      console.error('Error fetching phase:', fetchError);
+      return false;
+    }
+
+    // 2. Mark phase as completed
     const { error } = await supabase
       .from('project_phases')
       .update({
@@ -869,6 +888,29 @@ export const completePhase = async (phaseId) => {
       console.error('Error completing phase:', error);
       return false;
     }
+
+    // 3. Build phase_task_id values for this phase's tasks
+    const tasks = phase.tasks || [];
+    const phaseTaskIds = tasks.map((task, index) => task.id || `${phase.name}-${index}`);
+
+    // 4. Mark all matching worker_tasks as completed
+    if (phaseTaskIds.length > 0) {
+      const { error: taskError } = await supabase
+        .from('worker_tasks')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('project_id', phase.project_id)
+        .in('phase_task_id', phaseTaskIds);
+
+      if (taskError) {
+        console.error('Error completing phase tasks:', taskError);
+      }
+    }
+
+    // 5. Recalculate overall project progress
+    await updateProjectProgressFromTasks(phase.project_id);
 
     return true;
   } catch (error) {

@@ -22,6 +22,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import NotificationBell from '../../components/NotificationBell';
+import SkeletonBox from '../../components/skeletons/SkeletonBox';
+import SkeletonCard from '../../components/skeletons/SkeletonCard';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
 import { getReconciliationSummary } from '../../services/plaidService';
@@ -153,13 +155,39 @@ export default function OwnerDashboardScreen() {
 
   const styles = createStyles(Colors);
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={OWNER_COLORS.primary} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
-        </View>
+        <View style={[styles.topBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]} />
+        <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Welcome skeleton */}
+          <View style={{ padding: 20 }}>
+            <SkeletonBox width="50%" height={22} borderRadius={4} />
+            <SkeletonBox width="70%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
+          </View>
+          {/* Stats row skeleton */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 20 }}>
+            <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
+              <SkeletonBox width={40} height={28} borderRadius={4} />
+              <SkeletonBox width="70%" height={12} borderRadius={4} style={{ marginTop: 8 }} />
+            </View>
+            <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
+              <SkeletonBox width={40} height={28} borderRadius={4} />
+              <SkeletonBox width="70%" height={12} borderRadius={4} style={{ marginTop: 8 }} />
+            </View>
+            <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
+              <SkeletonBox width={40} height={28} borderRadius={4} />
+              <SkeletonBox width="70%" height={12} borderRadius={4} style={{ marginTop: 8 }} />
+            </View>
+          </View>
+          {/* Section skeleton */}
+          <View style={{ paddingHorizontal: 16 }}>
+            <SkeletonBox width="40%" height={18} borderRadius={4} style={{ marginBottom: 12 }} />
+            <SkeletonCard lines={3} />
+            <SkeletonBox width="40%" height={18} borderRadius={4} style={{ marginTop: 8, marginBottom: 12 }} />
+            <SkeletonCard lines={4} />
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }

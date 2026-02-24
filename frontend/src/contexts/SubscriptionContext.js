@@ -14,7 +14,7 @@ import logger from '../utils/logger';
 // TESTING MODE - Set to true to bypass all paywalls
 // Set back to false before production release!
 // =====================================================
-const TESTING_MODE = false;
+const TESTING_MODE = true;
 
 // Create context
 const SubscriptionContext = createContext();

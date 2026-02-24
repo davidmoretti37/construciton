@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -67,6 +67,8 @@ import NotificationBell from '../components/NotificationBell';
 import TaskMoveModal from '../components/TaskMoveModal';
 import FullscreenPhotoViewer from '../components/FullscreenPhotoViewer';
 import AssignWorkerModal from '../components/modals/AssignWorkerModal';
+import SkeletonBox from '../components/skeletons/SkeletonBox';
+import SkeletonCard from '../components/skeletons/SkeletonCard';
 import { formatHoursMinutes } from '../utils/calculations';
 
 export default function WorkersScreen({ navigation, route, ownerMode = false, activeTab: externalActiveTab, onTabChange, showHeader = true }) {
@@ -130,6 +132,11 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
   const [viewerPhotos, setViewerPhotos] = useState([]);
   const [viewerPhotoIndex, setViewerPhotoIndex] = useState(0);
+
+  // Tab data caching — show cached data instantly on tab switch while refreshing in background
+  const scheduleCacheRef = useRef({ monthTasks: null, monthEvents: null, scheduleTasks: null, scheduleEvents: null });
+  const reportsCacheRef = useRef(null);
+  const workersCacheRef = useRef(null);
 
   // Open photo viewer with specific photos and index
   const openPhotoViewer = useCallback((photos, index) => {
@@ -211,7 +218,14 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      // Show cached data instantly if available
+      if (workersCacheRef.current) {
+        setWorkers(workersCacheRef.current.workers);
+        setActiveClockIns(workersCacheRef.current.clockIns);
+        setAssignmentCounts(workersCacheRef.current.counts);
+      } else {
+        setLoading(true);
+      }
 
       // Load workers data and assignment counts in parallel
       const [workersData, counts] = await Promise.all([
@@ -232,6 +246,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       setWorkers(workersData);
       setAssignmentCounts(counts);
       setHasLoadedOnce(true);
+      workersCacheRef.current = { workers: workersData, clockIns, counts };
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -260,7 +275,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   // Load all tasks and events for the displayed month
   const loadMonthData = async (monthDate) => {
     try {
-      setScheduleLoading(true);
+      // Show cached data instantly if available (skip skeleton)
+      const cache = scheduleCacheRef.current;
+      if (cache.monthTasks && cache.monthTasks.length > 0) {
+        setScheduleLoading(false); // Don't show skeleton if we have cached data
+      } else {
+        setScheduleLoading(true);
+      }
 
       const yr = monthDate.getFullYear();
       const mo = monthDate.getMonth();
@@ -280,6 +301,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
       setMonthTasks(tasks);
       setMonthEvents(events);
+      scheduleCacheRef.current = { ...cache, monthTasks: tasks, monthEvents: events };
+      return { tasks, events };
     } catch (error) {
       console.error('Error loading month data:', error);
     } finally {
@@ -598,7 +621,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   // Load data for Reports tab - loads reports for selected date, date range, or all
   const loadReportsTabData = async (options = {}) => {
     try {
-      setReportsLoading(true);
+      // Show cached data instantly if available
+      if (reportsCacheRef.current && !options.forceRefresh) {
+        setDailyReports(reportsCacheRef.current.reports);
+        setReportsGroupedByProject(reportsCacheRef.current.grouped);
+      } else {
+        setReportsLoading(true);
+      }
 
       let filters = {};
 
@@ -633,6 +662,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
       setDailyReports(reports);
       setReportsGroupedByProject(groupedByProject);
+      reportsCacheRef.current = { reports, grouped: groupedByProject };
     } catch (error) {
       console.error('Error loading reports tab data:', error);
     } finally {
@@ -646,6 +676,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
     setShowAllReports(false);
     setReportsDateRangeStart(null);
     setReportsDateRangeEnd(null);
+    reportsCacheRef.current = null; // Invalidate cache on date change
 
     const currentDate = new Date(selectedReportDate + 'T12:00:00'); // Add noon time to avoid timezone issues
     currentDate.setDate(currentDate.getDate() + daysOffset);
@@ -720,8 +751,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       if (calendarView === 'year') {
         loadYearData(currentMonth.getFullYear());
       } else {
-        loadMonthData(currentMonth).then(() => {
-          loadDayDetail(selectedDate);
+        loadMonthData(currentMonth).then((data) => {
+          if (data) loadDayDetail(selectedDate, data.tasks, data.events);
         });
       }
     }
@@ -1236,7 +1267,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                 </Text>
                 <View style={styles.dayDetailActions}>
                   <TouchableOpacity
-                    style={styles.inlineActionButton}
+                    style={[styles.inlineActionButton, { borderColor: Colors.primaryBlue, backgroundColor: Colors.primaryBlue + '10' }]}
                     onPress={() => setShowAddEventModal(true)}
                     hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                   >
@@ -1244,7 +1275,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     <Text style={[styles.inlineActionText, { color: Colors.primaryBlue }]}>Event</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.inlineActionButton}
+                    style={[styles.inlineActionButton, { borderColor: Colors.warningOrange, backgroundColor: Colors.warningOrange + '10' }]}
                     onPress={() => {
                       setEditingTask(null);
                       setShowAddTaskModal(true);
@@ -1256,10 +1287,12 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   </TouchableOpacity>
                 </View>
               </View>
-              {/* Loading indicator for schedule data */}
+              {/* Loading skeleton for schedule data */}
               {scheduleLoading && (
-                <View style={styles.scheduleLoadingContainer}>
-                  <ActivityIndicator size="large" color={Colors.primaryBlue} />
+                <View style={{ paddingHorizontal: 4, paddingTop: 8 }}>
+                  <SkeletonBox width="55%" height={16} borderRadius={4} style={{ marginBottom: 16 }} />
+                  <SkeletonCard lines={2} style={{ marginBottom: 8 }} />
+                  <SkeletonCard lines={2} />
                 </View>
               )}
 
@@ -1588,10 +1621,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               </TouchableOpacity>
             </View>
 
-            {/* Reports Loading */}
+            {/* Reports Loading Skeleton */}
             {reportsLoading && (
-              <View style={styles.tabLoadingContainer}>
-                <ActivityIndicator size="large" color={Colors.primaryBlue} />
+              <View style={{ paddingHorizontal: 4, paddingTop: 8 }}>
+                <SkeletonBox width="45%" height={16} borderRadius={4} style={{ marginBottom: 14 }} />
+                <SkeletonCard lines={3} style={{ marginBottom: 8 }} />
+                <SkeletonCard lines={3} style={{ marginBottom: 8 }} />
+                <SkeletonCard lines={2} />
               </View>
             )}
 
@@ -1624,13 +1660,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                                 ?.split(' ')
                                 .map(n => n[0])
                                 .join('')
-                                .toUpperCase() || (report.reporter_type === 'owner' ? 'O' : '?')}
+                                .toUpperCase() || (report.reporter_type === 'owner' ? 'O' : report.reporter_type === 'supervisor' ? 'S' : '?')}
                             </Text>
                           </View>
                           <View style={styles.reportCardHeaderInfo}>
                             <View style={styles.reportWorkerRow}>
                               <Text style={[styles.reportWorkerName, { color: Colors.primaryText }]}>
-                                {report.reporter_type === 'owner' ? t('reports.owner', 'Owner') : (report.workers?.full_name || t('reports.unknownWorker', 'Unknown Worker'))}
+                                {report.reporter_type === 'owner' ? t('reports.owner', 'Owner') : report.reporter_type === 'supervisor' ? (report.profiles?.business_name || t('reports.supervisor', 'Supervisor')) : (report.workers?.full_name || t('reports.unknownWorker', 'Unknown Worker'))}
                               </Text>
                               {report.reporter_type === 'owner' && (
                                 <View style={[styles.ownerBadgeSmall, { backgroundColor: Colors.successGreen + '20' }]}>
@@ -1721,10 +1757,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         {/* WORKERS TAB */}
         {activeTab === 'workers' && (
           <>
-        {/* Workers Loading */}
+        {/* Workers Loading Skeleton */}
         {loading && (
-          <View style={styles.tabLoadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primaryBlue} />
+          <View style={{ paddingHorizontal: 4, paddingTop: 8 }}>
+            <SkeletonBox width="50%" height={18} borderRadius={4} style={{ marginBottom: 14 }} />
+            <SkeletonCard lines={2} showAvatar style={{ marginBottom: 8 }} />
+            <SkeletonCard lines={2} showAvatar style={{ marginBottom: 8 }} />
+            <SkeletonCard lines={2} showAvatar />
           </View>
         )}
 
@@ -3703,10 +3742,10 @@ const createStyles = (Colors) => StyleSheet.create({
   // Schedule Tab Styles
   calendarContainer: {
     borderRadius: 12,
-    paddingTop: 8,
-    paddingHorizontal: 4,
-    paddingBottom: 2,
-    marginBottom: 4,
+    paddingTop: 12,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
+    marginBottom: 8,
     backgroundColor: Colors.white,
   },
   calendarHeader: {
@@ -3746,15 +3785,18 @@ const createStyles = (Colors) => StyleSheet.create({
     fontWeight: '500',
   },
   scheduleSection: {
-    marginTop: 4,
+    marginTop: 16,
     marginBottom: 20,
   },
   dayDetailHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 20,
     paddingHorizontal: 4,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
   dayDetailDate: {
     fontSize: 16,
@@ -3769,7 +3811,11 @@ const createStyles = (Colors) => StyleSheet.create({
   inlineActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   inlineActionText: {
     fontSize: 13,
@@ -3823,7 +3869,7 @@ const createStyles = (Colors) => StyleSheet.create({
   },
   emptyTasksContainer: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 32,
     paddingHorizontal: 16,
     borderRadius: 12,
     gap: 8,
@@ -3958,7 +4004,7 @@ const createStyles = (Colors) => StyleSheet.create({
     justifyContent: 'center',
   },
   scheduleCategory: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   categoryHeader: {
     flexDirection: 'row',
@@ -3975,7 +4021,7 @@ const createStyles = (Colors) => StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 14,
     paddingHorizontal: 4,
   },
   scheduleCard: {

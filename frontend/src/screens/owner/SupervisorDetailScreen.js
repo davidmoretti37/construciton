@@ -568,7 +568,7 @@ export default function SupervisorDetailScreen() {
                 <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>This Week</Text>
                 <View style={styles.hoursSummaryValues}>
                   <Text style={[styles.hoursSummaryValue, { color: Colors.primaryText }]}>
-                    {timeStats.weekHours.toFixed(1)} hrs
+                    {formatHoursMinutes(timeStats.weekHours)}
                   </Text>
                   {timeStats.weekEarnings > 0 && (
                     <Text style={[styles.earningsValue, { color: '#059669' }]}>
@@ -581,7 +581,7 @@ export default function SupervisorDetailScreen() {
                 <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>This Month</Text>
                 <View style={styles.hoursSummaryValues}>
                   <Text style={[styles.hoursSummaryValue, { color: Colors.primaryText }]}>
-                    {timeStats.monthHours.toFixed(1)} hrs
+                    {formatHoursMinutes(timeStats.monthHours)}
                   </Text>
                   {timeStats.monthEarnings > 0 && (
                     <Text style={[styles.earningsValue, { color: '#059669' }]}>
@@ -645,7 +645,7 @@ export default function SupervisorDetailScreen() {
                     ) : (
                       <View style={styles.hoursAndCost}>
                         <Text style={[styles.hoursWorked, { color: '#059669' }]}>
-                          {(record.hours || 0).toFixed(1)} hrs
+                          {formatHoursMinutes(record.hours)}
                         </Text>
                         {supervisor?.payment_type && (
                           <Text style={[styles.laborCost, { color: '#F59E0B' }]}>

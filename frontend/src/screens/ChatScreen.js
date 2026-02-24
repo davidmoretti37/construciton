@@ -29,7 +29,8 @@ import LinkifiedText from '../components/LinkifiedText';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import * as FileSystem from 'expo-file-system/legacy';
-import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode, sendAgentMessage } from '../services/aiService';
+import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode, sendAgentMessage, pollAgentJob } from '../services/aiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadProjectDocument } from '../utils/storage/projectDocuments';
 import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
@@ -47,6 +48,9 @@ import JobNameInputModal from '../components/JobNameInputModal';
 import AddCustomServiceModal from '../components/AddCustomServiceModal';
 import OrbitalLoader from '../components/OrbitalLoader';
 import StatusMessage from '../components/StatusMessage';
+import SkeletonCard from '../components/skeletons/SkeletonCard';
+import SkeletonBox from '../components/skeletons/SkeletonBox';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import NotificationBell from '../components/NotificationBell';
 import OwnerHeader from '../components/OwnerHeader';
 import { useAuth } from '../contexts/AuthContext';
@@ -112,6 +116,11 @@ export default function ChatScreen({ navigation, route }) {
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false); // Track actual streaming state
   const [statusMessage, setStatusMessage] = useState(null);
+  const [showCardSkeleton, setShowCardSkeleton] = useState(false);
+  const [isLoadingChat, setIsLoadingChat] = useState(true);
+  const streamingMessageIdRef = useRef(null);
+  const activeJobIdRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
   const scrollViewRef = useRef(null);
   const [showTimelinePicker, setShowTimelinePicker] = useState(false);
   const [showBudgetInput, setShowBudgetInput] = useState(false);
@@ -212,30 +221,27 @@ export default function ChatScreen({ navigation, route }) {
 
   // Load or create initial session on mount
   const initializeSession = useCallback(async () => {
+    setIsLoadingChat(true);
     try {
       console.log('🔄 Initializing chat session...');
-      // First, try to get existing sessions
+      // First, try to get existing sessions (now includes message_count)
       const sessions = await chatHistoryService.getSessions();
       console.log('📋 Found', sessions?.length || 0, 'existing sessions');
 
       if (sessions && sessions.length > 0) {
-        // Find the most recent empty session (no messages)
-        for (const session of sessions) {
-          const sessionMessages = await chatHistoryService.getSessionMessages(session.id);
-          if (sessionMessages.length === 0) {
-            // Found an empty session, reuse it!
-            console.log('✅ Reusing empty session:', session.id);
-            setCurrentSessionId(session.id);
-            setMessages([]);
-            setConversationHistory([]);
-            lastSavedMessageCount.current = 0;
-            return;
-          }
+        // Find empty session using message_count from backend (no extra API calls)
+        const emptySession = sessions.find(s => s.message_count === 0);
+        if (emptySession) {
+          console.log('✅ Reusing empty session:', emptySession.id);
+          setCurrentSessionId(emptySession.id);
+          setMessages([]);
+          setConversationHistory([]);
+          lastSavedMessageCount.current = 0;
+        } else {
+          // All sessions have messages, load the most recent one
+          console.log('📥 Loading most recent session:', sessions[0].id);
+          await loadSession(sessions[0].id);
         }
-
-        // All sessions have messages, load the most recent one
-        console.log('📥 Loading most recent session:', sessions[0].id);
-        await loadSession(sessions[0].id);
       } else {
         // No sessions exist, create a new one
         console.log('🆕 Creating first session');
@@ -260,6 +266,8 @@ export default function ChatScreen({ navigation, route }) {
       setMessages([]);
       setConversationHistory([]);
       lastSavedMessageCount.current = 0;
+    } finally {
+      setIsLoadingChat(false);
     }
   }, [loadSession]);
 
@@ -375,9 +383,82 @@ export default function ChatScreen({ navigation, route }) {
     }
   }, [isStreaming, currentSessionId]); // DO NOT include 'messages' to prevent saves during streaming
 
-  // Save messages when user navigates away from screen (app backgrounding)
+  // Poll a background agent job until it completes
+  const startJobPolling = useCallback((jobId, messageId) => {
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const result = await pollAgentJob(jobId);
+
+        if (result.status === 'completed') {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      text: result.accumulatedText || msg.text,
+                      visualElements: result.visualElements || [],
+                      actions: result.actions || [],
+                    }
+                  : msg
+              )
+            );
+          }
+          setIsAIThinking(false);
+          setIsStreaming(false);
+          setStatusMessage(null);
+          activeJobIdRef.current = null;
+          AsyncStorage.removeItem('activeAgentJobId');
+          AsyncStorage.removeItem('activeAgentMessageId');
+        } else if (result.status === 'error') {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? { ...msg, text: result.error || 'An error occurred.' }
+                  : msg
+              )
+            );
+          }
+          setIsAIThinking(false);
+          setIsStreaming(false);
+          setStatusMessage(null);
+          activeJobIdRef.current = null;
+          AsyncStorage.removeItem('activeAgentJobId');
+          AsyncStorage.removeItem('activeAgentMessageId');
+        } else if (result.accumulatedText && messageId) {
+          // Still processing — update with partial text
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === messageId
+                ? { ...msg, text: result.accumulatedText }
+                : msg
+            )
+          );
+        }
+      } catch (e) {
+        // Silently retry on next interval
+      }
+    }, 2000);
+
+    // Safety: stop polling after 3 minutes
+    setTimeout(() => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    }, 180000);
+  }, []);
+
+  // Save messages when user navigates away / resume agent jobs when returning
   useEffect(() => {
-    const handleAppStateChange = (nextAppState) => {
+    const handleAppStateChange = async (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         // User is leaving the app - save current state immediately
         if (currentSessionId && messages.length > lastSavedMessageCount.current) {
@@ -385,10 +466,82 @@ export default function ChatScreen({ navigation, route }) {
           saveCurrentMessage();
         }
       }
+
+      if (nextAppState === 'active') {
+        // App came back to foreground — check for active background job
+        const savedJobId = activeJobIdRef.current ||
+          await AsyncStorage.getItem('activeAgentJobId');
+        if (!savedJobId) return;
+
+        const savedMessageId = await AsyncStorage.getItem('activeAgentMessageId');
+        try {
+          const result = await pollAgentJob(savedJobId);
+
+          if (result.status === 'completed') {
+            // Job finished while we were away — show the result
+            if (savedMessageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === savedMessageId
+                    ? {
+                        ...msg,
+                        text: result.accumulatedText || msg.text,
+                        visualElements: result.visualElements || [],
+                        actions: result.actions || [],
+                      }
+                    : msg
+                )
+              );
+            }
+            setIsAIThinking(false);
+            setIsStreaming(false);
+            setStatusMessage(null);
+            activeJobIdRef.current = null;
+            AsyncStorage.removeItem('activeAgentJobId');
+            AsyncStorage.removeItem('activeAgentMessageId');
+
+          } else if (result.status === 'processing') {
+            // Still processing — show partial text and start polling
+            if (savedMessageId && result.accumulatedText) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === savedMessageId
+                    ? { ...msg, text: result.accumulatedText }
+                    : msg
+                )
+              );
+            }
+            setStatusMessage('Still processing your request...');
+            startJobPolling(savedJobId, savedMessageId);
+
+          } else if (result.status === 'error') {
+            if (savedMessageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === savedMessageId
+                    ? { ...msg, text: result.error || 'An error occurred while processing your request.' }
+                    : msg
+                )
+              );
+            }
+            setIsAIThinking(false);
+            setIsStreaming(false);
+            setStatusMessage(null);
+            activeJobIdRef.current = null;
+            AsyncStorage.removeItem('activeAgentJobId');
+            AsyncStorage.removeItem('activeAgentMessageId');
+          }
+        } catch (pollError) {
+          console.error('Failed to poll agent job:', pollError);
+        }
+      }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
   }, [currentSessionId, messages, lastSavedMessageCount, saveCurrentMessage]);
 
   // Handle navigation params (e.g., from notification tap)
@@ -594,6 +747,8 @@ export default function ChatScreen({ navigation, route }) {
     setIsAIThinking(true);
     setIsStreaming(true); // Track that we're starting to stream
     setStatusMessage(t('thinking'));
+    streamingMessageIdRef.current = aiMessageId;
+    setShowCardSkeleton(false);
     let messageCreated = false; // Track if we've created the message bubble
 
     // Timeout handler — fires if no events received for 50s
@@ -601,6 +756,8 @@ export default function ChatScreen({ navigation, route }) {
       console.log('⏱️ AI response timeout - 50 seconds since last event');
       setIsAIThinking(false);
       setStatusMessage(null);
+      setShowCardSkeleton(false);
+      streamingMessageIdRef.current = null;
       if (!messageCreated) {
         setMessages((prev) => [...prev, {
           id: aiMessageId,
@@ -650,6 +807,12 @@ export default function ChatScreen({ navigation, route }) {
         enhancedText,
         agentContext,
         {
+        // onJobId callback - Track background job for resume on disconnect
+        onJobId: (jobId) => {
+          activeJobIdRef.current = jobId;
+          AsyncStorage.setItem('activeAgentJobId', jobId);
+          AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
+        },
         // onChunk callback - Append small drip-fed chunks from aiService animation
         onChunk: (chunk) => {
           if (!chunk) return;
@@ -689,6 +852,13 @@ export default function ChatScreen({ navigation, route }) {
           setIsAIThinking(false);
           setIsStreaming(false); // CRITICAL: Set to false ONLY when streaming actually completes
           setStatusMessage(null); // Clear status on complete
+          setShowCardSkeleton(false);
+          streamingMessageIdRef.current = null;
+
+          // Clear background job tracking
+          activeJobIdRef.current = null;
+          AsyncStorage.removeItem('activeAgentJobId');
+          AsyncStorage.removeItem('activeAgentMessageId');
 
           // Disable voice mode after response completes
           // This ensures next typed message uses standard (powerful) model
@@ -1094,6 +1264,11 @@ export default function ChatScreen({ navigation, route }) {
           // Disable voice mode on error so retries use standard model
           setVoiceMode(false);
 
+          // Clear background job tracking
+          activeJobIdRef.current = null;
+          AsyncStorage.removeItem('activeAgentJobId');
+          AsyncStorage.removeItem('activeAgentMessageId');
+
           // Only add error message if we haven't created a message bubble yet
           if (!messageCreated) {
             setMessages((prev) => {
@@ -1103,7 +1278,7 @@ export default function ChatScreen({ navigation, route }) {
 
               const errorMessage = {
                 id: aiMessageId,
-                text: `Sorry, I encountered an error: ${error.message}. Please check if the backend server is running.`,
+                text: `Sorry, I encountered an error: ${error.message}. Please try again.`,
                 isUser: false,
                 timestamp: new Date(),
                 visualElements: [],
@@ -1125,6 +1300,12 @@ export default function ChatScreen({ navigation, route }) {
               aiTimeoutRef.current = setTimeout(handleTimeout, 120000);
             }
           }
+        },
+        // onMetadata callback - Show skeleton loader when visual elements are incoming
+        onMetadata: ({ visualElements }) => {
+          if (visualElements && visualElements.length > 0) {
+            setShowCardSkeleton(true);
+          }
         }
         }
       );
@@ -1137,6 +1318,13 @@ export default function ChatScreen({ navigation, route }) {
       }
       setIsAIThinking(false);
       setStatusMessage(null); // Clear status on error
+      setShowCardSkeleton(false);
+      streamingMessageIdRef.current = null;
+
+      // Clear background job tracking
+      activeJobIdRef.current = null;
+      AsyncStorage.removeItem('activeAgentJobId');
+      AsyncStorage.removeItem('activeAgentMessageId');
 
       // Only add error message if onError callback didn't already add one
       if (!messageCreated) {
@@ -1147,7 +1335,7 @@ export default function ChatScreen({ navigation, route }) {
 
           const errorMessage = {
             id: aiMessageId,
-            text: `Sorry, I encountered an error: ${error.message}. Please check if the backend server is running.`,
+            text: `Sorry, I encountered an error: ${error.message}. Please try again.`,
             isUser: false,
             timestamp: new Date(),
             visualElements: [],
@@ -2961,25 +3149,14 @@ export default function ChatScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: Colors.background }]}>
       <SafeAreaView style={styles.safeArea}>
-      {/* Top Bar - OwnerHeader for owners, simple bar for others */}
-      {isOwner ? (
-        <OwnerHeader
-          leftComponent={
-            <TouchableOpacity onPress={() => setShowHistorySidebar(true)} style={styles.resetChatButton}>
-              <Ionicons name="time-outline" size={26} color={Colors.primaryText} />
-            </TouchableOpacity>
-          }
-          rightComponent={<NotificationBell onPress={() => navigation.navigate('Notifications')} />}
-        />
-      ) : (
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => setShowHistorySidebar(true)} style={styles.resetChatButton}>
-            <Ionicons name="time-outline" size={26} color={Colors.primaryText} />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }} />
-          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
-        </View>
-      )}
+      {/* Top Bar - consistent layout to prevent jump while profile loads */}
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => setShowHistorySidebar(true)} style={styles.resetChatButton}>
+          <Ionicons name="time-outline" size={26} color={Colors.primaryText} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+      </View>
 
       {/* Chat Messages and Input Area */}
       <KeyboardAvoidingView
@@ -2995,7 +3172,23 @@ export default function ChatScreen({ navigation, route }) {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
         >
-          {messages.length === 0 ? (
+          {isLoadingChat ? (
+            <View style={{ paddingTop: 24, paddingHorizontal: Spacing.md }}>
+              {/* Skeleton mimicking message bubbles to prevent layout jump */}
+              <View style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
+                <SkeletonBox width={220} height={40} borderRadius={16} />
+              </View>
+              <View style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                <SkeletonBox width={260} height={60} borderRadius={16} />
+              </View>
+              <View style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
+                <SkeletonBox width={180} height={40} borderRadius={16} />
+              </View>
+              <View style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                <SkeletonBox width={240} height={80} borderRadius={16} />
+              </View>
+            </View>
+          ) : messages.length === 0 ? (
             <View style={styles.emptyState}>
               <AnimatedText
                 text={t('welcome.title')}
@@ -3076,6 +3269,21 @@ export default function ChatScreen({ navigation, route }) {
                       )}
                     </View>
                   )}
+
+                  {/* Skeleton loader while visual elements are being generated */}
+                  {!message.isUser
+                    && showCardSkeleton
+                    && message.id === streamingMessageIdRef.current
+                    && (!message.visualElements || message.visualElements.length === 0)
+                    && (
+                      <Animated.View
+                        entering={FadeIn.duration(200)}
+                        exiting={FadeOut.duration(150)}
+                        style={styles.visualElementsContainer}
+                      >
+                        <SkeletonCard lines={4} style={{ marginTop: 8, backgroundColor: Colors.cardBackground || '#FFFFFF' }} />
+                      </Animated.View>
+                    )}
 
             </View>
             );

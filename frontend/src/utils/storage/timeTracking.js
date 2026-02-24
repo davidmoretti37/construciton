@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from './auth';
-import { getLocalTimestamp, getLocalDayBounds, getLocalDateString, getDateRangeBoundsUTC } from '../calculations';
+import { getLocalTimestamp, getLocalDayBounds, getLocalDateString, getDateRangeBoundsUTC, formatHoursMinutes } from '../calculations';
 import { responseCache } from '../../services/agents/core/CacheService';
 
 // ============================================================
@@ -159,16 +159,16 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
     switch (worker.payment_type) {
       case 'hourly':
         laborCost = hoursWorked * (worker.hourly_rate || 0);
-        costDescription = `${worker.full_name} - ${hoursWorked.toFixed(2)} hours @ $${worker.hourly_rate}/hr`;
+        costDescription = `${worker.full_name} - ${formatHoursMinutes(hoursWorked)} @ $${worker.hourly_rate}/hr`;
         break;
 
       case 'daily':
         if (hoursWorked < 5) {
           laborCost = (worker.daily_rate || 0) * 0.5;
-          costDescription = `${worker.full_name} - Half day (${hoursWorked.toFixed(2)} hours) @ $${worker.daily_rate}/day`;
+          costDescription = `${worker.full_name} - Half day (${formatHoursMinutes(hoursWorked)}) @ $${worker.daily_rate}/day`;
         } else {
           laborCost = worker.daily_rate || 0;
-          costDescription = `${worker.full_name} - Full day (${hoursWorked.toFixed(2)} hours) @ $${worker.daily_rate}/day`;
+          costDescription = `${worker.full_name} - Full day (${formatHoursMinutes(hoursWorked)}) @ $${worker.daily_rate}/day`;
         }
         break;
 
@@ -1384,7 +1384,7 @@ export const supervisorClockOut = async (timeTrackingId, notes = null) => {
           type: 'expense',
           category: 'labor',
           amount: laborCost,
-          description: `Supervisor labor - ${hoursWorked.toFixed(2)} hours`,
+          description: `Supervisor labor - ${formatHoursMinutes(hoursWorked)}`,
           date: clockOutTime,
           is_auto_generated: true,
         });

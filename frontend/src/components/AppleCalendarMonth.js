@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getProjectColor, formatDateString } from '../utils/calendarUtils';
 
-const MAX_CELL_HEIGHT = 58;
+const MAX_EVENTS_PER_CELL = 2;
 
 const AppleCalendarMonth = ({
   currentMonth,
@@ -23,18 +23,19 @@ const AppleCalendarMonth = ({
     return formatDateString(now.getFullYear(), now.getMonth(), now.getDate());
   }, []);
 
-  // Build dot lookup: Map<dateString, [color, color, ...]> (unique colors only)
-  const dotMap = useMemo(() => {
+  // Build cell data: Map<dateString, Array<{title, color}>>
+  const cellDataMap = useMemo(() => {
     const map = {};
 
-    const addColor = (dateStr, color) => {
-      if (!map[dateStr]) map[dateStr] = new Set();
-      map[dateStr].add(color);
+    const addItem = (dateStr, item) => {
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push(item);
     };
 
     for (const task of tasks) {
       if (!task.start_date || !task.end_date) continue;
       const color = getProjectColor(task.project_id);
+      const title = task.title || task.projects?.name || '';
       const start = new Date(task.start_date + 'T00:00:00');
       const end = new Date(task.end_date + 'T00:00:00');
       const d = new Date(start);
@@ -57,7 +58,7 @@ const AppleCalendarMonth = ({
           }
         }
 
-        if (isWorking) addColor(dateStr, color);
+        if (isWorking) addItem(dateStr, { title, color });
 
         d.setDate(d.getDate() + 1);
         safety++;
@@ -67,17 +68,13 @@ const AppleCalendarMonth = ({
     for (const event of events) {
       if (!event.start_datetime) continue;
       const color = event.color || '#3B82F6';
+      const title = event.title || '';
       const startDate = new Date(event.start_datetime);
       const dateStr = formatDateString(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-      addColor(dateStr, color);
+      addItem(dateStr, { title, color });
     }
 
-    // Convert Sets to arrays
-    const result = {};
-    for (const key in map) {
-      result[key] = Array.from(map[key]).slice(0, 3);
-    }
-    return result;
+    return map;
   }, [tasks, events]);
 
   const year = currentMonth.getFullYear();
@@ -104,28 +101,23 @@ const AppleCalendarMonth = ({
     t('calendar.months.october'), t('calendar.months.november'), t('calendar.months.december'),
   ];
 
-  const dayNames = [
-    t('calendar.daysShort.sun'), t('calendar.daysShort.mon'), t('calendar.daysShort.tue'),
-    t('calendar.daysShort.wed'), t('calendar.daysShort.thu'), t('calendar.daysShort.fri'),
-    t('calendar.daysShort.sat'),
-  ];
+  const dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   const renderDayCell = (dayNum, dateString, isCurrentMonth, colIdx) => {
     const isSelected = dateString === selectedDate;
     const isToday = dateString === todayString;
     const isPast = dateString < todayString;
-    const dots = dotMap[dateString] || [];
-    const isLastCol = colIdx === 6;
+    const cellItems = cellDataMap[dateString] || [];
+    const visibleItems = cellItems.slice(0, MAX_EVENTS_PER_CELL);
+    const overflowCount = cellItems.length - MAX_EVENTS_PER_CELL;
 
     return (
       <TouchableOpacity
         key={dateString}
         style={[
           styles.dayCell,
-          !isLastCol && { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: theme.border || '#E5E7EB' },
           !isCurrentMonth && { opacity: 0.3 },
-          isCurrentMonth && isPast && !isSelected && !isToday && { opacity: 0.5 },
-          isSelected && !isToday && { backgroundColor: (theme.primaryBlue || '#3B82F6') + '0A' },
+          isCurrentMonth && isPast && !isSelected && !isToday && { opacity: 0.6 },
         ]}
         onPress={() => {
           onDateSelect(dateString);
@@ -136,7 +128,8 @@ const AppleCalendarMonth = ({
         }}
         activeOpacity={0.7}
       >
-        <View style={styles.dayNumberContainer}>
+        {/* Day number */}
+        <View style={styles.dayNumberRow}>
           <View style={[
             styles.dayNumberCircle,
             isToday && { backgroundColor: theme.errorRed || '#EF4444' },
@@ -152,13 +145,21 @@ const AppleCalendarMonth = ({
           </View>
         </View>
 
-        {dots.length > 0 && (
-          <View style={styles.dotRow}>
-            {dots.map((color, idx) => (
-              <View key={idx} style={[styles.dot, { backgroundColor: color }]} />
-            ))}
-          </View>
-        )}
+        {/* Event blocks */}
+        <View style={styles.eventBlocksContainer}>
+          {visibleItems.map((item, idx) => (
+            <View key={idx} style={[styles.eventBlock, { backgroundColor: item.color }]}>
+              <Text style={styles.eventBlockText} numberOfLines={1}>
+                {item.title}
+              </Text>
+            </View>
+          ))}
+          {overflowCount > 0 && (
+            <Text style={[styles.overflowText, { color: theme.secondaryText }]}>
+              +{overflowCount}
+            </Text>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -190,10 +191,7 @@ const AppleCalendarMonth = ({
     for (let r = 0; r < totalRows; r++) {
       const rowCells = allCells.slice(r * 7, (r + 1) * 7);
       rows.push(
-        <View key={`row-${r}`} style={[
-          styles.weekRow,
-          r < totalRows - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border || '#E5E7EB' },
-        ]}>
+        <View key={`row-${r}`} style={styles.weekRow}>
           {rowCells.map((cell, colIdx) =>
             renderDayCell(cell.day, cell.dateString, cell.isCurrentMonth, colIdx)
           )}
@@ -206,37 +204,42 @@ const AppleCalendarMonth = ({
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.navButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={22} color={theme.primaryBlue} />
+      {/* Header — Apple style */}
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={onTitlePress} activeOpacity={onTitlePress ? 0.6 : 1} style={styles.yearButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="chevron-back" size={18} color={theme.primaryBlue} />
+          <Text style={[styles.yearText, { color: theme.primaryBlue }]}>{year}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onTitlePress} activeOpacity={onTitlePress ? 0.6 : 1} style={styles.headerCenter}>
-          <Text style={[styles.monthText, { color: theme.primaryText }]}>
-            {monthNames[month]} {year}
-          </Text>
-          {onTitlePress && <Ionicons name="chevron-down" size={14} color={theme.secondaryText} style={{ marginLeft: 4 }} />}
-        </TouchableOpacity>
-        <TouchableOpacity onPress={goToToday} style={[styles.todayButton, { borderColor: theme.primaryBlue }]}>
-          <Text style={[styles.todayButtonText, { color: theme.primaryBlue }]}>
-            {t('calendar.today', 'Today')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => changeMonth(1)} style={styles.navButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-forward" size={22} color={theme.primaryBlue} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={goToToday} style={[styles.todayButton, { borderColor: theme.primaryBlue }]}>
+            <Text style={[styles.todayButtonText, { color: theme.primaryBlue }]}>
+              {t('calendar.today', 'Today')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.navButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={22} color={theme.primaryBlue} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => changeMonth(1)} style={styles.navButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-forward" size={22} color={theme.primaryBlue} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Day name headers */}
-      <View style={[styles.dayNamesRow, { borderBottomColor: theme.border || '#E5E7EB' }]}>
-        {dayNames.map((name, idx) => (
+      {/* Large month name */}
+      <Text style={[styles.monthTitle, { color: theme.primaryText }]}>
+        {monthNames[month]}
+      </Text>
+
+      {/* Single-letter day names */}
+      <View style={styles.dayNamesRow}>
+        {dayLetters.map((letter, idx) => (
           <View key={idx} style={styles.dayNameCell}>
             <Text style={[
               styles.dayNameText,
               { color: theme.secondaryText },
-              (idx === 0 || idx === 6) && { color: (theme.secondaryText || '#9CA3AF') + '99' },
+              (idx === 0 || idx === 6) && { color: (theme.secondaryText || '#9CA3AF') + '80' },
             ]}>
-              {name}
+              {letter}
             </Text>
           </View>
         ))}
@@ -252,44 +255,57 @@ const AppleCalendarMonth = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 4,
-    paddingBottom: 2,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
   },
-  header: {
+  // Header
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    marginBottom: 2,
     paddingHorizontal: 4,
+  },
+  yearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  yearText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
-  headerCenter: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   navButton: {
-    padding: 8,
-  },
-  monthText: {
-    fontSize: 17,
-    fontWeight: '700',
+    padding: 6,
   },
   todayButton: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 14,
     borderWidth: 1,
+    marginRight: 4,
   },
   todayButtonText: {
     fontSize: 13,
     fontWeight: '600',
   },
+  // Month title
+  monthTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  // Day names
   dayNamesRow: {
     flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth,
     paddingBottom: 6,
+    marginBottom: 2,
   },
   dayNameCell: {
     flex: 1,
@@ -297,25 +313,28 @@ const styles = StyleSheet.create({
   },
   dayNameText: {
     fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '500',
   },
+  // Grid
   gridContainer: {
     overflow: 'hidden',
   },
   weekRow: {
     flexDirection: 'row',
+    marginBottom: 2,
   },
+  // Day cell
   dayCell: {
     flex: 1,
-    height: MAX_CELL_HEIGHT,
-    paddingTop: 6,
-    alignItems: 'center',
-    overflow: 'hidden',
+    minHeight: 76,
+    paddingTop: 4,
+    paddingHorizontal: 1,
+    alignItems: 'stretch',
   },
-  dayNumberContainer: {
-    marginBottom: 4,
+  dayNumberRow: {
+    alignItems: 'flex-start',
+    paddingLeft: 2,
+    marginBottom: 2,
   },
   dayNumberCircle: {
     width: 28,
@@ -325,20 +344,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dayNumber: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '400',
     textAlign: 'center',
   },
-  dotRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 3,
+  // Event blocks
+  eventBlocksContainer: {
+    flex: 1,
+    gap: 1,
   },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+  eventBlock: {
+    height: 15,
+    borderRadius: 3,
+    paddingHorizontal: 3,
+    justifyContent: 'center',
+  },
+  eventBlockText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  overflowText: {
+    fontSize: 9,
+    fontWeight: '500',
+    paddingLeft: 3,
+    marginTop: 1,
   },
 });
 

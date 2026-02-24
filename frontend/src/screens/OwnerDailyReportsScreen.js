@@ -102,6 +102,9 @@ export default function OwnerDailyReportsScreen({ navigation }) {
     if (report.reporter_type === 'owner') {
       return 'You';
     }
+    if (report.reporter_type === 'supervisor') {
+      return report.profiles?.business_name || 'Supervisor';
+    }
     return report.workers?.full_name || 'Unknown Worker';
   };
 

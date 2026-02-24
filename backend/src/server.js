@@ -484,7 +484,7 @@ app.post('/api/chat/stream', aiLimiter, authenticateUser, async (req, res) => {
 });
 
 // 🤖 UNIFIED AGENT ENDPOINT - Tool-calling agent with Claude
-// Replaces the multi-agent routing system with a single intelligent agent
+// Processes requests in the background — continues even if client disconnects
 const { processAgentRequest } = require('./services/agentService');
 
 app.post('/api/chat/agent', aiLimiter, authenticateUser, async (req, res) => {
@@ -500,41 +500,74 @@ app.post('/api/chat/agent', aiLimiter, authenticateUser, async (req, res) => {
     return res.status(500).json({ error: 'OpenRouter API key not configured' });
   }
 
-  try {
-    // Set headers for Server-Sent Events
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
+  // Create a persistent job record so results survive disconnects
+  const { data: job, error: jobError } = await supabase
+    .from('agent_jobs')
+    .insert({ user_id, status: 'processing' })
+    .select('id')
+    .single();
 
-    logger.info(`🤖 Agent request from user ${user_id.substring(0, 8)}...`);
-
-    // Run the agentic loop (pass req for disconnect detection)
-    await processAgentRequest(messages, user_id, context || {}, res, req);
-
-    // End the SSE stream
-    res.end();
-
-  } catch (error) {
-    logger.error('Agent endpoint error:', error);
-    const message = error.isTimeout ? 'Agent timed out. Please try again.' : error.message;
-
-    // Try to send error via SSE if headers already sent
-    if (res.headersSent) {
-      try {
-        res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
-        res.end();
-      } catch (e) {
-        // Client already disconnected
-      }
-    } else {
-      res.status(500).json({ error: message });
-    }
+  if (jobError) {
+    logger.error('Failed to create agent job:', jobError);
+    return res.status(500).json({ error: 'Failed to start agent job' });
   }
 
-  // Handle client disconnect
-  req.on('close', () => {
-    logger.info('⚠️ Agent client disconnected');
+  const jobId = job.id;
+
+  // Set headers for Server-Sent Events
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  // Send jobId as the FIRST event so the frontend can track this request
+  res.write(`data: ${JSON.stringify({ type: 'job_id', jobId })}\n\n`);
+
+  logger.info(`🤖 Agent request from user ${user_id.substring(0, 8)}... (job: ${jobId.substring(0, 8)})`);
+
+  // Await the agent loop — keeps the SSE response open for streaming.
+  // When client disconnects, the loop continues (writes to DB instead of SSE).
+  // The await resolves when the loop finishes, then we close the response.
+  try {
+    await processAgentRequest(messages, user_id, context || {}, res, req, jobId);
+  } catch (error) {
+    logger.error('Agent processing error:', error);
+    const message = error.isTimeout ? 'Agent timed out. Please try again.' : error.message;
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`);
+    } catch (e) { /* client gone */ }
+  }
+
+  try { res.end(); } catch (e) { /* already closed */ }
+});
+
+// 📊 AGENT JOB POLLING ENDPOINT - Retrieve results for background jobs
+app.get('/api/chat/agent/:jobId', authenticateUser, async (req, res) => {
+  const { jobId } = req.params;
+  const userId = req.user.id;
+
+  const { data: job, error } = await supabase
+    .from('agent_jobs')
+    .select('*')
+    .eq('id', jobId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  res.json({
+    jobId: job.id,
+    status: job.status,
+    accumulatedText: job.accumulated_text || '',
+    visualElements: typeof job.visual_elements === 'string'
+      ? JSON.parse(job.visual_elements) : (job.visual_elements || []),
+    actions: typeof job.actions === 'string'
+      ? JSON.parse(job.actions) : (job.actions || []),
+    error: job.error_message,
+    createdAt: job.created_at,
+    completedAt: job.completed_at,
   });
 });
 
@@ -638,7 +671,7 @@ app.get('/api/chat/sessions', chatHistoryLimiter, authenticateUser, async (req, 
 
     const { data: sessions, error } = await supabase
       .from('chat_sessions')
-      .select('id, title, created_at, updated_at, last_message_at, is_archived')
+      .select('id, title, created_at, updated_at, last_message_at, is_archived, chat_messages(count)')
       .eq('user_id', userId)
       .eq('is_archived', false)
       .order('last_message_at', { ascending: false })
@@ -646,7 +679,14 @@ app.get('/api/chat/sessions', chatHistoryLimiter, authenticateUser, async (req, 
 
     if (error) throw error;
 
-    res.json({ sessions: sessions || [] });
+    // Flatten message_count from Supabase's nested aggregation format
+    const sessionsWithCount = (sessions || []).map(s => ({
+      ...s,
+      message_count: s.chat_messages?.[0]?.count ?? 0,
+      chat_messages: undefined,
+    }));
+
+    res.json({ sessions: sessionsWithCount });
   } catch (error) {
     logger.error('Error fetching chat sessions:', error);
     res.status(500).json({ error: 'Failed to fetch chat sessions' });
@@ -817,8 +857,32 @@ app.delete('/api/chat/sessions/:sessionId', chatHistoryLimiter, authenticateUser
 // Export app for testing with supertest (before listen)
 module.exports = app;
 
+// Cleanup old/stale agent jobs
+async function cleanupAgentJobs() {
+  try {
+    // Mark stale processing jobs as error (e.g., server restarted mid-processing)
+    const staleThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    await supabase.from('agent_jobs')
+      .update({ status: 'error', error_message: 'Server restarted during processing', updated_at: new Date().toISOString() })
+      .eq('status', 'processing')
+      .lt('updated_at', staleThreshold);
+
+    // Delete completed/error jobs older than 24 hours
+    const ttlThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from('agent_jobs')
+      .delete()
+      .lt('created_at', ttlThreshold);
+  } catch (e) {
+    logger.error('Agent job cleanup error:', e.message);
+  }
+}
+
 // Start server only when run directly (not when imported by tests)
 if (require.main === module) {
+  // Run cleanup on startup and periodically
+  cleanupAgentJobs();
+  setInterval(cleanupAgentJobs, 6 * 60 * 60 * 1000); // Every 6 hours
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     logger.info(`Backend server running on port ${PORT}`);

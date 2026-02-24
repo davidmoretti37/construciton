@@ -20,6 +20,7 @@ export const addProjectTransaction = async (transaction) => {
         project_id: transaction.project_id,
         type: transaction.type,
         category: transaction.category,
+        subcategory: transaction.subcategory || null,
         description: transaction.description,
         amount: transaction.amount,
         date: transaction.date || new Date().toISOString().split('T')[0],
@@ -31,7 +32,7 @@ export const addProjectTransaction = async (transaction) => {
         is_auto_generated: false,
         created_by: userId
       })
-      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
+      .select('id, project_id, type, category, subcategory, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
       .single();
 
     if (error) throw error;
@@ -53,7 +54,7 @@ export const getProjectTransactions = async (projectId, type = null) => {
     let query = supabase
       .from('project_transactions')
       .select(`
-        id, project_id, type, category, description, amount, date, worker_id,
+        id, project_id, type, category, subcategory, description, amount, date, worker_id,
         payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at,
         workers (id, full_name)
       `)
@@ -89,6 +90,7 @@ export const updateTransaction = async (transactionId, updates) => {
       .update({
         type: updates.type,
         category: updates.category,
+        subcategory: updates.subcategory,
         description: updates.description,
         amount: updates.amount,
         date: updates.date,
@@ -97,7 +99,7 @@ export const updateTransaction = async (transactionId, updates) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', transactionId)
-      .select('id, project_id, type, category, description, amount, date, payment_method, notes, updated_at, created_at')
+      .select('id, project_id, type, category, subcategory, description, amount, date, payment_method, notes, updated_at, created_at')
       .single();
 
     if (error) throw error;
@@ -141,19 +143,25 @@ export const getProjectTransactionSummary = async (projectId) => {
       totalExpenses: 0,
       totalIncome: 0,
       expensesByCategory: {},
+      expensesBySubcategory: {},
       transactionCount: transactions.length,
       latestTransaction: transactions[0] || null
     };
 
     transactions.forEach(t => {
+      const amount = parseFloat(t.amount);
       if (t.type === 'expense') {
-        summary.totalExpenses += parseFloat(t.amount);
+        summary.totalExpenses += amount;
         if (t.category) {
           summary.expensesByCategory[t.category] =
-            (summary.expensesByCategory[t.category] || 0) + parseFloat(t.amount);
+            (summary.expensesByCategory[t.category] || 0) + amount;
+        }
+        if (t.subcategory) {
+          summary.expensesBySubcategory[t.subcategory] =
+            (summary.expensesBySubcategory[t.subcategory] || 0) + amount;
         }
       } else if (t.type === 'income') {
-        summary.totalIncome += parseFloat(t.amount);
+        summary.totalIncome += amount;
       }
     });
 
@@ -639,6 +647,7 @@ export const submitWorkerExpense = async (expense) => {
         project_id: expense.projectId,
         type: 'expense',
         category: expense.category || 'misc',
+        subcategory: expense.subcategory || null,
         description: expense.description,
         amount: expense.amount,
         date: expense.date || new Date().toISOString().split('T')[0],
@@ -650,7 +659,7 @@ export const submitWorkerExpense = async (expense) => {
         is_auto_generated: false,
         created_by: userId
       })
-      .select('id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
+      .select('id, project_id, type, category, subcategory, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
       .single();
 
     if (error) throw error;
@@ -671,7 +680,7 @@ export const getWorkerExpenses = async (workerId) => {
     const { data, error } = await supabase
       .from('project_transactions')
       .select(`
-        id, project_id, type, category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, created_at,
+        id, project_id, type, category, subcategory, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, created_at,
         projects (id, name)
       `)
       .eq('worker_id', workerId)

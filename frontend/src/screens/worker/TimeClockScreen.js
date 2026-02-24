@@ -305,7 +305,7 @@ export default function TimeClockScreen({ navigation }) {
         if (result.hours) {
           Alert.alert(
             t('alerts.success'),
-            `Hours worked: ${result.hours.toFixed(2)}`
+            `Hours worked: ${formatHoursMinutes(result.hours)}`
           );
         } else {
           Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock out' }));
@@ -526,7 +526,7 @@ export default function TimeClockScreen({ navigation }) {
           {/* Today's Hours */}
           <View style={styles.todayHoursContainer}>
             <Text style={[styles.todayHoursLabel, { color: Colors.secondaryText }]}>Today's Hours</Text>
-            <Text style={[styles.todayHoursValue, { color: Colors.primaryText }]}>{totalHoursToday.toFixed(1)}</Text>
+            <Text style={[styles.todayHoursValue, { color: Colors.primaryText }]}>{formatHoursMinutes(totalHoursToday)}</Text>
           </View>
         </View>
 

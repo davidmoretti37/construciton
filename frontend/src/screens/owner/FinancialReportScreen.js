@@ -25,6 +25,10 @@ import MetricCard from '../../components/FinancialReport/MetricCard';
 import PnLWaterfall from '../../components/FinancialReport/PnLWaterfall';
 import CategoryBreakdownBar from '../../components/FinancialReport/CategoryBreakdownBar';
 import ProjectPnLCard from '../../components/FinancialReport/ProjectPnLCard';
+import SkeletonBox from '../../components/skeletons/SkeletonBox';
+import SkeletonCard from '../../components/skeletons/SkeletonCard';
+import { shareFinancialReportPDF, shareProjectReportPDF } from '../../utils/financialReportPDF';
+import { fetchProjectTransactionsForReport } from '../../utils/financialReportUtils';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',
@@ -51,6 +55,7 @@ export default function FinancialReportScreen() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -79,17 +84,92 @@ export default function FinancialReportScreen() {
     loadData();
   }, [loadData]);
 
+  const handleExportPDF = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const periodLabels = { month: 'This Month', quarter: 'Quarter', year: 'Year', all: 'All Time' };
+      await shareFinancialReportPDF({
+        periodLabel: periodLabels[period] || 'All Time',
+        totalRevenue: pnl.totalRevenue,
+        totalCosts: pnl.totalCosts,
+        grossProfit: pnl.grossProfit,
+        grossMargin: pnl.grossMargin,
+        totalContractValue: pnl.totalContractValue,
+        costBreakdown: pnl.costBreakdown,
+        subcategoryBreakdown: pnl.subcategoryBreakdown,
+        incomeBreakdown: pnl.incomeBreakdown,
+        projectBreakdowns: pnl.projectBreakdowns,
+        transactions: pnl.transactions,
+      });
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, period, pnl]);
+
+  const handleExportProjectPDF = useCallback(async (project) => {
+    try {
+      const periodLabels = { month: 'This Month', quarter: 'Quarter', year: 'Year', all: 'All Time' };
+      const projectTxs = await fetchProjectTransactionsForReport(project.id);
+      // Filter by selected period
+      const { startDate: s, endDate: e } = getDateRangeForPeriod(period);
+      const filteredTxs = s ? projectTxs.filter(t => t.date >= s && t.date <= e) : projectTxs;
+      await shareProjectReportPDF(project, filteredTxs, periodLabels[period] || 'All Time');
+    } catch (error) {
+      console.error('Error exporting project PDF:', error);
+    }
+  }, [period]);
+
   const { startDate, endDate } = getDateRangeForPeriod(period);
   const pnl = aggregatePnL(transactions, projects, startDate, endDate);
 
   const profitColor = pnl.grossProfit >= 0 ? OWNER_COLORS.success : OWNER_COLORS.error;
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={OWNER_COLORS.primary} />
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Financial Report</Text>
+          <View style={styles.backButton}>
+            <Ionicons name="download-outline" size={22} color={Colors.border} />
+          </View>
         </View>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Period filter skeleton */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+            {[1,2,3,4].map(i => (
+              <SkeletonBox key={i} width={70} height={32} borderRadius={16} />
+            ))}
+          </View>
+          {/* Metric cards skeleton */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
+            {[1,2,3,4].map(i => (
+              <View key={i} style={{ flex: 1, minWidth: '45%', backgroundColor: '#fff', borderRadius: 12, padding: 14 }}>
+                <SkeletonBox width={20} height={20} borderRadius={4} />
+                <SkeletonBox width="80%" height={22} borderRadius={4} style={{ marginTop: 8 }} />
+                <SkeletonBox width="50%" height={12} borderRadius={4} style={{ marginTop: 6 }} />
+              </View>
+            ))}
+          </View>
+          {/* Waterfall skeleton */}
+          <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+            <SkeletonBox width="40%" height={16} borderRadius={4} style={{ marginBottom: 16 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12, height: 120 }}>
+              <SkeletonBox width={60} height={100} borderRadius={6} />
+              <SkeletonBox width={60} height={70} borderRadius={6} />
+              <SkeletonBox width={60} height={50} borderRadius={6} />
+            </View>
+          </View>
+          {/* Project cards skeleton */}
+          <SkeletonBox width="40%" height={16} borderRadius={4} style={{ marginBottom: 12 }} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -102,7 +182,18 @@ export default function FinancialReportScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Financial Report</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity
+          onPress={handleExportPDF}
+          style={styles.backButton}
+          activeOpacity={0.7}
+          disabled={exporting}
+        >
+          {exporting ? (
+            <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
+          ) : (
+            <Ionicons name="download-outline" size={22} color={OWNER_COLORS.primary} />
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -213,6 +304,7 @@ export default function FinancialReportScreen() {
                       key={p.id}
                       project={p}
                       onPress={() => navigation.navigate('ProjectTransactions', { projectId: p.id, projectName: p.name })}
+                      onExportPDF={() => handleExportProjectPDF(p)}
                     />
                   ))}
               </View>

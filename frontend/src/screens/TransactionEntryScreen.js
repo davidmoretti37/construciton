@@ -23,6 +23,7 @@ import { supabase } from '../lib/supabase';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { EXPENSE_SUBCATEGORIES, INCOME_SUBCATEGORIES } from '../constants/transactionCategories';
 
 export default function TransactionEntryScreen({ route, navigation }) {
   const { t } = useTranslation('common');
@@ -37,6 +38,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
   const [type, setType] = useState(transaction?.type || 'expense');
   const [category, setCategory] = useState(transaction?.category || 'materials');
+  const [subcategory, setSubcategory] = useState(transaction?.subcategory || null);
   const [description, setDescription] = useState(transaction?.description || '');
   const [amount, setAmount] = useState(transaction?.amount?.toString() || '');
   const [date, setDate] = useState(transaction?.date || new Date().toISOString().split('T')[0]);
@@ -131,6 +133,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
         project_id: projectId,
         type,
         category: type === 'expense' ? category : null,
+        subcategory: subcategory || null,
         description: description.trim(),
         amount: parseFloat(amount),
         date,
@@ -496,7 +499,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                       styles.categoryButton,
                       category === cat.value && styles.categoryButtonActive,
                     ]}
-                    onPress={() => setCategory(cat.value)}
+                    onPress={() => { setCategory(cat.value); setSubcategory(null); }}
                   >
                     <Ionicons
                       name={cat.icon}
@@ -510,6 +513,62 @@ export default function TransactionEntryScreen({ route, navigation }) {
                       ]}
                     >
                       {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Subcategory (for expenses) */}
+          {type === 'expense' && category && EXPENSE_SUBCATEGORIES[category] && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Subcategory (Optional)</Text>
+              <View style={styles.categoryGrid}>
+                {EXPENSE_SUBCATEGORIES[category].map((sub) => (
+                  <TouchableOpacity
+                    key={sub.value}
+                    style={[
+                      styles.categoryButton,
+                      subcategory === sub.value && styles.categoryButtonActive,
+                    ]}
+                    onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryButtonText,
+                        subcategory === sub.value && styles.categoryButtonTextActive,
+                      ]}
+                    >
+                      {sub.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Income Type (subcategory for income) */}
+          {type === 'income' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Income Type (Optional)</Text>
+              <View style={styles.categoryGrid}>
+                {INCOME_SUBCATEGORIES.map((sub) => (
+                  <TouchableOpacity
+                    key={sub.value}
+                    style={[
+                      styles.categoryButton,
+                      subcategory === sub.value && styles.categoryButtonActive,
+                    ]}
+                    onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryButtonText,
+                        subcategory === sub.value && styles.categoryButtonTextActive,
+                      ]}
+                    >
+                      {sub.label}
                     </Text>
                   </TouchableOpacity>
                 ))}

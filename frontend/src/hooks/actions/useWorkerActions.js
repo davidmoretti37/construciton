@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import logger from '../../utils/logger';
+import { formatHoursMinutes } from '../../utils/calculations';
 import {
   fetchWorkers,
   createWorker,
@@ -433,8 +434,8 @@ export default function useWorkerActions({ addMessage, setMessages }) {
         // Calculate hours worked
         const clockInTime = new Date(activeRecord.clock_in);
         const clockOutTime = clock_out_time ? new Date(clock_out_time) : new Date();
-        const hoursWorked = ((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(1);
-        addMessage(`✅ Clocked out ${workerName} (${hoursWorked} hours worked)`);
+        const hoursWorked = (clockOutTime - clockInTime) / (1000 * 60 * 60);
+        addMessage(`✅ Clocked out ${workerName} (${formatHoursMinutes(hoursWorked)} worked)`);
         return { hoursWorked };
       } else {
         Alert.alert('Error', 'Failed to clock out worker.');
@@ -511,7 +512,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
       }
 
       if (successCount > 0) {
-        addMessage(`✅ Clocked out ${successCount} worker${successCount > 1 ? 's' : ''} (${totalHours.toFixed(1)} total hours)`);
+        addMessage(`✅ Clocked out ${successCount} worker${successCount > 1 ? 's' : ''} (${formatHoursMinutes(totalHours)} total)`);
       } else {
         addMessage('No workers were clocked in to clock out.');
       }
@@ -547,7 +548,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
       const entry = await createManualTimeEntry(worker_id, project_id, clock_in_time, clock_out_time, date);
       if (entry) {
         const hours = entry.hours_worked || 0;
-        addMessage(`✅ Added time entry: ${hours.toFixed(1)} hours`);
+        addMessage(`✅ Added time entry: ${formatHoursMinutes(hours)}`);
         return entry;
       } else {
         Alert.alert('Error', 'Failed to create time entry.');

@@ -16,7 +16,7 @@ const formatCurrency = (amount) => {
   return `${amount < 0 ? '-' : ''}$${abs.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
-export default function ProjectPnLCard({ project, onPress }) {
+export default function ProjectPnLCard({ project, onPress, onExportPDF }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -48,7 +48,17 @@ export default function ProjectPnLCard({ project, onPress }) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.name, { color: Colors.primaryText }]} numberOfLines={1}>{name}</Text>
-        <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {onExportPDF && (
+            <TouchableOpacity
+              onPress={onExportPDF}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="download-outline" size={18} color="#1E40AF" />
+            </TouchableOpacity>
+          )}
+          <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+        </View>
       </View>
 
       {/* Financial rows */}

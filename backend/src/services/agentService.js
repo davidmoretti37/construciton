@@ -1,5 +1,5 @@
 /**
- * Agentic Loop Service — Real-Time Streaming
+ * Agentic Loop Service — Real-Time Streaming with Background Persistence
  *
  * Handles the tool-calling loop between Claude and our tools:
  * 1. Send user message + tools to Claude (streaming)
@@ -7,7 +7,14 @@
  * 3. Repeat until Claude returns final text response
  * 4. Stream final response token-by-token to frontend via SSE
  *
+ * Background Processing:
+ * - Each request creates an agent_job record in Supabase
+ * - Results are dual-written to SSE (if connected) AND the database
+ * - If the client disconnects, processing continues to completion
+ * - Frontend polls the job record on app resume to retrieve results
+ *
  * SSE Event Protocol:
+ *   { type: 'job_id', jobId }                   — Job ID for resume/polling
  *   { type: 'thinking' }                          — AI reasoning round started
  *   { type: 'tool_start', tool, message }         — Before tool execution
  *   { type: 'tool_end', tool }                    — After tool execution
@@ -19,6 +26,7 @@
 
 const fetch = require('node-fetch');
 const AbortController = require('abort-controller');
+const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
 const { executeTool } = require('./tools/handlers');
@@ -27,30 +35,119 @@ const { routeTools } = require('./toolRouter');
 const { selectModel, trackUsage } = require('./modelRouter');
 const memory = require('./requestMemory');
 
+// Supabase client for job persistence
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 // Configuration
 const MAX_TOOL_ROUNDS = 8;
 const STREAM_TIMEOUT = 90000; // 90s per streaming call
+const DB_FLUSH_INTERVAL = 500; // Debounce DB writes to every 500ms
 
 /**
- * Send SSE event to client
+ * JobWriter — Dual-write to SSE stream and Supabase agent_jobs table.
+ *
+ * When the client is connected, events stream in real-time via SSE.
+ * Simultaneously, results accumulate in memory and flush to the database
+ * on a debounced schedule. If the client disconnects, SSE writes are
+ * silently dropped but DB writes continue, so the frontend can poll
+ * for results on app resume.
  */
-function sendSSE(res, data) {
-  try {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  } catch (e) {
-    // Client may have disconnected
+function createJobWriter(jobId, res) {
+  let clientDisconnected = false;
+  let accumulatedText = '';
+  let visualElements = [];
+  let actions = [];
+  let flushTimer = null;
+
+  function sendSSE(data) {
+    if (clientDisconnected) return;
+    try {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch (e) {
+      // Client gone — mark disconnected
+      clientDisconnected = true;
+    }
   }
+
+  function scheduleFlush(immediate) {
+    if (flushTimer) clearTimeout(flushTimer);
+    const doFlush = () => {
+      supabase.from('agent_jobs').update({
+        accumulated_text: accumulatedText,
+        visual_elements: JSON.stringify(visualElements),
+        actions: JSON.stringify(actions),
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId).then(({ error }) => {
+        if (error) logger.error('JobWriter flush error:', error.message);
+      });
+    };
+    if (immediate) {
+      doFlush();
+    } else {
+      flushTimer = setTimeout(doFlush, DB_FLUSH_INTERVAL);
+    }
+  }
+
+  return {
+    setDisconnected() { clientDisconnected = true; },
+    isDisconnected() { return clientDisconnected; },
+
+    emit(event) {
+      sendSSE(event);
+
+      // Track accumulated state
+      if (event.type === 'delta' && event.content) {
+        accumulatedText += event.content;
+        scheduleFlush(false);
+      } else if (event.type === 'metadata') {
+        visualElements = event.visualElements || [];
+        actions = event.actions || [];
+        scheduleFlush(false);
+      } else if (event.type === 'clear') {
+        accumulatedText = '';
+        visualElements = [];
+        actions = [];
+      }
+    },
+
+    async complete() {
+      if (flushTimer) clearTimeout(flushTimer);
+      const { error } = await supabase.from('agent_jobs').update({
+        status: 'completed',
+        accumulated_text: accumulatedText,
+        visual_elements: JSON.stringify(visualElements),
+        actions: JSON.stringify(actions),
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+      if (error) logger.error('JobWriter complete error:', error.message);
+    },
+
+    async fail(errorMessage) {
+      if (flushTimer) clearTimeout(flushTimer);
+      const { error } = await supabase.from('agent_jobs').update({
+        status: 'error',
+        error_message: errorMessage,
+        accumulated_text: accumulatedText,
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+      if (error) logger.error('JobWriter fail error:', error.message);
+    },
+  };
 }
 
 /**
  * Call Claude via OpenRouter with streaming.
  * Parses the SSE stream to detect tool_calls vs text content.
- * Text deltas are forwarded to the client in real-time.
+ * Text deltas are forwarded to the client in real-time via the writer.
  * Tool calls are accumulated and returned as a complete array.
  *
  * @returns {{ message: { content, tool_calls }, finishReason: string }}
  */
-async function callClaudeStreaming(messages, tools, res, model = 'claude-haiku-4.5') {
+async function callClaudeStreaming(messages, tools, writer, model = 'claude-haiku-4.5') {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
 
@@ -111,7 +208,7 @@ async function callClaudeStreaming(messages, tools, res, model = 'claude-haiku-4
 
     // Keepalive: send heartbeat every 5s to prevent connection drops
     const keepaliveId = setInterval(() => {
-      sendSSE(res, { type: 'heartbeat' });
+      writer.emit({ type: 'heartbeat' });
     }, 5000);
 
     response.body.on('data', (chunk) => {
@@ -144,7 +241,7 @@ async function callClaudeStreaming(messages, tools, res, model = 'claude-haiku-4
             if (match) {
               const extracted = unescapeJSON(match[1]);
               if (extracted.length > lastExtractedLength) {
-                sendSSE(res, { type: 'delta', content: extracted.substring(lastExtractedLength) });
+                writer.emit({ type: 'delta', content: extracted.substring(lastExtractedLength) });
                 lastExtractedLength = extracted.length;
               }
             }
@@ -206,7 +303,7 @@ async function callClaudeStreaming(messages, tools, res, model = 'claude-haiku-4
         }
 
         if (visualElements.length > 0 || actions.length > 0) {
-          sendSSE(res, { type: 'metadata', visualElements, actions });
+          writer.emit({ type: 'metadata', visualElements, actions });
         }
 
         // Fallback: if no text was extracted during streaming, try once more
@@ -216,10 +313,10 @@ async function callClaudeStreaming(messages, tools, res, model = 'claude-haiku-4
           // Try complete text field match
           const textMatch = fallbackText.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
           if (textMatch) {
-            sendSSE(res, { type: 'delta', content: unescapeJSON(textMatch[1]) });
+            writer.emit({ type: 'delta', content: unescapeJSON(textMatch[1]) });
           } else if (!fallbackText.startsWith('{')) {
             // Non-JSON response — send as plain text
-            sendSSE(res, { type: 'delta', content: fallbackText });
+            writer.emit({ type: 'delta', content: fallbackText });
           }
         }
       }
@@ -278,20 +375,26 @@ function rememberToolResult(userId, toolName, args, result) {
 }
 
 /**
- * Main agentic loop — processes a user request with streaming tool calling
+ * Main agentic loop — processes a user request with streaming tool calling.
+ * Continues processing even if the client disconnects (background persistence).
  *
  * @param {Array} userMessages - Conversation messages from frontend
  * @param {string} userId - Authenticated user ID
  * @param {object} userContext - User context (business info, preferences, etc.)
  * @param {object} res - Express response object for SSE streaming
  * @param {object} req - Express request object for disconnect detection
+ * @param {string} jobId - Agent job ID for persistence
  */
-async function processAgentRequest(userMessages, userId, userContext, res, req) {
+async function processAgentRequest(userMessages, userId, userContext, res, req, jobId) {
   const startTime = Date.now();
-  let clientDisconnected = false;
+  const writer = createJobWriter(jobId, res);
 
+  // Track client disconnection — writer continues but stops SSE writes
   if (req) {
-    req.on('close', () => { clientDisconnected = true; });
+    req.on('close', () => {
+      writer.setDisconnected();
+      logger.info('⚠️ Client disconnected, continuing agent processing in background');
+    });
   }
 
   // Get last user message for routing
@@ -331,24 +434,19 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
   const toolCallCache = new Map(); // Prevent redundant tool calls within a request
 
   while (toolRound < MAX_TOOL_ROUNDS) {
-    if (clientDisconnected) {
-      logger.info('⚠️ Client disconnected, aborting agent loop');
-      return;
-    }
-
     toolRound++;
     const roundStart = Date.now();
     logger.info(`🔄 Agent round ${toolRound}/${MAX_TOOL_ROUNDS}`);
 
     // Tell client we're thinking
-    sendSSE(res, { type: 'thinking' });
+    writer.emit({ type: 'thinking' });
 
     try {
       // Call Claude with filtered tools and selected model
       const { message, finishReason } = await callClaudeStreaming(
         messages,
         filteredTools, // Use filtered tools (8-12 instead of 34)
-        res,
+        writer,
         model // Use smart model selection (Haiku or Sonnet)
       );
 
@@ -358,7 +456,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
 
         // Clear any intermediate text the model streamed during this tool call round
         // (e.g., "Let me search for your projects..." — not the final response)
-        sendSSE(res, { type: 'clear' });
+        writer.emit({ type: 'clear' });
 
         // Add assistant message (with tool calls) to conversation
         messages.push({
@@ -369,8 +467,6 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
 
         // Execute all tool calls in PARALLEL for speed
         const toolResults = await Promise.all(message.tool_calls.map(async (toolCall) => {
-          if (clientDisconnected) return null;
-
           const toolName = toolCall.function.name;
           let toolArgs = {};
 
@@ -381,7 +477,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
           }
 
           // Send tool_start event
-          sendSSE(res, {
+          writer.emit({
             type: 'tool_start',
             tool: toolName,
             message: getToolStatusMessage(toolName),
@@ -404,7 +500,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
           }
 
           // Send tool_end event
-          sendSSE(res, { type: 'tool_end', tool: toolName });
+          writer.emit({ type: 'tool_end', tool: toolName });
 
           return { toolCall, result };
         }));
@@ -435,7 +531,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
       if (!finalContent) {
         // Empty response — send fallback
         logger.warn('Agent returned empty response');
-        sendSSE(res, {
+        writer.emit({
           type: 'delta',
           content: "I apologize, but I wasn't able to process that request. Could you try rephrasing it?",
         });
@@ -453,18 +549,39 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
       logger.info(`📊 Agent: ${toolRound} rounds, model=${model.includes('haiku') ? 'haiku' : 'sonnet'}, ~${estInput}+${estOutput} tokens, ${totalTime}ms`);
 
       // Signal completion
-      sendSSE(res, { type: 'done' });
+      writer.emit({ type: 'done' });
+      await writer.complete();
+
+      // Send push notification if client disconnected during processing
+      if (writer.isDisconnected()) {
+        try {
+          await supabase.functions.invoke('send-push-notification', {
+            body: {
+              userId,
+              title: 'Foreman',
+              body: 'Your request has been processed. Tap to view the result.',
+              type: 'system',
+              data: { screen: 'Chat', jobId },
+            },
+          });
+          await supabase.from('agent_jobs').update({ notification_sent: true }).eq('id', jobId);
+          logger.info('📨 Sent completion push notification for background job');
+        } catch (e) {
+          logger.error('Failed to send completion notification:', e.message);
+        }
+      }
       return;
 
     } catch (error) {
       logger.error(`Agent error in round ${toolRound}:`, error);
 
       if (toolRound >= MAX_TOOL_ROUNDS) {
-        sendSSE(res, {
+        writer.emit({
           type: 'delta',
           content: "I'm having trouble processing this request. Could you try again or rephrase your message?",
         });
-        sendSSE(res, { type: 'done' });
+        writer.emit({ type: 'done' });
+        await writer.complete();
         return;
       }
 
@@ -475,11 +592,12 @@ async function processAgentRequest(userMessages, userId, userContext, res, req) 
 
   // Hit max rounds
   logger.warn(`Agent hit max rounds (${MAX_TOOL_ROUNDS})`);
-  sendSSE(res, {
+  writer.emit({
     type: 'delta',
     content: "I've done extensive research but need a bit more direction. Could you be more specific about what you'd like me to do?",
   });
-  sendSSE(res, { type: 'done' });
+  writer.emit({ type: 'done' });
+  await writer.complete();
 }
 
 module.exports = { processAgentRequest };

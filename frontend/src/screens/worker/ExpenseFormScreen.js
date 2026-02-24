@@ -25,6 +25,7 @@ import { submitWorkerExpense } from '../../utils/storage/transactions';
 import { fetchProjects } from '../../utils/storage/projects';
 import { analyzeReceipt } from '../../services/aiService';
 import { supabase } from '../../lib/supabase';
+import { EXPENSE_SUBCATEGORIES } from '../../constants/transactionCategories';
 
 const EXPENSE_CATEGORIES = [
   { id: 'materials', label: 'Materials', icon: 'cube' },
@@ -58,6 +59,7 @@ export default function ExpenseFormScreen({ navigation }) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('materials');
+  const [subcategory, setSubcategory] = useState(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [lineItems, setLineItems] = useState([]);
   const [notes, setNotes] = useState('');
@@ -189,6 +191,7 @@ export default function ExpenseFormScreen({ navigation }) {
       setAmount(extractedData.totalAmount?.toString() || '');
       setDescription(extractedData.description || '');
       setCategory(extractedData.category || 'misc');
+      setSubcategory(extractedData.subcategory || null);
       if (extractedData.date) {
         setDate(extractedData.date);
       }
@@ -235,6 +238,7 @@ export default function ExpenseFormScreen({ navigation }) {
           amount: parseFloat(amount),
           description: description.trim(),
           category: category,
+          subcategory: subcategory || null,
           date: date,
           receiptUrl: receiptUrl,
           lineItems: lineItems.length > 0 ? lineItems : null,
@@ -248,6 +252,7 @@ export default function ExpenseFormScreen({ navigation }) {
           amount: parseFloat(amount),
           description: description.trim(),
           category: category,
+          subcategory: subcategory || null,
           date: date,
           receipt_url: receiptUrl,
           line_items: lineItems.length > 0 ? lineItems : null,
@@ -514,7 +519,7 @@ export default function ExpenseFormScreen({ navigation }) {
                           borderColor: category === cat.id ? Colors.primaryBlue : Colors.border
                         }
                       ]}
-                      onPress={() => setCategory(cat.id)}
+                      onPress={() => { setCategory(cat.id); setSubcategory(null); }}
                     >
                       <Ionicons
                         name={cat.icon}
@@ -532,6 +537,39 @@ export default function ExpenseFormScreen({ navigation }) {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                {/* Subcategory picker */}
+                {EXPENSE_SUBCATEGORIES[category] && EXPENSE_SUBCATEGORIES[category].length > 0 && (
+                  <View style={{ marginTop: Spacing.md }}>
+                    <Text style={[styles.sectionTitle, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
+                      Subcategory (Optional)
+                    </Text>
+                    <View style={styles.categoryGrid}>
+                      {EXPENSE_SUBCATEGORIES[category].map((sub) => (
+                        <TouchableOpacity
+                          key={sub.value}
+                          style={[
+                            styles.categoryButton,
+                            {
+                              backgroundColor: subcategory === sub.value ? Colors.primaryBlue + '15' : Colors.lightBackground,
+                              borderColor: subcategory === sub.value ? Colors.primaryBlue : Colors.border,
+                            }
+                          ]}
+                          onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
+                        >
+                          <Text
+                            style={[
+                              styles.categoryButtonText,
+                              { color: subcategory === sub.value ? Colors.primaryBlue : Colors.secondaryText }
+                            ]}
+                          >
+                            {sub.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Date */}

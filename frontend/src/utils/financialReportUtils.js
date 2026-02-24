@@ -1,24 +1,8 @@
 import { supabase } from '../lib/supabase';
+import { CATEGORIES, CATEGORY_COLORS, CATEGORY_LABELS } from '../constants/transactionCategories';
 
-const CATEGORIES = ['labor', 'materials', 'subcontractor', 'equipment', 'permits', 'misc'];
-
-export const CATEGORY_COLORS = {
-  labor: '#3B82F6',
-  materials: '#10B981',
-  equipment: '#F59E0B',
-  permits: '#8B5CF6',
-  subcontractor: '#EF4444',
-  misc: '#6B7280',
-};
-
-export const CATEGORY_LABELS = {
-  labor: 'Labor',
-  materials: 'Materials',
-  equipment: 'Equipment',
-  permits: 'Permits',
-  subcontractor: 'Subcontractors',
-  misc: 'Miscellaneous',
-};
+// Re-export for backward compatibility (other files import from here)
+export { CATEGORY_COLORS, CATEGORY_LABELS };
 
 export const getDateRangeForPeriod = (period) => {
   const now = new Date();
@@ -45,15 +29,37 @@ export const fetchAllOwnerTransactions = async (projectIds) => {
   try {
     const { data, error } = await supabase
       .from('project_transactions')
-      .select('id, project_id, type, category, amount, date')
+      .select('id, project_id, type, category, subcategory, description, amount, date, payment_method, receipt_url, notes')
       .in('project_id', projectIds)
       .order('date', { ascending: false })
-      .limit(1000);
+      .limit(5000);
 
     if (error) throw error;
     return data || [];
   } catch (error) {
     console.error('Error fetching all owner transactions:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch full transaction detail for a single project (for per-project PDF)
+ */
+export const fetchProjectTransactionsForReport = async (projectId) => {
+  if (!projectId) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('project_transactions')
+      .select('id, project_id, type, category, subcategory, description, amount, date, payment_method, receipt_url, notes')
+      .eq('project_id', projectId)
+      .order('date', { ascending: true })
+      .limit(5000);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching project transactions for report:', error);
     return [];
   }
 };
@@ -79,6 +85,10 @@ export const aggregatePnL = (transactions, projects, startDate, endDate) => {
   const costBreakdown = emptyBreakdown();
   let totalCosts = 0;
 
+  // Subcategory and income breakdowns
+  const subcategoryBreakdown = {}; // { labor: { wages: 500, overtime: 200 }, ... }
+  const incomeBreakdown = {};       // { contract_payment: 50000, ... }
+
   // Per-project buckets
   const projectMap = {};
   projects.forEach((p) => {
@@ -91,6 +101,8 @@ export const aggregatePnL = (transactions, projects, startDate, endDate) => {
       status: p.status,
       expenses: 0,
       costBreakdown: emptyBreakdown(),
+      subcategoryBreakdown: {},
+      incomeBreakdown: {},
     };
   });
 
@@ -101,6 +113,15 @@ export const aggregatePnL = (transactions, projects, startDate, endDate) => {
     if (t.type === 'income') {
       totalRevenue += amount;
       if (projectMap[pId]) projectMap[pId].incomeCollected += amount;
+
+      // Income subcategory tracking
+      if (t.subcategory) {
+        incomeBreakdown[t.subcategory] = (incomeBreakdown[t.subcategory] || 0) + amount;
+        if (projectMap[pId]) {
+          projectMap[pId].incomeBreakdown[t.subcategory] =
+            (projectMap[pId].incomeBreakdown[t.subcategory] || 0) + amount;
+        }
+      }
     } else if (t.type === 'expense') {
       const cat = CATEGORIES.includes(t.category) ? t.category : 'misc';
       costBreakdown[cat] += amount;
@@ -108,6 +129,18 @@ export const aggregatePnL = (transactions, projects, startDate, endDate) => {
       if (projectMap[pId]) {
         projectMap[pId].expenses += amount;
         projectMap[pId].costBreakdown[cat] += amount;
+      }
+
+      // Expense subcategory tracking
+      if (t.subcategory) {
+        if (!subcategoryBreakdown[cat]) subcategoryBreakdown[cat] = {};
+        subcategoryBreakdown[cat][t.subcategory] =
+          (subcategoryBreakdown[cat][t.subcategory] || 0) + amount;
+        if (projectMap[pId]) {
+          if (!projectMap[pId].subcategoryBreakdown[cat]) projectMap[pId].subcategoryBreakdown[cat] = {};
+          projectMap[pId].subcategoryBreakdown[cat][t.subcategory] =
+            (projectMap[pId].subcategoryBreakdown[cat][t.subcategory] || 0) + amount;
+        }
       }
     }
   });
@@ -138,12 +171,15 @@ export const aggregatePnL = (transactions, projects, startDate, endDate) => {
   });
 
   return {
-    totalRevenue: useProjectIncome ? totalRevenue : totalRevenue,
+    totalRevenue,
     totalContractValue,
     costBreakdown,
+    subcategoryBreakdown,
+    incomeBreakdown,
     totalCosts,
     grossProfit: finalGrossProfit,
     grossMargin: finalGrossMargin,
     projectBreakdowns,
+    transactions: filtered,
   };
 };

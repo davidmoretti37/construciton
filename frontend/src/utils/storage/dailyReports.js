@@ -1,5 +1,24 @@
 import { supabase } from '../../lib/supabase';
 
+// Helper: resolve supervisor/owner profile names for reports
+const resolveReporterProfiles = async (reports) => {
+  const ownerIds = [...new Set(reports.filter(r => r.owner_id && (r.reporter_type === 'supervisor' || r.reporter_type === 'owner')).map(r => r.owner_id))];
+  if (ownerIds.length === 0) return;
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, business_name')
+    .in('id', ownerIds);
+  if (profiles) {
+    const profileMap = {};
+    profiles.forEach(p => { profileMap[p.id] = p; });
+    reports.forEach(r => {
+      if (r.owner_id && profileMap[r.owner_id]) {
+        r.profiles = profileMap[r.owner_id];
+      }
+    });
+  }
+};
+
 // ============================================================
 // Daily Reports Functions
 // ============================================================
@@ -85,6 +104,17 @@ export const fetchDailyReportById = async (reportId) => {
       .single();
 
     if (error) throw error;
+
+    // Resolve supervisor/owner name
+    if (data && data.owner_id && (data.reporter_type === 'supervisor' || data.reporter_type === 'owner')) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, business_name')
+        .eq('id', data.owner_id)
+        .single();
+      if (profile) data.profiles = profile;
+    }
+
     return data;
   } catch (error) {
     console.error('Error fetching daily report by ID:', error);
@@ -139,7 +169,9 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
     const { data, error } = await query;
 
     if (error) throw error;
-    return data || [];
+    const reports = data || [];
+    await resolveReporterProfiles(reports);
+    return reports;
   } catch (error) {
     console.error('Error fetching daily reports:', error);
     return [];
@@ -284,6 +316,7 @@ export const fetchPhotosWithFilters = async (filters = {}) => {
     if (error) throw error;
 
     let filteredReports = reports || [];
+    await resolveReporterProfiles(filteredReports);
 
     if (filters.projectName) {
       const searchTerm = filters.projectName.toLowerCase();
@@ -342,11 +375,11 @@ export const fetchPhotosWithFilters = async (filters = {}) => {
           phaseId: report.phase_id,
           phaseName: report.project_phases?.name || 'General',
           workerId: report.worker_id,
-          workerName: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : 'Unknown'),
+          workerName: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : report.reporter_type === 'supervisor' ? (report.profiles?.business_name || 'Supervisor') : 'Unknown'),
           workerTrade: report.workers?.trade,
           tags: report.tags || [],
           notes: report.notes,
-          uploadedBy: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : 'Unknown'),
+          uploadedBy: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : report.reporter_type === 'supervisor' ? (report.profiles?.business_name || 'Supervisor') : 'Unknown'),
         });
       }
 
@@ -405,6 +438,7 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
     if (error) throw error;
 
     let filteredReports = reports || [];
+    await resolveReporterProfiles(filteredReports);
 
     if (filters.projectName) {
       const searchTerm = filters.projectName.toLowerCase();
@@ -455,7 +489,7 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
       phaseName: report.project_phases?.name || 'General',
       phaseProgress: report.project_phases?.completion_percentage || 0,
       workerId: report.worker_id,
-      workerName: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : 'Unknown'),
+      workerName: report.workers?.full_name || (report.reporter_type === 'owner' ? 'Owner' : report.reporter_type === 'supervisor' ? (report.profiles?.business_name || 'Supervisor') : 'Unknown'),
       workerTrade: report.workers?.trade,
       reporterType: report.reporter_type,
       photos: report.photos || [],

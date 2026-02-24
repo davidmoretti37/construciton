@@ -639,6 +639,15 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
         return null;
       }
 
+      // FIX: Normalize contract_amount to budget/baseContract BEFORE merging
+      // This ensures the new contract amount takes precedence over old budget
+      const newContractAmount = projectData.contract_amount ?? projectData.contractAmount ?? projectData.base_contract ?? projectData.baseContract;
+      if (newContractAmount !== undefined && newContractAmount !== null) {
+        projectData.budget = newContractAmount;
+        projectData.baseContract = newContractAmount;
+        projectData.contractAmount = newContractAmount;
+      }
+
       // FIX: Extract schedule dates to top-level BEFORE merging
       // This ensures new schedule dates take precedence over existingProject dates
       if (projectData.schedule) {

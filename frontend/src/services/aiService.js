@@ -1408,6 +1408,7 @@ export const describeAttachments = async (attachments) => {
   if (!attachments || attachments.length === 0) return '';
 
   const descriptions = [];
+  const token = await getAuthToken();
 
   for (let i = 0; i < attachments.length; i++) {
     const att = attachments[i];
@@ -1429,7 +1430,10 @@ export const describeAttachments = async (attachments) => {
           logger.debug(`📄 [Attachments] Sending PDF to text extraction: ${att.name} (${(base64.length / 1024).toFixed(0)}KB base64)`);
           const extractResponse = await fetch(`${BACKEND_URL}/api/documents/extract-text`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
             body: JSON.stringify({ base64, fileName: att.name }),
           });
 
@@ -1437,7 +1441,7 @@ export const describeAttachments = async (attachments) => {
             const { text: extractedText, scanned } = await extractResponse.json();
             logger.debug(`📄 [Attachments] PDF extraction result: ${extractedText?.length || 0} chars, scanned=${scanned}`);
             if (extractedText && extractedText.trim().length > 50) {
-              descriptions.push(`${i + 1}. "${att.name}" (PDF document):\n${extractedText}`);
+              descriptions.push(`${i + 1}. "${att.name}" (PDF document — ${extractedText.length} characters extracted):\n---\n${extractedText}\n---`);
               continue;
             }
             // Scanned PDF with little/no text — fall through to vision API
@@ -1450,10 +1454,19 @@ export const describeAttachments = async (attachments) => {
         }
       }
 
-      // Images and scanned PDFs: use vision API
+      // PDFs that failed text extraction: don't send to vision (GPT-4o can't process PDF binary)
+      if (isPDF) {
+        descriptions.push(`${i + 1}. "${att.name}" (PDF document) - The text could not be fully extracted from this PDF. It may be a scanned document or image-based PDF. Ask the user to describe the contents or take a photo of the document instead.`);
+        continue;
+      }
+
+      // Images only: use vision API (GPT-4o supports PNG/JPEG/GIF/WebP)
       const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           model: 'openai/gpt-4o',
           messages: [{
@@ -1465,7 +1478,7 @@ export const describeAttachments = async (attachments) => {
               },
               {
                 type: 'image_url',
-                image_url: { url: `data:image/jpeg;base64,${base64}` }
+                image_url: { url: `data:${att.mimeType || 'image/jpeg'};base64,${base64}` }
               }
             ]
           }],
@@ -1477,13 +1490,14 @@ export const describeAttachments = async (attachments) => {
       if (response.ok) {
         const data = await response.json();
         const description = data.choices?.[0]?.message?.content || 'Could not read this file.';
-        descriptions.push(`${i + 1}. "${att.name}" - ${description}`);
+        descriptions.push(`${i + 1}. "${att.name}" (image) - ${description}`);
       } else {
-        descriptions.push(`${i + 1}. "${att.name}" - (Could not analyze this file)`);
+        logger.warn(`📄 [Attachments] Vision API HTTP error for ${att.name}: ${response.status}`);
+        descriptions.push(`${i + 1}. "${att.name}" - (Image analysis temporarily unavailable — the file was attached but could not be processed. The user can see the file on their device.)`);
       }
     } catch (error) {
       logger.error(`Error describing attachment ${att.name}:`, error);
-      descriptions.push(`${i + 1}. "${att.name}" - (Error reading file)`);
+      descriptions.push(`${i + 1}. "${att.name}" - (Error reading file — ask the user to describe what's in it or re-attach)`);
     }
   }
 
@@ -1523,6 +1537,7 @@ Return ONLY valid JSON (no markdown, no extra text) in this EXACT format:
   "totalAmount": 0.00,
   "description": "Brief description of purchase (e.g., 'Home Depot - Building materials')",
   "category": "materials",
+  "subcategory": "lumber",
   "vendor": "Store or vendor name",
   "date": "YYYY-MM-DD",
   "lineItems": [
@@ -1544,6 +1559,13 @@ CATEGORY RULES (pick the most appropriate):
 - "subcontractor": Payments to other contractors, specialty services
 - "misc": Fuel, gas, food for crew, office supplies, delivery fees, other expenses
 
+SUBCATEGORY RULES (pick based on category):
+- materials: "lumber", "concrete_cement", "plumbing_supplies", "electrical_supplies", "drywall", "paint", "hardware", "roofing", "flooring", "fixtures", "materials_other"
+- equipment: "rental", "purchase", "fuel_gas", "maintenance_repair", "small_tools", "equipment_other"
+- permits: "building_permit", "inspection_fee", "impact_fee", "utility_connection", "permits_other"
+- subcontractor: "sub_plumbing", "sub_electrical", "sub_hvac", "sub_painting", "sub_concrete", "sub_framing", "sub_roofing", "sub_landscaping", "sub_demolition", "sub_other"
+- misc: "office_supplies", "vehicle_transport", "insurance", "cleanup_disposal", "professional_fees", "misc_other"
+
 EXTRACTION RULES:
 1. Extract the TOTAL amount including tax
 2. Extract ALL visible line items with their prices
@@ -1551,7 +1573,8 @@ EXTRACTION RULES:
 4. Identify the vendor/store name from the receipt header
 5. Guess the payment method from receipt (card, cash, check) or use "card" as default
 6. For description, combine vendor name + general category of items
-7. Be accurate with numbers - double check totals`
+7. Be accurate with numbers - double check totals
+8. Pick the most specific subcategory based on the items purchased`
               },
               {
                 type: 'image_url',
@@ -1590,6 +1613,7 @@ EXTRACTION RULES:
         category: ['materials', 'equipment', 'permits', 'subcontractor', 'misc'].includes(extracted.category)
           ? extracted.category
           : 'misc',
+        subcategory: extracted.subcategory || null,
         vendor: extracted.vendor || null,
         date: extracted.date || new Date().toISOString().split('T')[0],
         lineItems: Array.isArray(extracted.lineItems)
@@ -1845,7 +1869,7 @@ export const sendAgentMessage = async (
   context,
   callbacks
 ) => {
-  const { onChunk, onComplete, onError, onStatus } = callbacks;
+  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata } = callbacks;
   const startTime = Date.now();
 
   const messages = [
@@ -1946,6 +1970,10 @@ export const sendAgentMessage = async (
           const event = JSON.parse(data);
 
           switch (event.type) {
+            case 'job_id':
+              // Backend sends job ID for resume/polling on disconnect
+              onJobId?.(event.jobId);
+              break;
             case 'thinking':
               onStatus?.('Thinking...');
               break;
@@ -1981,6 +2009,10 @@ export const sendAgentMessage = async (
               pendingVisualElements = event.visualElements || [];
               pendingActions = event.actions || [];
               logger.debug(`📦 [Agent] Metadata: ${pendingVisualElements.length} visualElements, ${pendingActions.length} actions`);
+              // Notify UI early so it can show a loading skeleton for incoming cards
+              if (pendingVisualElements.length > 0) {
+                onMetadata?.({ visualElements: pendingVisualElements });
+              }
               break;
             case 'done':
               streamDone = true;
@@ -2065,4 +2097,32 @@ export const sendAgentMessage = async (
       context: context || {},
     }));
   });
+};
+
+/**
+ * Poll an agent job for results (used when resuming after app was backgrounded).
+ * Returns the job state: status, accumulated text, visual elements, actions.
+ *
+ * @param {string} jobId - The agent job ID received from the job_id SSE event
+ * @returns {{ jobId, status, accumulatedText, visualElements, actions, error, createdAt, completedAt }}
+ */
+export const pollAgentJob = async (jobId) => {
+  const authToken = await getAuthToken(3);
+  if (!authToken) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${BACKEND_URL}/api/chat/agent/${jobId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to poll job: ${response.status}`);
+  }
+
+  return response.json();
 };

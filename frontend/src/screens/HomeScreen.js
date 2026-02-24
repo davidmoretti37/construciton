@@ -24,6 +24,9 @@ import TrialBanner from '../components/TrialBanner';
 import { fetchDailyReportsWithFilters, getProject } from '../utils/storage';
 import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet } from '../utils/storage/timeTracking';
 import logger from '../utils/logger';
+import { formatHoursMinutes } from '../utils/calculations';
+import SkeletonBox from '../components/skeletons/SkeletonBox';
+import SkeletonCard from '../components/skeletons/SkeletonCard';
 import { Alert } from 'react-native';
 
 export default function HomeScreen({ navigation }) {
@@ -72,11 +75,11 @@ export default function HomeScreen({ navigation }) {
   // Load projects and daily reports when screen comes into focus
   useFocusEffect(
     useCallback(() => {
+      const loads = [loadTodaysDailyReports(), loadSupervisorTimeData()];
       if (!hasLoadedOnce) {
-        loadProjects();
+        loads.push(loadProjects());
       }
-      loadTodaysDailyReports();
-      loadSupervisorTimeData();
+      Promise.all(loads);
     }, [hasLoadedOnce, loadProjects, loadTodaysDailyReports, loadSupervisorTimeData])
   );
 
@@ -144,7 +147,7 @@ export default function HomeScreen({ navigation }) {
       const result = await supervisorClockOut(activeSession.id);
       console.log('🕐 Clock-out result:', result);
       if (result.success) {
-        Alert.alert('Clocked Out', `You worked ${result.hours?.toFixed(2)} hours`);
+        Alert.alert('Clocked Out', `You worked ${formatHoursMinutes(result.hours)}`);
         setActiveSession(null);
         setElapsedTime('00:00:00');
         loadSupervisorTimeData(); // Refresh today's hours and history
@@ -417,7 +420,7 @@ export default function HomeScreen({ navigation }) {
 
           {/* Action Button */}
           <TouchableOpacity
-            style={[styles.clockActionButton, { backgroundColor: Colors.primaryText }]}
+            style={[styles.clockActionButton, { backgroundColor: Colors.primaryBlue }]}
             onPress={() => {
               if (activeSession) {
                 handleClockOut();
@@ -445,7 +448,7 @@ export default function HomeScreen({ navigation }) {
           {/* Today's Hours */}
           <View style={styles.clockTodayHoursSection}>
             <Text style={[styles.clockTodayHoursLabel, { color: Colors.secondaryText }]}>Today's Hours</Text>
-            <Text style={[styles.clockTodayHoursValue, { color: Colors.primaryText }]}>{supervisorTodayHours.toFixed(1)}</Text>
+            <Text style={[styles.clockTodayHoursValue, { color: Colors.primaryText }]}>{formatHoursMinutes(supervisorTodayHours)}</Text>
           </View>
         </View>
 
@@ -482,7 +485,7 @@ export default function HomeScreen({ navigation }) {
                     </Text>
                   </View>
                   <Text style={[styles.timeHistoryHours, { color: Colors.primaryBlue }]}>
-                    {entry.hours?.toFixed(1) || '0.0'}h
+                    {formatHoursMinutes(entry.hours)}
                   </Text>
                 </View>
               ))
@@ -491,9 +494,22 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primaryBlue} />
-            <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('loading')}</Text>
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            {/* Stats row skeleton */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+              {[1,2,3].map(i => (
+                <View key={i} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 14 }}>
+                  <SkeletonBox width={36} height={26} borderRadius={4} />
+                  <SkeletonBox width="70%" height={11} borderRadius={4} style={{ marginTop: 8 }} />
+                </View>
+              ))}
+            </View>
+            {/* Section skeleton */}
+            <SkeletonBox width="45%" height={18} borderRadius={4} style={{ marginBottom: 12 }} />
+            <SkeletonCard lines={3} style={{ marginBottom: 8 }} />
+            <SkeletonCard lines={3} style={{ marginBottom: 8 }} />
+            <SkeletonBox width="40%" height={18} borderRadius={4} style={{ marginTop: 8, marginBottom: 12 }} />
+            <SkeletonCard lines={2} />
           </View>
         ) : (
           <>

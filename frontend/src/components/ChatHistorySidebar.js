@@ -12,7 +12,7 @@ import {
   Dimensions,
   Easing,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.75; // 75% of screen width
@@ -53,6 +53,7 @@ export default function ChatHistorySidebar({
   const { isDark } = useTheme();
   const Colors = getColors(isDark);
   const styles = createStyles(Colors);
+  const insets = useSafeAreaInsets();
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -212,7 +213,7 @@ export default function ChatHistorySidebar({
             },
           ]}
         >
-          <SafeAreaView style={styles.safeArea}>
+          <View style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             {/* Header with integrated New Chat button */}
             <View style={styles.header}>
               <View style={styles.headerLeft}>
@@ -251,7 +252,7 @@ export default function ChatHistorySidebar({
             contentContainerStyle={styles.listContent}
           />
         )}
-          </SafeAreaView>
+          </View>
         </Animated.View>
       </View>
     </Modal>
