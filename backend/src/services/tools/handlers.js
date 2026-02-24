@@ -138,26 +138,67 @@ async function resolveProjectId(userId, idOrName) {
   if (!idOrName) return { error: 'No project specified' };
   if (idOrName.match(/^[0-9a-f]{8}-/i)) return { id: idOrName };
 
-  const filter = buildWordSearch(idOrName, ['name']);
-  if (!filter) return { error: 'No project specified' };
+  const trimmed = idOrName.trim();
+  if (!trimmed) return { error: 'No project specified' };
 
-  const { data } = await supabase
+  const ownerFilter = `user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`;
+
+  // Step 1: Exact name match (case-insensitive)
+  const { data: exact } = await supabase
     .from('projects')
     .select('id, name, status')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
-    .or(filter)
+    .or(ownerFilter)
+    .ilike('name', trimmed)
     .limit(5);
 
-  if (!data || data.length === 0) {
-    return { error: `No projects found matching "${idOrName}"` };
+  if (exact && exact.length === 1) return { id: exact[0].id };
+  if (exact && exact.length > 1) {
+    return {
+      suggestions: exact.map(p => ({ id: p.id, name: p.name, status: p.status })),
+      message: `Multiple projects match "${idOrName}". Which one did you mean?`
+    };
   }
-  if (data.length === 1) {
-    return { id: data[0].id };
+
+  // Step 2: Phrase contains (full input as substring)
+  const { data: phrase } = await supabase
+    .from('projects')
+    .select('id, name, status')
+    .or(ownerFilter)
+    .ilike('name', `%${trimmed}%`)
+    .limit(5);
+
+  if (phrase && phrase.length === 1) return { id: phrase[0].id };
+  if (phrase && phrase.length > 1) {
+    return {
+      suggestions: phrase.map(p => ({ id: p.id, name: p.name, status: p.status })),
+      message: `Multiple projects match "${idOrName}". Which one did you mean?`
+    };
   }
-  return {
-    suggestions: data.map(p => ({ id: p.id, name: p.name, status: p.status })),
-    message: `Multiple projects match "${idOrName}". Which one did you mean?`
-  };
+
+  // Step 3: Keyword search — strip noise words, search meaningful terms
+  const noiseWords = new Set(['project', 'job', 'the', 'my', 'a', 'an', 'for', 'on', 'site', 'work']);
+  const keywords = trimmed.split(/\s+/).filter(w => w.length > 1 && !noiseWords.has(w.toLowerCase()));
+
+  if (keywords.length > 0) {
+    const filter = keywords.map(w => `name.ilike.%${w}%`).join(',');
+
+    const { data: fallback } = await supabase
+      .from('projects')
+      .select('id, name, status')
+      .or(ownerFilter)
+      .or(filter)
+      .limit(5);
+
+    if (fallback && fallback.length === 1) return { id: fallback[0].id };
+    if (fallback && fallback.length > 1) {
+      return {
+        suggestions: fallback.map(p => ({ id: p.id, name: p.name, status: p.status })),
+        message: `Multiple projects match "${idOrName}". Which one did you mean?`
+      };
+    }
+  }
+
+  return { error: `No projects found matching "${idOrName}"` };
 }
 
 /**
@@ -385,38 +426,46 @@ async function delete_project(userId, { project_id }) {
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
 
-  // Get project name for response
+  // Get project name for response (ownership already validated by resolveProjectId)
   const { data: project } = await supabase
     .from('projects')
     .select('name')
     .eq('id', resolved.id)
-    .eq('user_id', userId);
+    .single();
 
-  if (!project || project.length === 0) return { error: 'Project not found or access denied' };
+  if (!project) return { error: 'Project not found or access denied' };
 
   const { error } = await supabase
     .from('projects')
     .delete()
-    .eq('id', resolved.id)
-    .eq('user_id', userId);
+    .eq('id', resolved.id);
 
   if (error) return { error: `Failed to delete: ${error.message}` };
-  return { success: true, deletedProject: project[0].name };
+  return { success: true, deletedProject: project.name };
 }
 
 async function update_project(userId, args = {}) {
-  const { project_id, contract_amount, status, budget, start_date, end_date } = args;
+  let { project_id, contract_amount, status, budget, start_date, end_date } = args;
 
   if (!project_id) {
     return { error: 'project_id is required' };
   }
 
+  // Resolve name to UUID + validate ownership
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+  project_id = resolved.id;
+
   // Build updates object with only provided fields
   const updates = {};
   // Map contract_amount to base_contract to work with database trigger
   // The trigger auto-calculates contract_amount from base_contract + extras
+  // ALSO update budget to stay in sync — prevents frontend saveProject from
+  // reverting base_contract using the old budget value
   if (contract_amount !== undefined) {
     updates.base_contract = contract_amount;
+    updates.budget = contract_amount;
     updates.extras = [];  // Clear extras to ensure clean calculation
   }
   if (status !== undefined) updates.status = status;
@@ -432,8 +481,7 @@ async function update_project(userId, args = {}) {
     .from('projects')
     .update(updates)
     .eq('id', project_id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
-    .select('id, name, contract_amount, status, budget, start_date, end_date')
+    .select('id, name, base_contract, contract_amount, status, budget, start_date, end_date')
     .single();
 
   if (error) {
@@ -441,13 +489,12 @@ async function update_project(userId, args = {}) {
     return { error: error.message };
   }
 
-  // Check if update actually matched any rows
   if (!data) {
-    logger.error(`update_project failed: project ${project_id} not found or update matched 0 rows`);
-    return { error: 'Project not found or update failed' };
+    logger.error(`update_project: project ${project_id} not found or 0 rows matched`);
+    return { error: 'Project not found or update failed.' };
   }
 
-  logger.info(`✅ Updated project ${project_id}:`, updates);
+  logger.info(`✅ Updated project ${project_id}:`, { ...updates, resulting_contract_amount: data.contract_amount });
 
   return {
     success: true,
@@ -455,6 +502,7 @@ async function update_project(userId, args = {}) {
       id: data.id,
       name: data.name,
       contract_amount: data.contract_amount,
+      base_contract: data.base_contract,
       status: data.status,
       budget: data.budget,
       start_date: data.start_date,
@@ -536,7 +584,6 @@ async function update_estimate(userId, args = {}) {
     .from('estimates')
     .update(updates)
     .eq('id', estimate_id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('*, projects(id, name)')
     .single();
 
@@ -550,8 +597,7 @@ async function update_estimate(userId, args = {}) {
     const { error: projectError } = await supabase
       .from('projects')
       .update({ contract_amount: data.total })
-      .eq('id', project_id)
-      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+      .eq('id', project_id);
 
     if (projectError) {
       logger.error('Failed to update project contract_amount:', projectError);
@@ -1892,24 +1938,27 @@ async function share_document(userId, args) {
 
 // ==================== FINANCIAL MUTATIONS ====================
 
-async function record_expense(userId, { project_id, type, amount, category, description, date }) {
+async function record_expense(userId, { project_id, type, amount, category, description, date, subcategory }) {
   const resolved = await resolveProjectId(userId, project_id);
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
 
   const transactionDate = date || new Date().toISOString().split('T')[0];
 
+  const insertData = {
+    project_id: resolved.id,
+    created_by: userId,
+    type,
+    category,
+    description,
+    amount: parseFloat(amount),
+    date: transactionDate,
+  };
+  if (subcategory) insertData.subcategory = subcategory;
+
   const { data, error } = await supabase
     .from('project_transactions')
-    .insert({
-      project_id: resolved.id,
-      created_by: userId,
-      type,
-      category,
-      description,
-      amount: parseFloat(amount),
-      date: transactionDate,
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -2087,7 +2136,7 @@ async function delete_expense(userId, { transaction_id, project_id }) {
   };
 }
 
-async function update_expense(userId, { transaction_id, amount, category, description, date }) {
+async function update_expense(userId, { transaction_id, amount, category, description, date, subcategory }) {
   // Resolve transaction ID if needed
   let resolvedId = transaction_id;
 
@@ -2102,9 +2151,10 @@ async function update_expense(userId, { transaction_id, amount, category, descri
   if (category !== undefined) updates.category = category;
   if (description !== undefined) updates.description = description;
   if (date !== undefined) updates.date = date;
+  if (subcategory !== undefined) updates.subcategory = subcategory;
 
   if (Object.keys(updates).length === 0) {
-    return { error: 'No fields to update. Provide at least one field: amount, category, description, or date.' };
+    return { error: 'No fields to update. Provide at least one field: amount, category, description, date, or subcategory.' };
   }
 
   // First, get the transaction to verify project ownership
@@ -2500,8 +2550,7 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
   await supabase
     .from('estimates')
     .update({ status: 'accepted', accepted_date: new Date().toISOString() })
-    .eq('id', estimate.id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+    .eq('id', estimate.id);
 
   return {
     success: true,
@@ -2565,7 +2614,6 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
     .from('invoices')
     .update(updates)
     .eq('id', resolved.id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('invoice_number, status, amount_paid, total, due_date')
     .single();
 
@@ -2592,7 +2640,6 @@ async function void_invoice(userId, { invoice_id }) {
     .from('invoices')
     .update({ status: 'cancelled' })
     .eq('id', resolved.id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('invoice_number')
     .single();
 
@@ -2822,7 +2869,7 @@ async function get_bank_transactions(userId, args = {}) {
 }
 
 async function assign_bank_transaction(userId, args = {}) {
-  const { bank_transaction_id, project_id, category, description } = args;
+  const { bank_transaction_id, project_id, category, description, subcategory } = args;
 
   if (!bank_transaction_id || !project_id) {
     return { error: 'Both bank_transaction_id and project_id are required.' };
@@ -2905,20 +2952,23 @@ async function assign_bank_transaction(userId, args = {}) {
   const txAmount = Math.abs(bankTx.amount);
   const txType = bankTx.amount > 0 ? 'expense' : 'income';
 
+  const insertData = {
+    project_id: resolvedProjectId,
+    type: txType,
+    category: category || bankTx.category || 'misc',
+    description: description || bankTx.merchant_name || bankTx.description,
+    amount: txAmount,
+    date: bankTx.date,
+    payment_method: 'card',
+    notes: `Imported from bank: ${bankTx.description}`,
+    created_by: userId,
+    bank_transaction_id: bankTx.id,
+  };
+  if (subcategory) insertData.subcategory = subcategory;
+
   const { data: projectTx, error: insertError } = await supabase
     .from('project_transactions')
-    .insert({
-      project_id: resolvedProjectId,
-      type: txType,
-      category: category || bankTx.category || 'misc',
-      description: description || bankTx.merchant_name || bankTx.description,
-      amount: txAmount,
-      date: bankTx.date,
-      payment_method: 'card',
-      notes: `Imported from bank: ${bankTx.description}`,
-      created_by: userId,
-      bank_transaction_id: bankTx.id,
-    })
+    .insert(insertData)
     .select()
     .single();
 

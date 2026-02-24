@@ -14,6 +14,8 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  NativeModules,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -73,14 +75,33 @@ export default function BankConnectionScreen() {
   const handleConnectBank = async () => {
     try {
       setConnecting(true);
+
+      // Check if native Plaid module is available (requires native build)
+      const plaidNative = Platform.OS === 'ios'
+        ? NativeModules.RNLinksdk
+        : NativeModules.PlaidAndroid;
+      if (!plaidNative) {
+        setConnecting(false);
+        Alert.alert(
+          'Build Required',
+          'Bank connection requires a native build that includes the Plaid SDK. Run: eas build --profile development --platform ios'
+        );
+        return;
+      }
+
       const { link_token } = await createLinkToken();
 
-      // Configure Plaid Link with the token
-      create({
-        token: link_token,
+      // Wait for native Plaid SDK to load (with fallback timeout)
+      await new Promise((resolve) => {
+        let resolved = false;
+        create({
+          token: link_token,
+          onLoad: () => { if (!resolved) { resolved = true; resolve(); } },
+        });
+        setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 2000);
       });
 
-      // Open the Plaid Link flow
+      // Now safe to open the Plaid Link flow
       open({
         onSuccess: async (success) => {
           try {

@@ -22,6 +22,7 @@ if (process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET) {
         'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
         'PLAID-SECRET': process.env.PLAID_SECRET,
       },
+      timeout: 15000,
     },
   });
   plaidClient = new PlaidApi(config);
@@ -80,7 +81,52 @@ const requireOwnerRole = async (req, res, next) => {
   }
 };
 
-// Apply auth + owner check to all routes
+// ============================================================
+// POST /webhook
+// Plaid webhook receiver for real-time sync notifications
+// Must be BEFORE auth middleware — called by Plaid servers (no auth token)
+// ============================================================
+router.post('/webhook', async (req, res) => {
+  try {
+    const { webhook_type, webhook_code, item_id } = req.body;
+
+    logger.info(`Plaid webhook: ${webhook_type} / ${webhook_code} for item ${item_id}`);
+
+    if (webhook_type === 'TRANSACTIONS') {
+      if (webhook_code === 'SYNC_UPDATES_AVAILABLE' || webhook_code === 'DEFAULT_UPDATE') {
+        // Find accounts for this item
+        const { data: accounts } = await supabaseAdmin
+          .from('connected_bank_accounts')
+          .select('*')
+          .eq('plaid_item_id', item_id)
+          .eq('sync_status', 'active');
+
+        if (accounts && accounts.length > 0) {
+          for (const account of accounts) {
+            try {
+              await syncAccountTransactions(account.user_id, account);
+            } catch (syncError) {
+              logger.error(`Webhook sync failed for account ${account.id}:`, syncError.message);
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    logger.error('Plaid webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// Log all incoming Plaid requests for debugging
+router.use((req, res, next) => {
+  logger.info(`[Plaid] ${req.method} ${req.path} from ${req.ip}`);
+  next();
+});
+
+// Apply auth + owner check to all routes (below webhook)
 router.use(authenticateUser);
 router.use(requireOwnerRole);
 
@@ -99,6 +145,7 @@ const requirePlaid = (req, res, next) => {
 router.post('/create-link-token', requirePlaid, async (req, res) => {
   try {
     const userId = req.user.id;
+    const start = Date.now();
 
     logger.info(`Creating Plaid Link token for user ${userId.substring(0, 8)}...`);
 
@@ -108,9 +155,9 @@ router.post('/create-link-token', requirePlaid, async (req, res) => {
       products: ['transactions'],
       country_codes: ['US'],
       language: 'en',
-      webhook: process.env.PLAID_WEBHOOK_URL || undefined,
     });
 
+    logger.info(`Plaid Link token created in ${Date.now() - start}ms`);
     res.json({ link_token: response.data.link_token });
   } catch (error) {
     logger.error('Create link token error:', error.response?.data || error.message);
@@ -717,44 +764,6 @@ router.post('/csv-upload', async (req, res) => {
   } catch (error) {
     logger.error('CSV upload error:', error);
     res.status(500).json({ error: 'Failed to import CSV' });
-  }
-});
-
-// ============================================================
-// POST /webhook
-// Plaid webhook receiver for real-time sync notifications
-// ============================================================
-router.post('/webhook', async (req, res) => {
-  try {
-    const { webhook_type, webhook_code, item_id } = req.body;
-
-    logger.info(`Plaid webhook: ${webhook_type} / ${webhook_code} for item ${item_id}`);
-
-    if (webhook_type === 'TRANSACTIONS') {
-      if (webhook_code === 'SYNC_UPDATES_AVAILABLE' || webhook_code === 'DEFAULT_UPDATE') {
-        // Find accounts for this item
-        const { data: accounts } = await supabaseAdmin
-          .from('connected_bank_accounts')
-          .select('*')
-          .eq('plaid_item_id', item_id)
-          .eq('sync_status', 'active');
-
-        if (accounts && accounts.length > 0) {
-          for (const account of accounts) {
-            try {
-              await syncAccountTransactions(account.user_id, account);
-            } catch (syncError) {
-              logger.error(`Webhook sync failed for account ${account.id}:`, syncError.message);
-            }
-          }
-        }
-      }
-    }
-
-    res.json({ received: true });
-  } catch (error) {
-    logger.error('Plaid webhook error:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
 

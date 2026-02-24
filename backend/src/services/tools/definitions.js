@@ -137,6 +137,10 @@ const toolDefinitions = [
             type: 'string',
             description: 'Description of the transaction (e.g., "Home Depot - drywall materials")'
           },
+          subcategory: {
+            type: 'string',
+            description: 'Optional subcategory for detailed tracking. For expenses: wages, overtime, payroll_taxes, workers_comp, benefits (labor); lumber, concrete_cement, plumbing_supplies, electrical_supplies, drywall, paint, hardware, roofing, flooring, fixtures (materials); rental, purchase, fuel_gas, maintenance_repair, small_tools (equipment); sub_plumbing, sub_electrical, sub_hvac, sub_painting, sub_concrete, sub_framing, sub_roofing, sub_landscaping, sub_demolition (subcontractor); building_permit, inspection_fee, impact_fee, utility_connection (permits); office_supplies, vehicle_transport, insurance, cleanup_disposal, professional_fees (misc). For income: contract_payment, change_order, deposit, retainage_release, income_other.'
+          },
           date: {
             type: 'string',
             description: 'Transaction date in YYYY-MM-DD format. Defaults to today if not specified.'
@@ -197,6 +201,10 @@ const toolDefinitions = [
           date: {
             type: 'string',
             description: 'New date in YYYY-MM-DD format'
+          },
+          subcategory: {
+            type: 'string',
+            description: 'New subcategory for detailed tracking (see record_expense for valid values)'
           }
         },
         required: ['transaction_id']
@@ -357,7 +365,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'add_project_checklist',
-      description: 'Add checklist items (tasks) to a project phase. Creates the phase if it doesn\'t exist. Use when the user provides a list of tasks, a checklist, or says "add these items to the project". Handles many items at once efficiently.',
+      description: 'Add tasks or checklist items to a project phase. This is the DEFAULT tool for "add tasks to the project". Creates the phase if it doesn\'t exist. Use whenever the user wants to add items to a project\'s task list, phase checklist, or says "add these tasks". Handles many items at once. Do NOT use create_worker_task for this — that tool is only for standalone reminders.',
       parameters: {
         type: 'object',
         properties: {
@@ -415,7 +423,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_worker_task',
-      description: 'Create a task linked to a project. Use when the user says "add a task to the kitchen project: pick up tile" or "remind me to call the inspector for the Smith job".',
+      description: 'Create a standalone reminder or to-do item (shown in the "Additional Tasks" section, NOT in the project phase checklist). Use ONLY for one-off reminders like "remind me to call the inspector" or "pick up tile from supplier". Do NOT use this for adding tasks to a project\'s phase checklist — use add_project_checklist for that instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -1051,6 +1059,10 @@ const toolDefinitions = [
           description: {
             type: 'string',
             description: 'Optional override for the expense description. Defaults to bank transaction description.'
+          },
+          subcategory: {
+            type: 'string',
+            description: 'Optional subcategory for detailed tracking (see record_expense for valid values)'
           }
         },
         required: ['bank_transaction_id', 'project_id']

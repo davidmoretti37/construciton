@@ -31,23 +31,37 @@ const fetchWithAuth = async (endpoint, options = {}) => {
   const url = `${API_URL}${endpoint}`;
   logger.debug(`[PlaidService] ${options.method || 'GET'} ${endpoint}`);
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const errorMessage = errorData.error || `Request failed with status ${response.status}`;
-    logger.error(`[PlaidService] Error: ${errorMessage}`);
-    throw new Error(errorMessage);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || `Request failed with status ${response.status}`;
+      logger.error(`[PlaidService] Error: ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      logger.error(`[PlaidService] Request timed out: ${endpoint}`);
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json();
 };
 
 // ============================================================
