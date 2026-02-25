@@ -82,6 +82,11 @@ export default function OwnerProjectsScreen() {
     }
   }, []);
 
+  // Load projects immediately on mount (so data is ready during splash)
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
   // Load on focus
   useFocusEffect(
     useCallback(() => {

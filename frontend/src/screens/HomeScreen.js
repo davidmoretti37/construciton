@@ -72,7 +72,12 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
-  // Load projects and daily reports when screen comes into focus
+  // Load projects immediately on mount (so data is ready during splash)
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  // Refresh daily reports and time data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       const loads = [loadTodaysDailyReports(), loadSupervisorTimeData()];

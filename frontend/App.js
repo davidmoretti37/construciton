@@ -1,8 +1,8 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { LogBox } from 'react-native';
+import { LogBox, View } from 'react-native';
 import AppLoadingScreen from './src/components/AppLoadingScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import WorkerMainNavigator from './src/navigation/WorkerMainNavigator';
@@ -58,6 +58,8 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [languageSelected, setLanguageSelected] = useState(null); // null = not yet determined
   const [userOnboarded, setUserOnboarded] = useState(null); // null = not yet determined
+  const [splashGone, setSplashGone] = useState(false);
+  const handleSplashDismissed = useCallback(() => setSplashGone(true), []);
 
   useEffect(() => {
     logger.emoji('🚀', 'APP STARTING...');
@@ -202,17 +204,9 @@ function AppContent() {
   // - auth is loading
   // - session exists but profile not loaded yet
   // - language/onboarding state not yet determined (null)
-  const needsLoading = loading || authLoading || (session && !profile) || languageSelected === null;
-
-  if (needsLoading || loadError) {
-    return (
-      <AppLoadingScreen
-        error={loadError}
-        onRetry={retryProfileLoad}
-        timeoutMs={15000}
-      />
-    );
-  }
+  // - cached profile but session not yet restored
+  const needsLoading = loading || authLoading || (session && !profile) || languageSelected === null || (!session && (profile || isUsingCache));
+  const contentReady = !needsLoading && !loadError;
 
   const getNavigator = () => {
     logger.group('NAVIGATION DECISION', () => {
@@ -291,12 +285,26 @@ function AppContent() {
   };
 
   return (
-    <NavigationContainer>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      <ErrorBoundary>
-        {getNavigator()}
-      </ErrorBoundary>
-    </NavigationContainer>
+    <View style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+      {contentReady && (
+        <NavigationContainer>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          <ErrorBoundary>
+            {getNavigator()}
+          </ErrorBoundary>
+        </NavigationContainer>
+      )}
+      {!splashGone && (
+        <AppLoadingScreen
+          error={loadError}
+          onRetry={retryProfileLoad}
+          timeoutMs={15000}
+          minDisplayMs={2800}
+          isContentReady={contentReady}
+          onDismissComplete={handleSplashDismissed}
+        />
+      )}
+    </View>
   );
 }
 

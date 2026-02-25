@@ -5,13 +5,14 @@ import { supabase } from '../lib/supabase';
 
 /**
  * Generates a professional HTML invoice template
+ * Matching the estimate PDF design language
  * @param {object} invoiceData - Invoice data
  * @param {object} businessInfo - Business information
  * @returns {string} - HTML string
  */
 export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => {
   // Get styling options from businessInfo or options override
-  const accentColor = options.accentColor || businessInfo?.accentColor || '#000000';
+  const accentColor = options.accentColor || businessInfo?.accentColor || '#2563EB';
   const fontStyleId = options.fontStyle || businessInfo?.fontStyle || 'modern';
   const fontFamily = fontStyleId === 'classic'
     ? 'Georgia, Times, serif'
@@ -28,8 +29,16 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
     clientContactPerson,
     client_address,
     clientAddress,
+    client_city,
+    clientCity,
+    client_state,
+    clientState,
+    client_zip,
+    clientZip,
     client_email,
     clientEmail,
+    client_phone,
+    clientPhone,
     project_name,
     projectName,
     items = [],
@@ -50,13 +59,23 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
     notes,
     created_at,
     createdAt,
+    // Partial payment fields
+    contractTotal,
+    paymentType,
+    paymentPercentage,
+    previousPayments = 0,
+    remainingBalance,
   } = invoiceData;
 
   const invNumber = invoice_number || invoiceNumber || 'INV-DRAFT';
   const client = client_name || clientName || 'Client';
   const clientContact = client_contact_person || clientContactPerson || '';
   const clientAddr = client_address || clientAddress || '';
+  const clientCityVal = client_city || clientCity || '';
+  const clientStateVal = client_state || clientState || '';
+  const clientZipVal = client_zip || clientZip || '';
   const clientEmailAddr = client_email || clientEmail || '';
+  const clientPhoneVal = client_phone || clientPhone || '';
   const project = project_name || projectName || '';
   const taxRateValue = tax_rate || taxRate || 0;
   const taxAmountValue = tax_amount || taxAmount || 0;
@@ -65,6 +84,13 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
   const dueDateValue = due_date || dueDate || '';
   const terms = payment_terms || paymentTerms || 'Net 30';
   const invoiceDate = created_at || createdAt || new Date().toISOString();
+
+  // Partial payment detection
+  const isPartialPayment = paymentType && paymentType !== 'full' && paymentType !== 'final' && paymentPercentage && paymentPercentage < 100;
+  const displayContractTotal = contractTotal || total;
+
+  // Format address line
+  const addressLine = [clientCityVal, clientStateVal, clientZipVal].filter(Boolean).join(', ');
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -80,7 +106,27 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-    }).format(amount);
+    }).format(amount || 0);
+  };
+
+  // Generate table rows for items
+  const generateItemsHTML = () => {
+    return items.map((item, index) => {
+      const itemPrice = typeof item.price === 'number' ? item.price : (parseFloat(item.price) || parseFloat(item.pricePerUnit) || 0);
+      const itemTotal = typeof item.total === 'number' ? item.total : (parseFloat(item.total) || 0);
+      const quantity = item.quantity || 1;
+      const unit = item.unit || 'unit';
+
+      return `
+        <tr>
+          <td class="col-num">${index + 1}.</td>
+          <td class="col-description"><strong>${item.description || `Service ${index + 1}`}</strong></td>
+          <td class="col-qty">${quantity} ${unit}${quantity > 1 ? 's' : ''}</td>
+          <td class="col-rate">${formatCurrency(itemPrice)}</td>
+          <td class="col-amount">${formatCurrency(itemTotal)}</td>
+        </tr>
+      `;
+    }).join('');
   };
 
   return `
@@ -88,7 +134,7 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Invoice ${invNumber}</title>
   <style>
     * {
@@ -99,284 +145,501 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
 
     body {
       font-family: ${fontFamily};
-      font-size: 11px;
-      line-height: 1.6;
-      color: #000;
-      padding: 60px 80px;
+      color: #333;
+      line-height: 1.5;
+      font-size: 14px;
       background: #fff;
     }
 
-    .invoice-container {
-      max-width: 100%;
+    .page {
+      max-width: 800px;
       margin: 0 auto;
-      background: #fff;
+      padding: 0;
     }
 
+    /* Header - Gray background bar */
     .header {
+      background: #f5f5f5;
+      padding: 25px 40px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 50px;
-      padding-bottom: 0;
-      border-bottom: none;
     }
 
-    .company-info {
+    .header-left {
       flex: 1;
     }
 
-    .company-name {
-      font-size: 28px;
-      font-weight: 700;
-      color: ${accentColor};
-      margin-bottom: 4px;
-      letter-spacing: -0.5px;
-    }
-
-    .company-details {
-      font-size: 10px;
-      color: #000;
-      line-height: 1.4;
+    .header-right {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
     }
 
     .invoice-title {
-      text-align: right;
-    }
-
-    .invoice-title h1 {
-      font-size: 36px;
+      font-size: 28px;
       font-weight: 700;
       color: ${accentColor};
       margin-bottom: 12px;
-      letter-spacing: -0.5px;
+      letter-spacing: 2px;
     }
 
-    .invoice-meta {
-      font-size: 10px;
-      color: #000;
-      text-align: right;
-      line-height: 1.6;
+    .business-info {
+      margin-top: 4px;
     }
 
-    .invoice-meta strong {
+    .business-name {
+      font-size: 16px;
       font-weight: 600;
-    }
-
-    .section-header {
-      font-size: 13px;
-      font-weight: 700;
-      color: #000;
-      text-transform: uppercase;
-      margin-top: 30px;
-      margin-bottom: 10px;
-      letter-spacing: 0.3px;
-    }
-
-    .info-section {
-      margin-bottom: 25px;
-    }
-
-    .info-block {
-      margin-bottom: 15px;
-    }
-
-    .info-block strong {
-      font-weight: 600;
-    }
-
-    .info-content {
-      font-size: 10px;
-      color: #000;
-      line-height: 1.5;
-    }
-
-    .description-section {
-      margin-bottom: 30px;
-    }
-
-    .work-item {
-      margin-bottom: 18px;
-    }
-
-    .work-item-title {
-      font-size: 11px;
-      font-weight: 700;
-      color: #000;
-      margin-bottom: 6px;
-    }
-
-    .work-item-details {
-      font-size: 10px;
-      color: #000;
-      line-height: 1.7;
-      padding-left: 12px;
-    }
-
-    .work-item-details li {
-      margin-bottom: 3px;
-      list-style-type: disc;
-    }
-
-    .totals-section {
-      margin-top: 30px;
-      margin-bottom: 30px;
-      border-top: 2px solid #000;
-      border-bottom: 2px solid #000;
-      padding: 10px 0;
-    }
-
-    .subtotal-row {
-      display: flex;
-      justify-content: flex-end;
-      padding: 6px 0;
-      font-size: 10px;
-      color: #000;
-    }
-
-    .subtotal-row .label {
-      margin-right: 100px;
-    }
-
-    .total-row {
-      display: flex;
-      justify-content: flex-end;
-      padding: 8px 0;
-      font-size: 12px;
-      font-weight: 700;
-      color: #000;
-    }
-
-    .total-row .label {
-      margin-right: 80px;
-    }
-
-    .total-row .amount {
-      font-weight: 700;
-    }
-
-    .payment-info {
-      margin-bottom: 25px;
-    }
-
-    .payment-info p {
-      font-size: 10px;
-      color: #000;
-      line-height: 1.6;
+      color: #333;
       margin-bottom: 4px;
     }
 
-    .payment-method {
+    .business-contact {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .business-contact-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+
+    .logo {
+      max-width: 120px;
+      max-height: 80px;
+    }
+
+    .logo img {
+      max-width: 100%;
+      max-height: 80px;
+      object-fit: contain;
+    }
+
+    /* Main content area */
+    .content {
+      padding: 30px 40px;
+    }
+
+    /* Project title bar */
+    .project-title {
+      color: ${accentColor};
+      font-size: 16px;
+      font-weight: 600;
       margin-bottom: 15px;
+      padding-bottom: 0;
     }
 
-    .payment-method strong {
-      font-weight: 700;
+    /* Bill To section */
+    .addresses {
+      display: flex;
+      gap: 60px;
+      margin-bottom: 25px;
+      padding-bottom: 25px;
+      border-bottom: 1px dashed #ddd;
     }
 
-    .notes {
-      margin-top: 25px;
+    .address-block {
+      flex: 1;
     }
 
-    .notes p {
-      font-size: 10px;
-      color: #000;
-      line-height: 1.7;
+    .address-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
       margin-bottom: 8px;
     }
 
+    .address-name {
+      font-size: 14px;
+      color: #333;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .address-line {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    /* Invoice details */
+    .invoice-details {
+      margin-bottom: 30px;
+    }
+
+    .invoice-details-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .invoice-details-row {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 3px;
+    }
+
+    /* Items table */
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 25px;
+    }
+
+    .items-table thead tr {
+      border-bottom: 1px solid #ddd;
+    }
+
+    .items-table th {
+      text-align: left;
+      padding: 12px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .items-table th.text-right {
+      text-align: right;
+    }
+
+    .items-table td {
+      padding: 15px 8px;
+      font-size: 13px;
+      color: #333;
+      vertical-align: top;
+      border-bottom: 1px solid #eee;
+    }
+
+    .items-table tbody tr:last-child td {
+      border-bottom: 1px solid #ddd;
+    }
+
+    .col-num {
+      width: 30px;
+      color: #333;
+    }
+
+    .col-description {
+      width: auto;
+    }
+
+    .col-description strong {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .col-qty {
+      width: 100px;
+      text-align: right;
+    }
+
+    .col-rate {
+      width: 100px;
+      text-align: right;
+    }
+
+    .col-amount {
+      width: 100px;
+      text-align: right;
+      font-weight: 500;
+    }
+
+    /* Totals section */
+    .totals-section {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      margin-bottom: 40px;
+    }
+
+    .totals-table {
+      width: 280px;
+    }
+
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .totals-row.subtotal {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+      margin-bottom: 6px;
+    }
+
+    .totals-row.tax {
+      font-size: 12px;
+    }
+
+    .totals-row.total {
+      border-top: 2px solid #333;
+      margin-top: 6px;
+      padding-top: 10px;
+    }
+
+    .totals-row.total .totals-label,
+    .totals-row.total .totals-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #333;
+    }
+
+    .amount-due-bar {
+      margin-top: 12px;
+      background: ${accentColor}10;
+      border: 2px solid ${accentColor};
+      border-radius: 6px;
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 280px;
+    }
+
+    .amount-due-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: ${accentColor};
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .amount-due-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: ${accentColor};
+    }
+
+    .partial-info {
+      font-size: 12px;
+      color: #666;
+      padding: 4px 0;
+    }
+
+    /* Payment info section */
+    .payment-info {
+      margin-bottom: 30px;
+      padding: 15px;
+      background: #fafafa;
+      border-left: 3px solid ${accentColor};
+      font-size: 12px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .payment-info-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    /* Notes section */
+    .notes {
+      margin-top: 30px;
+      padding: 15px;
+      background: #fafafa;
+      border-left: 3px solid ${accentColor};
+      font-size: 12px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .notes-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    /* Signature section */
+    .signature-section {
+      display: flex;
+      gap: 80px;
+      padding-top: 30px;
+      border-top: 1px solid #ddd;
+      margin-top: 40px;
+    }
+
+    .signature-block {
+      flex: 1;
+    }
+
+    .signature-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .signature-line {
+      border-bottom: 1px solid #ccc;
+      min-width: 200px;
+    }
+
+    /* Print styles */
     @media print {
       body {
-        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .page {
+        max-width: none;
       }
     }
   </style>
 </head>
 <body>
-  <div class="invoice-container">
-    <!-- Header: Company Logo/Name on Left, INVOICE Title on Right -->
+  <div class="page">
+    <!-- Header -->
     <div class="header">
-      <div class="company-info">
-        ${businessInfo?.logoUrl ? `
-          <img src="${businessInfo.logoUrl}" alt="Business Logo" style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 8px;" />
-        ` : `
-          <div class="company-name">${businessInfo?.name || 'YOUR COMPANY NAME'}</div>
-        `}
-        <div class="company-details">
-          ${businessInfo?.logoUrl ? `<strong>${businessInfo?.name || ''}</strong><br>` : ''}
-          ${businessInfo?.contactName || businessInfo?.owner || ''}${(businessInfo?.contactName || businessInfo?.owner) ? '<br>' : ''}
-          ${businessInfo?.email || ''}${businessInfo?.email ? '<br>' : ''}
-          ${businessInfo?.address || ''}
-        </div>
-      </div>
-      <div class="invoice-title">
-        <h1>INVOICE</h1>
-        <div class="invoice-meta">
-          <strong>Invoice No.:</strong> ${invNumber}<br>
-          <strong>Date Issued:</strong> ${formatDate(invoiceDate)}
-        </div>
-      </div>
-    </div>
-
-    <!-- BILL TO Section -->
-    <div class="section-header">BILL TO:</div>
-    <div class="info-section">
-      <div class="info-content">
-        <strong>${client}</strong><br>
-        ${clientContact ? `Attn: ${clientContact}<br>` : ''}
-        ${clientEmailAddr ? `${clientEmailAddr}<br>` : ''}
-        ${clientAddr ? `${clientAddr}` : ''}
-      </div>
-    </div>
-
-    <!-- PROJECT Section (if exists) -->
-    ${project ? `
-      <div class="section-header">PROJECT:</div>
-      <div class="info-section">
-        <div class="info-content">${project}</div>
-      </div>
-    ` : ''}
-
-    <!-- DESCRIPTION OF WORK Section -->
-    <div class="section-header">DESCRIPTION OF WORK:</div>
-    <div class="description-section">
-      ${items.map((item, index) => `
-        <div class="work-item">
-          <div class="work-item-title">${index + 1}. ${item.description || `Service ${index + 1}`}</div>
-          <div class="work-item-details">
-            ${item.quantity} ${item.unit || 'unit'}${item.quantity > 1 ? 's' : ''} × ${formatCurrency(item.price || item.pricePerUnit || 0)} = ${formatCurrency(item.total || 0)}
+      <div class="header-left">
+        <div class="invoice-title">INVOICE</div>
+        <div class="business-info">
+          ${businessInfo?.name ? `<div class="business-name">${businessInfo.name}</div>` : ''}
+          <div class="business-contact">
+            ${businessInfo?.phone ? `<div class="business-contact-item">${businessInfo.phone}</div>` : ''}
+            ${businessInfo?.email ? `<div class="business-contact-item">${businessInfo.email}</div>` : ''}
+            ${businessInfo?.address ? `<div class="business-contact-item">${businessInfo.address}</div>` : ''}
           </div>
         </div>
-      `).join('')}
-    </div>
-
-    <!-- Totals Section -->
-    <div class="subtotal-row">
-      <span class="label">Subtotal:</span>
-      <span>${formatCurrency(subtotal)}</span>
-    </div>
-
-    <div class="totals-section">
-      <div class="total-row">
-        <span class="label">TOTAL DUE:</span>
-        <span class="amount">${formatCurrency(total)} USD</span>
+      </div>
+      <div class="header-right">
+        ${businessInfo?.logoUrl
+          ? `<div class="logo"><img src="${businessInfo.logoUrl}" alt="Logo" /></div>`
+          : ''
+        }
       </div>
     </div>
 
-    <!-- PAYMENT INFORMATION Section -->
-    ${businessInfo?.paymentInfo ? `
-      <div class="section-header">PAYMENT INFORMATION:</div>
-      <div class="payment-info">
-        ${businessInfo.paymentInfo.split('\n').map(line => `<p>${line}</p>`).join('')}
-      </div>
-    ` : ''}
+    <!-- Content -->
+    <div class="content">
+      <!-- Project Title -->
+      ${client || project ? `
+        <div class="project-title">
+          ${client}${project ? `: ${project}` : ''}
+        </div>
+      ` : ''}
 
-    <!-- NOTES Section (if exists) -->
-    ${notes ? `
-      <div class="section-header">NOTES:</div>
-      <div class="notes">
-        ${notes.split('\n').map(line => `<p>${line}</p>`).join('')}
+      <!-- Bill To -->
+      <div class="addresses">
+        <div class="address-block">
+          <div class="address-label">Bill to</div>
+          <div class="address-name">${client}</div>
+          ${clientContact ? `<div class="address-line">${clientContact}</div>` : ''}
+          ${clientPhoneVal ? `<div class="address-line">${clientPhoneVal}</div>` : ''}
+          ${clientEmailAddr ? `<div class="address-line">${clientEmailAddr}</div>` : ''}
+          ${clientAddr ? `<div class="address-line">${clientAddr}</div>` : ''}
+          ${addressLine ? `<div class="address-line">${addressLine}</div>` : ''}
+        </div>
+        <div class="address-block">
+          <div class="address-label">Invoice details</div>
+          <div class="address-line"><strong>Invoice no.:</strong> ${invNumber}</div>
+          <div class="address-line"><strong>Date issued:</strong> ${formatDate(invoiceDate)}</div>
+          ${dueDateValue ? `<div class="address-line"><strong>Due date:</strong> ${formatDate(dueDateValue)}</div>` : ''}
+          <div class="address-line"><strong>Payment terms:</strong> ${terms}</div>
+        </div>
       </div>
-    ` : ''}
+
+      <!-- Items Table -->
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Description</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Rate</th>
+            <th class="text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${generateItemsHTML()}
+        </tbody>
+      </table>
+
+      <!-- Totals -->
+      <div class="totals-section">
+        <div class="totals-table">
+          ${isPartialPayment ? `
+            <div class="totals-row subtotal">
+              <span class="totals-label">Contract Total</span>
+              <span class="totals-value">${formatCurrency(displayContractTotal)}</span>
+            </div>
+            <div class="totals-row partial-info">
+              <span class="totals-label">This Invoice (${paymentPercentage}% ${paymentType === 'down_payment' ? 'Down Payment' : paymentType === 'progress' ? 'Progress Payment' : 'Payment'})</span>
+              <span class="totals-value">${formatCurrency(dueAmount)}</span>
+            </div>
+            ${previousPayments > 0 ? `
+              <div class="totals-row">
+                <span class="totals-label">Previous Payments</span>
+                <span class="totals-value">-${formatCurrency(previousPayments)}</span>
+              </div>
+            ` : ''}
+          ` : `
+            <div class="totals-row subtotal">
+              <span class="totals-label">Subtotal</span>
+              <span class="totals-value">${formatCurrency(subtotal)}</span>
+            </div>
+            ${taxAmountValue > 0 ? `
+              <div class="totals-row tax">
+                <span class="totals-label">Tax (${(taxRateValue * 100).toFixed(1)}%)</span>
+                <span class="totals-value">${formatCurrency(taxAmountValue)}</span>
+              </div>
+            ` : ''}
+            <div class="totals-row total">
+              <span class="totals-label">Total</span>
+              <span class="totals-value">${formatCurrency(total)}</span>
+            </div>
+            ${paidAmount > 0 ? `
+              <div class="totals-row">
+                <span class="totals-label" style="color: #22C55E;">Paid</span>
+                <span class="totals-value" style="color: #22C55E;">-${formatCurrency(paidAmount)}</span>
+              </div>
+            ` : ''}
+          `}
+        </div>
+
+        <!-- Amount Due highlight -->
+        <div class="amount-due-bar">
+          <span class="amount-due-label">Amount Due</span>
+          <span class="amount-due-value">${formatCurrency(dueAmount)}</span>
+        </div>
+      </div>
+
+      <!-- Payment Information -->
+      ${businessInfo?.paymentInfo ? `
+        <div class="payment-info">
+          <div class="payment-info-title">Payment Information</div>
+          ${businessInfo.paymentInfo.split('\\n').map(line => line.trim()).filter(Boolean).join('<br>')}
+        </div>
+      ` : ''}
+
+      <!-- Notes -->
+      ${notes ? `
+        <div class="notes">
+          <div class="notes-title">Notes</div>
+          ${notes.split('\\n').map(line => line.trim()).filter(Boolean).join('<br>')}
+        </div>
+      ` : ''}
+
+      <!-- Signature Section -->
+      <div class="signature-section">
+        <div class="signature-block">
+          <div class="signature-label">Accepted date</div>
+          <div class="signature-line"></div>
+        </div>
+        <div class="signature-block">
+          <div class="signature-label">Accepted by</div>
+          <div class="signature-line"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </body>
 </html>

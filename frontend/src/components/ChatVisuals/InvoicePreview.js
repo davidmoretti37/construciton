@@ -1,14 +1,21 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Modal, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { WebView } from 'react-native-webview';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { generateInvoiceHTML } from '../../utils/pdfGenerator';
+import { getUserProfile } from '../../utils/storage';
 
 export default function InvoicePreview({ data, onAction }) {
   const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewHTML, setPreviewHTML] = useState('');
 
   const {
     invoiceNumber,
@@ -79,17 +86,31 @@ export default function InvoicePreview({ data, onAction }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handlePreviewPDF = () => {
+  const handleSaveInvoice = () => {
     if (onAction) {
-      onAction({ label: 'Preview PDF', type: 'preview-invoice-pdf', data });
+      onAction({ type: 'save-invoice', data });
     }
   };
+
+  const handlePreviewPDF = useCallback(async () => {
+    try {
+      const userProfile = await getUserProfile();
+      const html = generateInvoiceHTML(data, userProfile?.businessInfo || {});
+      setPreviewHTML(html);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error previewing invoice:', error);
+      Alert.alert('Error', 'Failed to preview invoice. Please try again.');
+    }
+  }, [data]);
 
   const handleShareInvoice = () => {
     if (onAction) {
       onAction({ label: 'Share Invoice', type: 'share-invoice-pdf', data: { ...data, pdfUrl } });
     }
   };
+
+  const isUnsaved = !data.id;
 
   return (
     <View style={[styles.container, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
@@ -100,7 +121,7 @@ export default function InvoicePreview({ data, onAction }) {
             <Image source={{ uri: businessLogo }} style={styles.businessLogo} resizeMode="contain" />
           ) : (
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              🧾 {t('invoice.title')}
+              {t('invoice.title')}
             </Text>
           )}
           <Text style={[styles.invoiceNumber, { color: Colors.primaryBlue }]}>
@@ -250,22 +271,75 @@ export default function InvoicePreview({ data, onAction }) {
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
-          onPress={handlePreviewPDF}
-        >
-          <Ionicons name="eye-outline" size={18} color="#fff" />
-          <Text style={styles.buttonText}>{t('invoice.previewPdf')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.successButton, { backgroundColor: '#22C55E' }]}
-          onPress={handleShareInvoice}
-        >
-          <Ionicons name="share-outline" size={18} color="#fff" />
-          <Text style={styles.buttonText}>{t('invoice.sendInvoice')}</Text>
-        </TouchableOpacity>
+        {isUnsaved ? (
+          <>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: '#22C55E' }]}
+              onPress={handleSaveInvoice}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="save-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: Colors.primaryBlue }]}
+              onPress={handlePreviewPDF}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="eye-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: '#8B5CF6' }]}
+              onPress={handleShareInvoice}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="share-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
+              onPress={handlePreviewPDF}
+            >
+              <Ionicons name="eye-outline" size={18} color="#fff" />
+              <Text style={styles.buttonText}>{t('invoice.previewPdf')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.successButton, { backgroundColor: '#22C55E' }]}
+              onPress={handleShareInvoice}
+            >
+              <Ionicons name="share-outline" size={18} color="#fff" />
+              <Text style={styles.buttonText}>{t('invoice.sendInvoice')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
+
+      {/* PDF Preview Modal */}
+      <Modal
+        visible={showPreview}
+        animationType="slide"
+        onRequestClose={() => setShowPreview(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: Colors.background }}>
+          <View style={[styles.previewHeader, { borderBottomColor: Colors.border, backgroundColor: Colors.background }]}>
+            <TouchableOpacity
+              onPress={() => setShowPreview(false)}
+              style={styles.closeButton}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="close-circle" size={32} color={Colors.primaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.previewTitle, { color: Colors.primaryText }]}>Invoice Preview</Text>
+            <View style={{ width: 48 }} />
+          </View>
+          <WebView
+            originWhitelist={['*']}
+            source={{ html: previewHTML }}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -414,6 +488,13 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     flexWrap: 'wrap',
   },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actionButton: {
     flex: 1,
     minWidth: '45%',
@@ -443,5 +524,24 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.tiny,
     textAlign: 'center',
     paddingBottom: Spacing.md,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  closeButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

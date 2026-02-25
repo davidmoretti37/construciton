@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import logger from '../../utils/logger';
 import {
+  saveInvoice,
   createInvoiceFromEstimate,
   updateInvoice,
   deleteInvoice,
@@ -60,6 +61,52 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
     } catch (error) {
       logger.error('Error converting to invoice:', error);
       Alert.alert('Error', 'Failed to create invoice. Please try again.');
+      return null;
+    }
+  }, [setMessages]);
+
+  const handleSaveInvoice = useCallback(async (invoiceData) => {
+    try {
+      const savedInvoice = await saveInvoice(invoiceData);
+      if (savedInvoice) {
+        Alert.alert(
+          'Invoice Saved',
+          `Invoice ${savedInvoice.invoice_number} has been saved successfully!`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                const aiMessage = {
+                  id: `ai-${Date.now()}`,
+                  text: `Invoice ${savedInvoice.invoice_number} saved successfully!`,
+                  isUser: false,
+                  visualElements: [
+                    {
+                      type: 'invoice-preview',
+                      data: {
+                        ...savedInvoice,
+                        invoiceNumber: savedInvoice.invoice_number,
+                        clientName: savedInvoice.client_name,
+                        projectName: savedInvoice.project_name,
+                        dueDate: savedInvoice.due_date,
+                        amountDue: savedInvoice.amount_due || savedInvoice.total,
+                      }
+                    }
+                  ],
+                  timestamp: new Date(),
+                };
+                setMessages((prev) => [...prev, aiMessage]);
+              }
+            }
+          ]
+        );
+        return savedInvoice;
+      }
+      Alert.alert('Error', 'Failed to save invoice. Please try again.');
+      return null;
+    } catch (error) {
+      logger.error('Error saving invoice:', error);
+      Alert.alert('Error', 'Failed to save invoice. Please try again.');
       return null;
     }
   }, [setMessages]);
@@ -280,6 +327,9 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
   }, [addMessage]);
 
   return {
+    // Save new invoice
+    handleSaveInvoice,
+
     // Estimate to invoice conversion
     handleConvertToInvoice,
 

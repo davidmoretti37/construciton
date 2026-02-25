@@ -98,8 +98,7 @@ export default function OwnerBottomTabNavigator() {
       screenOptions={{
         headerShown: false,
         swipeEnabled: true,
-        lazy: true,
-        lazyPreloadDistance: 1,
+        lazy: false,
       }}
     >
       <Tab.Screen name="Home" component={OwnerDashboardScreen} />

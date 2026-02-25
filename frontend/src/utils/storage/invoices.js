@@ -23,23 +23,24 @@ export const saveInvoice = async (invoiceData) => {
       .from('invoices')
       .insert({
         user_id: userId,
+        estimate_id: invoiceData.estimate_id || invoiceData.estimateId || null,
+        project_id: invoiceData.project_id || invoiceData.projectId || null,
         client_name: invoiceData.client || invoiceData.clientName,
-        client_contact_person: invoiceData.clientContactPerson || invoiceData.client_contact_person,
-        client_phone: invoiceData.clientPhone,
-        client_email: invoiceData.clientEmail,
-        client_address: invoiceData.clientAddress,
+        client_phone: invoiceData.clientPhone || invoiceData.client_phone,
+        client_email: invoiceData.clientEmail || invoiceData.client_email,
+        client_address: invoiceData.clientAddress || invoiceData.client_address,
         project_name: invoiceData.projectName,
         items: invoiceData.items || [],
         subtotal: invoiceData.subtotal || 0,
         tax_rate: invoiceData.taxRate || 0,
         tax_amount: invoiceData.taxAmount || 0,
         total: invoiceData.total || 0,
-        due_date: invoiceData.dueDate,
-        payment_terms: invoiceData.paymentTerms || 'Net 30',
+        due_date: invoiceData.dueDate || invoiceData.due_date || (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; })(),
+        payment_terms: invoiceData.paymentTerms || invoiceData.payment_terms || 'Net 30',
         notes: invoiceData.notes || '',
         status: 'unpaid'
       })
-      .select('id, invoice_number, estimate_id, project_name, client_name, client_contact_person, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, payment_method, paid_date, pdf_url, notes, created_at, updated_at, user_id')
+      .select('id, invoice_number, estimate_id, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, payment_method, paid_date, pdf_url, notes, created_at, updated_at, user_id')
       .single();
 
     if (error) {
@@ -191,7 +192,7 @@ export const getInvoice = async (invoiceId) => {
   try {
     const { data, error } = await supabase
       .from('invoices')
-      .select('id, invoice_number, estimate_id, project_name, client_name, client_contact_person, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, payment_method, paid_date, pdf_url, notes, created_at, updated_at, user_id')
+      .select('id, invoice_number, estimate_id, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, payment_method, paid_date, pdf_url, notes, created_at, updated_at, user_id')
       .eq('id', invoiceId)
       .single();
 

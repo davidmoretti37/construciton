@@ -131,6 +131,11 @@ export default function OwnerDashboardScreen() {
     }
   }, [user?.id]);
 
+  // Load dashboard data immediately on mount (so data is ready during splash)
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       fetchDashboardData();

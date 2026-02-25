@@ -308,6 +308,11 @@ export default function ProjectsScreen({ navigation, route }) {
     }
   };
 
+  // Load projects immediately on mount (so data is ready during splash)
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
   // Reload projects whenever screen comes into focus (refreshes after returning from detail)
   useFocusEffect(
     useCallback(() => {

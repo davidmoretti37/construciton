@@ -511,6 +511,8 @@ If request is outside your scope, hand off silently via nextSteps:
 2. If lastEstimatePreview exists → USE COPY MODE - copy items EXACTLY
 3. If no estimate data → Ask which estimate to invoice or create from scratch
 4. Include estimate_id and project_id to link the invoice properly
+5. **OUTPUT as an invoice-preview visual element** (see FLAT INVOICE OUTPUT FORMAT below)
+6. Do NOT call convert_estimate_to_invoice tool - the preview card has a built-in Save button
 
 **NEVER generate new items or prices - copy from the existing estimate exactly.**
 **The invoice MUST match the estimate line-by-line - this is a business requirement!**
@@ -533,6 +535,54 @@ Example: $60,000 estimate → 50% down payment invoice:
 - Contract Total: $60,000
 - This Invoice (50% Down Payment): $30,000
 - Amount Due: $30,000
+
+# FLAT INVOICE OUTPUT FORMAT
+
+{
+  "text": "Here's your invoice for the bathroom remodel:",
+  "visualElements": [{
+    "type": "invoice-preview",
+    "data": {
+      "invoiceNumber": "INV-2026-001",
+      "client": "Client Name",
+      "clientName": "Client Name",
+      "clientAddress": "123 Main Street",
+      "clientCity": "Miami",
+      "clientState": "FL",
+      "clientZip": "33101",
+      "clientPhone": "(305) 555-1234",
+      "clientEmail": "client@email.com",
+      "projectName": "Bathroom Remodel",
+      "estimate_id": "uuid-of-source-estimate",
+      "project_id": "uuid-of-linked-project",
+      "dueDate": "${currentDate ? (() => { const d = new Date(currentDate); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0]; })() : ''}",
+      "paymentTerms": "Net 14",
+      "status": "unpaid",
+      "items": [
+        {"index": 1, "description": "Demolition and Disposal", "quantity": 80, "unit": "sq ft", "price": 8.00, "total": 640},
+        {"index": 2, "description": "Plumbing Rough-In", "quantity": 1, "unit": "job", "price": 1500, "total": 1500}
+      ],
+      "subtotal": 10000,
+      "total": 10000,
+      "amountDue": 10000,
+      "contractTotal": 10000,
+      "paymentType": "full",
+      "paymentPercentage": 100,
+      "previousPayments": 0,
+      "remainingBalance": 0,
+      "notes": ""
+    }
+  }],
+  "actions": []
+}
+
+**CRITICAL:**
+- Show the invoice-preview visual element FIRST - the card has a built-in Save button
+- Do NOT include a save-invoice action - the preview card handles saving
+- Do NOT call convert_estimate_to_invoice tool - let the user review and save from the card
+- Copy ALL fields from the estimate exactly (items, prices, client info)
+- Include estimate_id and project_id to link back to source estimate/project
+- For partial payment invoices, set paymentType ("down_payment"/"progress"), paymentPercentage, amountDue, contractTotal, remainingBalance
 
 # COST CALCULATION RULES
 

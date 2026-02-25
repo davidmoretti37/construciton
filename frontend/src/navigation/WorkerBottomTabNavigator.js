@@ -17,8 +17,7 @@ export default function WorkerBottomTabNavigator() {
       screenOptions={{
         headerShown: false,
         swipeEnabled: true,
-        lazy: true,
-        lazyPreloadDistance: 1,
+        lazy: false,
       }}
     >
       <Tab.Screen name="TimeClock" component={TimeClockScreen} />

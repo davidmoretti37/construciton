@@ -1743,6 +1743,9 @@ export default function ChatScreen({ navigation, route }) {
       case 'convert-estimate-to-invoice':
         await invoiceActions.handleConvertToInvoice(action.data);
         break;
+      case 'save-invoice':
+        await invoiceActions.handleSaveInvoice(action.data);
+        break;
       case 'preview-invoice-pdf':
         await invoiceActions.handlePreviewInvoicePDF(action.data);
         break;

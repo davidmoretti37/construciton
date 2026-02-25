@@ -3,7 +3,7 @@
  * Settings specific to business owners - includes all supervisor features
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -139,6 +139,11 @@ export default function OwnerSettingsScreen() {
       setLoading(false);
     }
   };
+
+  // Load settings data immediately on mount (so data is ready during splash)
+  useEffect(() => {
+    loadData();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
