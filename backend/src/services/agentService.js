@@ -402,8 +402,13 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   // Get last user message for routing
   const lastUserMsg = userMessages[userMessages.length - 1]?.content || '';
 
+  // Strip attachment descriptions before routing — they contain words like "image"
+  // that confuse intent detection (routes to "reports" instead of "financial").
+  // Claude still sees the full message with descriptions.
+  const routingMsg = lastUserMsg.replace(/\[The user attached[\s\S]*?\]\s*/g, '').trim();
+
   // PHASE 1: Route tools based on intent (34 → 8-12 tools)
-  const { intent, tools: filteredTools, toolCount } = routeTools(lastUserMsg, toolDefinitions);
+  const { intent, tools: filteredTools, toolCount } = routeTools(routingMsg || lastUserMsg, toolDefinitions);
 
   // PHASE 2: Select model based on tool count (10+ = Sonnet)
   const { model, reason } = selectModel(toolCount, userMessages);

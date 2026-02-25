@@ -10,7 +10,7 @@ const logger = require('../utils/logger');
 
 // Intent patterns — each keyword scores 1 point for its intent
 const INTENT_PATTERNS = {
-  financial: [/invoice/g, /payment/g, /bill/g, /paid/g, /due/g, /owe/g, /collect/g, /deposit/g, /expense/g, /spent/g, /income/g, /financial/g, /profit/g, /loss/g],
+  financial: [/invoice/g, /payment/g, /bill/g, /paid/g, /due/g, /owe/g, /collect/g, /deposit/g, /expense/g, /spent/g, /income/g, /financial/g, /profit/g, /loss/g, /receipt/g, /charge/g],
   project: [/project/g, /phase/g, /progress/g, /complete/g, /status/g, /behind/g, /over.*budget/g, /timeline/g, /milestone/g, /checklist/g, /task list/g],
   worker: [/worker/g, /employee/g, /crew/g, /team\b/g, /schedule/g, /assign/g, /clock/g, /shift/g, /attendance/g, /timesheet/g],
   estimate: [/estimate/g, /quote/g, /proposal/g, /bid/g, /cost/g],
