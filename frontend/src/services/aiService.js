@@ -1474,7 +1474,7 @@ export const describeAttachments = async (attachments) => {
             content: [
               {
                 type: 'text',
-                text: `Analyze this image thoroughly. Describe everything you see: text, numbers, names, addresses, amounts, dates, materials, measurements, brands, labels, handwriting, diagrams, floor plans, or any construction/project details. Extract ALL readable text exactly as written. Be thorough.`
+                text: `Analyze this image thoroughly. Extract ALL readable text exactly as written. If this is a receipt, invoice, or bill, extract specifically: TOTAL amount charged, vendor/store name, date, payment method, and list each line item with its price. For any other image: describe text, numbers, names, addresses, amounts, dates, materials, measurements, brands, labels, handwriting, diagrams, floor plans, or any construction/project details. Be thorough and precise with numbers and amounts.`
               },
               {
                 type: 'image_url',
@@ -1490,13 +1490,15 @@ export const describeAttachments = async (attachments) => {
       if (response.ok) {
         const data = await response.json();
         const description = data.choices?.[0]?.message?.content || 'Could not read this file.';
+        logger.debug(`📄 [Attachments] Vision success for ${att.name}: ${description.substring(0, 100)}...`);
         descriptions.push(`${i + 1}. "${att.name}" (image) - ${description}`);
       } else {
-        logger.warn(`📄 [Attachments] Vision API HTTP error for ${att.name}: ${response.status}`);
+        const errBody = await response.text().catch(() => '');
+        logger.warn(`📄 [Attachments] Vision API HTTP error for ${att.name}: ${response.status} - ${errBody.substring(0, 200)}`);
         descriptions.push(`${i + 1}. "${att.name}" - (Image analysis temporarily unavailable — the file was attached but could not be processed. The user can see the file on their device.)`);
       }
     } catch (error) {
-      logger.error(`Error describing attachment ${att.name}:`, error);
+      logger.error(`📄 [Attachments] Error describing attachment ${att.name}:`, error.message || error);
       descriptions.push(`${i + 1}. "${att.name}" - (Error reading file — ask the user to describe what's in it or re-attach)`);
     }
   }
