@@ -184,8 +184,10 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
   if (!response.ok) {
     clearTimeout(timeoutId);
     const errorText = await response.text();
-    logger.error('Claude streaming API error:', errorText);
-    throw new Error(`Claude API error: ${response.status}`);
+    logger.error(`Claude streaming API error (${response.status}):`, errorText);
+    const err = new Error(`Claude API error: ${response.status} - ${errorText.substring(0, 200)}`);
+    err.statusCode = response.status;
+    throw err;
   }
 
   // Parse the streaming SSE response
@@ -573,7 +575,9 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       return;
 
     } catch (error) {
-      logger.error(`Agent error in round ${toolRound}:`, error);
+      logger.error(`Agent error in round ${toolRound}:`, error.message || error);
+      logger.error(`Agent error stack:`, error.stack);
+      logger.error(`Agent error - message count: ${messages.length}, total chars: ${messages.reduce((s, m) => s + (typeof m.content === 'string' ? m.content.length : 0), 0)}`);
 
       if (toolRound >= MAX_TOOL_ROUNDS) {
         writer.emit({
