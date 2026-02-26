@@ -734,6 +734,7 @@ export const getWorkerClockInHistory = async (workerId, limit = 30) => {
       .from('time_tracking')
       .select(`
         id, worker_id, project_id, clock_in, clock_out, notes, created_at,
+        location_lat, location_lng,
         projects:project_id (
           id,
           name

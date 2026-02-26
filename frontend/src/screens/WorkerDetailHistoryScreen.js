@@ -560,6 +560,128 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Work History */}
+        <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="calendar-outline" size={20} color={Colors.primaryBlue} />
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Work History</Text>
+          </View>
+
+          {(() => {
+            // Filter history to match selected date range
+            const filtered = history.filter(entry => {
+              const date = entry.clock_in?.split('T')[0];
+              return date >= dateRange.from && date <= dateRange.to;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                  <Ionicons name="time-outline" size={36} color={Colors.secondaryText + '60'} />
+                  <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
+                    No clock-in history for this period
+                  </Text>
+                </View>
+              );
+            }
+
+            // Group by date
+            const grouped = {};
+            filtered.forEach(entry => {
+              const dateKey = entry.clock_in?.split('T')[0];
+              if (!grouped[dateKey]) grouped[dateKey] = [];
+              grouped[dateKey].push(entry);
+            });
+
+            // Sort dates descending
+            const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+            return sortedDates.map(dateKey => {
+              const sessions = grouped[dateKey];
+              const dayTotal = sessions.reduce((sum, s) => sum + (s.hoursWorked || 0), 0);
+              const dateObj = new Date(dateKey + 'T12:00:00');
+              const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+              const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+              return (
+                <View key={dateKey} style={{ marginBottom: 12 }}>
+                  {/* Day Header */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primaryText }}>
+                        {dayName}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: Colors.secondaryText }}>
+                        {dateLabel}
+                      </Text>
+                    </View>
+                    <View style={{ backgroundColor: Colors.primaryBlue + '15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.primaryBlue }}>
+                        {formatHoursMinutes(dayTotal)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Sessions */}
+                  {sessions
+                    .sort((a, b) => new Date(a.clock_in) - new Date(b.clock_in))
+                    .map(session => (
+                    <View
+                      key={session.id}
+                      style={{
+                        backgroundColor: Colors.lightGray,
+                        borderRadius: 10,
+                        padding: 10,
+                        marginBottom: 6,
+                        borderLeftWidth: 3,
+                        borderLeftColor: session.clock_out ? Colors.primaryBlue : '#10B981',
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText, flex: 1 }}>
+                          {session.projects?.name || 'Unknown Project'}
+                        </Text>
+                        {session.hoursWorked != null ? (
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryBlue }}>
+                            {formatHoursMinutes(session.hoursWorked)}
+                          </Text>
+                        ) : (
+                          <View style={{ backgroundColor: '#10B981' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>ACTIVE</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                        <Ionicons name="time-outline" size={13} color={Colors.secondaryText} />
+                        <Text style={{ fontSize: 12, color: Colors.secondaryText, marginLeft: 4 }}>
+                          {formatTime(session.clock_in)}
+                          {session.clock_out ? ` → ${formatTime(session.clock_out)}` : ' → now'}
+                        </Text>
+                      </View>
+                      {session.location_lat && session.location_lng && (
+                        <TouchableOpacity
+                          style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
+                          onPress={() => {
+                            const url = Platform.select({
+                              ios: `maps://maps.apple.com/?ll=${session.location_lat},${session.location_lng}&q=Clock-in`,
+                              android: `geo:${session.location_lat},${session.location_lng}?q=${session.location_lat},${session.location_lng}(Clock-in)`,
+                            });
+                            Linking.openURL(url);
+                          }}
+                        >
+                          <Ionicons name="location-outline" size={13} color="#8B5CF6" />
+                          <Text style={{ fontSize: 12, color: '#8B5CF6', marginLeft: 4 }}>
+                            View location
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              );
+            });
+          })()}
+        </View>
 
       </ScrollView>
     </SafeAreaView>
