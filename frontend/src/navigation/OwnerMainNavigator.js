@@ -23,6 +23,7 @@ import TransactionDetailScreen from '../screens/TransactionDetailScreen';
 // Import workers screen
 import WorkersScreen from '../screens/WorkersScreen';
 import WorkerDetailHistoryScreen from '../screens/WorkerDetailHistoryScreen';
+import EditWorkerPaymentScreen from '../screens/EditWorkerPaymentScreen';
 
 // Import settings screens
 import EditBusinessInfoScreen from '../screens/settings/EditBusinessInfoScreen';
@@ -115,6 +116,11 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="WorkerDetailHistory"
         component={WorkerDetailHistoryScreen}
+      />
+      <Stack.Screen
+        name="EditWorkerPayment"
+        component={EditWorkerPaymentScreen}
+        options={{ headerShown: false }}
       />
 
       {/* Settings Screens */}
