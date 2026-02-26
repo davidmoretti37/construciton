@@ -857,6 +857,8 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
     // Convert date range to proper UTC bounds for accurate timezone-aware queries
     const { startOfRange, endOfRange } = getDateRangeBoundsUTC(fromDate, toDate);
 
+    // Fetch sessions that OVERLAP the date range (not just those starting in it).
+    // A session overlaps if: clock_in < endOfRange AND (clock_out >= startOfRange OR clock_out IS NULL)
     const { data: timeEntries, error: timeError } = await supabase
       .from('time_tracking')
       .select(`
@@ -864,9 +866,8 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
         projects (id, name)
       `)
       .eq('worker_id', workerId)
-      .not('clock_out', 'is', null)
-      .gte('clock_in', startOfRange)
-      .lte('clock_in', endOfRange)
+      .lt('clock_in', endOfRange)
+      .or(`clock_out.gte.${startOfRange},clock_out.is.null`)
       .order('clock_in', { ascending: true })
       .limit(200);
 
@@ -889,11 +890,19 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
       };
     }
 
+    // Clamp clock_in/clock_out to the date range so we only count hours within the period
+    const rangeStart = new Date(startOfRange);
+    const rangeEnd = new Date(endOfRange);
+    const now = new Date();
+
     const entriesWithHours = timeEntries.map(entry => {
-      const clockIn = new Date(entry.clock_in);
-      const clockOut = new Date(entry.clock_out);
-      const hours = (clockOut - clockIn) / (1000 * 60 * 60);
-      const date = clockIn.toISOString().split('T')[0];
+      const rawClockIn = new Date(entry.clock_in);
+      const rawClockOut = entry.clock_out ? new Date(entry.clock_out) : now;
+      // Clamp to range boundaries
+      const effectiveIn = rawClockIn < rangeStart ? rangeStart : rawClockIn;
+      const effectiveOut = rawClockOut > rangeEnd ? rangeEnd : rawClockOut;
+      const hours = Math.max(0, (effectiveOut - effectiveIn) / (1000 * 60 * 60));
+      const date = effectiveIn.toISOString().split('T')[0];
 
       return {
         ...entry,

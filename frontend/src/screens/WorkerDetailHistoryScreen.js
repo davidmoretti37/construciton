@@ -568,10 +568,13 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           </View>
 
           {(() => {
-            // Filter history to match selected date range
+            // Filter history to sessions that OVERLAP the date range
+            // (not just those starting in it — includes spanning sessions)
             const filtered = history.filter(entry => {
-              const date = entry.clock_in?.split('T')[0];
-              return date >= dateRange.from && date <= dateRange.to;
+              const clockInDate = entry.clock_in?.split('T')[0];
+              const clockOutDate = entry.clock_out?.split('T')[0];
+              // Session overlaps if it starts before range ends AND ends after range starts (or is still active)
+              return clockInDate <= dateRange.to && (!clockOutDate || clockOutDate >= dateRange.from);
             });
 
             if (filtered.length === 0) {
