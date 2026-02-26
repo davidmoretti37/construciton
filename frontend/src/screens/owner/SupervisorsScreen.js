@@ -18,6 +18,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -269,8 +270,34 @@ export default function SupervisorsScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('owner');
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigation = useNavigation();
+
+  const openEmailPicker = (toEmail, subject, body) => {
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    const mailtoUrl = `mailto:${toEmail}?subject=${encodedSubject}&body=${encodedBody}`;
+    const gmailUrl = `googlegmail:///co?to=${toEmail}&subject=${encodedSubject}&body=${encodedBody}`;
+
+    Alert.alert(
+      'Send Invitation',
+      'Choose how to send the invite email',
+      [
+        {
+          text: 'Gmail',
+          onPress: () => Linking.openURL(gmailUrl).catch(() => {
+            Alert.alert('Gmail not found', 'Gmail app is not installed. Opening default mail instead.');
+            Linking.openURL(mailtoUrl).catch(() => {});
+          }),
+        },
+        {
+          text: 'Apple Mail',
+          onPress: () => Linking.openURL(mailtoUrl).catch(() => {}),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -372,10 +399,22 @@ export default function SupervisorsScreen() {
           throw error;
         }
       } else {
-        Alert.alert('Success', 'Invitation sent successfully');
+        // Close modal and reset form
         setShowAddModal(false);
+        const invitedEmail = inviteForm.email.trim().toLowerCase();
+        const invitedName = inviteForm.fullName.trim();
         setInviteForm({ email: '', fullName: '', phone: '' });
         fetchSupervisors();
+
+        // Let user pick Gmail or Apple Mail
+        const businessName = profile?.business_name || 'our company';
+        const supervisorGreeting = invitedName ? `Hi ${invitedName},` : 'Hi,';
+        const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(invitedEmail)}&role=supervisor`;
+        openEmailPicker(
+          invitedEmail,
+          `You're invited to join ${businessName} on Sylk`,
+          `${supervisorGreeting}\n\nYou've been invited to join ${businessName} as a Supervisor on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nAs a supervisor, you'll be able to manage projects, track workers, handle finances, and more.\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+        );
       }
     } catch (error) {
       console.error('Error sending invite:', error);
@@ -614,7 +653,7 @@ export default function SupervisorsScreen() {
                   <Ionicons name="information" size={18} color={OWNER_COLORS.primary} />
                 </View>
                 <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                  {t('supervisors.inviteInfo', 'The supervisor will receive an invitation when they sign up with this email address.')}
+                  {t('supervisors.inviteInfo', 'An email will be composed for you to send. The supervisor will sign up with this email and automatically receive the invitation.')}
                 </Text>
               </View>
             </ScrollView>

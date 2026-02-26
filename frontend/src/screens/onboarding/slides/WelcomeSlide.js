@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Image } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -80,7 +80,7 @@ export default function WelcomeSlide({ isActive = true, onGetStarted }) {
       <Animated.View style={[styles.logoContainer, logoAnim]}>
         <Animated.View style={[styles.logoGlow, breathingStyle]}>
           <View style={styles.logoInner}>
-            <Ionicons name="construct" size={48} color={ONBOARDING_COLORS.primaryLight} />
+            <Image source={require('../../../../assets/icon.png')} style={{ width: 48, height: 48, borderRadius: 12 }} />
           </View>
         </Animated.View>
       </Animated.View>

@@ -2,7 +2,7 @@ import 'react-native-gesture-handler';
 import React, { useState, useEffect, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { LogBox, View } from 'react-native';
+import { LogBox, View, Linking } from 'react-native';
 import AppLoadingScreen from './src/components/AppLoadingScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import WorkerMainNavigator from './src/navigation/WorkerMainNavigator';
@@ -285,9 +285,18 @@ function AppContent() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+    <View style={{ flex: 1, backgroundColor: isDark ? '#0A0F1A' : '#F9FAFB' }}>
       {contentReady && (
-        <NavigationContainer>
+        <NavigationContainer
+          linking={{
+            prefixes: ['sylk://', 'https://construciton-production.up.railway.app'],
+            config: {
+              screens: {
+                // Deep link config handled by AuthNavigator internally
+              },
+            },
+          }}
+        >
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <ErrorBoundary>
             {getNavigator()}
@@ -302,6 +311,7 @@ function AppContent() {
           minDisplayMs={2800}
           isContentReady={contentReady}
           onDismissComplete={handleSplashDismissed}
+          isDark={isDark}
         />
       )}
     </View>

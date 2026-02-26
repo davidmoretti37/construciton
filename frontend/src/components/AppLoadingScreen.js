@@ -25,9 +25,18 @@ import { WebView } from 'react-native-webview';
 const DEFAULT_TIMEOUT_MS = 15000;
 
 // ─── Canvas Roots Animation ─────────────────────────────────────
-const SPLASH_HTML = `<!DOCTYPE html><html><head>
+const getSplashHTML = (isDark) => {
+  const bg = isDark ? '#0A0F1A' : '#F9FAFB';
+  // Dark mode: white roots with light purple/cyan tips
+  // Light mode: dark roots with purple/cyan tips
+  const blStart = isDark ? '[220,220,240]' : '[27,35,65]';
+  const blEnd = isDark ? '[192,132,252]' : '[139,92,246]';
+  const trStart = isDark ? '[220,220,240]' : '[27,35,65]';
+  const trEnd = isDark ? '[103,232,249]' : '[34,211,238]';
+
+  return `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<style>*{margin:0;padding:0;overflow:hidden}body,html{width:100%;height:100%;background:#F9FAFB}canvas{display:block}</style>
+<style>*{margin:0;padding:0;overflow:hidden}body,html{width:100%;height:100%;background:${bg}}canvas{display:block}</style>
 </head><body><canvas id="c"></canvas>
 <script>
 (function(){
@@ -65,13 +74,13 @@ var blN=2+Math.floor(rng()*2);
 for(var i=0;i<blN;i++){
   var a=-Math.PI/4+(rng()-0.5)*0.8;
   var l=diag*0.35+rng()*diag*0.25;
-  add(rng()*20,H-rng()*20,a,l,2+rng()*1,[27,35,65],[139,92,246],0,0);
+  add(rng()*20,H-rng()*20,a,l,2+rng()*1,${blStart},${blEnd},0,0);
 }
 var trN=2+Math.floor(rng()*2);
 for(var j=0;j<trN;j++){
   var a=Math.PI+Math.PI/6+(rng()-0.5)*0.6;
   var l=diag*0.35+rng()*diag*0.25;
-  add(W-rng()*20,40+rng()*20,a,l,2+rng()*1,[27,35,65],[34,211,238],0,0);
+  add(W-rng()*20,40+rng()*20,a,l,2+rng()*1,${trStart},${trEnd},0,0);
 }
 
 var DRAW=1200,HOLD=400,UNDRAW=1000,T=DRAW+HOLD+UNDRAW;
@@ -119,6 +128,7 @@ window.startReveal=function(){revOk=true;go()};
 })();
 </script>
 </body></html>`;
+};
 
 // ─── Main Component ────────────────────────────────────────────
 export default function AppLoadingScreen({
@@ -129,6 +139,7 @@ export default function AppLoadingScreen({
   minDisplayMs = 0,
   isContentReady = false,
   onDismissComplete,
+  isDark = false,
 }) {
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const [minTimePassed, setMinTimePassed] = useState(!minDisplayMs);
@@ -215,7 +226,7 @@ export default function AppLoadingScreen({
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={['#F9FAFB', '#E5E7EB', '#D1D5DB']}
+          colors={isDark ? ['#0A0F1A', '#0F172A', '#1A1F3A'] : ['#F9FAFB', '#E5E7EB', '#D1D5DB']}
           style={StyleSheet.absoluteFillObject}
         />
         <Animated.View
@@ -229,10 +240,10 @@ export default function AppLoadingScreen({
               color="#F87171"
             />
           </View>
-          <Text style={styles.errorTitle}>
+          <Text style={[styles.errorTitle, isDark && { color: '#F8FAFC' }]}>
             {error ? 'Connection Error' : 'Taking Too Long'}
           </Text>
-          <Text style={styles.errorMessage}>
+          <Text style={[styles.errorMessage, isDark && { color: '#94A3B8' }]}>
             {error
               ? 'Please check your internet connection.'
               : 'The connection is slower than expected.'}
@@ -265,7 +276,7 @@ export default function AppLoadingScreen({
       <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
         <WebView
           ref={webViewRef}
-          source={{ html: SPLASH_HTML }}
+          source={{ html: getSplashHTML(isDark) }}
           style={styles.shaderWebView}
           scrollEnabled={false}
           bounces={false}

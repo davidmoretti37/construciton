@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -82,7 +83,7 @@ export default function LoginScreen({ navigation }) {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Ionicons name="construct" size={48} color={COLORS.primary} />
+              <Image source={require('../../../assets/icon.png')} style={styles.logo} />
             </View>
             <Text style={styles.title}>{t('login.title')}</Text>
             <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
@@ -205,11 +206,16 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 96,
     height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderRadius: 24,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
+  },
+  logo: {
+    width: 96,
+    height: 96,
+    borderRadius: 24,
   },
   title: {
     fontSize: 28,

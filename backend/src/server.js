@@ -248,6 +248,35 @@ app.get('/pricing', (req, res) => {
 });
 
 // ============================================================
+// APPLE APP SITE ASSOCIATION (Universal Links)
+// ============================================================
+app.get('/.well-known/apple-app-site-association', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json({
+    applinks: {
+      apps: [],
+      details: [
+        {
+          appID: 'TJ5BDPJ6XC.com.davidmoretti.constructionmanager',
+          paths: ['/invite*'],
+        },
+      ],
+    },
+  });
+});
+
+// ============================================================
+// INVITE DEEP LINK PAGE
+// ============================================================
+app.get('/invite', (req, res) => {
+  const email = req.query.email || '';
+  const role = req.query.role || 'team member';
+
+  // This page serves as fallback when app is not installed
+  res.send(renderTemplate('invite', { email, role }));
+});
+
+// ============================================================
 // PRIVACY POLICY PAGE
 // ============================================================
 app.get('/privacy', (req, res) => {
@@ -259,6 +288,13 @@ app.get('/privacy', (req, res) => {
 // ============================================================
 app.get('/terms', (req, res) => {
   res.send(renderTemplate('terms'));
+});
+
+// ============================================================
+// SUPPORT PAGE
+// ============================================================
+app.get('/support', (req, res) => {
+  res.send(renderTemplate('support'));
 });
 
 // Non-streaming chat endpoint (with AI rate limiting)
@@ -539,6 +575,46 @@ app.post('/api/chat/agent', aiLimiter, authenticateUser, async (req, res) => {
   }
 
   try { res.end(); } catch (e) { /* already closed */ }
+});
+
+// 📊 AGENT LATEST JOB ENDPOINT - Find user's most recent active job
+// Used when frontend lost the jobId (e.g., app backgrounded before SSE delivered it)
+app.get('/api/chat/agent-latest', authenticateUser, async (req, res) => {
+  const userId = req.user.id;
+
+  const { data: job, error } = await supabase
+    .from('agent_jobs')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['processing', 'completed'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !job) {
+    return res.json({ job: null });
+  }
+
+  // Only return jobs created in the last 5 minutes (avoid stale jobs)
+  const ageMs = Date.now() - new Date(job.created_at).getTime();
+  if (ageMs > 5 * 60 * 1000) {
+    return res.json({ job: null });
+  }
+
+  res.json({
+    job: {
+      jobId: job.id,
+      status: job.status,
+      accumulatedText: job.accumulated_text || '',
+      visualElements: typeof job.visual_elements === 'string'
+        ? JSON.parse(job.visual_elements) : (job.visual_elements || []),
+      actions: typeof job.actions === 'string'
+        ? JSON.parse(job.actions) : (job.actions || []),
+      error: job.error_message,
+      createdAt: job.created_at,
+      completedAt: job.completed_at,
+    },
+  });
 });
 
 // 📊 AGENT JOB POLLING ENDPOINT - Retrieve results for background jobs

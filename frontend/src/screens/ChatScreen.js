@@ -29,7 +29,7 @@ import LinkifiedText from '../components/LinkifiedText';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import * as FileSystem from 'expo-file-system/legacy';
-import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode, sendAgentMessage, pollAgentJob } from '../services/aiService';
+import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode, sendAgentMessage, pollAgentJob, fetchLatestAgentJob } from '../services/aiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadProjectDocument } from '../utils/storage/projectDocuments';
 import { fetchProjectsBasic } from '../utils/storage/projects';
@@ -115,6 +115,7 @@ export default function ChatScreen({ navigation, route }) {
   const [conversationHistory, setConversationHistory] = useState([]);
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false); // Track actual streaming state
+  const [bgOverlay, setBgOverlay] = useState(false); // Overlay to hide thinking→answer transition
   const [statusMessage, setStatusMessage] = useState(null);
   const [showCardSkeleton, setShowCardSkeleton] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
@@ -196,7 +197,7 @@ export default function ChatScreen({ navigation, route }) {
       setCurrentSessionId(sessionId);
 
       // Convert database messages to UI format
-      const uiMessages = sessionMessages.map(m => ({
+      let uiMessages = sessionMessages.map(m => ({
         id: m.id,
         text: m.content,
         isUser: m.role === 'user',
@@ -205,18 +206,73 @@ export default function ChatScreen({ navigation, route }) {
         actions: m.actions || []
       }));
 
+      // Check for completed background job and merge before first render
+      uiMessages = await checkAndMergeBackgroundJob(sessionId, uiMessages);
+
       setMessages(uiMessages);
       lastSavedMessageCount.current = uiMessages.length;
 
       // Rebuild conversation history for API
-      setConversationHistory(sessionMessages.map(m => ({
-        role: m.role,
-        content: m.content
-      })));
+      const allMessages = uiMessages.map(m => ({
+        role: m.isUser ? 'user' : 'assistant',
+        content: m.text
+      }));
+      setConversationHistory(allMessages);
     } catch (error) {
       console.error('Error loading session:', error);
       Alert.alert('Error', 'Failed to load chat session');
     }
+  }, [checkAndMergeBackgroundJob]);
+
+  // Check for completed background jobs and merge into loaded messages
+  const checkAndMergeBackgroundJob = useCallback(async (sessionId, loadedMessages) => {
+    try {
+      const savedMessageId = await AsyncStorage.getItem('activeAgentMessageId');
+      let savedJobId = activeJobIdRef.current || await AsyncStorage.getItem('activeAgentJobId');
+
+      if (!savedMessageId) return loadedMessages;
+
+      // If no jobId, try to find the latest one
+      if (!savedJobId) {
+        const latestJob = await fetchLatestAgentJob();
+        if (latestJob) savedJobId = latestJob.jobId;
+      }
+      if (!savedJobId) return loadedMessages;
+
+      const result = await pollAgentJob(savedJobId);
+      if (result.status === 'completed' && result.accumulatedText) {
+        // Check if this response is already in the loaded messages
+        const alreadyExists = loadedMessages.some(m =>
+          !m.isUser && m.text === result.accumulatedText
+        );
+        if (!alreadyExists) {
+          console.log('📥 Merging background job response into session');
+          // Save to local DB
+          await chatHistoryService.saveMessage(sessionId, {
+            role: 'assistant',
+            content: result.accumulatedText,
+            visualElements: result.visualElements || [],
+            actions: result.actions || [],
+          });
+          // Add to loaded messages so it's part of the initial render
+          loadedMessages = [...loadedMessages, {
+            id: savedMessageId,
+            text: result.accumulatedText,
+            isUser: false,
+            timestamp: new Date(),
+            visualElements: result.visualElements || [],
+            actions: result.actions || [],
+          }];
+        }
+        // Clean up tracking
+        activeJobIdRef.current = null;
+        AsyncStorage.removeItem('activeAgentJobId');
+        AsyncStorage.removeItem('activeAgentMessageId');
+      }
+    } catch (e) {
+      console.log('Background job check skipped:', e.message);
+    }
+    return loadedMessages;
   }, []);
 
   // Load or create initial session on mount
@@ -384,6 +440,31 @@ export default function ChatScreen({ navigation, route }) {
   }, [isStreaming, currentSessionId]); // DO NOT include 'messages' to prevent saves during streaming
 
   // Poll a background agent job until it completes
+  // Helper: update an AI message by ID, or create it if it doesn't exist
+  // (handles case where user left before the placeholder was rendered)
+  const upsertAIMessage = useCallback((messageId, updates) => {
+    setMessages((prev) => {
+      const exists = prev.some((msg) => msg.id === messageId);
+      if (exists) {
+        return prev.map((msg) =>
+          msg.id === messageId ? { ...msg, ...updates } : msg
+        );
+      }
+      // Message was never created (user left too early) — add it
+      return [
+        ...prev,
+        {
+          id: messageId,
+          text: '',
+          isUser: false,
+          timestamp: new Date(),
+          isThinking: false,
+          ...updates,
+        },
+      ];
+    });
+  }, []);
+
   const startJobPolling = useCallback((jobId, messageId) => {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
@@ -394,19 +475,26 @@ export default function ChatScreen({ navigation, route }) {
         if (result.status === 'completed') {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
+          const responseText = result.accumulatedText || '';
+          const responseVisuals = result.visualElements || [];
+          const responseActions = result.actions || [];
           if (messageId) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === messageId
-                  ? {
-                      ...msg,
-                      text: result.accumulatedText || msg.text,
-                      visualElements: result.visualElements || [],
-                      actions: result.actions || [],
-                    }
-                  : msg
-              )
-            );
+            upsertAIMessage(messageId, {
+              text: responseText,
+              visualElements: responseVisuals,
+              actions: responseActions,
+            });
+          }
+          // Save to local DB immediately so it's there on next launch
+          if (currentSessionId && responseText) {
+            chatHistoryService.saveMessage(currentSessionId, {
+              role: 'assistant',
+              content: responseText,
+              visualElements: responseVisuals,
+              actions: responseActions,
+            }).then(() => {
+              lastSavedMessageCount.current += 1;
+            }).catch(e => console.error('Failed to save polled response:', e));
           }
           setIsAIThinking(false);
           setIsStreaming(false);
@@ -418,13 +506,9 @@ export default function ChatScreen({ navigation, route }) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
           if (messageId) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === messageId
-                  ? { ...msg, text: result.error || 'An error occurred.' }
-                  : msg
-              )
-            );
+            upsertAIMessage(messageId, {
+              text: result.error || 'An error occurred.',
+            });
           }
           setIsAIThinking(false);
           setIsStreaming(false);
@@ -434,13 +518,7 @@ export default function ChatScreen({ navigation, route }) {
           AsyncStorage.removeItem('activeAgentMessageId');
         } else if (result.accumulatedText && messageId) {
           // Still processing — update with partial text
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === messageId
-                ? { ...msg, text: result.accumulatedText }
-                : msg
-            )
-          );
+          upsertAIMessage(messageId, { text: result.accumulatedText });
         }
       } catch (e) {
         // Silently retry on next interval
@@ -460,7 +538,12 @@ export default function ChatScreen({ navigation, route }) {
   useEffect(() => {
     const handleAppStateChange = async (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // User is leaving the app - save current state immediately
+        // Show overlay BEFORE iOS takes the screenshot — hides the thinking bubble
+        // so when user returns, they see the overlay (not stale state)
+        if (isAIThinking || isStreaming) {
+          setBgOverlay(true);
+        }
+        // Save current state immediately
         if (currentSessionId && messages.length > lastSavedMessageCount.current) {
           console.log('📱 App backgrounding, saving messages immediately');
           saveCurrentMessage();
@@ -468,30 +551,63 @@ export default function ChatScreen({ navigation, route }) {
       }
 
       if (nextAppState === 'active') {
-        // App came back to foreground — check for active background job
-        const savedJobId = activeJobIdRef.current ||
-          await AsyncStorage.getItem('activeAgentJobId');
-        if (!savedJobId) return;
-
+        // Check for active background job
         const savedMessageId = await AsyncStorage.getItem('activeAgentMessageId');
-        try {
-          const result = await pollAgentJob(savedJobId);
 
+        // No pending job — just remove overlay and return
+        if (!savedMessageId) {
+          setBgOverlay(false);
+          return;
+        }
+
+        // Overlay stays up while we poll — user sees solid color, not stale chat
+        let savedJobId = activeJobIdRef.current ||
+          await AsyncStorage.getItem('activeAgentJobId');
+
+        // Single fast path: fetch latest job (includes full response data)
+        let result = null;
+        try {
+          if (savedJobId) {
+            result = await pollAgentJob(savedJobId);
+          } else {
+            const latestJob = await fetchLatestAgentJob();
+            if (latestJob) {
+              savedJobId = latestJob.jobId;
+              result = latestJob;
+            }
+          }
+        } catch (e) {
+          console.error('Failed to check background job:', e);
+          setBgOverlay(false);
+          return;
+        }
+
+        if (!result) {
+          setBgOverlay(false);
+          return;
+        }
+
+        try {
           if (result.status === 'completed') {
-            // Job finished while we were away — show the result
+            const responseText = result.accumulatedText || '';
+            const responseVisuals = result.visualElements || [];
+            const responseActions = result.actions || [];
             if (savedMessageId) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === savedMessageId
-                    ? {
-                        ...msg,
-                        text: result.accumulatedText || msg.text,
-                        visualElements: result.visualElements || [],
-                        actions: result.actions || [],
-                      }
-                    : msg
-                )
-              );
+              upsertAIMessage(savedMessageId, {
+                text: responseText,
+                visualElements: responseVisuals,
+                actions: responseActions,
+              });
+            }
+            if (currentSessionId && responseText) {
+              chatHistoryService.saveMessage(currentSessionId, {
+                role: 'assistant',
+                content: responseText,
+                visualElements: responseVisuals,
+                actions: responseActions,
+              }).then(() => {
+                lastSavedMessageCount.current += 1;
+              }).catch(e => console.error('Failed to save polled response:', e));
             }
             setIsAIThinking(false);
             setIsStreaming(false);
@@ -501,28 +617,21 @@ export default function ChatScreen({ navigation, route }) {
             AsyncStorage.removeItem('activeAgentMessageId');
 
           } else if (result.status === 'processing') {
-            // Still processing — show partial text and start polling
-            if (savedMessageId && result.accumulatedText) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === savedMessageId
-                    ? { ...msg, text: result.accumulatedText }
-                    : msg
-                )
-              );
+            if (savedMessageId) {
+              if (result.accumulatedText) {
+                upsertAIMessage(savedMessageId, { text: result.accumulatedText });
+              } else {
+                upsertAIMessage(savedMessageId, { text: '', isThinking: true });
+              }
             }
             setStatusMessage('Still processing your request...');
             startJobPolling(savedJobId, savedMessageId);
 
           } else if (result.status === 'error') {
             if (savedMessageId) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === savedMessageId
-                    ? { ...msg, text: result.error || 'An error occurred while processing your request.' }
-                    : msg
-                )
-              );
+              upsertAIMessage(savedMessageId, {
+                text: result.error || 'An error occurred while processing your request.',
+              });
             }
             setIsAIThinking(false);
             setIsStreaming(false);
@@ -534,6 +643,9 @@ export default function ChatScreen({ navigation, route }) {
         } catch (pollError) {
           console.error('Failed to poll agent job:', pollError);
         }
+
+        // Remove overlay AFTER state is updated — reveals chat with answer
+        setBgOverlay(false);
       }
     };
 
@@ -542,7 +654,7 @@ export default function ChatScreen({ navigation, route }) {
       subscription.remove();
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
-  }, [currentSessionId, messages, lastSavedMessageCount, saveCurrentMessage]);
+  }, [currentSessionId, messages, lastSavedMessageCount, saveCurrentMessage, isAIThinking, isStreaming]);
 
   // Handle navigation params (e.g., from notification tap)
   useEffect(() => {
@@ -724,13 +836,37 @@ export default function ChatScreen({ navigation, route }) {
       attachments: attachments || null,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    // Create AI placeholder IMMEDIATELY with user message (single setMessages call)
+    // so the thinking bubble is on screen before the user can leave the app
+    const aiMessage = {
+      id: aiMessageId,
+      text: '',
+      isUser: false,
+      timestamp: new Date(),
+      visualElements: [],
+      actions: [],
+      isThinking: true,
+    };
+    setMessages((prev) => [...prev, userMessage, aiMessage]);
+    let messageCreated = true;
+
+    // Save messageId to AsyncStorage immediately (before any async work)
+    AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
+
+    // Show thinking state immediately
+    setIsAIThinking(true);
+    setIsStreaming(true);
+    setStatusMessage(t('thinking'));
+    streamingMessageIdRef.current = aiMessageId;
+    setShowCardSkeleton(false);
+
+    // Dismiss keyboard so user can see AI response
+    Keyboard.dismiss();
 
     // If there are attachments, describe them via vision API and prepend to message for the AI agent
     let enhancedText = text || '';
     if (attachments && attachments.length > 0) {
       setStatusMessage(t('common:alerts.analyzingDocument'));
-      setIsAIThinking(true);
       try {
         const attachmentContext = await describeAttachments(attachments);
         enhancedText = attachmentContext + (text?.trim() || 'What can you tell me about these files?');
@@ -739,17 +875,6 @@ export default function ChatScreen({ navigation, route }) {
         enhancedText = `[The user attached ${attachments.length} file(s) but they could not be read.]\n\n` + (text?.trim() || 'I attached some files.');
       }
     }
-
-    // Dismiss keyboard so user can see AI response
-    Keyboard.dismiss();
-
-    // Show status message immediately (ChatGPT-style feedback)
-    setIsAIThinking(true);
-    setIsStreaming(true); // Track that we're starting to stream
-    setStatusMessage(t('thinking'));
-    streamingMessageIdRef.current = aiMessageId;
-    setShowCardSkeleton(false);
-    let messageCreated = false; // Track if we've created the message bubble
 
     // Timeout handler — fires if no events received for 50s
     const handleTimeout = () => {
@@ -782,22 +907,18 @@ export default function ChatScreen({ navigation, route }) {
       const learnedFacts = memoryService.getMemoriesForPrompt(enhancedText);
 
       const agentContext = {
-        businessName: userProfile?.businessInfo?.name || '',
-        businessPhone: userProfile?.businessInfo?.phone || '',
-        businessEmail: userProfile?.businessInfo?.email || '',
-        businessAddress: userProfile?.businessInfo?.address || '',
-        userRole: profile?.role || 'owner',
-        userName: userProfile?.businessInfo?.name || profile?.business_name || '',
+        businessName: userProfile?.business_name || '',
+        businessPhone: userProfile?.business_phone || '',
+        businessEmail: userProfile?.business_email || '',
+        businessAddress: userProfile?.business_address || '',
         userLanguage,
-        learnedFacts,
+        todayDate: new Date().toISOString().split('T')[0],
+        learnedFacts: learnedFacts || '',
         aboutYou: aiSettings?.aboutYou || '',
         responseStyle: aiSettings?.responseStyle || '',
         projectInstructions: aiSettings?.projectInstructions || '',
-        isSupervisor: isSupervisor,
-        ownerName: profile?.owner_name || '',
-        phasesTemplate: userProfile?.phasesTemplate || [],
-        contingencyPercentage: userProfile?.contingencyPercentage || 10,
-        profitMargin: userProfile?.profitMargin || 20,
+        phasesTemplate: userProfile?.phases_template || [],
+        profitMargin: userProfile?.profit_margin || 20,
       };
 
       // Use unified agent with tool-calling for intelligent responses
@@ -811,40 +932,25 @@ export default function ChatScreen({ navigation, route }) {
         onJobId: (jobId) => {
           activeJobIdRef.current = jobId;
           AsyncStorage.setItem('activeAgentJobId', jobId);
-          AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
         },
         // onChunk callback - Append small drip-fed chunks from aiService animation
         onChunk: (chunk) => {
           if (!chunk) return;
-          if (!messageCreated) {
-            // First chunk — create the message bubble
-            if (aiTimeoutRef.current) {
-              clearTimeout(aiTimeoutRef.current);
-              aiTimeoutRef.current = null;
-            }
-            setIsAIThinking(false);
-            setStatusMessage(null);
-            messageCreated = true;
-
-            const aiMessage = {
-              id: aiMessageId,
-              text: chunk,
-              isUser: false,
-              timestamp: new Date(),
-              visualElements: [],
-              actions: [],
-            };
-            setMessages((prev) => [...prev, aiMessage]);
-          } else {
-            // Append the small chunk to existing bubble
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === aiMessageId
-                  ? { ...msg, text: (msg.text || '') + chunk }
-                  : msg
-              )
-            );
+          if (aiTimeoutRef.current) {
+            clearTimeout(aiTimeoutRef.current);
+            aiTimeoutRef.current = null;
           }
+          setIsAIThinking(false);
+          setStatusMessage(null);
+
+          // Append the chunk to existing bubble
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMessageId
+                ? { ...msg, text: (msg.text || '') + chunk, isThinking: false }
+                : msg
+            )
+          );
         },
         // onComplete callback - Add visual elements
         onComplete: (parsedResponse) => {
@@ -1259,12 +1365,21 @@ export default function ChatScreen({ navigation, route }) {
             clearTimeout(aiTimeoutRef.current);
             aiTimeoutRef.current = null;
           }
+
+          // Network errors likely mean the app was backgrounded and iOS killed the connection.
+          // The backend may still be processing — start polling immediately for the result.
+          const isNetworkError = error.message === 'Network error' || error.message === 'Network request failed';
+          if (isNetworkError) {
+            console.log('📱 Network error (likely backgrounded) — will recover on resume');
+            // Keep tracking keys intact — handleAppStateChange will poll immediately on resume
+            return;
+          }
+
           setIsAIThinking(false);
-          setStatusMessage(null); // Clear status on error
-          // Disable voice mode on error so retries use standard model
+          setStatusMessage(null);
           setVoiceMode(false);
 
-          // Clear background job tracking
+          // Clear background job tracking (only for real errors, not backgrounding)
           activeJobIdRef.current = null;
           AsyncStorage.removeItem('activeAgentJobId');
           AsyncStorage.removeItem('activeAgentMessageId');
@@ -1272,7 +1387,6 @@ export default function ChatScreen({ navigation, route }) {
           // Only add error message if we haven't created a message bubble yet
           if (!messageCreated) {
             setMessages((prev) => {
-              // Double-check: only add if this ID doesn't already exist
               const exists = prev.some(msg => msg.id === aiMessageId);
               if (exists) return prev;
 
@@ -1283,7 +1397,7 @@ export default function ChatScreen({ navigation, route }) {
                 timestamp: new Date(),
                 visualElements: [],
                 actions: [],
-                    };
+              };
 
               return [...prev, errorMessage];
             });
@@ -3415,6 +3529,13 @@ export default function ChatScreen({ navigation, route }) {
         onSelectSession={loadSession}
         onNewChat={createNewSession}
       />
+
+      {/* Background overlay — shown when app goes to background with pending AI request.
+          iOS screenshots this overlay instead of the thinking bubble. When user returns,
+          we poll behind the overlay, update messages, then remove it — revealing the answer. */}
+      {bgOverlay && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background, zIndex: 9999 }]} />
+      )}
     </SafeAreaView>
     </View>
   );

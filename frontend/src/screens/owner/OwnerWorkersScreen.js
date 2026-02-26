@@ -23,6 +23,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -196,7 +197,33 @@ export default function OwnerWorkersScreen() {
   const { t: tOwner } = useTranslation('owner');
   const navigation = useNavigation();
   const route = useRoute();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+
+  const openEmailPicker = (toEmail, subject, body) => {
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    const mailtoUrl = `mailto:${toEmail}?subject=${encodedSubject}&body=${encodedBody}`;
+    const gmailUrl = `googlegmail:///co?to=${toEmail}&subject=${encodedSubject}&body=${encodedBody}`;
+
+    Alert.alert(
+      'Send Invitation',
+      'Choose how to send the invite email',
+      [
+        {
+          text: 'Gmail',
+          onPress: () => Linking.openURL(gmailUrl).catch(() => {
+            Alert.alert('Gmail not found', 'Gmail app is not installed. Opening default mail instead.');
+            Linking.openURL(mailtoUrl).catch(() => {});
+          }),
+        },
+        {
+          text: 'Apple Mail',
+          onPress: () => Linking.openURL(mailtoUrl).catch(() => {}),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   // Handle route param to auto-open add worker modal from QuickActionFAB
   useEffect(() => {
@@ -366,7 +393,8 @@ export default function OwnerWorkersScreen() {
           throw error;
         }
       } else {
-        Alert.alert('Success', 'Invitation sent successfully');
+        const invitedEmail = inviteForm.email.trim().toLowerCase();
+        const invitedName = inviteForm.fullName.trim();
         setShowAddModal(false);
         setInviteForm({
           email: '',
@@ -379,6 +407,16 @@ export default function OwnerWorkersScreen() {
           projectRate: '',
         });
         fetchSupervisors();
+
+        // Let user pick Gmail or Apple Mail
+        const businessName = profile?.business_name || 'our company';
+        const greeting = invitedName ? `Hi ${invitedName},` : 'Hi,';
+        const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(invitedEmail)}&role=supervisor`;
+        openEmailPicker(
+          invitedEmail,
+          `You're invited to join ${businessName} on Sylk`,
+          `${greeting}\n\nYou've been invited to join ${businessName} as a Supervisor on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nAs a supervisor, you'll be able to manage projects, track workers, handle finances, and more.\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+        );
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to send invitation');
@@ -458,16 +496,8 @@ export default function OwnerWorkersScreen() {
 
       if (error) throw error;
 
-      // Show different message based on whether worker has email
-      if (hasEmail) {
-        Alert.alert(
-          'Success',
-          `${workerForm.name.trim()} added! They can now sign up at ${workerForm.email.trim()} to accept the invitation.`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Success', 'Worker added successfully');
-      }
+      const workerEmail = workerForm.email.trim().toLowerCase();
+      const workerName = workerForm.name.trim();
       setShowAddWorkerModal(false);
       setWorkerForm({
         name: '',
@@ -481,6 +511,20 @@ export default function OwnerWorkersScreen() {
         projectRate: '',
       });
       fetchWorkers();
+
+      // Let user pick Gmail or Apple Mail if worker has email
+      if (hasEmail) {
+        const businessName = profile?.business_name || 'our company';
+        const greeting = workerName ? `Hi ${workerName},` : 'Hi,';
+        const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(workerEmail)}&role=worker`;
+        openEmailPicker(
+          workerEmail,
+          `You're invited to join ${businessName} on Sylk`,
+          `${greeting}\n\nYou've been invited to join ${businessName} as a Worker on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+        );
+      } else {
+        Alert.alert('Success', 'Worker added successfully');
+      }
     } catch (error) {
       console.log('Add worker error:', error);
       Alert.alert('Error', `Failed to add worker: ${error.message || error.code || 'Unknown error'}`);

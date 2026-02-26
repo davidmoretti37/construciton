@@ -76,7 +76,33 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
-  const { isSupervisor } = useAuth() || {};
+  const { isSupervisor, profile } = useAuth() || {};
+
+  const openEmailPicker = (toEmail, subject, body) => {
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    const mailtoUrl = `mailto:${toEmail}?subject=${encodedSubject}&body=${encodedBody}`;
+    const gmailUrl = `googlegmail:///co?to=${toEmail}&subject=${encodedSubject}&body=${encodedBody}`;
+
+    Alert.alert(
+      'Send Invitation',
+      'Choose how to send the invite email',
+      [
+        {
+          text: 'Gmail',
+          onPress: () => Linking.openURL(gmailUrl).catch(() => {
+            Alert.alert('Gmail not found', 'Gmail app is not installed. Opening default mail instead.');
+            Linking.openURL(mailtoUrl).catch(() => {});
+          }),
+        },
+        {
+          text: 'Apple Mail',
+          onPress: () => Linking.openURL(mailtoUrl).catch(() => {}),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   // Tab state - can be controlled externally in owner mode
   const [internalActiveTab, setInternalActiveTab] = useState('schedule'); // 'schedule' | 'reports' | 'workers'
@@ -858,10 +884,21 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       });
 
       if (newWorker) {
+        const workerEmail = formEmail.trim().toLowerCase();
+        const workerName = formName.trim();
         setWorkers([newWorker, ...workers]);
         resetForm();
         setShowAddModal(false);
-        Alert.alert(t('success.title', 'Success'), t('success.workerAdded', 'Worker added successfully'));
+
+        // Let user pick Gmail or Apple Mail
+        const businessName = profile?.business_name || 'our company';
+        const workerGreeting = workerName ? `Hi ${workerName},` : 'Hi,';
+        const inviteLink = `https://construciton-production.up.railway.app/invite?email=${encodeURIComponent(workerEmail)}&role=worker`;
+        openEmailPicker(
+          workerEmail,
+          `You're invited to join ${businessName} on Sylk`,
+          `${workerGreeting}\n\nYou've been invited to join ${businessName} as a Worker on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
+        );
       } else {
         Alert.alert(t('errors.error', 'Error'), t('errors.saveFailed'));
       }

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join Sylk</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #0A0F1A;
+      color: #F8FAFC;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .card {
+      max-width: 420px;
+      width: 100%;
+      margin: 24px;
+      text-align: center;
+      padding: 48px 32px;
+    }
+
+    .logo {
+      width: 88px;
+      height: 88px;
+      border-radius: 22px;
+      margin: 0 auto 28px;
+      background: linear-gradient(135deg, #1E40AF, #7C3AED);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -2px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: #94A3B8;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+
+    .email-badge {
+      display: inline-block;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #60A5FA;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 36px;
+      word-break: break-all;
+    }
+
+    .steps {
+      text-align: left;
+      margin-bottom: 36px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 14px;
+      background: rgba(59, 130, 246, 0.2);
+      color: #60A5FA;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step-text {
+      font-size: 15px;
+      color: #CBD5E1;
+      line-height: 1.5;
+    }
+
+    .step-text strong {
+      color: #F8FAFC;
+    }
+
+    .download-btn {
+      display: block;
+      background: #3B82F6;
+      color: #fff;
+      text-decoration: none;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 600;
+      transition: background 0.2s;
+      margin-bottom: 12px;
+    }
+
+    .download-btn:hover {
+      background: #2563EB;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #64748B;
+      margin-top: 8px;
+    }
+
+    .footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 12px;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: #64748B;
+      text-decoration: none;
+    }
+
+    .footer-links a:hover { color: #94A3B8; }
+
+    .footer p {
+      font-size: 12px;
+      color: #475569;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">S</div>
+    <h1>You're invited to Sylk</h1>
+    <p class="subtitle">
+      You've been invited to join as a <strong>{{role}}</strong> on Sylk — the construction management app.
+    </p>
+
+    <div class="email-badge">{{email}}</div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Download Sylk</strong> from the App Store</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Sign up</strong> using the email address shown above</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">The app will <strong>automatically detect</strong> your invitation</div>
+      </div>
+    </div>
+
+    <a href="https://apps.apple.com/app/id6758401232" class="download-btn">
+      Download Sylk
+    </a>
+    <p class="note">Available on iOS</p>
+
+    <div class="footer">
+      <div class="footer-links">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/support">Support</a>
+      </div>
+      <p>&copy; 2026 Sylk. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

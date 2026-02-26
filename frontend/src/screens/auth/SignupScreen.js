@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Linking,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,15 +45,17 @@ const validatePassword = (password) => {
   return { valid: passed >= 4, checks, score: passed };
 };
 
-export default function SignupScreen({ navigation }) {
+export default function SignupScreen({ navigation, route }) {
   const { t } = useTranslation('auth');
+  const inviteEmail = route?.params?.inviteEmail || '';
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(inviteEmail);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
@@ -82,6 +86,11 @@ export default function SignupScreen({ navigation }) {
 
     if (password !== confirmPassword) {
       Alert.alert(t('signup.errors.passwordMismatch'), t('signup.errors.passwordsDoNotMatch'));
+      return;
+    }
+
+    if (!agreedToTerms) {
+      Alert.alert('Terms Required', 'Please agree to the Terms of Service and Privacy Policy to continue.');
       return;
     }
 
@@ -132,7 +141,7 @@ export default function SignupScreen({ navigation }) {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Ionicons name="construct" size={48} color={COLORS.primary} />
+              <Image source={require('../../../assets/icon.png')} style={styles.logo} />
             </View>
             <Text style={styles.title}>{t('signup.title')}</Text>
             <Text style={styles.subtitle}>{t('signup.subtitle')}</Text>
@@ -211,9 +220,38 @@ export default function SignupScreen({ navigation }) {
               </View>
             </View>
 
+            {/* Terms Agreement */}
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => setAgreedToTerms(!agreedToTerms)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={agreedToTerms ? 'checkbox' : 'square-outline'}
+                size={22}
+                color={agreedToTerms ? COLORS.primary : COLORS.textMuted}
+              />
+              <Text style={styles.termsText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL('https://construciton-production.up.railway.app/terms')}
+                >
+                  Terms of Service
+                </Text>
+                {' '}and{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL('https://construciton-production.up.railway.app/privacy')}
+                >
+                  Privacy Policy
+                </Text>
+              </Text>
+            </TouchableOpacity>
+
             {/* Button */}
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, (loading || !agreedToTerms) && styles.buttonDisabled]}
               onPress={handleSignup}
               disabled={loading}
               activeOpacity={0.8}
@@ -262,11 +300,16 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 96,
     height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderRadius: 24,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
+  },
+  logo: {
+    width: 96,
+    height: 96,
+    borderRadius: 24,
   },
   title: {
     fontSize: 28,
@@ -308,6 +351,22 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     height: '100%',
   },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 20,
+    gap: 10,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -315,7 +374,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     height: 52,
     borderRadius: 12,
-    marginTop: 24,
+    marginTop: 16,
     gap: 8,
   },
   buttonDisabled: {

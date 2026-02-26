@@ -565,7 +565,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           await supabase.functions.invoke('send-push-notification', {
             body: {
               userId,
-              title: 'Foreman',
+              title: 'Sylk',
               body: 'Your request has been processed. Tap to view the result.',
               type: 'system',
               data: { screen: 'Chat', jobId },

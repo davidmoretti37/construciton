@@ -23,10 +23,14 @@
       "config": {
         "usesNonExemptEncryption": false
       },
+      "associatedDomains": [
+        "applinks:construciton-production.up.railway.app"
+      ],
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "whatsapp",
-          "sms"
+          "sms",
+          "googlegmail"
         ],
         "NSMicrophoneUsageDescription": "This app uses the microphone for voice-to-text input when creating tasks, notes, and messages.",
         "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to convert your voice to text for easier communication.",

@@ -141,6 +141,83 @@ export const AuthProvider = ({ children }) => {
         await clearProfileCache();
         setProfile(null);
         setIsUsingCache(false);
+      } else if (data && !data.role) {
+        // New user with no role yet — check if they have a pending supervisor invite
+        try {
+          const userEmail = (await supabase.auth.getUser())?.data?.user?.email;
+          if (userEmail) {
+            const { data: pendingInvites } = await supabase
+              .from('supervisor_invites')
+              .select('id')
+              .eq('status', 'pending')
+              .ilike('email', userEmail)
+              .limit(1);
+
+            if (pendingInvites && pendingInvites.length > 0) {
+              console.log('🔐 AuthContext - Pending supervisor invite found, auto-setting role');
+              await supabase
+                .from('profiles')
+                .update({ role: 'supervisor' })
+                .eq('id', userId);
+              data.role = 'supervisor';
+            } else {
+              // Also check workers table for pending worker invites
+              const { data: pendingWorkerInvites } = await supabase
+                .from('workers')
+                .select('id')
+                .eq('status', 'pending')
+                .is('user_id', null)
+                .ilike('email', userEmail)
+                .limit(1);
+
+              if (pendingWorkerInvites && pendingWorkerInvites.length > 0) {
+                console.log('🔐 AuthContext - Pending worker invite found, auto-setting role');
+                await supabase
+                  .from('profiles')
+                  .update({ role: 'worker' })
+                  .eq('id', userId);
+                data.role = 'worker';
+              }
+            }
+          }
+        } catch (inviteCheckError) {
+          console.warn('🔐 AuthContext - Could not check for invites:', inviteCheckError);
+        }
+
+        // Continue with normal profile loading below
+        console.log('🔐 AuthContext - Profile loaded:', {
+          role: data?.role,
+          owner_id: data?.owner_id,
+          is_onboarded: data?.is_onboarded,
+          has_language: !!data?.language
+        });
+        setRoleState(data?.role || null);
+        setOwnerIdState(data?.owner_id || null);
+        setProfile(data);
+        setIsUsingCache(false);
+        setLoadError(null);
+
+        // For supervisors, fetch owner's visibility settings
+        if (data?.role === 'supervisor' && data?.owner_id) {
+          try {
+            const { data: ownerProfile } = await supabase
+              .from('profiles')
+              .select('hide_contract_from_supervisors')
+              .eq('id', data.owner_id)
+              .maybeSingle();
+            setOwnerHidesContract(ownerProfile?.hide_contract_from_supervisors || false);
+          } catch (err) {
+            console.warn('AuthContext - Could not fetch owner settings:', err);
+          }
+        } else {
+          setOwnerHidesContract(false);
+        }
+
+        await saveProfileToCache(data);
+
+        memoryService.initialize(userId).catch(err => {
+          console.warn('🧠 AuthContext - Memory service init warning:', err);
+        });
       } else {
         console.log('🔐 AuthContext - Profile loaded:', {
           role: data?.role,

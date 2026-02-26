@@ -2128,3 +2128,29 @@ export const pollAgentJob = async (jobId) => {
 
   return response.json();
 };
+
+/**
+ * Fetch the user's most recent active agent job.
+ * Used as a fallback when the app was backgrounded before the jobId was received via SSE.
+ */
+export const fetchLatestAgentJob = async () => {
+  const authToken = await getAuthToken(3);
+  if (!authToken) return null;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/chat/agent-latest`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.job || null;
+  } catch (e) {
+    logger.error('Failed to fetch latest agent job:', e.message);
+    return null;
+  }
+};
