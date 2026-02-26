@@ -147,9 +147,23 @@ function createJobWriter(jobId, res) {
  *
  * @returns {{ message: { content, tool_calls }, finishReason: string }}
  */
-async function callClaudeStreaming(messages, tools, writer, model = 'claude-haiku-4.5') {
+async function callClaudeStreaming(messages, tools, writer, model = 'claude-haiku-4.5', toolChoice = 'auto') {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
+
+  const requestBody = {
+    model: `anthropic/${model}`,
+    messages,
+    tools,
+    max_tokens: 8000,
+    temperature: 0.3,
+    stream: true,
+  };
+
+  // Force tool use on first round so the model always fetches fresh data
+  if (toolChoice && toolChoice !== 'auto') {
+    requestBody.tool_choice = toolChoice;
+  }
 
   let response;
   try {
@@ -161,14 +175,7 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
         'HTTP-Referer': 'https://construction-manager.app',
         'X-Title': 'Construction Manager - Agent',
       },
-      body: JSON.stringify({
-        model: `anthropic/${model}`,
-        messages,
-        tools,
-        max_tokens: 8000,
-        temperature: 0.3,
-        stream: true,
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
   } catch (err) {
@@ -449,12 +456,17 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     writer.emit({ type: 'thinking' });
 
     try {
+      // Force tool use on first round so the model always fetches fresh data
+      // instead of answering from stale conversation history
+      const toolChoice = toolRound === 1 ? 'required' : 'auto';
+
       // Call Claude with filtered tools and selected model
       const { message, finishReason } = await callClaudeStreaming(
         messages,
         filteredTools, // Use filtered tools (8-12 instead of 34)
         writer,
-        model // Use smart model selection (Haiku or Sonnet)
+        model, // Use smart model selection (Haiku or Sonnet)
+        toolChoice
       );
 
       // Check if Claude wants to call tools
