@@ -287,21 +287,23 @@ function AppContent() {
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#0A0F1A' : '#F9FAFB' }}>
       {contentReady && (
-        <NavigationContainer
-          linking={{
-            prefixes: ['sylk://', 'https://construciton-production.up.railway.app'],
-            config: {
-              screens: {
-                // Deep link config handled by AuthNavigator internally
+        <View style={{ flex: 1, opacity: splashGone ? 1 : 0 }}>
+          <NavigationContainer
+            linking={{
+              prefixes: ['sylk://', 'https://construciton-production.up.railway.app'],
+              config: {
+                screens: {
+                  // Deep link config handled by AuthNavigator internally
+                },
               },
-            },
-          }}
-        >
-          <StatusBar style={isDark ? 'light' : 'dark'} />
-          <ErrorBoundary>
-            {getNavigator()}
-          </ErrorBoundary>
-        </NavigationContainer>
+            }}
+          >
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+            <ErrorBoundary>
+              {getNavigator()}
+            </ErrorBoundary>
+          </NavigationContainer>
+        </View>
       )}
       {!splashGone && (
         <AppLoadingScreen
