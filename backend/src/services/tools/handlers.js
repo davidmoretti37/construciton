@@ -738,32 +738,66 @@ async function get_workers(userId, args = {}) {
 
   if (!workers || workers.length === 0) return [];
 
-  // Get clock-in status for today only
+  // Get clock-in status
   if (include_clock_status) {
     const { startOfDay } = getTodayBounds();
-    const { data: clockIns } = await supabase
+    const workerIds = workers.map(w => w.id);
+
+    // Fetch ALL unclosed clock-ins (not just today) so the agent sees stale sessions too
+    const { data: allOpenClockIns } = await supabase
       .from('time_tracking')
       .select('worker_id, clock_in, clock_out, project_id, location_lat, location_lng, projects(name)')
-      .in('worker_id', workers.map(w => w.id))
+      .in('worker_id', workerIds)
       .is('clock_out', null)
-      .gte('clock_in', startOfDay);
+      .order('clock_in', { ascending: false });
 
     const clockInMap = {};
-    if (clockIns) {
-      for (const ci of clockIns) {
-        clockInMap[ci.worker_id] = {
+    const staleClockIns = [];
+    if (allOpenClockIns) {
+      for (const ci of allOpenClockIns) {
+        const isToday = ci.clock_in >= startOfDay;
+        const entry = {
           clockedIn: true,
           clockInTime: ci.clock_in,
           project: ci.projects?.name || 'Unknown',
-          location: ci.location_lat ? { lat: ci.location_lat, lng: ci.location_lng } : null
+          projectId: ci.project_id,
+          location: ci.location_lat ? { lat: ci.location_lat, lng: ci.location_lng } : null,
+          stale: !isToday
         };
+        // Only set primary clock status from today's sessions
+        if (isToday) {
+          clockInMap[ci.worker_id] = entry;
+        } else {
+          staleClockIns.push({ workerId: ci.worker_id, ...entry });
+        }
       }
     }
 
-    return workers.map(w => ({
+    const result = workers.map(w => ({
       ...w,
       clockStatus: clockInMap[w.id] || { clockedIn: false }
     }));
+
+    // Append stale clock-in warnings so the agent can mention them
+    if (staleClockIns.length > 0) {
+      return {
+        workers: result,
+        staleClockIns: staleClockIns.map(s => {
+          const worker = workers.find(w => w.id === s.workerId);
+          return {
+            worker_id: s.workerId,
+            worker_name: worker?.full_name || 'Unknown',
+            clock_in: s.clockInTime,
+            project: s.project,
+            location: s.location,
+            note: `Unclosed clock-in from ${new Date(s.clockInTime).toLocaleDateString()} — may need to be clocked out`
+          };
+        }),
+        warning: `${staleClockIns.length} worker(s) have unclosed clock-ins from previous days that may need attention.`
+      };
+    }
+
+    return result;
   }
 
   return workers;
