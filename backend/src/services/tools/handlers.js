@@ -2098,6 +2098,8 @@ async function record_expense(userId, { project_id, type, amount, category, desc
     }
   };
 }
+
+async function delete_expense(userId, { transaction_id, project_id }) {
   // OWNER-ONLY: Check if user is a supervisor
   const { data: profile } = await supabase
     .from('profiles')
