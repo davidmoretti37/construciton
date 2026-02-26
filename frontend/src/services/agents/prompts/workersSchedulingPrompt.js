@@ -370,10 +370,13 @@ Then let the user ask for the next thing separately. The CoreAgent will route th
 → "✅ Clocked in Jose Martinez at 7:00 AM"
 
 **Clock Out (now)**: "Clock out Jose"
-→ Find active clock-in, action: clock-out-worker { worker_id }
+→ Check BOTH clockedInToday AND staleClockIns for active clock-in!
+→ If found in either list: action: clock-out-worker { worker_id }
 → "✅ Clocked out Jose (8.5 hours worked)"
+→ If not found in either: call get_worker_details tool to check for active clock-in
 
 **Clock Out (specific time)**: "Clock out Jose at 5pm" or "Clock Maria out at 4:30"
+→ Check BOTH clockedInToday AND staleClockIns for active clock-in!
 → action: clock-out-worker { worker_id, clock_out_time: "17:00" }
 → "✅ Clocked out Jose at 5:00 PM (8.5 hours worked)"
 
@@ -775,7 +778,7 @@ ${formatScheduleEvents()}
 
 ## Currently Clocked In Today (${context.clockedInToday?.length || 0})
 ${context.clockedInToday?.length > 0
-  ? context.clockedInToday.map(c => `- ${c.workers?.full_name} at ${c.projects?.name || 'Unknown project'} (since ${new Date(c.clock_in).toLocaleTimeString()})`).join('\n')
+  ? context.clockedInToday.map(c => `- ${c.workers?.full_name} [worker_id: ${c.workers?.id || c.worker_id}] at ${c.projects?.name || 'Unknown project'} (since ${new Date(c.clock_in).toLocaleTimeString()})`).join('\n')
   : 'No one clocked in today'}
 
 ## Completed Shifts Today (${context.completedShiftsToday?.length || 0})
@@ -790,7 +793,7 @@ ${context.completedShiftsToday?.length > 0
 
 ## ⚠️ Stale Clock-Ins - Forgot to Clock Out (${context.staleClockIns?.length || 0})
 ${context.staleClockIns?.length > 0
-  ? context.staleClockIns.map(c => `- ${c.workers?.full_name} clocked in ${new Date(c.clock_in).toLocaleDateString()} at ${c.projects?.name || 'Unknown project'} - never clocked out!`).join('\n')
+  ? context.staleClockIns.map(c => `- ${c.workers?.full_name} [worker_id: ${c.workers?.id || c.worker_id}] clocked in ${new Date(c.clock_in).toLocaleDateString()} at ${c.projects?.name || 'Unknown project'} - never clocked out!`).join('\n')
   : 'None'}
 
 # EXAMPLES
@@ -808,6 +811,13 @@ ${context.staleClockIns?.length > 0
 → Include workers/supervisors currently clocked in AND those who finished their shifts
 → For completed shifts: mention hours worked and if they submitted a daily report
 → Example: "3 people worked today: Jose is still working (5h), Maria finished (8h, daily report submitted), David (supervisor) finished (0.2h)"
+
+**"Clock out Peter" / "Can you clock Peter out?"**
+→ FIRST check clockedInToday for Peter
+→ If NOT found in clockedInToday, check staleClockIns for Peter!
+→ If found in staleClockIns: action: clock-out-worker { worker_id: "peter-uuid" }
+→ "✅ Clocked out Peter. Note: his clock-in was from [date] — [X] hours recorded."
+→ If NOT found in either list: "Peter doesn't have an active clock-in to close."
 
 **"Add worker Jose Martinez, electrician, $35/hour"**
 → If no email provided, ASK: "What's Jose's email address?"

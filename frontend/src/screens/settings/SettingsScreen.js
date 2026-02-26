@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -193,6 +194,54 @@ export default function SettingsScreen({ navigation }) {
               />
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* Support Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('sections.support', 'SUPPORT').toUpperCase()}</Text>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/support').catch(() => Alert.alert('Error', 'Could not open link'))}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
+              <Ionicons name="help-circle-outline" size={24} color={Colors.primaryBlue} />
+            </View>
+            <View style={styles.itemContent}>
+              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>{t('help', 'Help & Support')}</Text>
+              <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>FAQs and contact info</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/terms').catch(() => Alert.alert('Error', 'Could not open link'))}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
+              <Ionicons name="document-text-outline" size={24} color={Colors.primaryBlue} />
+            </View>
+            <View style={styles.itemContent}>
+              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>{t('terms', 'Terms of Service')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/privacy').catch(() => Alert.alert('Error', 'Could not open link'))}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: '#10B98120' }]}>
+              <Ionicons name="shield-checkmark-outline" size={24} color="#10B981" />
+            </View>
+            <View style={styles.itemContent}>
+              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>{t('privacy', 'Privacy Policy')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+          </TouchableOpacity>
         </View>
 
         {/* App Info Section */}

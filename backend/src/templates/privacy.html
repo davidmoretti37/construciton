@@ -1,106 +1,701 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Privacy Policy - Construction Manager</title>
+  <title>Privacy Policy — Sylk</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #FFFFFF;
+      color: #1E293B;
       line-height: 1.7;
-      padding: 20px;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
     }
-    .container { max-width: 700px; margin: 0 auto; }
-    h1 { font-size: 28px; margin-bottom: 8px; color: white; }
-    .updated { color: #64748b; font-size: 14px; margin-bottom: 32px; }
-    h2 { font-size: 20px; color: white; margin-top: 32px; margin-bottom: 16px; }
-    p { margin-bottom: 16px; color: #cbd5e1; }
-    ul { margin-left: 20px; margin-bottom: 16px; color: #cbd5e1; }
-    li { margin-bottom: 8px; }
-    a { color: #60a5fa; }
-    .back-link { display: inline-block; margin-bottom: 24px; color: #60a5fa; text-decoration: none; }
-    .back-link:hover { text-decoration: underline; }
+
+    /* Navigation */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid #E2E8F0;
+      padding: 16px 24px;
+    }
+    .nav-inner {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .nav-brand {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1E40AF;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748B;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #1E40AF; }
+    .nav-links a.active { color: #1E40AF; font-weight: 600; }
+
+    /* Container */
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* Hero */
+    .hero {
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid #E2E8F0;
+    }
+    .hero h1 {
+      font-size: 36px;
+      font-weight: 700;
+      color: #0F172A;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .hero .effective {
+      font-size: 14px;
+      color: #64748B;
+    }
+
+    /* Table of Contents */
+    .toc {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 48px;
+    }
+    .toc-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748B;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+    .toc ol {
+      list-style: none;
+      counter-reset: toc;
+      columns: 2;
+      column-gap: 32px;
+    }
+    .toc li {
+      counter-increment: toc;
+      margin-bottom: 8px;
+    }
+    .toc li::before {
+      content: counter(toc) ".";
+      font-weight: 600;
+      color: #1E40AF;
+      margin-right: 8px;
+      font-size: 13px;
+    }
+    .toc a {
+      color: #334155;
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+    .toc a:hover { color: #1E40AF; }
+
+    /* Sections */
+    .section {
+      margin-bottom: 40px;
+    }
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 16px;
+      padding-top: 8px;
+    }
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1E293B;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+    p {
+      margin-bottom: 16px;
+      color: #475569;
+    }
+    strong { color: #1E293B; }
+
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 16px;
+      color: #475569;
+    }
+    li { margin-bottom: 6px; }
+
+    a { color: #1E40AF; }
+
+    /* Info Cards */
+    .info-card {
+      background: #F0F4FF;
+      border: 1px solid #DBEAFE;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 20px 0;
+    }
+    .info-card p { color: #1E40AF; margin-bottom: 0; }
+    .info-card strong { color: #1E3A8A; }
+
+    .warning-card {
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 20px 0;
+    }
+    .warning-card p { color: #9A3412; margin-bottom: 0; }
+
+    /* Tables */
+    .table-wrapper {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: 10px;
+      border: 1px solid #E2E8F0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th {
+      background: #F8FAFC;
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 16px;
+      color: #334155;
+      border-bottom: 1px solid #E2E8F0;
+    }
+    td {
+      padding: 12px 16px;
+      color: #475569;
+      border-bottom: 1px solid #F1F5F9;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) { background: #FAFBFC; }
+
+    /* Footer */
+    .footer {
+      margin-top: 64px;
+      padding-top: 32px;
+      border-top: 1px solid #E2E8F0;
+      text-align: center;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748B;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #1E40AF; }
+    .footer p {
+      font-size: 13px;
+      color: #94A3B8;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 28px; }
+      h2 { font-size: 20px; }
+      .toc ol { columns: 1; }
+      .nav-links { gap: 16px; }
+      .container { padding: 32px 16px 60px; }
+    }
+
+    @media print {
+      .nav { display: none; }
+      body { font-size: 12px; }
+      .container { max-width: 100%; padding: 0; }
+    }
   </style>
 </head>
 <body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">Sylk</a>
+      <div class="nav-links">
+        <a href="/privacy" class="active">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/support">Support</a>
+      </div>
+    </div>
+  </nav>
+
   <div class="container">
-    <a href="/pricing" class="back-link">&larr; Back to Pricing</a>
-    <h1>Privacy Policy</h1>
-    <p class="updated">Last Updated: January 27, 2025</p>
 
-    <h2>1. Introduction</h2>
-    <p>Construction Manager ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.</p>
+    <div class="hero">
+      <h1>Privacy Policy</h1>
+      <p class="effective">Effective Date: February 26, 2026</p>
+    </div>
 
-    <h2>2. Information We Collect</h2>
-    <p><strong>Personal Information:</strong></p>
-    <ul>
-      <li>Account information: Email address, password, and user role</li>
-      <li>Business information: Company name, phone number, trade specializations</li>
-      <li>Worker data: Names, contact information, pay rates</li>
-      <li>Project data: Addresses, budgets, financial transactions</li>
-    </ul>
-    <p><strong>Device Permissions:</strong></p>
-    <ul>
-      <li>Location: For job site distance calculations and time tracking verification</li>
-      <li>Camera/Photos: For project documentation and daily reports</li>
-      <li>Microphone: For voice-to-text input features</li>
-      <li>Notifications: For project updates and reminders</li>
-    </ul>
+    <div class="toc">
+      <p class="toc-title">Table of Contents</p>
+      <ol>
+        <li><a href="#introduction">Introduction</a></li>
+        <li><a href="#information-we-collect">Information We Collect</a></li>
+        <li><a href="#how-we-use">How We Use Your Information</a></li>
+        <li><a href="#ai-data-usage">AI Data Usage</a></li>
+        <li><a href="#third-party-services">Third-Party Services</a></li>
+        <li><a href="#data-sharing-roles">Data Sharing Between Roles</a></li>
+        <li><a href="#ccpa">Your California Privacy Rights (CCPA/CPRA)</a></li>
+        <li><a href="#location">Location Tracking</a></li>
+        <li><a href="#voice-audio">Voice &amp; Audio Data</a></li>
+        <li><a href="#financial-data">Financial Data</a></li>
+        <li><a href="#data-security">Data Security</a></li>
+        <li><a href="#data-retention">Data Retention &amp; Deletion</a></li>
+        <li><a href="#childrens-privacy">Children's Privacy</a></li>
+        <li><a href="#data-breach">Data Breach Notification</a></li>
+        <li><a href="#your-rights">Your Rights &amp; Choices</a></li>
+        <li><a href="#changes">Changes to This Policy</a></li>
+        <li><a href="#contact">Contact Us</a></li>
+      </ol>
+    </div>
 
-    <h2>3. How We Use Your Information</h2>
-    <p>We use your information to:</p>
-    <ul>
-      <li>Provide and maintain the app's functionality</li>
-      <li>Process payments and manage subscriptions</li>
-      <li>Enable project management and communication features</li>
-      <li>Generate AI-powered estimates and suggestions</li>
-      <li>Send notifications and alerts</li>
-    </ul>
+    <!-- 1. Introduction -->
+    <div class="section" id="introduction">
+      <h2>1. Introduction</h2>
+      <p>Sylk ("we," "our," or "us") provides a construction management platform through our mobile application and related web services (collectively, the "Service"). We are committed to protecting the privacy and security of your personal information.</p>
+      <p>This Privacy Policy explains what information we collect, how we use and share it, and your choices regarding your data. This policy applies to all users of the Service, including business owners, supervisors, and workers.</p>
+      <p>By using Sylk, you acknowledge that you have read and understood this Privacy Policy. If you do not agree with our practices, please do not use the Service.</p>
+    </div>
 
-    <h2>4. Third-Party Services</h2>
-    <p>We share data with these service providers:</p>
-    <ul>
-      <li><strong>Supabase:</strong> Database, authentication, file storage</li>
-      <li><strong>Stripe:</strong> Payment processing</li>
-      <li><strong>Twilio:</strong> SMS and WhatsApp messaging</li>
-      <li><strong>Google Maps:</strong> Geocoding and location services</li>
-      <li><strong>Anthropic Claude AI:</strong> AI-powered features</li>
-      <li><strong>OpenAI:</strong> Image analysis</li>
-      <li><strong>Deepgram:</strong> Speech-to-text transcription</li>
-    </ul>
+    <!-- 2. Information We Collect -->
+    <div class="section" id="information-we-collect">
+      <h2>2. Information We Collect</h2>
+      <p>We collect information in several categories depending on how you use the Service and your role within your organization.</p>
 
-    <h2>5. Data Security</h2>
-    <p>Your data is protected with:</p>
-    <ul>
-      <li>HTTPS/TLS encryption for all data transmission</li>
-      <li>Encrypted storage at rest</li>
-      <li>Row-level security ensuring users only access their own data</li>
-      <li>Secure authentication with hashed passwords</li>
-    </ul>
+      <h3>2.1 Personal Identifiers</h3>
+      <ul>
+        <li>Full name, email address, phone number</li>
+        <li>Business name, business phone, business email</li>
+        <li>Job title and role within the organization (Owner, Supervisor, or Worker)</li>
+        <li>Account credentials (email and encrypted password)</li>
+        <li>Trade specializations and professional skills</li>
+      </ul>
 
-    <h2>6. Your Rights</h2>
-    <p>You have the right to:</p>
-    <ul>
-      <li>Access and export your personal data</li>
-      <li>Correct inaccurate information</li>
-      <li>Request deletion of your account and data</li>
-      <li>Opt out of optional features like location tracking</li>
-    </ul>
+      <h3>2.2 Financial Information</h3>
+      <ul>
+        <li><strong>Bank account data</strong> collected via Plaid: account and routing numbers, institution name, account balances, and transaction history</li>
+        <li><strong>Payment card data</strong> processed via Stripe: card number, expiration date, billing address (we do not store card details on our servers)</li>
+        <li>Project budgets, expenses, income, and profit calculations</li>
+        <li>Worker pay rates (hourly, daily, weekly, or project-based)</li>
+        <li>Estimates, invoices, and payment records</li>
+        <li>Subscription billing information</li>
+      </ul>
 
-    <h2>7. Data Retention</h2>
-    <p>We retain your data for as long as your account is active. Upon account deletion, your data will be permanently removed from our systems within 30 days.</p>
+      <h3>2.3 Location Data</h3>
+      <ul>
+        <li>GPS coordinates collected during supervisor clock-in/clock-out</li>
+        <li>Job site addresses and geocoded coordinates</li>
+        <li>Distance calculations between your location and job sites</li>
+        <li>Location is collected in the <strong>foreground only</strong> — we do not track your location in the background</li>
+      </ul>
 
-    <h2>8. Children's Privacy</h2>
-    <p>Construction Manager is not intended for use by children under 13 years of age. We do not knowingly collect personal information from children.</p>
+      <h3>2.4 Audio Data</h3>
+      <ul>
+        <li>Voice recordings captured when you use the voice-to-text feature</li>
+        <li>Recordings are processed by our transcription providers (Deepgram, Groq) and converted to text</li>
+        <li><strong>Audio recordings are not permanently stored</strong> — only the resulting text transcriptions are retained</li>
+        <li>Transcriptions may appear in daily reports, notes, chat messages, and task descriptions</li>
+      </ul>
 
-    <h2>9. Changes to This Policy</h2>
-    <p>We may update this Privacy Policy from time to time. We will notify you of material changes through the app.</p>
+      <h3>2.5 Photos &amp; Media</h3>
+      <ul>
+        <li>Project documentation photos taken through the app</li>
+        <li>Daily report photos documenting work progress</li>
+        <li>Business logos uploaded for branding</li>
+        <li>Photos may be analyzed by AI for progress tracking and documentation (see <a href="#ai-data-usage">Section 4</a>)</li>
+        <li>All media is stored securely in encrypted cloud storage with access controls</li>
+      </ul>
 
-    <h2>10. Contact Us</h2>
-    <p>If you have questions about this Privacy Policy, please contact us at: <a href="mailto:privacy@constructionmanager.app">privacy@constructionmanager.app</a></p>
+      <h3>2.6 Project &amp; Work Data</h3>
+      <ul>
+        <li>Project details: name, description, client information, addresses, timelines</li>
+        <li>Project phases, tasks, assignments, and completion status</li>
+        <li>Time tracking records: clock-in/out times, hours worked, break periods</li>
+        <li>Daily reports: narrative descriptions, completed tasks, hours, materials, weather conditions</li>
+        <li>Worker assignments and scheduling information</li>
+        <li>Client contact information and communication history</li>
+      </ul>
+
+      <h3>2.7 Communications Data</h3>
+      <ul>
+        <li>In-app chat messages exchanged with the AI assistant</li>
+        <li>SMS and WhatsApp messages sent through the platform to workers, supervisors, or clients</li>
+        <li>Push notification preferences and delivery records</li>
+        <li>Email communications sent via the app (supervisor invitations)</li>
+      </ul>
+
+      <h3>2.8 AI Interaction Data</h3>
+      <ul>
+        <li>Chat conversations with the AI assistant</li>
+        <li>Project context provided to AI for estimate generation and suggestions</li>
+        <li>AI-learned user preferences and business patterns (stored as "user memories" to personalize your experience)</li>
+        <li>Historical pricing data used for AI-powered pricing intelligence</li>
+      </ul>
+
+      <h3>2.9 Device &amp; Technical Data</h3>
+      <ul>
+        <li>Device type, model, and operating system version</li>
+        <li>Push notification tokens (Expo push tokens)</li>
+        <li>App version and usage patterns</li>
+        <li>Crash reports and diagnostic data</li>
+      </ul>
+    </div>
+
+    <!-- 3. How We Use Your Information -->
+    <div class="section" id="how-we-use">
+      <h2>3. How We Use Your Information</h2>
+      <p>We use the information we collect for the following purposes:</p>
+
+      <ul>
+        <li><strong>Service Delivery:</strong> Operating and maintaining the core construction management features including project tracking, task management, and team coordination</li>
+        <li><strong>AI-Powered Features:</strong> Generating estimates, providing suggestions, analyzing project data, processing voice input, and personalizing your experience through learned preferences</li>
+        <li><strong>Payment Processing:</strong> Managing subscriptions through Stripe, connecting bank accounts through Plaid, and processing financial transactions</li>
+        <li><strong>Team Management:</strong> Enabling the owner-supervisor-worker hierarchy, facilitating invitations, managing assignments, and providing role-appropriate data access</li>
+        <li><strong>Location Services:</strong> Calculating distances to job sites, verifying supervisor clock-in locations, and providing location-based appointment reminders</li>
+        <li><strong>Communications:</strong> Sending push notifications, enabling SMS/WhatsApp messaging, delivering email invitations, and providing in-app alerts</li>
+        <li><strong>Financial Tracking:</strong> Reconciling bank transactions with project expenses, generating invoices, tracking payments, and providing financial reports</li>
+        <li><strong>Service Improvement:</strong> Understanding usage patterns, diagnosing technical issues, and improving app performance and features</li>
+        <li><strong>Legal Compliance:</strong> Fulfilling legal obligations, responding to legal requests, and protecting our rights and the rights of our users</li>
+      </ul>
+    </div>
+
+    <!-- 4. AI Data Usage -->
+    <div class="section" id="ai-data-usage">
+      <h2>4. AI Data Usage</h2>
+
+      <div class="info-card">
+        <p><strong>Transparency Notice:</strong> Sylk uses third-party artificial intelligence providers to power features such as estimate generation, project analysis, and the AI chat assistant. This section describes exactly what data is shared with these providers and how it is handled.</p>
+      </div>
+
+      <h3>4.1 AI Providers</h3>
+      <p>We use the following AI service providers:</p>
+      <ul>
+        <li><strong>Anthropic (Claude)</strong> — accessed via OpenRouter — powers the AI assistant, estimate generation, project analysis, and photo analysis</li>
+        <li><strong>Groq</strong> — provides fast AI routing and speech-to-text transcription (Whisper model)</li>
+        <li><strong>Deepgram</strong> — provides speech-to-text transcription services</li>
+      </ul>
+
+      <h3>4.2 What Data Is Sent to AI Providers</h3>
+      <ul>
+        <li>Project details (names, descriptions, status, phases, tasks)</li>
+        <li>Financial summaries (budgets, expenses, income — at the project level)</li>
+        <li>Chat messages you send to the AI assistant</li>
+        <li>Daily report photos (for visual analysis of work progress)</li>
+        <li>Your AI-learned preferences and business patterns</li>
+        <li>Audio recordings (sent to Deepgram or Groq for transcription only)</li>
+      </ul>
+
+      <h3>4.3 What Is NOT Sent to AI Providers</h3>
+      <ul>
+        <li>Your password or authentication credentials</li>
+        <li>Bank account credentials, access tokens, or raw banking data</li>
+        <li>Payment card numbers or billing details</li>
+        <li>Other users' personal contact information</li>
+      </ul>
+
+      <h3>4.4 How AI Providers Handle Your Data</h3>
+      <p>Under their commercial API terms, <strong>Anthropic and Groq do not use data submitted through their APIs to train their AI models</strong>. Your data is processed to generate responses and is subject to their respective data retention and security policies.</p>
+      <p>AI-generated outputs (estimates, suggestions, analysis) are provided for informational purposes only and should not be relied upon as professional construction, financial, or engineering advice. You are responsible for independently verifying all AI-generated content.</p>
+    </div>
+
+    <!-- 5. Third-Party Services -->
+    <div class="section" id="third-party-services">
+      <h2>5. Third-Party Services</h2>
+      <p>We share data with the following service providers who help us operate the Service. Each provider processes data under their own privacy policies and security standards.</p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Data Shared</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Plaid</strong></td>
+              <td>Bank credentials, account info, transactions</td>
+              <td>Bank account connections &amp; transaction reconciliation</td>
+            </tr>
+            <tr>
+              <td><strong>Stripe</strong></td>
+              <td>Payment card data, email, billing info</td>
+              <td>Subscription payments &amp; billing management</td>
+            </tr>
+            <tr>
+              <td><strong>Anthropic (Claude)</strong></td>
+              <td>Project data, chat messages, photos</td>
+              <td>AI estimates, suggestions, chat assistant</td>
+            </tr>
+            <tr>
+              <td><strong>Groq</strong></td>
+              <td>Audio files, text for AI routing</td>
+              <td>Speech transcription &amp; AI model routing</td>
+            </tr>
+            <tr>
+              <td><strong>Deepgram</strong></td>
+              <td>Audio files</td>
+              <td>Speech-to-text transcription</td>
+            </tr>
+            <tr>
+              <td><strong>Google Maps</strong></td>
+              <td>Addresses, coordinates</td>
+              <td>Geocoding &amp; distance calculations</td>
+            </tr>
+            <tr>
+              <td><strong>Expo / EAS</strong></td>
+              <td>Push tokens, device info</td>
+              <td>Push notifications &amp; over-the-air updates</td>
+            </tr>
+            <tr>
+              <td><strong>Supabase</strong></td>
+              <td>All app data</td>
+              <td>Database, authentication, file storage</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>We do not sell your personal information to third parties. We share data with the providers listed above solely to operate and improve the Service.</p>
+    </div>
+
+    <!-- 6. Data Sharing Between Roles -->
+    <div class="section" id="data-sharing-roles">
+      <h2>6. Data Sharing Between Roles</h2>
+      <p>Sylk operates with a team hierarchy (Owner → Supervisor → Worker). Different roles have different levels of data access:</p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Can View</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Owner</strong></td>
+              <td>All projects, all financial data, all supervisor/worker data including time tracking, location data during clock-in, and daily reports</td>
+            </tr>
+            <tr>
+              <td><strong>Supervisor</strong></td>
+              <td>Assigned projects, workers assigned to their projects, project-level financial data (may be restricted by owner settings), own time tracking</td>
+            </tr>
+            <tr>
+              <td><strong>Worker</strong></td>
+              <td>Assigned projects and phases, own time tracking, own daily reports</td>
+            </tr>
+            <tr>
+              <td><strong>Client</strong></td>
+              <td>Only estimates and invoices explicitly shared with them by the owner via unique access links</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warning-card">
+        <p><strong>Important for Workers and Supervisors:</strong> By accepting an invitation and joining an organization on Sylk, you acknowledge that the business Owner will have access to your work-related data, including time tracking records and location data collected during clock-in events.</p>
+      </div>
+    </div>
+
+    <!-- 7. CCPA/CPRA -->
+    <div class="section" id="ccpa">
+      <h2>7. Your California Privacy Rights (CCPA/CPRA)</h2>
+      <p>If you are a California resident, you have additional rights under the California Consumer Privacy Act (CCPA) as amended by the California Privacy Rights Act (CPRA):</p>
+
+      <ul>
+        <li><strong>Right to Know:</strong> You can request the categories and specific pieces of personal information we have collected about you in the prior 12 months</li>
+        <li><strong>Right to Delete:</strong> You can request deletion of your personal information, subject to certain legal exceptions</li>
+        <li><strong>Right to Correct:</strong> You can request correction of inaccurate personal information</li>
+        <li><strong>Right to Opt-Out of Sale/Sharing:</strong> We do not sell or share your personal information for cross-context behavioral advertising</li>
+        <li><strong>Right to Limit Use of Sensitive Personal Information:</strong> You may limit our use of sensitive personal information (which includes your financial data, precise geolocation, and audio data) to purposes necessary to provide the Service</li>
+        <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising any of your CCPA rights</li>
+      </ul>
+
+      <p><strong>Categories of sensitive personal information we collect:</strong> financial account information (bank data via Plaid), precise geolocation data, and audio recordings (voice-to-text).</p>
+      <p>To exercise any of these rights, please contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>. We will verify your identity and respond within 45 days.</p>
+    </div>
+
+    <!-- 8. Location Tracking -->
+    <div class="section" id="location">
+      <h2>8. Location Tracking</h2>
+      <p>Sylk collects location data in the following circumstances:</p>
+      <ul>
+        <li><strong>Supervisor clock-in/clock-out:</strong> GPS coordinates are captured at the time of clock-in and clock-out to verify presence at job sites</li>
+        <li><strong>Distance calculations:</strong> Your location may be used to calculate travel distances to job sites for appointment reminders</li>
+        <li><strong>Job site geocoding:</strong> Project addresses are converted to coordinates for mapping and distance features</li>
+      </ul>
+      <p>Location data is collected <strong>only while the app is in use (foreground)</strong>. We do not track your location in the background or outside of the specific features described above.</p>
+      <p><strong>How to opt out:</strong> You can revoke location permissions at any time through your device's Settings app. Some features that depend on location (distance calculations, clock-in location verification) will be limited if location access is disabled.</p>
+    </div>
+
+    <!-- 9. Voice & Audio -->
+    <div class="section" id="voice-audio">
+      <h2>9. Voice &amp; Audio Data</h2>
+      <p>When you use the voice-to-text feature in Sylk, the following occurs:</p>
+      <ol>
+        <li>Your voice is recorded through your device's microphone</li>
+        <li>The audio recording is transmitted securely to our transcription provider (Deepgram or Groq)</li>
+        <li>The provider converts the audio to text and returns the transcription</li>
+        <li>The text transcription is saved in your account (in daily reports, notes, or chat messages)</li>
+        <li><strong>The original audio recording is not permanently stored</strong> by Sylk or our transcription providers under their API terms</li>
+      </ol>
+      <p><strong>How to opt out:</strong> You can revoke microphone permissions at any time through your device's Settings app. Voice-to-text features will be unavailable, but you can still type all input manually.</p>
+    </div>
+
+    <!-- 10. Financial Data -->
+    <div class="section" id="financial-data">
+      <h2>10. Financial Data</h2>
+      <p>Sylk handles financial information through secure, regulated third-party providers:</p>
+
+      <h3>10.1 Bank Connections (Plaid)</h3>
+      <p>When you connect a bank account, Plaid securely handles authentication with your bank. Sylk receives account identifiers, account names and types, and transaction data. <strong>We never see or store your bank login credentials.</strong> Plaid access tokens are stored encrypted on our servers and are never exposed to the mobile app.</p>
+
+      <h3>10.2 Payments (Stripe)</h3>
+      <p>Subscription payments are processed entirely by Stripe. <strong>We never see, process, or store your full payment card number.</strong> Stripe is PCI-DSS Level 1 certified, the highest level of security certification.</p>
+
+      <h3>10.3 Project Financial Data</h3>
+      <p>Project-level financial data (budgets, expenses, income, invoices) is stored in our database with encryption at rest and protected by row-level security policies ensuring each user can only access their own financial data.</p>
+    </div>
+
+    <!-- 11. Data Security -->
+    <div class="section" id="data-security">
+      <h2>11. Data Security</h2>
+      <p>We implement industry-standard security measures to protect your data:</p>
+      <ul>
+        <li><strong>Encryption in transit:</strong> All data transmitted between your device and our servers uses HTTPS/TLS encryption</li>
+        <li><strong>Encryption at rest:</strong> Data stored in our database and file storage is encrypted at rest</li>
+        <li><strong>Row-Level Security:</strong> Database policies ensure each user can only access their own data and data explicitly shared with them through the team hierarchy</li>
+        <li><strong>Authentication:</strong> Secure JWT-based authentication with encrypted password storage</li>
+        <li><strong>Server-side secrets:</strong> Bank access tokens, API keys, and sensitive credentials are stored on our servers only and are never exposed to the mobile application</li>
+        <li><strong>Access controls:</strong> Role-based access controls limit data visibility based on your role within the organization</li>
+      </ul>
+      <p>While we strive to protect your information, no method of electronic transmission or storage is 100% secure. We cannot guarantee absolute security.</p>
+    </div>
+
+    <!-- 12. Data Retention & Deletion -->
+    <div class="section" id="data-retention">
+      <h2>12. Data Retention &amp; Deletion</h2>
+      <p>We retain your personal information for as long as your account is active or as needed to provide the Service.</p>
+      <ul>
+        <li><strong>Account deletion:</strong> When you delete your account, all associated data (profile, projects, estimates, invoices, workers, chat history, AI memories, financial records, photos, and notifications) is permanently deleted within 30 days</li>
+        <li><strong>Audio recordings:</strong> Not permanently stored — only text transcriptions are retained</li>
+        <li><strong>Financial records:</strong> May be retained for the legally required period for tax and accounting purposes even after account deletion</li>
+        <li><strong>Bank connections:</strong> Plaid access tokens are revoked and deleted upon account deletion or when you disconnect a bank account</li>
+        <li><strong>Subscription data:</strong> Billing records maintained by Stripe are subject to Stripe's own data retention policies</li>
+      </ul>
+      <p>To request deletion of your account and data, contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
+    </div>
+
+    <!-- 13. Children's Privacy -->
+    <div class="section" id="childrens-privacy">
+      <h2>13. Children's Privacy</h2>
+      <p>Sylk is a professional construction management tool intended for users who are 18 years of age or older. We do not knowingly collect personal information from anyone under the age of 18. If we learn that we have collected personal information from a person under 18, we will promptly delete that information. If you believe a minor has provided us with personal information, please contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
+    </div>
+
+    <!-- 14. Data Breach Notification -->
+    <div class="section" id="data-breach">
+      <h2>14. Data Breach Notification</h2>
+      <p>In the event of a data breach that compromises the security of your personal information, we will:</p>
+      <ul>
+        <li>Notify affected users via email and in-app notification as promptly as possible and in compliance with applicable state notification laws</li>
+        <li>Describe the nature of the breach, the types of information affected, and the steps we are taking in response</li>
+        <li>Provide guidance on steps you can take to protect yourself</li>
+        <li>Report the breach to relevant regulatory authorities as required by law</li>
+      </ul>
+    </div>
+
+    <!-- 15. Your Rights & Choices -->
+    <div class="section" id="your-rights">
+      <h2>15. Your Rights &amp; Choices</h2>
+      <p>You have the following rights regarding your personal information:</p>
+      <ul>
+        <li><strong>Access:</strong> Request a copy of the personal information we hold about you</li>
+        <li><strong>Correction:</strong> Request correction of inaccurate or incomplete information</li>
+        <li><strong>Deletion:</strong> Request deletion of your account and associated data</li>
+        <li><strong>Location opt-out:</strong> Revoke location permissions through your device settings</li>
+        <li><strong>Voice opt-out:</strong> Revoke microphone permissions through your device settings</li>
+        <li><strong>Notification preferences:</strong> Manage push notification types and quiet hours in-app</li>
+        <li><strong>Bank disconnection:</strong> Disconnect bank accounts at any time through the app</li>
+        <li><strong>AI memories:</strong> Your AI-learned preferences can be corrected or deleted</li>
+      </ul>
+      <p>To exercise any of these rights, contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
+    </div>
+
+    <!-- 16. Changes -->
+    <div class="section" id="changes">
+      <h2>16. Changes to This Policy</h2>
+      <p>We may update this Privacy Policy from time to time to reflect changes in our practices, technology, or legal requirements. When we make material changes, we will:</p>
+      <ul>
+        <li>Update the "Effective Date" at the top of this page</li>
+        <li>Notify you via email and/or in-app notification</li>
+        <li>Where required by law, obtain your consent before applying material changes</li>
+      </ul>
+      <p>We encourage you to review this Privacy Policy periodically. Your continued use of the Service after changes are posted constitutes your acceptance of the updated policy.</p>
+    </div>
+
+    <!-- 17. Contact -->
+    <div class="section" id="contact">
+      <h2>17. Contact Us</h2>
+      <p>If you have questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:</p>
+      <p><strong>Email:</strong> <a href="mailto:support@sylkapp.com">support@sylkapp.com</a></p>
+      <p>We will respond to all inquiries within 30 days.</p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-links">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/support">Support</a>
+      </div>
+      <p>&copy; 2026 Sylk. All rights reserved.</p>
+    </div>
+
   </div>
 </body>
 </html>

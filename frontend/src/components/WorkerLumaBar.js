@@ -8,6 +8,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import NotificationBell from './NotificationBell';
 
 const items = [
   { id: 0, icon: 'time', label: 'TimeClock', routeIndex: 0 },
@@ -54,6 +55,13 @@ const WorkerLumaBar = ({ state, navigation }) => {
             />
           );
         })}
+        {/* Notification Bell - divider + bell */}
+        <View style={navItemStyles.bellDivider} />
+        <NotificationBell
+          size={20}
+          color={Colors.secondaryText}
+          onPress={() => navigation.getParent()?.navigate('Notifications')}
+        />
       </View>
     </View>
   );
@@ -107,6 +115,12 @@ const navItemStyles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bellDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: 'rgba(128,128,128,0.2)',
+    marginHorizontal: 4,
   },
 });
 

@@ -330,41 +330,87 @@ export default function OwnerDashboardScreen() {
           </View>
         )}
 
-        {/* Bank Reconciliation Alert */}
-        {reconciliation && !reconciliation.message && reconciliation.total_transactions > 0 && (
-          <View style={styles.section}>
-            {reconciliation.unmatched > 0 || reconciliation.suggested_matches > 0 ? (
-              <TouchableOpacity
-                style={[styles.alertBanner, { backgroundColor: `${OWNER_COLORS.error}10` }]}
-                onPress={() => navigation.navigate('BankReconciliation', { filter: 'unmatched' })}
-              >
-                <Ionicons name="card" size={20} color={OWNER_COLORS.error} />
+        {/* Bank Reconciliation Card — always visible */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>💳 Card Tracking</Text>
+          {!reconciliation || reconciliation.message ? (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
+              onPress={() => navigation.navigate('BankConnection')}
+              activeOpacity={0.7}
+            >
+              <View style={{ alignItems: 'center', paddingVertical: Spacing.md }}>
+                <View style={[styles.reconIcon, { backgroundColor: `${OWNER_COLORS.primary}12` }]}>
+                  <Ionicons name="card-outline" size={28} color={OWNER_COLORS.primary} />
+                </View>
+                <Text style={[styles.reconTitle, { color: Colors.primaryText }]}>
+                  Connect your business card
+                </Text>
+                <Text style={[styles.reconSubtitle, { color: Colors.secondaryText }]}>
+                  Auto-track and reconcile expenses from your card transactions
+                </Text>
+                <View style={[styles.reconButton, { backgroundColor: OWNER_COLORS.primary }]}>
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={styles.reconButtonText}>Connect Account</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ) : reconciliation.unmatched > 0 || reconciliation.suggested_matches > 0 ? (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
+              onPress={() => navigation.navigate('BankReconciliation', { filter: 'unmatched' })}
+              activeOpacity={0.7}
+            >
+              <View style={styles.reconRow}>
+                <View style={[styles.reconIcon, { backgroundColor: `${OWNER_COLORS.error}12` }]}>
+                  <Ionicons name="alert-circle" size={24} color={OWNER_COLORS.error} />
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.alertText, { color: OWNER_COLORS.error }]}>
-                    {reconciliation.unmatched + (reconciliation.suggested_matches || 0)} card transaction{reconciliation.unmatched + (reconciliation.suggested_matches || 0) !== 1 ? 's' : ''} need attention
+                  <Text style={[styles.reconTitle, { color: Colors.primaryText, textAlign: 'left' }]}>
+                    {reconciliation.unmatched + (reconciliation.suggested_matches || 0)} transaction{reconciliation.unmatched + (reconciliation.suggested_matches || 0) !== 1 ? 's' : ''} need attention
                   </Text>
                   {reconciliation.unmatched_amount > 0 && (
-                    <Text style={[{ fontSize: FontSizes.tiny, color: OWNER_COLORS.error, marginTop: 2 }]}>
+                    <Text style={[styles.reconSubtitle, { color: OWNER_COLORS.error, textAlign: 'left', marginBottom: 0 }]}>
                       ${reconciliation.unmatched_amount.toFixed(2)} in unrecorded expenses
                     </Text>
                   )}
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.error} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.alertBanner, { backgroundColor: `${OWNER_COLORS.success}10` }]}
-                onPress={() => navigation.navigate('BankReconciliation')}
-              >
-                <Ionicons name="checkmark-circle" size={20} color={OWNER_COLORS.success} />
-                <Text style={[styles.alertText, { color: OWNER_COLORS.success }]}>
-                  All card transactions reconciled
-                </Text>
-                <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.success} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+                <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+              </View>
+              <View style={[styles.reconFooter, { borderTopColor: Colors.border }]}>
+                <Ionicons name="eye-outline" size={16} color={OWNER_COLORS.primary} />
+                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>View Reconciliation</Text>
+                <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
+              onPress={() => navigation.navigate('BankReconciliation')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.reconRow}>
+                <View style={[styles.reconIcon, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
+                  <Ionicons name="checkmark-circle" size={24} color={OWNER_COLORS.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.reconTitle, { color: Colors.primaryText, textAlign: 'left' }]}>
+                    All caught up
+                  </Text>
+                  <Text style={[styles.reconSubtitle, { color: Colors.secondaryText, textAlign: 'left', marginBottom: 0 }]}>
+                    All card transactions are reconciled
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+              </View>
+              <View style={[styles.reconFooter, { borderTopColor: Colors.border }]}>
+                <Ionicons name="eye-outline" size={16} color={OWNER_COLORS.primary} />
+                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>View Reconciliation</Text>
+                <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Supervisors Section */}
         <View style={styles.section}>
@@ -597,6 +643,54 @@ const createStyles = (Colors) => StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.body,
     fontWeight: '600',
+  },
+  reconIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  reconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  reconTitle: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  reconSubtitle: {
+    fontSize: FontSizes.small,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: Spacing.md,
+  },
+  reconButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: 20,
+    marginTop: Spacing.xs,
+  },
+  reconButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+  },
+  reconFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
   },
   supervisorRow: {
     flexDirection: 'row',

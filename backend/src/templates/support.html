@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support — Sylk</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #FFFFFF;
+      color: #1E293B;
+      line-height: 1.7;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid #E2E8F0;
+      padding: 16px 24px;
+    }
+    .nav-inner {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .nav-brand {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1E40AF;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748B;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #1E40AF; }
+    .nav-links a.active { color: #1E40AF; font-weight: 600; }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      margin-bottom: 48px;
+      padding-bottom: 40px;
+      border-bottom: 1px solid #E2E8F0;
+    }
+    .hero-icon {
+      width: 72px;
+      height: 72px;
+      background: #EFF6FF;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 32px;
+    }
+    .hero h1 {
+      font-size: 36px;
+      font-weight: 700;
+      color: #0F172A;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .hero p {
+      font-size: 18px;
+      color: #64748B;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* Contact Card */
+    .contact-card {
+      background: #F0F4FF;
+      border: 1px solid #DBEAFE;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 48px;
+      text-align: center;
+    }
+    .contact-card h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 8px;
+    }
+    .contact-card p {
+      color: #475569;
+      margin-bottom: 16px;
+    }
+    .contact-email {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #1E40AF;
+      color: #FFFFFF;
+      padding: 12px 28px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 16px;
+      transition: background 0.2s;
+    }
+    .contact-email:hover { background: #1E3A8A; color: #FFFFFF; }
+    .response-time {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #64748B;
+    }
+
+    /* FAQ Sections */
+    .faq-section {
+      margin-bottom: 40px;
+    }
+    .faq-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748B;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+      padding-left: 4px;
+    }
+    .faq-item {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 12px;
+    }
+    .faq-item h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0F172A;
+      margin-bottom: 8px;
+    }
+    .faq-item p {
+      font-size: 15px;
+      color: #475569;
+      margin-bottom: 0;
+    }
+    .faq-item a { color: #1E40AF; }
+
+    /* Bug Report */
+    .bug-report {
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-radius: 16px;
+      padding: 32px;
+      margin-top: 48px;
+    }
+    .bug-report h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 8px;
+    }
+    .bug-report p {
+      color: #475569;
+      margin-bottom: 12px;
+    }
+    .bug-report ul {
+      margin-left: 20px;
+      margin-bottom: 16px;
+      color: #475569;
+    }
+    .bug-report li { margin-bottom: 4px; font-size: 15px; }
+    .bug-report a { color: #1E40AF; }
+
+    /* Footer */
+    .footer {
+      margin-top: 64px;
+      padding-top: 32px;
+      border-top: 1px solid #E2E8F0;
+      text-align: center;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748B;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #1E40AF; }
+    .footer p {
+      font-size: 13px;
+      color: #94A3B8;
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 28px; }
+      .hero p { font-size: 16px; }
+      .container { padding: 32px 16px 60px; }
+      .contact-card, .bug-report { padding: 24px 20px; }
+    }
+
+    @media print {
+      .nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">Sylk</a>
+      <div class="nav-links">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/support" class="active">Support</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <div class="hero">
+      <div class="hero-icon">&#128736;</div>
+      <h1>How can we help?</h1>
+      <p>Find answers to common questions or get in touch with our support team.</p>
+    </div>
+
+    <!-- Contact Card -->
+    <div class="contact-card">
+      <h2>Contact Support</h2>
+      <p>Our team is here to help you get the most out of Sylk.</p>
+      <a href="mailto:support@sylkapp.com" class="contact-email">
+        &#9993; support@sylkapp.com
+      </a>
+      <p class="response-time">We typically respond within 24–48 hours on business days.</p>
+    </div>
+
+    <!-- Getting Started -->
+    <div class="faq-section">
+      <p class="faq-section-title">Getting Started</p>
+
+      <div class="faq-item">
+        <h3>How do I create an account?</h3>
+        <p>Download Sylk from the App Store, tap "Sign Up," and create an account with your email address and a secure password. You'll then choose your role (Owner, Supervisor, or Worker) and complete a brief onboarding.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do I invite a supervisor or worker?</h3>
+        <p>As an Owner, go to the Supervisors or Workers section and tap the "+" button. Enter their email address and we'll compose an invitation email for you. When they sign up with that email, the app will automatically detect the invitation and connect them to your organization.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do I connect my bank account?</h3>
+        <p>Go to Settings → Bank Accounts and tap "Connect Bank." You'll be guided through a secure connection process powered by Plaid. Sylk never sees your bank login credentials — Plaid handles all authentication directly with your bank.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>What roles are available and what can each do?</h3>
+        <p><strong>Owner:</strong> Full access to all projects, finances, and team management. <strong>Supervisor:</strong> Manages assigned projects and workers, submits time tracking. <strong>Worker:</strong> Views assigned projects, submits daily reports and time entries.</p>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="faq-section">
+      <p class="faq-section-title">Features</p>
+
+      <div class="faq-item">
+        <h3>How does the AI estimate generator work?</h3>
+        <p>Sylk uses AI (powered by Anthropic's Claude) to generate construction estimates based on your project details, historical pricing, and industry data. Simply describe what you need in the chat, and the AI will create detailed, itemized estimates. Always review and adjust estimates before sending to clients.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How does GPS location tracking work?</h3>
+        <p>Location is captured only when you actively clock in or clock out, and when calculating distances to job sites. We do not track your location in the background. Owners can see clock-in locations for their team. You can disable location access in your device settings at any time.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do I use voice-to-text?</h3>
+        <p>Tap the microphone icon in any text field to start voice input. Speak naturally and your words will be transcribed to text. This works great for creating daily reports, notes, and chat messages while on the job site. Audio is processed for transcription only and is not permanently stored.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do daily reports work?</h3>
+        <p>Workers and supervisors can submit daily reports from any assigned project. Reports include a summary of work completed, hours worked, photos of progress, and materials used. Owners and supervisors receive notifications when reports are submitted.</p>
+      </div>
+    </div>
+
+    <!-- Billing -->
+    <div class="faq-section">
+      <p class="faq-section-title">Billing &amp; Subscriptions</p>
+
+      <div class="faq-item">
+        <h3>What subscription plans are available?</h3>
+        <p><strong>Starter</strong> ($49/mo), <strong>Pro</strong> ($79/mo), and <strong>Business</strong> ($149/mo). All plans include a 7-day free trial. See the app for detailed feature comparisons.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do I cancel my subscription?</h3>
+        <p>You can cancel anytime through the app's Settings → Subscription, or through the Stripe billing portal. If you subscribed through the Apple App Store, manage your subscription in your iPhone's Settings → Apple ID → Subscriptions. Cancellation takes effect at the end of your current billing period.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How does the free trial work?</h3>
+        <p>New users get 7 days of full access at no charge. If you don't cancel before the trial ends, your selected plan will activate and your payment method will be charged. You can cancel anytime during the trial without being charged.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do I get a refund?</h3>
+        <p>If you believe you were charged in error or have questions about a charge, please contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>. For subscriptions purchased through the Apple App Store or Google Play, refund requests must go through their respective support channels.</p>
+      </div>
+    </div>
+
+    <!-- Privacy & Security -->
+    <div class="faq-section">
+      <p class="faq-section-title">Privacy &amp; Security</p>
+
+      <div class="faq-item">
+        <h3>How is my data protected?</h3>
+        <p>All data is encrypted in transit (HTTPS/TLS) and at rest. We use row-level database security to ensure you can only access your own data. Bank credentials are handled by Plaid and never stored on our servers. Payment data is handled by Stripe (PCI-DSS Level 1 certified). See our full <a href="/privacy">Privacy Policy</a> for details.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Can I delete my account and all my data?</h3>
+        <p>Yes. Contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a> to request account deletion. All your data — including projects, financial records, photos, chat history, and AI-learned preferences — will be permanently deleted within 30 days.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>What data does the AI see?</h3>
+        <p>The AI assistant can access your project details, financial summaries, and chat messages to provide relevant responses. It does <strong>not</strong> have access to your bank login credentials, payment card numbers, or passwords. AI providers (Anthropic, Groq) do not use your data to train their models. See <a href="/privacy#ai-data-usage">AI Data Usage</a> in our Privacy Policy.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Who can see my location?</h3>
+        <p>Location data from clock-in events is visible to the Owner of your organization. Supervisors and workers cannot see each other's location. Location is only captured during specific app actions (clock-in, distance calculations) — never in the background. You can revoke location permissions in your device settings.</p>
+      </div>
+    </div>
+
+    <!-- Bug Report -->
+    <div class="bug-report">
+      <h2>Report a Bug</h2>
+      <p>Found something that isn't working right? Help us fix it by sending us the following details:</p>
+      <ul>
+        <li>Your device type and OS version (e.g., iPhone 15, iOS 18.2)</li>
+        <li>The Sylk app version (found in Settings → About)</li>
+        <li>What you were trying to do when the issue occurred</li>
+        <li>What happened vs. what you expected to happen</li>
+        <li>Screenshots or screen recordings if possible</li>
+      </ul>
+      <p>Send bug reports to <a href="mailto:support@sylkapp.com">support@sylkapp.com</a> with the subject line "Bug Report."</p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-links">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/support">Support</a>
+      </div>
+      <p>&copy; 2026 Sylk. All rights reserved.</p>
+    </div>
+
+  </div>
+</body>
+</html>

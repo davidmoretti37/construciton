@@ -596,19 +596,19 @@ export default function OwnerSettingsScreen() {
             icon="help-circle-outline"
             iconColor={OWNER_COLORS.primary}
             title={t('help', 'Help & Support')}
-            onPress={() => handleOpenLink('mailto:help@constructionmanager.app')}
+            onPress={() => handleOpenLink('https://construciton-production.up.railway.app/support')}
           />
           <MenuItem
             icon="document-text-outline"
             iconColor={Colors.infoBlue}
             title={t('terms', 'Terms of Service')}
-            onPress={() => handleOpenLink('https://constructionmanager.app/terms')}
+            onPress={() => handleOpenLink('https://construciton-production.up.railway.app/terms')}
           />
           <MenuItem
             icon="shield-checkmark-outline"
             iconColor={OWNER_COLORS.success}
             title={t('privacy', 'Privacy Policy')}
-            onPress={() => handleOpenLink('https://constructionmanager.app/privacy')}
+            onPress={() => handleOpenLink('https://construciton-production.up.railway.app/privacy')}
             isLast
           />
         </View>

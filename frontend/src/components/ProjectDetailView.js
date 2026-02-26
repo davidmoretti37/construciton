@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   ActionSheetIOS,
+  Share,
   TextInput,
   KeyboardAvoidingView,
   Image,
@@ -463,21 +464,20 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: [t('buttons.cancel'), t('labels.appleMaps'), t('labels.googleMaps')],
+          options: [t('buttons.cancel'), t('labels.appleMaps'), t('labels.googleMaps'), 'Share Address'],
           cancelButtonIndex: 0,
         },
         (buttonIndex) => {
           if (buttonIndex === 1) {
-            // Apple Maps
             Linking.openURL(`http://maps.apple.com/?address=${encodedAddress}`);
           } else if (buttonIndex === 2) {
-            // Google Maps
             Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
+          } else if (buttonIndex === 3) {
+            Share.share({ message: address });
           }
         }
       );
     } else {
-      // Android - show alert
       Alert.alert(
         t('alerts.openInMaps'),
         t('messages.chooseMapsApp'),
@@ -486,6 +486,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           {
             text: t('labels.googleMaps'),
             onPress: () => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`)
+          },
+          {
+            text: 'Share',
+            onPress: () => Share.share({ message: address }),
           },
         ]
       );

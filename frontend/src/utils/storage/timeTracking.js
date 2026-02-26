@@ -76,6 +76,43 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
     // Invalidate cache since worker status changed
     responseCache.invalidateAgent('WorkersSchedulingAgent');
     console.log('Clock-in successful:', data);
+
+    // Notify owner (and supervisor) about clock-in
+    try {
+      const { data: workerInfo } = await supabase.from('workers')
+        .select('owner_id, full_name').eq('id', workerId).single();
+      if (workerInfo?.owner_id) {
+        const projectName = data?.projects?.name || '';
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: workerInfo.owner_id,
+            title: 'Worker Clocked In',
+            body: `${workerInfo.full_name} clocked in${projectName ? ` on ${projectName}` : ''}`,
+            type: 'worker_update',
+            data: { screen: 'Workers' },
+            workerId,
+          },
+        });
+        // Also notify assigned supervisor if different from owner
+        if (projectId) {
+          const { data: proj } = await supabase.from('projects')
+            .select('assigned_supervisor_id').eq('id', projectId).single();
+          if (proj?.assigned_supervisor_id && proj.assigned_supervisor_id !== workerInfo.owner_id) {
+            supabase.functions.invoke('send-push-notification', {
+              body: {
+                userId: proj.assigned_supervisor_id,
+                title: 'Worker Clocked In',
+                body: `${workerInfo.full_name} clocked in${projectName ? ` on ${projectName}` : ''}`,
+                type: 'worker_update',
+                data: { screen: 'Workers' },
+                workerId,
+              },
+            });
+          }
+        }
+      }
+    } catch (e) { /* fire and forget */ }
+
     return data;
   } catch (error) {
     console.error('Error in clockIn:', error);
@@ -206,6 +243,42 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
 
     // Invalidate cache since worker status changed
     responseCache.invalidateAgent('WorkersSchedulingAgent');
+
+    // Notify owner (and supervisor) about clock-out
+    try {
+      const { data: workerInfo } = await supabase.from('workers')
+        .select('owner_id, full_name').eq('id', timeEntry.worker_id).single();
+      if (workerInfo?.owner_id) {
+        const projectName = timeEntry.projects?.name || '';
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: workerInfo.owner_id,
+            title: 'Worker Clocked Out',
+            body: `${workerInfo.full_name} clocked out${projectName ? ` from ${projectName}` : ''} (${formatHoursMinutes(hoursWorked)})`,
+            type: 'worker_update',
+            data: { screen: 'Workers' },
+            workerId: timeEntry.worker_id,
+          },
+        });
+        if (timeEntry.project_id) {
+          const { data: proj } = await supabase.from('projects')
+            .select('assigned_supervisor_id').eq('id', timeEntry.project_id).single();
+          if (proj?.assigned_supervisor_id && proj.assigned_supervisor_id !== workerInfo.owner_id) {
+            supabase.functions.invoke('send-push-notification', {
+              body: {
+                userId: proj.assigned_supervisor_id,
+                title: 'Worker Clocked Out',
+                body: `${workerInfo.full_name} clocked out${projectName ? ` from ${projectName}` : ''} (${formatHoursMinutes(hoursWorked)})`,
+                type: 'worker_update',
+                data: { screen: 'Workers' },
+                workerId: timeEntry.worker_id,
+              },
+            });
+          }
+        }
+      }
+    } catch (e) { /* fire and forget */ }
+
     return { success: true, hours: hoursWorked, laborCost };
   } catch (error) {
     console.error('Error in clockOut:', error);
@@ -771,7 +844,7 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
   try {
     const { data: worker, error: workerError } = await supabase
       .from('workers')
-      .select('id, full_name, name, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate')
+      .select('id, full_name, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate')
       .eq('id', workerId)
       .single();
 
@@ -804,7 +877,7 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
     if (!timeEntries || timeEntries.length === 0) {
       return {
         workerId: worker.id,
-        workerName: worker.full_name || worker.name || 'Unknown Worker',
+        workerName: worker.full_name || 'Unknown Worker',
         totalAmount: 0,
         totalHours: 0,
         totalDays: 0,
@@ -850,7 +923,7 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
     return {
       ...paymentBreakdown,
       workerId: worker.id,
-      workerName: worker.full_name || worker.name || 'Unknown Worker',
+      workerName: worker.full_name || 'Unknown Worker',
       totalHours: entriesWithHours.reduce((sum, e) => sum + e.hours, 0),
       dateRange: { from: fromDate, to: toDate },
       paymentType: worker.payment_type,
@@ -1308,6 +1381,25 @@ export const supervisorClockIn = async (supervisorId, projectId, location = null
     }
 
     console.log('Supervisor clock-in successful:', data);
+
+    // Notify owner about supervisor clock-in
+    try {
+      const { data: supProfile } = await supabase.from('profiles')
+        .select('owner_id, full_name').eq('id', supervisorId).single();
+      if (supProfile?.owner_id) {
+        const projectName = data?.projects?.name || '';
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: supProfile.owner_id,
+            title: 'Supervisor Clocked In',
+            body: `${supProfile.full_name || 'Supervisor'} clocked in${projectName ? ` on ${projectName}` : ''}`,
+            type: 'worker_update',
+            data: { screen: 'Home' },
+          },
+        });
+      }
+    } catch (e) { /* fire and forget */ }
+
     return data;
   } catch (error) {
     console.error('Error in supervisorClockIn:', error);
@@ -1392,6 +1484,25 @@ export const supervisorClockOut = async (timeTrackingId, notes = null) => {
     }
 
     console.log('Supervisor clock-out successful:', { hours: hoursWorked, laborCost });
+
+    // Notify owner about supervisor clock-out
+    try {
+      const { data: supProfile } = await supabase.from('profiles')
+        .select('owner_id, full_name').eq('id', record.supervisor_id).single();
+      if (supProfile?.owner_id) {
+        const projectName = record.projects?.name || '';
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: supProfile.owner_id,
+            title: 'Supervisor Clocked Out',
+            body: `${supProfile.full_name || 'Supervisor'} clocked out${projectName ? ` from ${projectName}` : ''} (${formatHoursMinutes(hoursWorked)})`,
+            type: 'worker_update',
+            data: { screen: 'Home' },
+          },
+        });
+      }
+    } catch (e) { /* fire and forget */ }
+
     return { success: true, hours: hoursWorked, laborCost };
   } catch (error) {
     console.error('Error in supervisorClockOut:', error);

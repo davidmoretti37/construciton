@@ -8,6 +8,8 @@ import DailyReportDetailScreen from '../screens/worker/DailyReportDetailScreen';
 import ExpenseFormScreen from '../screens/worker/ExpenseFormScreen';
 import ExpenseDetailScreen from '../screens/worker/ExpenseDetailScreen';
 import DocumentViewerScreen from '../screens/DocumentViewerScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import NotificationSettingsScreen from '../screens/settings/NotificationSettingsScreen';
 
 const Stack = createStackNavigator();
 
@@ -45,6 +47,20 @@ export default function WorkerMainNavigator() {
       <Stack.Screen
         name="ExpenseDetail"
         component={ExpenseDetailScreen}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{
+          headerShown: false,
+        }}
       />
       <Stack.Screen
         name="DocumentViewer"

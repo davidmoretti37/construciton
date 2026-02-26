@@ -37,15 +37,13 @@ const findWorkerByName = (workers, searchName) => {
 
   // Exact match first
   let match = workers.find(w =>
-    w.full_name?.toLowerCase() === search ||
-    w.name?.toLowerCase() === search
+    w.full_name?.toLowerCase() === search
   );
 
   // Partial match (contains)
   if (!match) {
     match = workers.find(w =>
-      w.full_name?.toLowerCase().includes(search) ||
-      w.name?.toLowerCase().includes(search)
+      w.full_name?.toLowerCase().includes(search)
     );
   }
 
@@ -398,7 +396,11 @@ export default function useWorkerActions({ addMessage, setMessages }) {
 
   const handleClockInWorker = useCallback(async (data) => {
     try {
-      const { workerId, workerName, projectId, projectName, location, clock_in_time } = data;
+      const workerId = data.workerId || data.worker_id;
+      const workerName = data.workerName || data.worker_name || 'Worker';
+      const projectId = data.projectId || data.project_id;
+      const projectName = data.projectName || data.project_name || 'project';
+      const { location, clock_in_time } = data;
       const record = await clockIn(workerId, projectId, location, clock_in_time);
       if (record) {
         const time = new Date(record.clock_in).toLocaleTimeString('en-US', {
@@ -420,7 +422,9 @@ export default function useWorkerActions({ addMessage, setMessages }) {
 
   const handleClockOutWorker = useCallback(async (data) => {
     try {
-      const { workerId, workerName, clock_out_time } = data;
+      const workerId = data.workerId || data.worker_id;
+      const workerName = data.workerName || data.worker_name || 'Worker';
+      const { clock_out_time } = data;
 
       // Get active clock-in for this worker
       const activeRecord = await getActiveClockIn(workerId);

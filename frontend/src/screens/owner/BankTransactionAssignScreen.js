@@ -68,9 +68,9 @@ export default function BankTransactionAssignScreen() {
     try {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name, client, status')
+        .select('id, name, status, location')
         .eq('user_id', user?.id)
-        .in('status', ['active', 'on-track', 'behind', 'over-budget'])
+        .in('status', ['active', 'on-track', 'behind', 'over-budget', 'draft', 'completed'])
         .order('name');
 
       if (error) throw error;
@@ -85,7 +85,7 @@ export default function BankTransactionAssignScreen() {
   const filteredProjects = projects.filter(p => {
     if (!projectSearch) return true;
     const search = projectSearch.toLowerCase();
-    return p.name?.toLowerCase().includes(search) || p.client?.toLowerCase().includes(search);
+    return p.name?.toLowerCase().includes(search) || p.location?.toLowerCase().includes(search);
   });
 
   const handleSubmit = async () => {
@@ -245,9 +245,9 @@ export default function BankTransactionAssignScreen() {
                       <Text style={[styles.projectName, { color: Colors.primaryText }]}>
                         {project.name}
                       </Text>
-                      {project.client && (
+                      {project.location && (
                         <Text style={[styles.projectClient, { color: Colors.secondaryText }]}>
-                          {project.client}
+                          {project.location}
                         </Text>
                       )}
                     </View>

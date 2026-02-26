@@ -211,13 +211,23 @@ function handleWorkerStatusQuery(userMessage, context) {
       /\bcurrently\s+(working|clocked)/i.test(userMessage)) {
 
     if (clockedIn.length === 0) {
+      const staleClockIns = context.staleClockIns || [];
+      let response = "No workers are currently clocked in today.";
+      if (staleClockIns.length > 0) {
+        const staleNames = staleClockIns.map(s => {
+          const name = s.workers?.full_name || 'Unknown';
+          const date = new Date(s.clock_in).toLocaleDateString();
+          return `${name} (since ${date})`;
+        });
+        response += `\n\n⚠️ ${staleClockIns.length} worker(s) have unclosed clock-ins from previous days: ${staleNames.join(', ')}. Say "clock out [name]" to close them.`;
+      }
       return {
-        response: "No workers are currently clocked in.",
+        response,
         action: "none",
         data: {
           type: "deterministic_lookup",
           query_type: "who_is_working",
-          result: { count: 0, workers: [] }
+          result: { count: 0, workers: [], staleClockIns: staleClockIns.length }
         }
       };
     }

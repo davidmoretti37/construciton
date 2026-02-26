@@ -27,6 +27,26 @@ function today() {
   return new Date().toISOString().split('T')[0];
 }
 
+function getTodayBounds() {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+  return { startOfDay, endOfDay };
+}
+
+/**
+ * Resolve userId to the actual owner_id for supervisors.
+ * Supervisors' workers are owned by their parent owner.
+ */
+async function resolveOwnerId(userId) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('owner_id, role')
+    .eq('id', userId)
+    .single();
+  return profile?.role === 'supervisor' ? profile.owner_id : userId;
+}
+
 /**
  * Build a Supabase .or() filter that matches ANY word in ANY field.
  * "John kitchen remodel" → name.ilike.%John%,name.ilike.%kitchen%,...
@@ -60,6 +80,20 @@ async function enrichLocationWithAddress(lat, lng) {
     lng: longitude,
     address: address || `${latitude}, ${longitude}` // Fallback to coordinates
   };
+}
+
+/**
+ * Send a push + in-app notification via the Supabase Edge Function.
+ * Fire-and-forget — errors are logged but never thrown.
+ */
+async function sendNotification({ userId, title, body, type, data, projectId, workerId }) {
+  try {
+    await supabase.functions.invoke('send-push-notification', {
+      body: { userId, title, body, type, data, projectId, workerId },
+    });
+  } catch (err) {
+    logger.error('Notification send failed:', err.message);
+  }
 }
 
 /**
@@ -212,10 +246,13 @@ async function resolveWorkerId(userId, idOrName) {
   const filter = buildWordSearch(idOrName, ['full_name', 'trade']);
   if (!filter) return { error: 'No worker specified' };
 
+  // Supervisors' workers are owned by their parent owner
+  const ownerId = await resolveOwnerId(userId);
+
   const { data } = await supabase
     .from('workers')
     .select('id, full_name, trade')
-    .eq('owner_id', userId)
+    .eq('owner_id', ownerId)
     .or(filter)
     .limit(5);
 
@@ -676,10 +713,13 @@ async function get_invoice_details(userId, args) {
 async function get_workers(userId, args = {}) {
   const { status, trade, include_clock_status = true } = args;
 
+  // Supervisors see their owner's workers
+  const ownerId = await resolveOwnerId(userId);
+
   let q = supabase
     .from('workers')
-    .select('id, full_name, email, phone, trade, payment_type, hourly_rate, daily_rate, status, created_at')
-    .eq('owner_id', userId);
+    .select('id, full_name, email, phone, trade, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate, status, created_at')
+    .eq('owner_id', ownerId);
 
   if (status) {
     q = q.eq('status', status);
@@ -698,15 +738,15 @@ async function get_workers(userId, args = {}) {
 
   if (!workers || workers.length === 0) return [];
 
-  // Get clock-in status for today
+  // Get clock-in status for today only
   if (include_clock_status) {
-    const todayStr = today();
+    const { startOfDay } = getTodayBounds();
     const { data: clockIns } = await supabase
       .from('time_tracking')
-      .select('worker_id, clock_in, clock_out, project_id, projects(name)')
+      .select('worker_id, clock_in, clock_out, project_id, location_lat, location_lng, projects(name)')
       .in('worker_id', workers.map(w => w.id))
-      .gte('clock_in', `${todayStr}T00:00:00`)
-      .is('clock_out', null);
+      .is('clock_out', null)
+      .gte('clock_in', startOfDay);
 
     const clockInMap = {};
     if (clockIns) {
@@ -714,7 +754,8 @@ async function get_workers(userId, args = {}) {
         clockInMap[ci.worker_id] = {
           clockedIn: true,
           clockInTime: ci.clock_in,
-          project: ci.projects?.name || 'Unknown'
+          project: ci.projects?.name || 'Unknown',
+          location: ci.location_lat ? { lat: ci.location_lat, lng: ci.location_lng } : null
         };
       }
     }
@@ -737,23 +778,25 @@ async function get_worker_details(userId, args) {
   if (resolved.suggestions) return resolved;
   worker_id = resolved.id;
 
+  // Supervisors see their owner's workers
+  const ownerId = await resolveOwnerId(userId);
+
   // Get worker
   const { data: worker, error } = await supabase
     .from('workers')
     .select('*')
     .eq('id', worker_id)
-    .eq('owner_id', userId)
+    .eq('owner_id', ownerId)
     .single();
 
   if (error || !worker) {
     return { error: 'Worker not found' };
   }
 
-  // Get current clock-in
-  const todayStr = today();
+  // Get current clock-in (with location)
   const { data: activeClockIn } = await supabase
     .from('time_tracking')
-    .select('id, clock_in, project_id, projects(name)')
+    .select('id, clock_in, project_id, location_lat, location_lng, projects(name)')
     .eq('worker_id', worker_id)
     .is('clock_out', null)
     .order('clock_in', { ascending: false })
@@ -764,7 +807,7 @@ async function get_worker_details(userId, args) {
   weekAgo.setDate(weekAgo.getDate() - 7);
   const { data: recentTimeEntries } = await supabase
     .from('time_tracking')
-    .select('id, clock_in, clock_out, project_id, projects(name), total_hours, labor_cost')
+    .select('id, clock_in, clock_out, project_id, hours_worked, projects(name)')
     .eq('worker_id', worker_id)
     .gte('clock_in', weekAgo.toISOString())
     .order('clock_in', { ascending: false })
@@ -780,7 +823,11 @@ async function get_worker_details(userId, args) {
   let hoursThisWeek = 0;
   if (recentTimeEntries) {
     for (const entry of recentTimeEntries) {
-      hoursThisWeek += entry.total_hours || 0;
+      if (entry.hours_worked) {
+        hoursThisWeek += parseFloat(entry.hours_worked);
+      } else if (entry.clock_in && entry.clock_out) {
+        hoursThisWeek += (new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60);
+      }
     }
   }
 
@@ -1235,8 +1282,38 @@ async function get_time_records(userId, args = {}) {
     return { error: error.message };
   }
 
+  // Also fetch any active (un-clocked-out) sessions that started before the date range
+  // These would be missed by the date filter above but are still relevant
+  let allRecords = data || [];
+  if (include_active) {
+    let activeQ = supabase
+      .from('time_tracking')
+      .select('*, workers(full_name, trade), projects(name)')
+      .in('worker_id', workerIds)
+      .is('clock_out', null)
+      .lt('clock_in', `${startDate}T00:00:00`);
+
+    if (resolvedWorkerId) {
+      activeQ = activeQ.eq('worker_id', resolvedWorkerId);
+    }
+    if (resolvedProjectId) {
+      activeQ = activeQ.eq('project_id', resolvedProjectId);
+    }
+
+    const { data: activeData } = await activeQ.limit(50);
+    if (activeData && activeData.length > 0) {
+      // Merge, avoiding duplicates
+      const existingIds = new Set(allRecords.map(r => r.id));
+      for (const rec of activeData) {
+        if (!existingIds.has(rec.id)) {
+          allRecords.push(rec);
+        }
+      }
+    }
+  }
+
   // Calculate hours and format response
-  return await Promise.all((data || []).map(async record => {
+  return await Promise.all(allRecords.map(async record => {
     let totalHours = 0;
     let status = 'active';
 
@@ -1797,6 +1874,20 @@ async function assign_worker(userId, args) {
     return { error: `Failed to assign worker: ${assignErr.message}` };
   }
 
+  // Notify the worker about the new assignment
+  const { data: wUser } = await supabase.from('workers').select('user_id').eq('id', worker_id).single();
+  if (wUser?.user_id) {
+    sendNotification({
+      userId: wUser.user_id,
+      title: 'New Project Assignment',
+      body: `You've been assigned to ${project.name}`,
+      type: 'worker_update',
+      data: { screen: 'Assignments' },
+      projectId: project_id,
+      workerId: worker_id,
+    });
+  }
+
   return {
     success: true,
     message: `${worker.full_name} (${worker.trade}) assigned to ${project.name}`,
@@ -1977,6 +2068,19 @@ async function record_expense(userId, { project_id, type, amount, category, desc
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
+  // Notify project owner if a supervisor recorded the expense
+  const { data: proj } = await supabase.from('projects').select('user_id, name').eq('id', resolved.id).single();
+  if (proj && proj.user_id !== userId) {
+    sendNotification({
+      userId: proj.user_id,
+      title: 'New Expense Recorded',
+      body: `$${parseFloat(amount).toFixed(2)} ${category || ''} expense on ${proj.name}`,
+      type: 'financial_update',
+      data: { screen: 'Projects' },
+      projectId: resolved.id,
+    });
+  }
+
   return {
     success: true,
     transaction: {
@@ -1994,8 +2098,6 @@ async function record_expense(userId, { project_id, type, amount, category, desc
     }
   };
 }
-
-async function delete_expense(userId, { transaction_id, project_id }) {
   // OWNER-ONLY: Check if user is a supervisor
   const { data: profile } = await supabase
     .from('profiles')
@@ -2272,6 +2374,25 @@ async function update_phase_progress(userId, { project_id, phase_name, percentag
     .eq('id', phase.id);
 
   if (updateErr) return { error: `Failed to update phase: ${updateErr.message}` };
+
+  // Notify owner/supervisor when a phase hits 100%
+  if (pct >= 100) {
+    const { data: proj } = await supabase.from('projects')
+      .select('user_id, name, assigned_supervisor_id').eq('id', resolved.id).single();
+    if (proj) {
+      const recipients = [proj.user_id, proj.assigned_supervisor_id].filter(id => id && id !== userId);
+      for (const recipientId of recipients) {
+        sendNotification({
+          userId: recipientId,
+          title: 'Phase Completed',
+          body: `${phase.name} is now 100% complete on ${proj.name}`,
+          type: 'project_warning',
+          data: { screen: 'Projects' },
+          projectId: resolved.id,
+        });
+      }
+    }
+  }
 
   return {
     success: true,
@@ -2619,6 +2740,24 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
 
   if (error) return { error: `Failed to update invoice: ${error.message}` };
 
+  // Notify owner about invoice status changes (if caller is a supervisor)
+  if (updates.status) {
+    const { data: inv } = await supabase.from('invoices').select('project_id').eq('id', resolved.id).single();
+    if (inv?.project_id) {
+      const { data: proj } = await supabase.from('projects').select('user_id, name').eq('id', inv.project_id).single();
+      if (proj && proj.user_id !== userId) {
+        sendNotification({
+          userId: proj.user_id,
+          title: 'Invoice Updated',
+          body: `Invoice #${data.invoice_number} marked as ${data.status} on ${proj.name}`,
+          type: 'financial_update',
+          data: { screen: 'Projects' },
+          projectId: inv.project_id,
+        });
+      }
+    }
+  }
+
   return {
     success: true,
     invoice: {
@@ -2741,6 +2880,24 @@ async function create_worker_task(userId, { project, title, description, start_d
     .single();
 
   if (error) return { error: `Failed to create task: ${error.message}` };
+
+  // Notify workers assigned to this project about the new task
+  const { data: assignments } = await supabase
+    .from('project_assignments')
+    .select('worker_id, workers(user_id)')
+    .eq('project_id', resolved.id);
+  for (const a of (assignments || [])) {
+    if (a.workers?.user_id) {
+      sendNotification({
+        userId: a.workers.user_id,
+        title: 'New Task',
+        body: `New task: ${title}${proj?.name ? ` on ${proj.name}` : ''}`,
+        type: 'worker_update',
+        data: { screen: 'Assignments' },
+        projectId: resolved.id,
+      });
+    }
+  }
 
   return {
     success: true,

@@ -1,91 +1,618 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Terms of Service - Construction Manager</title>
+  <title>Terms of Service — Sylk</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #FFFFFF;
+      color: #1E293B;
       line-height: 1.7;
-      padding: 20px;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
     }
-    .container { max-width: 700px; margin: 0 auto; }
-    h1 { font-size: 28px; margin-bottom: 8px; color: white; }
-    .updated { color: #64748b; font-size: 14px; margin-bottom: 32px; }
-    h2 { font-size: 20px; color: white; margin-top: 32px; margin-bottom: 16px; }
-    p { margin-bottom: 16px; color: #cbd5e1; }
-    ul { margin-left: 20px; margin-bottom: 16px; color: #cbd5e1; }
-    li { margin-bottom: 8px; }
-    a { color: #60a5fa; }
-    .back-link { display: inline-block; margin-bottom: 24px; color: #60a5fa; text-decoration: none; }
-    .back-link:hover { text-decoration: underline; }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid #E2E8F0;
+      padding: 16px 24px;
+    }
+    .nav-inner {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .nav-brand {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1E40AF;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748B;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #1E40AF; }
+    .nav-links a.active { color: #1E40AF; font-weight: 600; }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    .hero {
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid #E2E8F0;
+    }
+    .hero h1 {
+      font-size: 36px;
+      font-weight: 700;
+      color: #0F172A;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .hero .effective {
+      font-size: 14px;
+      color: #64748B;
+    }
+
+    .toc {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 48px;
+    }
+    .toc-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748B;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+    .toc ol {
+      list-style: none;
+      counter-reset: toc;
+      columns: 2;
+      column-gap: 32px;
+    }
+    .toc li {
+      counter-increment: toc;
+      margin-bottom: 8px;
+    }
+    .toc li::before {
+      content: counter(toc) ".";
+      font-weight: 600;
+      color: #1E40AF;
+      margin-right: 8px;
+      font-size: 13px;
+    }
+    .toc a {
+      color: #334155;
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+    .toc a:hover { color: #1E40AF; }
+
+    .section { margin-bottom: 40px; }
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 16px;
+      padding-top: 8px;
+    }
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1E293B;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+    p {
+      margin-bottom: 16px;
+      color: #475569;
+    }
+    strong { color: #1E293B; }
+
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 16px;
+      color: #475569;
+    }
+    li { margin-bottom: 6px; }
+
+    a { color: #1E40AF; }
+
+    .info-card {
+      background: #F0F4FF;
+      border: 1px solid #DBEAFE;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 20px 0;
+    }
+    .info-card p { color: #1E40AF; margin-bottom: 0; }
+    .info-card strong { color: #1E3A8A; }
+
+    .warning-card {
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 20px 0;
+    }
+    .warning-card p { color: #9A3412; margin-bottom: 0; }
+
+    .legal-emphasis {
+      background: #F8FAFC;
+      border-left: 4px solid #1E40AF;
+      padding: 16px 20px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .legal-emphasis p {
+      color: #334155;
+      font-weight: 500;
+      margin-bottom: 0;
+      text-transform: uppercase;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+    }
+
+    .footer {
+      margin-top: 64px;
+      padding-top: 32px;
+      border-top: 1px solid #E2E8F0;
+      text-align: center;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748B;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #1E40AF; }
+    .footer p {
+      font-size: 13px;
+      color: #94A3B8;
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 28px; }
+      h2 { font-size: 20px; }
+      .toc ol { columns: 1; }
+      .nav-links { gap: 16px; }
+      .container { padding: 32px 16px 60px; }
+    }
+
+    @media print {
+      .nav { display: none; }
+      body { font-size: 12px; }
+      .container { max-width: 100%; padding: 0; }
+    }
   </style>
 </head>
 <body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">Sylk</a>
+      <div class="nav-links">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms" class="active">Terms of Service</a>
+        <a href="/support">Support</a>
+      </div>
+    </div>
+  </nav>
+
   <div class="container">
-    <a href="/pricing" class="back-link">&larr; Back to Pricing</a>
-    <h1>Terms of Service</h1>
-    <p class="updated">Last Updated: January 27, 2025</p>
 
-    <h2>1. Acceptance of Terms</h2>
-    <p>By downloading, installing, or using the Construction Manager mobile application ("App"), you agree to be bound by these Terms of Service. If you do not agree, do not use the App.</p>
+    <div class="hero">
+      <h1>Terms of Service</h1>
+      <p class="effective">Effective Date: February 26, 2026</p>
+    </div>
 
-    <h2>2. Description of Service</h2>
-    <p>Construction Manager is a project management application for construction professionals, providing:</p>
-    <ul>
-      <li>Project tracking and management</li>
-      <li>AI-powered estimate generation</li>
-      <li>Worker scheduling and time tracking</li>
-      <li>Invoice and estimate creation</li>
-      <li>Client communication tools</li>
-    </ul>
+    <div class="toc">
+      <p class="toc-title">Table of Contents</p>
+      <ol>
+        <li><a href="#acceptance">Acceptance of Terms</a></li>
+        <li><a href="#eligibility">Eligibility</a></li>
+        <li><a href="#description">Description of Service</a></li>
+        <li><a href="#accounts">Accounts &amp; Team Hierarchy</a></li>
+        <li><a href="#subscriptions">Subscriptions &amp; Payment</a></li>
+        <li><a href="#ai-content">AI-Generated Content</a></li>
+        <li><a href="#gps">GPS Location Tracking</a></li>
+        <li><a href="#acceptable-use">Acceptable Use</a></li>
+        <li><a href="#ip">Intellectual Property</a></li>
+        <li><a href="#user-responsibilities">User Responsibilities</a></li>
+        <li><a href="#third-party">Third-Party Services</a></li>
+        <li><a href="#warranties">Disclaimer of Warranties</a></li>
+        <li><a href="#liability">Limitation of Liability</a></li>
+        <li><a href="#indemnification">Indemnification</a></li>
+        <li><a href="#arbitration">Dispute Resolution &amp; Arbitration</a></li>
+        <li><a href="#termination">Termination</a></li>
+        <li><a href="#force-majeure">Force Majeure</a></li>
+        <li><a href="#governing-law">Governing Law</a></li>
+        <li><a href="#modifications">Modifications</a></li>
+        <li><a href="#general">General Provisions</a></li>
+        <li><a href="#contact">Contact Us</a></li>
+      </ol>
+    </div>
 
-    <h2>3. Account Registration</h2>
-    <p>You must create an account with a valid email address and password. You are responsible for maintaining the confidentiality of your account credentials and all activities under your account.</p>
+    <!-- 1. Acceptance -->
+    <div class="section" id="acceptance">
+      <h2>1. Acceptance of Terms</h2>
+      <p>By downloading, installing, accessing, or using the Sylk mobile application and related services (the "Service"), you agree to be bound by these Terms of Service ("Terms") and our <a href="/privacy">Privacy Policy</a>. If you do not agree to these Terms, you must not use the Service.</p>
+      <p>These Terms constitute a legally binding agreement between you and Sylk. Please read them carefully.</p>
+    </div>
 
-    <h2>4. Subscription and Payment</h2>
-    <ul>
-      <li>The App offers subscription plans: Starter ($49/mo), Pro ($79/mo), and Business ($149/mo)</li>
-      <li>New users receive a 7-day free trial</li>
-      <li>Payments are processed securely through Stripe</li>
-      <li>Subscriptions auto-renew monthly unless cancelled</li>
-      <li>You may cancel anytime; cancellation takes effect at the end of the billing period</li>
-    </ul>
+    <!-- 2. Eligibility -->
+    <div class="section" id="eligibility">
+      <h2>2. Eligibility</h2>
+      <p>To use the Service, you must:</p>
+      <ul>
+        <li>Be at least 18 years of age</li>
+        <li>Have the legal capacity to enter into a binding agreement</li>
+        <li>Provide accurate, current, and complete registration information</li>
+        <li>Maintain the security and confidentiality of your account credentials</li>
+      </ul>
+      <p>You are responsible for all activity that occurs under your account. If you become aware of any unauthorized use, you must notify us immediately at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
+    </div>
 
-    <h2>5. User Responsibilities</h2>
-    <p>You agree to:</p>
-    <ul>
-      <li>Use the App only for lawful purposes</li>
-      <li>Provide accurate information</li>
-      <li>Not share your account credentials</li>
-      <li>Not attempt to reverse engineer the App</li>
-      <li>Not use automated systems without permission</li>
-    </ul>
+    <!-- 3. Description of Service -->
+    <div class="section" id="description">
+      <h2>3. Description of Service</h2>
+      <p>Sylk is a construction management platform that provides:</p>
+      <ul>
+        <li>Project tracking, phase management, and task assignments</li>
+        <li>AI-powered estimate and invoice generation</li>
+        <li>Team management with role-based access (Owner, Supervisor, Worker)</li>
+        <li>Financial tracking including expenses, income, and budgets</li>
+        <li>Bank account connections for transaction reconciliation</li>
+        <li>Time tracking with GPS clock-in verification</li>
+        <li>Daily report creation with photo documentation</li>
+        <li>Voice-to-text input for hands-free data entry</li>
+        <li>Communication tools including SMS, WhatsApp, and push notifications</li>
+        <li>AI-powered chat assistant for project analysis and guidance</li>
+      </ul>
+      <p>The Service is designed for construction professionals and is intended for business use in managing construction projects.</p>
+    </div>
 
-    <h2>6. Intellectual Property</h2>
-    <p>The App, including its design, features, and technology, is owned by Construction Manager and protected by intellectual property laws. You may not copy, modify, or distribute any part of the App without permission.</p>
+    <!-- 4. Accounts & Team Hierarchy -->
+    <div class="section" id="accounts">
+      <h2>4. Accounts &amp; Team Hierarchy</h2>
+      <p>Sylk operates with a three-tier organizational structure:</p>
+      <ul>
+        <li><strong>Owner:</strong> Creates the organization, manages projects, invites team members, and has full access to all data within their organization</li>
+        <li><strong>Supervisor:</strong> Joins via Owner invitation, manages assigned projects and workers, has access to project-level data as determined by the Owner</li>
+        <li><strong>Worker:</strong> Joins via invitation, views assigned projects, submits daily reports and time tracking</li>
+      </ul>
+      <p>Owners are responsible for ensuring that all team members they invite are aware of and comply with these Terms and our Privacy Policy. By inviting team members, Owners confirm they have the authority to share relevant project and organizational data with those individuals.</p>
+    </div>
 
-    <h2>7. AI-Generated Content</h2>
-    <p>AI-generated estimates and suggestions are for informational purposes only. You are responsible for verifying all information before use in actual business operations.</p>
+    <!-- 5. Subscriptions & Payment -->
+    <div class="section" id="subscriptions">
+      <h2>5. Subscriptions &amp; Payment</h2>
 
-    <h2>8. Disclaimer of Warranties</h2>
-    <p>THE APP IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. We do not warrant that the App will be uninterrupted, error-free, or meet your specific requirements.</p>
+      <h3>5.1 Subscription Plans</h3>
+      <p>Sylk offers the following subscription tiers:</p>
+      <ul>
+        <li><strong>Starter:</strong> $49/month</li>
+        <li><strong>Pro:</strong> $79/month</li>
+        <li><strong>Business:</strong> $149/month</li>
+      </ul>
+      <p>Features available in each tier are described within the app and may be updated from time to time.</p>
 
-    <h2>9. Limitation of Liability</h2>
-    <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, we shall not be liable for any indirect, incidental, or consequential damages. Our total liability shall not exceed the amount you paid in the twelve months preceding any claim.</p>
+      <h3>5.2 Free Trial</h3>
+      <p>New users receive a 7-day free trial. You will not be charged during the trial period. If you do not cancel before the trial expires, your subscription will automatically begin and you will be charged for the selected plan.</p>
 
-    <h2>10. Termination</h2>
-    <p>You may terminate your account at any time. We may suspend or terminate your account if you violate these Terms. Upon termination, your right to use the App ceases immediately.</p>
+      <h3>5.3 Billing &amp; Auto-Renewal</h3>
+      <p>Subscriptions are billed monthly and <strong>automatically renew</strong> at the end of each billing period until cancelled. Payments are processed securely through Stripe. You authorize us to charge your payment method on file for each renewal period.</p>
 
-    <h2>11. Changes to Terms</h2>
-    <p>We may modify these Terms at any time. Continued use of the App after changes constitutes acceptance of the modified Terms.</p>
+      <h3>5.4 Cancellation</h3>
+      <p>You may cancel your subscription at any time through the app's settings or the Stripe billing portal. Cancellation takes effect at the end of the current billing period. You will retain access to paid features until your current period expires. No partial refunds are provided for unused portions of a billing period.</p>
 
-    <h2>12. Contact</h2>
-    <p>Questions about these Terms? Contact us at: <a href="mailto:support@constructionmanager.app">support@constructionmanager.app</a></p>
+      <h3>5.5 Subscription Lapse</h3>
+      <p>If your subscription expires or payment fails, your account will transition to read-only access. Your data will be retained for 90 days, during which you can renew your subscription to restore full access. After 90 days of inactivity, your data may be deleted.</p>
+
+      <h3>5.6 Apple &amp; Google Subscriptions</h3>
+      <p>If you subscribed through the Apple App Store or Google Play Store, your subscription is also subject to their respective terms. To manage or cancel an in-app subscription, use your device's subscription management settings.</p>
+    </div>
+
+    <!-- 6. AI-Generated Content -->
+    <div class="section" id="ai-content">
+      <h2>6. AI-Generated Content</h2>
+
+      <div class="warning-card">
+        <p><strong>Important:</strong> AI-generated estimates, suggestions, calculations, and analysis are provided for informational purposes only. They do not constitute professional construction, engineering, financial, or legal advice.</p>
+      </div>
+
+      <p>Sylk uses artificial intelligence powered by Anthropic (Claude) and other providers to generate estimates, provide project analysis, and assist with construction management tasks. Regarding AI-generated content:</p>
+      <ul>
+        <li>AI outputs are provided <strong>"as-is" without any warranty</strong> of accuracy, completeness, reliability, or fitness for any particular purpose</li>
+        <li>You <strong>must independently verify</strong> all AI-generated content before relying on it for business decisions, client proposals, financial planning, or any other purpose</li>
+        <li>Sylk is <strong>not liable</strong> for any losses, damages, or claims arising from reliance on AI-generated content, including inaccurate estimates, incorrect calculations, or flawed recommendations</li>
+        <li>AI features depend on third-party service availability and may experience interruptions, errors, or changes without notice</li>
+        <li>You are solely responsible for any business decisions made using AI-generated content</li>
+      </ul>
+    </div>
+
+    <!-- 7. GPS Location Tracking -->
+    <div class="section" id="gps">
+      <h2>7. GPS Location Tracking</h2>
+      <p>Sylk includes location-based features for job site management:</p>
+      <ul>
+        <li>GPS coordinates are collected during supervisor clock-in/clock-out events</li>
+        <li>Location data is used for distance calculations and job site verification</li>
+        <li>Owners may view location data associated with supervisor and worker clock-in events</li>
+        <li>Location is collected <strong>only while the app is in use</strong> (foreground) — not in the background</li>
+        <li>Location tracking is <strong>not used for surveillance</strong> outside of work-related activities</li>
+      </ul>
+      <p>By using location features, you consent to the collection and use of location data as described in our <a href="/privacy">Privacy Policy</a>. You may revoke location permissions at any time through your device settings.</p>
+    </div>
+
+    <!-- 8. Acceptable Use -->
+    <div class="section" id="acceptable-use">
+      <h2>8. Acceptable Use</h2>
+      <p>You agree to use the Service only for lawful purposes and in accordance with these Terms. You shall not:</p>
+      <ul>
+        <li>Use the Service for any illegal, fraudulent, or unauthorized purpose</li>
+        <li>Share your account credentials with any third party</li>
+        <li>Attempt to reverse engineer, decompile, or disassemble any part of the Service</li>
+        <li>Use automated systems, bots, or scrapers to access the Service without our written permission</li>
+        <li>Misuse GPS tracking features for surveillance, stalking, or monitoring individuals outside of legitimate work purposes</li>
+        <li>Use communication features (SMS, WhatsApp, notifications) to harass, threaten, or spam any person</li>
+        <li>Upload malicious content, viruses, or harmful code</li>
+        <li>Interfere with or disrupt the Service or its infrastructure</li>
+        <li>Impersonate any person or entity</li>
+        <li>Use AI features to generate content that violates any law or third-party rights</li>
+      </ul>
+      <p>We reserve the right to suspend or terminate accounts that violate this Acceptable Use policy.</p>
+    </div>
+
+    <!-- 9. Intellectual Property -->
+    <div class="section" id="ip">
+      <h2>9. Intellectual Property</h2>
+
+      <h3>9.1 Our Property</h3>
+      <p>The Service, including its software, design, features, branding, AI prompts, and technology, is owned by Sylk and protected by intellectual property laws. You may not copy, modify, distribute, sell, or lease any part of the Service without our written permission.</p>
+
+      <h3>9.2 Your Data</h3>
+      <p>You retain full ownership of all data you create, upload, or enter into the Service, including project information, financial records, photos, reports, and client data. We do not claim ownership of your data.</p>
+
+      <h3>9.3 License Grant</h3>
+      <p>By using the Service, you grant us a limited, non-exclusive, worldwide license to use, process, and store your data solely for the purpose of providing, maintaining, and improving the Service. This license terminates when you delete your account.</p>
+
+      <h3>9.4 AI Output Ownership</h3>
+      <p>AI-generated content (estimates, analysis, suggestions) created through the Service is yours to use for your business purposes. However, we make no representations regarding the originality or intellectual property status of AI-generated content.</p>
+    </div>
+
+    <!-- 10. User Responsibilities -->
+    <div class="section" id="user-responsibilities">
+      <h2>10. User Responsibilities</h2>
+      <p>As a user of the Service, you are responsible for:</p>
+      <ul>
+        <li>Providing accurate and up-to-date information</li>
+        <li>Maintaining the security of your account credentials</li>
+        <li>Complying with all applicable construction industry laws and regulations</li>
+        <li>Ensuring that AI-generated estimates and content are reviewed and verified before use in business operations</li>
+        <li>Obtaining any necessary permissions from workers and team members regarding data collection and location tracking</li>
+        <li>Backing up any critical data outside of the Service</li>
+        <li>Using the Service in compliance with all applicable local, state, and federal laws</li>
+      </ul>
+    </div>
+
+    <!-- 11. Third-Party Services -->
+    <div class="section" id="third-party">
+      <h2>11. Third-Party Services</h2>
+      <p>The Service integrates with third-party providers including Plaid (banking), Stripe (payments), Anthropic (AI), Groq (AI/transcription), Deepgram (transcription), Google Maps (location), Supabase (infrastructure), and Expo (notifications). These integrations are subject to their respective terms of service and privacy policies.</p>
+      <p>Sylk is not responsible for:</p>
+      <ul>
+        <li>The availability, accuracy, or performance of third-party services</li>
+        <li>Changes to third-party terms, pricing, or features</li>
+        <li>Data processing by third-party services beyond our reasonable control</li>
+        <li>Service interruptions caused by third-party outages</li>
+      </ul>
+    </div>
+
+    <!-- 12. Disclaimer of Warranties -->
+    <div class="section" id="warranties">
+      <h2>12. Disclaimer of Warranties</h2>
+      <div class="legal-emphasis">
+        <p>The Service is provided "as is" and "as available" without warranties of any kind, whether express, implied, statutory, or otherwise, including but not limited to implied warranties of merchantability, fitness for a particular purpose, title, and non-infringement.</p>
+      </div>
+      <p>Without limiting the foregoing, we do not warrant that:</p>
+      <ul>
+        <li>The Service will be uninterrupted, error-free, or secure</li>
+        <li>AI-generated content will be accurate, complete, or suitable for any purpose</li>
+        <li>Location data will be precise or error-free</li>
+        <li>Third-party integrations will function without interruption</li>
+        <li>The Service will meet your specific business requirements</li>
+      </ul>
+    </div>
+
+    <!-- 13. Limitation of Liability -->
+    <div class="section" id="liability">
+      <h2>13. Limitation of Liability</h2>
+      <div class="legal-emphasis">
+        <p>To the maximum extent permitted by applicable law, Sylk shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, revenue, data, business opportunities, or goodwill, regardless of the cause of action or theory of liability.</p>
+      </div>
+      <p>Our total aggregate liability for all claims arising out of or related to these Terms or the Service shall not exceed the total amount you paid to us in the twelve (12) months immediately preceding the event giving rise to the claim.</p>
+      <p>Without limiting the above, Sylk shall not be liable for:</p>
+      <ul>
+        <li>Losses arising from reliance on AI-generated estimates, calculations, or recommendations</li>
+        <li>Errors in GPS location data or distance calculations</li>
+        <li>Third-party payment processing errors (Stripe, Plaid)</li>
+        <li>Third-party service outages or changes</li>
+        <li>Unauthorized access to your account resulting from your failure to secure your credentials</li>
+        <li>Construction project outcomes, disputes, or liabilities</li>
+      </ul>
+    </div>
+
+    <!-- 14. Indemnification -->
+    <div class="section" id="indemnification">
+      <h2>14. Indemnification</h2>
+      <p>You agree to indemnify, defend, and hold harmless Sylk and its officers, directors, employees, and agents from and against any claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of or related to:</p>
+      <ul>
+        <li>Your use of the Service</li>
+        <li>Your violation of these Terms</li>
+        <li>Your violation of any third-party rights</li>
+        <li>Content you upload, create, or share through the Service</li>
+        <li>Claims arising from your construction projects or business operations</li>
+        <li>Your misuse of GPS tracking, communication features, or AI outputs</li>
+      </ul>
+      <p>This indemnification obligation does not apply to claims arising solely from Sylk's gross negligence or willful misconduct.</p>
+    </div>
+
+    <!-- 15. Dispute Resolution & Arbitration -->
+    <div class="section" id="arbitration">
+      <h2>15. Dispute Resolution &amp; Arbitration</h2>
+
+      <h3>15.1 Informal Resolution</h3>
+      <p>Before initiating any formal dispute resolution, you agree to first contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a> and attempt to resolve the dispute informally for at least 30 days.</p>
+
+      <h3>15.2 Binding Arbitration</h3>
+      <p>If the dispute cannot be resolved informally, you and Sylk agree that any dispute, claim, or controversy arising out of or relating to these Terms or the Service shall be resolved by <strong>binding individual arbitration</strong> administered by the American Arbitration Association (AAA) under its Consumer Arbitration Rules.</p>
+
+      <h3>15.3 Class Action Waiver</h3>
+      <div class="warning-card">
+        <p><strong>You agree to resolve disputes with Sylk on an individual basis only.</strong> You waive any right to participate in a class action, collective action, or representative proceeding against Sylk.</p>
+      </div>
+
+      <h3>15.4 Exceptions</h3>
+      <p>The following disputes are exempt from mandatory arbitration:</p>
+      <ul>
+        <li>Claims eligible for small claims court</li>
+        <li>Claims for injunctive relief to protect intellectual property rights</li>
+      </ul>
+
+      <h3>15.5 Opt-Out Right</h3>
+      <p>You may opt out of this arbitration agreement by sending written notice to <a href="mailto:support@sylkapp.com">support@sylkapp.com</a> within <strong>30 days of creating your account</strong>. Your notice must include your name, email address, and a clear statement that you wish to opt out of the arbitration provision.</p>
+    </div>
+
+    <!-- 16. Termination -->
+    <div class="section" id="termination">
+      <h2>16. Termination</h2>
+
+      <h3>16.1 Termination by You</h3>
+      <p>You may delete your account and terminate your use of the Service at any time. Upon account deletion, your data will be handled according to our <a href="/privacy">Privacy Policy</a>.</p>
+
+      <h3>16.2 Termination by Us</h3>
+      <p>We may suspend or terminate your account if:</p>
+      <ul>
+        <li>You violate these Terms or the Acceptable Use policy</li>
+        <li>Your subscription payment fails and is not resolved within the grace period</li>
+        <li>We are required to do so by law</li>
+        <li>We discontinue the Service (with reasonable advance notice)</li>
+      </ul>
+
+      <h3>16.3 Effect of Termination</h3>
+      <p>Upon termination, your right to use the Service ceases immediately. Sections 6 (AI-Generated Content), 9 (Intellectual Property), 12 (Disclaimer of Warranties), 13 (Limitation of Liability), 14 (Indemnification), 15 (Dispute Resolution), and 18 (Governing Law) survive termination.</p>
+    </div>
+
+    <!-- 17. Force Majeure -->
+    <div class="section" id="force-majeure">
+      <h2>17. Force Majeure</h2>
+      <p>Neither party shall be liable for any failure or delay in performance resulting from causes beyond its reasonable control, including but not limited to:</p>
+      <ul>
+        <li>Natural disasters, pandemics, or acts of God</li>
+        <li>Government actions, sanctions, or regulatory changes</li>
+        <li>Internet or infrastructure failures</li>
+        <li>Third-party service outages (including Plaid, Stripe, Anthropic, Supabase, or cloud providers)</li>
+        <li>Cyberattacks or security incidents beyond our reasonable control</li>
+        <li>Labor disputes or supply chain disruptions</li>
+      </ul>
+    </div>
+
+    <!-- 18. Governing Law -->
+    <div class="section" id="governing-law">
+      <h2>18. Governing Law</h2>
+      <p>These Terms shall be governed by and construed in accordance with the laws of the United States of America, without regard to conflict of law principles. For matters not subject to arbitration, you consent to the exclusive jurisdiction of the federal and state courts located in the United States.</p>
+    </div>
+
+    <!-- 19. Modifications -->
+    <div class="section" id="modifications">
+      <h2>19. Modifications</h2>
+      <p>We reserve the right to modify these Terms at any time. When we make material changes, we will:</p>
+      <ul>
+        <li>Update the "Effective Date" at the top of this page</li>
+        <li>Provide at least 30 days' notice via email or in-app notification before material changes take effect</li>
+        <li>Where required by law, obtain your consent</li>
+      </ul>
+      <p>Your continued use of the Service after the effective date of modified Terms constitutes acceptance of the changes. If you do not agree to modified Terms, you must stop using the Service and may delete your account.</p>
+    </div>
+
+    <!-- 20. General Provisions -->
+    <div class="section" id="general">
+      <h2>20. General Provisions</h2>
+
+      <h3>20.1 Severability</h3>
+      <p>If any provision of these Terms is found to be unenforceable or invalid, that provision shall be modified to the minimum extent necessary to make it enforceable, and the remaining provisions shall continue in full force and effect.</p>
+
+      <h3>20.2 Entire Agreement</h3>
+      <p>These Terms, together with the <a href="/privacy">Privacy Policy</a>, constitute the entire agreement between you and Sylk regarding the Service and supersede all prior agreements and understandings.</p>
+
+      <h3>20.3 Assignment</h3>
+      <p>You may not assign or transfer your rights under these Terms without our prior written consent. We may assign our rights and obligations in connection with a merger, acquisition, or sale of assets, with notice to you.</p>
+
+      <h3>20.4 Waiver</h3>
+      <p>Our failure to enforce any right or provision of these Terms shall not constitute a waiver of that right or provision.</p>
+
+      <h3>20.5 Notices</h3>
+      <p>We may provide notices to you via email, in-app notifications, or by posting on the Service. You may provide notice to us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
+    </div>
+
+    <!-- 21. Contact -->
+    <div class="section" id="contact">
+      <h2>21. Contact Us</h2>
+      <p>If you have questions about these Terms of Service, please contact us:</p>
+      <p><strong>Email:</strong> <a href="mailto:support@sylkapp.com">support@sylkapp.com</a></p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-links">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/support">Support</a>
+      </div>
+      <p>&copy; 2026 Sylk. All rights reserved.</p>
+    </div>
+
   </div>
 </body>
 </html>
