@@ -274,6 +274,123 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* Worker Profile Card */}
+        <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <View style={[styles.workerAvatar, { backgroundColor: statusColor + '20' }]}>
+              <Text style={[styles.workerAvatarText, { color: statusColor }]}>
+                {getInitials(worker.full_name)}
+              </Text>
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: Colors.primaryText, marginBottom: 2 }}>
+                {worker.full_name}
+              </Text>
+              {worker.trade ? (
+                <Text style={{ fontSize: 14, color: Colors.secondaryText, marginBottom: 4 }}>
+                  {worker.trade}
+                </Text>
+              ) : null}
+              <View style={[styles.statusBadge, { backgroundColor: statusColor + '15', alignSelf: 'flex-start', marginBottom: 0 }]}>
+                <Text style={[styles.statusText, { color: statusColor }]}>
+                  {worker.status || 'active'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={{ padding: 8 }}
+              onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
+            >
+              <Ionicons name="create-outline" size={22} color={Colors.secondaryText} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Contact Info */}
+          {(worker.email || worker.phone) && (
+            <View style={{ marginBottom: 16 }}>
+              {worker.email ? (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
+                  onPress={() => Linking.openURL(`mailto:${worker.email}`)}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.primaryBlue + '10', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="mail-outline" size={16} color={Colors.primaryBlue} />
+                  </View>
+                  <Text style={{ fontSize: 14, color: Colors.primaryBlue, marginLeft: 10 }}>{worker.email}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {worker.phone ? (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
+                  onPress={() => Linking.openURL(`tel:${worker.phone}`)}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#10B981' + '10', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="call-outline" size={16} color="#10B981" />
+                  </View>
+                  <Text style={{ fontSize: 14, color: '#10B981', marginLeft: 10 }}>{worker.phone}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
+
+          {/* Payment Details */}
+          <View style={{ backgroundColor: Colors.lightGray, borderRadius: 12, padding: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="wallet-outline" size={18} color={Colors.primaryBlue} />
+              <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.primaryText, marginLeft: 6 }}>
+                Payment Info
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {/* Payment Type */}
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>Type</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                  {worker.payment_type === 'hourly' ? 'Hourly' :
+                   worker.payment_type === 'daily' ? 'Daily' :
+                   worker.payment_type === 'weekly' ? 'Weekly' :
+                   worker.payment_type === 'project_based' ? 'Per Project' : 'Not Set'}
+                </Text>
+              </View>
+
+              {/* Rate */}
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>Rate</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryBlue }}>
+                  {worker.payment_type === 'hourly' && worker.hourly_rate ? `$${Number(worker.hourly_rate).toFixed(2)}/hr` :
+                   worker.payment_type === 'daily' && worker.daily_rate ? `$${Number(worker.daily_rate).toFixed(2)}/day` :
+                   worker.payment_type === 'weekly' && worker.weekly_salary ? `$${Number(worker.weekly_salary).toFixed(2)}/wk` :
+                   worker.payment_type === 'project_based' && worker.project_rate ? `$${Number(worker.project_rate).toFixed(2)}/proj` :
+                   'Not Set'}
+                </Text>
+              </View>
+
+              {/* Hours This Week */}
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>This Week</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                  {stats.weekHours}h
+                </Text>
+              </View>
+
+              {/* Hours This Month */}
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>This Month</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                  {stats.monthHours}h
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Member Since */}
+          {worker.created_at && (
+            <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 10, textAlign: 'center' }}>
+              Member since {new Date(worker.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </Text>
+          )}
+        </View>
+
         {/* Active Session */}
         {activeSession && (
           <View style={[styles.card, { backgroundColor: '#10B981' + '10', borderColor: '#10B981' + '40' }]}>
@@ -440,41 +557,9 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               </View>
             )}
 
-            {/* Payment type info */}
-            {worker.payment_type && (
-              <View style={styles.paymentTypeInfo}>
-                <Ionicons name="information-circle-outline" size={16} color={Colors.secondaryText} />
-                <Text style={[styles.paymentTypeText, { color: Colors.secondaryText }]}>
-                  Payment Type: {worker.payment_type === 'hourly' ? 'Hourly' :
-                    worker.payment_type === 'daily' ? 'Daily' :
-                    worker.payment_type === 'weekly' ? 'Weekly' : 'Project-Based'}
-                  {worker.payment_type === 'hourly' && worker.hourly_rate && ` - $${Number(worker.hourly_rate).toFixed(2)}/hr`}
-                  {worker.payment_type === 'daily' && worker.daily_rate && ` - $${Number(worker.daily_rate).toFixed(2)}/day`}
-                  {worker.payment_type === 'weekly' && worker.weekly_salary && ` - $${Number(worker.weekly_salary).toFixed(2)}/wk`}
-                  {worker.payment_type === 'project_based' && worker.project_rate && ` - $${Number(worker.project_rate).toFixed(2)}/project`}
-                </Text>
-              </View>
-            )}
           </View>
         )}
 
-        {/* Stats Summary */}
-        <View style={[styles.card, { backgroundColor: Colors.white }]}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="stats-chart" size={20} color={Colors.primaryBlue} />
-            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Summary</Text>
-          </View>
-          <View style={styles.statsGrid}>
-            <View style={[styles.statItem, { backgroundColor: Colors.lightGray }]}>
-              <Text style={[styles.statValue, { color: Colors.primaryText }]}>{stats.weekHours}h</Text>
-              <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>This Week</Text>
-            </View>
-            <View style={[styles.statItem, { backgroundColor: Colors.lightGray }]}>
-              <Text style={[styles.statValue, { color: Colors.primaryText }]}>{stats.monthHours}h</Text>
-              <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>This Month</Text>
-            </View>
-          </View>
-        </View>
 
       </ScrollView>
     </SafeAreaView>
