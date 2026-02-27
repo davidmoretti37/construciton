@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -97,7 +97,7 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
               iconGlowAnim,
             ]}
           >
-            <Image source={require('../../../assets/icon.png')} style={{ width: 80, height: 80, borderRadius: 20 }} />
+            <Ionicons name="construct" size={56} color={Colors.primaryBlue} />
           </Animated.View>
         </Animated.View>
 

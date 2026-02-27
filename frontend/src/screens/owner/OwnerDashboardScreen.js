@@ -1,10 +1,9 @@
 /**
  * OwnerDashboardScreen
- * Matches Supervisor HomeScreen layout with owner-specific data
- * No animations - instant load, professional appearance
+ * Financial-first dashboard — P&L hero, alerts, cash flow, quick access
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +11,6 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,13 +22,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import NotificationBell from '../../components/NotificationBell';
 import SkeletonBox from '../../components/skeletons/SkeletonBox';
-import SkeletonCard from '../../components/skeletons/SkeletonCard';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
 import { getReconciliationSummary } from '../../services/plaidService';
+import { fetchAllOwnerTransactions, calculateCashFlow } from '../../utils/financialReportUtils';
 
-// Color palette for owner theme
-const OWNER_COLORS = {
+const ACCENT = {
   primary: '#1E40AF',
   primaryLight: '#3B82F6',
   success: '#10B981',
@@ -57,33 +54,29 @@ export default function OwnerDashboardScreen() {
     totalExpenses: 0,
     pendingInvites: 0,
   });
-  const [supervisors, setSupervisors] = useState([]);
   const [reconciliation, setReconciliation] = useState(null);
+  const [overdueInvoices, setOverdueInvoices] = useState({ count: 0, amount: 0 });
+  const [cashFlowData, setCashFlowData] = useState([]);
 
-  // Calculate monthly stats
-  const monthlyStats = useMemo(() => {
-    const income = stats.totalRevenue || 0;
+  const pnl = useMemo(() => {
+    const revenue = stats.totalRevenue || 0;
     const expenses = stats.totalExpenses || 0;
-    const profit = income - expenses;
-    const budgeted = stats.totalContractValue || 0;
-    const percentage = budgeted > 0 ? Math.round((income / budgeted) * 100) : 0;
-
-    return { profit, budgeted, percentage };
+    const profit = revenue - expenses;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const contractValue = stats.totalContractValue || 0;
+    const collected = contractValue > 0 ? Math.round((revenue / contractValue) * 100) : 0;
+    return { revenue, expenses, profit, margin, contractValue, collected };
   }, [stats]);
 
   const fetchDashboardData = useCallback(async () => {
     if (!user?.id) return;
-
     try {
-      // Use the same fetch functions as the Projects and Workers tabs
-      // This guarantees consistent counts across all screens
       const [projects, workers, supervisorList] = await Promise.all([
         fetchProjectsForOwner(),
         fetchWorkersForOwner(),
         getSupervisorsForOwner(user.id),
       ]);
 
-      // Fetch pending invites (table may not exist yet)
       let pendingInviteCount = 0;
       try {
         const { data: invitesData } = await supabase
@@ -92,11 +85,8 @@ export default function OwnerDashboardScreen() {
           .eq('owner_id', user.id)
           .eq('status', 'pending');
         pendingInviteCount = (invitesData || []).length;
-      } catch (e) {
-        // supervisor_invites table may not exist
-      }
+      } catch (e) { /* table may not exist */ }
 
-      // Compute stats from the fetched arrays
       const totalContractValue = projects.reduce((sum, p) => sum + (p.contractAmount || 0), 0);
       const totalRevenue = projects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0);
       const totalExpenses = projects.reduce((sum, p) => sum + (p.expenses || 0), 0);
@@ -115,16 +105,33 @@ export default function OwnerDashboardScreen() {
         pendingInvites: pendingInviteCount,
       });
 
-      setSupervisors(supervisorList.slice(0, 5));
+      // Overdue invoices
+      try {
+        const { data: invoices } = await supabase
+          .from('invoices')
+          .select('total, amount_paid')
+          .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`)
+          .in('status', ['unpaid', 'partial', 'overdue']);
+        let overdueAmount = 0;
+        (invoices || []).forEach(inv => {
+          overdueAmount += (inv.total || 0) - (inv.amount_paid || 0);
+        });
+        setOverdueInvoices({ count: (invoices || []).length, amount: overdueAmount });
+      } catch (e) { setOverdueInvoices({ count: 0, amount: 0 }); }
 
-      // Fetch bank reconciliation summary (non-blocking)
+      // Cash flow — 3 months
+      try {
+        const projectIds = projects.map(p => p.id);
+        const txs = await fetchAllOwnerTransactions(projectIds);
+        const cf = calculateCashFlow(txs, 3);
+        setCashFlowData(cf);
+      } catch (e) { setCashFlowData([]); }
+
+      // Bank reconciliation
       try {
         const reconSummary = await getReconciliationSummary();
         setReconciliation(reconSummary);
-      } catch (e) {
-        // Bank integration may not be set up yet - that's OK
-        setReconciliation(null);
-      }
+      } catch (e) { setReconciliation(null); }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -133,32 +140,74 @@ export default function OwnerDashboardScreen() {
     }
   }, [user?.id]);
 
-  // Load dashboard data immediately on mount (so data is ready during splash)
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchDashboardData();
-    }, [fetchDashboardData])
-  );
+  useEffect(() => { fetchDashboardData(); }, []);
+  useFocusEffect(useCallback(() => { fetchDashboardData(); }, [fetchDashboardData]));
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    if (amount >= 1000000) {
-      return `$${(amount / 1000000).toFixed(1)}M`;
-    }
-    if (amount >= 1000) {
-      return `$${Math.round(amount / 1000)}K`;
-    }
-    return `$${amount.toLocaleString()}`;
+  const fmt = (amount) => {
+    const abs = Math.abs(amount);
+    if (abs >= 1000000) return `${amount < 0 ? '-' : ''}$${(abs / 1000000).toFixed(1)}M`;
+    if (abs >= 1000) return `${amount < 0 ? '-' : ''}$${(abs / 1000).toFixed(1)}K`;
+    return `${amount < 0 ? '-' : ''}$${Math.round(abs).toLocaleString()}`;
   };
+
+  const fmtFull = (amount) => `$${Math.round(amount).toLocaleString()}`;
+
+  // Alerts
+  const alerts = useMemo(() => {
+    const items = [];
+    if (overdueInvoices.count > 0) {
+      items.push({
+        key: 'overdue',
+        icon: 'alert-circle',
+        color: ACCENT.error,
+        bg: `${ACCENT.error}12`,
+        text: t('dashboardScreen.overdueInvoices', { count: overdueInvoices.count, amount: fmt(overdueInvoices.amount) }),
+        onPress: () => navigation.navigate('ARAging'),
+      });
+    }
+    const unmatchedCount = (reconciliation?.unmatched || 0) + (reconciliation?.suggested_matches || 0);
+    if (unmatchedCount > 0) {
+      items.push({
+        key: 'unmatched',
+        icon: 'card-outline',
+        color: ACCENT.warning,
+        bg: `${ACCENT.warning}12`,
+        text: t('dashboardScreen.unmatchedTransactions', { count: unmatchedCount }),
+        onPress: () => navigation.navigate('BankReconciliation', { filter: 'unmatched' }),
+      });
+    }
+    if (stats.pendingInvites > 0) {
+      items.push({
+        key: 'invites',
+        icon: 'mail-unread',
+        color: ACCENT.primaryLight,
+        bg: `${ACCENT.primaryLight}12`,
+        text: t('dashboardScreen.pendingInvites', { count: stats.pendingInvites }),
+        onPress: () => navigation.navigate('Workers'),
+      });
+    }
+    return items;
+  }, [overdueInvoices, reconciliation, stats.pendingInvites, navigation, t]);
+
+  // Cash flow chart
+  const maxCashFlowVal = useMemo(() => {
+    let max = 1;
+    cashFlowData.forEach(b => { max = Math.max(max, b.cashIn, b.cashOut); });
+    return max;
+  }, [cashFlowData]);
+
+  const totalNet = useMemo(() => cashFlowData.reduce((s, b) => s + b.net, 0), [cashFlowData]);
+
+  const marginHealth = useMemo(() => {
+    if (pnl.margin >= 20) return { text: t('financial.healthy'), color: ACCENT.success };
+    if (pnl.margin >= 10) return { text: t('financial.moderate'), color: ACCENT.warning };
+    return { text: t('financial.atRisk'), color: ACCENT.error };
+  }, [pnl.margin, t]);
 
   const styles = createStyles(Colors);
 
@@ -166,33 +215,18 @@ export default function OwnerDashboardScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.topBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]} />
-        <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Welcome skeleton */}
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={{ padding: 20 }}>
             <SkeletonBox width="50%" height={22} borderRadius={4} />
             <SkeletonBox width="70%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
           </View>
-          {/* Stats row skeleton */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 20 }}>
-            <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
-              <SkeletonBox width={40} height={28} borderRadius={4} />
-              <SkeletonBox width="70%" height={12} borderRadius={4} style={{ marginTop: 8 }} />
-            </View>
-            <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
-              <SkeletonBox width={40} height={28} borderRadius={4} />
-              <SkeletonBox width="70%" height={12} borderRadius={4} style={{ marginTop: 8 }} />
-            </View>
-            <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
-              <SkeletonBox width={40} height={28} borderRadius={4} />
-              <SkeletonBox width="70%" height={12} borderRadius={4} style={{ marginTop: 8 }} />
-            </View>
-          </View>
-          {/* Section skeleton */}
           <View style={{ paddingHorizontal: 16 }}>
-            <SkeletonBox width="40%" height={18} borderRadius={4} style={{ marginBottom: 12 }} />
-            <SkeletonCard lines={3} />
-            <SkeletonBox width="40%" height={18} borderRadius={4} style={{ marginTop: 8, marginBottom: 12 }} />
-            <SkeletonCard lines={4} />
+            <SkeletonBox width="100%" height={160} borderRadius={12} />
+            <SkeletonBox width="100%" height={90} borderRadius={12} style={{ marginTop: 16 }} />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <SkeletonBox width="48%" height={80} borderRadius={12} />
+              <SkeletonBox width="48%" height={80} borderRadius={12} />
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -201,282 +235,207 @@ export default function OwnerDashboardScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]}>
-        <View style={styles.topBarLeft} />
+        <View style={styles.topBarLeft}>
+          <Text style={[styles.welcomeText, { color: Colors.primaryText }]}>{t('dashboardScreen.welcome')}</Text>
+          <Text style={[styles.dateText, { color: Colors.secondaryText }]}>
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+          </Text>
+        </View>
         <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
 
       <ScrollView
-        style={styles.content}
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={OWNER_COLORS.primary}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT.primary} />}
       >
-        {/* Welcome Section */}
-        <View style={[styles.welcomeSection, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
-          <Text style={[styles.welcomeText, { color: Colors.primaryText }]}>{t('dashboardScreen.welcome')} 👋</Text>
-          <Text style={[styles.dateText, { color: Colors.secondaryText }]}>
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </Text>
-        </View>
 
-        {/* Quick Stats Cards */}
-        <View style={styles.statsRow}>
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: Colors.cardBackground, borderLeftColor: OWNER_COLORS.primary }]}
-            onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalSupervisors}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('dashboard.supervisors')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: Colors.cardBackground, borderLeftColor: OWNER_COLORS.success }]}
-            onPress={() => navigation.navigate('Projects')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalProjects}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('dashboard.projects')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: Colors.cardBackground, borderLeftColor: OWNER_COLORS.warning }]}
-            onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalWorkers}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('dashboard.workers')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* This Month Section */}
+        {/* ── P&L Unified Card ── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>💰 {t('dashboardScreen.thisMonth')}</Text>
-          <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-            <Text style={[styles.incomeAmount, { color: monthlyStats.profit >= 0 ? OWNER_COLORS.success : OWNER_COLORS.error }]}>
-              {formatCurrency(monthlyStats.profit)} {t('dashboardScreen.profit')}
-            </Text>
-            <Text style={[styles.budgetText, { color: Colors.secondaryText }]}>
-              {formatCurrency(monthlyStats.budgeted)} {t('dashboardScreen.budgeted')}
-            </Text>
-            <View style={[styles.progressBarContainer, { backgroundColor: Colors.lightGray }]}>
-              <View style={[styles.progressBar, { width: `${Math.min(monthlyStats.percentage, 100)}%`, backgroundColor: OWNER_COLORS.primary }]} />
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.pnlTitle')}</Text>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: Colors.cardBackground }]}
+            onPress={() => navigation.navigate('FinancialReport')}
+            activeOpacity={0.7}
+          >
+            {/* Revenue / Expenses / Profit columns */}
+            <View style={styles.pnlColumns}>
+              <View style={styles.pnlCol}>
+                <Ionicons name="trending-up" size={14} color={ACCENT.success} />
+                <Text style={[styles.pnlValue, { color: ACCENT.success }]}>{fmt(pnl.revenue)}</Text>
+                <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.revenue')}</Text>
+              </View>
+              <View style={[styles.pnlDivider, { backgroundColor: Colors.border }]} />
+              <View style={styles.pnlCol}>
+                <Ionicons name="trending-down" size={14} color={ACCENT.error} />
+                <Text style={[styles.pnlValue, { color: ACCENT.error }]}>{fmt(pnl.expenses)}</Text>
+                <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.expenses')}</Text>
+              </View>
+              <View style={[styles.pnlDivider, { backgroundColor: Colors.border }]} />
+              <View style={styles.pnlCol}>
+                <Ionicons name="wallet" size={14} color={pnl.profit >= 0 ? ACCENT.success : ACCENT.error} />
+                <Text style={[styles.pnlValue, { color: pnl.profit >= 0 ? ACCENT.success : ACCENT.error }]}>{fmt(pnl.profit)}</Text>
+                <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.grossProfit')}</Text>
+              </View>
             </View>
-            <Text style={[styles.percentageText, { color: Colors.secondaryText }]}>{monthlyStats.percentage}%</Text>
+
+            {/* Margin badge */}
+            <View style={styles.marginRow}>
+              <View style={[styles.marginBadge, { backgroundColor: `${marginHealth.color}15` }]}>
+                <View style={[styles.marginDot, { backgroundColor: marginHealth.color }]} />
+                <Text style={[styles.marginText, { color: marginHealth.color }]}>
+                  {Math.round(pnl.margin)}% {t('dashboardScreen.margin')} — {marginHealth.text}
+                </Text>
+              </View>
+            </View>
+
+            {/* Contract value progress */}
+            {pnl.contractValue > 0 && (
+              <View style={styles.progressSection}>
+                <View style={styles.progressLabelRow}>
+                  <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>
+                    {fmtFull(pnl.revenue)} / {fmtFull(pnl.contractValue)}
+                  </Text>
+                  <Text style={[styles.progressPercent, { color: ACCENT.primary }]}>{pnl.collected}%</Text>
+                </View>
+                <View style={[styles.progressTrack, { backgroundColor: Colors.lightGray }]}>
+                  <View style={[styles.progressFill, { width: `${Math.min(pnl.collected, 100)}%`, backgroundColor: ACCENT.primary }]} />
+                </View>
+              </View>
+            )}
+
+            {/* Link to full report */}
+            <View style={[styles.cardLink, { borderTopColor: Colors.border }]}>
+              <Ionicons name="bar-chart-outline" size={15} color={ACCENT.primary} />
+              <Text style={[styles.linkText, { color: ACCENT.primary }]}>{t('dashboardScreen.viewPLReport')}</Text>
+              <Ionicons name="chevron-forward" size={15} color={ACCENT.primary} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Needs Attention ── */}
+        {alerts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.needsAttention')}</Text>
+            {alerts.map(alert => (
+              <TouchableOpacity
+                key={alert.key}
+                style={[styles.alertCard, { backgroundColor: Colors.cardBackground, borderLeftColor: alert.color }]}
+                onPress={alert.onPress}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.alertIcon, { backgroundColor: `${alert.color}15` }]}>
+                  <Ionicons name={alert.icon} size={16} color={alert.color} />
+                </View>
+                <Text style={[styles.alertText, { color: Colors.primaryText }]} numberOfLines={1}>{alert.text}</Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* ── Quick Access ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.quickAccess')}</Text>
+          <View style={styles.grid}>
             <TouchableOpacity
-              style={styles.reportLink}
-              onPress={() => navigation.navigate('FinancialReport')}
+              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.primaryLight }]}
+              onPress={() => navigation.navigate('Projects')}
               activeOpacity={0.7}
             >
-              <Ionicons name="bar-chart-outline" size={16} color={OWNER_COLORS.primary} />
-              <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.viewPLReport')}</Text>
-              <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
+              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.primaryLight}15` }]}>
+                <Ionicons name="construct-outline" size={18} color={ACCENT.primaryLight} />
+              </View>
+              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>{stats.activeProjects}</Text>
+              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>
+                {t('dashboardScreen.activeProjects')} / {stats.totalProjects}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.warning }]}
+              onPress={() => navigation.navigate('Workers')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.warning}15` }]}>
+                <Ionicons name="people-outline" size={18} color={ACCENT.warning} />
+              </View>
+              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>{stats.totalWorkers}</Text>
+              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalWorkers')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.primary }]}
+              onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.primary}15` }]}>
+                <Ionicons name="shield-outline" size={18} color={ACCENT.primary} />
+              </View>
+              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>{stats.totalSupervisors}</Text>
+              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalSupervisors')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.success }]}
+              onPress={() => reconciliation && !reconciliation.message
+                ? navigation.navigate('BankReconciliation')
+                : navigation.navigate('BankConnection')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.success}15` }]}>
+                <Ionicons name="card-outline" size={18} color={ACCENT.success} />
+              </View>
+              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>
+                {reconciliation && !reconciliation.message ? (reconciliation.total || 0) : '—'}
+              </Text>
+              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.cardTracking')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Quick Stats Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>📊 {t('dashboardScreen.quickStats')}</Text>
-          <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-            <View style={styles.statsGrid}>
-              <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalSupervisors')}</Text>
-                <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{stats.totalSupervisors}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalProjects')}</Text>
-                <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{stats.totalProjects}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalContractValue')}</Text>
-                <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{formatCurrency(stats.totalContractValue)}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalRevenue')}</Text>
-                <Text style={[styles.statRowValue, { color: OWNER_COLORS.success }]}>{formatCurrency(stats.totalRevenue)}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalExpenses')}</Text>
-                <Text style={[styles.statRowValue, { color: OWNER_COLORS.error }]}>{formatCurrency(stats.totalExpenses)}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalWorkers')}</Text>
-                <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{stats.totalWorkers}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Pending Invites Alert */}
-        {stats.pendingInvites > 0 && (
+        {/* ── Cash Flow (hidden if negligible) ── */}
+        {cashFlowData.length > 0 && !cashFlowData.every(m => m.cashIn < 100 && m.cashOut < 100) && (
           <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.cashFlow')}</Text>
             <TouchableOpacity
-              style={[styles.alertBanner, { backgroundColor: `${OWNER_COLORS.warning}15` }]}
-              onPress={() => navigation.navigate('Workers')}
+              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
+              onPress={() => navigation.navigate('FinancialReport')}
+              activeOpacity={0.7}
             >
-              <Ionicons name="mail-unread" size={20} color={OWNER_COLORS.warning} />
-              <Text style={[styles.alertText, { color: OWNER_COLORS.warning }]}>
-                {t('dashboardScreen.pendingInvites', { count: stats.pendingInvites })}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.warning} />
+              <View style={styles.cfChart}>
+                {cashFlowData.map((month) => {
+                  const inH = Math.max(6, (month.cashIn / maxCashFlowVal) * 56);
+                  const outH = Math.max(6, (month.cashOut / maxCashFlowVal) * 56);
+                  return (
+                    <View key={month.key} style={styles.cfMonth}>
+                      <View style={styles.cfBars}>
+                        <View style={[styles.cfBar, { height: inH, backgroundColor: ACCENT.success }]} />
+                        <View style={[styles.cfBar, { height: outH, backgroundColor: `${ACCENT.error}50` }]} />
+                      </View>
+                      <Text style={[styles.cfLabel, { color: Colors.secondaryText }]}>{month.label}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <View style={[styles.cfFooter, { borderTopColor: Colors.border }]}>
+                <View style={styles.cfLegend}>
+                  <View style={[styles.legendDot, { backgroundColor: ACCENT.success }]} />
+                  <Text style={[styles.cfFooterText, { color: Colors.secondaryText }]}>{t('dashboardScreen.cashIn')}</Text>
+                  <View style={[styles.legendDot, { backgroundColor: `${ACCENT.error}50`, marginLeft: 10 }]} />
+                  <Text style={[styles.cfFooterText, { color: Colors.secondaryText }]}>{t('dashboardScreen.cashOut')}</Text>
+                </View>
+                <Text style={[styles.cfNetText, { color: totalNet >= 0 ? ACCENT.success : ACCENT.error }]}>
+                  {t('dashboardScreen.net')}: {fmt(totalNet)}
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Bank Reconciliation Card — always visible */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>💳 {t('dashboardScreen.cardTracking')}</Text>
-          {!reconciliation || reconciliation.message ? (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
-              onPress={() => navigation.navigate('BankConnection')}
-              activeOpacity={0.7}
-            >
-              <View style={{ alignItems: 'center', paddingVertical: Spacing.md }}>
-                <View style={[styles.reconIcon, { backgroundColor: `${OWNER_COLORS.primary}12` }]}>
-                  <Ionicons name="card-outline" size={28} color={OWNER_COLORS.primary} />
-                </View>
-                <Text style={[styles.reconTitle, { color: Colors.primaryText }]}>
-                  {t('dashboardScreen.connectCard')}
-                </Text>
-                <Text style={[styles.reconSubtitle, { color: Colors.secondaryText }]}>
-                  {t('dashboardScreen.connectCardDesc')}
-                </Text>
-                <View style={[styles.reconButton, { backgroundColor: OWNER_COLORS.primary }]}>
-                  <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={styles.reconButtonText}>{t('dashboardScreen.connectAccount')}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ) : reconciliation.unmatched > 0 || reconciliation.suggested_matches > 0 ? (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
-              onPress={() => navigation.navigate('BankReconciliation', { filter: 'unmatched' })}
-              activeOpacity={0.7}
-            >
-              <View style={styles.reconRow}>
-                <View style={[styles.reconIcon, { backgroundColor: `${OWNER_COLORS.error}12` }]}>
-                  <Ionicons name="alert-circle" size={24} color={OWNER_COLORS.error} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.reconTitle, { color: Colors.primaryText, textAlign: 'left' }]}>
-                    {t('dashboardScreen.transactionsNeedAttention', { count: reconciliation.unmatched + (reconciliation.suggested_matches || 0) })}
-                  </Text>
-                  {reconciliation.unmatched_amount > 0 && (
-                    <Text style={[styles.reconSubtitle, { color: OWNER_COLORS.error, textAlign: 'left', marginBottom: 0 }]}>
-                      ${reconciliation.unmatched_amount.toFixed(2)} {t('dashboardScreen.inUnrecordedExpenses')}
-                    </Text>
-                  )}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-              </View>
-              <View style={[styles.reconFooter, { borderTopColor: Colors.border }]}>
-                <Ionicons name="eye-outline" size={16} color={OWNER_COLORS.primary} />
-                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.viewReconciliation')}</Text>
-                <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
-              onPress={() => navigation.navigate('BankReconciliation')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.reconRow}>
-                <View style={[styles.reconIcon, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
-                  <Ionicons name="checkmark-circle" size={24} color={OWNER_COLORS.success} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.reconTitle, { color: Colors.primaryText, textAlign: 'left' }]}>
-                    {t('dashboardScreen.allCaughtUp')}
-                  </Text>
-                  <Text style={[styles.reconSubtitle, { color: Colors.secondaryText, textAlign: 'left', marginBottom: 0 }]}>
-                    {t('dashboardScreen.allReconciled')}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-              </View>
-              <View style={[styles.reconFooter, { borderTopColor: Colors.border }]}>
-                <Ionicons name="eye-outline" size={16} color={OWNER_COLORS.primary} />
-                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.viewReconciliation')}</Text>
-                <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
-              </View>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Supervisors Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>👥 {t('dashboardScreen.supervisors')}</Text>
-            {supervisors.length > 0 && (
-              <TouchableOpacity onPress={() => navigation.navigate('Workers')}>
-                <Text style={[styles.seeAllText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.seeAll')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {supervisors.length === 0 ? (
-            <View style={[styles.card, { backgroundColor: Colors.cardBackground, alignItems: 'center' }]}>
-              <View style={[styles.emptyIcon, { backgroundColor: `${OWNER_COLORS.primary}10` }]}>
-                <Ionicons name="people-outline" size={32} color={OWNER_COLORS.primary} />
-              </View>
-              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.noSupervisorsYet')}</Text>
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                {t('dashboardScreen.addSupervisorsHelp')}
-              </Text>
-              <TouchableOpacity
-                style={[styles.emptyButton, { backgroundColor: OWNER_COLORS.primary }]}
-                onPress={() => navigation.navigate('Workers', { initialTab: 'team', openAddSupervisor: true })}
-              >
-                <Text style={styles.emptyButtonText}>{t('dashboardScreen.addSupervisor')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={[styles.card, { backgroundColor: Colors.cardBackground, padding: 0, overflow: 'hidden' }]}>
-              {supervisors.map((supervisor, index) => (
-                <View key={supervisor.id}>
-                  <TouchableOpacity
-                    style={styles.supervisorRow}
-                    onPress={() => navigation.navigate('SupervisorDetail', { supervisor })}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.supervisorAvatar, { backgroundColor: `${OWNER_COLORS.primary}15` }]}>
-                      <Text style={[styles.avatarText, { color: OWNER_COLORS.primary }]}>
-                        {(supervisor.business_name || 'S').charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.supervisorInfo}>
-                      <Text style={[styles.supervisorName, { color: Colors.primaryText }]}>
-                        {supervisor.business_name || 'Supervisor'}
-                      </Text>
-                      {supervisor.business_phone && (
-                        <Text style={[styles.supervisorPhone, { color: Colors.secondaryText }]}>
-                          {supervisor.business_phone}
-                        </Text>
-                      )}
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-                  </TouchableOpacity>
-                  {index < supervisors.length - 1 && (
-                    <View style={[styles.divider, { backgroundColor: Colors.border }]} />
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Bottom padding for tab bar */}
         <View style={{ height: 80 }} />
       </ScrollView>
     </SafeAreaView>
@@ -484,38 +443,23 @@ export default function OwnerDashboardScreen() {
 }
 
 const createStyles = (Colors) => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: FontSizes.body,
-    marginTop: Spacing.md,
-  },
+  container: { flex: 1 },
   topBar: {
-    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
   },
-  topBarLeft: {
-    minWidth: 40,
-    justifyContent: 'center',
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  welcomeSection: {
+  topBarLeft: { flex: 1 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 20 },
+
+  // Welcome
+  welcome: {
     padding: Spacing.xl,
+    paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
   },
   welcomeText: {
@@ -523,235 +467,173 @@ const createStyles = (Colors) => StyleSheet.create({
     fontWeight: '600',
     marginBottom: Spacing.xs,
   },
-  dateText: {
-    fontSize: FontSizes.small,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statNumber: {
-    fontSize: FontSizes.large,
-    fontWeight: 'bold',
-    marginBottom: Spacing.xs,
-  },
-  statLabel: {
-    fontSize: FontSizes.tiny,
-    textAlign: 'center',
-  },
-  section: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
+  dateText: { fontSize: FontSizes.small },
+
+  // Section
+  section: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg },
   sectionTitle: {
-    fontSize: FontSizes.subheader,
-    fontWeight: '600',
+    fontSize: FontSizes.body,
+    fontWeight: '700',
+    marginBottom: Spacing.sm,
+    letterSpacing: 0.2,
+  },
+
+  // P&L unified card columns
+  pnlColumns: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: Spacing.md,
   },
-  seeAllText: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
+  pnlCol: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
   },
+  pnlDivider: {
+    width: 1,
+    height: 40,
+    alignSelf: 'center',
+  },
+  pnlValue: {
+    fontSize: FontSizes.subheader,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  pnlLabel: {
+    fontSize: FontSizes.tiny,
+    fontWeight: '500',
+  },
+
+  // Card
   card: {
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  incomeAmount: {
-    fontSize: FontSizes.header,
-    fontWeight: 'bold',
-    marginBottom: Spacing.xs,
+
+  // Margin badge
+  marginRow: { alignItems: 'flex-start', marginBottom: Spacing.md },
+  marginBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    gap: 6,
   },
-  budgetText: {
-    fontSize: FontSizes.body,
-    marginBottom: Spacing.md,
-  },
-  progressBarContainer: {
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: Spacing.xs,
-  },
-  progressBar: {
-    height: '100%',
-  },
-  percentageText: {
-    fontSize: FontSizes.small,
-    textAlign: 'right',
-  },
-  reportLink: {
+  marginDot: { width: 7, height: 7, borderRadius: 4 },
+  marginText: { fontSize: 12, fontWeight: '600' },
+
+  // Progress
+  progressSection: { marginBottom: Spacing.md },
+  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  progressLabel: { fontSize: 11 },
+  progressPercent: { fontSize: 11, fontWeight: '700' },
+  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3 },
+
+  // Card link
+  cardLink: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
+    gap: 6,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
   },
-  reportLinkText: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  statsGrid: {
-    gap: Spacing.md,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.xs,
-  },
-  statRowLabel: {
-    fontSize: FontSizes.small,
-    flex: 1,
-  },
-  statRowValue: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
-  alertBanner: {
+  linkText: { fontSize: FontSizes.small, fontWeight: '600' },
+
+  // Alerts
+  alertCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderLeftWidth: 4,
+    gap: 10,
+    marginBottom: Spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  alertText: {
-    flex: 1,
+  alertIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertText: { flex: 1, fontSize: 13, fontWeight: '600' },
+
+  // Cash Flow Card
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  cardHeaderIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardHeaderText: {
     fontSize: FontSizes.body,
     fontWeight: '600',
   },
-  reconIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+  cfChart: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    height: 80,
     marginBottom: Spacing.sm,
   },
-  reconRow: {
+  cfMonth: { alignItems: 'center', flex: 1 },
+  cfBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginBottom: 6 },
+  cfBar: { width: 20, borderRadius: 4, minHeight: 6 },
+  cfLabel: { fontSize: 11, fontWeight: '500' },
+  cfFooter: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: Spacing.md,
-  },
-  reconTitle: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  reconSubtitle: {
-    fontSize: FontSizes.small,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: Spacing.md,
-  },
-  reconButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: 20,
-    marginTop: Spacing.xs,
-  },
-  reconButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  reconFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     borderTopWidth: 1,
   },
-  supervisorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
+  cfLegend: { flexDirection: 'row', alignItems: 'center' },
+  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
+  cfFooterText: { fontSize: 11 },
+  cfNetText: { fontSize: 13, fontWeight: '700' },
+
+  // Quick Access Grid
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+  gridCard: {
+    width: '47%',
+    flexGrow: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  supervisorAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+  gridIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  supervisorInfo: {
-    flex: 1,
-  },
-  supervisorName: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  supervisorPhone: {
-    fontSize: FontSizes.small,
-  },
-  divider: {
-    height: 1,
-    marginLeft: 70,
-  },
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  emptyTitle: {
-    fontSize: FontSizes.subheader,
-    fontWeight: '600',
     marginBottom: Spacing.xs,
   },
-  emptyText: {
-    fontSize: FontSizes.body,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-  },
-  emptyButton: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: 20,
-  },
-  emptyButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
+  gridValue: { fontSize: 20, fontWeight: '700' },
+  gridLabel: { fontSize: 11, marginTop: 2 },
 });
