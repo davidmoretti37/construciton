@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { create, open, dismissLink } from 'react-native-plaid-link-sdk';
@@ -46,6 +47,7 @@ export default function BankConnectionScreen() {
   const navigation = useNavigation();
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('owner');
 
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,8 +85,8 @@ export default function BankConnectionScreen() {
       if (!plaidNative) {
         setConnecting(false);
         Alert.alert(
-          'Build Required',
-          'Bank connection requires a native build that includes the Plaid SDK. Run: eas build --profile development --platform ios'
+          t('bank.buildRequired'),
+          t('bank.buildRequiredDesc')
         );
         return;
       }
@@ -115,12 +117,12 @@ export default function BankConnectionScreen() {
             );
 
             Alert.alert(
-              'Account Connected',
-              `${metadata?.institution?.name || 'Bank account'} has been connected successfully. Syncing transactions...`
+              t('bank.accountConnected'),
+              t('bank.accountConnectedDesc', { name: metadata?.institution?.name || 'Bank account' })
             );
             loadAccounts();
           } catch (error) {
-            Alert.alert('Error', error.message || 'Failed to connect account');
+            Alert.alert(t('common:alerts.error'), error.message || 'Failed to connect account');
           } finally {
             setConnecting(false);
           }
@@ -129,15 +131,15 @@ export default function BankConnectionScreen() {
           setConnecting(false);
           if (exit.error) {
             Alert.alert(
-              'Connection Issue',
-              exit.error.displayMessage || exit.error.errorMessage || 'Bank connection was interrupted. Please try again.'
+              t('bank.connectionIssue'),
+              exit.error.displayMessage || exit.error.errorMessage || t('bank.connectionInterrupted')
             );
           }
         },
       });
     } catch (error) {
       setConnecting(false);
-      Alert.alert('Error', error.message || 'Failed to start bank connection');
+      Alert.alert(t('common:alerts.error'), error.message || 'Failed to start bank connection');
     }
   };
 
@@ -155,29 +157,29 @@ export default function BankConnectionScreen() {
       const csvContent = await FileSystem.readAsStringAsync(file.uri);
 
       Alert.prompt(
-        'Bank Name',
-        'Enter the bank name for this statement (e.g., Chase, Bank of America)',
+        t('bank.bankName'),
+        t('bank.bankNamePrompt'),
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => setUploading(false) },
+          { text: t('common:buttons.cancel'), style: 'cancel', onPress: () => setUploading(false) },
           {
-            text: 'Import',
+            text: t('bank.import'),
             onPress: async (bankName) => {
               try {
                 const importResult = await uploadCSV(csvContent, file.name, bankName || 'CSV Import');
                 Alert.alert(
-                  'Import Complete',
-                  `Imported ${importResult.transactions_added} transactions.\n${importResult.auto_matched} auto-matched.\n${importResult.unmatched} need review.`,
+                  t('bank.importComplete'),
+                  t('bank.importCompleteDesc', { added: importResult.transactions_added, matched: importResult.auto_matched, unmatched: importResult.unmatched }),
                   [
                     {
-                      text: 'Review Now',
+                      text: t('bank.reviewNow'),
                       onPress: () => navigation.navigate('BankReconciliation'),
                     },
-                    { text: 'OK' },
+                    { text: t('common:buttons.ok') },
                   ]
                 );
                 loadAccounts();
               } catch (error) {
-                Alert.alert('Import Error', error.message || 'Failed to import CSV');
+                Alert.alert(t('bank.importError'), error.message || 'Failed to import CSV');
               } finally {
                 setUploading(false);
               }
@@ -190,7 +192,7 @@ export default function BankConnectionScreen() {
       );
     } catch (error) {
       setUploading(false);
-      Alert.alert('Error', error.message || 'Failed to pick file');
+      Alert.alert(t('common:alerts.error'), error.message || 'Failed to pick file');
     }
   };
 
@@ -199,12 +201,12 @@ export default function BankConnectionScreen() {
       setSyncing(prev => ({ ...prev, [accountId]: true }));
       const result = await syncAccount(accountId);
       Alert.alert(
-        'Sync Complete',
-        `Added ${result.transactions_added} transactions.\n${result.auto_matched} auto-matched.\n${result.unmatched} need review.`
+        t('bank.syncComplete'),
+        t('bank.syncCompleteDesc', { added: result.transactions_added, matched: result.auto_matched, unmatched: result.unmatched })
       );
       loadAccounts();
     } catch (error) {
-      Alert.alert('Sync Error', error.message || 'Failed to sync account');
+      Alert.alert(t('bank.syncError'), error.message || 'Failed to sync account');
     } finally {
       setSyncing(prev => ({ ...prev, [accountId]: false }));
     }
@@ -212,19 +214,19 @@ export default function BankConnectionScreen() {
 
   const handleDisconnect = (accountId, accountName) => {
     Alert.alert(
-      'Disconnect Account',
-      `Are you sure you want to disconnect ${accountName}? Existing imported transactions will be kept.`,
+      t('bank.disconnectAccount'),
+      t('bank.disconnectConfirm', { name: accountName }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Disconnect',
+          text: t('bank.disconnect'),
           style: 'destructive',
           onPress: async () => {
             try {
               await disconnectAccount(accountId);
               loadAccounts();
             } catch (error) {
-              Alert.alert('Error', error.message || 'Failed to disconnect account');
+              Alert.alert(t('common:alerts.error'), error.message || 'Failed to disconnect account');
             }
           },
         },
@@ -243,25 +245,25 @@ export default function BankConnectionScreen() {
 
   const getStatusLabel = (status) => {
     switch (status) {
-      case 'active': return 'Connected';
-      case 'error': return 'Error';
-      case 'paused': return 'Paused';
+      case 'active': return t('bank.statusConnected');
+      case 'error': return t('bank.statusError');
+      case 'paused': return t('bank.statusPaused');
       default: return status;
     }
   };
 
   const formatLastSync = (dateStr) => {
-    if (!dateStr) return 'Never synced';
+    if (!dateStr) return t('bank.neverSynced');
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now - date;
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
 
-    if (diffHrs < 1) return 'Just now';
-    if (diffHrs < 24) return `${diffHrs}h ago`;
+    if (diffHrs < 1) return t('bank.justNow');
+    if (diffHrs < 24) return t('bank.hoursAgo', { count: diffHrs });
     const diffDays = Math.floor(diffHrs / 24);
-    if (diffDays === 1) return 'Yesterday';
-    return `${diffDays} days ago`;
+    if (diffDays === 1) return t('common:time.yesterday');
+    return t('bank.daysAgo', { count: diffDays });
   };
 
   const getAccountIcon = (type) => {
@@ -291,7 +293,7 @@ export default function BankConnectionScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Connected Accounts</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('bank.connectedAccounts')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -313,7 +315,7 @@ export default function BankConnectionScreen() {
             ) : (
               <Ionicons name="card-outline" size={22} color="#FFF" />
             )}
-            <Text style={styles.connectButtonText}>Connect Bank Account</Text>
+            <Text style={styles.connectButtonText}>{t('bank.connectBankAccount')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -326,7 +328,7 @@ export default function BankConnectionScreen() {
             ) : (
               <Ionicons name="document-text-outline" size={22} color={OWNER_COLORS.primary} />
             )}
-            <Text style={[styles.csvButtonText, { color: OWNER_COLORS.primary }]}>Upload CSV Statement</Text>
+            <Text style={[styles.csvButtonText, { color: OWNER_COLORS.primary }]}>{t('bank.uploadCSV')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -334,7 +336,7 @@ export default function BankConnectionScreen() {
         {accounts.length > 0 ? (
           <View style={styles.accountsSection}>
             <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-              YOUR ACCOUNTS
+              {t('bank.yourAccounts')}
             </Text>
             {accounts.map((account) => (
               <View
@@ -374,7 +376,7 @@ export default function BankConnectionScreen() {
 
                 <View style={[styles.accountFooter, { borderTopColor: Colors.border }]}>
                   <Text style={[styles.lastSync, { color: Colors.secondaryText }]}>
-                    {account.is_manual ? 'CSV Import' : `Last synced: ${formatLastSync(account.last_sync_at)}`}
+                    {account.is_manual ? t('bank.csvImport') : t('bank.lastSynced', { time: formatLastSync(account.last_sync_at) })}
                   </Text>
                   <View style={styles.accountActions}>
                     {!account.is_manual && (
@@ -405,10 +407,10 @@ export default function BankConnectionScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="card-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-              No accounts connected
+              {t('bank.noAccountsConnected')}
             </Text>
             <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
-              Connect your company card or bank account to automatically track all transactions and match them against your project expenses.
+              {t('bank.noAccountsDesc')}
             </Text>
           </View>
         )}
@@ -422,10 +424,10 @@ export default function BankConnectionScreen() {
             <Ionicons name="git-compare-outline" size={22} color={OWNER_COLORS.primary} />
             <View style={styles.reconcileLinkText}>
               <Text style={[styles.reconcileLinkTitle, { color: Colors.primaryText }]}>
-                View Reconciliation
+                {t('bank.viewReconciliation')}
               </Text>
               <Text style={[styles.reconcileLinkSubtitle, { color: Colors.secondaryText }]}>
-                Match bank transactions to your projects
+                {t('bank.matchTransactions')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />

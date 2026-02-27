@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -47,6 +48,7 @@ const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
 export default function SupervisorCompletionScreen({ route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
   const { refreshProfile } = useAuth();
   const { onComplete } = useOnboarding();
 
@@ -63,10 +65,10 @@ export default function SupervisorCompletionScreen({ route }) {
   const buttonAnim = useButtonBounce(isScreenActive, 1200);
 
   const features = [
-    { icon: 'briefcase-outline', text: 'Manage projects assigned to you' },
-    { icon: 'people-outline', text: 'Add and manage your workers' },
-    { icon: 'calculator-outline', text: 'Create estimates using company pricing' },
-    { icon: 'document-text-outline', text: 'Generate invoices for clients' },
+    { icon: 'briefcase-outline', text: t('supervisorOnboarding.featureManageProjects') },
+    { icon: 'people-outline', text: t('supervisorOnboarding.featureManageWorkers') },
+    { icon: 'calculator-outline', text: t('supervisorOnboarding.featureCreateEstimates') },
+    { icon: 'document-text-outline', text: t('supervisorOnboarding.featureGenerateInvoices') },
   ];
 
   // Save profile on mount
@@ -128,7 +130,7 @@ export default function SupervisorCompletionScreen({ route }) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={SUPERVISOR_BLUE} />
           <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-            Setting up your account...
+            {t('supervisorOnboarding.settingUpAccount')}
           </Text>
         </View>
       </SafeAreaView>
@@ -146,17 +148,17 @@ export default function SupervisorCompletionScreen({ route }) {
         {/* Welcome Text */}
         <View style={styles.textContainer}>
           <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
-            You're All Set! 🎉
+            {t('supervisorOnboarding.allSet')} 🎉
           </Animated.Text>
           <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
-            Welcome to the team, {fullName?.split(' ')[0] || 'Supervisor'}!
+            {t('supervisorOnboarding.welcomeToTeam', { name: fullName?.split(' ')[0] || 'Supervisor' })}
           </Animated.Text>
         </View>
 
         {/* Features */}
         <View style={styles.featuresContainer}>
           <Text style={[styles.featuresTitle, { color: Colors.secondaryText }]}>
-            WHAT YOU CAN DO
+            {t('supervisorOnboarding.whatYouCanDo')}
           </Text>
           {features.map((feature, index) => (
             <AnimatedFeature
@@ -177,7 +179,7 @@ export default function SupervisorCompletionScreen({ route }) {
             onPress={handleFinish}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Start Using App</Text>
+            <Text style={styles.buttonText}>{t('supervisorOnboarding.startUsingApp')}</Text>
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </Animated.View>
@@ -190,7 +192,7 @@ export default function SupervisorCompletionScreen({ route }) {
             <View style={[styles.dot, styles.activeDot, { backgroundColor: SUPERVISOR_BLUE }]} />
           </View>
           <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
-            Step 3 of 3
+            {t('supervisorOnboarding.stepOf', { step: 3, total: 3 })}
           </Text>
         </View>
       </View>

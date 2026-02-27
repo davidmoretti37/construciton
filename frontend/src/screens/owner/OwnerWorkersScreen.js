@@ -51,7 +51,7 @@ const OWNER_COLORS = {
 };
 
 // Supervisor Card Component (no animation)
-const SupervisorCard = ({ supervisor, onPress, Colors }) => {
+const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
   const initial = supervisor.business_name?.charAt(0)?.toUpperCase() ||
     supervisor.email?.charAt(0)?.toUpperCase() || 'S';
 
@@ -81,13 +81,13 @@ const SupervisorCard = ({ supervisor, onPress, Colors }) => {
           <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
             <Ionicons name="briefcase" size={12} color={OWNER_COLORS.primaryLight} />
             <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
-              {supervisor.project_count || 0} jobs
+              {supervisor.project_count || 0} {tOwner('supervisors.jobs')}
             </Text>
           </View>
           <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
             <Ionicons name="people" size={12} color={OWNER_COLORS.success} />
             <Text style={[styles.statBadgeText, { color: OWNER_COLORS.success }]}>
-              {supervisor.worker_count || 0} workers
+              {supervisor.worker_count || 0} {tOwner('supervisors.workers')}
             </Text>
           </View>
         </View>
@@ -101,7 +101,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors }) => {
 };
 
 // Worker Card Horizontal (matches SupervisorCard style)
-const WorkerCardHorizontal = ({ worker, onPress, Colors }) => {
+const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
   const initial = worker.full_name?.charAt(0)?.toUpperCase() || 'W';
   const statusColor = worker.status === 'active' ? OWNER_COLORS.success : '#9CA3AF';
 
@@ -140,7 +140,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors }) => {
           <View style={[styles.statBadge, { backgroundColor: `${statusColor}15` }]}>
             <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text style={[styles.statBadgeText, { color: statusColor }]}>
-              {worker.status === 'active' ? 'Active' : 'Inactive'}
+              {worker.status === 'active' ? t('status.active') : t('status.inactive')}
             </Text>
           </View>
           {getPaymentInfo() && (
@@ -162,7 +162,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors }) => {
 };
 
 // Pending Invite Card (no animation)
-const PendingInviteCard = ({ invite, onCancel, Colors }) => (
+const PendingInviteCard = ({ invite, onCancel, Colors, tOwner }) => (
   <View style={[styles.inviteCard, { borderColor: `${OWNER_COLORS.warning}25` }]}>
     <View style={[styles.inviteIconContainer, { backgroundColor: `${OWNER_COLORS.warning}15` }]}>
       <Ionicons name="mail-outline" size={22} color={OWNER_COLORS.warning} />
@@ -177,7 +177,7 @@ const PendingInviteCard = ({ invite, onCancel, Colors }) => (
       </Text>
       <View style={[styles.pendingBadge, { backgroundColor: `${OWNER_COLORS.warning}15` }]}>
         <Ionicons name="time-outline" size={12} color={OWNER_COLORS.warning} />
-        <Text style={[styles.pendingLabel, { color: OWNER_COLORS.warning }]}>Pending</Text>
+        <Text style={[styles.pendingLabel, { color: OWNER_COLORS.warning }]}>{tOwner('inviteErrors.pendingInvitation')}</Text>
       </View>
     </View>
 
@@ -206,21 +206,21 @@ export default function OwnerWorkersScreen() {
     const gmailUrl = `googlegmail:///co?to=${toEmail}&subject=${encodedSubject}&body=${encodedBody}`;
 
     Alert.alert(
-      'Send Invitation',
-      'Choose how to send the invite email',
+      tOwner('emailPicker.sendInvitation'),
+      tOwner('emailPicker.chooseEmailApp'),
       [
         {
-          text: 'Gmail',
+          text: tOwner('emailPicker.gmail'),
           onPress: () => Linking.openURL(gmailUrl).catch(() => {
-            Alert.alert('Gmail not found', 'Gmail app is not installed. Opening default mail instead.');
+            Alert.alert(tOwner('emailPicker.gmailNotFound'), tOwner('emailPicker.gmailNotInstalled'));
             Linking.openURL(mailtoUrl).catch(() => {});
           }),
         },
         {
-          text: 'Apple Mail',
+          text: tOwner('emailPicker.appleMail'),
           onPress: () => Linking.openURL(mailtoUrl).catch(() => {}),
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('actions.cancel'), style: 'cancel' },
       ]
     );
   };
@@ -352,7 +352,7 @@ export default function OwnerWorkersScreen() {
 
   const handleAddSupervisor = async () => {
     if (!inviteForm.email.trim()) {
-      Alert.alert('Error', 'Please enter an email address');
+      Alert.alert(t('errors.error'), tOwner('inviteErrors.enterEmail'));
       return;
     }
 
@@ -365,7 +365,7 @@ export default function OwnerWorkersScreen() {
     }[inviteForm.paymentType];
 
     if (rateValue <= 0) {
-      Alert.alert('Error', 'Please enter a payment rate');
+      Alert.alert(t('errors.error'), t('errors.saveFailed'));
       return;
     }
 
@@ -388,7 +388,7 @@ export default function OwnerWorkersScreen() {
 
       if (error) {
         if (error.code === '23505') {
-          Alert.alert('Error', 'An invitation has already been sent to this email');
+          Alert.alert(t('errors.error'), tOwner('inviteErrors.alreadySent'));
         } else {
           throw error;
         }
@@ -419,7 +419,7 @@ export default function OwnerWorkersScreen() {
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to send invitation');
+      Alert.alert(t('errors.error'), tOwner('inviteErrors.sendFailed'));
     } finally {
       setInviting(false);
     }
@@ -427,19 +427,19 @@ export default function OwnerWorkersScreen() {
 
   const handleCancelInvite = async (inviteId) => {
     Alert.alert(
-      'Cancel Invitation',
-      'Are you sure you want to cancel this invitation?',
+      tOwner('inviteErrors.cancelInvitation'),
+      tOwner('inviteErrors.cancelConfirm'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('actions.cancel'), style: 'cancel' },
         {
-          text: 'Yes, Cancel',
+          text: tOwner('inviteErrors.yesCancel'),
           style: 'destructive',
           onPress: async () => {
             try {
               await supabase.from('supervisor_invites').delete().eq('id', inviteId);
               fetchSupervisors();
             } catch (error) {
-              Alert.alert('Error', 'Failed to cancel invitation');
+              Alert.alert(t('errors.error'), tOwner('inviteErrors.cancelFailed'));
             }
           },
         },
@@ -454,7 +454,7 @@ export default function OwnerWorkersScreen() {
 
   const handleAddWorkerSubmit = async () => {
     if (!workerForm.name.trim()) {
-      Alert.alert('Error', 'Please enter a worker name');
+      Alert.alert(t('errors.error'), t('errors.nameRequired'));
       return;
     }
 
@@ -467,7 +467,7 @@ export default function OwnerWorkersScreen() {
     }[workerForm.paymentType];
 
     if (rateValue <= 0) {
-      Alert.alert('Error', 'Please enter a payment rate');
+      Alert.alert(t('errors.error'), t('errors.saveFailed'));
       return;
     }
 
@@ -523,11 +523,11 @@ export default function OwnerWorkersScreen() {
           `${greeting}\n\nYou've been invited to join ${businessName} as a Worker on Sylk — the construction management app.\n\nTap here to get started:\n${inviteLink}\n\nLooking forward to working with you!\n\n— ${profile?.business_name || 'Your team'}`,
         );
       } else {
-        Alert.alert('Success', 'Worker added successfully');
+        Alert.alert(t('success.title'), t('success.workerAdded'));
       }
     } catch (error) {
       console.log('Add worker error:', error);
-      Alert.alert('Error', `Failed to add worker: ${error.message || error.code || 'Unknown error'}`);
+      Alert.alert(t('errors.error'), t('errors.saveFailed'));
     } finally {
       setAddingWorker(false);
     }
@@ -635,6 +635,7 @@ export default function OwnerWorkersScreen() {
                 onCancel={() => handleCancelInvite(invite.id)}
                 Colors={Colors}
                 index={index}
+                tOwner={tOwner}
               />
             ))}
           </View>
@@ -643,7 +644,7 @@ export default function OwnerWorkersScreen() {
         {/* Supervisors Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            SUPERVISORS
+            {tOwner('supervisors.title').toUpperCase()}
           </Text>
           {supervisorsLoading ? (
             <View style={styles.loadingContainer}>
@@ -657,12 +658,13 @@ export default function OwnerWorkersScreen() {
                 onPress={() => handleSupervisorPress(supervisor)}
                 Colors={Colors}
                 index={index}
+                tOwner={tOwner}
               />
             ))
           ) : (
             <View style={styles.emptySection}>
               <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
-                No supervisors yet. Tap + to add one.
+                {tOwner('supervisors.emptyTitle')}
               </Text>
             </View>
           )}
@@ -671,7 +673,7 @@ export default function OwnerWorkersScreen() {
         {/* Workers Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            WORKERS
+            {t('title').toUpperCase()}
           </Text>
           {workersLoading ? (
             <View style={styles.loadingContainer}>
@@ -684,12 +686,13 @@ export default function OwnerWorkersScreen() {
                 worker={worker}
                 onPress={() => navigation.navigate('WorkerDetailHistory', { worker })}
                 Colors={Colors}
+                t={t}
               />
             ))
           ) : (
             <View style={styles.emptySection}>
               <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
-                No workers yet.
+                {t('noWorkers')}
               </Text>
             </View>
           )}
@@ -711,7 +714,7 @@ export default function OwnerWorkersScreen() {
         >
           <View style={[styles.rolePickerContainer, { backgroundColor: Colors.card || Colors.white }]}>
             <Text style={[styles.rolePickerTitle, { color: Colors.primaryText }]}>
-              Add Team Member
+              {tOwner('teamPicker.addTeamMember')}
             </Text>
 
             <TouchableOpacity
@@ -726,9 +729,9 @@ export default function OwnerWorkersScreen() {
                 <Ionicons name="shield-checkmark-outline" size={24} color="#fff" />
               </View>
               <View style={styles.roleInfo}>
-                <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>Add Supervisor</Text>
+                <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>{tOwner('teamPicker.addSupervisor')}</Text>
                 <Text style={[styles.roleDescription, { color: Colors.secondaryText }]}>
-                  Can manage workers & projects
+                  {tOwner('teamPicker.supervisorDesc')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
@@ -746,9 +749,9 @@ export default function OwnerWorkersScreen() {
                 <Ionicons name="person-add-outline" size={24} color="#fff" />
               </View>
               <View style={styles.roleInfo}>
-                <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>Add Worker</Text>
+                <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>{tOwner('teamPicker.addWorker')}</Text>
                 <Text style={[styles.roleDescription, { color: Colors.secondaryText }]}>
-                  Field worker for projects
+                  {tOwner('teamPicker.workerDesc')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
@@ -758,7 +761,7 @@ export default function OwnerWorkersScreen() {
               style={styles.cancelRoleButton}
               onPress={() => setShowRolePicker(false)}
             >
-              <Text style={[styles.cancelRoleText, { color: Colors.secondaryText }]}>Cancel</Text>
+              <Text style={[styles.cancelRoleText, { color: Colors.secondaryText }]}>{t('actions.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>

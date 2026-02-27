@@ -42,7 +42,9 @@
     "shiftTasks": "Mover Tarefas",
     "loadMore": "Carregar Mais ({{count}})",
     "deleteProject": "Excluir Projeto",
-    "saveChanges": "Salvar Alterações"
+    "saveChanges": "Salvar Alterações",
+    "accept": "Aceitar",
+    "reject": "Recusar"
   },
   "labels": {
     "email": "E-mail",
@@ -268,7 +270,10 @@
     "selectPhasesDescription": "Selecione as fases para este projeto. Você pode reordená-las e ajustar a duração de cada fase.",
     "addCustomPhase": "Insira um nome para a fase personalizada",
     "organizingTasks": "Organizando tarefas...",
-    "failedToShare": "Falha ao compartilhar {{item}}"
+    "failedToShare": "Falha ao compartilhar {{item}}",
+    "inviteMessage": "Você foi convidado para trabalhar como {{trade}}. Aceite para começar!",
+    "failedToAcceptInvite": "Falha ao aceitar convite. Por favor, tente novamente.",
+    "failedToRejectInvite": "Falha ao recusar convite. Por favor, tente novamente."
   },
   "permissions": {
     "cameraRequired": "Permissão de câmera é necessária para tirar fotos",
@@ -448,5 +453,53 @@
     "tapStartDate": "Toque em uma data para começar a selecionar um período",
     "tapEndDate": "Toque em outra data para completar o período",
     "tapApply": "Toque em \"Aplicar\" para usar este período"
+  },
+  "supervisorOnboarding": {
+    "yourInformation": "Suas Informações",
+    "tellUsAboutYourself": "Conte-nos um pouco sobre você",
+    "fullNameRequired": "Nome Completo *",
+    "fullNamePlaceholder": "João Silva",
+    "phoneRequired": "Número de Telefone *",
+    "phonePlaceholder": "(11) 91234-5678",
+    "jobTitleOptional": "Cargo (Opcional)",
+    "jobTitlePlaceholder": "Gerente de Projeto, Encarregado, etc.",
+    "infoBoxText": "O proprietário do negócio já configurou as definições da empresa. Você usará os preços, fases e modelos dele.",
+    "continue": "Continuar",
+    "stepOf": "Passo {{step}} de {{total}}",
+    "requiredField": "Campo Obrigatório",
+    "enterFullName": "Por favor, insira seu nome completo",
+    "enterPhone": "Por favor, insira seu número de telefone",
+    "settingUpAccount": "Configurando sua conta...",
+    "allSet": "Tudo Pronto!",
+    "welcomeToTeam": "Bem-vindo à equipe, {{name}}!",
+    "whatYouCanDo": "O QUE VOCÊ PODE FAZER",
+    "featureManageProjects": "Gerenciar projetos atribuídos a você",
+    "featureManageWorkers": "Adicionar e gerenciar seus trabalhadores",
+    "featureCreateEstimates": "Criar orçamentos usando preços da empresa",
+    "featureGenerateInvoices": "Gerar faturas para clientes",
+    "startUsingApp": "Começar a Usar o App"
+  },
+  "quickActions": {
+    "assignWorker": "Atribuir Trabalhador",
+    "addWorker": "Adicionar Trabalhador",
+    "logTransaction": "Registrar Transação",
+    "dailyReport": "Relatório Diário",
+    "newEstimate": "Novo Orçamento",
+    "newProject": "Novo Projeto"
+  },
+  "appLoading": {
+    "connectionError": "Erro de Conexão",
+    "takingTooLong": "Demorando Demais",
+    "checkConnection": "Por favor, verifique sua conexão com a internet.",
+    "slowerThanExpected": "A conexão está mais lenta do que o esperado.",
+    "tryAgain": "Tentar Novamente"
+  },
+  "documentViewer": {
+    "loadingPDF": "Carregando PDF...",
+    "failedToLoad": "Falha ao carregar documento",
+    "fileUnavailable": "O arquivo pode estar indisponível ou o formato não é suportado",
+    "image": "Imagem",
+    "pdfDocument": "Documento PDF",
+    "document": "Documento"
   }
 }

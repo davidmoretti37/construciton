@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
@@ -48,6 +49,7 @@ export default function FinancialReportScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const { t } = useTranslation('owner');
 
   const [period, setPeriod] = useState('all');
   const [view, setView] = useState('company');
@@ -88,9 +90,9 @@ export default function FinancialReportScreen() {
     if (exporting) return;
     setExporting(true);
     try {
-      const periodLabels = { month: 'This Month', quarter: 'Quarter', year: 'Year', all: 'All Time' };
+      const periodLabels = { month: t('financial.periodMonth'), quarter: t('financial.periodQuarter'), year: t('financial.periodYear'), all: t('financial.periodAll') };
       await shareFinancialReportPDF({
-        periodLabel: periodLabels[period] || 'All Time',
+        periodLabel: periodLabels[period] || t('financial.periodAll'),
         totalRevenue: pnl.totalRevenue,
         totalCosts: pnl.totalCosts,
         grossProfit: pnl.grossProfit,
@@ -111,12 +113,12 @@ export default function FinancialReportScreen() {
 
   const handleExportProjectPDF = useCallback(async (project) => {
     try {
-      const periodLabels = { month: 'This Month', quarter: 'Quarter', year: 'Year', all: 'All Time' };
+      const periodLabels2 = { month: t('financial.periodMonth'), quarter: t('financial.periodQuarter'), year: t('financial.periodYear'), all: t('financial.periodAll') };
       const projectTxs = await fetchProjectTransactionsForReport(project.id);
       // Filter by selected period
       const { startDate: s, endDate: e } = getDateRangeForPeriod(period);
-      const filteredTxs = s ? projectTxs.filter(t => t.date >= s && t.date <= e) : projectTxs;
-      await shareProjectReportPDF(project, filteredTxs, periodLabels[period] || 'All Time');
+      const filteredTxs = s ? projectTxs.filter(tx => tx.date >= s && tx.date <= e) : projectTxs;
+      await shareProjectReportPDF(project, filteredTxs, periodLabels2[period] || t('financial.periodAll'));
     } catch (error) {
       console.error('Error exporting project PDF:', error);
     }
@@ -134,7 +136,7 @@ export default function FinancialReportScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Financial Report</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('financial.title')}</Text>
           <View style={styles.backButton}>
             <Ionicons name="download-outline" size={22} color={Colors.border} />
           </View>
@@ -181,7 +183,7 @@ export default function FinancialReportScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Financial Report</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('financial.title')}</Text>
         <TouchableOpacity
           onPress={handleExportPDF}
           style={styles.backButton}
@@ -213,7 +215,7 @@ export default function FinancialReportScreen() {
             activeOpacity={0.7}
           >
             <Ionicons name="business" size={14} color={view === 'company' ? '#FFF' : Colors.secondaryText} />
-            <Text style={[styles.toggleText, { color: view === 'company' ? '#FFF' : Colors.secondaryText }]}>Company</Text>
+            <Text style={[styles.toggleText, { color: view === 'company' ? '#FFF' : Colors.secondaryText }]}>{t('financial.company')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleBtn, view === 'project' && { backgroundColor: OWNER_COLORS.primary }]}
@@ -221,7 +223,7 @@ export default function FinancialReportScreen() {
             activeOpacity={0.7}
           >
             <Ionicons name="folder" size={14} color={view === 'project' ? '#FFF' : Colors.secondaryText} />
-            <Text style={[styles.toggleText, { color: view === 'project' ? '#FFF' : Colors.secondaryText }]}>By Project</Text>
+            <Text style={[styles.toggleText, { color: view === 'project' ? '#FFF' : Colors.secondaryText }]}>{t('financial.byProject')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -229,14 +231,14 @@ export default function FinancialReportScreen() {
         <View style={styles.metricsGrid}>
           <View style={styles.metricsRow}>
             <MetricCard
-              label="Total Revenue"
+              label={t('financial.totalRevenue')}
               value={formatCurrency(pnl.totalRevenue)}
               icon="wallet-outline"
               color={OWNER_COLORS.success}
             />
             <View style={{ width: Spacing.md }} />
             <MetricCard
-              label="Total Expenses"
+              label={t('financial.totalExpenses')}
               value={formatCurrency(pnl.totalCosts)}
               icon="card-outline"
               color={OWNER_COLORS.error}
@@ -244,18 +246,18 @@ export default function FinancialReportScreen() {
           </View>
           <View style={styles.metricsRow}>
             <MetricCard
-              label="Gross Profit"
+              label={t('financial.grossProfit')}
               value={formatCurrency(pnl.grossProfit)}
               icon="trending-up"
               color={profitColor}
             />
             <View style={{ width: Spacing.md }} />
             <MetricCard
-              label="Gross Margin"
+              label={t('financial.grossMargin')}
               value={`${pnl.grossMargin.toFixed(1)}%`}
               icon="pie-chart-outline"
               color={profitColor}
-              subtitle={pnl.grossMargin >= 20 ? 'Healthy' : pnl.grossMargin >= 10 ? 'Average' : 'Low'}
+              subtitle={pnl.grossMargin >= 20 ? t('financial.healthy') : pnl.grossMargin >= 10 ? t('financial.average') : t('financial.low')}
             />
           </View>
         </View>
@@ -280,7 +282,7 @@ export default function FinancialReportScreen() {
             <View style={[styles.noteCard, { backgroundColor: Colors.cardBackground }]}>
               <Ionicons name="information-circle-outline" size={16} color={Colors.secondaryText} />
               <Text style={[styles.noteText, { color: Colors.secondaryText }]}>
-                Total contract value across {projects.length} project{projects.length !== 1 ? 's' : ''}: {formatCurrency(pnl.totalContractValue)}
+                {t('financial.contractValueNote', { count: projects.length, amount: formatCurrency(pnl.totalContractValue) })}
               </Text>
             </View>
           </>
@@ -288,12 +290,12 @@ export default function FinancialReportScreen() {
           <>
             {/* Project list */}
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Projects ({pnl.projectBreakdowns.length})
+              {t('financial.projectsCount', { count: pnl.projectBreakdowns.length })}
             </Text>
             {pnl.projectBreakdowns.length === 0 ? (
               <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]}>
                 <Ionicons name="folder-open-outline" size={40} color={Colors.secondaryText} />
-                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects found</Text>
+                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('financial.noProjectsFound')}</Text>
               </View>
             ) : (
               <View style={styles.projectList}>

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getWorkerAssignments, getCurrentUserId } from '../../utils/storage';
@@ -19,6 +20,7 @@ import WorkerInviteHandler from '../../components/WorkerInviteHandler';
 export default function WorkerAssignmentsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('workers');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -105,7 +107,7 @@ export default function WorkerAssignmentsScreen({ navigation }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Assignments</Text>
+          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('assignments.title')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
           </TouchableOpacity>
@@ -123,7 +125,7 @@ export default function WorkerAssignmentsScreen({ navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Minimalist Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Assignments</Text>
+        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('assignments.title')}</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
           <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
         </TouchableOpacity>
@@ -140,7 +142,7 @@ export default function WorkerAssignmentsScreen({ navigation }) {
         {hasNoAssignments ? (
           <View style={styles.emptyState}>
             <Ionicons name="briefcase-outline" size={64} color={Colors.border} />
-            <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>No active assignments</Text>
+            <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>{t('assignments.noActiveAssignments')}</Text>
           </View>
         ) : (
           <>

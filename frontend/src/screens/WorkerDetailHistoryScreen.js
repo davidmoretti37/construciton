@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getWorkerClockInHistory, getWorkerStats, getActiveClockIn, calculateWorkerPaymentForPeriod } from '../utils/storage';
@@ -21,6 +22,7 @@ import { formatHoursMinutes } from '../utils/calculations';
 export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('workers');
   const { worker } = route.params;
 
   const [loading, setLoading] = useState(true);
@@ -157,7 +159,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const formatTime = (timestamp) => {
     if (!timestamp) return '--';
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
+    return date.toLocaleTimeString(undefined, {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
@@ -172,11 +174,11 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
     yesterday.setDate(yesterday.getDate() - 1);
 
     if (date.toDateString() === today.toDateString()) {
-      return 'Today';
+      return t('common:time.today');
     } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
+      return t('common:time.yesterday');
     } else {
-      return date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
@@ -338,36 +340,36 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
               <Ionicons name="wallet-outline" size={18} color={Colors.primaryBlue} />
               <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.primaryText, marginLeft: 6 }}>
-                Payment Info
+                {t('history.paymentInfo')}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {/* Payment Type */}
               <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
-                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>Type</Text>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.type')}</Text>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
-                  {worker.payment_type === 'hourly' ? 'Hourly' :
-                   worker.payment_type === 'daily' ? 'Daily' :
-                   worker.payment_type === 'weekly' ? 'Weekly' :
-                   worker.payment_type === 'project_based' ? 'Per Project' : 'Not Set'}
+                  {worker.payment_type === 'hourly' ? t('history.hourly') :
+                   worker.payment_type === 'daily' ? t('history.daily') :
+                   worker.payment_type === 'weekly' ? t('history.weekly') :
+                   worker.payment_type === 'project_based' ? t('history.perProject') : t('history.notSet')}
                 </Text>
               </View>
 
               {/* Rate */}
               <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
-                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>Rate</Text>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.rate')}</Text>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryBlue }}>
-                  {worker.payment_type === 'hourly' && worker.hourly_rate ? `$${Number(worker.hourly_rate).toFixed(2)}/hr` :
-                   worker.payment_type === 'daily' && worker.daily_rate ? `$${Number(worker.daily_rate).toFixed(2)}/day` :
-                   worker.payment_type === 'weekly' && worker.weekly_salary ? `$${Number(worker.weekly_salary).toFixed(2)}/wk` :
-                   worker.payment_type === 'project_based' && worker.project_rate ? `$${Number(worker.project_rate).toFixed(2)}/proj` :
-                   'Not Set'}
+                  {worker.payment_type === 'hourly' && worker.hourly_rate ? `$${Number(worker.hourly_rate).toFixed(2)}${t('workerDetails.perHour')}` :
+                   worker.payment_type === 'daily' && worker.daily_rate ? `$${Number(worker.daily_rate).toFixed(2)}${t('workerDetails.perDay')}` :
+                   worker.payment_type === 'weekly' && worker.weekly_salary ? `$${Number(worker.weekly_salary).toFixed(2)}${t('workerDetails.perWeek')}` :
+                   worker.payment_type === 'project_based' && worker.project_rate ? `$${Number(worker.project_rate).toFixed(2)}${t('workerDetails.perProject')}` :
+                   t('history.notSet')}
                 </Text>
               </View>
 
               {/* Hours This Week */}
               <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
-                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>This Week</Text>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.thisWeek')}</Text>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
                   {stats.weekHours}h
                 </Text>
@@ -375,7 +377,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
 
               {/* Hours This Month */}
               <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
-                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>This Month</Text>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.thisMonth')}</Text>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
                   {stats.monthHours}h
                 </Text>
@@ -386,7 +388,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           {/* Member Since */}
           {worker.created_at && (
             <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 10, textAlign: 'center' }}>
-              Member since {new Date(worker.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              {t('history.memberSince', { date: new Date(worker.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) })}
             </Text>
           )}
         </View>
@@ -396,23 +398,23 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: '#10B981' + '10', borderColor: '#10B981' + '40' }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="time" size={20} color="#10B981" />
-              <Text style={[styles.cardTitle, { color: '#10B981' }]}>Currently Clocked In</Text>
+              <Text style={[styles.cardTitle, { color: '#10B981' }]}>{t('history.currentlyClockedIn')}</Text>
             </View>
             <View style={[styles.sessionContent, { backgroundColor: Colors.white }]}>
               <View style={styles.sessionRow}>
-                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>Project</Text>
+                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>{t('history.project')}</Text>
                 <Text style={[styles.sessionValue, { color: Colors.primaryText }]}>
-                  {activeSession.projects?.name || 'Unknown'}
+                  {activeSession.projects?.name || t('history.unknownProject')}
                 </Text>
               </View>
               <View style={styles.sessionRow}>
-                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>Clocked In</Text>
+                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>{t('history.clockedIn')}</Text>
                 <Text style={[styles.sessionValue, { color: Colors.primaryText }]}>
                   {formatTime(activeSession.clock_in)}
                 </Text>
               </View>
               <View style={styles.sessionRow}>
-                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>Elapsed Time</Text>
+                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>{t('history.elapsedTime')}</Text>
                 <Text style={[styles.sessionValue, { color: '#10B981', fontWeight: '700' }]}>
                   {elapsedTime}
                 </Text>
@@ -433,15 +435,15 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                 >
                   <Ionicons name="location" size={18} color="#8B5CF6" />
                   <Text style={[styles.locationButtonText, { color: '#8B5CF6' }]}>
-                    View clock-in location
+                    {t('history.viewClockInLocation')}
                   </Text>
                   <Ionicons name="open-outline" size={14} color="#8B5CF6" />
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.sessionRow, { opacity: 0.5 }]}>
-                  <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>Location</Text>
+                  <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>{t('history.location')}</Text>
                   <Text style={[styles.sessionValue, { color: Colors.secondaryText }]}>
-                    Not available
+                    {t('history.notAvailable')}
                   </Text>
                 </View>
               )}
@@ -465,13 +467,13 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="cash-outline" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Payment Summary</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('history.paymentSummary')}</Text>
             </View>
 
             {/* Total Amount */}
             <View style={[styles.totalAmountContainer, { backgroundColor: Colors.lightGray }]}>
               <Text style={[styles.totalAmountLabel, { color: Colors.secondaryText }]}>
-                Total Amount Owed
+                {t('history.totalAmountOwed')}
               </Text>
               <Text style={[styles.totalAmountValue, { color: Colors.primaryBlue }]}>
                 ${paymentData.totalAmount.toFixed(2)}
@@ -485,7 +487,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
             {paymentData.byProject && paymentData.byProject.length > 0 && (
               <View style={styles.breakdownSection}>
                 <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
-                  Breakdown by Project
+                  {t('history.breakdownByProject')}
                 </Text>
                 {paymentData.byProject.map((project, index) => (
                   <View
@@ -512,7 +514,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
             {paymentData.byDate && paymentData.byDate.length > 0 && (
               <View style={styles.breakdownSection}>
                 <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
-                  Daily Breakdown
+                  {t('history.dailyBreakdown')}
                 </Text>
                 {paymentData.byDate
                   .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -524,7 +526,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                     <View style={styles.dayBreakdownHeader}>
                       <View style={styles.dayBreakdownLeft}>
                         <Text style={[styles.dayBreakdownDate, { color: Colors.primaryText }]}>
-                          {new Date(day.date).toLocaleDateString('en-US', {
+                          {new Date(day.date).toLocaleDateString(undefined, {
                             weekday: 'short',
                             month: 'short',
                             day: 'numeric'
@@ -564,7 +566,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
         <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
           <View style={styles.cardHeader}>
             <Ionicons name="calendar-outline" size={20} color={Colors.primaryBlue} />
-            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Work History</Text>
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('history.workHistory')}</Text>
           </View>
 
           {(() => {
@@ -582,7 +584,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                 <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                   <Ionicons name="time-outline" size={36} color={Colors.secondaryText + '60'} />
                   <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
-                    No clock-in history for this period
+                    {t('history.noClockInHistory')}
                   </Text>
                 </View>
               );
@@ -603,8 +605,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               const sessions = grouped[dateKey];
               const dayTotal = sessions.reduce((sum, s) => sum + (s.hoursWorked || 0), 0);
               const dateObj = new Date(dateKey + 'T12:00:00');
-              const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-              const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const dayName = dateObj.toLocaleDateString(undefined, { weekday: 'short' });
+              const dateLabel = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
               return (
                 <View key={dateKey} style={{ marginBottom: 12 }}>
@@ -642,7 +644,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                     >
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText, flex: 1 }}>
-                          {session.projects?.name || 'Unknown Project'}
+                          {session.projects?.name || t('history.unknownProject')}
                         </Text>
                         {session.hoursWorked != null ? (
                           <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryBlue }}>
@@ -650,7 +652,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                           </Text>
                         ) : (
                           <View style={{ backgroundColor: '#10B981' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>ACTIVE</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>{t('history.active')}</Text>
                           </View>
                         )}
                       </View>
@@ -674,7 +676,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                         >
                           <Ionicons name="location-outline" size={13} color="#8B5CF6" />
                           <Text style={{ fontSize: 12, color: '#8B5CF6', marginLeft: 4 }}>
-                            View location
+                            {t('history.viewLocation')}
                           </Text>
                         </TouchableOpacity>
                       )}

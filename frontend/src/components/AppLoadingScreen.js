@@ -20,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -141,6 +142,7 @@ export default function AppLoadingScreen({
   onDismissComplete,
   isDark = false,
 }) {
+  const { t } = useTranslation('common');
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const [minTimePassed, setMinTimePassed] = useState(!minDisplayMs);
   const timeoutRef = useRef(null);
@@ -241,12 +243,12 @@ export default function AppLoadingScreen({
             />
           </View>
           <Text style={[styles.errorTitle, isDark && { color: '#F8FAFC' }]}>
-            {error ? 'Connection Error' : 'Taking Too Long'}
+            {error ? t('appLoading.connectionError') : t('appLoading.takingTooLong')}
           </Text>
           <Text style={[styles.errorMessage, isDark && { color: '#94A3B8' }]}>
             {error
-              ? 'Please check your internet connection.'
-              : 'The connection is slower than expected.'}
+              ? t('appLoading.checkConnection')
+              : t('appLoading.slowerThanExpected')}
           </Text>
           {onRetry && (
             <TouchableOpacity
@@ -255,7 +257,7 @@ export default function AppLoadingScreen({
               activeOpacity={0.8}
             >
               <Ionicons name="refresh" size={18} color="#fff" />
-              <Text style={styles.retryButtonText}>Try Again</Text>
+              <Text style={styles.retryButtonText}>{t('appLoading.tryAgain')}</Text>
             </TouchableOpacity>
           )}
         </Animated.View>

@@ -100,7 +100,20 @@
     "taskCompleted": "task completed",
     "submittedAt": "Submitted at",
     "noReportsForDate": "No Reports for {{date}}",
-    "useArrows": "Use the arrows to view reports from other days"
+    "useArrows": "Use the arrows to view reports from other days",
+    "dailyReports": "Daily Reports",
+    "loadingReports": "Loading reports...",
+    "noReportsYet": "No Reports Yet",
+    "createFirstReport": "Tap the + button to create your first daily report",
+    "unknownDate": "Unknown date",
+    "unknownProject": "Unknown Project",
+    "you": "You",
+    "supervisor": "Supervisor",
+    "expenses": "Expenses",
+    "noExpensesYet": "No Expenses Yet",
+    "createFirstExpense": "Tap the + button to submit your first expense",
+    "expense": "Expense",
+    "receiptAttached": "Receipt attached"
   },
   "schedule": {
     "todaySchedule": "Today's Schedule",
@@ -128,7 +141,13 @@
     "phases": "Phases",
     "projectWork": "Project Work",
     "nothingScheduled": "Nothing scheduled",
-    "noSchedules": "No schedules"
+    "noSchedules": "No schedules",
+    "title": "Schedule",
+    "todaysTasks": "Today's Tasks",
+    "tomorrowsTasks": "Tomorrow's Tasks",
+    "noTasksScheduled": "No tasks scheduled",
+    "checkBackLater": "Check back later or select a different day",
+    "dueDate": "Due {{date}}"
   },
   "success": {
     "title": "Success",
@@ -233,6 +252,47 @@
     "dailyHelp": "Enter the amount paid per day. Half day if less than 5 hours.",
     "weeklyHelp": "Enter the fixed weekly salary amount",
     "projectHelp": "Enter the fixed amount paid per project completion"
+  },
+  "history": {
+    "paymentInfo": "Payment Info",
+    "type": "Type",
+    "rate": "Rate",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "hourly": "Hourly",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "perProject": "Per Project",
+    "notSet": "Not Set",
+    "memberSince": "Member since {{date}}",
+    "currentlyClockedIn": "Currently Clocked In",
+    "project": "Project",
+    "clockedIn": "Clocked In",
+    "elapsedTime": "Elapsed Time",
+    "viewClockInLocation": "View clock-in location",
+    "location": "Location",
+    "notAvailable": "Not available",
+    "paymentSummary": "Payment Summary",
+    "totalAmountOwed": "Total Amount Owed",
+    "breakdownByProject": "Breakdown by Project",
+    "dailyBreakdown": "Daily Breakdown",
+    "workHistory": "Work History",
+    "noClockInHistory": "No clock-in history for this period",
+    "unknownProject": "Unknown Project",
+    "active": "ACTIVE",
+    "viewLocation": "View location"
+  },
+  "categories": {
+    "materials": "Materials",
+    "equipment": "Equipment",
+    "permits": "Permits",
+    "subcontractor": "Subcontractor",
+    "miscellaneous": "Miscellaneous",
+    "other": "Other"
+  },
+  "assignments": {
+    "title": "Assignments",
+    "noActiveAssignments": "No active assignments"
   },
   "dailyReportForm": {
     "newDailyReport": "New Daily Report",

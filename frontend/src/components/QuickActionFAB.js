@@ -8,16 +8,17 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 // Quick actions configuration - order is bottom to top when expanded
 const QUICK_ACTIONS = [
-  { id: 'assign-worker', icon: 'person-add-outline', label: 'Assign Worker', type: 'form', color: '#EC4899' },
-  { id: 'expense', icon: 'receipt-outline', label: 'Log Transaction', type: 'form', color: '#10B981' },
-  { id: 'report', icon: 'document-text-outline', label: 'Daily Report', type: 'form', color: '#F59E0B' },
-  { id: 'estimate', icon: 'calculator-outline', label: 'New Estimate', type: 'ai', color: '#8B5CF6' },
-  { id: 'project', icon: 'folder-outline', label: 'New Project', type: 'ai', color: '#3B82F6' },
+  { id: 'assign-worker', icon: 'person-add-outline', labelKey: 'quickActions.assignWorker', type: 'form', color: '#EC4899' },
+  { id: 'expense', icon: 'receipt-outline', labelKey: 'quickActions.logTransaction', type: 'form', color: '#10B981' },
+  { id: 'report', icon: 'document-text-outline', labelKey: 'quickActions.dailyReport', type: 'form', color: '#F59E0B' },
+  { id: 'estimate', icon: 'calculator-outline', labelKey: 'quickActions.newEstimate', type: 'ai', color: '#8B5CF6' },
+  { id: 'project', icon: 'folder-outline', labelKey: 'quickActions.newProject', type: 'ai', color: '#3B82F6' },
 ];
 
 /**
@@ -29,6 +30,7 @@ const QUICK_ACTIONS = [
 const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'supervisor' }) => {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const [isExpanded, setIsExpanded] = useState(false);
   const expanded = useSharedValue(0);
@@ -40,7 +42,7 @@ const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'su
   // Owners see "Add Worker" instead of "Assign Worker"
   const availableActions = variant === 'supervisor'
     ? QUICK_ACTIONS.filter(a => !['estimate', 'project'].includes(a.id))
-    : QUICK_ACTIONS.map(a => a.id === 'assign-worker' ? { ...a, label: 'Add Worker' } : a);
+    : QUICK_ACTIONS.map(a => a.id === 'assign-worker' ? { ...a, labelKey: 'quickActions.addWorker' } : a);
 
   const toggleExpand = () => {
     const newValue = isExpanded ? 0 : 1;
@@ -92,6 +94,7 @@ const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'su
             expanded={expanded}
             onPress={() => handleActionPress(action)}
             Colors={Colors}
+            t={t}
           />
         ))}
       </View>
@@ -110,7 +113,7 @@ const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'su
   );
 };
 
-const MenuItem = ({ action, index, expanded, onPress, Colors }) => {
+const MenuItem = ({ action, index, expanded, onPress, Colors, t }) => {
   // Staggered animation for each menu item
   const animatedStyle = useAnimatedStyle(() => {
     const baseOffset = 70; // Base distance between items
@@ -139,7 +142,7 @@ const MenuItem = ({ action, index, expanded, onPress, Colors }) => {
         {/* Label pill */}
         <View style={[styles.menuLabel, { backgroundColor: '#FFFFFF' }]}>
           <Text style={[styles.menuLabelText, { color: '#1F2937' }]}>
-            {action.label}
+            {t(action.labelKey)}
           </Text>
         </View>
 

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchTasksForWorker, completeTask, uncompleteTask, getCurrentUserId } from '../../utils/storage';
@@ -20,6 +21,7 @@ import TaskMoveModal from '../../components/TaskMoveModal';
 export default function WorkerScheduleScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('workers');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -134,16 +136,16 @@ export default function WorkerScheduleScreen({ navigation }) {
     selected.setHours(0, 0, 0, 0);
 
     if (selected.getTime() === today.getTime()) {
-      return "Today's Tasks";
+      return t('schedule.todaysTasks');
     }
 
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (selected.getTime() === tomorrow.getTime()) {
-      return "Tomorrow's Tasks";
+      return t('schedule.tomorrowsTasks');
     }
 
-    return selectedDate.toLocaleDateString('en-US', {
+    return selectedDate.toLocaleDateString(undefined, {
       weekday: 'long',
       month: 'short',
       day: 'numeric'
@@ -152,7 +154,7 @@ export default function WorkerScheduleScreen({ navigation }) {
 
   // Group tasks by project
   const groupedTasks = tasks.reduce((acc, task) => {
-    const projectName = task.projects?.name || 'Unknown Project';
+    const projectName = task.projects?.name || t('history.unknownProject');
     if (!acc[projectName]) {
       acc[projectName] = [];
     }
@@ -164,7 +166,7 @@ export default function WorkerScheduleScreen({ navigation }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Schedule</Text>
+          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('schedule.title')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
           </TouchableOpacity>
@@ -228,10 +230,10 @@ export default function WorkerScheduleScreen({ navigation }) {
             <View style={[styles.emptyState, { backgroundColor: Colors.white }]}>
               <Ionicons name="calendar-outline" size={48} color={Colors.secondaryText} />
               <Text style={[styles.emptyStateTitle, { color: Colors.primaryText }]}>
-                No tasks scheduled
+                {t('schedule.noTasksScheduled')}
               </Text>
               <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
-                Check back later or select a different day
+                {t('schedule.checkBackLater')}
               </Text>
             </View>
           ) : (
@@ -282,7 +284,7 @@ export default function WorkerScheduleScreen({ navigation }) {
                           <View style={styles.taskMeta}>
                             <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
                             <Text style={[styles.taskMetaText, { color: Colors.secondaryText }]}>
-                              Due {new Date(task.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {t('schedule.dueDate', { date: new Date(task.end_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })}
                             </Text>
                           </View>
                         )}

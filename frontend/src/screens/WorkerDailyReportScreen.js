@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCurrentUserId } from '../utils/storage';
@@ -20,6 +21,7 @@ import { supabase } from '../lib/supabase';
 export default function WorkerDailyReportScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('workers');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,19 +113,19 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown date';
+    if (!dateString) return t('reports.unknownDate');
     const date = new Date(dateString);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
     if (date.toDateString() === today.toDateString()) {
-      return 'Today';
+      return t('common:time.today');
     } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
+      return t('common:time.yesterday');
     }
 
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(undefined, {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
@@ -146,14 +148,14 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
   };
 
   const getCategoryLabel = (category) => {
-    const labels = {
-      materials: 'Materials',
-      equipment: 'Equipment',
-      permits: 'Permits',
-      subcontractor: 'Subcontractor',
-      misc: 'Miscellaneous',
+    const keys = {
+      materials: 'categories.materials',
+      equipment: 'categories.equipment',
+      permits: 'categories.permits',
+      subcontractor: 'categories.subcontractor',
+      misc: 'categories.miscellaneous',
     };
-    return labels[category] || 'Other';
+    return t(keys[category] || 'categories.other');
   };
 
   const getCategoryIcon = (category) => {
@@ -192,7 +194,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
         </View>
 
         <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-          {report.projects?.name || 'Unknown Project'}
+          {report.projects?.name || t('reports.unknownProject')}
         </Text>
 
         {report.project_phases?.name && (
@@ -234,7 +236,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
         </View>
 
         <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-          {expense.description || 'Expense'}
+          {expense.description || t('reports.expense')}
         </Text>
 
         <View style={styles.expenseDetails}>
@@ -249,7 +251,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
             </Text>
           </View>
           <Text style={[styles.projectNameSmall, { color: Colors.secondaryText }]}>
-            {expense.projects?.name || 'Unknown Project'}
+            {expense.projects?.name || t('reports.unknownProject')}
           </Text>
         </View>
 
@@ -257,7 +259,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
           <View style={[styles.receiptBadge, { backgroundColor: Colors.primaryBlue + '20' }]}>
             <Ionicons name="receipt" size={14} color={Colors.primaryBlue} />
             <Text style={[styles.receiptText, { color: Colors.primaryBlue }]}>
-              Receipt attached
+              {t('reports.receiptAttached')}
             </Text>
           </View>
         )}
@@ -277,12 +279,12 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
         color={Colors.border}
       />
       <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-        {activeView === 'reports' ? 'No Reports Yet' : 'No Expenses Yet'}
+        {activeView === 'reports' ? t('reports.noReportsYet') : t('reports.noExpensesYet')}
       </Text>
       <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
         {activeView === 'reports'
-          ? 'Tap the + button to create your first daily report'
-          : 'Tap the + button to submit your first expense'}
+          ? t('reports.createFirstReport')
+          : t('reports.createFirstExpense')}
       </Text>
     </View>
   );
@@ -292,7 +294,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
       <View style={[styles.loadingContainer, { backgroundColor: Colors.background }]}>
         <ActivityIndicator size="large" color={Colors.primaryBlue} />
         <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-          Loading...
+          {t('common:status.loading')}
         </Text>
       </View>
     );
@@ -305,7 +307,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.white }]}>
-        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Reports</Text>
+        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('tabs.reports')}</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
           <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
         </TouchableOpacity>
@@ -330,7 +332,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
             styles.toggleText,
             { color: activeView === 'reports' ? Colors.white : Colors.secondaryText }
           ]}>
-            Daily Reports
+            {t('reports.dailyReports')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -350,7 +352,7 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
             styles.toggleText,
             { color: activeView === 'expenses' ? Colors.white : Colors.secondaryText }
           ]}>
-            Expenses
+            {t('reports.expenses')}
           </Text>
         </TouchableOpacity>
       </View>

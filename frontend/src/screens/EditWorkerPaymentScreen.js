@@ -21,7 +21,7 @@ import { updateWorker } from '../utils/storage';
 export default function EditWorkerPaymentScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation(['workers', 'common']);
   const { worker } = route.params;
 
   const [paymentType, setPaymentType] = useState(worker.payment_type || 'hourly');
@@ -46,22 +46,22 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
 
       // Validate that the selected payment type has a rate
       if (paymentType === 'hourly' && !hourlyRate) {
-        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'hourly rate' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.hourlyRate') }));
         setSaving(false);
         return;
       }
       if (paymentType === 'daily' && !dailyRate) {
-        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'daily rate' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.dailyRate') }));
         setSaving(false);
         return;
       }
       if (paymentType === 'weekly' && !weeklySalary) {
-        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'weekly salary' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.weeklySalary') }));
         setSaving(false);
         return;
       }
       if (paymentType === 'project_based' && !projectRate) {
-        Alert.alert(t('alerts.error'), t('messages.pleaseEnter', { item: 'project rate' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.projectRate') }));
         setSaving(false);
         return;
       }
@@ -69,15 +69,15 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
       const success = await updateWorker(worker.id, paymentData);
 
       if (success) {
-        Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'payment information' }), [
-          { text: 'OK', onPress: () => navigation.goBack() }
+        Alert.alert(t('common:alerts.success'), t('common:messages.updatedSuccessfully', { item: t('workers:workerDetails.paymentInformation') }), [
+          { text: t('common:buttons.ok'), onPress: () => navigation.goBack() }
         ]);
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'payment information' }));
+        Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: t('workers:workerDetails.paymentInformation') }));
       }
     } catch (error) {
       console.error('Error updating payment:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'payment information' }));
+      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: t('workers:workerDetails.paymentInformation') }));
     } finally {
       setSaving(false);
     }
@@ -93,7 +93,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Payment</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('workers:payment.editPayment')}</Text>
         <TouchableOpacity
           style={styles.saveButton}
           onPress={handleSave}
@@ -102,7 +102,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           {saving ? (
             <ActivityIndicator size="small" color={Colors.primaryBlue} />
           ) : (
-            <Text style={[styles.saveButtonText, { color: Colors.primaryBlue }]}>Save</Text>
+            <Text style={[styles.saveButtonText, { color: Colors.primaryBlue }]}>{t('common:buttons.save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -137,7 +137,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
 
           {/* Payment Type Selection */}
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Payment Type</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('workers:payment.paymentType')}</Text>
 
             <View style={styles.paymentTypeGrid}>
               <TouchableOpacity
@@ -157,7 +157,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   styles.paymentTypeText,
                   { color: paymentType === 'hourly' ? '#FFFFFF' : Colors.primaryText }
                 ]}>
-                  Hourly
+                  {t('workers:payment.hourly')}
                 </Text>
               </TouchableOpacity>
 
@@ -178,7 +178,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   styles.paymentTypeText,
                   { color: paymentType === 'daily' ? '#FFFFFF' : Colors.primaryText }
                 ]}>
-                  Daily
+                  {t('workers:payment.daily')}
                 </Text>
               </TouchableOpacity>
 
@@ -199,7 +199,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   styles.paymentTypeText,
                   { color: paymentType === 'weekly' ? '#FFFFFF' : Colors.primaryText }
                 ]}>
-                  Weekly
+                  {t('workers:payment.weekly')}
                 </Text>
               </TouchableOpacity>
 
@@ -220,7 +220,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   styles.paymentTypeText,
                   { color: paymentType === 'project_based' ? '#FFFFFF' : Colors.primaryText }
                 ]}>
-                  Project
+                  {t('workers:payment.project')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -229,9 +229,9 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           {/* Payment Rate Input */}
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              {paymentType === 'hourly' ? 'Hourly Rate' :
-               paymentType === 'daily' ? 'Daily Rate' :
-               paymentType === 'weekly' ? 'Weekly Salary' : 'Project Rate'}
+              {paymentType === 'hourly' ? t('workers:form.hourlyRate') :
+               paymentType === 'daily' ? t('workers:form.dailyRate') :
+               paymentType === 'weekly' ? t('workers:form.weeklySalary') : t('workers:form.projectRate')}
             </Text>
 
             {paymentType === 'hourly' && (
@@ -247,7 +247,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   keyboardType="decimal-pad"
                   autoFocus={!hourlyRate}
                 />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>/hr</Text>
+                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perHour')}</Text>
               </View>
             )}
 
@@ -264,7 +264,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   keyboardType="decimal-pad"
                   autoFocus={!dailyRate}
                 />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>/day</Text>
+                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perDay')}</Text>
               </View>
             )}
 
@@ -281,7 +281,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   keyboardType="decimal-pad"
                   autoFocus={!weeklySalary}
                 />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>/wk</Text>
+                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perWeek')}</Text>
               </View>
             )}
 
@@ -298,7 +298,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                   keyboardType="decimal-pad"
                   autoFocus={!projectRate}
                 />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>/project</Text>
+                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perProject')}</Text>
               </View>
             )}
 
@@ -306,10 +306,10 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             <View style={styles.helpTextContainer}>
               <Ionicons name="information-circle-outline" size={16} color={Colors.secondaryText} />
               <Text style={[styles.helpText, { color: Colors.secondaryText }]}>
-                {paymentType === 'hourly' ? 'Enter the amount paid per hour worked' :
-                 paymentType === 'daily' ? 'Enter the amount paid per day. Half day if less than 5 hours.' :
-                 paymentType === 'weekly' ? 'Enter the fixed weekly salary amount' :
-                 'Enter the fixed amount paid per project completion'}
+                {paymentType === 'hourly' ? t('workers:payment.hourlyHelp') :
+                 paymentType === 'daily' ? t('workers:payment.dailyHelp') :
+                 paymentType === 'weekly' ? t('workers:payment.weeklyHelp') :
+                 t('workers:payment.projectHelp')}
               </Text>
             </View>
           </View>

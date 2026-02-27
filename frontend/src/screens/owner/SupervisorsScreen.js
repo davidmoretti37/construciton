@@ -82,7 +82,7 @@ const SkeletonCard = ({ style }) => {
 };
 
 // Premium Supervisor Card Component
-const SupervisorCard = ({ supervisor, onPress, Colors, isDark, index }) => {
+const SupervisorCard = ({ supervisor, onPress, Colors, isDark, index, t }) => {
   const scale = useSharedValue(1);
 
   const handlePressIn = () => {
@@ -138,13 +138,13 @@ const SupervisorCard = ({ supervisor, onPress, Colors, isDark, index }) => {
             <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.secondary}12` }]}>
               <Ionicons name="briefcase" size={12} color={OWNER_COLORS.secondary} />
               <Text style={[styles.statBadgeText, { color: OWNER_COLORS.secondary }]}>
-                {supervisor.project_count || 0} jobs
+                {supervisor.project_count || 0} {t('supervisors.jobs')}
               </Text>
             </View>
             <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
               <Ionicons name="people" size={12} color={OWNER_COLORS.success} />
               <Text style={[styles.statBadgeText, { color: OWNER_COLORS.success }]}>
-                {supervisor.worker_count || 0} workers
+                {supervisor.worker_count || 0} {t('supervisors.workers')}
               </Text>
             </View>
           </View>
@@ -159,7 +159,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, isDark, index }) => {
 };
 
 // Premium Pending Invite Card
-const PendingInviteCard = ({ invite, onCancel, Colors, isDark, index }) => (
+const PendingInviteCard = ({ invite, onCancel, Colors, isDark, index, t }) => (
   <Animated.View
     entering={FadeInUp.delay(index * 80).springify().damping(15)}
     style={[
@@ -184,7 +184,7 @@ const PendingInviteCard = ({ invite, onCancel, Colors, isDark, index }) => (
       <View style={[styles.pendingBadge, { backgroundColor: `${OWNER_COLORS.warning}15` }]}>
         <Ionicons name="time-outline" size={12} color={OWNER_COLORS.warning} />
         <Text style={[styles.pendingLabel, { color: OWNER_COLORS.warning }]}>
-          Pending invitation
+          {t('inviteErrors.pendingInvitation')}
         </Text>
       </View>
     </View>
@@ -280,21 +280,21 @@ export default function SupervisorsScreen() {
     const gmailUrl = `googlegmail:///co?to=${toEmail}&subject=${encodedSubject}&body=${encodedBody}`;
 
     Alert.alert(
-      'Send Invitation',
-      'Choose how to send the invite email',
+      t('emailPicker.sendInvitation'),
+      t('emailPicker.chooseEmailApp'),
       [
         {
-          text: 'Gmail',
+          text: t('emailPicker.gmail'),
           onPress: () => Linking.openURL(gmailUrl).catch(() => {
-            Alert.alert('Gmail not found', 'Gmail app is not installed. Opening default mail instead.');
+            Alert.alert(t('emailPicker.gmailNotFound'), t('emailPicker.gmailNotInstalled'));
             Linking.openURL(mailtoUrl).catch(() => {});
           }),
         },
         {
-          text: 'Apple Mail',
+          text: t('emailPicker.appleMail'),
           onPress: () => Linking.openURL(mailtoUrl).catch(() => {}),
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
       ]
     );
   };
@@ -374,7 +374,7 @@ export default function SupervisorsScreen() {
 
   const handleAddSupervisor = async () => {
     if (!inviteForm.email.trim()) {
-      Alert.alert('Error', 'Please enter an email address');
+      Alert.alert(t('common:alerts.error'), t('inviteErrors.enterEmail'));
       return;
     }
 
@@ -394,7 +394,7 @@ export default function SupervisorsScreen() {
 
       if (error) {
         if (error.code === '23505') {
-          Alert.alert('Error', 'An invitation has already been sent to this email');
+          Alert.alert(t('common:alerts.error'), t('inviteErrors.alreadySent'));
         } else {
           throw error;
         }
@@ -418,7 +418,7 @@ export default function SupervisorsScreen() {
       }
     } catch (error) {
       console.error('Error sending invite:', error);
-      Alert.alert('Error', 'Failed to send invitation');
+      Alert.alert(t('common:alerts.error'), t('inviteErrors.sendFailed'));
     } finally {
       setInviting(false);
     }
@@ -426,12 +426,12 @@ export default function SupervisorsScreen() {
 
   const handleCancelInvite = async (inviteId) => {
     Alert.alert(
-      'Cancel Invitation',
-      'Are you sure you want to cancel this invitation?',
+      t('inviteErrors.cancelInvitation'),
+      t('inviteErrors.cancelConfirm'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('common:buttons.no'), style: 'cancel' },
         {
-          text: 'Yes, Cancel',
+          text: t('inviteErrors.yesCancel'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -444,7 +444,7 @@ export default function SupervisorsScreen() {
               fetchSupervisors();
             } catch (error) {
               console.error('Error canceling invite:', error);
-              Alert.alert('Error', 'Failed to cancel invitation');
+              Alert.alert(t('common:alerts.error'), t('inviteErrors.cancelFailed'));
             }
           },
         },
@@ -505,6 +505,7 @@ export default function SupervisorsScreen() {
                     Colors={Colors}
                     isDark={isDark}
                     index={index}
+                    t={t}
                   />
                 ))}
               </View>
@@ -526,6 +527,7 @@ export default function SupervisorsScreen() {
                     Colors={Colors}
                     isDark={isDark}
                     index={index}
+                    t={t}
                   />
                 ))}
               </View>
@@ -549,7 +551,7 @@ export default function SupervisorsScreen() {
             {/* Modal Header */}
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
               <TouchableOpacity onPress={() => setShowAddModal(false)} style={styles.modalButton}>
-                <Text style={[styles.cancelText, { color: Colors.secondaryText }]}>Cancel</Text>
+                <Text style={[styles.cancelText, { color: Colors.secondaryText }]}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
               <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
                 {t('supervisors.addNew', 'Add Supervisor')}
@@ -572,7 +574,7 @@ export default function SupervisorsScreen() {
                         : `${OWNER_COLORS.primary}30`
                     }
                   ]}>
-                    <Text style={styles.sendText}>Send</Text>
+                    <Text style={styles.sendText}>{t('common:buttons.send')}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -582,7 +584,7 @@ export default function SupervisorsScreen() {
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Email Address
+                  {t('supervisors.email')}
                   <Text style={{ color: OWNER_COLORS.error }}> *</Text>
                 </Text>
                 <View style={[
@@ -608,8 +610,8 @@ export default function SupervisorsScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Full Name
-                  <Text style={{ color: Colors.secondaryText }}> (optional)</Text>
+                  {t('supervisors.fullName')}
+                  <Text style={{ color: Colors.secondaryText }}> ({t('common:labels.optional')})</Text>
                 </Text>
                 <View style={[
                   styles.inputContainer,
@@ -629,8 +631,8 @@ export default function SupervisorsScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Phone Number
-                  <Text style={{ color: Colors.secondaryText }}> (optional)</Text>
+                  {t('supervisors.phone')}
+                  <Text style={{ color: Colors.secondaryText }}> ({t('common:labels.optional')})</Text>
                 </Text>
                 <View style={[
                   styles.inputContainer,

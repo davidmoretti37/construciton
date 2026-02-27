@@ -24,26 +24,26 @@ import { getSupervisorTimesheet, calculateSupervisorPaymentForPeriod } from '../
 import DateRangePicker from '../../components/DateRangePicker';
 import { formatHoursMinutes } from '../../utils/calculations';
 
-// Helper function to format pay rate
-const formatPayRate = (sup) => {
-  if (!sup) return 'Not set';
+// Helper function to format pay rate (takes t function for i18n)
+const formatPayRate = (sup, t) => {
+  if (!sup) return t('supervisorDetailScreen.notSet');
   switch (sup.payment_type) {
-    case 'hourly': return `$${sup.hourly_rate || 0}/hr`;
-    case 'daily': return `$${sup.daily_rate || 0}/day`;
-    case 'weekly': return `$${sup.weekly_salary || 0}/week`;
-    case 'project_based': return `$${sup.project_rate || 0}/project`;
-    default: return 'Not set';
+    case 'hourly': return `$${sup.hourly_rate || 0}${t('supervisorDetailScreen.perHour')}`;
+    case 'daily': return `$${sup.daily_rate || 0}${t('supervisorDetailScreen.perDay')}`;
+    case 'weekly': return `$${sup.weekly_salary || 0}${t('supervisorDetailScreen.perWeek')}`;
+    case 'project_based': return `$${sup.project_rate || 0}${t('supervisorDetailScreen.perProject')}`;
+    default: return t('supervisorDetailScreen.notSet');
   }
 };
 
-// Helper function to get payment type label
-const getPaymentTypeLabel = (type) => {
+// Helper function to get payment type label (takes t function for i18n)
+const getPaymentTypeLabel = (type, t) => {
   switch (type) {
-    case 'hourly': return 'Hourly';
-    case 'daily': return 'Daily';
-    case 'weekly': return 'Weekly';
-    case 'project_based': return 'Project Based';
-    default: return 'Not set';
+    case 'hourly': return t('supervisorDetailScreen.hourly');
+    case 'daily': return t('supervisorDetailScreen.daily');
+    case 'weekly': return t('supervisorDetailScreen.weekly');
+    case 'project_based': return t('supervisorDetailScreen.projectBased');
+    default: return t('supervisorDetailScreen.notSet');
   }
 };
 
@@ -69,7 +69,7 @@ const calculateLaborCost = (hours, sup) => {
 };
 
 // Job Card Component
-const JobCard = ({ job, Colors }) => {
+const JobCard = ({ job, Colors, t }) => {
   const progressPercent = job.progress || 0;
   const statusColor = job.status === 'active' ? '#059669' : job.status === 'completed' ? '#2563EB' : '#F59E0B';
 
@@ -78,7 +78,7 @@ const JobCard = ({ job, Colors }) => {
       <View style={styles.jobHeader}>
         <View style={styles.jobTitleRow}>
           <Text style={[styles.jobName, { color: Colors.primaryText }]} numberOfLines={1}>
-            {job.name || 'Unnamed Project'}
+            {job.name || t('supervisorDetailScreen.unnamedProject')}
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
             <Text style={[styles.statusText, { color: statusColor }]}>
@@ -99,7 +99,7 @@ const JobCard = ({ job, Colors }) => {
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
         <View style={styles.progressHeader}>
-          <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>Progress</Text>
+          <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.progress')}</Text>
           <Text style={[styles.progressPercent, { color: Colors.primaryText }]}>{progressPercent}%</Text>
         </View>
         <View style={[styles.progressBar, { backgroundColor: Colors.border }]}>
@@ -120,7 +120,7 @@ const JobCard = ({ job, Colors }) => {
         <View style={styles.jobStat}>
           <Ionicons name="people-outline" size={16} color="#2563EB" />
           <Text style={[styles.jobStatText, { color: Colors.secondaryText }]}>
-            {job.worker_count || 0} workers
+            {t('supervisorDetailScreen.workersCount', { count: job.worker_count || 0 })}
           </Text>
         </View>
       </View>
@@ -370,10 +370,10 @@ export default function SupervisorDetailScreen() {
             <Ionicons name="cash" size={24} color="#F59E0B" />
             <View style={styles.payRateInfo}>
               <Text style={[styles.payRateLabel, { color: Colors.secondaryText }]}>
-                {getPaymentTypeLabel(supervisor.payment_type)} Rate
+                {getPaymentTypeLabel(supervisor.payment_type, t)} {t('supervisorDetailScreen.rate')}
               </Text>
               <Text style={[styles.payRateValue, { color: Colors.primaryText }]}>
-                {formatPayRate(supervisor)}
+                {formatPayRate(supervisor, t)}
               </Text>
             </View>
           </View>
@@ -395,19 +395,19 @@ export default function SupervisorDetailScreen() {
           <View style={[styles.paymentCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <View style={styles.paymentCardHeader}>
               <Ionicons name="cash-outline" size={20} color="#1E40AF" />
-              <Text style={[styles.paymentCardTitle, { color: Colors.primaryText }]}>Payment Summary</Text>
+              <Text style={[styles.paymentCardTitle, { color: Colors.primaryText }]}>{t('supervisorDetailScreen.paymentSummary')}</Text>
             </View>
 
             {/* Total Amount */}
             <View style={[styles.totalAmountContainer, { backgroundColor: Colors.lightGray || '#F3F4F6' }]}>
               <Text style={[styles.totalAmountLabel, { color: Colors.secondaryText }]}>
-                Total Amount Owed
+                {t('supervisorDetailScreen.totalAmountOwed')}
               </Text>
               <Text style={[styles.totalAmountValue, { color: '#1E40AF' }]}>
                 ${paymentData.totalAmount?.toFixed(2) || '0.00'}
               </Text>
               <Text style={[styles.totalHoursText, { color: Colors.secondaryText }]}>
-                {formatHoursMinutes(paymentData.totalHours || 0)} total
+                {formatHoursMinutes(paymentData.totalHours || 0)} {t('supervisorDetailScreen.total')}
               </Text>
             </View>
 
@@ -415,7 +415,7 @@ export default function SupervisorDetailScreen() {
             {paymentData.byProject && paymentData.byProject.length > 0 && (
               <View style={styles.breakdownSection}>
                 <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
-                  Breakdown by Project
+                  {t('supervisorDetailScreen.breakdownByProject')}
                 </Text>
                 {paymentData.byProject.map((project, index) => (
                   <View
@@ -442,7 +442,7 @@ export default function SupervisorDetailScreen() {
             {paymentData.byDate && paymentData.byDate.length > 0 && (
               <View style={styles.breakdownSection}>
                 <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
-                  Daily Breakdown
+                  {t('supervisorDetailScreen.dailyBreakdown')}
                 </Text>
                 {paymentData.byDate
                   .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -454,7 +454,7 @@ export default function SupervisorDetailScreen() {
                     <View style={styles.dayBreakdownHeader}>
                       <View style={styles.dayBreakdownLeft}>
                         <Text style={[styles.dayBreakdownDate, { color: Colors.primaryText }]}>
-                          {new Date(day.date).toLocaleDateString('en-US', {
+                          {new Date(day.date).toLocaleDateString(undefined, {
                             weekday: 'short',
                             month: 'short',
                             day: 'numeric'
@@ -492,11 +492,11 @@ export default function SupervisorDetailScreen() {
               <View style={styles.paymentTypeInfo}>
                 <Ionicons name="information-circle-outline" size={16} color={Colors.secondaryText} />
                 <Text style={[styles.paymentTypeText, { color: Colors.secondaryText }]}>
-                  Payment Type: {getPaymentTypeLabel(supervisor.payment_type)}
-                  {supervisor.payment_type === 'hourly' && supervisor.hourly_rate && ` - $${Number(supervisor.hourly_rate).toFixed(2)}/hr`}
-                  {supervisor.payment_type === 'daily' && supervisor.daily_rate && ` - $${Number(supervisor.daily_rate).toFixed(2)}/day`}
-                  {supervisor.payment_type === 'weekly' && supervisor.weekly_salary && ` - $${Number(supervisor.weekly_salary).toFixed(2)}/wk`}
-                  {supervisor.payment_type === 'project_based' && supervisor.project_rate && ` - $${Number(supervisor.project_rate).toFixed(2)}/project`}
+                  {t('supervisorDetailScreen.paymentTypeInfo', { type: getPaymentTypeLabel(supervisor.payment_type, t) })}
+                  {supervisor.payment_type === 'hourly' && supervisor.hourly_rate && ` - $${Number(supervisor.hourly_rate).toFixed(2)}${t('supervisorDetailScreen.perHour')}`}
+                  {supervisor.payment_type === 'daily' && supervisor.daily_rate && ` - $${Number(supervisor.daily_rate).toFixed(2)}${t('supervisorDetailScreen.perDay')}`}
+                  {supervisor.payment_type === 'weekly' && supervisor.weekly_salary && ` - $${Number(supervisor.weekly_salary).toFixed(2)}${t('supervisorDetailScreen.perWeek')}`}
+                  {supervisor.payment_type === 'project_based' && supervisor.project_rate && ` - $${Number(supervisor.project_rate).toFixed(2)}${t('supervisorDetailScreen.perProject')}`}
                 </Text>
               </View>
             )}
@@ -507,15 +507,15 @@ export default function SupervisorDetailScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statBox, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <Text style={[styles.statValue, { color: '#1E40AF' }]}>{stats.totalJobs}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Jobs</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.jobs')}</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <Text style={[styles.statValue, { color: '#059669' }]}>{stats.activeJobs}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Active</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.active')}</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <Text style={[styles.statValue, { color: '#2563EB' }]}>{stats.totalWorkers}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Workers</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.workers')}</Text>
           </View>
         </View>
 
@@ -523,7 +523,7 @@ export default function SupervisorDetailScreen() {
         <View style={[styles.revenueCard, { backgroundColor: '#1E40AF10', borderColor: '#1E40AF30' }]}>
           <Ionicons name="wallet" size={24} color="#1E40AF" />
           <View style={styles.revenueInfo}>
-            <Text style={[styles.revenueLabel, { color: Colors.secondaryText }]}>Total Contract Value</Text>
+            <Text style={[styles.revenueLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.totalContractValue')}</Text>
             <Text style={[styles.revenueValue, { color: Colors.primaryText }]}>
               ${stats.totalRevenue.toLocaleString()}
             </Text>
@@ -533,14 +533,14 @@ export default function SupervisorDetailScreen() {
         {/* Jobs Section */}
         <View style={styles.jobsSection}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            JOBS ({jobs.length})
+            {t('supervisorDetailScreen.jobsCount', { count: jobs.length })}
           </Text>
 
           {jobs.length === 0 ? (
             <View style={[styles.emptyJobs, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
               <Ionicons name="briefcase-outline" size={32} color={Colors.secondaryText} />
               <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                No jobs yet
+                {t('supervisorDetailScreen.noJobsYet')}
               </Text>
             </View>
           ) : (
@@ -549,6 +549,7 @@ export default function SupervisorDetailScreen() {
                 key={job.id}
                 job={job}
                 Colors={Colors}
+                t={t}
               />
             ))
           )}
@@ -557,7 +558,7 @@ export default function SupervisorDetailScreen() {
         {/* Time Tracking Section */}
         <View style={styles.timeTrackingSection}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            TIME TRACKING
+            {t('supervisorDetailScreen.timeTracking')}
           </Text>
 
           {/* Hours & Earnings Summary Card */}
@@ -565,7 +566,7 @@ export default function SupervisorDetailScreen() {
             <Ionicons name="time" size={24} color="#059669" />
             <View style={styles.hoursSummaryInfo}>
               <View style={styles.hoursSummaryRow}>
-                <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>This Week</Text>
+                <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.thisWeek')}</Text>
                 <View style={styles.hoursSummaryValues}>
                   <Text style={[styles.hoursSummaryValue, { color: Colors.primaryText }]}>
                     {formatHoursMinutes(timeStats.weekHours)}
@@ -578,7 +579,7 @@ export default function SupervisorDetailScreen() {
                 </View>
               </View>
               <View style={styles.hoursSummaryRow}>
-                <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>This Month</Text>
+                <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.thisMonth')}</Text>
                 <View style={styles.hoursSummaryValues}>
                   <Text style={[styles.hoursSummaryValue, { color: Colors.primaryText }]}>
                     {formatHoursMinutes(timeStats.monthHours)}
@@ -598,7 +599,7 @@ export default function SupervisorDetailScreen() {
             <View style={[styles.emptyJobs, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
               <Ionicons name="time-outline" size={32} color={Colors.secondaryText} />
               <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                No time records yet
+                {t('supervisorDetailScreen.noTimeRecords')}
               </Text>
             </View>
           ) : (
@@ -608,7 +609,7 @@ export default function SupervisorDetailScreen() {
               const isActive = !record.clock_out;
 
               const formatTime = (date) => {
-                return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
               };
 
               const formatDate = (date) => {
@@ -617,11 +618,11 @@ export default function SupervisorDetailScreen() {
                 yesterday.setDate(yesterday.getDate() - 1);
 
                 if (date.toDateString() === today.toDateString()) {
-                  return 'Today';
+                  return t('common:time.today');
                 } else if (date.toDateString() === yesterday.toDateString()) {
-                  return 'Yesterday';
+                  return t('common:time.yesterday');
                 } else {
-                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                 }
               };
 
@@ -640,7 +641,7 @@ export default function SupervisorDetailScreen() {
                     {isActive ? (
                       <View style={[styles.activeIndicator, { backgroundColor: '#059669' + '20' }]}>
                         <View style={[styles.activeDot, { backgroundColor: '#059669' }]} />
-                        <Text style={[styles.activeText, { color: '#059669' }]}>Active</Text>
+                        <Text style={[styles.activeText, { color: '#059669' }]}>{t('supervisorDetailScreen.activeStatus')}</Text>
                       </View>
                     ) : (
                       <View style={styles.hoursAndCost}>
@@ -656,10 +657,10 @@ export default function SupervisorDetailScreen() {
                     )}
                   </View>
                   <Text style={[styles.timeRecordProject, { color: Colors.primaryText }]} numberOfLines={1}>
-                    {record.projects?.name || 'Unknown Project'}
+                    {record.projects?.name || t('supervisorDetailScreen.unknownProject')}
                   </Text>
                   <Text style={[styles.timeRecordTimes, { color: Colors.secondaryText }]}>
-                    {formatTime(clockIn)} {clockOut ? `- ${formatTime(clockOut)}` : '- In Progress'}
+                    {formatTime(clockIn)} {clockOut ? `- ${formatTime(clockOut)}` : `- ${t('supervisorDetailScreen.inProgress')}`}
                   </Text>
                 </View>
               );

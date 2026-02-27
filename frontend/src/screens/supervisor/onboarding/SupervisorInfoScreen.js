@@ -58,11 +58,11 @@ export default function SupervisorInfoScreen({ navigation }) {
   const handleContinue = () => {
     // Validation
     if (!fullName.trim()) {
-      Alert.alert('Required Field', 'Please enter your full name');
+      Alert.alert(t('supervisorOnboarding.requiredField'), t('supervisorOnboarding.enterFullName'));
       return;
     }
     if (!phone.trim()) {
-      Alert.alert('Required Field', 'Please enter your phone number');
+      Alert.alert(t('supervisorOnboarding.requiredField'), t('supervisorOnboarding.enterPhone'));
       return;
     }
 
@@ -88,10 +88,10 @@ export default function SupervisorInfoScreen({ navigation }) {
           {/* Header */}
           <Animated.View style={[styles.header, headerAnim]}>
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              Your Information
+              {t('supervisorOnboarding.yourInformation')}
             </Text>
             <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-              Tell us a bit about yourself
+              {t('supervisorOnboarding.tellUsAboutYourself')}
             </Text>
           </Animated.View>
 
@@ -99,12 +99,12 @@ export default function SupervisorInfoScreen({ navigation }) {
           <View style={styles.form}>
             {/* Full Name */}
             <Animated.View style={[styles.inputGroup, field1Anim]}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Full Name *</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('supervisorOnboarding.fullNameRequired')}</Text>
               <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="person-outline" size={20} color={Colors.secondaryText} />
                 <TextInput
                   style={[styles.input, { color: Colors.primaryText }]}
-                  placeholder="John Doe"
+                  placeholder={t('supervisorOnboarding.fullNamePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={fullName}
                   onChangeText={setFullName}
@@ -115,12 +115,12 @@ export default function SupervisorInfoScreen({ navigation }) {
 
             {/* Phone */}
             <Animated.View style={[styles.inputGroup, field2Anim]}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Phone Number *</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('supervisorOnboarding.phoneRequired')}</Text>
               <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
                 <TextInput
                   style={[styles.input, { color: Colors.primaryText }]}
-                  placeholder="(555) 123-4567"
+                  placeholder={t('supervisorOnboarding.phonePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={phone}
                   onChangeText={setPhone}
@@ -131,12 +131,12 @@ export default function SupervisorInfoScreen({ navigation }) {
 
             {/* Job Title */}
             <Animated.View style={[styles.inputGroup, field3Anim]}>
-              <Text style={[styles.label, { color: Colors.primaryText }]}>Job Title (Optional)</Text>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>{t('supervisorOnboarding.jobTitleOptional')}</Text>
               <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
                 <Ionicons name="briefcase-outline" size={20} color={Colors.secondaryText} />
                 <TextInput
                   style={[styles.input, { color: Colors.primaryText }]}
-                  placeholder="Project Manager, Foreman, etc."
+                  placeholder={t('supervisorOnboarding.jobTitlePlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   value={jobTitle}
                   onChangeText={setJobTitle}
@@ -150,7 +150,7 @@ export default function SupervisorInfoScreen({ navigation }) {
           <View style={[styles.infoBox, { backgroundColor: SUPERVISOR_BLUE + '10' }]}>
             <Ionicons name="information-circle" size={20} color={SUPERVISOR_BLUE} />
             <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-              Your business owner has already configured the company settings. You'll use their pricing, phases, and templates.
+              {t('supervisorOnboarding.infoBoxText')}
             </Text>
           </View>
 
@@ -161,7 +161,7 @@ export default function SupervisorInfoScreen({ navigation }) {
               onPress={handleContinue}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>Continue</Text>
+              <Text style={styles.buttonText}>{t('supervisorOnboarding.continue')}</Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />
             </TouchableOpacity>
           </Animated.View>
@@ -174,7 +174,7 @@ export default function SupervisorInfoScreen({ navigation }) {
               <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
             </View>
             <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
-              Step 2 of 3
+              {t('supervisorOnboarding.stepOf', { step: 2, total: 3 })}
             </Text>
           </Animated.View>
         </ScrollView>

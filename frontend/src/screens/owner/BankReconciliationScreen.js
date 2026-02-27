@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -35,11 +36,11 @@ const OWNER_COLORS = {
 };
 
 const FILTER_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'unmatched', label: 'Unmatched' },
-  { key: 'suggested_match', label: 'Review' },
-  { key: 'matched', label: 'Matched' },
-  { key: 'ignored', label: 'Ignored' },
+  { key: 'all', labelKey: 'reconciliation.filterAll' },
+  { key: 'unmatched', labelKey: 'reconciliation.filterUnmatched' },
+  { key: 'suggested_match', labelKey: 'reconciliation.filterReview' },
+  { key: 'matched', labelKey: 'reconciliation.filterMatched' },
+  { key: 'ignored', labelKey: 'reconciliation.filterIgnored' },
 ];
 
 export default function BankReconciliationScreen() {
@@ -47,6 +48,7 @@ export default function BankReconciliationScreen() {
   const route = useRoute();
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('owner');
 
   const initialFilter = route.params?.filter || 'all';
   const [activeFilter, setActiveFilter] = useState(initialFilter);
@@ -119,12 +121,12 @@ export default function BankReconciliationScreen() {
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'auto_matched': return { color: OWNER_COLORS.success, label: 'Auto-matched', icon: 'checkmark-circle' };
-      case 'suggested_match': return { color: OWNER_COLORS.warning, label: 'Review', icon: 'help-circle' };
-      case 'manually_matched': return { color: OWNER_COLORS.primary, label: 'Matched', icon: 'checkmark-circle' };
-      case 'created': return { color: OWNER_COLORS.purple, label: 'Assigned', icon: 'arrow-forward-circle' };
-      case 'ignored': return { color: Colors.secondaryText, label: 'Ignored', icon: 'eye-off' };
-      case 'unmatched': return { color: OWNER_COLORS.danger, label: 'Unmatched', icon: 'alert-circle' };
+      case 'auto_matched': return { color: OWNER_COLORS.success, label: t('reconciliation.statusAutoMatched'), icon: 'checkmark-circle' };
+      case 'suggested_match': return { color: OWNER_COLORS.warning, label: t('reconciliation.statusReview'), icon: 'help-circle' };
+      case 'manually_matched': return { color: OWNER_COLORS.primary, label: t('reconciliation.statusMatched'), icon: 'checkmark-circle' };
+      case 'created': return { color: OWNER_COLORS.purple, label: t('reconciliation.statusAssigned'), icon: 'arrow-forward-circle' };
+      case 'ignored': return { color: Colors.secondaryText, label: t('reconciliation.statusIgnored'), icon: 'eye-off' };
+      case 'unmatched': return { color: OWNER_COLORS.danger, label: t('reconciliation.statusUnmatched'), icon: 'alert-circle' };
       default: return { color: Colors.secondaryText, label: status, icon: 'help-circle' };
     }
   };
@@ -136,7 +138,7 @@ export default function BankReconciliationScreen() {
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   const renderSummaryCard = () => {
@@ -149,28 +151,28 @@ export default function BankReconciliationScreen() {
             <Text style={[styles.summaryNumber, { color: OWNER_COLORS.success }]}>
               {summary.matched_total || 0}
             </Text>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Matched</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.matched')}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNumber, { color: OWNER_COLORS.danger }]}>
               {summary.unmatched || 0}
             </Text>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Unmatched</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.unmatched')}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNumber, { color: OWNER_COLORS.warning }]}>
               {summary.suggested_matches || 0}
             </Text>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Review</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.review')}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNumber, { color: Colors.primaryText }]}>
               {summary.total_transactions || 0}
             </Text>
-            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Total</Text>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.total')}</Text>
           </View>
         </View>
 
@@ -178,7 +180,7 @@ export default function BankReconciliationScreen() {
           <View style={[styles.unmatchedBanner, { backgroundColor: OWNER_COLORS.danger + '10' }]}>
             <Ionicons name="alert-circle" size={16} color={OWNER_COLORS.danger} />
             <Text style={[styles.unmatchedText, { color: OWNER_COLORS.danger }]}>
-              ${summary.unmatched_amount?.toFixed(2) || '0.00'} in unrecorded expenses
+              ${summary.unmatched_amount?.toFixed(2) || '0.00'} {t('reconciliation.inUnrecordedExpenses')}
             </Text>
           </View>
         )}
@@ -230,14 +232,14 @@ export default function BankReconciliationScreen() {
               onPress={() => handleAssign(item)}
             >
               <Ionicons name="arrow-forward-circle-outline" size={16} color={OWNER_COLORS.primary} />
-              <Text style={[styles.txActionText, { color: OWNER_COLORS.primary }]}>Assign to Project</Text>
+              <Text style={[styles.txActionText, { color: OWNER_COLORS.primary }]}>{t('reconciliation.assignToProject')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.txActionBtn, { backgroundColor: Colors.border + '50' }]}
               onPress={() => handleIgnore(item.id)}
             >
               <Ionicons name="eye-off-outline" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>Ignore</Text>
+              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>{t('reconciliation.ignore')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -252,7 +254,7 @@ export default function BankReconciliationScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Bank Reconciliation</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('reconciliation.title')}</Text>
         <TouchableOpacity onPress={() => navigation.navigate('BankConnection')} style={styles.settingsButton}>
           <Ionicons name="settings-outline" size={22} color={Colors.secondaryText} />
         </TouchableOpacity>
@@ -284,7 +286,7 @@ export default function BankReconciliationScreen() {
                   { color: activeFilter === item.key ? '#FFF' : Colors.secondaryText },
                 ]}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Text>
             </TouchableOpacity>
           )}
@@ -309,12 +311,12 @@ export default function BankReconciliationScreen() {
             <View style={styles.emptyList}>
               <Ionicons name="checkmark-circle" size={48} color={OWNER_COLORS.success} />
               <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-                {activeFilter === 'unmatched' ? 'All caught up!' : 'No transactions'}
+                {activeFilter === 'unmatched' ? t('reconciliation.allCaughtUp') : t('reconciliation.noTransactions')}
               </Text>
               <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>
                 {activeFilter === 'unmatched'
-                  ? 'All bank transactions have been matched or assigned.'
-                  : 'No transactions match the current filter.'}
+                  ? t('reconciliation.allMatchedDesc')
+                  : t('reconciliation.noFilterMatchDesc')}
               </Text>
             </View>
           }

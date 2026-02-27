@@ -132,10 +132,12 @@
   },
   "support": {
     "help": "Help Center",
+    "helpSubtitle": "FAQs and contact info",
     "contact": "Contact Support",
     "feedback": "Send Feedback",
     "reportBug": "Report a Bug",
-    "faq": "FAQ"
+    "faq": "FAQ",
+    "couldNotOpenLink": "Could not open link"
   },
   "about": {
     "version": "Version",

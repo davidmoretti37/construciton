@@ -453,5 +453,53 @@
     "tapStartDate": "Tap a date to start selecting a range",
     "tapEndDate": "Tap another date to complete the range",
     "tapApply": "Tap \"Apply\" to use this date range"
+  },
+  "supervisorOnboarding": {
+    "yourInformation": "Your Information",
+    "tellUsAboutYourself": "Tell us a bit about yourself",
+    "fullNameRequired": "Full Name *",
+    "fullNamePlaceholder": "John Doe",
+    "phoneRequired": "Phone Number *",
+    "phonePlaceholder": "(555) 123-4567",
+    "jobTitleOptional": "Job Title (Optional)",
+    "jobTitlePlaceholder": "Project Manager, Foreman, etc.",
+    "infoBoxText": "Your business owner has already configured the company settings. You'll use their pricing, phases, and templates.",
+    "continue": "Continue",
+    "stepOf": "Step {{step}} of {{total}}",
+    "requiredField": "Required Field",
+    "enterFullName": "Please enter your full name",
+    "enterPhone": "Please enter your phone number",
+    "settingUpAccount": "Setting up your account...",
+    "allSet": "You're All Set!",
+    "welcomeToTeam": "Welcome to the team, {{name}}!",
+    "whatYouCanDo": "WHAT YOU CAN DO",
+    "featureManageProjects": "Manage projects assigned to you",
+    "featureManageWorkers": "Add and manage your workers",
+    "featureCreateEstimates": "Create estimates using company pricing",
+    "featureGenerateInvoices": "Generate invoices for clients",
+    "startUsingApp": "Start Using App"
+  },
+  "quickActions": {
+    "assignWorker": "Assign Worker",
+    "addWorker": "Add Worker",
+    "logTransaction": "Log Transaction",
+    "dailyReport": "Daily Report",
+    "newEstimate": "New Estimate",
+    "newProject": "New Project"
+  },
+  "appLoading": {
+    "connectionError": "Connection Error",
+    "takingTooLong": "Taking Too Long",
+    "checkConnection": "Please check your internet connection.",
+    "slowerThanExpected": "The connection is slower than expected.",
+    "tryAgain": "Try Again"
+  },
+  "documentViewer": {
+    "loadingPDF": "Loading PDF...",
+    "failedToLoad": "Failed to load document",
+    "fileUnavailable": "The file may be unavailable or the format is not supported",
+    "image": "Image",
+    "pdfDocument": "PDF Document",
+    "document": "Document"
   }
 }

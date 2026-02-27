@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -42,6 +43,7 @@ export default function OwnerDashboardScreen() {
   const Colors = getColors(isDark) || LightColors;
   const { user } = useAuth();
   const navigation = useNavigation();
+  const { t } = useTranslation('owner');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -219,9 +221,9 @@ export default function OwnerDashboardScreen() {
       >
         {/* Welcome Section */}
         <View style={[styles.welcomeSection, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
-          <Text style={[styles.welcomeText, { color: Colors.primaryText }]}>Welcome! 👋</Text>
+          <Text style={[styles.welcomeText, { color: Colors.primaryText }]}>{t('dashboardScreen.welcome')} 👋</Text>
           <Text style={[styles.dateText, { color: Colors.secondaryText }]}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </Text>
         </View>
 
@@ -233,7 +235,7 @@ export default function OwnerDashboardScreen() {
             activeOpacity={0.7}
           >
             <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalSupervisors}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Supervisors</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('dashboard.supervisors')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -242,7 +244,7 @@ export default function OwnerDashboardScreen() {
             activeOpacity={0.7}
           >
             <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalProjects}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Projects</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('dashboard.projects')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -251,19 +253,19 @@ export default function OwnerDashboardScreen() {
             activeOpacity={0.7}
           >
             <Text style={[styles.statNumber, { color: Colors.primaryText }]}>{stats.totalWorkers}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Workers</Text>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('dashboard.workers')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* This Month Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>💰 This Month</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>💰 {t('dashboardScreen.thisMonth')}</Text>
           <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.incomeAmount, { color: monthlyStats.profit >= 0 ? OWNER_COLORS.success : OWNER_COLORS.error }]}>
-              {formatCurrency(monthlyStats.profit)} profit
+              {formatCurrency(monthlyStats.profit)} {t('dashboardScreen.profit')}
             </Text>
             <Text style={[styles.budgetText, { color: Colors.secondaryText }]}>
-              {formatCurrency(monthlyStats.budgeted)} budgeted
+              {formatCurrency(monthlyStats.budgeted)} {t('dashboardScreen.budgeted')}
             </Text>
             <View style={[styles.progressBarContainer, { backgroundColor: Colors.lightGray }]}>
               <View style={[styles.progressBar, { width: `${Math.min(monthlyStats.percentage, 100)}%`, backgroundColor: OWNER_COLORS.primary }]} />
@@ -275,7 +277,7 @@ export default function OwnerDashboardScreen() {
               activeOpacity={0.7}
             >
               <Ionicons name="bar-chart-outline" size={16} color={OWNER_COLORS.primary} />
-              <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>View Full P&L Report</Text>
+              <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.viewPLReport')}</Text>
               <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
             </TouchableOpacity>
           </View>
@@ -283,31 +285,31 @@ export default function OwnerDashboardScreen() {
 
         {/* Quick Stats Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>📊 Quick Stats</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>📊 {t('dashboardScreen.quickStats')}</Text>
           <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.statsGrid}>
               <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Supervisors</Text>
+                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalSupervisors')}</Text>
                 <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{stats.totalSupervisors}</Text>
               </View>
               <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Projects</Text>
+                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalProjects')}</Text>
                 <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{stats.totalProjects}</Text>
               </View>
               <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Contract Value</Text>
+                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalContractValue')}</Text>
                 <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{formatCurrency(stats.totalContractValue)}</Text>
               </View>
               <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Revenue</Text>
+                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalRevenue')}</Text>
                 <Text style={[styles.statRowValue, { color: OWNER_COLORS.success }]}>{formatCurrency(stats.totalRevenue)}</Text>
               </View>
               <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Expenses</Text>
+                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalExpenses')}</Text>
                 <Text style={[styles.statRowValue, { color: OWNER_COLORS.error }]}>{formatCurrency(stats.totalExpenses)}</Text>
               </View>
               <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>Total Workers</Text>
+                <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalWorkers')}</Text>
                 <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{stats.totalWorkers}</Text>
               </View>
             </View>
@@ -323,7 +325,7 @@ export default function OwnerDashboardScreen() {
             >
               <Ionicons name="mail-unread" size={20} color={OWNER_COLORS.warning} />
               <Text style={[styles.alertText, { color: OWNER_COLORS.warning }]}>
-                {stats.pendingInvites} pending supervisor invite{stats.pendingInvites > 1 ? 's' : ''}
+                {t('dashboardScreen.pendingInvites', { count: stats.pendingInvites })}
               </Text>
               <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.warning} />
             </TouchableOpacity>
@@ -332,7 +334,7 @@ export default function OwnerDashboardScreen() {
 
         {/* Bank Reconciliation Card — always visible */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>💳 Card Tracking</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>💳 {t('dashboardScreen.cardTracking')}</Text>
           {!reconciliation || reconciliation.message ? (
             <TouchableOpacity
               style={[styles.card, { backgroundColor: Colors.cardBackground }]}
@@ -344,14 +346,14 @@ export default function OwnerDashboardScreen() {
                   <Ionicons name="card-outline" size={28} color={OWNER_COLORS.primary} />
                 </View>
                 <Text style={[styles.reconTitle, { color: Colors.primaryText }]}>
-                  Connect your business card
+                  {t('dashboardScreen.connectCard')}
                 </Text>
                 <Text style={[styles.reconSubtitle, { color: Colors.secondaryText }]}>
-                  Auto-track and reconcile expenses from your card transactions
+                  {t('dashboardScreen.connectCardDesc')}
                 </Text>
                 <View style={[styles.reconButton, { backgroundColor: OWNER_COLORS.primary }]}>
                   <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={styles.reconButtonText}>Connect Account</Text>
+                  <Text style={styles.reconButtonText}>{t('dashboardScreen.connectAccount')}</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -367,11 +369,11 @@ export default function OwnerDashboardScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.reconTitle, { color: Colors.primaryText, textAlign: 'left' }]}>
-                    {reconciliation.unmatched + (reconciliation.suggested_matches || 0)} transaction{reconciliation.unmatched + (reconciliation.suggested_matches || 0) !== 1 ? 's' : ''} need attention
+                    {t('dashboardScreen.transactionsNeedAttention', { count: reconciliation.unmatched + (reconciliation.suggested_matches || 0) })}
                   </Text>
                   {reconciliation.unmatched_amount > 0 && (
                     <Text style={[styles.reconSubtitle, { color: OWNER_COLORS.error, textAlign: 'left', marginBottom: 0 }]}>
-                      ${reconciliation.unmatched_amount.toFixed(2)} in unrecorded expenses
+                      ${reconciliation.unmatched_amount.toFixed(2)} {t('dashboardScreen.inUnrecordedExpenses')}
                     </Text>
                   )}
                 </View>
@@ -379,7 +381,7 @@ export default function OwnerDashboardScreen() {
               </View>
               <View style={[styles.reconFooter, { borderTopColor: Colors.border }]}>
                 <Ionicons name="eye-outline" size={16} color={OWNER_COLORS.primary} />
-                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>View Reconciliation</Text>
+                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.viewReconciliation')}</Text>
                 <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
               </View>
             </TouchableOpacity>
@@ -395,17 +397,17 @@ export default function OwnerDashboardScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.reconTitle, { color: Colors.primaryText, textAlign: 'left' }]}>
-                    All caught up
+                    {t('dashboardScreen.allCaughtUp')}
                   </Text>
                   <Text style={[styles.reconSubtitle, { color: Colors.secondaryText, textAlign: 'left', marginBottom: 0 }]}>
-                    All card transactions are reconciled
+                    {t('dashboardScreen.allReconciled')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
               </View>
               <View style={[styles.reconFooter, { borderTopColor: Colors.border }]}>
                 <Ionicons name="eye-outline" size={16} color={OWNER_COLORS.primary} />
-                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>View Reconciliation</Text>
+                <Text style={[styles.reportLinkText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.viewReconciliation')}</Text>
                 <Ionicons name="chevron-forward" size={16} color={OWNER_COLORS.primary} />
               </View>
             </TouchableOpacity>
@@ -415,10 +417,10 @@ export default function OwnerDashboardScreen() {
         {/* Supervisors Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>👥 Supervisors</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>👥 {t('dashboardScreen.supervisors')}</Text>
             {supervisors.length > 0 && (
               <TouchableOpacity onPress={() => navigation.navigate('Workers')}>
-                <Text style={[styles.seeAllText, { color: OWNER_COLORS.primary }]}>See all</Text>
+                <Text style={[styles.seeAllText, { color: OWNER_COLORS.primary }]}>{t('dashboardScreen.seeAll')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -428,15 +430,15 @@ export default function OwnerDashboardScreen() {
               <View style={[styles.emptyIcon, { backgroundColor: `${OWNER_COLORS.primary}10` }]}>
                 <Ionicons name="people-outline" size={32} color={OWNER_COLORS.primary} />
               </View>
-              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No supervisors yet</Text>
+              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.noSupervisorsYet')}</Text>
               <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                Add supervisors to help manage your projects
+                {t('dashboardScreen.addSupervisorsHelp')}
               </Text>
               <TouchableOpacity
                 style={[styles.emptyButton, { backgroundColor: OWNER_COLORS.primary }]}
                 onPress={() => navigation.navigate('Workers', { initialTab: 'team', openAddSupervisor: true })}
               >
-                <Text style={styles.emptyButtonText}>Add Supervisor</Text>
+                <Text style={styles.emptyButtonText}>{t('dashboardScreen.addSupervisor')}</Text>
               </TouchableOpacity>
             </View>
           ) : (

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
+import { useTranslation } from 'react-i18next';
 import { getColors, Spacing, FontSizes, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -22,6 +23,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 export default function DocumentViewerScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('common');
 
   const { document, photo, fileUrl: directFileUrl, fileName: directFileName, fileType: directFileType } = route.params || {};
   const item = document || photo;
@@ -104,7 +106,7 @@ export default function DocumentViewerScreen({ route, navigation }) {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.primaryBlue} />
             <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-              Loading PDF...
+              {t('documentViewer.loadingPDF')}
             </Text>
           </View>
         )}
@@ -118,10 +120,10 @@ export default function DocumentViewerScreen({ route, navigation }) {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
           <Text style={[styles.errorText, { color: Colors.primaryText }]}>
-            Failed to load document
+            {t('documentViewer.failedToLoad')}
           </Text>
           <Text style={[styles.errorSubtext, { color: Colors.secondaryText }]}>
-            The file may be unavailable or the format is not supported
+            {t('documentViewer.fileUnavailable')}
           </Text>
         </View>
       );
@@ -155,7 +157,7 @@ export default function DocumentViewerScreen({ route, navigation }) {
             {fileName}
           </Text>
           <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-            {isImage ? 'Image' : isPDF ? 'PDF Document' : 'Document'}
+            {isImage ? t('documentViewer.image') : isPDF ? t('documentViewer.pdfDocument') : t('documentViewer.document')}
           </Text>
         </View>
 

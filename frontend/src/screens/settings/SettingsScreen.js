@@ -75,7 +75,7 @@ export default function SettingsScreen({ navigation }) {
       t('confirmLogout.message'),
       [
         {
-          text: 'Cancel',
+          text: t('common:buttons.cancel'),
           style: 'cancel',
         },
         {
@@ -117,7 +117,7 @@ export default function SettingsScreen({ navigation }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('common:status.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -202,7 +202,7 @@ export default function SettingsScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/support').catch(() => Alert.alert('Error', 'Could not open link'))}
+            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/support').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
             activeOpacity={0.7}
           >
             <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
@@ -210,14 +210,14 @@ export default function SettingsScreen({ navigation }) {
             </View>
             <View style={styles.itemContent}>
               <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>{t('help', 'Help & Support')}</Text>
-              <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>FAQs and contact info</Text>
+              <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>{t('support.helpSubtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/terms').catch(() => Alert.alert('Error', 'Could not open link'))}
+            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/terms').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
             activeOpacity={0.7}
           >
             <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
@@ -231,7 +231,7 @@ export default function SettingsScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/privacy').catch(() => Alert.alert('Error', 'Could not open link'))}
+            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/privacy').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
             activeOpacity={0.7}
           >
             <View style={[styles.iconContainer, { backgroundColor: '#10B98120' }]}>

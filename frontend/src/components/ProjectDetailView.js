@@ -1509,9 +1509,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     // Navigate to chat with context to create estimate
                     if (navigation) {
                       onClose();
-                      navigation.navigate('Chat', {
-                        initialMessage: `Create estimate for ${project.name}`,
-                        projectIdForEstimate: project.id
+                      navigation.navigate('MainTabs', {
+                        screen: 'Chat',
+                        params: {
+                          initialMessage: `Create estimate for ${project.name}`,
+                          projectIdForEstimate: project.id
+                        }
                       });
                     }
                   }}

@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -35,12 +36,12 @@ const OWNER_COLORS = {
 };
 
 const CATEGORIES = [
-  { key: 'materials', label: 'Materials', icon: 'cube-outline' },
-  { key: 'equipment', label: 'Equipment', icon: 'construct-outline' },
-  { key: 'permits', label: 'Permits', icon: 'document-text-outline' },
-  { key: 'subcontractor', label: 'Subcontractor', icon: 'people-outline' },
-  { key: 'labor', label: 'Labor', icon: 'person-outline' },
-  { key: 'misc', label: 'Miscellaneous', icon: 'ellipsis-horizontal-circle-outline' },
+  { key: 'materials', labelKey: 'transactionAssign.categoryMaterials', icon: 'cube-outline' },
+  { key: 'equipment', labelKey: 'transactionAssign.categoryEquipment', icon: 'construct-outline' },
+  { key: 'permits', labelKey: 'transactionAssign.categoryPermits', icon: 'document-text-outline' },
+  { key: 'subcontractor', labelKey: 'transactionAssign.categorySubcontractor', icon: 'people-outline' },
+  { key: 'labor', labelKey: 'transactionAssign.categoryLabor', icon: 'person-outline' },
+  { key: 'misc', labelKey: 'transactionAssign.categoryMisc', icon: 'ellipsis-horizontal-circle-outline' },
 ];
 
 export default function BankTransactionAssignScreen() {
@@ -49,6 +50,7 @@ export default function BankTransactionAssignScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { user } = useAuth();
+  const { t } = useTranslation('owner');
 
   const transaction = route.params?.transaction;
 
@@ -90,7 +92,7 @@ export default function BankTransactionAssignScreen() {
 
   const handleSubmit = async () => {
     if (!selectedProject) {
-      Alert.alert('Select Project', 'Please select a project to assign this transaction to.');
+      Alert.alert(t('transactionAssign.selectProject'), t('transactionAssign.selectProjectDesc'));
       return;
     }
 
@@ -104,12 +106,12 @@ export default function BankTransactionAssignScreen() {
       );
 
       Alert.alert(
-        'Transaction Assigned',
-        `$${Math.abs(transaction.amount).toFixed(2)} assigned to "${selectedProject.name}" as ${selectedCategory}.`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        t('transactionAssign.transactionAssigned'),
+        t('transactionAssign.transactionAssignedDesc', { amount: Math.abs(transaction.amount).toFixed(2), project: selectedProject.name, category: selectedCategory }),
+        [{ text: t('common:buttons.ok'), onPress: () => navigation.goBack() }]
       );
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to assign transaction');
+      Alert.alert(t('common:alerts.error'), error.message || t('transactionAssign.failedToAssign'));
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +121,7 @@ export default function BankTransactionAssignScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <Text style={{ color: Colors.primaryText, textAlign: 'center', marginTop: 40 }}>
-          No transaction selected
+          {t('transactionAssign.noTransactionSelected')}
         </Text>
       </SafeAreaView>
     );
@@ -127,7 +129,7 @@ export default function BankTransactionAssignScreen() {
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
   return (
@@ -141,7 +143,7 @@ export default function BankTransactionAssignScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="close" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Assign Transaction</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('transactionAssign.title')}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -150,7 +152,7 @@ export default function BankTransactionAssignScreen() {
           <View style={[styles.txCard, { backgroundColor: OWNER_COLORS.danger + '08', borderColor: OWNER_COLORS.danger + '30' }]}>
             <View style={styles.txHeader}>
               <Ionicons name="card" size={20} color={OWNER_COLORS.danger} />
-              <Text style={[styles.txLabel, { color: Colors.secondaryText }]}>Bank Transaction</Text>
+              <Text style={[styles.txLabel, { color: Colors.secondaryText }]}>{t('transactionAssign.bankTransaction')}</Text>
             </View>
             <Text style={[styles.txAmount, { color: OWNER_COLORS.danger }]}>
               ${Math.abs(transaction.amount).toFixed(2)}
@@ -165,19 +167,19 @@ export default function BankTransactionAssignScreen() {
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>DESCRIPTION</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.description')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.cardBackground, borderColor: Colors.border, color: Colors.primaryText }]}
               value={description}
               onChangeText={setDescription}
-              placeholder="Expense description"
+              placeholder={t('transactionAssign.descriptionPlaceholder')}
               placeholderTextColor={Colors.placeholderText}
             />
           </View>
 
           {/* Category Selection */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>CATEGORY</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.category')}</Text>
             <View style={styles.categoryGrid}>
               {CATEGORIES.map((cat) => (
                 <TouchableOpacity
@@ -202,7 +204,7 @@ export default function BankTransactionAssignScreen() {
                       { color: selectedCategory === cat.key ? '#FFF' : Colors.primaryText },
                     ]}
                   >
-                    {cat.label}
+                    {t(cat.labelKey)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -211,13 +213,13 @@ export default function BankTransactionAssignScreen() {
 
           {/* Project Selection */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>ASSIGN TO PROJECT</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.assignToProject')}</Text>
 
             <TextInput
               style={[styles.input, { backgroundColor: Colors.cardBackground, borderColor: Colors.border, color: Colors.primaryText, marginBottom: Spacing.md }]}
               value={projectSearch}
               onChangeText={setProjectSearch}
-              placeholder="Search projects..."
+              placeholder={t('transactionAssign.searchProjects')}
               placeholderTextColor={Colors.placeholderText}
             />
 
@@ -259,7 +261,7 @@ export default function BankTransactionAssignScreen() {
 
                 {filteredProjects.length === 0 && (
                   <Text style={[styles.noProjects, { color: Colors.secondaryText }]}>
-                    {projectSearch ? 'No matching projects' : 'No active projects'}
+                    {projectSearch ? t('transactionAssign.noMatchingProjects') : t('transactionAssign.noActiveProjects')}
                   </Text>
                 )}
               </View>
@@ -283,7 +285,7 @@ export default function BankTransactionAssignScreen() {
               <>
                 <Ionicons name="checkmark" size={20} color="#FFF" />
                 <Text style={styles.submitButtonText}>
-                  Assign to {selectedProject?.name || 'Project'}
+                  {t('transactionAssign.assignTo', { name: selectedProject?.name || t('common:project.project') })}
                 </Text>
               </>
             )}

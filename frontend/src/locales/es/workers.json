@@ -100,7 +100,20 @@
     "taskCompleted": "tarea completada",
     "submittedAt": "Enviado a las",
     "noReportsForDate": "Sin Reportes para {{date}}",
-    "useArrows": "Usa las flechas para ver reportes de otros días"
+    "useArrows": "Usa las flechas para ver reportes de otros días",
+    "dailyReports": "Reportes Diarios",
+    "loadingReports": "Cargando reportes...",
+    "noReportsYet": "Sin Reportes Aún",
+    "createFirstReport": "Toca el botón + para crear tu primer reporte diario",
+    "unknownDate": "Fecha desconocida",
+    "unknownProject": "Proyecto Desconocido",
+    "you": "Tú",
+    "supervisor": "Supervisor",
+    "expenses": "Gastos",
+    "noExpensesYet": "Sin Gastos Aún",
+    "createFirstExpense": "Toca el botón + para enviar tu primer gasto",
+    "expense": "Gasto",
+    "receiptAttached": "Recibo adjunto"
   },
   "schedule": {
     "todaySchedule": "Horario de Hoy",
@@ -128,7 +141,13 @@
     "phases": "Fases",
     "projectWork": "Trabajo del Proyecto",
     "nothingScheduled": "Nada programado",
-    "noSchedules": "Sin horarios"
+    "noSchedules": "Sin horarios",
+    "title": "Horario",
+    "todaysTasks": "Tareas de Hoy",
+    "tomorrowsTasks": "Tareas de Mañana",
+    "noTasksScheduled": "Sin tareas programadas",
+    "checkBackLater": "Vuelve más tarde o selecciona otro día",
+    "dueDate": "Vence {{date}}"
   },
   "success": {
     "title": "Éxito",
@@ -233,6 +252,47 @@
     "dailyHelp": "Ingresa el monto pagado por día. Medio día si es menos de 5 horas.",
     "weeklyHelp": "Ingresa el monto fijo del salario semanal",
     "projectHelp": "Ingresa el monto fijo pagado por proyecto completado"
+  },
+  "history": {
+    "paymentInfo": "Info de Pago",
+    "type": "Tipo",
+    "rate": "Tarifa",
+    "thisWeek": "Esta Semana",
+    "thisMonth": "Este Mes",
+    "hourly": "Por Hora",
+    "daily": "Diario",
+    "weekly": "Semanal",
+    "perProject": "Por Proyecto",
+    "notSet": "No Definido",
+    "memberSince": "Miembro desde {{date}}",
+    "currentlyClockedIn": "Entrada Registrada",
+    "project": "Proyecto",
+    "clockedIn": "Entrada",
+    "elapsedTime": "Tiempo Transcurrido",
+    "viewClockInLocation": "Ver ubicación de entrada",
+    "location": "Ubicación",
+    "notAvailable": "No disponible",
+    "paymentSummary": "Resumen de Pago",
+    "totalAmountOwed": "Monto Total Adeudado",
+    "breakdownByProject": "Desglose por Proyecto",
+    "dailyBreakdown": "Desglose Diario",
+    "workHistory": "Historial de Trabajo",
+    "noClockInHistory": "Sin registros de entrada para este período",
+    "unknownProject": "Proyecto Desconocido",
+    "active": "ACTIVO",
+    "viewLocation": "Ver ubicación"
+  },
+  "categories": {
+    "materials": "Materiales",
+    "equipment": "Equipo",
+    "permits": "Permisos",
+    "subcontractor": "Subcontratista",
+    "miscellaneous": "Varios",
+    "other": "Otro"
+  },
+  "assignments": {
+    "title": "Asignaciones",
+    "noActiveAssignments": "Sin asignaciones activas"
   },
   "dailyReportForm": {
     "newDailyReport": "Nuevo Reporte Diario",

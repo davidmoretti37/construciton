@@ -132,10 +132,12 @@
   },
   "support": {
     "help": "Centro de Ayuda",
+    "helpSubtitle": "Preguntas frecuentes e información de contacto",
     "contact": "Contactar Soporte",
     "feedback": "Enviar Comentarios",
     "reportBug": "Reportar un Error",
-    "faq": "Preguntas Frecuentes"
+    "faq": "Preguntas Frecuentes",
+    "couldNotOpenLink": "No se pudo abrir el enlace"
   },
   "about": {
     "version": "Versión",
