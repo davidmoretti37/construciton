@@ -1089,6 +1089,92 @@ const toolDefinitions = [
         required: []
       }
     }
+  },
+
+  // ==================== FINANCIAL REPORTS ====================
+  {
+    type: 'function',
+    function: {
+      name: 'get_ar_aging',
+      description: 'Get accounts receivable aging report — shows all unpaid invoices bucketed by how overdue they are (current, 1-30 days, 31-60, 61-90, 90+), grouped by client. Use when user asks about overdue invoices, outstanding payments, who owes them money, aging report, or accounts receivable.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_tax_summary',
+      description: 'Get annual tax summary with revenue, deductions by IRS Schedule C category, net profit, and 1099 contractor summary. Use when user asks about taxes, deductions, Schedule C, 1099 contractors, tax report, or annual summary.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tax_year: {
+            type: 'integer',
+            description: 'The tax year to summarize (e.g., 2025, 2026). Defaults to current year.'
+          }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_payroll_summary',
+      description: 'Get payroll summary showing worker pay totals for a period. Shows each worker\'s name, trade, hours worked, rate, gross pay, and projects worked. Use when user asks about payroll, worker pay, labor costs, or how much they owe workers.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: {
+            type: 'string',
+            description: 'Start date (YYYY-MM-DD). Defaults to start of current month.'
+          },
+          end_date: {
+            type: 'string',
+            description: 'End date (YYYY-MM-DD). Defaults to today.'
+          }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_cash_flow',
+      description: 'Get cash flow data showing money in vs money out by month for the trailing 6 months. Also includes outstanding receivables. Use when user asks about cash flow, money coming in and going out, or how their cash position looks.',
+      parameters: {
+        type: 'object',
+        properties: {
+          months: {
+            type: 'integer',
+            description: 'Number of trailing months to include (default 6, max 12)'
+          }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_recurring_expenses',
+      description: 'Get all recurring expenses (equipment rentals, insurance, subscriptions, etc). Shows description, amount, frequency, category, next due date, and associated project. Use when user asks about recurring costs, regular payments, subscriptions, or upcoming bills.',
+      parameters: {
+        type: 'object',
+        properties: {
+          active_only: {
+            type: 'boolean',
+            description: 'If true, only return active recurring expenses. Defaults to true.'
+          }
+        },
+        required: []
+      }
+    }
   }
 ];
 
@@ -1138,6 +1224,12 @@ const TOOL_STATUS_MESSAGES = {
   get_bank_transactions: 'Checking bank transactions...',
   assign_bank_transaction: 'Assigning transaction to project...',
   get_reconciliation_summary: 'Checking reconciliation status...',
+  // Financial report tools
+  get_ar_aging: 'Checking overdue invoices...',
+  get_tax_summary: 'Pulling tax summary...',
+  get_payroll_summary: 'Calculating payroll...',
+  get_cash_flow: 'Analyzing cash flow...',
+  get_recurring_expenses: 'Checking recurring expenses...',
 };
 
 function getToolStatusMessage(toolName) {

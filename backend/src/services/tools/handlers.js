@@ -3271,6 +3271,374 @@ async function get_reconciliation_summary(userId, args = {}) {
   return summary;
 }
 
+// ==================== FINANCIAL REPORTS ====================
+
+const DEFAULT_TAX_CATEGORY_MAP = {
+  materials: 'cogs',
+  labor: 'contract_labor',
+  subcontractor: 'contract_labor',
+  equipment: 'rent_lease',
+  permits: 'taxes_licenses',
+  misc: 'other_deduction',
+  payment: null,
+  deposit: null,
+};
+
+const TAX_CATEGORY_LABELS = {
+  cogs: 'Cost of Goods Sold',
+  contract_labor: 'Contract Labor',
+  rent_lease: 'Rent / Lease',
+  repairs_maintenance: 'Repairs & Maintenance',
+  supplies: 'Supplies',
+  taxes_licenses: 'Taxes & Licenses',
+  utilities: 'Utilities',
+  vehicle: 'Vehicle Expenses',
+  insurance: 'Insurance',
+  other_deduction: 'Other Deductions',
+};
+
+async function get_ar_aging(userId) {
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date, created_at')
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .in('status', ['unpaid', 'partial', 'overdue']);
+
+  if (!invoices || invoices.length === 0) {
+    return { clients: [], totals: { current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days90plus: 0, total: 0 }, invoiceCount: 0 };
+  }
+
+  const now = new Date();
+  const buckets = { current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days90plus: 0 };
+  const clientMap = {};
+
+  for (const inv of invoices) {
+    const balance = (inv.total || 0) - (inv.amount_paid || 0);
+    if (balance <= 0) continue;
+
+    const dueDate = inv.due_date ? new Date(inv.due_date + 'T12:00:00') : null;
+    const daysOverdue = dueDate ? Math.max(0, Math.floor((now - dueDate) / (1000 * 60 * 60 * 24))) : 0;
+
+    let bucket;
+    if (!dueDate || daysOverdue === 0) bucket = 'current';
+    else if (daysOverdue <= 30) bucket = 'days1_30';
+    else if (daysOverdue <= 60) bucket = 'days31_60';
+    else if (daysOverdue <= 90) bucket = 'days61_90';
+    else bucket = 'days90plus';
+
+    buckets[bucket] += balance;
+
+    const client = inv.client_name || 'Unknown Client';
+    if (!clientMap[client]) {
+      clientMap[client] = { client, current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days90plus: 0, total: 0, invoices: [] };
+    }
+    clientMap[client][bucket] += balance;
+    clientMap[client].total += balance;
+    clientMap[client].invoices.push({
+      invoice_number: inv.invoice_number,
+      project: inv.project_name,
+      balance: parseFloat(balance.toFixed(2)),
+      daysOverdue,
+      dueDate: inv.due_date,
+    });
+  }
+
+  const total = buckets.current + buckets.days1_30 + buckets.days31_60 + buckets.days61_90 + buckets.days90plus;
+
+  return {
+    clients: Object.values(clientMap).sort((a, b) => b.total - a.total).map(c => ({
+      ...c,
+      current: parseFloat(c.current.toFixed(2)),
+      days1_30: parseFloat(c.days1_30.toFixed(2)),
+      days31_60: parseFloat(c.days31_60.toFixed(2)),
+      days61_90: parseFloat(c.days61_90.toFixed(2)),
+      days90plus: parseFloat(c.days90plus.toFixed(2)),
+      total: parseFloat(c.total.toFixed(2)),
+    })),
+    totals: {
+      current: parseFloat(buckets.current.toFixed(2)),
+      days1_30: parseFloat(buckets.days1_30.toFixed(2)),
+      days31_60: parseFloat(buckets.days31_60.toFixed(2)),
+      days61_90: parseFloat(buckets.days61_90.toFixed(2)),
+      days90plus: parseFloat(buckets.days90plus.toFixed(2)),
+      total: parseFloat(total.toFixed(2)),
+    },
+    invoiceCount: invoices.length,
+  };
+}
+
+async function get_tax_summary(userId, args = {}) {
+  const taxYear = args.tax_year || new Date().getFullYear();
+  const yearStart = `${taxYear}-01-01`;
+  const yearEnd = `${taxYear}-12-31`;
+
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id')
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+
+  const projectIds = (projects || []).map(p => p.id);
+  if (projectIds.length === 0) {
+    return { taxYear, grossRevenue: 0, deductions: {}, totalDeductions: 0, netProfit: 0, contractors: [] };
+  }
+
+  const { data: transactions } = await supabase
+    .from('project_transactions')
+    .select('type, category, tax_category, amount, description')
+    .in('project_id', projectIds)
+    .gte('date', yearStart)
+    .lte('date', yearEnd);
+
+  let grossRevenue = 0;
+  const deductions = {};
+  const contractorTotals = {};
+
+  for (const t of (transactions || [])) {
+    if (t.type === 'income') {
+      grossRevenue += parseFloat(t.amount || 0);
+      continue;
+    }
+
+    // Expense — determine tax category
+    const taxCat = t.tax_category || DEFAULT_TAX_CATEGORY_MAP[t.category] || 'other_deduction';
+    if (taxCat) {
+      deductions[taxCat] = (deductions[taxCat] || 0) + parseFloat(t.amount || 0);
+    }
+
+    // Track contractor payments for 1099
+    if (t.category === 'subcontractor' || (t.category === 'labor' && t.description)) {
+      const name = (t.description || 'Unknown Contractor').trim();
+      contractorTotals[name] = (contractorTotals[name] || 0) + parseFloat(t.amount || 0);
+    }
+  }
+
+  const totalDeductions = Object.values(deductions).reduce((s, v) => s + v, 0);
+
+  // Format deductions with labels
+  const formattedDeductions = {};
+  for (const [key, amount] of Object.entries(deductions)) {
+    formattedDeductions[TAX_CATEGORY_LABELS[key] || key] = parseFloat(amount.toFixed(2));
+  }
+
+  const contractors = Object.entries(contractorTotals)
+    .map(([name, totalPaid]) => ({
+      name,
+      totalPaid: parseFloat(totalPaid.toFixed(2)),
+      requires1099: totalPaid >= 600,
+    }))
+    .sort((a, b) => b.totalPaid - a.totalPaid);
+
+  return {
+    taxYear,
+    grossRevenue: parseFloat(grossRevenue.toFixed(2)),
+    deductions: formattedDeductions,
+    totalDeductions: parseFloat(totalDeductions.toFixed(2)),
+    netProfit: parseFloat((grossRevenue - totalDeductions).toFixed(2)),
+    contractors,
+    contractorsRequiring1099: contractors.filter(c => c.requires1099).length,
+  };
+}
+
+async function get_payroll_summary(userId, args = {}) {
+  const now = new Date();
+  const startDate = args.start_date || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const endDate = args.end_date || now.toISOString().split('T')[0];
+
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id, name')
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+
+  const projectIds = (projects || []).map(p => p.id);
+  const projectMap = {};
+  (projects || []).forEach(p => { projectMap[p.id] = p.name; });
+
+  if (projectIds.length === 0) {
+    return { period: { start: startDate, end: endDate }, workers: [], totalGrossPay: 0, workerCount: 0 };
+  }
+
+  // Get labor transactions
+  const { data: laborTx } = await supabase
+    .from('project_transactions')
+    .select('amount, description, project_id')
+    .in('project_id', projectIds)
+    .eq('type', 'expense')
+    .eq('category', 'labor')
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  // Get workers for matching
+  const ownerId = await resolveOwnerId(userId);
+  const { data: workers } = await supabase
+    .from('workers')
+    .select('id, name, trade, hourly_rate, payment_type, payment_rate')
+    .eq('owner_id', ownerId);
+
+  const workerMap = {};
+  (workers || []).forEach(w => { workerMap[w.name?.toLowerCase()] = w; });
+
+  // Group by worker name (from description)
+  const payByWorker = {};
+  for (const tx of (laborTx || [])) {
+    const name = (tx.description || 'Unknown Worker').trim();
+    if (!payByWorker[name]) {
+      const matched = workerMap[name.toLowerCase()];
+      payByWorker[name] = {
+        name,
+        trade: matched?.trade || '',
+        rate: matched?.payment_rate || matched?.hourly_rate || null,
+        paymentType: matched?.payment_type || null,
+        grossPay: 0,
+        projects: new Set(),
+      };
+    }
+    payByWorker[name].grossPay += parseFloat(tx.amount || 0);
+    payByWorker[name].projects.add(projectMap[tx.project_id] || 'Unknown Project');
+  }
+
+  const workerList = Object.values(payByWorker)
+    .map(w => ({
+      name: w.name,
+      trade: w.trade,
+      rate: w.rate,
+      paymentType: w.paymentType,
+      grossPay: parseFloat(w.grossPay.toFixed(2)),
+      projects: [...w.projects],
+    }))
+    .sort((a, b) => b.grossPay - a.grossPay);
+
+  const totalGrossPay = workerList.reduce((s, w) => s + w.grossPay, 0);
+
+  return {
+    period: { start: startDate, end: endDate },
+    workers: workerList,
+    totalGrossPay: parseFloat(totalGrossPay.toFixed(2)),
+    workerCount: workerList.length,
+  };
+}
+
+async function get_cash_flow(userId, args = {}) {
+  const months = Math.min(args.months || 6, 12);
+
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id')
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+
+  const projectIds = (projects || []).map(p => p.id);
+
+  // Calculate start date (N months ago, first of month)
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+  const startStr = startDate.toISOString().split('T')[0];
+
+  let totalCashIn = 0, totalCashOut = 0;
+  const monthlyData = [];
+
+  if (projectIds.length > 0) {
+    const { data: transactions } = await supabase
+      .from('project_transactions')
+      .select('type, amount, date')
+      .in('project_id', projectIds)
+      .gte('date', startStr)
+      .order('date', { ascending: true });
+
+    // Build month buckets
+    const monthMap = {};
+    for (let i = 0; i < months; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - months + 1 + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap[key] = { period: key, cashIn: 0, cashOut: 0, net: 0 };
+    }
+
+    for (const t of (transactions || [])) {
+      const monthKey = t.date?.substring(0, 7);
+      if (!monthMap[monthKey]) continue;
+      const amount = parseFloat(t.amount || 0);
+      if (t.type === 'income') {
+        monthMap[monthKey].cashIn += amount;
+        totalCashIn += amount;
+      } else {
+        monthMap[monthKey].cashOut += amount;
+        totalCashOut += amount;
+      }
+    }
+
+    for (const m of Object.values(monthMap)) {
+      m.cashIn = parseFloat(m.cashIn.toFixed(2));
+      m.cashOut = parseFloat(m.cashOut.toFixed(2));
+      m.net = parseFloat((m.cashIn - m.cashOut).toFixed(2));
+      monthlyData.push(m);
+    }
+  }
+
+  // Outstanding receivables
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('total, amount_paid')
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .in('status', ['unpaid', 'partial', 'overdue']);
+
+  let outstandingReceivables = 0;
+  for (const inv of (invoices || [])) {
+    outstandingReceivables += (inv.total || 0) - (inv.amount_paid || 0);
+  }
+
+  return {
+    months: monthlyData,
+    outstandingReceivables: parseFloat(outstandingReceivables.toFixed(2)),
+    totalCashIn: parseFloat(totalCashIn.toFixed(2)),
+    totalCashOut: parseFloat(totalCashOut.toFixed(2)),
+    netCashFlow: parseFloat((totalCashIn - totalCashOut).toFixed(2)),
+  };
+}
+
+async function get_recurring_expenses(userId, args = {}) {
+  const activeOnly = args.active_only !== false; // default true
+
+  let q = supabase
+    .from('recurring_expenses')
+    .select('id, description, amount, category, tax_category, frequency, next_due_date, is_active, project_id, projects(name)')
+    .eq('user_id', userId)
+    .order('next_due_date', { ascending: true });
+
+  if (activeOnly) q = q.eq('is_active', true);
+
+  const { data, error } = await q;
+
+  if (error) {
+    logger.error('get_recurring_expenses error:', error);
+    return { error: error.message };
+  }
+
+  const expenses = (data || []).map(e => ({
+    id: e.id,
+    description: e.description,
+    amount: parseFloat(e.amount || 0),
+    category: e.category,
+    taxCategory: e.tax_category,
+    frequency: e.frequency,
+    nextDueDate: e.next_due_date,
+    isActive: e.is_active,
+    projectName: e.projects?.name || null,
+  }));
+
+  // Estimate monthly cost
+  let estimatedMonthlyCost = 0;
+  for (const e of expenses) {
+    if (!e.isActive) continue;
+    if (e.frequency === 'weekly') estimatedMonthlyCost += e.amount * 4.33;
+    else if (e.frequency === 'biweekly') estimatedMonthlyCost += e.amount * 2.17;
+    else estimatedMonthlyCost += e.amount;
+  }
+
+  return {
+    expenses,
+    count: expenses.length,
+    estimatedMonthlyCost: parseFloat(estimatedMonthlyCost.toFixed(2)),
+  };
+}
+
 const TOOL_HANDLERS = {
   // Granular tools
   search_projects,
@@ -3317,6 +3685,12 @@ const TOOL_HANDLERS = {
   get_bank_transactions,
   assign_bank_transaction,
   get_reconciliation_summary,
+  // Financial report tools
+  get_ar_aging,
+  get_tax_summary,
+  get_payroll_summary,
+  get_cash_flow,
+  get_recurring_expenses,
 };
 
 /**

@@ -93,6 +93,11 @@ Put ALL your conversational text inside the "text" field. The JSON object must b
    - "Send the estimate to Carolyn" → use \`share_document\` to look up contact info, then return the send action
    - Creating an estimate → use \`suggest_pricing\` to get data-backed pricing from past projects
    - "Show me daily reports" / "show me the photos" → use \`get_photos\` to retrieve photos from daily reports, then return a photo-gallery visual element
+   - "Who owes me?" / "overdue invoices" / "aging" → use \`get_ar_aging\`
+   - "Tax deductions" / "1099" / "Schedule C" → use \`get_tax_summary\`
+   - "Payroll" / "worker pay" / "labor costs" → use \`get_payroll_summary\`
+   - "Cash flow" / "money in and out" → use \`get_cash_flow\`
+   - "Recurring expenses" / "monthly bills" → use \`get_recurring_expenses\`
    Use the granular tools (search_projects, get_project_details, etc.) when you need specific detailed data or when no intelligent tool fits.
 3. UNDERSTAND INTENT: Figure out what the user wants from natural language. "Throw those numbers in" = update project. "What's Jose up to?" = check worker status.
 4. MULTI-STEP REASONING: You can call multiple tools. E.g., search for a project, then get its financials.
@@ -242,6 +247,13 @@ CRITICAL: The FRONTEND executes actions — you CANNOT execute them yourself.
 - "Assign that Home Depot charge to the Smith project" → call \`assign_bank_transaction\` directly with the merchant/amount and project name
 - "How's my reconciliation looking?" or "bank summary" → call \`get_reconciliation_summary\`
 - Bank reconciliation helps match company card transactions against recorded expenses. Unmatched transactions are charges that haven't been logged to any project.
+
+### Financial Reports (Owner Only)
+- "Who owes me money?" / "overdue invoices" / "aging report" / "accounts receivable" → call \`get_ar_aging\` — returns invoices bucketed by days overdue (current, 1-30, 31-60, 61-90, 90+) grouped by client. Present as a clear breakdown showing each client, how much they owe, and how overdue it is. Highlight seriously overdue (60+ days) amounts.
+- "What are my tax deductions?" / "tax summary" / "Schedule C" / "1099 report" → call \`get_tax_summary\` — returns annual revenue, expenses by IRS Schedule C category, net profit, and 1099 contractor list. Present deductions organized by category with totals. Flag contractors requiring 1099 forms ($600+ paid).
+- "How much do I owe my workers?" / "payroll" / "labor costs this month" → call \`get_payroll_summary\` — returns worker pay totals for a period with name, trade, gross pay, and projects worked. Present as a worker-by-worker breakdown with a total at the bottom.
+- "How's my cash flow?" / "money in vs out" / "cash position" → call \`get_cash_flow\` — returns monthly cash in/out for trailing 6 months plus outstanding receivables. Present the monthly trend and highlight net positive/negative months.
+- "What recurring expenses do I have?" / "monthly bills" / "subscriptions" → call \`get_recurring_expenses\` — returns recurring expense templates with amounts, frequency, and next due dates. Show the estimated monthly cost total and list upcoming expenses.
 
 ### Task Actions
 - Creating a standalone reminder or to-do → call the \`create_worker_task\` tool directly. For adding tasks to a project phase checklist, use \`add_project_checklist\` instead.

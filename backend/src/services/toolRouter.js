@@ -10,7 +10,7 @@ const logger = require('../utils/logger');
 
 // Intent patterns — each keyword scores 1 point for its intent
 const INTENT_PATTERNS = {
-  financial: [/invoice/g, /payment/g, /bill/g, /paid/g, /due/g, /owe/g, /collect/g, /deposit/g, /expense/g, /spent/g, /income/g, /financial/g, /profit/g, /loss/g, /receipt/g, /charge/g],
+  financial: [/invoice/g, /payment/g, /bill/g, /paid/g, /due/g, /owe/g, /collect/g, /deposit/g, /expense/g, /spent/g, /income/g, /financial/g, /profit/g, /loss/g, /receipt/g, /charge/g, /aging/g, /receivable/g, /overdue/g, /tax/g, /deduction/g, /1099/g, /payroll/g, /cash flow/g, /recurring/g],
   project: [/project/g, /phase/g, /progress/g, /complete/g, /status/g, /behind/g, /over.*budget/g, /timeline/g, /milestone/g, /checklist/g, /task list/g],
   worker: [/worker/g, /employee/g, /crew/g, /team\b/g, /schedule/g, /assign/g, /clock/g, /shift/g, /attendance/g, /timesheet/g],
   estimate: [/estimate/g, /quote/g, /proposal/g, /bid/g, /cost/g],
@@ -27,7 +27,8 @@ const TOOL_GROUPS = {
     'search_invoices', 'get_invoice_details', 'update_invoice', 'void_invoice',
     'convert_estimate_to_invoice', 'record_expense', 'get_financial_overview',
     'get_transactions', 'get_project_financials',
-    'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary'
+    'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
+    'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses'
   ],
   project: [
     'search_projects', 'get_project_details', 'get_project_summary',
@@ -48,7 +49,8 @@ const TOOL_GROUPS = {
   briefing: [
     'get_daily_briefing', 'get_schedule_events', 'get_daily_reports',
     'get_photos', 'search_projects', 'search_invoices', 'get_workers',
-    'get_time_records', 'get_financial_overview'
+    'get_time_records', 'get_financial_overview',
+    'get_cash_flow', 'get_ar_aging'
   ],
   search: [
     'global_search', 'search_projects', 'search_estimates',
@@ -73,7 +75,8 @@ const TOOL_GROUPS = {
     'get_worker_details', 'get_time_records',
     'record_expense', 'update_phase_progress', 'create_worker_task',
     'add_project_checklist', 'create_project_phase',
-    'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary'
+    'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
+    'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses'
   ]
 };
 
