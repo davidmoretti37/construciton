@@ -256,30 +256,21 @@ export default function OwnerDashboardScreen() {
           >
             <View style={styles.pnlColumns}>
               <View style={styles.pnlCol}>
-                <Ionicons name="trending-up" size={14} color={ACCENT.success} />
+                <Ionicons name="trending-up" size={18} color={ACCENT.success} />
                 <Text style={[styles.pnlValue, { color: ACCENT.success }]}>{fmt(pnl.revenue)}</Text>
                 <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.revenue')}</Text>
               </View>
               <View style={[styles.pnlDivider, { backgroundColor: Colors.border }]} />
               <View style={styles.pnlCol}>
-                <Ionicons name="trending-down" size={14} color={ACCENT.error} />
+                <Ionicons name="trending-down" size={18} color={ACCENT.error} />
                 <Text style={[styles.pnlValue, { color: ACCENT.error }]}>{fmt(pnl.expenses)}</Text>
                 <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.expenses')}</Text>
               </View>
               <View style={[styles.pnlDivider, { backgroundColor: Colors.border }]} />
               <View style={styles.pnlCol}>
-                <Ionicons name="wallet" size={14} color={pnl.profit >= 0 ? ACCENT.success : ACCENT.error} />
+                <Ionicons name="wallet" size={18} color={pnl.profit >= 0 ? ACCENT.success : ACCENT.error} />
                 <Text style={[styles.pnlValue, { color: pnl.profit >= 0 ? ACCENT.success : ACCENT.error }]}>{fmt(pnl.profit)}</Text>
                 <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.grossProfit')}</Text>
-              </View>
-            </View>
-
-            <View style={styles.marginRow}>
-              <View style={[styles.marginBadge, { backgroundColor: `${marginHealth.color}15` }]}>
-                <View style={[styles.marginDot, { backgroundColor: marginHealth.color }]} />
-                <Text style={[styles.marginText, { color: marginHealth.color }]}>
-                  {Math.round(pnl.margin)}% {t('dashboardScreen.margin')} — {marginHealth.text}
-                </Text>
               </View>
             </View>
 
@@ -412,7 +403,7 @@ export default function OwnerDashboardScreen() {
           </View>
         )}
 
-        <View style={{ height: 16 }} />
+        <View style={{ height: 90 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -440,7 +431,7 @@ const createStyles = (Colors) => StyleSheet.create({
   dateText: { fontSize: FontSizes.small },
 
   // Section
-  section: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg },
+  section: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   sectionTitle: {
     fontSize: FontSizes.body,
     fontWeight: '700',
@@ -457,20 +448,20 @@ const createStyles = (Colors) => StyleSheet.create({
   pnlCol: {
     flex: 1,
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
   pnlDivider: {
     width: 1,
-    height: 40,
+    height: 48,
     alignSelf: 'center',
   },
   pnlValue: {
-    fontSize: FontSizes.subheader,
+    fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   pnlLabel: {
-    fontSize: FontSizes.tiny,
+    fontSize: 13,
     fontWeight: '500',
   },
 
@@ -486,14 +477,14 @@ const createStyles = (Colors) => StyleSheet.create({
   },
 
   // Margin row
-  marginRow: { alignItems: 'flex-start', marginBottom: Spacing.md },
+  marginRow: { alignItems: 'flex-start', marginBottom: Spacing.sm },
   // View report button
   viewReportRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: BorderRadius.md,
   },
   viewReportText: {
@@ -541,12 +532,12 @@ const createStyles = (Colors) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-end',
-    height: 80,
+    height: 60,
     marginBottom: Spacing.sm,
   },
   cfMonth: { alignItems: 'center', flex: 1 },
   cfBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginBottom: 6 },
-  cfBar: { width: 20, borderRadius: 4, minHeight: 6 },
+  cfBar: { width: 16, borderRadius: 4, minHeight: 6 },
   cfLabel: { fontSize: 11, fontWeight: '500' },
   cfFooter: {
     flexDirection: 'row',
@@ -561,12 +552,12 @@ const createStyles = (Colors) => StyleSheet.create({
   cfNetText: { fontSize: 13, fontWeight: '700' },
 
   // Quick Access Grid
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   gridCard: {
     width: '47%',
     flexGrow: 1,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+    padding: 10,
     borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -575,13 +566,13 @@ const createStyles = (Colors) => StyleSheet.create({
     elevation: 2,
   },
   gridIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 28,
+    height: 28,
+    borderRadius: 7,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
-  gridValue: { fontSize: 20, fontWeight: '700' },
+  gridValue: { fontSize: 18, fontWeight: '700' },
   gridLabel: { fontSize: 11, marginTop: 2 },
 });
