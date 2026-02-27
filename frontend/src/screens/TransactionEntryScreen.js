@@ -23,7 +23,7 @@ import { supabase } from '../lib/supabase';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { EXPENSE_SUBCATEGORIES, INCOME_SUBCATEGORIES } from '../constants/transactionCategories';
+import { EXPENSE_SUBCATEGORIES, INCOME_SUBCATEGORIES, TAX_CATEGORIES, DEFAULT_TAX_CATEGORY } from '../constants/transactionCategories';
 
 export default function TransactionEntryScreen({ route, navigation }) {
   const { t } = useTranslation('common');
@@ -44,6 +44,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
   const [date, setDate] = useState(transaction?.date || new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState(transaction?.payment_method || 'cash');
   const [notes, setNotes] = useState(transaction?.notes || '');
+  const [taxCategory, setTaxCategory] = useState(transaction?.tax_category || null);
   const [saving, setSaving] = useState(false);
 
   // Project picker state (for quick action flow)
@@ -134,6 +135,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
         type,
         category: type === 'expense' ? category : null,
         subcategory: subcategory || null,
+        tax_category: type === 'expense' ? (taxCategory || DEFAULT_TAX_CATEGORY[category] || null) : null,
         description: description.trim(),
         amount: parseFloat(amount),
         date,
@@ -499,7 +501,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                       styles.categoryButton,
                       category === cat.value && styles.categoryButtonActive,
                     ]}
-                    onPress={() => { setCategory(cat.value); setSubcategory(null); }}
+                    onPress={() => { setCategory(cat.value); setSubcategory(null); if (!taxCategory) setTaxCategory(DEFAULT_TAX_CATEGORY[cat.value] || null); }}
                   >
                     <Ionicons
                       name={cat.icon}
@@ -541,6 +543,34 @@ export default function TransactionEntryScreen({ route, navigation }) {
                       ]}
                     >
                       {sub.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Tax Category (for expenses) */}
+          {type === 'expense' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Tax Category (Optional)</Text>
+              <View style={styles.categoryGrid}>
+                {TAX_CATEGORIES.map((tc) => (
+                  <TouchableOpacity
+                    key={tc.value}
+                    style={[
+                      styles.categoryButton,
+                      taxCategory === tc.value && styles.categoryButtonActive,
+                    ]}
+                    onPress={() => setTaxCategory(taxCategory === tc.value ? null : tc.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryButtonText,
+                        taxCategory === tc.value && styles.categoryButtonTextActive,
+                      ]}
+                    >
+                      {tc.label}
                     </Text>
                   </TouchableOpacity>
                 ))}

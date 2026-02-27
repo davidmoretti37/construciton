@@ -306,10 +306,13 @@ export const generateFinancialReportHTML = (reportData) => {
     incomeBreakdown = {},
     projectBreakdowns = [],
     transactions = [],
+    businessName = '',
+    businessAddress = '',
+    businessPhone = '',
   } = reportData;
 
-  const generatedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const marginHealth = grossMargin >= 20 ? 'Healthy' : grossMargin >= 10 ? 'Average' : 'Low';
+  const generatedDate = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  const marginHealth = grossMargin >= 20 ? 'Healthy' : grossMargin >= 10 ? 'Moderate' : 'At Risk';
   const marginHealthColor = grossMargin >= 20 ? SUCCESS : grossMargin >= 10 ? '#F59E0B' : ERROR;
   const profitColor = grossProfit >= 0 ? SUCCESS : ERROR;
 
@@ -358,6 +361,33 @@ export const generateFinancialReportHTML = (reportData) => {
   // Transaction detail section
   const transactionDetailHTML = buildTransactionDetailHTML(transactions, projectsMap);
 
+  // Outstanding calculation
+  const totalOutstanding = projectBreakdowns.reduce((sum, p) => sum + Math.max((p.contractAmount || 0) - (p.incomeCollected || 0), 0), 0);
+  const projectsWithOutstanding = projectBreakdowns.filter(p => (p.contractAmount || 0) - (p.incomeCollected || 0) > 0).length;
+
+  // Executive summary
+  const marginAssessment = grossMargin >= 20
+    ? `Gross margin of ${grossMargin.toFixed(1)}% is healthy.`
+    : grossMargin >= 10
+      ? `Gross margin of ${grossMargin.toFixed(1)}% is moderate — consider reviewing cost categories.`
+      : `Gross margin of ${grossMargin.toFixed(1)}% is below target — immediate cost review recommended.`;
+  const outstandingNote = totalOutstanding > 0
+    ? ` ${formatCurrency(totalOutstanding)} outstanding across ${projectsWithOutstanding} project${projectsWithOutstanding > 1 ? 's' : ''}.`
+    : '';
+
+  // Project comparison table
+  const projectComparisonRows = sortedProjects.map(p => {
+    const pColor = (p.grossProfit || 0) >= 0 ? SUCCESS : ERROR;
+    return `<tr>
+      <td style="font-weight: 500;">${escapeHtml(p.name || 'Untitled')}</td>
+      <td class="amount-cell">${formatCurrency(p.contractAmount || 0)}</td>
+      <td class="amount-cell" style="color: ${SUCCESS};">${formatCurrency(p.incomeCollected || 0)}</td>
+      <td class="amount-cell" style="color: ${ERROR};">${formatCostAmount(p.expenses || 0)}</td>
+      <td class="amount-cell" style="color: ${pColor}; font-weight: 600;">${formatCurrencyWithSign(p.grossProfit || 0)}</td>
+      <td class="amount-cell" style="color: ${pColor}; font-weight: 600;">${(p.grossMargin || 0).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+
   return `
 <!DOCTYPE html>
 <html>
@@ -365,10 +395,26 @@ export const generateFinancialReportHTML = (reportData) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>P&L Report - ${periodLabel}</title>
-  <style>${getSharedCSS(profitColor)}</style>
+  <style>
+    ${getSharedCSS(profitColor)}
+    .company-header { font-size: 11px; color: #666; margin-bottom: 4px; }
+    .company-name { font-size: 14px; font-weight: 700; color: #000; margin-bottom: 2px; }
+    .exec-summary { background: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid ${ACCENT}; border-radius: 6px; padding: 12px 16px; margin-bottom: 25px; font-size: 11px; line-height: 1.6; color: #334155; }
+    .comparison-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10px; }
+    .comparison-table th { text-align: left; font-weight: 600; font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 6px; border-bottom: 2px solid #e5e7eb; }
+    .comparison-table th.amount-col { text-align: right; }
+    .comparison-table td { padding: 7px 6px; border-bottom: 1px solid #f3f4f6; }
+    .comparison-table td.amount-cell { text-align: right; font-variant-numeric: tabular-nums; }
+    .comparison-table .total-row td { font-weight: 700; border-top: 2px solid #e5e7eb; padding-top: 8px; }
+    @page { @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 9px; color: #999; } }
+  </style>
 </head>
 <body>
   <div class="report-header">
+    ${businessName ? `<div class="company-name">${escapeHtml(businessName)}</div>` : ''}
+    ${businessAddress ? `<div class="company-header">${escapeHtml(businessAddress)}</div>` : ''}
+    ${businessPhone ? `<div class="company-header">${escapeHtml(businessPhone)}</div>` : ''}
+    ${businessName ? '<div style="margin-bottom: 10px;"></div>' : ''}
     <div class="report-title">INCOME STATEMENT (P&L)</div>
     <div class="report-subtitle">Demonstração do Resultado do Exercício</div>
     <div class="report-meta">
@@ -376,6 +422,12 @@ export const generateFinancialReportHTML = (reportData) => {
       <strong>Generated:</strong> ${generatedDate}<br>
       <strong>Projects:</strong> ${projectBreakdowns.length}
     </div>
+  </div>
+
+  <!-- Executive Summary -->
+  <div class="exec-summary">
+    <strong>Summary:</strong> ${marginAssessment}${outstandingNote}
+    Total revenue of ${formatCurrency(totalRevenue)} against ${formatCurrency(totalCosts)} in construction costs across ${projectBreakdowns.length} project${projectBreakdowns.length !== 1 ? 's' : ''}.
   </div>
 
   <div class="section-title">Income Statement</div>
@@ -393,7 +445,7 @@ export const generateFinancialReportHTML = (reportData) => {
       </tr>
       ${costCategoryRows}
       <tr class="total-costs-row">
-        <td class="label">TOTAL COSTS</td>
+        <td class="label">TOTAL COST OF CONSTRUCTION</td>
         <td class="amount">${formatCostAmount(totalCosts)}</td>
       </tr>
 
@@ -412,13 +464,39 @@ export const generateFinancialReportHTML = (reportData) => {
 
   ${totalCosts > 0 ? `<div class="breakdown-section"><div class="section-title">Cost Breakdown</div><div class="cost-bar">${costBarSegments}</div><div class="legend">${costLegendItems}</div></div>` : ''}
 
-  ${projectBreakdowns.length > 0 ? `<div class="projects-section"><div class="section-title">By Project (${projectBreakdowns.length})</div>${projectCards}</div>` : ''}
+  <!-- Project Comparison Table -->
+  ${projectBreakdowns.length > 1 ? `
+  <div class="section-title">Project Comparison</div>
+  <table class="comparison-table">
+    <thead><tr>
+      <th>Project</th>
+      <th class="amount-col">Contract</th>
+      <th class="amount-col">Collected</th>
+      <th class="amount-col">Costs</th>
+      <th class="amount-col">Profit</th>
+      <th class="amount-col">Margin</th>
+    </tr></thead>
+    <tbody>
+      ${projectComparisonRows}
+      <tr class="total-row">
+        <td>Total (${projectBreakdowns.length} projects)</td>
+        <td class="amount-cell">${formatCurrency(totalContractValue)}</td>
+        <td class="amount-cell" style="color: ${SUCCESS};">${formatCurrency(totalRevenue)}</td>
+        <td class="amount-cell" style="color: ${ERROR};">${formatCostAmount(totalCosts)}</td>
+        <td class="amount-cell" style="color: ${profitColor}; font-weight: 700;">${formatCurrencyWithSign(grossProfit)}</td>
+        <td class="amount-cell" style="color: ${profitColor}; font-weight: 700;">${grossMargin.toFixed(1)}%</td>
+      </tr>
+    </tbody>
+  </table>
+  ` : ''}
+
+  ${projectBreakdowns.length > 0 ? `<div class="projects-section"><div class="section-title">Project Detail (${projectBreakdowns.length})</div>${projectCards}</div>` : ''}
 
   ${transactionDetailHTML}
 
   <div class="report-footer">
     <span>Total contract value: ${formatCurrency(totalContractValue)} | ${transactions.length} transactions</span>
-    <span>Construction Manager &bull; ${generatedDate}</span>
+    <span>${businessName ? escapeHtml(businessName) + ' — ' : ''}${generatedDate}</span>
   </div>
 </body>
 </html>
@@ -436,7 +514,7 @@ export const generateFinancialReportHTML = (reportData) => {
  * @param {string} periodLabel - Period description
  */
 export const generateProjectReportHTML = (project, transactions = [], periodLabel = 'All Time') => {
-  const generatedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const generatedDate = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 
   // Aggregate from transactions
   let totalRevenue = 0;
@@ -472,7 +550,7 @@ export const generateProjectReportHTML = (project, transactions = [], periodLabe
   const grossProfit = totalRevenue - totalCosts;
   const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
   const profitColor = grossProfit >= 0 ? SUCCESS : ERROR;
-  const marginHealth = grossMargin >= 20 ? 'Healthy' : grossMargin >= 10 ? 'Average' : 'Low';
+  const marginHealth = grossMargin >= 20 ? 'Healthy' : grossMargin >= 10 ? 'Moderate' : 'At Risk';
   const marginHealthColor = grossMargin >= 20 ? SUCCESS : grossMargin >= 10 ? '#F59E0B' : ERROR;
   const contractAmount = parseFloat(project.contractAmount || project.contract_amount || 0);
   const budget = parseFloat(project.budget || contractAmount);

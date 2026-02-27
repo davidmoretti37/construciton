@@ -57,6 +57,13 @@ import ExpenseFormScreen from '../screens/worker/ExpenseFormScreen';
 // Import financial report screen
 import FinancialReportScreen from '../screens/owner/FinancialReportScreen';
 
+// Import financial tools screens
+import ARAgingScreen from '../screens/owner/ARAgingScreen';
+import TaxSummaryScreen from '../screens/owner/TaxSummaryScreen';
+import ContractorPaymentsScreen from '../screens/owner/ContractorPaymentsScreen';
+import PayrollSummaryScreen from '../screens/owner/PayrollSummaryScreen';
+import RecurringExpenseScreen from '../screens/owner/RecurringExpenseScreen';
+
 // Import bank integration screens
 import BankConnectionScreen from '../screens/owner/BankConnectionScreen';
 import BankReconciliationScreen from '../screens/owner/BankReconciliationScreen';
@@ -199,6 +206,28 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="ExpenseForm"
         component={ExpenseFormScreen}
+      />
+
+      {/* Financial Tools Screens */}
+      <Stack.Screen
+        name="ARAging"
+        component={ARAgingScreen}
+      />
+      <Stack.Screen
+        name="TaxSummary"
+        component={TaxSummaryScreen}
+      />
+      <Stack.Screen
+        name="ContractorPayments"
+        component={ContractorPaymentsScreen}
+      />
+      <Stack.Screen
+        name="PayrollSummary"
+        component={PayrollSummaryScreen}
+      />
+      <Stack.Screen
+        name="RecurringExpenses"
+        component={RecurringExpenseScreen}
       />
 
       {/* Bank Integration Screens */}

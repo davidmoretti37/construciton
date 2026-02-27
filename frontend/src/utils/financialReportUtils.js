@@ -64,6 +64,45 @@ export const fetchProjectTransactionsForReport = async (projectId) => {
   }
 };
 
+/**
+ * Group transactions into monthly cash flow buckets (trailing 6 months)
+ */
+export const calculateCashFlow = (transactions, months = 6) => {
+  const now = new Date();
+  const buckets = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    buckets.push({
+      key,
+      label: d.toLocaleDateString(undefined, { month: 'short' }),
+      year: d.getFullYear(),
+      cashIn: 0,
+      cashOut: 0,
+      net: 0,
+    });
+  }
+
+  const bucketMap = {};
+  buckets.forEach(b => { bucketMap[b.key] = b; });
+
+  (transactions || []).forEach(tx => {
+    if (!tx.date) return;
+    const monthKey = tx.date.substring(0, 7); // YYYY-MM
+    const bucket = bucketMap[monthKey];
+    if (!bucket) return;
+    const amount = parseFloat(tx.amount || 0);
+    if (tx.type === 'income') {
+      bucket.cashIn += amount;
+    } else if (tx.type === 'expense') {
+      bucket.cashOut += amount;
+    }
+  });
+
+  buckets.forEach(b => { b.net = b.cashIn - b.cashOut; });
+  return buckets;
+};
+
 const filterByDate = (transactions, startDate, endDate) => {
   if (!startDate) return transactions;
   return transactions.filter((t) => {

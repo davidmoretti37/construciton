@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CATEGORY_COLORS, CATEGORY_LABELS } from '../../utils/financialReportUtils';
@@ -18,10 +19,13 @@ const ERROR = '#EF4444';
 export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, grossProfit, grossMargin }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('owner');
   const [expanded, setExpanded] = useState(false);
 
   const maxAmount = Math.max(revenue, totalCosts, 1);
   const profitColor = grossProfit >= 0 ? SUCCESS : ERROR;
+  const costPct = revenue > 0 ? ((totalCosts / revenue) * 100).toFixed(0) : 0;
+  const profitPct = revenue > 0 ? ((Math.abs(grossProfit) / revenue) * 100).toFixed(0) : 0;
 
   const costCategories = Object.entries(costBreakdown || {})
     .filter(([, amount]) => amount > 0)
@@ -29,13 +33,13 @@ export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, gross
 
   return (
     <View style={[styles.container, { backgroundColor: Colors.cardBackground }]}>
-      <Text style={[styles.title, { color: Colors.primaryText }]}>P&L Summary</Text>
+      <Text style={[styles.title, { color: Colors.primaryText }]}>{t('financial.incomeStatement')}</Text>
 
       {/* Revenue row */}
       <View style={styles.row}>
         <View style={styles.rowLeft}>
           <Ionicons name="trending-up" size={16} color={SUCCESS} />
-          <Text style={[styles.rowLabel, { color: Colors.primaryText }]}>Revenue</Text>
+          <Text style={[styles.rowLabel, { color: Colors.primaryText }]}>{t('financial.totalRevenue')}</Text>
         </View>
         <Text style={[styles.rowAmount, { color: SUCCESS }]}>{formatCurrency(revenue)}</Text>
       </View>
@@ -46,7 +50,7 @@ export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, gross
       {/* Connector */}
       <View style={styles.connector}>
         <View style={[styles.connectorLine, { backgroundColor: Colors.border }]} />
-        <Text style={[styles.connectorText, { color: Colors.secondaryText }]}>minus</Text>
+        <Text style={[styles.connectorText, { color: Colors.secondaryText }]}>less</Text>
         <View style={[styles.connectorLine, { backgroundColor: Colors.border }]} />
       </View>
 
@@ -54,10 +58,13 @@ export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, gross
       <TouchableOpacity style={styles.row} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
         <View style={styles.rowLeft}>
           <Ionicons name="construct" size={16} color={ERROR} />
-          <Text style={[styles.rowLabel, { color: Colors.primaryText }]}>Cost of Construction</Text>
+          <Text style={[styles.rowLabel, { color: Colors.primaryText }]}>{t('financial.costOfConstruction')}</Text>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.secondaryText} />
         </View>
-        <Text style={[styles.rowAmount, { color: ERROR }]}>-{formatCurrency(totalCosts)}</Text>
+        <View style={styles.rowRight}>
+          <Text style={[styles.rowAmount, { color: ERROR }]}>-{formatCurrency(totalCosts)}</Text>
+          {revenue > 0 && <Text style={[styles.pctLabel, { color: Colors.secondaryText }]}>{costPct}%</Text>}
+        </View>
       </TouchableOpacity>
       <View style={[styles.barTrack, { backgroundColor: Colors.lightGray }]}>
         <View style={[styles.bar, { width: `${Math.min((totalCosts / maxAmount) * 100, 100)}%`, backgroundColor: ERROR }]} />
@@ -89,7 +96,7 @@ export default function PnLWaterfall({ revenue, costBreakdown, totalCosts, gross
       <View style={styles.row}>
         <View style={styles.rowLeft}>
           <Ionicons name={grossProfit >= 0 ? 'checkmark-circle' : 'alert-circle'} size={16} color={profitColor} />
-          <Text style={[styles.rowLabel, { color: Colors.primaryText, fontWeight: '700' }]}>Gross Profit</Text>
+          <Text style={[styles.rowLabel, { color: Colors.primaryText, fontWeight: '700' }]}>{t('financial.grossProfit')}</Text>
         </View>
         <View style={styles.rowRight}>
           <Text style={[styles.rowAmount, { color: profitColor, fontWeight: '700' }]}>{formatCurrency(grossProfit)}</Text>
@@ -216,5 +223,10 @@ const styles = StyleSheet.create({
   marginText: {
     fontSize: FontSizes.tiny,
     fontWeight: '700',
+  },
+  pctLabel: {
+    fontSize: FontSizes.tiny,
+    fontWeight: '500',
+    marginLeft: 4,
   },
 });

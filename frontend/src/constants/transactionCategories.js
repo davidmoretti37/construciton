@@ -102,6 +102,35 @@ export const INCOME_SUBCATEGORIES = [
 ];
 
 // ============================================================
+// IRS Tax Categories (Schedule C mapping)
+// ============================================================
+
+export const TAX_CATEGORIES = [
+  { value: 'cogs', label: 'Cost of Goods Sold' },
+  { value: 'contract_labor', label: 'Contract Labor' },
+  { value: 'rent_lease', label: 'Rent/Lease' },
+  { value: 'repairs_maintenance', label: 'Repairs & Maintenance' },
+  { value: 'supplies', label: 'Supplies' },
+  { value: 'taxes_licenses', label: 'Taxes & Licenses' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'vehicle', label: 'Vehicle Expenses' },
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'other_deduction', label: 'Other Deductions' },
+];
+
+export const TAX_CATEGORY_LABELS = Object.fromEntries(TAX_CATEGORIES.map(c => [c.value, c.label]));
+
+// Default auto-mapping from expense category to tax category
+export const DEFAULT_TAX_CATEGORY = {
+  materials: 'cogs',
+  labor: 'contract_labor',
+  equipment: 'rent_lease',
+  permits: 'taxes_licenses',
+  subcontractor: 'contract_labor',
+  misc: 'other_deduction',
+};
+
+// ============================================================
 // Helpers
 // ============================================================
 

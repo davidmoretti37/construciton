@@ -469,6 +469,79 @@ export const updateInvoiceTemplate = async (templateData) => {
 };
 
 // ============================================================
+// Accounts Receivable Aging
+// ============================================================
+
+/**
+ * Fetch AR aging report — buckets unpaid invoices by days overdue
+ * @returns {Promise<object>} Aging data grouped by client
+ */
+export const fetchAgingReport = async () => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return { clients: [], totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } };
+
+    // Get all supervisors' invoices too
+    const context = await getCurrentUserContext();
+    let allIds = [userId];
+    if (context?.isOwner) {
+      const supervisors = await getSupervisorsForOwner(userId);
+      allIds = [userId, ...supervisors.map(s => s.id)];
+    }
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date, created_at')
+      .in('user_id', allIds)
+      .in('status', ['unpaid', 'partial', 'overdue'])
+      .order('due_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching aging data:', error);
+      return { clients: [], totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } };
+    }
+
+    const today = new Date();
+    const clientMap = {};
+    const totals = { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 };
+
+    (data || []).forEach((inv) => {
+      const balance = parseFloat(inv.total || 0) - parseFloat(inv.amount_paid || 0);
+      if (balance <= 0) return;
+
+      const dueDate = inv.due_date ? new Date(inv.due_date + 'T12:00:00') : new Date(inv.created_at);
+      const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+
+      let bucket;
+      if (daysOverdue <= 0) bucket = 'current';
+      else if (daysOverdue <= 30) bucket = 'days30';
+      else if (daysOverdue <= 60) bucket = 'days60';
+      else if (daysOverdue <= 90) bucket = 'days90';
+      else bucket = 'over90';
+
+      const clientName = inv.client_name || 'Unknown Client';
+      if (!clientMap[clientName]) {
+        clientMap[clientName] = { name: clientName, current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0, invoices: [] };
+      }
+      clientMap[clientName][bucket] += balance;
+      clientMap[clientName].total += balance;
+      clientMap[clientName].invoices.push({ ...inv, balance, daysOverdue, bucket });
+
+      totals[bucket] += balance;
+      totals.total += balance;
+    });
+
+    return {
+      clients: Object.values(clientMap).sort((a, b) => b.total - a.total),
+      totals,
+    };
+  } catch (error) {
+    console.error('Error in fetchAgingReport:', error);
+    return { clients: [], totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } };
+  }
+};
+
+// ============================================================
 // Contract Document Functions
 // ============================================================
 

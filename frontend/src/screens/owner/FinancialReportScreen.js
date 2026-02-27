@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
+import { getUserProfile } from '../../utils/storage/userProfile';
 import {
   getDateRangeForPeriod,
   fetchAllOwnerTransactions,
@@ -25,11 +26,15 @@ import PeriodFilter from '../../components/FinancialReport/PeriodFilter';
 import MetricCard from '../../components/FinancialReport/MetricCard';
 import PnLWaterfall from '../../components/FinancialReport/PnLWaterfall';
 import CategoryBreakdownBar from '../../components/FinancialReport/CategoryBreakdownBar';
+import CashFlowCard from '../../components/FinancialReport/CashFlowCard';
 import ProjectPnLCard from '../../components/FinancialReport/ProjectPnLCard';
 import SkeletonBox from '../../components/skeletons/SkeletonBox';
 import SkeletonCard from '../../components/skeletons/SkeletonCard';
 import { shareFinancialReportPDF, shareProjectReportPDF } from '../../utils/financialReportPDF';
-import { fetchProjectTransactionsForReport } from '../../utils/financialReportUtils';
+import { fetchProjectTransactionsForReport, calculateCashFlow } from '../../utils/financialReportUtils';
+import { fetchAgingReport } from '../../utils/storage/invoices';
+import { exportTransactionsCSV } from '../../utils/csvExport';
+import { processOverdueRecurring } from '../../utils/storage/recurringExpenses';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',
@@ -58,15 +63,30 @@ export default function FinancialReportScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [businessInfo, setBusinessInfo] = useState({});
+  const [outstandingReceivables, setOutstandingReceivables] = useState(0);
 
   const loadData = useCallback(async () => {
     try {
-      const projectsData = await fetchProjectsForOwner();
+      const [projectsData, profile] = await Promise.all([
+        fetchProjectsForOwner(),
+        getUserProfile(),
+      ]);
       setProjects(projectsData || []);
+      if (profile?.businessInfo) {
+        setBusinessInfo(profile.businessInfo);
+      }
 
       const projectIds = (projectsData || []).map((p) => p.id);
-      const txData = await fetchAllOwnerTransactions(projectIds);
+      const [txData, agingData] = await Promise.all([
+        fetchAllOwnerTransactions(projectIds),
+        fetchAgingReport(),
+      ]);
       setTransactions(txData || []);
+      setOutstandingReceivables(agingData?.totals?.total || 0);
+
+      // Process any overdue recurring expenses silently
+      processOverdueRecurring().catch(() => {});
     } catch (error) {
       console.error('Error loading financial data:', error);
     } finally {
@@ -103,6 +123,9 @@ export default function FinancialReportScreen() {
         incomeBreakdown: pnl.incomeBreakdown,
         projectBreakdowns: pnl.projectBreakdowns,
         transactions: pnl.transactions,
+        businessName: businessInfo.name || '',
+        businessAddress: businessInfo.address || '',
+        businessPhone: businessInfo.phone || '',
       });
     } catch (error) {
       console.error('Error exporting PDF:', error);
@@ -227,6 +250,19 @@ export default function FinancialReportScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Date Range Indicator */}
+        {startDate && (
+          <View style={[styles.dateRangeCard, { backgroundColor: Colors.cardBackground }]}>
+            <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
+            <Text style={[styles.dateRangeText, { color: Colors.secondaryText }]}>
+              {t('financial.dateRange', {
+                start: new Date(startDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                end: new Date(endDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+              })}
+            </Text>
+          </View>
+        )}
+
         {/* Metric Cards */}
         <View style={styles.metricsGrid}>
           <View style={styles.metricsRow}>
@@ -235,6 +271,7 @@ export default function FinancialReportScreen() {
               value={formatCurrency(pnl.totalRevenue)}
               icon="wallet-outline"
               color={OWNER_COLORS.success}
+              subtitle={t('financial.revenueSubtitle')}
             />
             <View style={{ width: Spacing.md }} />
             <MetricCard
@@ -242,6 +279,7 @@ export default function FinancialReportScreen() {
               value={formatCurrency(pnl.totalCosts)}
               icon="card-outline"
               color={OWNER_COLORS.error}
+              subtitle={t('financial.expensesSubtitle')}
             />
           </View>
           <View style={styles.metricsRow}>
@@ -250,6 +288,7 @@ export default function FinancialReportScreen() {
               value={formatCurrency(pnl.grossProfit)}
               icon="trending-up"
               color={profitColor}
+              subtitle={t('financial.profitSubtitle')}
             />
             <View style={{ width: Spacing.md }} />
             <MetricCard
@@ -257,7 +296,7 @@ export default function FinancialReportScreen() {
               value={`${pnl.grossMargin.toFixed(1)}%`}
               icon="pie-chart-outline"
               color={profitColor}
-              subtitle={pnl.grossMargin >= 20 ? t('financial.healthy') : pnl.grossMargin >= 10 ? t('financial.average') : t('financial.low')}
+              subtitle={pnl.grossMargin >= 20 ? t('financial.healthy') : pnl.grossMargin >= 10 ? t('financial.moderate') : t('financial.atRisk')}
             />
           </View>
         </View>
@@ -277,6 +316,12 @@ export default function FinancialReportScreen() {
             {pnl.totalCosts > 0 && (
               <CategoryBreakdownBar breakdown={pnl.costBreakdown} total={pnl.totalCosts} />
             )}
+
+            {/* Cash Flow */}
+            <CashFlowCard
+              cashFlowData={calculateCashFlow(transactions, 6)}
+              outstandingReceivables={outstandingReceivables}
+            />
 
             {/* Contract value note */}
             <View style={[styles.noteCard, { backgroundColor: Colors.cardBackground }]}>
@@ -313,6 +358,50 @@ export default function FinancialReportScreen() {
             )}
           </>
         )}
+
+        {/* Reports & Tools */}
+        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('financial.reportsTools')}</Text>
+        <View style={styles.reportGrid}>
+          {[
+            { icon: 'receipt-outline', label: t('financial.arAging'), desc: t('financial.arAgingDesc'), route: 'ARAging', color: '#F59E0B' },
+            { icon: 'document-text-outline', label: t('financial.taxSummary'), desc: t('financial.taxSummaryDesc'), route: 'TaxSummary', color: '#8B5CF6' },
+            { icon: 'people-outline', label: t('financial.payrollSummary'), desc: t('financial.payrollDesc'), route: 'PayrollSummary', color: '#3B82F6' },
+            { icon: 'repeat-outline', label: t('financial.recurringExpenses'), desc: t('financial.recurringDesc'), route: 'RecurringExpenses', color: '#10B981' },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.route}
+              style={[styles.reportCard, { backgroundColor: Colors.cardBackground }]}
+              onPress={() => navigation.navigate(item.route)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.reportIcon, { backgroundColor: item.color + '18' }]}>
+                <Ionicons name={item.icon} size={20} color={item.color} />
+              </View>
+              <Text style={[styles.reportLabel, { color: Colors.primaryText }]}>{item.label}</Text>
+              <Text style={[styles.reportDesc, { color: Colors.secondaryText }]} numberOfLines={2}>{item.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Export CSV */}
+        <TouchableOpacity
+          style={[styles.exportCard, { backgroundColor: Colors.cardBackground }]}
+          onPress={async () => {
+            try {
+              await exportTransactionsCSV(pnl.transactions, projects, `financial-export-${period}.csv`);
+            } catch (e) {
+              console.error('CSV export error:', e);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="cloud-download-outline" size={20} color="#1E40AF" />
+          <View style={styles.exportInfo}>
+            <Text style={[styles.exportLabel, { color: Colors.primaryText }]}>{t('financial.exportCSV')}</Text>
+            <Text style={[styles.exportDesc, { color: Colors.secondaryText }]}>{t('financial.exportCSVDesc')}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+        </TouchableOpacity>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -409,5 +498,73 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSizes.small,
+  },
+  dateRangeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    alignSelf: 'flex-start',
+  },
+  dateRangeText: {
+    fontSize: FontSizes.tiny,
+    fontWeight: '500',
+  },
+  reportGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  reportCard: {
+    width: '47%',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  reportIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  reportLabel: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  reportDesc: {
+    fontSize: FontSizes.tiny,
+    lineHeight: 16,
+  },
+  exportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  exportInfo: {
+    flex: 1,
+  },
+  exportLabel: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+  },
+  exportDesc: {
+    fontSize: FontSizes.tiny,
+    marginTop: 2,
   },
 });

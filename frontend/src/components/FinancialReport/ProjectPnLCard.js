@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CATEGORY_COLORS } from '../../utils/financialReportUtils';
@@ -19,6 +20,7 @@ const formatCurrency = (amount) => {
 export default function ProjectPnLCard({ project, onPress, onExportPDF }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { t } = useTranslation('owner');
 
   const {
     name,
@@ -29,11 +31,13 @@ export default function ProjectPnLCard({ project, onPress, onExportPDF }) {
     grossMargin = 0,
     budgetUsed = 0,
     costBreakdown = {},
+    status,
   } = project;
 
   const profitColor = grossProfit >= 0 ? SUCCESS : ERROR;
   const budgetColor = budgetUsed > 100 ? ERROR : budgetUsed > 85 ? WARNING : SUCCESS;
   const totalCosts = expenses;
+  const outstanding = contractAmount - incomeCollected;
 
   const categories = Object.entries(costBreakdown)
     .filter(([, amount]) => amount > 0)
@@ -47,7 +51,20 @@ export default function ProjectPnLCard({ project, onPress, onExportPDF }) {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.name, { color: Colors.primaryText }]} numberOfLines={1}>{name}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.name, { color: Colors.primaryText }]} numberOfLines={1}>{name}</Text>
+          {status && (
+            <View style={[styles.statusBadge, {
+              backgroundColor: status === 'completed' ? SUCCESS + '18' : status === 'on_hold' ? WARNING + '18' : '#3B82F618',
+            }]}>
+              <Text style={[styles.statusText, {
+                color: status === 'completed' ? SUCCESS : status === 'on_hold' ? WARNING : '#3B82F6',
+              }]}>
+                {status === 'completed' ? 'Completed' : status === 'on_hold' ? 'On Hold' : 'Active'}
+              </Text>
+            </View>
+          )}
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           {onExportPDF && (
             <TouchableOpacity
@@ -64,19 +81,25 @@ export default function ProjectPnLCard({ project, onPress, onExportPDF }) {
       {/* Financial rows */}
       <View style={styles.statsGrid}>
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Contract</Text>
+          <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('financial.contractValue')}</Text>
           <Text style={[styles.statValue, { color: Colors.primaryText }]}>{formatCurrency(contractAmount)}</Text>
         </View>
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Collected</Text>
+          <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('financial.revenueCollected')}</Text>
           <Text style={[styles.statValue, { color: SUCCESS }]}>{formatCurrency(incomeCollected)}</Text>
         </View>
+        {outstanding > 0 && (
+          <View style={styles.statRow}>
+            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('financial.outstanding')}</Text>
+            <Text style={[styles.statValue, { color: WARNING }]}>{formatCurrency(outstanding)}</Text>
+          </View>
+        )}
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>Expenses</Text>
+          <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('financial.costOfConstruction')}</Text>
           <Text style={[styles.statValue, { color: ERROR }]}>{formatCurrency(expenses)}</Text>
         </View>
         <View style={[styles.statRow, styles.profitRow]}>
-          <Text style={[styles.statLabel, { color: Colors.primaryText, fontWeight: '600' }]}>Gross Profit</Text>
+          <Text style={[styles.statLabel, { color: Colors.primaryText, fontWeight: '600' }]}>{t('financial.grossProfit')}</Text>
           <View style={styles.profitValue}>
             <Text style={[styles.statValue, { color: profitColor, fontWeight: '700' }]}>{formatCurrency(grossProfit)}</Text>
             <View style={[styles.marginBadge, { backgroundColor: profitColor + '18' }]}>
@@ -102,7 +125,7 @@ export default function ProjectPnLCard({ project, onPress, onExportPDF }) {
       {project.budget > 0 && (
         <View style={styles.budgetSection}>
           <View style={styles.budgetHeader}>
-            <Text style={[styles.budgetLabel, { color: Colors.secondaryText }]}>Budget Used</Text>
+            <Text style={[styles.budgetLabel, { color: Colors.secondaryText }]}>{t('financial.budgetUtilization')}</Text>
             <Text style={[styles.budgetPct, { color: budgetColor }]}>{budgetUsed.toFixed(0)}%</Text>
           </View>
           <View style={[styles.budgetTrack, { backgroundColor: Colors.lightGray }]}>
@@ -130,10 +153,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginRight: Spacing.sm,
+  },
   name: {
     fontSize: FontSizes.body,
     fontWeight: '600',
-    flex: 1,
+    flexShrink: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   statsGrid: {
     gap: Spacing.sm,

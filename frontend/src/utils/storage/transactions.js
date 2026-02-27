@@ -21,6 +21,7 @@ export const addProjectTransaction = async (transaction) => {
         type: transaction.type,
         category: transaction.category,
         subcategory: transaction.subcategory || null,
+        tax_category: transaction.tax_category || null,
         description: transaction.description,
         amount: transaction.amount,
         date: transaction.date || new Date().toISOString().split('T')[0],
@@ -32,7 +33,7 @@ export const addProjectTransaction = async (transaction) => {
         is_auto_generated: false,
         created_by: userId
       })
-      .select('id, project_id, type, category, subcategory, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
+      .select('id, project_id, type, category, subcategory, tax_category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
       .single();
 
     if (error) throw error;
