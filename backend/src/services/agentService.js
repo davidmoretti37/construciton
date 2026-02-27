@@ -406,13 +406,21 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     });
   }
 
-  // Get last user message for routing
-  const lastUserMsg = userMessages[userMessages.length - 1]?.content || '';
+  // Get last user message for routing (handle multipart content arrays from image uploads)
+  const lastMsg = userMessages[userMessages.length - 1];
+  let lastUserMsg = '';
+  if (typeof lastMsg?.content === 'string') {
+    lastUserMsg = lastMsg.content;
+  } else if (Array.isArray(lastMsg?.content)) {
+    lastUserMsg = lastMsg.content.find(b => b.type === 'text')?.text || '';
+  } else if (lastMsg?.content) {
+    lastUserMsg = String(lastMsg.content);
+  }
 
   // Strip attachment descriptions before routing — they contain words like "image"
   // that confuse intent detection (routes to "reports" instead of "financial").
   // Claude still sees the full message with descriptions.
-  const routingMsg = lastUserMsg.replace(/\[The user attached[\s\S]*?\]\s*/g, '').trim();
+  const routingMsg = lastUserMsg.replace(/\[The user attached[\s\S]*?\]\s*/g, '').replace(/\[User attached[\s\S]*?\]\s*/g, '').trim();
 
   // PHASE 1: Route tools based on intent (34 → 8-12 tools)
   const { intent, tools: filteredTools, toolCount } = routeTools(routingMsg || lastUserMsg, toolDefinitions);
@@ -432,12 +440,12 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     { role: 'system', content: systemPrompt },
   ];
 
-  // Add conversation history
+  // Add conversation history — pass content as-is (string or array of content blocks for vision)
   for (const msg of userMessages) {
     if (msg.role && msg.content) {
       messages.push({
         role: msg.role,
-        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        content: msg.content
       });
     }
   }

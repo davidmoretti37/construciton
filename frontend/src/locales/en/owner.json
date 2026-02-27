@@ -119,7 +119,8 @@
     "activeProjects": "Active",
     "totalWorkers": "Workers",
     "totalSupervisors": "Supervisors",
-    "cardTracking": "Bank"
+    "cardTracking": "Bank",
+    "transactions": "Transactions"
   },
   "supervisorDetailScreen": {
     "paymentSummary": "Payment Summary",

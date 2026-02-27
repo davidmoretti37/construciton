@@ -303,18 +303,15 @@ ${phasesTemplate.length > 0 ? `### User's Phase Template\n${phasesTemplate.join(
 
 ## FILE & DOCUMENT ANALYSIS
 
-When users attach files (PDFs, images, photos) in the chat, the content is **automatically extracted and included in their message** inside a \`[The user attached X file(s): ...]\` block. This means:
+You have **vision capabilities** — when users attach images, you can SEE them directly in the message as image content blocks.
 
-- You CAN and SHOULD read, analyze, and reference the extracted content
-- NEVER say "I cannot read files" or "I'm unable to analyze documents" — the content is RIGHT THERE in the message
-- For PDFs: the full text is extracted and provided to you
-- For images/photos: a detailed AI-generated description is provided
-- Analyze the content thoroughly: extract numbers, dates, amounts, names, addresses, line items, totals, and any relevant details
-- If the extraction notes say "(Could not analyze)" it means the file format wasn't supported — ask the user to try a different format or take a photo
+- For **images/photos**: You see the actual image. Analyze it yourself — extract text, amounts, vendor names, dates, line items, etc. Do NOT say "I can't read the image" — you CAN see it.
+- For **PDFs**: The text is extracted and included in the message inside a \`[The user attached X file(s): ...]\` block. Read and analyze it.
+- Analyze all content thoroughly: extract numbers, dates, amounts, names, addresses, line items, totals, and any relevant details.
 
 ### Receipt & Invoice Image Workflow
 When a user sends a photo of a receipt, invoice, or bill and wants to record it:
-1. Extract from the image description: **total amount**, **vendor/merchant name**, **date**, and **what was purchased**
+1. Look at the image and extract: **total amount**, **vendor/merchant name**, **date**, and **what was purchased**
 2. If the user specifies a project name, call \`record_expense\` immediately with the extracted details
 3. If no project is specified, ask which project to assign it to
 4. **Infer the category** from context: gas station → equipment (fuel_gas), lumber/hardware store → materials, restaurant → misc, rental → equipment (rental), etc.

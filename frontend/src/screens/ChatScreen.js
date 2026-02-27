@@ -863,16 +863,41 @@ export default function ChatScreen({ navigation, route }) {
     // Dismiss keyboard so user can see AI response
     Keyboard.dismiss();
 
-    // If there are attachments, describe them via vision API and prepend to message for the AI agent
+    // Process attachments: images go directly to Claude as vision blocks, PDFs use text extraction
     let enhancedText = text || '';
+    let imageAttachments = [];
     if (attachments && attachments.length > 0) {
-      setStatusMessage(t('common:alerts.analyzingDocument'));
-      try {
-        const attachmentContext = await describeAttachments(attachments);
-        enhancedText = attachmentContext + (text?.trim() || 'What can you tell me about these files?');
-      } catch (error) {
-        console.error('Error describing attachments:', error);
-        enhancedText = `[The user attached ${attachments.length} file(s) but they could not be read.]\n\n` + (text?.trim() || 'I attached some files.');
+      const images = attachments.filter(att => att.mimeType?.startsWith('image/'));
+      const nonImages = attachments.filter(att => !att.mimeType?.startsWith('image/'));
+
+      // Images: collect base64 to send directly to Claude (vision)
+      for (const att of images) {
+        try {
+          const base64 = att.base64 || await (async () => {
+            const FileSystem = require('expo-file-system/legacy');
+            return FileSystem.readAsStringAsync(att.uri, { encoding: FileSystem.EncodingType.Base64 });
+          })();
+          imageAttachments.push({ mimeType: att.mimeType || 'image/jpeg', base64 });
+        } catch (e) {
+          console.error('Error reading image base64:', e);
+        }
+      }
+
+      // Non-images (PDFs): use existing text extraction path
+      if (nonImages.length > 0) {
+        setStatusMessage(t('common:alerts.analyzingDocument'));
+        try {
+          const attachmentContext = await describeAttachments(nonImages);
+          enhancedText = attachmentContext + (text?.trim() || 'What can you tell me about these files?');
+        } catch (error) {
+          console.error('Error describing attachments:', error);
+          enhancedText = `[The user attached ${nonImages.length} file(s) but they could not be read.]\n\n` + (text?.trim() || 'I attached some files.');
+        }
+      }
+
+      // If only images and no text, set a default prompt
+      if (images.length > 0 && !text?.trim() && nonImages.length === 0) {
+        enhancedText = 'Analyze this image. If it\'s a receipt or invoice, extract the details and record the expense.';
       }
     }
 
@@ -927,6 +952,7 @@ export default function ChatScreen({ navigation, route }) {
         conversationHistory,
         enhancedText,
         agentContext,
+        imageAttachments,
         {
         // onJobId callback - Track background job for resume on disconnect
         onJobId: (jobId) => {
@@ -1340,10 +1366,13 @@ export default function ChatScreen({ navigation, route }) {
             );
           }
 
-          // Update conversation history (use enhancedText so document/image descriptions are preserved for follow-up messages)
+          // Update conversation history — store text only (no base64 images)
+          const historyContent = imageAttachments.length > 0
+            ? `[User attached ${imageAttachments.length} image(s)]\n\n${enhancedText}`
+            : enhancedText;
           setConversationHistory((prev) => [
             ...prev,
-            { role: 'user', content: enhancedText },
+            { role: 'user', content: historyContent },
             { role: 'assistant', content: parsedResponse.text || '' },
           ]);
 

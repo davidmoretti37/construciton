@@ -1,6 +1,6 @@
 /**
  * OwnerDashboardScreen
- * Financial-first dashboard — P&L hero, alerts, cash flow, quick access
+ * Minimalist dashboard — P&L card, alerts, quick access grid
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
@@ -63,9 +63,7 @@ export default function OwnerDashboardScreen() {
     const expenses = stats.totalExpenses || 0;
     const profit = revenue - expenses;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
-    const contractValue = stats.totalContractValue || 0;
-    const collected = contractValue > 0 ? Math.round((revenue / contractValue) * 100) : 0;
-    return { revenue, expenses, profit, margin, contractValue, collected };
+    return { revenue, expenses, profit, margin };
   }, [stats]);
 
   const fetchDashboardData = useCallback(async () => {
@@ -155,8 +153,6 @@ export default function OwnerDashboardScreen() {
     return `${amount < 0 ? '-' : ''}$${Math.round(abs).toLocaleString()}`;
   };
 
-  const fmtFull = (amount) => `$${Math.round(amount).toLocaleString()}`;
-
   // Alerts
   const alerts = useMemo(() => {
     const items = [];
@@ -194,7 +190,6 @@ export default function OwnerDashboardScreen() {
     return items;
   }, [overdueInvoices, reconciliation, stats.pendingInvites, navigation, t]);
 
-  // Cash flow chart
   const maxCashFlowVal = useMemo(() => {
     let max = 1;
     cashFlowData.forEach(b => { max = Math.max(max, b.cashIn, b.cashOut); });
@@ -252,15 +247,13 @@ export default function OwnerDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT.primary} />}
       >
 
-        {/* ── P&L Unified Card ── */}
+        {/* ── P&L Card ── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.pnlTitle')}</Text>
           <TouchableOpacity
             style={[styles.card, { backgroundColor: Colors.cardBackground }]}
             onPress={() => navigation.navigate('FinancialReport')}
             activeOpacity={0.7}
           >
-            {/* Revenue / Expenses / Profit columns */}
             <View style={styles.pnlColumns}>
               <View style={styles.pnlCol}>
                 <Ionicons name="trending-up" size={14} color={ACCENT.success} />
@@ -281,7 +274,6 @@ export default function OwnerDashboardScreen() {
               </View>
             </View>
 
-            {/* Margin badge */}
             <View style={styles.marginRow}>
               <View style={[styles.marginBadge, { backgroundColor: `${marginHealth.color}15` }]}>
                 <View style={[styles.marginDot, { backgroundColor: marginHealth.color }]} />
@@ -291,26 +283,10 @@ export default function OwnerDashboardScreen() {
               </View>
             </View>
 
-            {/* Contract value progress */}
-            {pnl.contractValue > 0 && (
-              <View style={styles.progressSection}>
-                <View style={styles.progressLabelRow}>
-                  <Text style={[styles.progressLabel, { color: Colors.secondaryText }]}>
-                    {fmtFull(pnl.revenue)} / {fmtFull(pnl.contractValue)}
-                  </Text>
-                  <Text style={[styles.progressPercent, { color: ACCENT.primary }]}>{pnl.collected}%</Text>
-                </View>
-                <View style={[styles.progressTrack, { backgroundColor: Colors.lightGray }]}>
-                  <View style={[styles.progressFill, { width: `${Math.min(pnl.collected, 100)}%`, backgroundColor: ACCENT.primary }]} />
-                </View>
-              </View>
-            )}
-
-            {/* Link to full report */}
-            <View style={[styles.cardLink, { borderTopColor: Colors.border }]}>
-              <Ionicons name="bar-chart-outline" size={15} color={ACCENT.primary} />
-              <Text style={[styles.linkText, { color: ACCENT.primary }]}>{t('dashboardScreen.viewPLReport')}</Text>
-              <Ionicons name="chevron-forward" size={15} color={ACCENT.primary} />
+            <View style={[styles.viewReportRow, { backgroundColor: `${ACCENT.primary}08` }]}>
+              <Ionicons name="bar-chart-outline" size={14} color={ACCENT.primary} />
+              <Text style={styles.viewReportText}>{t('dashboardScreen.viewPLReport')}</Text>
+              <Ionicons name="chevron-forward" size={14} color={ACCENT.primary} />
             </View>
           </TouchableOpacity>
         </View>
@@ -336,7 +312,7 @@ export default function OwnerDashboardScreen() {
           </View>
         )}
 
-        {/* ── Quick Access ── */}
+        {/* ── Quick Access Grid ── */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.quickAccess')}</Text>
           <View style={styles.grid}>
@@ -350,7 +326,7 @@ export default function OwnerDashboardScreen() {
               </View>
               <Text style={[styles.gridValue, { color: Colors.primaryText }]}>{stats.activeProjects}</Text>
               <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>
-                {t('dashboardScreen.activeProjects')} / {stats.totalProjects}
+                {t('dashboardScreen.activeProjects')}
               </Text>
             </TouchableOpacity>
 
@@ -391,13 +367,13 @@ export default function OwnerDashboardScreen() {
               <Text style={[styles.gridValue, { color: Colors.primaryText }]}>
                 {reconciliation && !reconciliation.message ? (reconciliation.total || 0) : '—'}
               </Text>
-              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.cardTracking')}</Text>
+              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.transactions')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ── Cash Flow (hidden if negligible) ── */}
-        {cashFlowData.length > 0 && !cashFlowData.every(m => m.cashIn < 100 && m.cashOut < 100) && (
+        {/* ── Cash Flow ── */}
+        {cashFlowData.length > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.cashFlow')}</Text>
             <TouchableOpacity
@@ -436,7 +412,7 @@ export default function OwnerDashboardScreen() {
           </View>
         )}
 
-        <View style={{ height: 80 }} />
+        <View style={{ height: 16 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -456,12 +432,6 @@ const createStyles = (Colors) => StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
 
-  // Welcome
-  welcome: {
-    padding: Spacing.xl,
-    paddingBottom: Spacing.lg,
-    borderBottomWidth: 1,
-  },
   welcomeText: {
     fontSize: FontSizes.header,
     fontWeight: '600',
@@ -515,8 +485,22 @@ const createStyles = (Colors) => StyleSheet.create({
     elevation: 2,
   },
 
-  // Margin badge
+  // Margin row
   marginRow: { alignItems: 'flex-start', marginBottom: Spacing.md },
+  // View report button
+  viewReportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+  },
+  viewReportText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E40AF',
+  },
   marginBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -527,25 +511,6 @@ const createStyles = (Colors) => StyleSheet.create({
   },
   marginDot: { width: 7, height: 7, borderRadius: 4 },
   marginText: { fontSize: 12, fontWeight: '600' },
-
-  // Progress
-  progressSection: { marginBottom: Spacing.md },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  progressLabel: { fontSize: 11 },
-  progressPercent: { fontSize: 11, fontWeight: '700' },
-  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 3 },
-
-  // Card link
-  cardLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-  },
-  linkText: { fontSize: FontSizes.small, fontWeight: '600' },
 
   // Alerts
   alertCard: {
@@ -571,24 +536,7 @@ const createStyles = (Colors) => StyleSheet.create({
   },
   alertText: { flex: 1, fontSize: 13, fontWeight: '600' },
 
-  // Cash Flow Card
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: Spacing.md,
-  },
-  cardHeaderIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardHeaderText: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
+  // Cash Flow
   cfChart: {
     flexDirection: 'row',
     justifyContent: 'space-around',

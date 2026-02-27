@@ -1869,14 +1869,29 @@ export const sendAgentMessage = async (
   conversationHistory,
   userMessage,
   context,
+  images = [],
   callbacks
 ) => {
   const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata } = callbacks;
   const startTime = Date.now();
 
+  // Build the last user message — multipart if images are attached
+  const lastMessage = images && images.length > 0
+    ? {
+        role: 'user',
+        content: [
+          ...images.map(img => ({
+            type: 'image_url',
+            image_url: { url: `data:${img.mimeType};base64,${img.base64}` }
+          })),
+          { type: 'text', text: userMessage }
+        ]
+      }
+    : { role: 'user', content: userMessage };
+
   const messages = [
     ...conversationHistory,
-    { role: 'user', content: userMessage }
+    lastMessage
   ];
 
   logger.debug(`🤖 [Agent] Sending to ${BACKEND_URL}/api/chat/agent`);
