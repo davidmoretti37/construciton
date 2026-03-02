@@ -65,6 +65,7 @@ import AddPersonalEventModal from '../components/AddPersonalEventModal';
 import AddTaskModal from '../components/AddTaskModal';
 import NotificationBell from '../components/NotificationBell';
 import TaskMoveModal from '../components/TaskMoveModal';
+import TaskDetailModal from '../components/TaskDetailModal';
 import FullscreenPhotoViewer from '../components/FullscreenPhotoViewer';
 import AssignWorkerModal from '../components/modals/AssignWorkerModal';
 import SkeletonBox from '../components/skeletons/SkeletonBox';
@@ -150,6 +151,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const [editingTask, setEditingTask] = useState(null);
   const [showMoveTaskModal, setShowMoveTaskModal] = useState(false);
   const [taskToMove, setTaskToMove] = useState(null);
+  const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
 
   // Reports tab state
   const [dailyReports, setDailyReports] = useState([]);
@@ -1467,8 +1470,13 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                           {isExpanded && (
                             <View style={{ backgroundColor: Colors.lightGray + '40', paddingHorizontal: 10, paddingVertical: 8, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
                               {tasks.map((task) => (
-                                <View
+                                <TouchableOpacity
                                   key={task.id}
+                                  activeOpacity={0.7}
+                                  onPress={() => {
+                                    setSelectedTask(task);
+                                    setShowTaskDetailModal(true);
+                                  }}
                                   style={[
                                     styles.taskCard,
                                     { backgroundColor: Colors.white, borderLeftColor: Colors.warningOrange, borderLeftWidth: 3 }
@@ -1549,7 +1557,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                                       </TouchableOpacity>
                                     </View>
                                   </View>
-                                </View>
+                                </TouchableOpacity>
                               ))}
                             </View>
                           )}
@@ -2813,6 +2821,22 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         onSave={handleSaveTask}
         initialDate={selectedDate.toISOString().split('T')[0]}
         editingTask={editingTask}
+      />
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        visible={showTaskDetailModal}
+        task={selectedTask}
+        onClose={() => {
+          setShowTaskDetailModal(false);
+          setSelectedTask(null);
+        }}
+        canComplete={true}
+        onToggleComplete={(task) => {
+          handleToggleTaskComplete(task);
+          setShowTaskDetailModal(false);
+          setSelectedTask(null);
+        }}
       />
 
       {/* Task Move Modal */}

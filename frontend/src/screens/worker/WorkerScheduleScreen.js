@@ -17,6 +17,7 @@ import { fetchTasksForWorker, completeTask, uncompleteTask, getCurrentUserId } f
 import { supabase } from '../../lib/supabase';
 import WeeklyCalendar from '../../components/WeeklyCalendar';
 import TaskMoveModal from '../../components/TaskMoveModal';
+import TaskDetailModal from '../../components/TaskDetailModal';
 
 export default function WorkerScheduleScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -32,6 +33,8 @@ export default function WorkerScheduleScreen({ navigation }) {
   const [taskDates, setTaskDates] = useState([]);
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
+  const [detailTask, setDetailTask] = useState(null);
 
   // Load worker data on mount
   useEffect(() => {
@@ -255,18 +258,25 @@ export default function WorkerScheduleScreen({ navigation }) {
                         { borderBottomColor: Colors.border },
                         index === projectTasks.length - 1 && { borderBottomWidth: 0 }
                       ]}
-                      onPress={() => handleToggleTask(task)}
+                      onPress={() => {
+                        setDetailTask(task);
+                        setShowTaskDetailModal(true);
+                      }}
                       onLongPress={() => handleLongPressTask(task)}
                       delayLongPress={400}
                       activeOpacity={0.7}
                     >
-                      <View style={styles.taskCheckbox}>
+                      <TouchableOpacity
+                        style={styles.taskCheckbox}
+                        onPress={() => handleToggleTask(task)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
                         <Ionicons
                           name={task.status === 'completed' ? 'checkbox' : 'square-outline'}
                           size={24}
                           color={task.status === 'completed' ? Colors.successGreen : Colors.secondaryText}
                         />
-                      </View>
+                      </TouchableOpacity>
                       <View style={styles.taskContent}>
                         <Text style={[
                           styles.taskTitle,
@@ -297,6 +307,22 @@ export default function WorkerScheduleScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        visible={showTaskDetailModal}
+        task={detailTask}
+        onClose={() => {
+          setShowTaskDetailModal(false);
+          setDetailTask(null);
+        }}
+        canComplete={true}
+        onToggleComplete={(task) => {
+          handleToggleTask(task);
+          setShowTaskDetailModal(false);
+          setDetailTask(null);
+        }}
+      />
 
       {/* Task Move Modal */}
       <TaskMoveModal

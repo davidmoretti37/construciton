@@ -25,15 +25,15 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjectPhases, getProjectWorkers, fetchProjectPhotosByPhase, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
+import { fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
 import SupervisorAssignmentModal from './SupervisorAssignmentModal';
 import WorkingDaysSelector from './WorkingDaysSelector';
 import { useAuth } from '../contexts/AuthContext';
 import BulkTaskShiftModal from './BulkTaskShiftModal';
+import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
-import FullscreenPhotoViewer from './FullscreenPhotoViewer';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import { supabase } from '../lib/supabase';
 import { DEMO_PHASES } from '../screens/ProjectsScreen';
@@ -50,6 +50,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // Manual tasks (tasks added outside of phases)
   const [manualTasks, setManualTasks] = useState([]);
   const [loadingManualTasks, setLoadingManualTasks] = useState(false);
+  const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
+  const [selectedManualTask, setSelectedManualTask] = useState(null);
 
   // Calculated progress (from tasks, not from stale parent prop)
   const [calculatedProgress, setCalculatedProgress] = useState(null);
@@ -97,17 +99,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [isEditingPhases, setIsEditingPhases] = useState(false);
   const [phaseProgressValues, setPhaseProgressValues] = useState({});
 
-  // Photos section
-  const [photosByPhase, setPhotosByPhase] = useState({});
-  const [totalPhotos, setTotalPhotos] = useState(0);
-  const [loadingPhotos, setLoadingPhotos] = useState(false);
-  const [selectedPhotoFilter, setSelectedPhotoFilter] = useState('all');
-  const [visiblePhotosCount, setVisiblePhotosCount] = useState(12);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
-  const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
-  const [photoViewerIndex, setPhotoViewerIndex] = useState(0);
-  const [photoViewerPhotos, setPhotoViewerPhotos] = useState([]);
-  const [photoGalleryModalVisible, setPhotoGalleryModalVisible] = useState(false);
+  // Daily Reports section
+  const [projectReports, setProjectReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [visibleReportsCount, setVisibleReportsCount] = useState(5);
 
   // Estimates section
   const [projectEstimates, setProjectEstimates] = useState([]);
@@ -147,8 +142,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         ]);
         setManualTasks([]);
         setCalculatedProgress(50); // Demo progress
-        setPhotosByPhase({});
-        setTotalPhotos(0);
+        setProjectReports([]);
         setProjectEstimates([]);
         setCalculatedExpenses(8000); // Demo expenses
         setCalculatedIncome(12500); // Demo income
@@ -230,18 +224,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           setLoadingManualTasks(false);
         }
 
-        // Load photos
-        setLoadingPhotos(true);
+        // Load daily reports
+        setLoadingReports(true);
         try {
-          const { photosByPhase: photos, totalPhotos: total } = await fetchProjectPhotosByPhase(project.id);
-          setPhotosByPhase(photos);
-          setTotalPhotos(total);
+          const reports = await fetchDailyReports(project.id);
+          setProjectReports(reports || []);
         } catch (error) {
-          console.error('Error loading photos:', error);
-          setPhotosByPhase({});
-          setTotalPhotos(0);
+          console.error('Error loading daily reports:', error);
+          setProjectReports([]);
         } finally {
-          setLoadingPhotos(false);
+          setLoadingReports(false);
         }
 
         // Load estimates linked to this project
@@ -294,9 +286,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       // Populate working days and non-working dates
       setEditWorkingDays(project?.workingDays || [1, 2, 3, 4, 5]);
       setNonWorkingDates(project?.nonWorkingDates || []);
-      // Reset photo filter and visible count
-      setSelectedPhotoFilter('all');
-      setVisiblePhotosCount(12);
+      // Reset reports visible count
+      setVisibleReportsCount(5);
       // Reset editing state
       setIsEditing(false);
     }
@@ -456,6 +447,41 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         setCalculatedProgress(progress);
       }
     })();
+  };
+
+  const handleManualTaskToggle = async (task) => {
+    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+
+    // Optimistic UI update
+    setManualTasks(prev =>
+      prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t)
+    );
+    setShowTaskDetailModal(false);
+    setSelectedManualTask(null);
+
+    try {
+      let success;
+      if (newStatus === 'completed') {
+        success = await completeTask(task.id);
+      } else {
+        success = await uncompleteTask(task.id);
+      }
+      if (!success) {
+        // Revert on failure
+        setManualTasks(prev =>
+          prev.map(t => t.id === task.id ? { ...t, status: task.status } : t)
+        );
+      } else {
+        // Recalculate progress
+        const { progress } = await calculateProjectProgressFromTasks(project.id);
+        setCalculatedProgress(progress);
+      }
+    } catch (error) {
+      console.error('Error toggling manual task:', error);
+      setManualTasks(prev =>
+        prev.map(t => t.id === task.id ? { ...t, status: task.status } : t)
+      );
+    }
   };
 
   const handleAddressPress = (address) => {
@@ -1203,8 +1229,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
               <View style={{ gap: 8 }}>
                 {manualTasks.map((task) => (
-                  <View
+                  <TouchableOpacity
                     key={task.id}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setSelectedManualTask(task);
+                      setShowTaskDetailModal(true);
+                    }}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -1216,20 +1247,32 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       borderRadius: 8,
                     }}
                   >
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
                       <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText }}>
                         {task.title}
                       </Text>
+                      {task.description ? (
+                        <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }} numberOfLines={2}>
+                          {task.description}
+                        </Text>
+                      ) : null}
                       <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }}>
                         {task.start_date ? new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : t('emptyStates.noDate')}
                       </Text>
                     </View>
-                    <View style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 4,
-                      backgroundColor: task.status === 'completed' ? '#10B981' : Colors.primaryBlue + '20',
-                    }}>
+                    <TouchableOpacity
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleManualTaskToggle(task);
+                      }}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 4,
+                        backgroundColor: task.status === 'completed' ? '#10B981' : Colors.primaryBlue + '20',
+                      }}
+                    >
                       <Text style={{
                         fontSize: 12,
                         fontWeight: '500',
@@ -1237,8 +1280,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       }}>
                         {task.status === 'completed' ? t('labels.done') : t('labels.pending')}
                       </Text>
-                    </View>
-                  </View>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
@@ -1318,86 +1361,105 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             ) : null}
           </View>
 
-          {/* Photos Section */}
+          {/* Daily Reports Section */}
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-            <TouchableOpacity
-              style={styles.sectionHeader}
-              onPress={() => totalPhotos > 0 && setPhotoGalleryModalVisible(true)}
-              activeOpacity={totalPhotos > 0 ? 0.7 : 1}
-            >
-              <Ionicons name="camera-outline" size={20} color={Colors.primaryBlue} />
+            <View style={styles.sectionHeader}>
+              <Ionicons name="clipboard-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
-                {t('labels.photosCount', { count: totalPhotos })}
+                {t('labels.dailyReportsCount', { count: projectReports.length })}
               </Text>
-              {totalPhotos > 0 && (
-                <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
+                onPress={() => navigation?.navigate('DailyReportForm', { isOwner: true })}
+              >
+                <Ionicons name="add" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
 
-            {loadingPhotos ? (
+            {loadingReports ? (
               <View style={styles.photosLoading}>
                 <ActivityIndicator size="small" color={Colors.primaryBlue} />
-                <Text style={[styles.photosLoadingText, { color: Colors.secondaryText }]}>{t('labels.loadingPhotos')}</Text>
+                <Text style={[styles.photosLoadingText, { color: Colors.secondaryText }]}>{t('labels.loadingReports')}</Text>
               </View>
-            ) : totalPhotos === 0 ? (
+            ) : projectReports.length === 0 ? (
               <View style={styles.emptyPhotos}>
-                <Ionicons name="images-outline" size={40} color={Colors.secondaryText} />
+                <Ionicons name="document-outline" size={40} color={Colors.secondaryText} />
                 <Text style={[styles.emptyPhotosText, { color: Colors.secondaryText }]}>
-                  {t('emptyStates.noPhotosYet')}
+                  {t('emptyStates.noReportsYet')}
                 </Text>
                 <Text style={[styles.emptyPhotosSubtext, { color: Colors.secondaryText }]}>
-                  {t('emptyStates.photosFromReports')}
+                  {t('emptyStates.addDailyReports')}
                 </Text>
               </View>
             ) : (
               <>
-                {/* Photo Grid */}
-                <View style={styles.photoGrid}>
-                  {(() => {
-                    // Get all photos
-                    let photosToShow = [];
-                    Object.values(photosByPhase).forEach(data => {
-                      photosToShow = [...photosToShow, ...data.photos];
-                    });
-
-                    const visiblePhotos = photosToShow.slice(0, visiblePhotosCount);
-                    const hasMore = photosToShow.length > visiblePhotosCount;
+                {/* Reports List */}
+                <View style={styles.reportsList}>
+                  {projectReports.slice(0, visibleReportsCount).map((report, index) => {
+                    const reportDate = report.report_date ? new Date(report.report_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
+                    const getReporterName = () => {
+                      if (report.reporter_type === 'owner') return 'Owner';
+                      if (report.reporter_type === 'supervisor') return report.profiles?.business_name || 'Supervisor';
+                      return report.workers?.full_name || 'Worker';
+                    };
+                    const getReporterColor = () => {
+                      if (report.reporter_type === 'owner') return '#10B981';
+                      if (report.reporter_type === 'supervisor') return Colors.primaryBlue;
+                      return Colors.secondaryText;
+                    };
+                    const workDone = report.tags?.[0] || '';
+                    const photoCount = report.photos?.length || 0;
 
                     return (
-                      <>
-                        {visiblePhotos.map((photo, index) => (
-                          <TouchableOpacity
-                            key={`${photo.reportId}-${index}`}
-                            style={styles.photoThumbnailContainer}
-                            onPress={() => {
-                              setPhotoViewerPhotos(photosToShow);
-                              setPhotoViewerIndex(index);
-                              setPhotoViewerVisible(true);
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            <Image
-                              source={{ uri: photo.url }}
-                              style={styles.photoThumbnail}
-                              resizeMode="cover"
-                            />
-                          </TouchableOpacity>
-                        ))}
-                        {hasMore && (
-                          <TouchableOpacity
-                            style={[styles.loadMorePhotosButton, { backgroundColor: Colors.lightGray }]}
-                            onPress={() => setVisiblePhotosCount(prev => prev + 12)}
-                          >
-                            <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
-                            <Text style={[styles.loadMorePhotosText, { color: Colors.primaryBlue }]}>
-                              {t('buttons.loadMore', { count: photosToShow.length - visiblePhotosCount })}
-                            </Text>
-                          </TouchableOpacity>
+                      <TouchableOpacity
+                        key={report.id || index}
+                        style={[styles.reportCard, { borderColor: Colors.border }]}
+                        onPress={() => navigation?.navigate('DailyReportDetail', { report })}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.reportCardHeader}>
+                          <Text style={[styles.reportDate, { color: Colors.primaryText }]}>
+                            {reportDate}
+                          </Text>
+                          <View style={styles.reportBadgesRow}>
+                            <View style={[styles.reporterBadge, { backgroundColor: getReporterColor() + '20' }]}>
+                              <Text style={[styles.reporterBadgeText, { color: getReporterColor() }]}>
+                                {report.reporter_type === 'owner' ? 'Owner' : report.reporter_type === 'supervisor' ? 'Supervisor' : 'Worker'}
+                              </Text>
+                            </View>
+                            {photoCount > 0 && (
+                              <View style={[styles.photoBadge, { backgroundColor: Colors.lightGray }]}>
+                                <Ionicons name="camera" size={12} color={Colors.secondaryText} />
+                                <Text style={[styles.photoBadgeText, { color: Colors.secondaryText }]}>
+                                  {photoCount}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <Text style={[styles.reporterName, { color: Colors.primaryText }]}>
+                          {getReporterName()}
+                        </Text>
+                        {workDone && (
+                          <Text style={[styles.reportWorkDone, { color: Colors.secondaryText }]} numberOfLines={2}>
+                            {workDone}
+                          </Text>
                         )}
-                      </>
+                      </TouchableOpacity>
                     );
-                  })()}
+                  })}
                 </View>
+                {projectReports.length > visibleReportsCount && (
+                  <TouchableOpacity
+                    style={[styles.loadMorePhotosButton, { backgroundColor: Colors.lightGray }]}
+                    onPress={() => setVisibleReportsCount(prev => prev + 5)}
+                  >
+                    <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
+                    <Text style={[styles.loadMorePhotosText, { color: Colors.primaryBlue }]}>
+                      {t('buttons.loadMore', { count: projectReports.length - visibleReportsCount })}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
           </View>
@@ -1869,77 +1931,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         }}
       />
 
-      {/* Full-Screen Photo Viewer with Swipe Navigation */}
-      <FullscreenPhotoViewer
-        photos={photoViewerPhotos}
-        visible={photoViewerVisible}
-        initialIndex={photoViewerIndex}
-        onClose={() => setPhotoViewerVisible(false)}
-      />
-
-      {/* Photo Gallery Modal - Full grid view of all photos */}
-      <Modal
-        visible={photoGalleryModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setPhotoGalleryModalVisible(false)}
-      >
-        <SafeAreaView style={[styles.galleryModalContainer, { backgroundColor: Colors.background }]}>
-          {/* Gallery Header */}
-          <View style={[styles.galleryModalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity
-              style={styles.galleryModalCloseButton}
-              onPress={() => setPhotoGalleryModalVisible(false)}
-            >
-              <Ionicons name="close" size={24} color={Colors.primaryText} />
-            </TouchableOpacity>
-            <Text style={[styles.galleryModalTitle, { color: Colors.primaryText }]}>
-              {t('labels.allPhotosCount', { count: totalPhotos })}
-            </Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          {/* Gallery Grid */}
-          <ScrollView
-            style={styles.galleryScrollView}
-            contentContainerStyle={styles.galleryGridContainer}
-            showsVerticalScrollIndicator={false}
-          >
-            {(() => {
-              // Get all photos
-              let allPhotos = [];
-              Object.values(photosByPhase).forEach(data => {
-                allPhotos = [...allPhotos, ...data.photos];
-              });
-
-              const photoWidth = (Dimensions.get('window').width - 16) / 3 - 4;
-
-              return (
-                <View style={styles.galleryGrid}>
-                  {allPhotos.map((photo, index) => (
-                    <TouchableOpacity
-                      key={`gallery-${photo.reportId}-${index}`}
-                      style={[styles.galleryPhotoContainer, { width: photoWidth, height: photoWidth }]}
-                      onPress={() => {
-                        setPhotoViewerPhotos(allPhotos);
-                        setPhotoViewerIndex(index);
-                        setPhotoViewerVisible(true);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Image
-                        source={{ uri: photo.url }}
-                        style={styles.galleryPhoto}
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              );
-            })()}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
 
       {/* Progress Override Modal */}
       {/* Note: Progress Override Modal removed - progress is now calculated from task completion */}
@@ -2073,6 +2064,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           </View>
         </View>
       </Modal>
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        visible={showTaskDetailModal}
+        task={selectedManualTask}
+        onClose={() => {
+          setShowTaskDetailModal(false);
+          setSelectedManualTask(null);
+        }}
+        canComplete={true}
+        onToggleComplete={handleManualTaskToggle}
+      />
 
       {/* Bulk Task Shift Modal */}
       <BulkTaskShiftModal
@@ -2893,44 +2896,63 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  photoFilterScroll: {
-    marginBottom: 12,
-    marginHorizontal: -4,
-  },
-  photoFilterContainer: {
-    paddingHorizontal: 4,
+  // Daily Reports Section Styles
+  reportsList: {
     gap: 8,
-  },
-  photoFilterTab: {
-    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
+  },
+  reportCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginHorizontal: 12,
+    marginVertical: 4,
     backgroundColor: 'transparent',
   },
-  photoFilterTabActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  reportCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  photoFilterTabText: {
+  reportDate: {
     fontSize: 13,
     fontWeight: '600',
   },
-  photoGrid: {
+  reportBadgesRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
+    gap: 6,
+    alignItems: 'center',
   },
-  photoThumbnailContainer: {
-    width: '23%',
-    aspectRatio: 1,
+  reporterBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  reporterBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  reporterName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  reportWorkDone: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  photoBadge: {
+    flexDirection: 'row',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    gap: 3,
   },
-  photoThumbnail: {
-    width: '100%',
-    height: '100%',
+  photoBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   loadMorePhotosButton: {
     width: '100%',
@@ -2945,88 +2967,6 @@ const styles = StyleSheet.create({
   loadMorePhotosText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  // Full-Screen Photo Modal Styles
-  photoModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-  },
-  photoModalContainer: {
-    flex: 1,
-  },
-  photoModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  photoModalCloseButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoModalInfo: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  photoModalDate: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  photoModalImageContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  photoModalImage: {
-    width: '100%',
-    height: '100%',
-  },
-  // Photo Gallery Modal Styles
-  galleryModalContainer: {
-    flex: 1,
-  },
-  galleryModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  galleryModalCloseButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  galleryModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  galleryScrollView: {
-    flex: 1,
-  },
-  galleryGridContainer: {
-    padding: 8,
-  },
-  galleryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  galleryPhotoContainer: {
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  galleryPhoto: {
-    width: '100%',
-    height: '100%',
   },
   // Estimate Modal Styles
   estimateModalContainer: {
