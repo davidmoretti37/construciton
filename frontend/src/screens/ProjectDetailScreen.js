@@ -61,7 +61,7 @@ export default function ProjectDetailScreen({ route, navigation }) {
 
     const handleProjectUpdated = async (updatedProjectId) => {
       const id = currentProject?.id || projectId;
-      if (updatedProjectId === id) {
+      if (updatedProjectId === id || updatedProjectId === '*') {
         console.log('🔄 Project updated by agent, refreshing data for:', currentProject?.name || id);
         try {
           const refreshedProject = await getProject(id);

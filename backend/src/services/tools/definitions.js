@@ -365,7 +365,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'add_project_checklist',
-      description: 'Add tasks or checklist items to a project phase. This is the DEFAULT tool for "add tasks to the project". Creates the phase if it doesn\'t exist. Use whenever the user wants to add items to a project\'s task list, phase checklist, or says "add these tasks". Handles many items at once. Do NOT use create_worker_task for this — that tool is only for standalone reminders.',
+      description: 'Add tasks to a project\'s Additional Tasks list. This is the DEFAULT tool for "add tasks to the project". Use whenever the user wants to add items to a project\'s task list or says "add these tasks". Handles many items at once. Tasks can be completed by the owner, supervisor, or workers. Do NOT use create_worker_task for this — that tool is only for standalone reminders.',
       parameters: {
         type: 'object',
         properties: {
@@ -373,14 +373,10 @@ const toolDefinitions = [
             type: 'string',
             description: 'Project name or UUID. Names are resolved automatically.'
           },
-          phase_name: {
-            type: 'string',
-            description: 'Name of the phase to add items to (e.g., "Demolition", "Rough-In", "General"). If the phase doesn\'t exist, it will be created. Defaults to "General" if not specified.'
-          },
           items: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of checklist item descriptions (e.g., ["Site prep and protection", "Remove existing fixtures", "Rough plumbing inspection"])'
+            description: 'Array of task descriptions (e.g., ["Site prep and protection", "Remove existing fixtures", "Rough plumbing inspection"])'
           }
         },
         required: ['project_id', 'items']
@@ -423,7 +419,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_worker_task',
-      description: 'Create a standalone reminder or to-do item (shown in the "Additional Tasks" section, NOT in the project phase checklist). Use ONLY for one-off reminders like "remind me to call the inspector" or "pick up tile from supplier". Do NOT use this for adding tasks to a project\'s phase checklist — use add_project_checklist for that instead.',
+      description: 'Create a single standalone reminder or to-do item in a project\'s Additional Tasks list. Use ONLY for one-off reminders like "remind me to call the inspector" or "pick up tile from supplier". For adding multiple tasks at once, use add_project_checklist instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -1217,7 +1213,7 @@ const TOOL_STATUS_MESSAGES = {
   void_invoice: 'Voiding invoice...',
   create_work_schedule: 'Creating work schedule...',
   create_worker_task: 'Creating task...',
-  add_project_checklist: 'Adding checklist items...',
+  add_project_checklist: 'Adding tasks...',
   create_project_phase: 'Creating project phase...',
   update_service_pricing: 'Updating pricing...',
   // Bank reconciliation tools

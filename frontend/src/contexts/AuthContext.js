@@ -200,11 +200,14 @@ export const AuthProvider = ({ children }) => {
         // For supervisors, fetch owner's visibility settings
         if (data?.role === 'supervisor' && data?.owner_id) {
           try {
-            const { data: ownerProfile } = await supabase
+            const { data: ownerProfile, error: ownerError } = await supabase
               .from('profiles')
               .select('hide_contract_from_supervisors')
               .eq('id', data.owner_id)
               .maybeSingle();
+            if (ownerError) {
+              console.warn('AuthContext - Error fetching owner settings:', ownerError);
+            }
             setOwnerHidesContract(ownerProfile?.hide_contract_from_supervisors || false);
           } catch (err) {
             console.warn('AuthContext - Could not fetch owner settings:', err);
@@ -234,11 +237,14 @@ export const AuthProvider = ({ children }) => {
         // For supervisors, fetch owner's visibility settings
         if (data?.role === 'supervisor' && data?.owner_id) {
           try {
-            const { data: ownerProfile } = await supabase
+            const { data: ownerProfile, error: ownerError } = await supabase
               .from('profiles')
               .select('hide_contract_from_supervisors')
               .eq('id', data.owner_id)
               .maybeSingle();
+            if (ownerError) {
+              console.warn('AuthContext - Error fetching owner settings:', ownerError);
+            }
             setOwnerHidesContract(ownerProfile?.hide_contract_from_supervisors || false);
           } catch (err) {
             console.warn('AuthContext - Could not fetch owner settings:', err);

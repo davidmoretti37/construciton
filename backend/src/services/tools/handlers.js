@@ -2438,7 +2438,7 @@ async function update_phase_progress(userId, { project_id, phase_name, percentag
 
 // ==================== CHECKLIST & PHASE CREATION ====================
 
-async function add_project_checklist(userId, { project_id, phase_name, items }) {
+async function add_project_checklist(userId, { project_id, items }) {
   const resolved = await resolveProjectId(userId, project_id);
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
@@ -2447,98 +2447,31 @@ async function add_project_checklist(userId, { project_id, phase_name, items }) 
     return { error: 'No checklist items provided. Please provide an array of task descriptions.' };
   }
 
-  const targetPhaseName = phase_name || 'General';
-
-  // Build new task objects for the JSONB array
-  const newTasks = items.map((desc, i) => ({
-    id: `task-${Date.now()}-${i}`,
-    description: typeof desc === 'string' ? desc : desc.description || 'Untitled task',
-    order: i,
-    completed: false,
-  }));
-
-  // Check if phase already exists for this project
-  const { data: existingPhases } = await supabase
-    .from('project_phases')
-    .select('id, name, tasks, order_index')
-    .eq('project_id', resolved.id);
-
-  let phase = null;
-  if (existingPhases && existingPhases.length > 0) {
-    // Try fuzzy match on phase name
-    const filter = buildWordSearch(targetPhaseName, ['name']);
-    if (filter) {
-      const { data: matchedPhases } = await supabase
-        .from('project_phases')
-        .select('id, name, tasks, order_index')
-        .eq('project_id', resolved.id)
-        .or(filter);
-      phase = matchedPhases?.[0];
-    }
-  }
-
-  if (phase) {
-    // Append to existing phase's tasks JSONB
-    const existingTasks = Array.isArray(phase.tasks) ? phase.tasks : [];
-    // Reorder new tasks to continue after existing ones
-    const startOrder = existingTasks.length;
-    newTasks.forEach((t, i) => { t.order = startOrder + i; });
-    const mergedTasks = [...existingTasks, ...newTasks];
-
-    const { error: updateErr } = await supabase
-      .from('project_phases')
-      .update({ tasks: mergedTasks })
-      .eq('id', phase.id);
-
-    if (updateErr) return { error: `Failed to update phase tasks: ${updateErr.message}` };
-  } else {
-    // Create new phase
-    const maxOrder = existingPhases
-      ? Math.max(-1, ...existingPhases.map(p => p.order_index || 0))
-      : -1;
-
-    const { error: insertErr } = await supabase
-      .from('project_phases')
-      .insert({
-        project_id: resolved.id,
-        name: targetPhaseName,
-        order_index: maxOrder + 1,
-        planned_days: 5,
-        tasks: newTasks,
-        completion_percentage: 0,
-        status: 'not_started',
-      });
-
-    if (insertErr) return { error: `Failed to create phase: ${insertErr.message}` };
-
-    // Mark project as having phases
-    await supabase
-      .from('projects')
-      .update({ has_phases: true })
-      .eq('id', resolved.id);
-  }
-
-  // Also create worker_tasks entries for calendar/schedule visibility
-  const workerTasks = newTasks.map(t => ({
+  // Create standalone worker_tasks (appear in Additional Tasks section)
+  const workerTasks = items.map((desc) => ({
     owner_id: userId,
     project_id: resolved.id,
-    title: t.description,
-    description: `Phase: ${targetPhaseName}`,
+    title: typeof desc === 'string' ? desc : desc.description || 'Untitled task',
     start_date: today(),
     end_date: today(),
     status: 'pending',
-    phase_task_id: t.id,
   }));
 
-  if (workerTasks.length > 0) {
-    const { error: taskErr } = await supabase
-      .from('worker_tasks')
-      .insert(workerTasks);
+  const { data: insertedTasks, error: taskErr } = await supabase
+    .from('worker_tasks')
+    .insert(workerTasks)
+    .select('id, title');
 
-    if (taskErr) {
-      logger.warn('Worker tasks creation failed (checklist still saved):', taskErr.message);
-    }
+  if (taskErr) return { error: `Failed to create tasks: ${taskErr.message}` };
+  if (!insertedTasks || insertedTasks.length === 0) {
+    return { error: 'Tasks did not persist. Please try again.' };
   }
+
+  // Update project updated_at so frontend detects the change
+  await supabase
+    .from('projects')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', resolved.id);
 
   // Get project name for response
   const { data: proj } = await supabase
@@ -2549,11 +2482,10 @@ async function add_project_checklist(userId, { project_id, phase_name, items }) 
 
   return {
     success: true,
+    project_id: resolved.id,
     project_name: proj?.name,
-    phase_name: phase ? phase.name : targetPhaseName,
-    items_added: newTasks.length,
-    phase_existed: !!phase,
-    items: newTasks.map(t => t.description),
+    items_added: insertedTasks.length,
+    items: insertedTasks.map(t => t.title),
   };
 }
 

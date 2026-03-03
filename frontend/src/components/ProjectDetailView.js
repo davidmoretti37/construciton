@@ -205,7 +205,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             .eq('project_id', project.id)
             .is('phase_task_id', null)
             .order('start_date', { ascending: true });
-          setManualTasks(tasks || []);
+          // Sort completed tasks to the bottom
+          const sorted = (tasks || []).sort((a, b) => {
+            if (a.status === 'completed' && b.status !== 'completed') return 1;
+            if (a.status !== 'completed' && b.status === 'completed') return -1;
+            return 0;
+          });
+          setManualTasks(sorted);
 
           // Calculate progress: use phase completion if phases exist, otherwise worker_tasks
           if (loadedPhases.length > 0) {
@@ -293,10 +299,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     }
   }, [project?.id, project?.hasPhases, project?.contract_amount, project?.updated_at, visible, isDemo]);
 
-  // Sync modal visibility with prop
+  // Sync modal visibility with prop and refresh data when becoming visible
   useEffect(() => {
     if (visible && !wasNavigatingRef.current) {
       setModalVisible(true);
+      // Refresh phases when view becomes visible (e.g., after agent adds tasks)
+      if (project?.id && project?.hasPhases && !isDemo) {
+        fetchProjectPhases(project.id).then(updated => {
+          if (updated) setPhases(updated);
+        }).catch(() => {});
+      }
     } else if (!visible) {
       setModalVisible(false);
       wasNavigatingRef.current = false;
@@ -452,10 +464,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const handleManualTaskToggle = async (task) => {
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
 
-    // Optimistic UI update
-    setManualTasks(prev =>
-      prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t)
-    );
+    // Optimistic UI update — sort completed to bottom
+    setManualTasks(prev => {
+      const updated = prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t);
+      return updated.sort((a, b) => {
+        if (a.status === 'completed' && b.status !== 'completed') return 1;
+        if (a.status !== 'completed' && b.status === 'completed') return -1;
+        return 0;
+      });
+    });
     setShowTaskDetailModal(false);
     setSelectedManualTask(null);
 
@@ -467,10 +484,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         success = await uncompleteTask(task.id);
       }
       if (!success) {
-        // Revert on failure
-        setManualTasks(prev =>
-          prev.map(t => t.id === task.id ? { ...t, status: task.status } : t)
-        );
+        // Revert on failure, re-sort
+        setManualTasks(prev => {
+          const reverted = prev.map(t => t.id === task.id ? { ...t, status: task.status } : t);
+          return reverted.sort((a, b) => {
+            if (a.status === 'completed' && b.status !== 'completed') return 1;
+            if (a.status !== 'completed' && b.status === 'completed') return -1;
+            return 0;
+          });
+        });
       } else {
         // Recalculate progress
         const { progress } = await calculateProjectProgressFromTasks(project.id);
@@ -478,9 +500,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       }
     } catch (error) {
       console.error('Error toggling manual task:', error);
-      setManualTasks(prev =>
-        prev.map(t => t.id === task.id ? { ...t, status: task.status } : t)
-      );
+      setManualTasks(prev => {
+        const reverted = prev.map(t => t.id === task.id ? { ...t, status: task.status } : t);
+        return reverted.sort((a, b) => {
+          if (a.status === 'completed' && b.status !== 'completed') return 1;
+          if (a.status !== 'completed' && b.status === 'completed') return -1;
+          return 0;
+        });
+      });
     }
   };
 
@@ -631,10 +658,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     const newValue = !localHideContract;
     setLocalHideContract(newValue);
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ hide_contract_from_supervisors: newValue })
         .eq('id', profile.id);
+      if (error) {
+        console.error('Error toggling contract visibility:', error);
+        setLocalHideContract(!newValue);
+        Alert.alert('Error', 'Could not update visibility setting.');
+        return;
+      }
       Alert.alert(
         newValue ? 'Hidden from supervisors' : 'Visible to supervisors',
         newValue
@@ -1394,8 +1427,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             ) : (
               <>
                 {/* Reports List */}
-                <View style={styles.reportsList}>
-                  {projectReports.slice(0, visibleReportsCount).map((report, index) => {
+                <ScrollView style={projectReports.length > 2 ? { maxHeight: 180 } : undefined} nestedScrollEnabled showsVerticalScrollIndicator={projectReports.length > 2} persistentScrollbar={true} indicatorStyle="default" fadingEdgeLength={projectReports.length > 2 ? 20 : 0}>
+                  {projectReports.map((report, index) => {
                     const reportDate = report.report_date ? new Date(report.report_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
                     const getReporterName = () => {
                       if (report.reporter_type === 'owner') return 'Owner';
@@ -1448,17 +1481,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       </TouchableOpacity>
                     );
                   })}
-                </View>
-                {projectReports.length > visibleReportsCount && (
-                  <TouchableOpacity
-                    style={[styles.loadMorePhotosButton, { backgroundColor: Colors.lightGray }]}
-                    onPress={() => setVisibleReportsCount(prev => prev + 5)}
-                  >
-                    <Ionicons name="add-circle-outline" size={24} color={Colors.primaryBlue} />
-                    <Text style={[styles.loadMorePhotosText, { color: Colors.primaryBlue }]}>
-                      {t('buttons.loadMore', { count: projectReports.length - visibleReportsCount })}
+                </ScrollView>
+                {projectReports.length > 2 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 6 }}>
+                    <Ionicons name="chevron-down" size={14} color={Colors.secondaryText} />
+                    <Text style={{ fontSize: 11, color: Colors.secondaryText, marginLeft: 4 }}>
+                      {t('labels.scrollForMore', { defaultValue: 'Scroll for more' })}
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                 )}
               </>
             )}
