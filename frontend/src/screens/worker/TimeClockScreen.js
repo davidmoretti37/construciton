@@ -124,14 +124,8 @@ export default function TimeClockScreen({ navigation }) {
       const session = await getActiveClockIn(workerData.id);
       setActiveSession(session);
 
-      // Load owner's projects (not just assigned ones)
-      if (workerData.owner_id) {
-        await loadOwnerProjects(workerData.owner_id);
-      } else {
-        // Worker signed up independently, not yet assigned to a contractor
-        console.log('Worker not yet assigned to a contractor');
-        setAvailableProjects([]);
-      }
+      // Load only projects assigned to this worker
+      await loadAssignedProjects(workerData.id);
 
       // Load recent clock-in history and today's hours
       await loadRecentEntries(workerData.id);
@@ -142,25 +136,25 @@ export default function TimeClockScreen({ navigation }) {
     }
   };
 
-  const loadOwnerProjects = async (ownerId) => {
+  const loadAssignedProjects = async (wId) => {
     try {
-      console.log('Loading projects for owner:', ownerId);
-
       const { data, error } = await supabase
-        .from('projects')
-        .select('id, name, location, status')
-        .eq('user_id', ownerId)
-        .order('name');
+        .from('project_assignments')
+        .select('project_id, projects:project_id (id, name, location, status)')
+        .eq('worker_id', wId);
 
       if (error) {
-        console.error('Error fetching owner projects:', error);
+        console.error('Error fetching assigned projects:', error);
         return;
       }
 
-      console.log('Found projects:', data);
-      setAvailableProjects(data || []);
+      const projects = (data || [])
+        .map(a => a.projects)
+        .filter(Boolean)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setAvailableProjects(projects);
     } catch (error) {
-      console.error('Error loading owner projects:', error);
+      console.error('Error loading assigned projects:', error);
     }
   };
 

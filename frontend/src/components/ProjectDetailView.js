@@ -213,16 +213,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           });
           setManualTasks(sorted);
 
-          // Calculate progress: use phase completion if phases exist, otherwise worker_tasks
-          if (loadedPhases.length > 0) {
-            const phaseProgress = Math.round(
-              loadedPhases.reduce((sum, p) => sum + (p.completion_percentage || 0), 0) / loadedPhases.length
-            );
-            setCalculatedProgress(phaseProgress);
-          } else {
-            const { progress } = await calculateProjectProgressFromTasks(project.id);
-            setCalculatedProgress(progress);
-          }
+          // Calculate progress from all individual tasks (phase + additional)
+          const { progress } = await calculateProjectProgressFromTasks(project.id);
+          setCalculatedProgress(progress);
         } catch (error) {
           console.error('Error loading manual tasks:', error);
           setManualTasks([]);
@@ -494,7 +487,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           });
         });
       } else {
-        // Recalculate progress
+        // Recalculate progress from all individual tasks
         const { progress } = await calculateProjectProgressFromTasks(project.id);
         setCalculatedProgress(progress);
       }
@@ -1280,8 +1273,22 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       borderRadius: 8,
                     }}
                   >
+                    <TouchableOpacity
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleManualTaskToggle(task);
+                      }}
+                      style={{ marginRight: 10 }}
+                    >
+                      <Ionicons
+                        name={task.status === 'completed' ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={24}
+                        color={task.status === 'completed' ? '#10B981' : Colors.secondaryText}
+                      />
+                    </TouchableOpacity>
                     <View style={{ flex: 1, marginRight: 12 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText, textDecorationLine: task.status === 'completed' ? 'line-through' : 'none' }}>
                         {task.title}
                       </Text>
                       {task.description ? (
@@ -1293,19 +1300,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         {task.start_date ? new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : t('emptyStates.noDate')}
                       </Text>
                     </View>
-                    <TouchableOpacity
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleManualTaskToggle(task);
-                      }}
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 4,
-                        backgroundColor: task.status === 'completed' ? '#10B981' : Colors.primaryBlue + '20',
-                      }}
-                    >
+                    <View style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 4,
+                      backgroundColor: task.status === 'completed' ? '#10B981' : Colors.primaryBlue + '20',
+                    }}>
                       <Text style={{
                         fontSize: 12,
                         fontWeight: '500',
@@ -1313,7 +1313,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       }}>
                         {task.status === 'completed' ? t('labels.done') : t('labels.pending')}
                       </Text>
-                    </TouchableOpacity>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>

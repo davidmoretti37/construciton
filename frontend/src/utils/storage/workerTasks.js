@@ -623,9 +623,12 @@ export const updateProjectProgressFromTasks = async (projectId) => {
  */
 export const completeTask = async (taskId, workerId) => {
   try {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     const updateData = {
       status: 'completed',
-      completed_at: new Date().toISOString(),
+      completed_at: now.toISOString(),
+      end_date: todayStr,
     };
     if (workerId) {
       updateData.completed_by = workerId;
@@ -851,11 +854,11 @@ export const fetchAllTasks = async (filters = {}) => {
  * Gets tasks from all projects owned by the worker's employer
  * Tasks are filtered to only show on their project's working days
  */
-export const fetchTasksForWorker = async (ownerId, date) => {
+export const fetchTasksForWorker = async (ownerId, date, projectIds) => {
   try {
     if (!ownerId) return [];
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('worker_tasks')
       .select(`
         id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
@@ -865,6 +868,13 @@ export const fetchTasksForWorker = async (ownerId, date) => {
       .lte('start_date', date)
       .gte('end_date', date)
       .order('created_at', { ascending: true });
+
+    // Filter to only assigned projects if provided
+    if (projectIds && projectIds.length > 0) {
+      query = query.in('project_id', projectIds);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching tasks for worker:', error);
@@ -894,6 +904,43 @@ export const fetchTasksForWorker = async (ownerId, date) => {
     return filteredData;
   } catch (error) {
     console.error('Error in fetchTasksForWorker:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch all tasks for a worker within a date range (for month calendar view)
+ * Returns all tasks whose date range overlaps with the query range
+ */
+export const fetchTasksForWorkerDateRange = async (ownerId, startDate, endDate, projectIds) => {
+  try {
+    if (!ownerId) return [];
+
+    let query = supabase
+      .from('worker_tasks')
+      .select(`
+        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        projects:project_id (id, name, working_days, non_working_dates)
+      `)
+      .eq('owner_id', ownerId)
+      .lte('start_date', endDate)
+      .gte('end_date', startDate)
+      .order('created_at', { ascending: true });
+
+    if (projectIds && projectIds.length > 0) {
+      query = query.in('project_id', projectIds);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching tasks for worker date range:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchTasksForWorkerDateRange:', error);
     return [];
   }
 };

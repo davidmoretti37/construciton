@@ -133,16 +133,28 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    let query = supabase
-      .from('daily_reports')
-      .select(`
+    const selectFields = `
         id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, created_at,
         workers (id, full_name, trade),
-        projects!inner (id, name, user_id, assigned_supervisor_id),
+        projects (id, name, user_id, assigned_supervisor_id),
         project_phases (id, name)
-      `)
-      .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
-      .order('report_date', { ascending: false });
+      `;
+
+    let query;
+    if (filters.workerView) {
+      // Worker context: no owner/supervisor filter, RLS handles access
+      query = supabase
+        .from('daily_reports')
+        .select(selectFields)
+        .order('report_date', { ascending: false });
+    } else {
+      // Owner/supervisor context: filter by project ownership
+      query = supabase
+        .from('daily_reports')
+        .select(selectFields.replace('projects (', 'projects!inner ('))
+        .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
+        .order('report_date', { ascending: false });
+    }
 
     if (projectId) {
       query = query.eq('project_id', projectId);

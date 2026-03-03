@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { fetchProjectDocuments, fetchProjectPhases, calculateProjectProgressFromTasks } from '../../utils/storage';
+import { fetchProjectDocuments, fetchProjectPhases, fetchDailyReports, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../../utils/storage';
+import { supabase } from '../../lib/supabase';
 
 export default function WorkerProjectDetailScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -28,6 +29,15 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
   const [phases, setPhases] = useState([]);
   const [loadingPhases, setLoadingPhases] = useState(true);
   const [overallProgress, setOverallProgress] = useState(0);
+  const [expandedPhases, setExpandedPhases] = useState({});
+
+  // Additional Tasks state
+  const [manualTasks, setManualTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+
+  // Daily Reports state
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(true);
 
   // Load documents on mount (only documents visible to workers)
   useEffect(() => {
@@ -68,6 +78,150 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
     };
     loadPhases();
   }, [project.id]);
+
+  // Load Additional Tasks
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        setLoadingTasks(true);
+        const { data: tasks } = await supabase
+          .from('worker_tasks')
+          .select('*')
+          .eq('project_id', project.id)
+          .is('phase_task_id', null)
+          .order('start_date', { ascending: true });
+        const sorted = (tasks || []).sort((a, b) => {
+          if (a.status === 'completed' && b.status !== 'completed') return 1;
+          if (a.status !== 'completed' && b.status === 'completed') return -1;
+          return 0;
+        });
+        setManualTasks(sorted);
+      } catch (error) {
+        console.error('Error loading additional tasks:', error);
+      } finally {
+        setLoadingTasks(false);
+      }
+    };
+    loadTasks();
+  }, [project.id]);
+
+  // Load Daily Reports
+  useEffect(() => {
+    const loadReports = async () => {
+      try {
+        setLoadingReports(true);
+        const data = await fetchDailyReports(project.id, { workerView: true });
+        setReports(data || []);
+      } catch (error) {
+        console.error('Error loading daily reports:', error);
+      } finally {
+        setLoadingReports(false);
+      }
+    };
+    loadReports();
+  }, [project.id]);
+
+  // Toggle phase task completion
+  const handlePhaseTaskToggle = async (phase, taskItem, taskIndex) => {
+    if (!taskItem.workerTaskId) return; // No linked worker_task to toggle
+
+    const newCompleted = !taskItem.completed;
+
+    // Optimistic update: update local phase state
+    setPhases(prev => prev.map(p => {
+      if (p.id !== phase.id) return p;
+      const updatedTasks = [...(p.tasks || [])];
+      updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], completed: newCompleted };
+      const totalTasks = updatedTasks.length;
+      const completedTasks = updatedTasks.filter(t => t.completed).length;
+      return {
+        ...p,
+        tasks: updatedTasks,
+        completion_percentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      };
+    }));
+
+    try {
+      const success = newCompleted
+        ? await completeTask(taskItem.workerTaskId)
+        : await uncompleteTask(taskItem.workerTaskId);
+
+      if (!success) {
+        // Revert on failure
+        setPhases(prev => prev.map(p => {
+          if (p.id !== phase.id) return p;
+          const revertedTasks = [...(p.tasks || [])];
+          revertedTasks[taskIndex] = { ...revertedTasks[taskIndex], completed: !newCompleted };
+          const totalTasks = revertedTasks.length;
+          const completedTasks = revertedTasks.filter(t => t.completed).length;
+          return {
+            ...p,
+            tasks: revertedTasks,
+            completion_percentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+          };
+        }));
+      } else {
+        const { progress } = await calculateProjectProgressFromTasks(project.id);
+        setOverallProgress(progress);
+      }
+    } catch (error) {
+      console.error('Error toggling phase task:', error);
+      // Revert
+      setPhases(prev => prev.map(p => {
+        if (p.id !== phase.id) return p;
+        const revertedTasks = [...(p.tasks || [])];
+        revertedTasks[taskIndex] = { ...revertedTasks[taskIndex], completed: !newCompleted };
+        const totalTasks = revertedTasks.length;
+        const completedTasks = revertedTasks.filter(t => t.completed).length;
+        return {
+          ...p,
+          tasks: revertedTasks,
+          completion_percentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        };
+      }));
+    }
+  };
+
+  // Toggle task completion
+  const handleTaskToggle = async (task) => {
+    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+    // Optimistic update, sort completed to bottom
+    setManualTasks(prev => {
+      const updated = prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t);
+      return updated.sort((a, b) => {
+        if (a.status === 'completed' && b.status !== 'completed') return 1;
+        if (a.status !== 'completed' && b.status === 'completed') return -1;
+        return 0;
+      });
+    });
+    try {
+      const success = newStatus === 'completed' ? await completeTask(task.id) : await uncompleteTask(task.id);
+      if (!success) {
+        // Revert
+        setManualTasks(prev => {
+          const reverted = prev.map(t => t.id === task.id ? { ...t, status: task.status } : t);
+          return reverted.sort((a, b) => {
+            if (a.status === 'completed' && b.status !== 'completed') return 1;
+            if (a.status !== 'completed' && b.status === 'completed') return -1;
+            return 0;
+          });
+        });
+      } else {
+        const { progress } = await calculateProjectProgressFromTasks(project.id);
+        setOverallProgress(progress);
+      }
+    } catch (error) {
+      console.error('Error toggling task:', error);
+      setManualTasks(prev => {
+        const reverted = prev.map(t => t.id === task.id ? { ...t, status: task.status } : t);
+        return reverted.sort((a, b) => {
+          if (a.status === 'completed' && b.status !== 'completed') return 1;
+          if (a.status !== 'completed' && b.status === 'completed') return -1;
+          return 0;
+        });
+      });
+    }
+  };
 
   const handleViewDocument = (doc) => {
     navigation.navigate('DocumentViewer', {
@@ -200,87 +354,214 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                 <View style={styles.phasesList}>
                   {phases
                     .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-                    .map((phase, index) => (
+                    .map((phase, index) => {
+                      const isExpanded = expandedPhases[phase.id];
+                      const taskItems = phase.tasks || phase.services || [];
+                      const completedCount = taskItems.filter(t => t.completed).length;
+                      return (
                   <View key={phase.id} style={[styles.phaseCard, { backgroundColor: Colors.lightBackground, borderLeftColor: Colors.primaryText }]}>
-                    <View style={styles.phaseHeader}>
-                      <View style={[styles.phaseNumber, { backgroundColor: Colors.primaryText }]}>
-                        <Text style={[styles.phaseNumberText, { color: Colors.white }]}>{index + 1}</Text>
-                      </View>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setExpandedPhases(prev => ({ ...prev, [phase.id]: !prev[phase.id] }))}
+                      style={styles.phaseHeader}
+                    >
                       <View style={styles.phaseInfo}>
                         <Text style={[styles.phaseName, { color: Colors.primaryText }]}>{phase.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                          <View style={[styles.progressBar, { backgroundColor: Colors.border, flex: 1 }]}>
+                            <View style={[styles.progressFill, { width: `${phase.completion_percentage || 0}%`, backgroundColor: '#10B981' }]} />
+                          </View>
+                          <Text style={{ fontSize: 12, color: Colors.secondaryText, fontWeight: '600' }}>{phase.completion_percentage || 0}%</Text>
+                        </View>
+                      </View>
+                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.secondaryText} />
+                    </TouchableOpacity>
+
+                    {isExpanded && (
+                      <View style={{ marginTop: 12 }}>
                         {phase.planned_days && (
-                          <Text style={[styles.phaseDescription, { color: Colors.secondaryText }]}>
+                          <Text style={{ fontSize: 13, color: Colors.secondaryText, marginBottom: 8 }}>
                             {phase.planned_days} days planned
                           </Text>
                         )}
-                      </View>
-                    </View>
-
-                    {/* Phase Details */}
-                    <View style={styles.phaseDetails}>
-                      {phase.completion_percentage !== null && (
-                        <View style={styles.phaseDetailRow}>
-                          <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>Progress</Text>
-                          <View style={styles.progressContainer}>
-                            <View style={[styles.progressBar, { backgroundColor: Colors.border }]}>
-                              <View
-                                style={[
-                                  styles.progressFill,
-                                  { width: `${phase.completion_percentage}%`, backgroundColor: Colors.primaryText }
-                                ]}
-                              />
-                            </View>
-                            <Text style={[styles.progressText, { color: Colors.secondaryText }]}>{phase.completion_percentage}%</Text>
+                        {phase.start_date && (
+                          <View style={[styles.phaseDetailRow, { marginBottom: 4 }]}>
+                            <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>Start</Text>
+                            <Text style={[styles.phaseDetailValue, { color: Colors.primaryText }]}>{formatDate(phase.start_date)}</Text>
                           </View>
-                        </View>
-                      )}
-
-                      {phase.start_date && (
-                        <View style={styles.phaseDetailRow}>
-                          <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>Start</Text>
-                          <Text style={[styles.phaseDetailValue, { color: Colors.primaryText }]}>{formatDate(phase.start_date)}</Text>
-                        </View>
-                      )}
-
-                      {phase.end_date && (
-                        <View style={styles.phaseDetailRow}>
-                          <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>End</Text>
-                          <Text style={[styles.phaseDetailValue, { color: Colors.primaryText }]}>{formatDate(phase.end_date)}</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Tasks/Services */}
-                    {((phase.tasks && phase.tasks.length > 0) || (phase.services && phase.services.length > 0)) ? (
-                      <View style={[styles.servicesContainer, { borderTopColor: Colors.border }]}>
-                        <Text style={[styles.servicesTitle, { color: Colors.secondaryText }]}>Tasks</Text>
-                        {/* Show tasks first, then fall back to services */}
-                        {(phase.tasks || phase.services || []).map((item, itemIndex) => (
-                          <View key={itemIndex} style={styles.serviceItem}>
-                            <View style={[
-                              styles.serviceBullet,
-                              { backgroundColor: Colors.secondaryText },
-                              item.completed && { backgroundColor: successColor }
-                            ]} />
-                            <Text style={[
-                              styles.serviceText,
-                              { color: Colors.secondaryText },
-                              item.completed && { textDecorationLine: 'line-through', color: Colors.secondaryText }
-                            ]}>
-                              {item.description || item.name || 'Task'}
-                            </Text>
+                        )}
+                        {phase.end_date && (
+                          <View style={[styles.phaseDetailRow, { marginBottom: 8 }]}>
+                            <Text style={[styles.phaseDetailLabel, { color: Colors.secondaryText }]}>End</Text>
+                            <Text style={[styles.phaseDetailValue, { color: Colors.primaryText }]}>{formatDate(phase.end_date)}</Text>
                           </View>
-                        ))}
-                      </View>
-                    ) : (
-                      <View style={[styles.servicesContainer, { borderTopColor: Colors.border }]}>
-                        <Text style={[styles.noServicesText, { color: Colors.secondaryText }]}>No tasks assigned yet</Text>
+                        )}
+
+                        {taskItems.length > 0 ? (
+                          <View style={[styles.servicesContainer, { borderTopColor: Colors.border }]}>
+                            <Text style={[styles.servicesTitle, { color: Colors.secondaryText }]}>Tasks ({completedCount}/{taskItems.length})</Text>
+                            {taskItems.map((item, itemIndex) => (
+                              <TouchableOpacity
+                                key={itemIndex}
+                                style={styles.serviceItem}
+                                onPress={() => handlePhaseTaskToggle(phase, item, itemIndex)}
+                                activeOpacity={item.workerTaskId ? 0.6 : 1}
+                                disabled={!item.workerTaskId}
+                              >
+                                <Ionicons
+                                  name={item.completed ? 'checkmark-circle' : 'ellipse-outline'}
+                                  size={16}
+                                  color={item.completed ? successColor : Colors.secondaryText}
+                                />
+                                <Text style={[
+                                  styles.serviceText,
+                                  { color: Colors.secondaryText },
+                                  item.completed && { textDecorationLine: 'line-through' }
+                                ]}>
+                                  {item.description || item.name || 'Task'}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        ) : (
+                          <View style={[styles.servicesContainer, { borderTopColor: Colors.border }]}>
+                            <Text style={[styles.noServicesText, { color: Colors.secondaryText }]}>No tasks assigned yet</Text>
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
-                    ))}
+                      );
+                    })}
                 </View>
               </>
+            )}
+          </View>
+        )}
+
+        {/* Additional Tasks Section */}
+        {(manualTasks.length > 0 || loadingTasks) && (
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
+                Additional Tasks ({manualTasks.length})
+              </Text>
+            </View>
+            {loadingTasks ? (
+              <ActivityIndicator size="small" color={Colors.primaryBlue} />
+            ) : (
+              <View style={{ gap: 8 }}>
+                {manualTasks.map((task) => (
+                  <TouchableOpacity
+                    key={task.id}
+                    activeOpacity={0.7}
+                    onPress={() => handleTaskToggle(task)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderWidth: 1,
+                      borderColor: Colors.border,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Ionicons
+                      name={task.status === 'completed' ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={24}
+                      color={task.status === 'completed' ? '#10B981' : Colors.secondaryText}
+                      style={{ marginRight: 10 }}
+                    />
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText, textDecorationLine: task.status === 'completed' ? 'line-through' : 'none' }}>
+                        {task.title}
+                      </Text>
+                      {task.description ? (
+                        <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }} numberOfLines={2}>
+                          {task.description}
+                        </Text>
+                      ) : null}
+                      <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }}>
+                        {task.start_date ? new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date'}
+                      </Text>
+                    </View>
+                    <View style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 4,
+                      backgroundColor: task.status === 'completed' ? '#10B981' : Colors.primaryBlue + '20',
+                    }}>
+                      <Text style={{
+                        fontSize: 12,
+                        fontWeight: '500',
+                        color: task.status === 'completed' ? '#FFFFFF' : Colors.primaryBlue,
+                      }}>
+                        {task.status === 'completed' ? 'Done' : 'Pending'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Daily Reports Section */}
+        {(reports.length > 0 || loadingReports) && (
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <Ionicons name="clipboard-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
+                Daily Reports ({reports.length})
+              </Text>
+            </View>
+            {loadingReports ? (
+              <ActivityIndicator size="small" color={Colors.primaryBlue} />
+            ) : (
+              <ScrollView style={reports.length > 2 ? { maxHeight: 180 } : undefined} nestedScrollEnabled showsVerticalScrollIndicator={reports.length > 2} persistentScrollbar={true}>
+                {reports.map((report, index) => {
+                  const reportDate = report.report_date ? new Date(report.report_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
+                  const getReporterName = () => {
+                    if (report.reporter_type === 'owner') return 'Owner';
+                    if (report.reporter_type === 'supervisor') return report.profiles?.business_name || 'Supervisor';
+                    return report.workers?.full_name || 'Worker';
+                  };
+                  const getReporterColor = () => {
+                    if (report.reporter_type === 'owner') return '#10B981';
+                    if (report.reporter_type === 'supervisor') return Colors.primaryBlue;
+                    return Colors.secondaryText;
+                  };
+                  const photoCount = report.photos?.length || 0;
+
+                  return (
+                    <TouchableOpacity
+                      key={report.id || index}
+                      style={{ paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, marginBottom: 8 }}
+                      onPress={() => navigation?.navigate('DailyReportDetail', { report })}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText }}>{reportDate}</Text>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          <View style={{ backgroundColor: getReporterColor() + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: getReporterColor() }}>
+                              {report.reporter_type === 'owner' ? 'Owner' : report.reporter_type === 'supervisor' ? 'Supervisor' : 'Worker'}
+                            </Text>
+                          </View>
+                          {photoCount > 0 && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.lightBackground, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
+                              <Ionicons name="camera" size={12} color={Colors.secondaryText} />
+                              <Text style={{ fontSize: 11, color: Colors.secondaryText, marginLeft: 3 }}>{photoCount}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 13, color: Colors.primaryText, marginTop: 4 }}>{getReporterName()}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             )}
           </View>
         )}
@@ -530,9 +811,10 @@ const styles = StyleSheet.create({
   },
   serviceItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
+    alignItems: 'center',
+    marginBottom: 2,
     gap: 8,
+    paddingVertical: 6,
   },
   serviceBullet: {
     width: 4,

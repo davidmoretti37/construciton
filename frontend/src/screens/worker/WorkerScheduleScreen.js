@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { fetchTasksForWorker, completeTask, uncompleteTask, getCurrentUserId } from '../../utils/storage';
+import { fetchTasksForWorker, fetchTasksForWorkerDateRange, completeTask, uncompleteTask, getCurrentUserId } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
-import WeeklyCalendar from '../../components/WeeklyCalendar';
+import AppleCalendarMonth from '../../components/AppleCalendarMonth';
 import TaskMoveModal from '../../components/TaskMoveModal';
 import TaskDetailModal from '../../components/TaskDetailModal';
 
@@ -25,12 +26,16 @@ export default function WorkerScheduleScreen({ navigation }) {
   const { t } = useTranslation('workers');
 
   const [loading, setLoading] = useState(true);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [workerId, setWorkerId] = useState(null);
   const [ownerId, setOwnerId] = useState(null);
+  const [assignedProjectIds, setAssignedProjectIds] = useState(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [tasks, setTasks] = useState([]);
-  const [taskDates, setTaskDates] = useState([]);
+  const [monthTasks, setMonthTasks] = useState([]);
+  const [dayTasks, setDayTasks] = useState([]);
+  const [expandedProjects, setExpandedProjects] = useState({});
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
@@ -41,19 +46,34 @@ export default function WorkerScheduleScreen({ navigation }) {
     loadWorkerData();
   }, []);
 
-  // Load tasks when date changes
+  // Load month data when month changes or assignments load
   useEffect(() => {
-    if (ownerId) {
-      loadTasks();
+    if (ownerId && assignedProjectIds) {
+      loadMonthData(currentMonth);
     }
-  }, [selectedDate, ownerId]);
+  }, [currentMonth, ownerId, assignedProjectIds]);
+
+  // Filter day tasks when selected date or month tasks change
+  useEffect(() => {
+    if (monthTasks.length > 0 || (ownerId && assignedProjectIds)) {
+      filterDayTasks(selectedDate, monthTasks);
+    }
+  }, [selectedDate, monthTasks]);
+
+  // Refresh when screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      if (ownerId && assignedProjectIds) {
+        loadMonthData(currentMonth);
+      }
+    }, [ownerId, currentMonth, assignedProjectIds])
+  );
 
   const loadWorkerData = async () => {
     try {
       setLoading(true);
       const currentUserId = await getCurrentUserId();
 
-      // Get worker ID and owner ID
       const { data: workerData, error: workerError } = await supabase
         .from('workers')
         .select('id, owner_id')
@@ -68,6 +88,12 @@ export default function WorkerScheduleScreen({ navigation }) {
 
       setWorkerId(workerData.id);
       setOwnerId(workerData.owner_id);
+
+      const { data: assignments } = await supabase
+        .from('project_assignments')
+        .select('project_id')
+        .eq('worker_id', workerData.id);
+      setAssignedProjectIds((assignments || []).map(a => a.project_id));
     } catch (error) {
       console.error('Error loading worker data:', error);
     } finally {
@@ -75,24 +101,57 @@ export default function WorkerScheduleScreen({ navigation }) {
     }
   };
 
-  const loadTasks = async () => {
+  const loadMonthData = async (monthDate) => {
     try {
-      // Format date as YYYY-MM-DD
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateString = `${year}-${month}-${day}`;
+      setScheduleLoading(true);
+      const yr = monthDate.getFullYear();
+      const mo = monthDate.getMonth();
+      const monthStart = `${yr}-${String(mo + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(yr, mo + 1, 0).getDate();
+      const monthEnd = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-      const data = await fetchTasksForWorker(ownerId, dateString);
-      setTasks(data || []);
+      const tasks = await fetchTasksForWorkerDateRange(ownerId, monthStart, monthEnd, assignedProjectIds);
+      setMonthTasks(tasks || []);
+      filterDayTasks(selectedDate, tasks || []);
     } catch (error) {
-      console.error('Error loading tasks:', error);
+      console.error('Error loading month data:', error);
+    } finally {
+      setScheduleLoading(false);
     }
+  };
+
+  const filterDayTasks = (date, mTasks) => {
+    const yr = date.getFullYear();
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    const dy = String(date.getDate()).padStart(2, '0');
+    const dateString = `${yr}-${mo}-${dy}`;
+
+    const filtered = (mTasks || monthTasks).filter(task => {
+      if (task.start_date > dateString || task.end_date < dateString) return false;
+      const project = task.projects;
+      if (!project) return true;
+      const workingDays = project.working_days || [1, 2, 3, 4, 5];
+      const nonWorkingDates = project.non_working_dates || [];
+      if (nonWorkingDates.includes(dateString)) return false;
+      const dateObj = new Date(dateString + 'T00:00:00');
+      const jsDay = dateObj.getDay();
+      const isoDay = jsDay === 0 ? 7 : jsDay;
+      return workingDays.includes(isoDay);
+    });
+
+    setDayTasks(filtered);
+    // Auto-expand all projects
+    const projects = {};
+    filtered.forEach(task => {
+      const name = task.projects?.name || 'Unknown Project';
+      projects[name] = true;
+    });
+    setExpandedProjects(projects);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadTasks();
+    await loadMonthData(currentMonth);
     setRefreshing(false);
   };
 
@@ -106,16 +165,16 @@ export default function WorkerScheduleScreen({ navigation }) {
       if (task.status === 'completed') {
         const result = await uncompleteTask(task.id);
         if (result) {
-          setTasks(prev => prev.map(t =>
-            t.id === task.id ? { ...t, status: 'pending', completed_at: null, completed_by: null } : t
-          ));
+          const update = t => ({ ...t, status: 'pending', completed_at: null, completed_by: null });
+          setDayTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
+          setMonthTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
         }
       } else {
         const result = await completeTask(task.id, workerId);
         if (result) {
-          setTasks(prev => prev.map(t =>
-            t.id === task.id ? { ...t, status: 'completed', completed_at: new Date().toISOString(), completed_by: workerId } : t
-          ));
+          const update = t => ({ ...t, status: 'completed', completed_at: new Date().toISOString(), completed_by: workerId });
+          setDayTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
+          setMonthTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
         }
       }
     } catch (error) {
@@ -123,47 +182,29 @@ export default function WorkerScheduleScreen({ navigation }) {
     }
   };
 
-  const handleLongPressTask = (task) => {
+  const handleMoveTask = (task) => {
     setSelectedTask(task);
     setMoveModalVisible(true);
   };
 
   const handleTaskMoved = () => {
-    loadTasks();
+    loadMonthData(currentMonth);
   };
 
-  const formatDateHeader = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const selected = new Date(selectedDate);
-    selected.setHours(0, 0, 0, 0);
-
-    if (selected.getTime() === today.getTime()) {
-      return t('schedule.todaysTasks');
-    }
-
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    if (selected.getTime() === tomorrow.getTime()) {
-      return t('schedule.tomorrowsTasks');
-    }
-
-    return selectedDate.toLocaleDateString(undefined, {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  // Group tasks by project
-  const groupedTasks = tasks.reduce((acc, task) => {
-    const projectName = task.projects?.name || t('history.unknownProject');
-    if (!acc[projectName]) {
-      acc[projectName] = [];
-    }
+  // Group day tasks by project
+  const groupedTasks = dayTasks.reduce((acc, task) => {
+    const projectName = task.projects?.name || 'Unknown Project';
+    if (!acc[projectName]) acc[projectName] = [];
     acc[projectName].push(task);
     return acc;
   }, {});
+
+  const selectedDateString = (() => {
+    const y = selectedDate.getFullYear();
+    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const d = String(selectedDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  })();
 
   if (loading) {
     return (
@@ -185,7 +226,7 @@ export default function WorkerScheduleScreen({ navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Schedule</Text>
+        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('schedule.title')}</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
           <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
         </TouchableOpacity>
@@ -199,111 +240,161 @@ export default function WorkerScheduleScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryBlue} />
         }
       >
-        {/* Weekly Calendar */}
-        <View style={[styles.calendarCard, { backgroundColor: Colors.white }]}>
-          <WeeklyCalendar
-            selectedDate={selectedDate}
+        {/* Month Calendar */}
+        <View style={[styles.calendarContainer, { backgroundColor: Colors.white }]}>
+          <AppleCalendarMonth
+            currentMonth={currentMonth}
+            selectedDate={selectedDateString}
             onDateSelect={handleDateSelect}
+            onMonthChange={(newMonth) => setCurrentMonth(newMonth)}
+            tasks={monthTasks}
+            events={[]}
             theme={{
               primaryBlue: Colors.primaryBlue,
               primaryText: Colors.primaryText,
               secondaryText: Colors.secondaryText,
               white: Colors.white,
               border: Colors.border,
+              lightGray: Colors.lightGray,
+              errorRed: Colors.errorRed,
             }}
-            eventDates={taskDates}
           />
         </View>
 
-        {/* Tasks Section */}
-        <View style={styles.tasksSection}>
-          <View style={styles.tasksSectionHeader}>
-            <Ionicons name="checkbox-outline" size={22} color={Colors.primaryBlue} />
-            <Text style={[styles.tasksSectionTitle, { color: Colors.primaryText }]}>
-              {formatDateHeader()}
-            </Text>
-            {tasks.length > 0 && (
-              <View style={[styles.taskCountBadge, { backgroundColor: Colors.primaryBlue }]}>
-                <Text style={styles.taskCountText}>{tasks.length}</Text>
-              </View>
-            )}
-          </View>
+        {/* Day Detail Section */}
+        <View style={styles.dayDetailSection}>
+          {/* Date Header */}
+          <Text style={[styles.dayDetailDate, { color: Colors.primaryText }]}>
+            {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </Text>
 
-          {tasks.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: Colors.white }]}>
-              <Ionicons name="calendar-outline" size={48} color={Colors.secondaryText} />
-              <Text style={[styles.emptyStateTitle, { color: Colors.primaryText }]}>
-                {t('schedule.noTasksScheduled')}
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
-                {t('schedule.checkBackLater')}
-              </Text>
+          {/* Loading */}
+          {scheduleLoading && (
+            <View style={{ paddingTop: 16 }}>
+              <ActivityIndicator size="small" color={Colors.primaryBlue} />
             </View>
-          ) : (
-            Object.entries(groupedTasks).map(([projectName, projectTasks]) => (
-              <View key={projectName} style={styles.projectGroup}>
-                <View style={[styles.projectHeader, { backgroundColor: Colors.white, borderLeftWidth: 4, borderLeftColor: Colors.primaryBlue, borderWidth: 1, borderColor: Colors.border }]}>
-                  <Ionicons name="business-outline" size={18} color={Colors.primaryBlue} />
-                  <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-                    {projectName}
+          )}
+
+          {/* Tasks Section */}
+          {!scheduleLoading && (
+            <View style={styles.scheduleCategory}>
+              <Text style={[styles.categoryLabel, { color: Colors.warningOrange }]}>
+                Tasks
+              </Text>
+
+              {dayTasks.length === 0 ? (
+                <View style={[styles.emptyState, { backgroundColor: Colors.white }]}>
+                  <Ionicons name="calendar-outline" size={64} color={Colors.secondaryText} />
+                  <Text style={[styles.emptyStateTitle, { color: Colors.primaryText }]}>
+                    {t('schedule.noTasksScheduled', 'Nothing Scheduled')}
+                  </Text>
+                  <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
+                    {t('schedule.checkBackLater', 'No tasks scheduled for this day')}
                   </Text>
                 </View>
-
-                <View style={[styles.tasksList, { backgroundColor: Colors.white }]}>
-                  {projectTasks.map((task, index) => (
-                    <TouchableOpacity
-                      key={task.id}
-                      style={[
-                        styles.taskItem,
-                        { borderBottomColor: Colors.border },
-                        index === projectTasks.length - 1 && { borderBottomWidth: 0 }
-                      ]}
-                      onPress={() => {
-                        setDetailTask(task);
-                        setShowTaskDetailModal(true);
-                      }}
-                      onLongPress={() => handleLongPressTask(task)}
-                      delayLongPress={400}
-                      activeOpacity={0.7}
-                    >
+              ) : (
+                Object.entries(groupedTasks).map(([projectName, tasks]) => {
+                  const isExpanded = expandedProjects[projectName];
+                  const completedCount = tasks.filter(t => t.status === 'completed').length;
+                  return (
+                    <View key={projectName} style={styles.projectGroup}>
                       <TouchableOpacity
-                        style={styles.taskCheckbox}
-                        onPress={() => handleToggleTask(task)}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={[styles.projectHeader, { backgroundColor: Colors.white, borderLeftWidth: 4, borderLeftColor: Colors.warningOrange, borderWidth: 1, borderColor: Colors.border }]}
+                        onPress={() => setExpandedProjects(prev => ({ ...prev, [projectName]: !prev[projectName] }))}
+                        activeOpacity={0.7}
                       >
+                        <Ionicons name="business-outline" size={18} color={Colors.warningOrange} />
+                        <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>
+                          {projectName}
+                        </Text>
+                        <Text style={{ color: Colors.secondaryText, fontSize: 13, fontWeight: '500', marginRight: 8 }}>
+                          {completedCount}/{tasks.length}
+                        </Text>
                         <Ionicons
-                          name={task.status === 'completed' ? 'checkbox' : 'square-outline'}
-                          size={24}
-                          color={task.status === 'completed' ? Colors.successGreen : Colors.secondaryText}
+                          name={isExpanded ? 'chevron-down' : 'chevron-forward'}
+                          size={20}
+                          color={Colors.secondaryText}
                         />
                       </TouchableOpacity>
-                      <View style={styles.taskContent}>
-                        <Text style={[
-                          styles.taskTitle,
-                          { color: Colors.primaryText },
-                          task.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
-                        ]}>
-                          {task.title}
-                        </Text>
-                        {task.description && (
-                          <Text style={[styles.taskDescription, { color: Colors.secondaryText }]} numberOfLines={2}>
-                            {task.description}
-                          </Text>
-                        )}
-                        {task.start_date !== task.end_date && (
-                          <View style={styles.taskMeta}>
-                            <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
-                            <Text style={[styles.taskMetaText, { color: Colors.secondaryText }]}>
-                              {t('schedule.dueDate', { date: new Date(task.end_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ))
+
+                      {isExpanded && (
+                        <View style={[styles.tasksDropdown, { backgroundColor: (Colors.lightGray || '#F3F4F6') + '40' }]}>
+                          {tasks.map((task) => (
+                            <TouchableOpacity
+                              key={task.id}
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                setDetailTask(task);
+                                setShowTaskDetailModal(true);
+                              }}
+                              onLongPress={() => handleMoveTask(task)}
+                              delayLongPress={400}
+                              style={[styles.taskCard, { backgroundColor: Colors.white, borderLeftColor: Colors.warningOrange }]}
+                            >
+                              <View style={styles.taskCardContent}>
+                                <TouchableOpacity
+                                  style={styles.taskCheckbox}
+                                  onPress={() => handleToggleTask(task)}
+                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                  <Ionicons
+                                    name={task.status === 'completed' ? 'checkbox' : task.status === 'incomplete' ? 'close-circle' : 'square-outline'}
+                                    size={22}
+                                    color={task.status === 'completed' ? Colors.successGreen : task.status === 'incomplete' ? Colors.errorRed : Colors.secondaryText}
+                                  />
+                                </TouchableOpacity>
+                                <View style={styles.taskDetails}>
+                                  <Text style={[
+                                    styles.taskTitle,
+                                    { color: Colors.primaryText },
+                                    task.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
+                                  ]}>
+                                    {task.title}
+                                  </Text>
+                                  {task.description && (
+                                    <Text style={[styles.taskDescription, { color: Colors.secondaryText }]} numberOfLines={2}>
+                                      {task.description}
+                                    </Text>
+                                  )}
+                                  <View style={styles.taskMeta}>
+                                    {task.start_date !== task.end_date && (
+                                      <View style={[styles.taskDateBadge, { backgroundColor: Colors.lightGray || '#F3F4F6' }]}>
+                                        <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
+                                        <Text style={[styles.taskDateText, { color: Colors.secondaryText }]}>
+                                          {new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                          {' - '}
+                                          {new Date(task.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </Text>
+                                      </View>
+                                    )}
+                                    {task.status === 'incomplete' && task.incomplete_reason && (
+                                      <View style={[styles.taskIncompleteBadge, { backgroundColor: Colors.errorRed + '15' }]}>
+                                        <Ionicons name="alert-circle" size={12} color={Colors.errorRed} />
+                                        <Text style={{ fontSize: 11, color: Colors.errorRed }} numberOfLines={1}>
+                                          {task.incomplete_reason}
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
+                                {/* Move action */}
+                                <TouchableOpacity
+                                  style={styles.taskActionButton}
+                                  onPress={() => handleMoveTask(task)}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  <Ionicons name="swap-horizontal-outline" size={18} color={Colors.primaryBlue} />
+                                </TouchableOpacity>
+                              </View>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -366,39 +457,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 100,
   },
-  calendarCard: {
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 16,
+  calendarContainer: {
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  tasksSection: {
-    marginTop: 8,
+  dayDetailSection: {
+    marginTop: 16,
+    marginBottom: 20,
   },
-  tasksSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  dayDetailDate: {
+    fontSize: 20,
+    fontWeight: '700',
     marginBottom: 16,
   },
-  tasksSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    flex: 1,
+  scheduleCategory: {
+    marginBottom: 16,
   },
-  taskCountBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  taskCountText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+  categoryLabel: {
+    fontSize: 14,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
   },
   emptyState: {
     alignItems: 'center',
@@ -408,70 +494,92 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyStateTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    marginTop: 8,
+    marginTop: 12,
   },
   emptyStateSubtext: {
     fontSize: 14,
     textAlign: 'center',
   },
   projectGroup: {
-    marginBottom: 16,
+    marginBottom: 12,
     borderRadius: 14,
     overflow: 'hidden',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
   },
   projectHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 25,
+    paddingVertical: 14,
     borderRadius: 14,
-    marginBottom: 0,
   },
   projectName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
+    flex: 1,
   },
-  tasksList: {
-    borderRadius: 12,
-    overflow: 'hidden',
+  tasksDropdown: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
   },
-  taskItem: {
+  taskCard: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 6,
+    borderLeftWidth: 3,
+  },
+  taskCardContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 14,
-    borderBottomWidth: 1,
   },
   taskCheckbox: {
-    marginRight: 12,
-    marginTop: 2,
+    marginRight: 10,
+    marginTop: 1,
   },
-  taskContent: {
+  taskDetails: {
     flex: 1,
   },
   taskTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
   },
   taskDescription: {
-    fontSize: 14,
-    marginTop: 4,
-    lineHeight: 20,
+    fontSize: 13,
+    marginTop: 3,
+    lineHeight: 18,
   },
   taskMeta: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: 8,
   },
-  taskMetaText: {
-    fontSize: 12,
+  taskDateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  taskDateText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  taskIncompleteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  taskActionButton: {
+    padding: 6,
+    marginLeft: 4,
   },
 });

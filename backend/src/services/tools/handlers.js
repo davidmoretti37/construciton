@@ -2447,13 +2447,24 @@ async function add_project_checklist(userId, { project_id, items }) {
     return { error: 'No checklist items provided. Please provide an array of task descriptions.' };
   }
 
+  // Get project end date so tasks show on the schedule until project ends
+  const { data: projectData } = await supabase
+    .from('projects')
+    .select('name, end_date')
+    .eq('id', resolved.id)
+    .single();
+
+  const taskStartDate = today();
+  // Use project end_date if available, otherwise 30 days from now
+  const taskEndDate = projectData?.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   // Create standalone worker_tasks (appear in Additional Tasks section)
   const workerTasks = items.map((desc) => ({
     owner_id: userId,
     project_id: resolved.id,
     title: typeof desc === 'string' ? desc : desc.description || 'Untitled task',
-    start_date: today(),
-    end_date: today(),
+    start_date: taskStartDate,
+    end_date: taskEndDate,
     status: 'pending',
   }));
 
@@ -2473,17 +2484,10 @@ async function add_project_checklist(userId, { project_id, items }) {
     .update({ updated_at: new Date().toISOString() })
     .eq('id', resolved.id);
 
-  // Get project name for response
-  const { data: proj } = await supabase
-    .from('projects')
-    .select('name')
-    .eq('id', resolved.id)
-    .single();
-
   return {
     success: true,
     project_id: resolved.id,
-    project_name: proj?.name,
+    project_name: projectData?.name,
     items_added: insertedTasks.length,
     items: insertedTasks.map(t => t.title),
   };

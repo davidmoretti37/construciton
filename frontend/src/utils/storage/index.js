@@ -285,6 +285,7 @@ export {
   deleteTask,
   fetchAllTasks,
   fetchTasksForWorker,
+  fetchTasksForWorkerDateRange,
   syncProjectTasksToCalendar,
   syncAllProjectTasksToCalendar,
   isWorkingDay,
