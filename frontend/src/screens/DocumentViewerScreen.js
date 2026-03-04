@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useTranslation } from 'react-i18next';
 import { getColors, Spacing, FontSizes, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -45,12 +46,17 @@ export default function DocumentViewerScreen({ route, navigation }) {
   const handleShare = async () => {
     try {
       const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable && fileUrl) {
-        await Sharing.shareAsync(fileUrl, {
-          mimeType: isPDF ? 'application/pdf' : 'image/*',
-          dialogTitle: `Share ${fileName}`,
-        });
-      }
+      if (!isAvailable || !fileUrl) return;
+
+      // Download to a local temp file first — Sharing.shareAsync needs a local URI
+      const fileExt = isPDF ? 'pdf' : fileName.split('.').pop() || 'jpg';
+      const localUri = FileSystem.cacheDirectory + `share_${Date.now()}.${fileExt}`;
+      const { uri } = await FileSystem.downloadAsync(fileUrl, localUri);
+
+      await Sharing.shareAsync(uri, {
+        mimeType: isPDF ? 'application/pdf' : 'image/*',
+        dialogTitle: `Share ${fileName}`,
+      });
     } catch (err) {
       console.error('Error sharing:', err);
     }
