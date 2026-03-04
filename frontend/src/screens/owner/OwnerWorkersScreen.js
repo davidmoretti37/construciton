@@ -74,27 +74,27 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
         {isClockedIn && <View style={styles.clockedInDot} />}
       </View>
 
-      <View style={styles.supervisorInfo}>
-        <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
+      <View style={styles.cardInfo}>
+        <Text style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
           {supervisor.business_name || supervisor.email?.split('@')[0] || 'Supervisor'}
         </Text>
         {isClockedIn && (
           <View style={styles.clockedInRow}>
-            <Ionicons name="time" size={12} color={OWNER_COLORS.success} />
+            <View style={styles.clockedInPulse} />
             <Text style={[styles.clockedInText, { color: OWNER_COLORS.success }]} numberOfLines={1}>
-              On: {supervisor.clocked_in_project_name}
+              {supervisor.clocked_in_project_name}
             </Text>
           </View>
         )}
-        <View style={styles.supervisorStats}>
+        <View style={styles.cardStats}>
           <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
-            <Ionicons name="briefcase" size={12} color={OWNER_COLORS.primaryLight} />
+            <Ionicons name="briefcase" size={11} color={OWNER_COLORS.primaryLight} />
             <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
               {supervisor.active_project_count || 0} {tOwner('supervisors.jobs')}
             </Text>
           </View>
           <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
-            <Ionicons name="people" size={12} color={OWNER_COLORS.success} />
+            <Ionicons name="people" size={11} color={OWNER_COLORS.success} />
             <Text style={[styles.statBadgeText, { color: OWNER_COLORS.success }]}>
               {supervisor.worker_count || 0} {tOwner('supervisors.workers')}
             </Text>
@@ -137,27 +137,24 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
         {isClockedIn && <View style={styles.clockedInDot} />}
       </View>
 
-      <View style={styles.supervisorInfo}>
-        <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
+      <View style={styles.cardInfo}>
+        <Text style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
           {worker.full_name || 'Worker'}
         </Text>
+        {worker.trade && (
+          <Text style={[styles.cardSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
+            {worker.trade}
+          </Text>
+        )}
         {isClockedIn && (
           <View style={styles.clockedInRow}>
-            <Ionicons name="time" size={12} color={OWNER_COLORS.success} />
+            <View style={styles.clockedInPulse} />
             <Text style={[styles.clockedInText, { color: OWNER_COLORS.success }]} numberOfLines={1}>
-              On: {worker.clocked_in_project_name}
+              {worker.clocked_in_project_name}
             </Text>
           </View>
         )}
-        {worker.trade && !isClockedIn && (
-          <View style={styles.workerTradeRow}>
-            <Ionicons name="construct-outline" size={12} color={Colors.secondaryText} />
-            <Text style={[styles.supervisorEmail, { color: Colors.secondaryText, marginBottom: 0 }]} numberOfLines={1}>
-              {worker.trade}
-            </Text>
-          </View>
-        )}
-        <View style={styles.supervisorStats}>
+        <View style={styles.cardStats}>
           {(worker.assignment_count || 0) > 0 && (
             <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
               <Ionicons name="briefcase" size={12} color={OWNER_COLORS.primaryLight} />
@@ -1285,9 +1282,11 @@ const styles = StyleSheet.create({
   supervisorCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.lg,
+    padding: Spacing.md,
+    paddingVertical: 14,
     borderRadius: BorderRadius.xl,
     marginBottom: Spacing.md,
+    gap: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -1326,6 +1325,12 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
+  clockedInPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: OWNER_COLORS.success,
+  },
   clockedInDot: {
     position: 'absolute',
     bottom: 0,
@@ -1340,14 +1345,26 @@ const styles = StyleSheet.create({
   clockedInRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
+    gap: 6,
+    marginTop: 2,
   },
   clockedInText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
     flex: 1,
   },
+  cardInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  cardName: {
+    fontSize: FontSizes.body,
+    fontWeight: '700',
+  },
+  cardSubtitle: {
+    fontSize: 13,
+  },
+  // Legacy aliases
   supervisorInfo: {
     flex: 1,
   },
@@ -1360,6 +1377,12 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     marginBottom: Spacing.sm,
   },
+  cardStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
   supervisorStats: {
     flexDirection: 'row',
     gap: Spacing.sm,
@@ -1367,13 +1390,13 @@ const styles = StyleSheet.create({
   statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
   },
   statBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   chevronContainer: {
