@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { memoryService } from '../services/agents/core/MemoryService';
 import {
@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }) => {
   // Owner/Supervisor hierarchy state
   const [ownerId, setOwnerIdState] = useState(null); // For supervisors - their owner's ID
   const [ownerHidesContract, setOwnerHidesContract] = useState(false); // Owner's setting for supervisors
+  const profileRef = useRef(null); // Mirrors profile state — avoids stale closure in loadUserProfile
 
   useEffect(() => {
     // Load cached profile first for instant UI
@@ -55,6 +56,7 @@ export const AuthProvider = ({ children }) => {
         if (cachedProfile) {
           console.log('🔐 AuthContext - Loaded cached profile:', { isStale });
           setProfile(cachedProfile);
+          profileRef.current = cachedProfile;
           setRoleState(cachedProfile?.role || null);
           setOwnerIdState(cachedProfile?.owner_id || null);
           setIsUsingCache(true);
@@ -86,12 +88,17 @@ export const AuthProvider = ({ children }) => {
         setUser(session?.user || null);
 
         if (session?.user) {
+          // Skip redundant profile load on token refresh if profile already loaded
+          if (event === 'TOKEN_REFRESHED' && profileRef.current) {
+            return;
+          }
           await loadUserProfile(session.user.id);
         } else {
           // User logged out - clear all state
           setRoleState(null);
           setOwnerIdState(null);
           setProfile(null);
+          profileRef.current = null;
           setIsLoading(false);
           setLoadError(null);
           setIsUsingCache(false);
@@ -108,7 +115,7 @@ export const AuthProvider = ({ children }) => {
 
   const loadUserProfile = async (userId, retryCount = 0) => {
     const MAX_RETRIES = 2;
-    const TIMEOUT_MS = 3000; // Increased to 3s per attempt
+    const TIMEOUT_MS = 5000; // 5s per attempt
 
     try {
       console.log('🔐 AuthContext - Loading profile for user:', userId, retryCount > 0 ? `(retry ${retryCount})` : '');
@@ -132,7 +139,7 @@ export const AuthProvider = ({ children }) => {
       if (error) {
         console.error('🔐 AuthContext - Error loading profile:', error);
         // If we have a cached profile, keep using it; otherwise set error
-        if (!profile) {
+        if (!profileRef.current) {
           setLoadError('Failed to load profile');
         }
       } else if (!data) {
@@ -194,6 +201,7 @@ export const AuthProvider = ({ children }) => {
         setRoleState(data?.role || null);
         setOwnerIdState(data?.owner_id || null);
         setProfile(data);
+        profileRef.current = data;
         setIsUsingCache(false);
         setLoadError(null);
 
@@ -231,6 +239,7 @@ export const AuthProvider = ({ children }) => {
         setRoleState(data?.role || null);
         setOwnerIdState(data?.owner_id || null); // Track owner_id for supervisors
         setProfile(data);
+        profileRef.current = data;
         setIsUsingCache(false);
         setLoadError(null);
 
@@ -266,7 +275,7 @@ export const AuthProvider = ({ children }) => {
       // Check if it was a timeout
       if (error.message === 'TIMEOUT') {
         // If we have a cached profile, don't retry - just use cache silently
-        if (profile) {
+        if (profileRef.current) {
           console.log('🔐 AuthContext - Timeout but using cached profile');
           setIsLoading(false);
           return;
@@ -280,7 +289,7 @@ export const AuthProvider = ({ children }) => {
 
       console.error('🔐 AuthContext - Error loading profile:', error);
       // If we have a cached profile, keep using it
-      if (!profile) {
+      if (!profileRef.current) {
         setLoadError('Connection timed out');
       }
       setIsLoading(false);
