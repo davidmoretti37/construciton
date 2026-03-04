@@ -20,6 +20,9 @@ import ProjectTransactionsScreen from '../screens/ProjectTransactionsScreen';
 import TransactionEntryScreen from '../screens/TransactionEntryScreen';
 import TransactionDetailScreen from '../screens/TransactionDetailScreen';
 
+// Import document viewer
+import DocumentViewerScreen from '../screens/DocumentViewerScreen';
+
 // Import workers screen
 import WorkersScreen from '../screens/WorkersScreen';
 import WorkerDetailHistoryScreen from '../screens/WorkerDetailHistoryScreen';
@@ -228,6 +231,13 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="RecurringExpenses"
         component={RecurringExpenseScreen}
+      />
+
+      {/* Document Viewer */}
+      <Stack.Screen
+        name="DocumentViewer"
+        component={DocumentViewerScreen}
+        options={{ headerShown: false, presentation: 'modal' }}
       />
 
       {/* Bank Integration Screens */}
