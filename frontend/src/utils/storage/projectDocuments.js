@@ -55,18 +55,14 @@ export const uploadProjectDocument = async (projectId, fileUri, fileName, fileTy
       throw uploadError;
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('project-documents')
-      .getPublicUrl(filePath);
-
+    // Store the storage path (signed URLs generated on demand when viewing)
     // Save document record to database
     const { data, error: dbError } = await supabase
       .from('project_documents')
       .insert({
         project_id: projectId,
         file_name: fileName || `Document ${timestamp}`,
-        file_url: publicUrl,
+        file_url: filePath,
         file_type: fileType,
         category: category,
         uploaded_by: userId,
@@ -84,6 +80,28 @@ export const uploadProjectDocument = async (projectId, fileUri, fileName, fileTy
     return data;
   } catch (error) {
     console.error('Error uploading project document:', error);
+    return null;
+  }
+};
+
+/**
+ * Get a signed URL for a document storage path
+ * @param {string} filePath - Storage path (e.g., "userId/projectId/timestamp.pdf")
+ * @returns {Promise<string|null>} Signed URL or null on error
+ */
+export const getDocumentUrl = async (filePath) => {
+  try {
+    const { data, error } = await supabase.storage
+      .from('project-documents')
+      .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+    if (error) {
+      console.error('Error creating signed URL:', error);
+      return null;
+    }
+    return data.signedUrl;
+  } catch (error) {
+    console.error('Error in getDocumentUrl:', error);
     return null;
   }
 };

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
 } from 'react-native';
@@ -223,10 +224,31 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
     }
   };
 
-  const handleViewDocument = (doc) => {
+  const handleViewDocument = async (doc) => {
+    const { getDocumentUrl } = require('../../utils/storage/projectDocuments');
+    let fileUrl = doc.file_url;
+
+    if (fileUrl && !fileUrl.startsWith('http')) {
+      // New format: storage path → generate signed URL
+      fileUrl = await getDocumentUrl(doc.file_url);
+    } else if (fileUrl && fileUrl.includes('/project-documents/')) {
+      // Old format: public URL that may not be accessible → extract path and sign it
+      const pathMatch = fileUrl.split('/project-documents/')[1];
+      if (pathMatch) {
+        const signedUrl = await getDocumentUrl(pathMatch);
+        if (signedUrl) fileUrl = signedUrl;
+      }
+    }
+
+    if (!fileUrl) {
+      Alert.alert('Error', 'Could not load document.');
+      return;
+    }
+
     navigation.navigate('DocumentViewer', {
-      fileUrl: doc.file_url,
+      fileUrl,
       fileName: doc.file_name,
+      fileType: doc.file_type,
       projectName: project.name,
     });
   };

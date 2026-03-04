@@ -867,6 +867,7 @@ export default function ChatScreen({ navigation, route }) {
     // Process attachments: images go directly to Claude as vision blocks, PDFs use text extraction
     let enhancedText = text || '';
     let imageAttachments = [];
+    let rawAttachmentsForUpload = [];
     if (attachments && attachments.length > 0) {
       const images = attachments.filter(att => att.mimeType?.startsWith('image/'));
       const nonImages = attachments.filter(att => !att.mimeType?.startsWith('image/'));
@@ -899,6 +900,25 @@ export default function ChatScreen({ navigation, route }) {
       // If only images and no text, set a default prompt
       if (images.length > 0 && !text?.trim() && nonImages.length === 0) {
         enhancedText = 'Analyze this image. If it\'s a receipt or invoice, extract the details and record the expense.';
+      }
+
+      // Collect raw attachment data for upload tool (images already have base64, read PDFs too)
+      for (const att of images) {
+        const base64 = att.base64 || imageAttachments.find(ia => ia.mimeType === att.mimeType)?.base64;
+        if (base64) {
+          rawAttachmentsForUpload.push({ name: att.name || att.fileName || 'image.jpg', mimeType: att.mimeType || 'image/jpeg', base64 });
+        }
+      }
+      for (const att of nonImages) {
+        try {
+          const base64 = att.base64 || await (async () => {
+            const FileSystem = require('expo-file-system/legacy');
+            return FileSystem.readAsStringAsync(att.uri, { encoding: FileSystem.EncodingType.Base64 });
+          })();
+          rawAttachmentsForUpload.push({ name: att.name || att.fileName || 'document.pdf', mimeType: att.mimeType || 'application/pdf', base64 });
+        } catch (e) {
+          console.error('Error reading attachment base64 for upload:', e);
+        }
       }
     }
 
@@ -954,7 +974,7 @@ export default function ChatScreen({ navigation, route }) {
         enhancedText,
         agentContext,
         imageAttachments,
-        {
+        {  // callbacks object:
         // onJobId callback - Track background job for resume on disconnect
         onJobId: (jobId) => {
           activeJobIdRef.current = jobId;
@@ -1476,7 +1496,8 @@ export default function ChatScreen({ navigation, route }) {
             setShowCardSkeleton(true);
           }
         }
-        }
+        },
+        rawAttachmentsForUpload
       );
     } catch (error) {
       console.error('Error calling AI:', error);

@@ -3575,6 +3575,214 @@ async function get_recurring_expenses(userId, args = {}) {
   };
 }
 
+// ==================== DOCUMENT MANAGEMENT ====================
+
+async function get_project_documents(userId, args) {
+  const { project_id, category } = args;
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+
+  let query = supabase
+    .from('project_documents')
+    .select('id, file_name, file_type, category, notes, visible_to_workers, created_at')
+    .eq('project_id', resolved.id)
+    .order('created_at', { ascending: false });
+
+  if (category) {
+    query = query.eq('category', category);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    logger.error('get_project_documents error:', error);
+    return { error: 'Failed to fetch documents' };
+  }
+
+  return {
+    documents: (data || []).map(d => ({
+      id: d.id,
+      fileName: d.file_name,
+      fileType: d.file_type,
+      category: d.category,
+      notes: d.notes,
+      visibleToWorkers: d.visible_to_workers,
+      createdAt: d.created_at,
+    })),
+    count: (data || []).length,
+  };
+}
+
+async function upload_project_document(userId, args) {
+  const { project_id, category = 'general', visible_to_workers = false } = args;
+  const attachments = args._attachments;
+
+  if (!attachments || attachments.length === 0) {
+    return { error: 'No files attached. Please attach files to your message and try again.' };
+  }
+
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+
+  const uploaded = [];
+  const failed = [];
+
+  for (const att of attachments) {
+    try {
+      const fileName = att.name || `Document_${Date.now()}`;
+      const fileExt = fileName.split('.').pop()?.toLowerCase() || 'bin';
+      const timestamp = Date.now();
+      const filePath = `${userId}/${resolved.id}/${timestamp}.${fileExt}`;
+
+      // Determine content type and file_type
+      const mimeType = att.mimeType || 'application/octet-stream';
+      let fileType = 'document';
+      if (mimeType.startsWith('image/')) fileType = 'image';
+      else if (mimeType === 'application/pdf' || fileExt === 'pdf') fileType = 'pdf';
+
+      // Decode base64 and upload to Supabase storage
+      const binaryString = Buffer.from(att.base64, 'base64');
+
+      const { error: uploadError } = await supabase.storage
+        .from('project-documents')
+        .upload(filePath, binaryString, {
+          contentType: mimeType,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        logger.error('Document upload error:', uploadError);
+        failed.push({ fileName, error: uploadError.message });
+        continue;
+      }
+
+      // Create database record
+      const { data: doc, error: dbError } = await supabase
+        .from('project_documents')
+        .insert({
+          project_id: resolved.id,
+          file_name: args.file_name || fileName,
+          file_url: filePath,
+          file_type: fileType,
+          category,
+          uploaded_by: userId,
+          visible_to_workers,
+        })
+        .select('id, file_name, file_type, category')
+        .single();
+
+      if (dbError) {
+        logger.error('Document DB insert error:', dbError);
+        failed.push({ fileName, error: dbError.message });
+        continue;
+      }
+
+      uploaded.push(doc);
+    } catch (err) {
+      logger.error('Document upload exception:', err);
+      failed.push({ fileName: att.name, error: err.message });
+    }
+  }
+
+  return {
+    uploaded: uploaded.map(d => ({ id: d.id, fileName: d.file_name, fileType: d.file_type, category: d.category })),
+    uploadedCount: uploaded.length,
+    failedCount: failed.length,
+    failed: failed.length > 0 ? failed : undefined,
+  };
+}
+
+async function update_project_document(userId, args) {
+  const { document_id, file_name, category, visible_to_workers } = args;
+  if (!document_id) return { error: 'document_id is required' };
+
+  // Verify ownership via project join
+  const { data: doc, error: fetchError } = await supabase
+    .from('project_documents')
+    .select('id, project_id, projects!inner(user_id, assigned_supervisor_id)')
+    .eq('id', document_id)
+    .single();
+
+  if (fetchError || !doc) return { error: 'Document not found' };
+  if (doc.projects.user_id !== userId && doc.projects.assigned_supervisor_id !== userId) {
+    return { error: 'You do not have permission to update this document' };
+  }
+
+  const updates = {};
+  if (file_name !== undefined) updates.file_name = file_name;
+  if (category !== undefined) updates.category = category;
+  if (visible_to_workers !== undefined) updates.visible_to_workers = visible_to_workers;
+
+  if (Object.keys(updates).length === 0) {
+    return { error: 'No fields to update. Provide file_name, category, or visible_to_workers.' };
+  }
+
+  const { data, error } = await supabase
+    .from('project_documents')
+    .update(updates)
+    .eq('id', document_id)
+    .select('id, file_name, file_type, category, visible_to_workers')
+    .single();
+
+  if (error) {
+    logger.error('update_project_document error:', error);
+    return { error: 'Failed to update document' };
+  }
+
+  return {
+    document: {
+      id: data.id,
+      fileName: data.file_name,
+      fileType: data.file_type,
+      category: data.category,
+      visibleToWorkers: data.visible_to_workers,
+    },
+    message: 'Document updated successfully',
+  };
+}
+
+async function delete_project_document(userId, args) {
+  const { document_id } = args;
+  if (!document_id) return { error: 'document_id is required' };
+
+  // Verify ownership and get file path
+  const { data: doc, error: fetchError } = await supabase
+    .from('project_documents')
+    .select('id, file_url, file_name, projects!inner(user_id, assigned_supervisor_id)')
+    .eq('id', document_id)
+    .single();
+
+  if (fetchError || !doc) return { error: 'Document not found' };
+  if (doc.projects.user_id !== userId && doc.projects.assigned_supervisor_id !== userId) {
+    return { error: 'You do not have permission to delete this document' };
+  }
+
+  // Delete from storage if it's a storage path (not a full URL)
+  if (doc.file_url && !doc.file_url.startsWith('http')) {
+    const { error: storageError } = await supabase.storage
+      .from('project-documents')
+      .remove([doc.file_url]);
+
+    if (storageError) {
+      logger.warn('Failed to delete file from storage:', storageError);
+    }
+  }
+
+  // Delete database record
+  const { error: deleteError } = await supabase
+    .from('project_documents')
+    .delete()
+    .eq('id', document_id);
+
+  if (deleteError) {
+    logger.error('delete_project_document error:', deleteError);
+    return { error: 'Failed to delete document' };
+  }
+
+  return { message: `Document "${doc.file_name}" deleted successfully` };
+}
+
 const TOOL_HANDLERS = {
   // Granular tools
   search_projects,
@@ -3627,6 +3835,11 @@ const TOOL_HANDLERS = {
   get_payroll_summary,
   get_cash_flow,
   get_recurring_expenses,
+  // Document management tools
+  get_project_documents,
+  upload_project_document,
+  update_project_document,
+  delete_project_document,
 };
 
 /**

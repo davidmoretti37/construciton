@@ -119,7 +119,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [documentVisibilityModalVisible, setDocumentVisibilityModalVisible] = useState(false);
-  const [pendingDocumentUpload, setPendingDocumentUpload] = useState(null);
+  const [pendingDocumentUploads, setPendingDocumentUploads] = useState([]);
   const [newDocumentVisibleToWorkers, setNewDocumentVisibleToWorkers] = useState(false);
 
   // Working days and task shifting
@@ -738,7 +738,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       });
 
       if (!result.canceled && result.assets[0]) {
-        await uploadDocumentFile(result.assets[0].uri, 'image', `Photo_${Date.now()}.jpg`);
+        setPendingDocumentUploads([{
+          uri: result.assets[0].uri,
+          type: 'image',
+          fileName: `Photo_${Date.now()}.jpg`,
+        }]);
+        setNewDocumentVisibleToWorkers(false);
+        setDocumentVisibilityModalVisible(true);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -762,9 +768,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        for (const asset of result.assets) {
-          await uploadDocumentFile(asset.uri, 'image', asset.fileName || `Image_${Date.now()}.jpg`);
-        }
+        const files = result.assets.map(asset => ({
+          uri: asset.uri,
+          type: 'image',
+          fileName: asset.fileName || `Image_${Date.now()}.jpg`,
+        }));
+        setPendingDocumentUploads(files);
+        setNewDocumentVisibleToWorkers(false);
+        setDocumentVisibilityModalVisible(true);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -780,10 +791,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        for (const asset of result.assets) {
-          const fileType = asset.mimeType?.includes('pdf') ? 'document' : 'image';
-          await uploadDocumentFile(asset.uri, fileType, asset.name);
-        }
+        const files = result.assets.map(asset => ({
+          uri: asset.uri,
+          type: asset.mimeType?.includes('pdf') ? 'pdf' : 'image',
+          fileName: asset.name,
+        }));
+        setPendingDocumentUploads(files);
+        setNewDocumentVisibleToWorkers(false);
+        setDocumentVisibilityModalVisible(true);
       }
     } catch (error) {
       console.error('Error picking document:', error);
@@ -791,42 +806,57 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     }
   };
 
-  const uploadDocumentFile = async (uri, type, fileName) => {
-    // Store pending upload info and show visibility modal
-    setPendingDocumentUpload({ uri, type, fileName });
-    setNewDocumentVisibleToWorkers(false);
-    setDocumentVisibilityModalVisible(true);
-  };
-
   const confirmDocumentUpload = async () => {
-    if (!pendingDocumentUpload) return;
+    if (pendingDocumentUploads.length === 0) return;
 
-    const { uri, type, fileName } = pendingDocumentUpload;
     setDocumentVisibilityModalVisible(false);
 
     try {
       setUploadingDocument(true);
-      const result = await uploadProjectDocument(project.id, uri, fileName, type, 'general', null, newDocumentVisibleToWorkers);
-      if (result) {
-        // Refresh documents list
-        const docs = await fetchProjectDocuments(project.id);
-        setProjectDocuments(docs || []);
-        Alert.alert(t('alerts.success'), t('messages.documentUploaded'));
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const file of pendingDocumentUploads) {
+        const result = await uploadProjectDocument(
+          project.id, file.uri, file.fileName, file.type,
+          'general', null, newDocumentVisibleToWorkers
+        );
+        if (result) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      }
+
+      // Refresh documents list once after all uploads
+      const docs = await fetchProjectDocuments(project.id);
+      setProjectDocuments(docs || []);
+
+      if (failCount === 0) {
+        Alert.alert(
+          t('alerts.success'),
+          successCount === 1
+            ? t('messages.documentUploaded')
+            : `${successCount} documents uploaded successfully.`
+        );
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToUploadDocument'));
+        Alert.alert(
+          t('alerts.error'),
+          `${successCount} uploaded, ${failCount} failed.`
+        );
       }
     } catch (error) {
-      console.error('Error uploading document:', error);
+      console.error('Error uploading documents:', error);
       Alert.alert(t('alerts.error'), t('messages.failedToUploadDocument'));
     } finally {
       setUploadingDocument(false);
-      setPendingDocumentUpload(null);
+      setPendingDocumentUploads([]);
     }
   };
 
   const cancelDocumentUpload = () => {
     setDocumentVisibilityModalVisible(false);
-    setPendingDocumentUpload(null);
+    setPendingDocumentUploads([]);
     setNewDocumentVisibleToWorkers(false);
   };
 
@@ -865,14 +895,35 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     );
   };
 
-  const handleViewDocument = (doc) => {
-    if (navigation) {
-      navigation.navigate('DocumentViewer', {
-        fileUrl: doc.file_url,
-        fileName: doc.file_name,
-        projectName: project.name,
-      });
+  const handleViewDocument = async (doc) => {
+    if (!navigation) return;
+
+    const { getDocumentUrl } = require('../utils/storage/projectDocuments');
+    let fileUrl = doc.file_url;
+
+    if (fileUrl && !fileUrl.startsWith('http')) {
+      // New format: storage path → generate signed URL
+      fileUrl = await getDocumentUrl(doc.file_url);
+    } else if (fileUrl && fileUrl.includes('/project-documents/')) {
+      // Old format: public URL that may not be accessible → extract path and sign it
+      const pathMatch = fileUrl.split('/project-documents/')[1];
+      if (pathMatch) {
+        const signedUrl = await getDocumentUrl(pathMatch);
+        if (signedUrl) fileUrl = signedUrl;
+      }
     }
+
+    if (!fileUrl) {
+      Alert.alert(t('alerts.error'), 'Could not load document.');
+      return;
+    }
+
+    navigation.navigate('DocumentViewer', {
+      fileUrl,
+      fileName: doc.file_name,
+      fileType: doc.file_type,
+      projectName: project.name,
+    });
   };
 
   const statusColor = getStatusColor(project.status);
@@ -1978,7 +2029,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               Upload Document
             </Text>
             <Text style={[styles.visibilityModalSubtitle, { color: Colors.secondaryText }]}>
-              {pendingDocumentUpload?.fileName}
+              {pendingDocumentUploads.length === 1
+                ? pendingDocumentUploads[0]?.fileName
+                : `${pendingDocumentUploads.length} files selected`}
             </Text>
 
             <TouchableOpacity

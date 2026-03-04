@@ -1000,6 +1000,102 @@ const toolDefinitions = [
       }
     }
   },
+  // ==================== PROJECT DOCUMENTS ====================
+  {
+    type: 'function',
+    function: {
+      name: 'get_project_documents',
+      description: "Get all documents uploaded to a project. Use when user asks about project files, blueprints, permits, documents, PDFs, or attachments. Returns document names, types, categories, upload dates, and visibility status.",
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project name or UUID'
+          },
+          category: {
+            type: 'string',
+            enum: ['general', 'scope', 'permit', 'blueprint'],
+            description: 'Optional: filter by document category'
+          }
+        },
+        required: ['project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'upload_project_document',
+      description: "Upload document(s) attached in the current chat message to a project. The user must have attached files (PDFs, images) in this message. Use when user says 'upload this to project X', 'save these documents', or 'add this file to the kitchen project'. If no project is specified, ask which project.",
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project name or UUID to upload documents to'
+          },
+          category: {
+            type: 'string',
+            enum: ['general', 'scope', 'permit', 'blueprint'],
+            description: 'Document category. Defaults to general.'
+          },
+          visible_to_workers: {
+            type: 'boolean',
+            description: 'Whether workers can see these documents. Defaults to false.'
+          }
+        },
+        required: ['project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_project_document',
+      description: "Update a project document's metadata — name, category, or worker visibility. Use when user wants to rename a document, change its category, or toggle visibility.",
+      parameters: {
+        type: 'object',
+        properties: {
+          document_id: {
+            type: 'string',
+            description: 'UUID of the document to update'
+          },
+          file_name: {
+            type: 'string',
+            description: 'New file name'
+          },
+          category: {
+            type: 'string',
+            enum: ['general', 'scope', 'permit', 'blueprint'],
+            description: 'New category'
+          },
+          visible_to_workers: {
+            type: 'boolean',
+            description: 'Whether workers can see this document'
+          }
+        },
+        required: ['document_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_project_document',
+      description: "Delete a document from a project. Removes both the file from storage and the database record. Use when user asks to remove or delete a specific document.",
+      parameters: {
+        type: 'object',
+        properties: {
+          document_id: {
+            type: 'string',
+            description: 'UUID of the document to delete'
+          }
+        },
+        required: ['document_id']
+      }
+    }
+  },
   // ==================== BANK RECONCILIATION ====================
   {
     type: 'function',
@@ -1226,6 +1322,11 @@ const TOOL_STATUS_MESSAGES = {
   get_payroll_summary: 'Calculating payroll...',
   get_cash_flow: 'Analyzing cash flow...',
   get_recurring_expenses: 'Checking recurring expenses...',
+  // Document management tools
+  get_project_documents: 'Fetching project documents...',
+  upload_project_document: 'Uploading documents...',
+  update_project_document: 'Updating document...',
+  delete_project_document: 'Deleting document...',
 };
 
 function getToolStatusMessage(toolName) {

@@ -54,6 +54,7 @@ const OWNER_COLORS = {
 const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
   const initial = supervisor.business_name?.charAt(0)?.toUpperCase() ||
     supervisor.email?.charAt(0)?.toUpperCase() || 'S';
+  const isClockedIn = !!supervisor.clocked_in_project_name;
 
   return (
     <TouchableOpacity
@@ -61,27 +62,35 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <LinearGradient
-        colors={[OWNER_COLORS.primary, OWNER_COLORS.primaryLight]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.avatarGradient}
-      >
-        <Text style={styles.avatarText}>{initial}</Text>
-      </LinearGradient>
+      <View>
+        <LinearGradient
+          colors={[OWNER_COLORS.primary, OWNER_COLORS.primaryLight]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.avatarGradient}
+        >
+          <Text style={styles.avatarText}>{initial}</Text>
+        </LinearGradient>
+        {isClockedIn && <View style={styles.clockedInDot} />}
+      </View>
 
       <View style={styles.supervisorInfo}>
         <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
           {supervisor.business_name || supervisor.email?.split('@')[0] || 'Supervisor'}
         </Text>
-        <Text style={[styles.supervisorEmail, { color: Colors.secondaryText }]} numberOfLines={1}>
-          {supervisor.email}
-        </Text>
+        {isClockedIn && (
+          <View style={styles.clockedInRow}>
+            <Ionicons name="time" size={12} color={OWNER_COLORS.success} />
+            <Text style={[styles.clockedInText, { color: OWNER_COLORS.success }]} numberOfLines={1}>
+              On: {supervisor.clocked_in_project_name}
+            </Text>
+          </View>
+        )}
         <View style={styles.supervisorStats}>
           <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
             <Ionicons name="briefcase" size={12} color={OWNER_COLORS.primaryLight} />
             <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
-              {supervisor.project_count || 0} {tOwner('supervisors.jobs')}
+              {supervisor.active_project_count || 0} {tOwner('supervisors.jobs')}
             </Text>
           </View>
           <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
@@ -104,6 +113,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
 const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
   const initial = worker.full_name?.charAt(0)?.toUpperCase() || 'W';
   const statusColor = worker.status === 'active' ? OWNER_COLORS.success : '#9CA3AF';
+  const isClockedIn = !!worker.clocked_in_project_name;
 
   // Format payment info
   const getPaymentInfo = () => {
@@ -120,15 +130,26 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.workerAvatarContainer, { backgroundColor: statusColor }]}>
-        <Text style={styles.avatarText}>{initial}</Text>
+      <View>
+        <View style={[styles.workerAvatarContainer, { backgroundColor: statusColor }]}>
+          <Text style={styles.avatarText}>{initial}</Text>
+        </View>
+        {isClockedIn && <View style={styles.clockedInDot} />}
       </View>
 
       <View style={styles.supervisorInfo}>
         <Text style={[styles.supervisorName, { color: Colors.primaryText }]} numberOfLines={1}>
           {worker.full_name || 'Worker'}
         </Text>
-        {worker.trade && (
+        {isClockedIn && (
+          <View style={styles.clockedInRow}>
+            <Ionicons name="time" size={12} color={OWNER_COLORS.success} />
+            <Text style={[styles.clockedInText, { color: OWNER_COLORS.success }]} numberOfLines={1}>
+              On: {worker.clocked_in_project_name}
+            </Text>
+          </View>
+        )}
+        {worker.trade && !isClockedIn && (
           <View style={styles.workerTradeRow}>
             <Ionicons name="construct-outline" size={12} color={Colors.secondaryText} />
             <Text style={[styles.supervisorEmail, { color: Colors.secondaryText, marginBottom: 0 }]} numberOfLines={1}>
@@ -137,12 +158,14 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
           </View>
         )}
         <View style={styles.supervisorStats}>
-          <View style={[styles.statBadge, { backgroundColor: `${statusColor}15` }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statBadgeText, { color: statusColor }]}>
-              {worker.status === 'active' ? t('status.active') : t('status.inactive')}
-            </Text>
-          </View>
+          {(worker.assignment_count || 0) > 0 && (
+            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
+              <Ionicons name="briefcase" size={12} color={OWNER_COLORS.primaryLight} />
+              <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
+                {worker.assignment_count} {worker.assignment_count === 1 ? 'job' : 'jobs'}
+              </Text>
+            </View>
+          )}
           {getPaymentInfo() && (
             <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
               <Ionicons name="cash-outline" size={12} color={OWNER_COLORS.primaryLight} />
@@ -282,7 +305,7 @@ export default function OwnerWorkersScreen() {
   });
   const [inviting, setInviting] = useState(false);
 
-  // Fetch supervisors
+  // Fetch supervisors with clock-in status and correct project counts
   const fetchSupervisors = useCallback(async () => {
     if (!user?.id) return;
 
@@ -291,6 +314,7 @@ export default function OwnerWorkersScreen() {
         p_owner_id: user.id,
       });
 
+      let sups = [];
       if (rpcError) {
         const { data: profileData } = await supabase
           .from('profiles')
@@ -298,14 +322,54 @@ export default function OwnerWorkersScreen() {
           .eq('owner_id', user.id)
           .eq('role', 'supervisor');
 
-        setSupervisors(profileData?.map(p => ({
+        sups = profileData?.map(p => ({
           ...p,
           email: p.business_email || '',
           project_count: 0,
           worker_count: 0,
-        })) || []);
+        })) || [];
       } else {
-        setSupervisors(supervisorData || []);
+        sups = supervisorData || [];
+      }
+
+      // Enrich supervisors with clock-in status and correct project counts
+      if (sups.length > 0) {
+        const supIds = sups.map(s => s.id);
+
+        // Fetch active clock-ins from supervisor_time_tracking (clock_out IS NULL)
+        const { data: clockIns } = await supabase
+          .from('supervisor_time_tracking')
+          .select('supervisor_id, project_id, projects:project_id(name)')
+          .in('supervisor_id', supIds)
+          .is('clock_out', null);
+
+        // Build clock-in map: supervisor_id -> project name
+        const clockInMap = {};
+        (clockIns || []).forEach(ci => {
+          clockInMap[ci.supervisor_id] = ci.projects?.name || 'Unknown Job';
+        });
+
+        // Fetch correct active project counts (user_id OR assigned_supervisor_id)
+        const enrichedSups = await Promise.all(sups.map(async (sup) => {
+          const { data: projects } = await supabase
+            .from('projects')
+            .select('id, status')
+            .or(`user_id.eq.${sup.id},assigned_supervisor_id.eq.${sup.id}`);
+
+          const activeCount = (projects || []).filter(
+            p => !['completed', 'cancelled', 'archived'].includes(p.status)
+          ).length;
+
+          return {
+            ...sup,
+            active_project_count: activeCount,
+            clocked_in_project_name: clockInMap[sup.id] || null,
+          };
+        }));
+
+        setSupervisors(enrichedSups);
+      } else {
+        setSupervisors([]);
       }
 
       const { data: inviteData } = await supabase
@@ -324,12 +388,52 @@ export default function OwnerWorkersScreen() {
     }
   }, [user?.id]);
 
-  // Fetch workers for Team tab
+  // Fetch workers for Team tab with clock-in and assignment data
   const fetchWorkers = useCallback(async () => {
     setWorkersLoading(true);
     try {
       const data = await fetchWorkersForOwner();
-      setWorkers(data || []);
+      const workerList = data || [];
+
+      if (workerList.length > 0) {
+        const workerIds = workerList.map(w => w.id);
+
+        // Fetch active clock-ins from time_tracking (clock_out IS NULL)
+        const { data: clockIns } = await supabase
+          .from('time_tracking')
+          .select('worker_id, project_id, projects:project_id(name)')
+          .in('worker_id', workerIds)
+          .is('clock_out', null);
+
+        // Build clock-in map: worker_id -> project name
+        const clockInMap = {};
+        (clockIns || []).forEach(ci => {
+          clockInMap[ci.worker_id] = ci.projects?.name || 'Unknown Job';
+        });
+
+        // Fetch project assignment counts
+        const { data: assignments } = await supabase
+          .from('project_assignments')
+          .select('worker_id')
+          .in('worker_id', workerIds);
+
+        // Build assignment count map
+        const assignmentCountMap = {};
+        (assignments || []).forEach(a => {
+          assignmentCountMap[a.worker_id] = (assignmentCountMap[a.worker_id] || 0) + 1;
+        });
+
+        // Enrich workers
+        const enrichedWorkers = workerList.map(w => ({
+          ...w,
+          clocked_in_project_name: clockInMap[w.id] || null,
+          assignment_count: assignmentCountMap[w.id] || 0,
+        }));
+
+        setWorkers(enrichedWorkers);
+      } else {
+        setWorkers([]);
+      }
     } catch (error) {
       console.log('Worker fetch error:', error);
     } finally {
@@ -1221,6 +1325,28 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+  },
+  clockedInDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: OWNER_COLORS.success,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  clockedInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  clockedInText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
   },
   supervisorInfo: {
     flex: 1,

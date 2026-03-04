@@ -19,6 +19,7 @@ const INTENT_PATTERNS = {
   reports: [/photo/g, /picture/g, /image/g, /\breport\b/g, /daily/g, /documentation/g, /progress pic/g],
   settings: [/setting/g, /business info/g, /profit margin/g, /service catalog/g, /pricing catalog/g, /configure/g],
   bank: [/bank/g, /card/g, /reconcil/g, /unmatched/g, /statement/g, /plaid/g, /csv/g, /bank transaction/g, /card transaction/g],
+  document: [/document/g, /\bfile\b/g, /upload/g, /\bpdf\b/g, /blueprint/g, /permit/g, /attachment/g, /scope of work/g],
 };
 
 // Tool groups for each intent
@@ -34,7 +35,8 @@ const TOOL_GROUPS = {
     'search_projects', 'get_project_details', 'get_project_summary',
     'get_project_financials', 'update_phase_progress', 'delete_project',
     'update_project', 'create_worker_task', 'assign_worker', 'global_search',
-    'add_project_checklist', 'create_project_phase'
+    'add_project_checklist', 'create_project_phase',
+    'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document'
   ],
   worker: [
     'get_workers', 'get_worker_details', 'assign_worker',
@@ -67,6 +69,10 @@ const TOOL_GROUPS = {
     'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
     'search_projects', 'get_transactions', 'get_financial_overview'
   ],
+  document: [
+    'get_project_documents', 'upload_project_document', 'update_project_document',
+    'delete_project_document', 'search_projects', 'get_project_details'
+  ],
   general: [
     'global_search', 'get_daily_briefing', 'get_project_summary',
     'suggest_pricing', 'assign_worker', 'share_document',
@@ -76,7 +82,8 @@ const TOOL_GROUPS = {
     'record_expense', 'update_phase_progress', 'create_worker_task',
     'add_project_checklist', 'create_project_phase',
     'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
-    'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses'
+    'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses',
+    'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document'
   ]
 };
 

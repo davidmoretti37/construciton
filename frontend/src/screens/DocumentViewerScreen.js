@@ -40,7 +40,7 @@ export default function DocumentViewerScreen({ route, navigation }) {
   const isImage = fileType === 'image' ||
     /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileUrl) ||
     fileUrl.includes('image');
-  const isPDF = fileType === 'pdf' || /\.pdf$/i.test(fileUrl);
+  const isPDF = fileType === 'pdf' || fileType === 'document' || /\.pdf$/i.test(fileUrl);
 
   const handleShare = async () => {
     try {

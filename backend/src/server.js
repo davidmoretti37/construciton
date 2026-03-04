@@ -524,7 +524,7 @@ app.post('/api/chat/stream', aiLimiter, authenticateUser, async (req, res) => {
 const { processAgentRequest } = require('./services/agentService');
 
 app.post('/api/chat/agent', aiLimiter, authenticateUser, async (req, res) => {
-  const { messages, context } = req.body;
+  const { messages, context, attachments } = req.body;
   // Use authenticated user ID from JWT, ignore any user_id in body
   const user_id = req.user.id;
 
@@ -565,7 +565,7 @@ app.post('/api/chat/agent', aiLimiter, authenticateUser, async (req, res) => {
   // When client disconnects, the loop continues (writes to DB instead of SSE).
   // The await resolves when the loop finishes, then we close the response.
   try {
-    await processAgentRequest(messages, user_id, context || {}, res, req, jobId);
+    await processAgentRequest(messages, user_id, context || {}, res, req, jobId, attachments);
   } catch (error) {
     logger.error('Agent processing error:', error);
     const message = error.isTimeout ? 'Agent timed out. Please try again.' : error.message;

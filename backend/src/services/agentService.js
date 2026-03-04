@@ -394,7 +394,7 @@ function rememberToolResult(userId, toolName, args, result) {
  * @param {object} req - Express request object for disconnect detection
  * @param {string} jobId - Agent job ID for persistence
  */
-async function processAgentRequest(userMessages, userId, userContext, res, req, jobId) {
+async function processAgentRequest(userMessages, userId, userContext, res, req, jobId, attachments) {
   const startTime = Date.now();
   const writer = createJobWriter(jobId, res);
 
@@ -517,6 +517,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             result = toolCallCache.get(cacheKey);
             logger.info(`📦 Tool ${toolName} returned cached result (duplicate call skipped)`);
           } else {
+            // Inject raw attachments for upload tool
+            if (toolName === 'upload_project_document' && attachments?.length > 0) {
+              toolArgs._attachments = attachments;
+            }
             result = await executeTool(toolName, toolArgs, userId);
             toolCallCache.set(cacheKey, result);
 
