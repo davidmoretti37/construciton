@@ -12,6 +12,8 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +22,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
-import { getSupervisorTimesheet, calculateSupervisorPaymentForPeriod } from '../../utils/storage/timeTracking';
+import { getSupervisorTimesheet, calculateSupervisorPaymentForPeriod, getActiveSupervisorClockIn } from '../../utils/storage/timeTracking';
 import DateRangePicker from '../../components/DateRangePicker';
 import { formatHoursMinutes } from '../../utils/calculations';
 
@@ -149,6 +151,8 @@ export default function SupervisorDetailScreen() {
   });
   const [timeRecords, setTimeRecords] = useState([]);
   const [timeStats, setTimeStats] = useState({ weekHours: 0, monthHours: 0, weekEarnings: 0, monthEarnings: 0 });
+  const [activeSession, setActiveSession] = useState(null);
+  const [elapsedTime, setElapsedTime] = useState('');
 
   // Payment calculation state
   const getDefaultDateRange = () => {
@@ -254,6 +258,13 @@ export default function SupervisorDetailScreen() {
           weekEarnings: Math.round(calculateLaborCost(weekHours, supervisor) * 100) / 100,
           monthEarnings: Math.round(calculateLaborCost(monthHours, supervisor) * 100) / 100,
         });
+        // Fetch active clock-in session
+        try {
+          const activeData = await getActiveSupervisorClockIn(supervisor.id);
+          setActiveSession(activeData);
+        } catch (activeError) {
+          console.error('Error fetching active session:', activeError);
+        }
       } catch (timeError) {
         console.error('Error fetching supervisor time tracking:', timeError);
       }
@@ -269,6 +280,28 @@ export default function SupervisorDetailScreen() {
   useEffect(() => {
     fetchSupervisorData();
   }, [fetchSupervisorData]);
+
+  // Update elapsed time every second for active session
+  useEffect(() => {
+    if (!activeSession) return;
+
+    const updateTime = () => {
+      const clockIn = new Date(activeSession.clock_in);
+      const now = new Date();
+      const diff = now - clockIn;
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setElapsedTime(`${hours}h ${minutes}m ${seconds}s`);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeSession]);
 
   // Load payment data when date range changes
   useEffect(() => {
@@ -319,6 +352,22 @@ export default function SupervisorDetailScreen() {
 
   const supervisorName = supervisor?.business_name || supervisor?.email?.split('@')[0] || 'Supervisor';
 
+  const formatTimeLocal = (timestamp) => {
+    if (!timestamp) return '--';
+    return new Date(timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
+  const formatDateLocal = (timestamp) => {
+    if (!timestamp) return '--';
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return t('common:time.today');
+    if (date.toDateString() === yesterday.toDateString()) return t('common:time.yesterday');
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
@@ -329,76 +378,205 @@ export default function SupervisorDetailScreen() {
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
           {supervisorName}
         </Text>
-        <View style={styles.headerSpacer} />
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1E40AF" />
         }
       >
-        {/* Supervisor Info Card */}
-        <View style={[styles.infoCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-          <View style={[styles.avatarLarge, { backgroundColor: '#1E40AF20' }]}>
-            <Text style={styles.avatarTextLarge}>
-              {supervisorName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <Text style={[styles.supervisorName, { color: Colors.primaryText }]}>
-            {supervisorName}
-          </Text>
-          {supervisor?.email && (
-            <Text style={[styles.supervisorEmail, { color: Colors.secondaryText }]}>
-              {supervisor.email}
-            </Text>
-          )}
-          {supervisor?.business_phone && (
-            <View style={styles.phoneRow}>
-              <Ionicons name="call-outline" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.phoneText, { color: Colors.secondaryText }]}>
-                {supervisor.business_phone}
+        {/* ─── 1. Profile Card ─── */}
+        <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#1E40AF20', justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ fontSize: 22, fontWeight: '600', color: '#1E40AF' }}>
+                {supervisorName.substring(0, 2).toUpperCase()}
               </Text>
             </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: Colors.primaryText, marginBottom: 2 }}>
+                {supervisorName}
+              </Text>
+              <Text style={{ fontSize: 14, color: Colors.secondaryText, marginBottom: 4 }}>
+                {t('supervisorDetailScreen.supervisor', { defaultValue: 'Supervisor' })}
+              </Text>
+              <View style={{ alignSelf: 'flex-start', backgroundColor: '#10B98115', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ fontSize: 12, fontWeight: '500', color: '#10B981', textTransform: 'capitalize' }}>
+                  {supervisor?.status || 'active'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Contact Info */}
+          {(supervisor?.email || supervisor?.business_phone) ? (
+            <View style={{ marginBottom: 16 }}>
+              {supervisor?.email ? (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
+                  onPress={() => Linking.openURL(`mailto:${supervisor.email}`)}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#1E40AF10', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="mail-outline" size={16} color="#1E40AF" />
+                  </View>
+                  <Text style={{ fontSize: 14, color: '#1E40AF', marginLeft: 10 }}>{supervisor.email}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {supervisor?.business_phone ? (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
+                  onPress={() => Linking.openURL(`tel:${supervisor.business_phone}`)}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#10B98110', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="call-outline" size={16} color="#10B981" />
+                  </View>
+                  <Text style={{ fontSize: 14, color: '#10B981', marginLeft: 10 }}>{supervisor.business_phone}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Payment Info */}
+          <View style={{ backgroundColor: Colors.lightGray || '#F3F4F6', borderRadius: 12, padding: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="wallet-outline" size={18} color="#1E40AF" />
+              <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.primaryText, marginLeft: 6 }}>
+                {t('supervisorDetailScreen.paymentInfo', { defaultValue: 'Payment Info' })}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>
+                  {t('supervisorDetailScreen.type', { defaultValue: 'Type' })}
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                  {supervisor?.payment_type ? getPaymentTypeLabel(supervisor.payment_type, t) : t('supervisorDetailScreen.notSet')}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>
+                  {t('supervisorDetailScreen.rate')}
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#1E40AF' }}>
+                  {formatPayRate(supervisor, t)}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>
+                  {t('supervisorDetailScreen.thisWeek')}
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                  {formatHoursMinutes(timeStats.weekHours)}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>
+                  {t('supervisorDetailScreen.thisMonth')}
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                  {formatHoursMinutes(timeStats.monthHours)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Member Since */}
+          {supervisor?.created_at && (
+            <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 10, textAlign: 'center' }}>
+              {t('supervisorDetailScreen.memberSince', { defaultValue: 'Member since {{date}}', date: new Date(supervisor.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) })}
+            </Text>
           )}
         </View>
 
-        {/* Pay Rate Card */}
-        {supervisor?.payment_type && (
-          <View style={[styles.payRateCard, { backgroundColor: '#F59E0B' + '15', borderColor: '#F59E0B' + '30' }]}>
-            <Ionicons name="cash" size={24} color="#F59E0B" />
-            <View style={styles.payRateInfo}>
-              <Text style={[styles.payRateLabel, { color: Colors.secondaryText }]}>
-                {getPaymentTypeLabel(supervisor.payment_type, t)} {t('supervisorDetailScreen.rate')}
+        {/* ─── 2. Currently Clocked In ─── */}
+        {activeSession && (
+          <View style={[styles.card, { backgroundColor: '#10B98110', borderColor: '#10B98140' }]}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="time" size={20} color="#10B981" />
+              <Text style={[styles.cardTitle, { color: '#10B981' }]}>
+                {t('supervisorDetailScreen.currentlyClockedIn', { defaultValue: 'Currently Clocked In' })}
               </Text>
-              <Text style={[styles.payRateValue, { color: Colors.primaryText }]}>
-                {formatPayRate(supervisor, t)}
-              </Text>
+            </View>
+            <View style={[styles.sessionContent, { backgroundColor: Colors.white }]}>
+              <View style={styles.sessionRow}>
+                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>
+                  {t('supervisorDetailScreen.project', { defaultValue: 'Project' })}
+                </Text>
+                <Text style={[styles.sessionValue, { color: Colors.primaryText }]}>
+                  {activeSession.projects?.name || t('supervisorDetailScreen.unknownProject')}
+                </Text>
+              </View>
+              <View style={styles.sessionRow}>
+                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>
+                  {t('supervisorDetailScreen.clockedIn', { defaultValue: 'Clocked In' })}
+                </Text>
+                <Text style={[styles.sessionValue, { color: Colors.primaryText }]}>
+                  {formatTimeLocal(activeSession.clock_in)}
+                </Text>
+              </View>
+              <View style={styles.sessionRow}>
+                <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>
+                  {t('supervisorDetailScreen.elapsedTime', { defaultValue: 'Elapsed Time' })}
+                </Text>
+                <Text style={[styles.sessionValue, { color: '#10B981', fontWeight: '700' }]}>
+                  {elapsedTime}
+                </Text>
+              </View>
+              {activeSession.location_lat && activeSession.location_lng ? (
+                <TouchableOpacity
+                  style={styles.locationButton}
+                  onPress={() => {
+                    const url = Platform.select({
+                      ios: `maps://maps.apple.com/?ll=${activeSession.location_lat},${activeSession.location_lng}&q=Clock-in Location`,
+                      android: `geo:${activeSession.location_lat},${activeSession.location_lng}?q=${activeSession.location_lat},${activeSession.location_lng}(Clock-in Location)`,
+                    });
+                    Linking.openURL(url);
+                  }}
+                >
+                  <Ionicons name="location" size={18} color="#8B5CF6" />
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#8B5CF6' }}>
+                    {t('supervisorDetailScreen.viewClockInLocation', { defaultValue: 'View Clock-in Location' })}
+                  </Text>
+                  <Ionicons name="open-outline" size={14} color="#8B5CF6" />
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.sessionRow, { opacity: 0.5 }]}>
+                  <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>
+                    {t('supervisorDetailScreen.location', { defaultValue: 'Location' })}
+                  </Text>
+                  <Text style={[styles.sessionValue, { color: Colors.secondaryText }]}>
+                    {t('supervisorDetailScreen.notAvailable', { defaultValue: 'Not available' })}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         )}
 
-        {/* Date Range Picker */}
+        {/* ─── 3. Period + Payment Summary ─── */}
         <DateRangePicker
           fromDate={dateRange.from}
           toDate={dateRange.to}
           onRangeChange={handleRangeChange}
         />
 
-        {/* Payment Summary */}
         {loadingPayment ? (
-          <View style={[styles.paymentCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <ActivityIndicator size="small" color="#1E40AF" />
           </View>
         ) : paymentData && (
-          <View style={[styles.paymentCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <View style={styles.paymentCardHeader}>
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={styles.cardHeader}>
               <Ionicons name="cash-outline" size={20} color="#1E40AF" />
-              <Text style={[styles.paymentCardTitle, { color: Colors.primaryText }]}>{t('supervisorDetailScreen.paymentSummary')}</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>
+                {t('supervisorDetailScreen.paymentSummary')}
+              </Text>
             </View>
 
-            {/* Total Amount */}
             <View style={[styles.totalAmountContainer, { backgroundColor: Colors.lightGray || '#F3F4F6' }]}>
               <Text style={[styles.totalAmountLabel, { color: Colors.secondaryText }]}>
                 {t('supervisorDetailScreen.totalAmountOwed')}
@@ -406,199 +584,66 @@ export default function SupervisorDetailScreen() {
               <Text style={[styles.totalAmountValue, { color: '#1E40AF' }]}>
                 ${paymentData.totalAmount?.toFixed(2) || '0.00'}
               </Text>
-              <Text style={[styles.totalHoursText, { color: Colors.secondaryText }]}>
+              <Text style={{ fontSize: 13, color: Colors.secondaryText }}>
                 {formatHoursMinutes(paymentData.totalHours || 0)} {t('supervisorDetailScreen.total')}
               </Text>
             </View>
 
-            {/* Breakdown by Project */}
             {paymentData.byProject && paymentData.byProject.length > 0 && (
-              <View style={styles.breakdownSection}>
-                <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
+              <View style={{ marginTop: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primaryText, marginBottom: 8 }}>
                   {t('supervisorDetailScreen.breakdownByProject')}
                 </Text>
                 {paymentData.byProject.map((project, index) => (
-                  <View
-                    key={index}
-                    style={[styles.breakdownItem, { borderBottomColor: Colors.border }]}
-                  >
-                    <View style={styles.breakdownLeft}>
-                      <Text style={[styles.breakdownProjectName, { color: Colors.primaryText }]}>
-                        {project.projectName}
-                      </Text>
-                      <Text style={[styles.breakdownHours, { color: Colors.secondaryText }]}>
-                        {formatHoursMinutes(project.hours)}
-                      </Text>
+                  <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText }}>{project.projectName}</Text>
+                      <Text style={{ fontSize: 12, color: Colors.secondaryText }}>{formatHoursMinutes(project.hours)}</Text>
                     </View>
-                    <Text style={[styles.breakdownAmount, { color: '#1E40AF' }]}>
-                      ${project.amount?.toFixed(2) || '0.00'}
-                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E40AF' }}>${project.amount?.toFixed(2) || '0.00'}</Text>
                   </View>
                 ))}
-              </View>
-            )}
-
-            {/* Breakdown by Date */}
-            {paymentData.byDate && paymentData.byDate.length > 0 && (
-              <View style={styles.breakdownSection}>
-                <Text style={[styles.breakdownTitle, { color: Colors.primaryText }]}>
-                  {t('supervisorDetailScreen.dailyBreakdown')}
-                </Text>
-                {paymentData.byDate
-                  .sort((a, b) => new Date(b.date) - new Date(a.date))
-                  .map((day, index) => (
-                  <View
-                    key={index}
-                    style={[styles.dayBreakdownItem, { borderBottomColor: Colors.border }]}
-                  >
-                    <View style={styles.dayBreakdownHeader}>
-                      <View style={styles.dayBreakdownLeft}>
-                        <Text style={[styles.dayBreakdownDate, { color: Colors.primaryText }]}>
-                          {new Date(day.date).toLocaleDateString(undefined, {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </Text>
-                        <Text style={[styles.dayBreakdownHours, { color: Colors.secondaryText }]}>
-                          {formatHoursMinutes(day.hours)}
-                        </Text>
-                      </View>
-                      <Text style={[styles.dayBreakdownAmount, { color: '#1E40AF' }]}>
-                        ${day.amount?.toFixed(2) || '0.00'}
-                      </Text>
-                    </View>
-                    {/* Show projects worked on this day */}
-                    {day.projects && day.projects.length > 0 && (
-                      <View style={styles.dayProjectsList}>
-                        {day.projects.map((project, projectIndex) => (
-                          <View key={projectIndex} style={styles.dayProjectItem}>
-                            <View style={styles.dayProjectDot} />
-                            <Text style={[styles.dayProjectText, { color: Colors.secondaryText }]}>
-                              {project.projectName}: {formatHoursMinutes(project.hours)}
-                              {project.amount && ` ($${project.amount.toFixed(2)})`}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Payment type info */}
-            {supervisor?.payment_type && (
-              <View style={styles.paymentTypeInfo}>
-                <Ionicons name="information-circle-outline" size={16} color={Colors.secondaryText} />
-                <Text style={[styles.paymentTypeText, { color: Colors.secondaryText }]}>
-                  {t('supervisorDetailScreen.paymentTypeInfo', { type: getPaymentTypeLabel(supervisor.payment_type, t) })}
-                  {supervisor.payment_type === 'hourly' && supervisor.hourly_rate && ` - $${Number(supervisor.hourly_rate).toFixed(2)}${t('supervisorDetailScreen.perHour')}`}
-                  {supervisor.payment_type === 'daily' && supervisor.daily_rate && ` - $${Number(supervisor.daily_rate).toFixed(2)}${t('supervisorDetailScreen.perDay')}`}
-                  {supervisor.payment_type === 'weekly' && supervisor.weekly_salary && ` - $${Number(supervisor.weekly_salary).toFixed(2)}${t('supervisorDetailScreen.perWeek')}`}
-                  {supervisor.payment_type === 'project_based' && supervisor.project_rate && ` - $${Number(supervisor.project_rate).toFixed(2)}${t('supervisorDetailScreen.perProject')}`}
-                </Text>
               </View>
             )}
           </View>
         )}
 
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statBox, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <Text style={[styles.statValue, { color: '#1E40AF' }]}>{stats.totalJobs}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.jobs')}</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <Text style={[styles.statValue, { color: '#059669' }]}>{stats.activeJobs}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.active')}</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <Text style={[styles.statValue, { color: '#2563EB' }]}>{stats.totalWorkers}</Text>
-            <Text style={[styles.statLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.workers')}</Text>
-          </View>
-        </View>
-
-        {/* Revenue Card */}
-        <View style={[styles.revenueCard, { backgroundColor: '#1E40AF10', borderColor: '#1E40AF30' }]}>
-          <Ionicons name="wallet" size={24} color="#1E40AF" />
-          <View style={styles.revenueInfo}>
-            <Text style={[styles.revenueLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.totalContractValue')}</Text>
-            <Text style={[styles.revenueValue, { color: Colors.primaryText }]}>
-              ${stats.totalRevenue.toLocaleString()}
+        {/* ─── 4. Managed Projects ─── */}
+        <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="briefcase-outline" size={20} color="#1E40AF" />
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>
+              {t('supervisorDetailScreen.jobsCount', { count: jobs.length })}
             </Text>
           </View>
-        </View>
-
-        {/* Jobs Section */}
-        <View style={styles.jobsSection}>
-          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            {t('supervisorDetailScreen.jobsCount', { count: jobs.length })}
-          </Text>
 
           {jobs.length === 0 ? (
-            <View style={[styles.emptyJobs, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-              <Ionicons name="briefcase-outline" size={32} color={Colors.secondaryText} />
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <Ionicons name="briefcase-outline" size={36} color={Colors.secondaryText + '60'} />
+              <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
                 {t('supervisorDetailScreen.noJobsYet')}
               </Text>
             </View>
           ) : (
             jobs.map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                Colors={Colors}
-                t={t}
-              />
+              <JobCard key={job.id} job={job} Colors={Colors} t={t} />
             ))
           )}
         </View>
 
-        {/* Time Tracking Section */}
-        <View style={styles.timeTrackingSection}>
-          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            {t('supervisorDetailScreen.timeTracking')}
-          </Text>
-
-          {/* Hours & Earnings Summary Card */}
-          <View style={[styles.hoursSummaryCard, { backgroundColor: '#059669' + '15', borderColor: '#059669' + '30' }]}>
-            <Ionicons name="time" size={24} color="#059669" />
-            <View style={styles.hoursSummaryInfo}>
-              <View style={styles.hoursSummaryRow}>
-                <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.thisWeek')}</Text>
-                <View style={styles.hoursSummaryValues}>
-                  <Text style={[styles.hoursSummaryValue, { color: Colors.primaryText }]}>
-                    {formatHoursMinutes(timeStats.weekHours)}
-                  </Text>
-                  {timeStats.weekEarnings > 0 && (
-                    <Text style={[styles.earningsValue, { color: '#059669' }]}>
-                      ${timeStats.weekEarnings.toLocaleString()}
-                    </Text>
-                  )}
-                </View>
-              </View>
-              <View style={styles.hoursSummaryRow}>
-                <Text style={[styles.hoursSummaryLabel, { color: Colors.secondaryText }]}>{t('supervisorDetailScreen.thisMonth')}</Text>
-                <View style={styles.hoursSummaryValues}>
-                  <Text style={[styles.hoursSummaryValue, { color: Colors.primaryText }]}>
-                    {formatHoursMinutes(timeStats.monthHours)}
-                  </Text>
-                  {timeStats.monthEarnings > 0 && (
-                    <Text style={[styles.earningsValue, { color: '#059669' }]}>
-                      ${timeStats.monthEarnings.toLocaleString()}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            </View>
+        {/* ─── 5. Work History ─── */}
+        <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="calendar-outline" size={20} color="#1E40AF" />
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>
+              {t('supervisorDetailScreen.timeTracking')}
+            </Text>
           </View>
 
-          {/* Recent Time Records */}
           {timeRecords.length === 0 ? (
-            <View style={[styles.emptyJobs, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-              <Ionicons name="time-outline" size={32} color={Colors.secondaryText} />
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <Ionicons name="time-outline" size={36} color={Colors.secondaryText + '60'} />
+              <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
                 {t('supervisorDetailScreen.noTimeRecords')}
               </Text>
             </View>
@@ -608,59 +653,36 @@ export default function SupervisorDetailScreen() {
               const clockOut = record.clock_out ? new Date(record.clock_out) : null;
               const isActive = !record.clock_out;
 
-              const formatTime = (date) => {
-                return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
-              };
-
-              const formatDate = (date) => {
-                const today = new Date();
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-
-                if (date.toDateString() === today.toDateString()) {
-                  return t('common:time.today');
-                } else if (date.toDateString() === yesterday.toDateString()) {
-                  return t('common:time.yesterday');
-                } else {
-                  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                }
-              };
-
               return (
-                <View
-                  key={record.id}
-                  style={[styles.timeRecordCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-                >
-                  <View style={styles.timeRecordHeader}>
-                    <View style={styles.timeRecordDate}>
+                <View key={record.id} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
-                      <Text style={[styles.timeRecordDateText, { color: Colors.primaryText }]}>
-                        {formatDate(clockIn)}
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryText }}>
+                        {formatDateLocal(record.clock_in)}
                       </Text>
                     </View>
                     {isActive ? (
-                      <View style={[styles.activeIndicator, { backgroundColor: '#059669' + '20' }]}>
-                        <View style={[styles.activeDot, { backgroundColor: '#059669' }]} />
-                        <Text style={[styles.activeText, { color: '#059669' }]}>{t('supervisorDetailScreen.activeStatus')}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#05966920', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, gap: 4 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#059669' }} />
+                        <Text style={{ fontSize: 12, fontWeight: '500', color: '#059669' }}>{t('supervisorDetailScreen.activeStatus')}</Text>
                       </View>
                     ) : (
-                      <View style={styles.hoursAndCost}>
-                        <Text style={[styles.hoursWorked, { color: '#059669' }]}>
-                          {formatHoursMinutes(record.hours)}
-                        </Text>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#059669' }}>{formatHoursMinutes(record.hours)}</Text>
                         {supervisor?.payment_type && (
-                          <Text style={[styles.laborCost, { color: '#F59E0B' }]}>
+                          <Text style={{ fontSize: 11, fontWeight: '500', color: '#F59E0B' }}>
                             ${calculateLaborCost(record.hours || 0, supervisor).toFixed(2)}
                           </Text>
                         )}
                       </View>
                     )}
                   </View>
-                  <Text style={[styles.timeRecordProject, { color: Colors.primaryText }]} numberOfLines={1}>
+                  <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText }} numberOfLines={1}>
                     {record.projects?.name || t('supervisorDetailScreen.unknownProject')}
                   </Text>
-                  <Text style={[styles.timeRecordTimes, { color: Colors.secondaryText }]}>
-                    {formatTime(clockIn)} {clockOut ? `- ${formatTime(clockOut)}` : `- ${t('supervisorDetailScreen.inProgress')}`}
+                  <Text style={{ fontSize: 12, color: Colors.secondaryText }}>
+                    {formatTimeLocal(record.clock_in)} {clockOut ? `- ${formatTimeLocal(record.clock_out)}` : `- ${t('supervisorDetailScreen.inProgress')}`}
                   </Text>
                 </View>
               );
@@ -695,146 +717,109 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.large,
     fontWeight: '600',
   },
-  headerSpacer: {
-    width: 24,
+  content: {
+    flex: 1,
   },
-  scrollContent: {
-    padding: Spacing.lg,
+  contentContainer: {
+    padding: 16,
     paddingBottom: 100,
   },
-  infoCard: {
-    alignItems: 'center',
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.lg,
+  // Shared card style — same as worker detail
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  avatarLarge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  // Session (clock-in) styles
+  sessionContent: {
+    borderRadius: 12,
+    padding: 12,
+  },
+  sessionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  sessionLabel: {
+    fontSize: 13,
+  },
+  sessionValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginTop: 8,
+    gap: 6,
+    backgroundColor: '#8B5CF615',
   },
-  avatarTextLarge: {
+  // Payment summary
+  totalAmountContainer: {
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  totalAmountLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  totalAmountValue: {
     fontSize: 32,
-    fontWeight: '600',
-    color: '#1E40AF',
-  },
-  supervisorName: {
-    fontSize: FontSizes.large,
-    fontWeight: '600',
-    marginBottom: Spacing.xs,
-  },
-  supervisorEmail: {
-    fontSize: FontSizes.body,
-    marginBottom: Spacing.sm,
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  phoneText: {
-    fontSize: FontSizes.body,
-  },
-  // Pay Rate Card
-  payRateCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.lg,
-    gap: Spacing.md,
-  },
-  payRateInfo: {
-    flex: 1,
-  },
-  payRateLabel: {
-    fontSize: FontSizes.small,
-  },
-  payRateValue: {
-    fontSize: FontSizes.xlarge,
     fontWeight: '700',
+    marginBottom: 4,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  statBox: {
-    flex: 1,
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-  },
-  statValue: {
-    fontSize: FontSizes.xlarge,
-    fontWeight: '700',
-  },
-  statLabel: {
-    fontSize: FontSizes.small,
-    marginTop: 2,
-  },
-  revenueCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.xl,
-    gap: Spacing.md,
-  },
-  revenueInfo: {
-    flex: 1,
-  },
-  revenueLabel: {
-    fontSize: FontSizes.small,
-  },
-  revenueValue: {
-    fontSize: FontSizes.xlarge,
-    fontWeight: '700',
-  },
-  jobsSection: {
-    marginBottom: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    marginBottom: Spacing.md,
-  },
+  // JobCard styles
   jobCard: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    marginBottom: Spacing.md,
+    marginBottom: 10,
   },
   jobHeader: {
-    marginBottom: Spacing.md,
+    marginBottom: 10,
   },
   jobTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
   jobName: {
-    fontSize: FontSizes.body,
+    fontSize: 14,
     fontWeight: '600',
     flex: 1,
-    marginRight: Spacing.sm,
+    marginRight: 8,
   },
   statusBadge: {
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
+    borderRadius: 6,
   },
   statusText: {
-    fontSize: FontSizes.small,
+    fontSize: 12,
     fontWeight: '500',
     textTransform: 'capitalize',
   },
@@ -844,22 +829,22 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   jobAddress: {
-    fontSize: FontSizes.small,
+    fontSize: 12,
     flex: 1,
   },
   progressContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: 10,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
   progressLabel: {
-    fontSize: FontSizes.small,
+    fontSize: 12,
   },
   progressPercent: {
-    fontSize: FontSizes.small,
+    fontSize: 12,
     fontWeight: '600',
   },
   progressBar: {
@@ -873,242 +858,15 @@ const styles = StyleSheet.create({
   },
   jobStats: {
     flexDirection: 'row',
-    gap: Spacing.lg,
-    marginBottom: Spacing.md,
+    gap: 16,
+    marginBottom: 10,
   },
   jobStat: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 4,
   },
   jobStatText: {
-    fontSize: FontSizes.small,
-  },
-  emptyJobs: {
-    alignItems: 'center',
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-  },
-  emptyText: {
-    fontSize: FontSizes.body,
-    marginTop: Spacing.sm,
-  },
-  // Time Tracking Styles
-  timeTrackingSection: {
-    marginBottom: Spacing.lg,
-  },
-  hoursSummaryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-    gap: Spacing.md,
-  },
-  hoursSummaryInfo: {
-    flex: 1,
-    gap: Spacing.xs,
-  },
-  hoursSummaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  hoursSummaryLabel: {
-    fontSize: FontSizes.small,
-  },
-  hoursSummaryValue: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
-  hoursSummaryValues: {
-    alignItems: 'flex-end',
-  },
-  earningsValue: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  hoursAndCost: {
-    alignItems: 'flex-end',
-  },
-  laborCost: {
-    fontSize: FontSizes.tiny || 11,
-    fontWeight: '500',
-  },
-  timeRecordCard: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.sm,
-  },
-  timeRecordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  timeRecordDate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  timeRecordDateText: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  activeIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-    gap: 4,
-  },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  activeText: {
-    fontSize: FontSizes.small,
-    fontWeight: '500',
-  },
-  hoursWorked: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  timeRecordProject: {
-    fontSize: FontSizes.body,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  timeRecordTimes: {
-    fontSize: FontSizes.small,
-  },
-  // Payment Summary Styles
-  paymentCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-  },
-  paymentCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  paymentCardTitle: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-  },
-  totalAmountContainer: {
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  totalAmountLabel: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-    marginBottom: Spacing.xs,
-  },
-  totalAmountValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  totalHoursText: {
-    fontSize: FontSizes.small,
-  },
-  breakdownSection: {
-    marginTop: Spacing.sm,
-  },
-  breakdownTitle: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    marginBottom: Spacing.sm,
-  },
-  breakdownItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-  },
-  breakdownLeft: {
-    flex: 1,
-  },
-  breakdownProjectName: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  breakdownHours: {
-    fontSize: FontSizes.small,
-  },
-  breakdownAmount: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-  },
-  dayBreakdownItem: {
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-  },
-  dayBreakdownHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.xs,
-  },
-  dayBreakdownLeft: {
-    flex: 1,
-  },
-  dayBreakdownDate: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  dayBreakdownHours: {
-    fontSize: FontSizes.small,
-  },
-  dayBreakdownAmount: {
-    fontSize: FontSizes.large,
-    fontWeight: '700',
-  },
-  dayProjectsList: {
-    marginTop: 4,
-    paddingLeft: Spacing.sm,
-  },
-  dayProjectItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  dayProjectDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#9CA3AF',
-    marginRight: Spacing.sm,
-  },
-  dayProjectText: {
-    fontSize: FontSizes.small,
-  },
-  paymentTypeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  paymentTypeText: {
-    fontSize: FontSizes.small,
-    flex: 1,
+    fontSize: 12,
   },
 });

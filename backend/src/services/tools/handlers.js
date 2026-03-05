@@ -3783,6 +3783,236 @@ async function delete_project_document(userId, args) {
   return { message: `Document "${doc.file_name}" deleted successfully` };
 }
 
+// ==================== CLOCK IN/OUT ====================
+
+function formatHoursMinutes(hours) {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function parseClockTime(timeStr) {
+  if (!timeStr) return new Date().toISOString();
+  // HH:MM format → combine with today
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(timeStr)) {
+    const today = new Date();
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    today.setHours(hours, minutes, 0, 0);
+    return today.toISOString();
+  }
+  return new Date(timeStr).toISOString();
+}
+
+async function clock_in_worker(userId, args) {
+  let { worker_id, project_id, clock_in_time } = args;
+
+  // Resolve names to UUIDs
+  const resolvedWorker = await resolveWorkerId(userId, worker_id);
+  if (resolvedWorker.error) return { error: resolvedWorker.error };
+  if (resolvedWorker.suggestions) return resolvedWorker;
+  worker_id = resolvedWorker.id;
+
+  const resolvedProject = await resolveProjectId(userId, project_id);
+  if (resolvedProject.error) return { error: resolvedProject.error };
+  if (resolvedProject.suggestions) return resolvedProject;
+  project_id = resolvedProject.id;
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // Verify worker ownership
+  const { data: worker, error: wrkErr } = await supabase
+    .from('workers')
+    .select('id, full_name')
+    .eq('id', worker_id)
+    .eq('owner_id', ownerId)
+    .single();
+
+  if (wrkErr || !worker) return { error: 'Worker not found or access denied' };
+
+  // Verify project ownership
+  const { data: project, error: projErr } = await supabase
+    .from('projects')
+    .select('id, name')
+    .eq('id', project_id)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .single();
+
+  if (projErr || !project) return { error: 'Project not found or access denied' };
+
+  // Check not already clocked in
+  const { data: activeSession } = await supabase
+    .from('time_tracking')
+    .select('id')
+    .eq('worker_id', worker_id)
+    .is('clock_out', null)
+    .limit(1)
+    .single();
+
+  if (activeSession) {
+    return { error: `${worker.full_name} is already clocked in. Clock them out first.` };
+  }
+
+  const clockInTimestamp = parseClockTime(clock_in_time);
+
+  const { data: record, error: insertErr } = await supabase
+    .from('time_tracking')
+    .insert({
+      worker_id,
+      project_id,
+      clock_in: clockInTimestamp,
+    })
+    .select('id, worker_id, project_id, clock_in')
+    .single();
+
+  if (insertErr) {
+    logger.error('clock_in_worker insert error:', insertErr);
+    return { error: 'Failed to clock in worker' };
+  }
+
+  // Send notification (fire and forget)
+  sendNotification({
+    userId: ownerId,
+    title: 'Worker Clocked In',
+    body: `${worker.full_name} clocked in on ${project.name}`,
+    type: 'worker_update',
+    data: { screen: 'Workers' },
+    workerId: worker_id,
+  });
+
+  return {
+    success: true,
+    message: `${worker.full_name} clocked in to ${project.name}`,
+    workerName: worker.full_name,
+    projectName: project.name,
+    clockInTime: clockInTimestamp,
+    timeTrackingId: record.id,
+  };
+}
+
+async function clock_out_worker(userId, args) {
+  let { worker_id, clock_out_time, notes } = args;
+
+  // Resolve name to UUID
+  const resolvedWorker = await resolveWorkerId(userId, worker_id);
+  if (resolvedWorker.error) return { error: resolvedWorker.error };
+  if (resolvedWorker.suggestions) return resolvedWorker;
+  worker_id = resolvedWorker.id;
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // Verify worker ownership
+  const { data: worker, error: wrkErr } = await supabase
+    .from('workers')
+    .select('id, full_name, payment_type, hourly_rate, daily_rate')
+    .eq('id', worker_id)
+    .eq('owner_id', ownerId)
+    .single();
+
+  if (wrkErr || !worker) return { error: 'Worker not found or access denied' };
+
+  // Find active session
+  const { data: activeSession, error: sessionErr } = await supabase
+    .from('time_tracking')
+    .select(`
+      id, worker_id, project_id, clock_in,
+      projects!inner ( id, name )
+    `)
+    .eq('worker_id', worker_id)
+    .is('clock_out', null)
+    .limit(1)
+    .single();
+
+  if (sessionErr || !activeSession) {
+    return { error: `${worker.full_name} is not currently clocked in.` };
+  }
+
+  const clockOutTimestamp = parseClockTime(clock_out_time);
+
+  // Update clock_out
+  const { error: updateErr } = await supabase
+    .from('time_tracking')
+    .update({ clock_out: clockOutTimestamp, notes: notes || null })
+    .eq('id', activeSession.id);
+
+  if (updateErr) {
+    logger.error('clock_out_worker update error:', updateErr);
+    return { error: 'Failed to clock out worker' };
+  }
+
+  // Calculate hours worked
+  const clockIn = new Date(activeSession.clock_in);
+  const clockOut = new Date(clockOutTimestamp);
+  const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
+
+  // Calculate labor cost and create transaction
+  let laborCost = 0;
+  let costDescription = '';
+
+  switch (worker.payment_type) {
+    case 'hourly':
+      laborCost = hoursWorked * (worker.hourly_rate || 0);
+      costDescription = `${worker.full_name} - ${formatHoursMinutes(hoursWorked)} @ $${worker.hourly_rate}/hr`;
+      break;
+    case 'daily':
+      if (hoursWorked < 5) {
+        laborCost = (worker.daily_rate || 0) * 0.5;
+        costDescription = `${worker.full_name} - Half day (${formatHoursMinutes(hoursWorked)}) @ $${worker.daily_rate}/day`;
+      } else {
+        laborCost = worker.daily_rate || 0;
+        costDescription = `${worker.full_name} - Full day (${formatHoursMinutes(hoursWorked)}) @ $${worker.daily_rate}/day`;
+      }
+      break;
+    default:
+      // weekly, project_based — no auto labor cost
+      break;
+  }
+
+  if (laborCost > 0) {
+    const { error: txnErr } = await supabase
+      .from('project_transactions')
+      .insert({
+        project_id: activeSession.project_id,
+        type: 'expense',
+        category: 'labor',
+        description: costDescription,
+        amount: laborCost,
+        date: new Date().toISOString().split('T')[0],
+        worker_id: worker.id,
+        time_tracking_id: activeSession.id,
+        is_auto_generated: true,
+        notes: notes || null,
+      });
+
+    if (txnErr) {
+      logger.error('clock_out_worker labor transaction error:', txnErr);
+      // Worker is still clocked out, just no transaction
+    }
+  }
+
+  const projectName = activeSession.projects?.name || '';
+
+  // Send notification (fire and forget)
+  sendNotification({
+    userId: ownerId,
+    title: 'Worker Clocked Out',
+    body: `${worker.full_name} clocked out from ${projectName} (${formatHoursMinutes(hoursWorked)})`,
+    type: 'worker_update',
+    data: { screen: 'Workers' },
+    workerId: worker_id,
+  });
+
+  return {
+    success: true,
+    message: `${worker.full_name} clocked out from ${projectName} — ${formatHoursMinutes(hoursWorked)} worked`,
+    workerName: worker.full_name,
+    projectName,
+    hoursWorked: Math.round(hoursWorked * 100) / 100,
+    laborCost: Math.round(laborCost * 100) / 100,
+  };
+}
+
 const TOOL_HANDLERS = {
   // Granular tools
   search_projects,
@@ -3840,6 +4070,9 @@ const TOOL_HANDLERS = {
   upload_project_document,
   update_project_document,
   delete_project_document,
+  // Clock in/out tools
+  clock_in_worker,
+  clock_out_worker,
 };
 
 /**

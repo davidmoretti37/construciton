@@ -433,8 +433,8 @@ export default function useWorkerActions({ addMessage, setMessages }) {
         return null;
       }
 
-      const success = await clockOut(activeRecord.id, data.notes, clock_out_time);
-      if (success) {
+      const result = await clockOut(activeRecord.id, data.notes, clock_out_time);
+      if (result?.success) {
         // Calculate hours worked
         const clockInTime = new Date(activeRecord.clock_in);
         const clockOutTime = clock_out_time ? new Date(clock_out_time) : new Date();

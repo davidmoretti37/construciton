@@ -41,6 +41,7 @@ const TOOL_GROUPS = {
   worker: [
     'get_workers', 'get_worker_details', 'assign_worker',
     'create_work_schedule', 'get_schedule_events', 'get_time_records',
+    'clock_in_worker', 'clock_out_worker',
     'search_projects'
   ],
   estimate: [
@@ -83,7 +84,8 @@ const TOOL_GROUPS = {
     'add_project_checklist', 'create_project_phase',
     'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
     'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses',
-    'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document'
+    'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
+    'clock_in_worker', 'clock_out_worker'
   ]
 };
 

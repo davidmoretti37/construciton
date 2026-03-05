@@ -221,8 +221,8 @@ CRITICAL: The FRONTEND executes actions — you CANNOT execute them yourself.
 - "create-worker": data = { full_name, email, trade, payment_type, hourly_rate?, daily_rate? }
 - "update-worker": data = { id, field, value }
 - "delete-worker": data = { workerId } — ONLY after confirmation
-- "clock-in-worker": data = { worker_id, project_id, location?, clock_in_time? }
-- "clock-out-worker": data = { worker_id, clock_out_time? }
+- Clock in a worker → call the \`clock_in_worker\` tool directly.
+- Clock out a worker → call the \`clock_out_worker\` tool directly.
 - "bulk-clock-in": data = { worker_ids, project_id, location? }
 - "bulk-clock-out": data = { project_id } or { worker_ids }
 - "get-worker-payment": data = { workerName?, workerNames?, allWorkers?, period } — period is REQUIRED, ask if not provided

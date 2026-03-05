@@ -296,7 +296,7 @@ export const getActiveClockIn = async (workerId) => {
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, clock_out, break_start, break_end, breaks, notes,
+        id, worker_id, project_id, clock_in, clock_out, break_start, break_end, breaks, notes, location_lat, location_lng,
         projects:project_id (
           id,
           name

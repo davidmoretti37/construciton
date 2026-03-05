@@ -835,6 +835,58 @@ const toolDefinitions = [
     }
   },
 
+  // ==================== CLOCK IN/OUT ====================
+  {
+    type: 'function',
+    function: {
+      name: 'clock_in_worker',
+      description: 'Clock in a worker to a project. Creates a new time tracking entry. Use when user says "clock in [worker] to [project]".',
+      parameters: {
+        type: 'object',
+        properties: {
+          worker_id: {
+            type: 'string',
+            description: 'The worker UUID to clock in'
+          },
+          project_id: {
+            type: 'string',
+            description: 'The project UUID to clock into'
+          },
+          clock_in_time: {
+            type: 'string',
+            description: 'Optional custom clock-in time (ISO format or HH:MM). Defaults to now.'
+          }
+        },
+        required: ['worker_id', 'project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clock_out_worker',
+      description: 'Clock out a worker who is currently clocked in. Finds their active session and closes it. Use when user says "clock out [worker]".',
+      parameters: {
+        type: 'object',
+        properties: {
+          worker_id: {
+            type: 'string',
+            description: 'The worker UUID to clock out'
+          },
+          clock_out_time: {
+            type: 'string',
+            description: 'Optional custom clock-out time (ISO format or HH:MM). Defaults to now.'
+          },
+          notes: {
+            type: 'string',
+            description: 'Optional notes for the clock-out'
+          }
+        },
+        required: ['worker_id']
+      }
+    }
+  },
+
   // ==================== SETTINGS ====================
   {
     type: 'function',
@@ -1327,6 +1379,9 @@ const TOOL_STATUS_MESSAGES = {
   upload_project_document: 'Uploading documents...',
   update_project_document: 'Updating document...',
   delete_project_document: 'Deleting document...',
+  // Clock in/out tools
+  clock_in_worker: 'Clocking in worker...',
+  clock_out_worker: 'Clocking out worker...',
 };
 
 function getToolStatusMessage(toolName) {
