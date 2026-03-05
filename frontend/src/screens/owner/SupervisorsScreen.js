@@ -135,13 +135,13 @@ const SupervisorCard = ({ supervisor, onPress, Colors, isDark, index, t }) => {
             {supervisor.email}
           </Text>
           <View style={styles.supervisorStats}>
-            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.secondary}12` }]}>
+            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.secondary}1A` }]}>
               <Ionicons name="briefcase" size={12} color={OWNER_COLORS.secondary} />
               <Text style={[styles.statBadgeText, { color: OWNER_COLORS.secondary }]}>
                 {supervisor.project_count || 0} {t('supervisors.jobs')}
               </Text>
             </View>
-            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
+            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}1A` }]}>
               <Ionicons name="people" size={12} color={OWNER_COLORS.success} />
               <Text style={[styles.statBadgeText, { color: OWNER_COLORS.success }]}>
                 {supervisor.worker_count || 0} {t('supervisors.workers')}
@@ -150,9 +150,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, isDark, index, t }) => {
           </View>
         </View>
 
-        <View style={[styles.chevronContainer, { backgroundColor: `${OWNER_COLORS.primary}10` }]}>
-          <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.primary} />
-        </View>
+        <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ opacity: 0.4 }} />
       </AnimatedTouchable>
     </Animated.View>
   );
@@ -778,24 +776,25 @@ const styles = StyleSheet.create({
   supervisorCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-    marginBottom: Spacing.md,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginBottom: 10,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 2,
   },
   avatarGradient: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
+    marginRight: 12,
   },
   avatarText: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: '#fff',
   },
@@ -803,12 +802,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   supervisorName: {
-    fontSize: FontSizes.body,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 2,
   },
   supervisorEmail: {
-    fontSize: FontSizes.small,
+    fontSize: 12,
     marginBottom: Spacing.sm,
   },
   supervisorStats: {
@@ -819,20 +818,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   statBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-  },
-  chevronContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   inviteCard: {
     flexDirection: 'row',

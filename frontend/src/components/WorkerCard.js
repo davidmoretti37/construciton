@@ -76,21 +76,18 @@ export default function WorkerCard({ worker, onPress, isClocked = false, hidePay
       onPress={onPress}
       activeOpacity={0.7}
     >
-      {/* Status Bar */}
-      <View style={[styles.statusBar, { backgroundColor: statusColor }]} />
-
       {/* Content */}
       <View style={styles.content}>
-        {/* Avatar and Header */}
+        {/* Avatar */}
         <View style={styles.header}>
-          <View style={[styles.avatar, { backgroundColor: statusColor }]}>
-            <Text style={styles.avatarText}>{getInitials(worker.full_name)}</Text>
-          </View>
-          {isClocked && (
-            <View style={[styles.clockedBadge, { backgroundColor: '#10B981' }]}>
-              <View style={styles.pulseDot} />
+          <View style={styles.avatarWrapper}>
+            <View style={[styles.avatar, { backgroundColor: statusColor }]}>
+              <Text style={styles.avatarText}>{getInitials(worker.full_name)}</Text>
             </View>
-          )}
+            {isClocked && (
+              <View style={[styles.clockedBadge, { borderColor: Colors.white }]} />
+            )}
+          </View>
         </View>
 
         {/* Worker Name */}
@@ -101,7 +98,7 @@ export default function WorkerCard({ worker, onPress, isClocked = false, hidePay
         {/* Trade */}
         {worker.trade && (
           <View style={styles.tradeRow}>
-            <Ionicons name="hammer-outline" size={12} color={Colors.secondaryText} />
+            <Ionicons name="hammer-outline" size={11} color={Colors.secondaryText} />
             <Text style={[styles.tradeText, { color: Colors.secondaryText }]} numberOfLines={1}>
               {worker.trade}
             </Text>
@@ -111,18 +108,20 @@ export default function WorkerCard({ worker, onPress, isClocked = false, hidePay
         {/* Spacer */}
         <View style={styles.spacer} />
 
-        {/* Footer - Status and Rate */}
+        {/* Footer - Status and Rate pills */}
         <View style={styles.footer}>
-          <View style={styles.statusRow}>
-            <Ionicons name={statusIcon} size={12} color={statusColor} />
+          <View style={[styles.statusPill, { backgroundColor: `${statusColor}15` }]}>
+            <Ionicons name={statusIcon} size={11} color={statusColor} />
             <Text style={[styles.statusText, { color: statusColor }]}>
               {worker.status}
             </Text>
           </View>
           {!hidePayment && paymentDisplay && (
-            <Text style={[styles.rateText, { color: Colors.primaryBlue }]}>
-              {paymentDisplay}
-            </Text>
+            <View style={[styles.ratePill, { backgroundColor: `${Colors.primaryBlue}12` }]}>
+              <Text style={[styles.rateText, { color: Colors.primaryBlue }]}>
+                {paymentDisplay}
+              </Text>
+            </View>
           )}
         </View>
       </View>
@@ -133,71 +132,67 @@ export default function WorkerCard({ worker, onPress, isClocked = false, hidePay
 const createStyles = (Colors) => StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 160,
+    minHeight: 164,
     borderRadius: 16,
     marginBottom: 16,
     overflow: 'hidden',
-    elevation: 4,
+    elevation: 2,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-  },
-  statusBar: {
-    height: 4,
-    width: '100%',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   content: {
     flex: 1,
-    padding: 12,
+    padding: 14,
+    paddingTop: 14,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
+  },
+  avatarWrapper: {
+    position: 'relative',
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   clockedBadge: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pulseDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#10B981',
+    borderWidth: 2.5,
   },
   workerName: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+    letterSpacing: 0.1,
   },
   tradeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   tradeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
+    opacity: 0.7,
   },
   spacer: {
     flex: 1,
@@ -206,19 +201,28 @@ const createStyles = (Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 6,
   },
-  statusRow: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
+  ratePill: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
   rateText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
 });

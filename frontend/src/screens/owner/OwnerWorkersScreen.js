@@ -62,17 +62,14 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View>
-        <LinearGradient
-          colors={[OWNER_COLORS.primary, OWNER_COLORS.primaryLight]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.avatarGradient}
-        >
-          <Text style={styles.avatarText}>{initial}</Text>
-        </LinearGradient>
-        {isClockedIn && <View style={styles.clockedInDot} />}
-      </View>
+      <LinearGradient
+        colors={[OWNER_COLORS.primary, OWNER_COLORS.primaryLight]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.avatarGradient}
+      >
+        <Text style={styles.avatarText}>{initial}</Text>
+      </LinearGradient>
 
       <View style={styles.cardInfo}>
         <Text style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
@@ -87,13 +84,13 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
           </View>
         )}
         <View style={styles.cardStats}>
-          <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
+          <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}1A` }]}>
             <Ionicons name="briefcase" size={11} color={OWNER_COLORS.primaryLight} />
             <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
               {supervisor.active_project_count || 0} {tOwner('supervisors.jobs')}
             </Text>
           </View>
-          <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}12` }]}>
+          <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.success}1A` }]}>
             <Ionicons name="people" size={11} color={OWNER_COLORS.success} />
             <Text style={[styles.statBadgeText, { color: OWNER_COLORS.success }]}>
               {supervisor.worker_count || 0} {tOwner('supervisors.workers')}
@@ -102,9 +99,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
         </View>
       </View>
 
-      <View style={[styles.chevronContainer, { backgroundColor: `${OWNER_COLORS.primary}10` }]}>
-        <Ionicons name="chevron-forward" size={18} color={OWNER_COLORS.primary} />
-      </View>
+      <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ opacity: 0.4 }} />
     </TouchableOpacity>
   );
 };
@@ -130,11 +125,8 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View>
-        <View style={[styles.workerAvatarContainer, { backgroundColor: statusColor }]}>
-          <Text style={styles.avatarText}>{initial}</Text>
-        </View>
-        {isClockedIn && <View style={styles.clockedInDot} />}
+      <View style={[styles.workerAvatarContainer, { backgroundColor: statusColor }]}>
+        <Text style={styles.avatarText}>{initial}</Text>
       </View>
 
       <View style={styles.cardInfo}>
@@ -156,7 +148,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
         )}
         <View style={styles.cardStats}>
           {(worker.assignment_count || 0) > 0 && (
-            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
+            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}1A` }]}>
               <Ionicons name="briefcase" size={12} color={OWNER_COLORS.primaryLight} />
               <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
                 {worker.assignment_count} {worker.assignment_count === 1 ? 'job' : 'jobs'}
@@ -164,7 +156,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
             </View>
           )}
           {getPaymentInfo() && (
-            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}12` }]}>
+            <View style={[styles.statBadge, { backgroundColor: `${OWNER_COLORS.primaryLight}1A` }]}>
               <Ionicons name="cash-outline" size={12} color={OWNER_COLORS.primaryLight} />
               <Text style={[styles.statBadgeText, { color: OWNER_COLORS.primaryLight }]}>
                 {getPaymentInfo()}
@@ -174,9 +166,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
         </View>
       </View>
 
-      <View style={[styles.chevronContainer, { backgroundColor: `${statusColor}15` }]}>
-        <Ionicons name="chevron-forward" size={18} color={statusColor} />
-      </View>
+      <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ opacity: 0.4 }} />
     </TouchableOpacity>
   );
 };
@@ -1282,37 +1272,36 @@ const styles = StyleSheet.create({
   supervisorCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.md,
+    paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: BorderRadius.xl,
-    marginBottom: Spacing.md,
-    gap: 14,
+    borderRadius: 16,
+    marginBottom: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 2,
   },
   avatarGradient: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
+    marginRight: 12,
   },
   avatarText: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: '#fff',
   },
   workerAvatarContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
+    marginRight: 12,
   },
   workerTradeRow: {
     flexDirection: 'row',
@@ -1326,43 +1315,42 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   clockedInPulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: OWNER_COLORS.success,
   },
   clockedInDot: {
     position: 'absolute',
-    bottom: 0,
-    right: -2,
+    bottom: -1,
+    right: -1,
     width: 14,
     height: 14,
     borderRadius: 7,
     backgroundColor: OWNER_COLORS.success,
-    borderWidth: 2,
-    borderColor: '#fff',
+    borderWidth: 2.5,
   },
   clockedInRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
+    gap: 5,
+    marginTop: 1,
   },
   clockedInText: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '600',
     flex: 1,
   },
   cardInfo: {
     flex: 1,
-    gap: 3,
+    gap: 1,
   },
   cardName: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   cardSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
   },
   // Legacy aliases
   supervisorInfo: {
@@ -1381,7 +1369,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 4,
+    marginTop: 6,
   },
   supervisorStats: {
     flexDirection: 'row',
@@ -1390,21 +1378,14 @@ const styles = StyleSheet.create({
   statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   statBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-  },
-  chevronContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   inviteCard: {
     flexDirection: 'row',
