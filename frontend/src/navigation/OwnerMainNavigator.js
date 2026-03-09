@@ -27,6 +27,7 @@ import DocumentViewerScreen from '../screens/DocumentViewerScreen';
 import WorkersScreen from '../screens/WorkersScreen';
 import WorkerDetailHistoryScreen from '../screens/WorkerDetailHistoryScreen';
 import EditWorkerPaymentScreen from '../screens/EditWorkerPaymentScreen';
+import EditSupervisorScreen from '../screens/owner/EditSupervisorScreen';
 
 // Import settings screens
 import EditBusinessInfoScreen from '../screens/settings/EditBusinessInfoScreen';
@@ -71,6 +72,9 @@ import RecurringExpenseScreen from '../screens/owner/RecurringExpenseScreen';
 import BankConnectionScreen from '../screens/owner/BankConnectionScreen';
 import BankReconciliationScreen from '../screens/owner/BankReconciliationScreen';
 import BankTransactionAssignScreen from '../screens/owner/BankTransactionAssignScreen';
+
+// Import Google Drive integration screen
+import GoogleDriveScreen from '../screens/owner/GoogleDriveScreen';
 
 const Stack = createStackNavigator();
 
@@ -130,6 +134,11 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="EditWorkerPayment"
         component={EditWorkerPaymentScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="EditSupervisor"
+        component={EditSupervisorScreen}
         options={{ headerShown: false }}
       />
 
@@ -255,6 +264,12 @@ export default function OwnerMainNavigator() {
         options={{
           presentation: 'modal',
         }}
+      />
+
+      {/* Google Drive Integration */}
+      <Stack.Screen
+        name="GoogleDrive"
+        component={GoogleDriveScreen}
       />
     </Stack.Navigator>
   );

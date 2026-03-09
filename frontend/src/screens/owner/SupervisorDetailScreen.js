@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Platform,
   Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,8 +23,9 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
-import { getSupervisorTimesheet, calculateSupervisorPaymentForPeriod, getActiveSupervisorClockIn } from '../../utils/storage/timeTracking';
+import { getSupervisorTimesheet, calculateSupervisorPaymentForPeriod, getActiveSupervisorClockIn, remoteClockOutSupervisor } from '../../utils/storage/timeTracking';
 import DateRangePicker from '../../components/DateRangePicker';
+import TimeEditModal from '../../components/TimeEditModal';
 import { formatHoursMinutes } from '../../utils/calculations';
 
 // Helper function to format pay rate (takes t function for i18n)
@@ -173,6 +175,46 @@ export default function SupervisorDetailScreen() {
   const [dateRange, setDateRange] = useState(getDefaultDateRange());
   const [paymentData, setPaymentData] = useState(null);
   const [loadingPayment, setLoadingPayment] = useState(true);
+  const [clockOutLoading, setClockOutLoading] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+
+  const handleClockOutSupervisor = () => {
+    const name = supervisor?.business_name || supervisor?.email?.split('@')[0] || 'Supervisor';
+    Alert.alert(
+      'Clock Out Supervisor',
+      `Are you sure you want to clock out ${name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clock Out',
+          style: 'destructive',
+          onPress: async () => {
+            setClockOutLoading(true);
+            try {
+              const result = await remoteClockOutSupervisor(supervisor.id);
+              if (result.success) {
+                Alert.alert('Success', `${name} has been clocked out. (${formatHoursMinutes(result.hours || 0)})`);
+                setActiveSession(null);
+                fetchSupervisorData();
+              } else {
+                Alert.alert('Error', result.error || 'Failed to clock out supervisor.');
+              }
+            } catch (e) {
+              Alert.alert('Error', 'Something went wrong.');
+            } finally {
+              setClockOutLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditTimeRecord = (record) => {
+    setEditingRecord(record);
+    setEditModalVisible(true);
+  };
 
   const fetchSupervisorData = useCallback(async () => {
     if (!supervisor?.id) return;
@@ -378,7 +420,12 @@ export default function SupervisorDetailScreen() {
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
           {supervisorName}
         </Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity
+          style={{ padding: 4 }}
+          onPress={() => navigation.navigate('EditSupervisor', { supervisor })}
+        >
+          <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -490,6 +537,24 @@ export default function SupervisorDetailScreen() {
               {t('supervisorDetailScreen.memberSince', { defaultValue: 'Member since {{date}}', date: new Date(supervisor.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) })}
             </Text>
           )}
+
+          {/* Edit Supervisor Button */}
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#1E40AF',
+              borderRadius: 10,
+              paddingVertical: 12,
+              marginTop: 14,
+              gap: 8,
+            }}
+            onPress={() => navigation.navigate('EditSupervisor', { supervisor })}
+          >
+            <Ionicons name="create-outline" size={18} color="#FFF" />
+            <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '600' }}>Edit Supervisor</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ─── 2. Currently Clocked In ─── */}
@@ -553,6 +618,21 @@ export default function SupervisorDetailScreen() {
                   </Text>
                 </View>
               )}
+              {/* Clock Out Button */}
+              <TouchableOpacity
+                style={styles.clockOutButton}
+                onPress={handleClockOutSupervisor}
+                disabled={clockOutLoading}
+              >
+                {clockOutLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="log-out-outline" size={18} color="#FFF" />
+                    <Text style={styles.clockOutButtonText}>Clock Out</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -662,21 +742,32 @@ export default function SupervisorDetailScreen() {
                         {formatDateLocal(record.clock_in)}
                       </Text>
                     </View>
-                    {isActive ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#05966920', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, gap: 4 }}>
-                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#059669' }} />
-                        <Text style={{ fontSize: 12, fontWeight: '500', color: '#059669' }}>{t('supervisorDetailScreen.activeStatus')}</Text>
-                      </View>
-                    ) : (
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#059669' }}>{formatHoursMinutes(record.hours)}</Text>
-                        {supervisor?.payment_type && (
-                          <Text style={{ fontSize: 11, fontWeight: '500', color: '#F59E0B' }}>
-                            ${calculateLaborCost(record.hours || 0, supervisor).toFixed(2)}
-                          </Text>
-                        )}
-                      </View>
-                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {isActive ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#05966920', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, gap: 4 }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#059669' }} />
+                          <Text style={{ fontSize: 12, fontWeight: '500', color: '#059669' }}>{t('supervisorDetailScreen.activeStatus')}</Text>
+                        </View>
+                      ) : (
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#059669' }}>{formatHoursMinutes(record.hours)}</Text>
+                          {supervisor?.payment_type && (
+                            <Text style={{ fontSize: 11, fontWeight: '500', color: '#F59E0B' }}>
+                              ${calculateLaborCost(record.hours || 0, supervisor).toFixed(2)}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                      {/* Edit button - only for completed entries */}
+                      {!isActive && (
+                        <TouchableOpacity
+                          style={{ padding: 4 }}
+                          onPress={() => handleEditTimeRecord(record)}
+                        >
+                          <Ionicons name="create-outline" size={18} color={Colors.secondaryText} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                   <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText }} numberOfLines={1}>
                     {record.projects?.name || t('supervisorDetailScreen.unknownProject')}
@@ -690,6 +781,21 @@ export default function SupervisorDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Time Edit Modal */}
+      <TimeEditModal
+        visible={editModalVisible}
+        onClose={() => {
+          setEditModalVisible(false);
+          setEditingRecord(null);
+        }}
+        onSaved={() => {
+          fetchSupervisorData();
+          loadPaymentData();
+        }}
+        record={editingRecord}
+        isSupervisor={true}
+      />
     </SafeAreaView>
   );
 }
@@ -773,6 +879,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 6,
     backgroundColor: '#8B5CF615',
+  },
+  clockOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 8,
+    backgroundColor: '#EF4444',
+  },
+  clockOutButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFF',
   },
   // Payment summary
   totalAmountContainer: {

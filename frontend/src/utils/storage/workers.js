@@ -946,6 +946,66 @@ export const getSupervisorsForOwner = async (ownerId) => {
 };
 
 /**
+ * Update a supervisor's profile
+ * @param {string} supervisorId - Supervisor's user ID
+ * @param {object} updates - Fields to update (business_name, business_phone, payment_type, rates, etc.)
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateSupervisorProfile = async (supervisorId, updates) => {
+  try {
+    const updateData = {};
+    if (updates.business_name !== undefined) updateData.business_name = updates.business_name;
+    if (updates.business_phone !== undefined) updateData.business_phone = updates.business_phone;
+    if (updates.payment_type !== undefined) updateData.payment_type = updates.payment_type;
+    if (updates.hourly_rate !== undefined) updateData.hourly_rate = updates.hourly_rate;
+    if (updates.daily_rate !== undefined) updateData.daily_rate = updates.daily_rate;
+    if (updates.weekly_salary !== undefined) updateData.weekly_salary = updates.weekly_salary;
+    if (updates.project_rate !== undefined) updateData.project_rate = updates.project_rate;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', supervisorId)
+      .select();
+
+    if (error) {
+      logger.error('Error updating supervisor profile:', error);
+      return false;
+    }
+    if (!data || data.length === 0) return false;
+    return true;
+  } catch (error) {
+    logger.error('Error in updateSupervisorProfile:', error);
+    return false;
+  }
+};
+
+/**
+ * Remove a supervisor (unlink from owner)
+ * @param {string} supervisorId - Supervisor's user ID
+ * @returns {Promise<boolean>} Success status
+ */
+export const removeSupervisor = async (supervisorId) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ owner_id: null })
+      .eq('id', supervisorId)
+      .select();
+
+    if (error) {
+      logger.error('Error removing supervisor:', error);
+      return false;
+    }
+    if (!data || data.length === 0) return false;
+    return true;
+  } catch (error) {
+    logger.error('Error in removeSupervisor:', error);
+    return false;
+  }
+};
+
+/**
  * Get owner info for a supervisor
  * Used by supervisor's AI chat to know who their owner is
  * @param {string} ownerId - The owner's user ID

@@ -149,6 +149,8 @@ export {
   getPreferredQuoteForTrade,
   // Owner mode functions
   getSupervisorsForOwner,
+  updateSupervisorProfile,
+  removeSupervisor,
   fetchWorkersForOwner,
   getClockedInWorkersTodayForOwner,
   getCompanyHierarchy,
@@ -169,10 +171,15 @@ export {
   getWorkerStats,
   calculateWorkerPaymentForPeriod,
   editTimeEntry,
+  editSupervisorTimeEntry,
   createManualTimeEntry,
   deleteTimeEntry,
   startWorkerBreak,
   endWorkerBreak,
+  remoteClockOutWorker,
+  remoteClockOutSupervisor,
+  checkForgottenClockOuts,
+  sendForgottenClockOutNotifications,
 } from './timeTracking';
 
 // Daily Reports
