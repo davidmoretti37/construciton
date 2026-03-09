@@ -544,16 +544,16 @@ export default function SupervisorDetailScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: '#1E40AF',
-              borderRadius: 10,
-              paddingVertical: 12,
-              marginTop: 14,
-              gap: 8,
+              backgroundColor: '#1E40AF15',
+              borderRadius: 8,
+              paddingVertical: 8,
+              marginTop: 12,
+              gap: 6,
             }}
             onPress={() => navigation.navigate('EditSupervisor', { supervisor })}
           >
-            <Ionicons name="create-outline" size={18} color="#FFF" />
-            <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '600' }}>Edit Supervisor</Text>
+            <Ionicons name="create-outline" size={15} color="#1E40AF" />
+            <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit Info</Text>
           </TouchableOpacity>
         </View>
 

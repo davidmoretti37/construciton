@@ -336,10 +336,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   paymentTypeOption: {
-    flex: 1,
-    minWidth: '45%',
+    width: '47%',
     borderRadius: 12,
-    padding: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
