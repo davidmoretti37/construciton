@@ -1,6 +1,9 @@
 import { supabase } from '../../lib/supabase';
 import logger from '../logger';
 import { getCurrentUserId, getCurrentUserContext } from './auth';
+import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+
+const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
 // ============================================================
 // Worker Management Functions
@@ -958,8 +961,6 @@ export const updateSupervisorProfile = async (supervisorId, updates) => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (token) {
-        const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
-        const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
         const response = await fetch(`${BACKEND_URL}/api/supervisors/${supervisorId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -1015,8 +1016,6 @@ export const removeSupervisor = async (supervisorId) => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (token) {
-        const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
-        const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
         const response = await fetch(`${BACKEND_URL}/api/supervisors/${supervisorId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` },
