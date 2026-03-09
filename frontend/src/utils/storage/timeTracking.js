@@ -1165,12 +1165,16 @@ export const editTimeEntry = async (timeTrackingId, updates) => {
       }
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('time_tracking')
       .update(updates)
-      .eq('id', timeTrackingId);
+      .eq('id', timeTrackingId)
+      .select();
 
-    return !error;
+    if (error) return false;
+    // RLS may silently block the update (0 rows affected, no error)
+    if (!data || data.length === 0) return false;
+    return true;
   } catch (error) {
     console.error('Error in editTimeEntry:', error);
     return false;
@@ -1352,6 +1356,235 @@ export const endWorkerBreak = async (workerId) => {
   } catch (error) {
     console.error('Error in endWorkerBreak:', error);
     return null;
+  }
+};
+
+// ============================================================
+// Edit Supervisor Time Entry
+// ============================================================
+
+/**
+ * Edit a supervisor time entry
+ * @param {string} timeTrackingId - Supervisor time tracking record ID
+ * @param {object} updates - Fields to update (clock_in, clock_out, notes)
+ * @returns {Promise<boolean>} Success status
+ */
+export const editSupervisorTimeEntry = async (timeTrackingId, updates) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    if (updates.clock_in || updates.clock_out) {
+      const { data: existing } = await supabase
+        .from('supervisor_time_tracking')
+        .select('id, clock_in, clock_out')
+        .eq('id', timeTrackingId)
+        .single();
+
+      if (existing && (updates.clock_out || existing.clock_out)) {
+        const clockIn = new Date(updates.clock_in || existing.clock_in);
+        const clockOut = new Date(updates.clock_out || existing.clock_out);
+        if (clockOut <= clockIn) {
+          console.error('Clock out must be after clock in');
+          return false;
+        }
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('supervisor_time_tracking')
+      .update(updates)
+      .eq('id', timeTrackingId)
+      .select();
+
+    if (error) return false;
+    // RLS may silently block the update (0 rows affected, no error)
+    if (!data || data.length === 0) return false;
+    return true;
+  } catch (error) {
+    console.error('Error in editSupervisorTimeEntry:', error);
+    return false;
+  }
+};
+
+// ============================================================
+// Owner/Supervisor Remote Clock Out Functions
+// ============================================================
+
+/**
+ * Owner or supervisor remotely clocks out a worker
+ * @param {string} workerId - Worker ID
+ * @param {string} notes - Optional notes
+ * @returns {Promise<{success: boolean, hours?: number}>}
+ */
+export const remoteClockOutWorker = async (workerId, notes = null) => {
+  try {
+    const activeSession = await getActiveClockIn(workerId);
+    if (!activeSession) {
+      return { success: false, error: 'Worker is not clocked in' };
+    }
+
+    const result = await clockOut(activeSession.id, notes || 'Clocked out by manager');
+    return result;
+  } catch (error) {
+    console.error('Error in remoteClockOutWorker:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Owner remotely clocks out a supervisor
+ * @param {string} supervisorId - Supervisor's user ID
+ * @param {string} notes - Optional notes
+ * @returns {Promise<{success: boolean, hours?: number}>}
+ */
+export const remoteClockOutSupervisor = async (supervisorId, notes = null) => {
+  try {
+    const activeSession = await getActiveSupervisorClockIn(supervisorId);
+    if (!activeSession) {
+      return { success: false, error: 'Supervisor is not clocked in' };
+    }
+
+    const result = await supervisorClockOut(activeSession.id, notes || 'Clocked out by owner');
+    return result;
+  } catch (error) {
+    console.error('Error in remoteClockOutSupervisor:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================================
+// Forgotten Clock-Out Detection & Notifications
+// ============================================================
+
+/**
+ * Check for workers and supervisors who have been clocked in longer than threshold
+ * @param {number} thresholdHours - Hours after which a clock-in is considered forgotten (default: 10)
+ * @returns {Promise<{workers: array, supervisors: array}>} Forgotten sessions
+ */
+export const checkForgottenClockOuts = async (thresholdHours = 10) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { workers: [], supervisors: [] };
+
+    const thresholdTime = new Date();
+    thresholdTime.setHours(thresholdTime.getHours() - thresholdHours);
+    const thresholdISO = thresholdTime.toISOString();
+
+    // Check workers
+    const { data: workerSessions } = await supabase
+      .from('time_tracking')
+      .select(`
+        id, worker_id, project_id, clock_in, notes,
+        workers!inner (id, full_name, owner_id),
+        projects!inner (id, name)
+      `)
+      .is('clock_out', null)
+      .lt('clock_in', thresholdISO)
+      .limit(50);
+
+    // Filter to only workers owned by the current user
+    const ownedWorkerSessions = (workerSessions || []).filter(
+      s => s.workers?.owner_id === user.id
+    );
+
+    // Check supervisors
+    const { data: supSessions } = await supabase
+      .from('supervisor_time_tracking')
+      .select(`
+        id, supervisor_id, project_id, clock_in, notes,
+        projects:project_id (id, name)
+      `)
+      .is('clock_out', null)
+      .lt('clock_in', thresholdISO)
+      .limit(50);
+
+    // Get supervisor profiles to check ownership
+    let ownedSupSessions = [];
+    if (supSessions && supSessions.length > 0) {
+      const supIds = [...new Set(supSessions.map(s => s.supervisor_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, owner_id, full_name, business_name')
+        .in('id', supIds);
+
+      const profileMap = {};
+      (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+      ownedSupSessions = supSessions
+        .filter(s => profileMap[s.supervisor_id]?.owner_id === user.id)
+        .map(s => ({
+          ...s,
+          supervisor_name: profileMap[s.supervisor_id]?.business_name ||
+                          profileMap[s.supervisor_id]?.full_name ||
+                          'Supervisor',
+        }));
+    }
+
+    return {
+      workers: ownedWorkerSessions.map(s => ({
+        ...s,
+        worker_name: s.workers?.full_name || 'Worker',
+        project_name: s.projects?.name || 'Unknown Project',
+        hoursElapsed: ((new Date() - new Date(s.clock_in)) / (1000 * 60 * 60)).toFixed(1),
+      })),
+      supervisors: ownedSupSessions.map(s => ({
+        ...s,
+        project_name: s.projects?.name || 'Unknown Project',
+        hoursElapsed: ((new Date() - new Date(s.clock_in)) / (1000 * 60 * 60)).toFixed(1),
+      })),
+    };
+  } catch (error) {
+    console.error('Error in checkForgottenClockOuts:', error);
+    return { workers: [], supervisors: [] };
+  }
+};
+
+/**
+ * Send push notifications for forgotten clock-outs to the owner
+ * Should be called periodically (e.g., when owner opens app, or on a schedule)
+ * @param {number} thresholdHours - Hours threshold (default: 10)
+ * @returns {Promise<number>} Number of notifications sent
+ */
+export const sendForgottenClockOutNotifications = async (thresholdHours = 10) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const forgotten = await checkForgottenClockOuts(thresholdHours);
+    let notifCount = 0;
+
+    for (const worker of forgotten.workers) {
+      await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: user.id,
+          title: 'Forgotten Clock-Out',
+          body: `${worker.worker_name} has been clocked in for ${worker.hoursElapsed}h on ${worker.project_name}. Did they forget to clock out?`,
+          type: 'worker_update',
+          data: { screen: 'Workers' },
+          workerId: worker.worker_id,
+        },
+      });
+      notifCount++;
+    }
+
+    for (const sup of forgotten.supervisors) {
+      await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: user.id,
+          title: 'Forgotten Clock-Out',
+          body: `${sup.supervisor_name} has been clocked in for ${sup.hoursElapsed}h on ${sup.project_name}. Did they forget to clock out?`,
+          type: 'worker_update',
+          data: { screen: 'Workers' },
+        },
+      });
+      notifCount++;
+    }
+
+    return notifCount;
+  } catch (error) {
+    console.error('Error in sendForgottenClockOutNotifications:', error);
+    return 0;
   }
 };
 

@@ -32,6 +32,7 @@ const geocodingRoutes = require('./routes/geocoding');
 const transcriptionRoutes = require('./routes/transcription');
 const stripeRoutes = require('./routes/stripe');
 const plaidRoutes = require('./routes/plaid');
+const googleDriveRoutes = require('./routes/googleDrive');
 
 // Rate Limiters
 const { aiLimiter, servicesLimiter, chatHistoryLimiter } = require('./middleware/rateLimiter');
@@ -88,6 +89,7 @@ app.use('/api', servicesLimiter, transcriptionRoutes);
 app.use('/api/stripe', servicesLimiter, stripeRoutes);
 app.use('/api/subscription', servicesLimiter, stripeRoutes);
 app.use('/api/plaid', servicesLimiter, plaidRoutes);
+app.use('/api/integrations/google-drive', servicesLimiter, googleDriveRoutes);
 
 // ============================================================
 // HEALTH & READINESS CHECKS
@@ -374,6 +376,48 @@ app.post('/api/documents/extract-text', aiLimiter, authenticateUser, async (req,
     logger.error('PDF extraction error:', error.message, error.stack?.split('\n')[1]);
     // Return scanned:true so frontend falls back to vision API
     res.status(200).json({ text: '', pageCount: 0, scanned: true });
+  }
+});
+
+// DOCX text extraction endpoint
+const mammoth = require('mammoth');
+
+app.post('/api/documents/extract-text-docx', aiLimiter, authenticateUser, async (req, res) => {
+  try {
+    const { base64, filename } = req.body;
+
+    // Input validation
+    if (!base64 || typeof base64 !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid base64 field' });
+    }
+    if (!filename || typeof filename !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid filename field' });
+    }
+
+    // Strip data URL prefix if present (e.g. "data:application/vnd.openxmlformats...;base64,")
+    const rawBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+
+    // Size guard: reject if decoded size > 10MB
+    const estimatedBytes = Math.ceil((rawBase64.length * 3) / 4);
+    const MAX_BYTES = 10 * 1024 * 1024;
+    if (estimatedBytes > MAX_BYTES) {
+      return res.status(413).json({ success: false, error: 'File too large for text extraction' });
+    }
+
+    const buffer = Buffer.from(rawBase64, 'base64');
+
+    // mammoth returns { value: string, messages: [] } — use .value for the text
+    const result = await mammoth.extractRawText({ buffer });
+    const text = result.value || '';
+    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+
+    logger.info(`📄 DOCX extracted: ${text.length} chars, ${wordCount} words from ${filename}`);
+
+    return res.json({ text, wordCount, success: true });
+  } catch (err) {
+    logger.error('[extract-text-docx] Extraction failed:', err.message);
+    // Return 200 with success: false to match existing PDF endpoint pattern
+    return res.status(200).json({ text: '', wordCount: 0, success: false });
   }
 });
 
@@ -927,6 +971,108 @@ app.delete('/api/chat/sessions/:sessionId', chatHistoryLimiter, authenticateUser
   } catch (error) {
     logger.error('Error deleting session:', error);
     res.status(500).json({ error: 'Failed to delete session' });
+  }
+});
+
+// ============================================================
+// TIME TRACKING - Edit time entries (uses service role to bypass RLS)
+// ============================================================
+
+app.patch('/api/time-entries/:id', authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { clock_in, clock_out, table } = req.body;
+    const userId = req.user.id;
+
+    if (!clock_in || !clock_out) {
+      return res.status(400).json({ error: 'clock_in and clock_out are required' });
+    }
+
+    const clockInDate = new Date(clock_in);
+    const clockOutDate = new Date(clock_out);
+    if (clockOutDate <= clockInDate) {
+      return res.status(400).json({ error: 'clock_out must be after clock_in' });
+    }
+
+    const hoursWorked = (clockOutDate - clockInDate) / (1000 * 60 * 60);
+    const tableName = table === 'supervisor' ? 'supervisor_time_tracking' : 'time_tracking';
+    const ownerField = table === 'supervisor' ? 'supervisor_id' : 'worker_id';
+
+    // Verify the record exists
+    const { data: record, error: fetchError } = await supabase
+      .from(tableName)
+      .select(`id, ${ownerField}`)
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !record) {
+      return res.status(404).json({ error: 'Time entry not found' });
+    }
+
+    // Verify the requesting user is the owner of the worker/supervisor
+    // or is the worker/supervisor themselves
+    const recordOwnerId = record[ownerField];
+    let authorized = recordOwnerId === userId;
+
+    if (!authorized) {
+      // Check if user is the owner of this worker/supervisor
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('owner_id')
+        .eq('id', recordOwnerId)
+        .single();
+
+      authorized = profile?.owner_id === userId;
+    }
+
+    if (!authorized) {
+      // Also check workers table for worker entries
+      if (table !== 'supervisor') {
+        const { data: worker } = await supabase
+          .from('workers')
+          .select('owner_id')
+          .eq('id', recordOwnerId)
+          .single();
+
+        authorized = worker?.owner_id === userId;
+
+        // Also allow supervisors assigned to the worker's project
+        if (!authorized && worker) {
+          const { data: project } = await supabase
+            .from('time_tracking')
+            .select('project_id, projects!inner(assigned_supervisor_id)')
+            .eq('id', id)
+            .single();
+
+          authorized = project?.projects?.assigned_supervisor_id === userId;
+        }
+      }
+    }
+
+    if (!authorized) {
+      return res.status(403).json({ error: 'Not authorized to edit this time entry' });
+    }
+
+    // Build update object
+    const updates = { clock_in, clock_out };
+    if (table !== 'supervisor') {
+      updates.hours_worked = hoursWorked;
+    }
+
+    const { error: updateError } = await supabase
+      .from(tableName)
+      .update(updates)
+      .eq('id', id);
+
+    if (updateError) {
+      logger.error('Error updating time entry:', updateError);
+      return res.status(500).json({ error: 'Failed to update time entry' });
+    }
+
+    res.json({ success: true, hours_worked: hoursWorked });
+  } catch (error) {
+    logger.error('Error in time entry edit:', error);
+    res.status(500).json({ error: 'Failed to update time entry' });
   }
 });
 
