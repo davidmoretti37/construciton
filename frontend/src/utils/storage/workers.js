@@ -953,6 +953,29 @@ export const getSupervisorsForOwner = async (ownerId) => {
  */
 export const updateSupervisorProfile = async (supervisorId, updates) => {
   try {
+    // Try backend API first (bypasses RLS for cross-user edits)
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (token) {
+        const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
+        const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+        const response = await fetch(`${BACKEND_URL}/api/supervisors/${supervisorId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(updates),
+        });
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const result = await response.json();
+          if (response.ok && result.success) return true;
+        }
+      }
+    } catch (e) {
+      console.log('Backend API unavailable for supervisor update:', e.message);
+    }
+
+    // Fallback: direct Supabase update (only works if user owns the row)
     const updateData = {};
     if (updates.business_name !== undefined) updateData.business_name = updates.business_name;
     if (updates.business_phone !== undefined) updateData.business_phone = updates.business_phone;
@@ -987,6 +1010,28 @@ export const updateSupervisorProfile = async (supervisorId, updates) => {
  */
 export const removeSupervisor = async (supervisorId) => {
   try {
+    // Try backend API first (bypasses RLS)
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (token) {
+        const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
+        const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+        const response = await fetch(`${BACKEND_URL}/api/supervisors/${supervisorId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const result = await response.json();
+          if (response.ok && result.success) return true;
+        }
+      }
+    } catch (e) {
+      console.log('Backend API unavailable for supervisor removal:', e.message);
+    }
+
+    // Fallback: direct Supabase
     const { data, error } = await supabase
       .from('profiles')
       .update({ owner_id: null })

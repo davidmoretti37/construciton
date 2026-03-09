@@ -1076,6 +1076,95 @@ app.patch('/api/time-entries/:id', authenticateUser, async (req, res) => {
   }
 });
 
+// ============================================================
+// SUPERVISOR PROFILE - Update supervisor (uses service role to bypass RLS)
+// ============================================================
+
+app.patch('/api/supervisors/:id', authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { business_name, business_phone, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate } = req.body;
+
+    // Verify the supervisor exists and belongs to this owner
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id, owner_id, role')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !profile) {
+      return res.status(404).json({ error: 'Supervisor not found' });
+    }
+
+    if (profile.owner_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized to edit this supervisor' });
+    }
+
+    // Build update object with only provided fields
+    const updates = {};
+    if (business_name !== undefined) updates.business_name = business_name;
+    if (business_phone !== undefined) updates.business_phone = business_phone;
+    if (payment_type !== undefined) updates.payment_type = payment_type;
+    if (hourly_rate !== undefined) updates.hourly_rate = hourly_rate;
+    if (daily_rate !== undefined) updates.daily_rate = daily_rate;
+    if (weekly_salary !== undefined) updates.weekly_salary = weekly_salary;
+    if (project_rate !== undefined) updates.project_rate = project_rate;
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', id);
+
+    if (updateError) {
+      logger.error('Error updating supervisor profile:', updateError);
+      return res.status(500).json({ error: 'Failed to update supervisor' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error in supervisor profile edit:', error);
+    res.status(500).json({ error: 'Failed to update supervisor' });
+  }
+});
+
+app.delete('/api/supervisors/:id', authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id, owner_id')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !profile) {
+      return res.status(404).json({ error: 'Supervisor not found' });
+    }
+
+    if (profile.owner_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Unlink supervisor from owner (don't delete the profile)
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ owner_id: null })
+      .eq('id', id);
+
+    if (updateError) {
+      logger.error('Error removing supervisor:', updateError);
+      return res.status(500).json({ error: 'Failed to remove supervisor' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error in supervisor removal:', error);
+    res.status(500).json({ error: 'Failed to remove supervisor' });
+  }
+});
+
 // Export app for testing with supertest (before listen)
 module.exports = app;
 
