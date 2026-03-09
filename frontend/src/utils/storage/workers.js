@@ -58,20 +58,34 @@ export const createWorker = async (workerData) => {
  */
 export const updateWorker = async (workerId, updates) => {
   try {
+    // Build update object with only provided fields
+    const updateData = {};
+    if (updates.fullName !== undefined || updates.full_name !== undefined) {
+      updateData.full_name = updates.fullName || updates.full_name;
+    }
+    if (updates.phone !== undefined) updateData.phone = updates.phone;
+    if (updates.email !== undefined) updateData.email = updates.email;
+    if (updates.trade !== undefined) updateData.trade = updates.trade;
+    if (updates.hourlyRate !== undefined || updates.hourly_rate !== undefined) {
+      updateData.hourly_rate = updates.hourlyRate ?? updates.hourly_rate;
+    }
+    if (updates.paymentType !== undefined || updates.payment_type !== undefined) {
+      updateData.payment_type = updates.paymentType || updates.payment_type;
+    }
+    if (updates.dailyRate !== undefined || updates.daily_rate !== undefined) {
+      updateData.daily_rate = updates.dailyRate ?? updates.daily_rate;
+    }
+    if (updates.weeklySalary !== undefined || updates.weekly_salary !== undefined) {
+      updateData.weekly_salary = updates.weeklySalary ?? updates.weekly_salary;
+    }
+    if (updates.projectRate !== undefined || updates.project_rate !== undefined) {
+      updateData.project_rate = updates.projectRate ?? updates.project_rate;
+    }
+    if (updates.status !== undefined) updateData.status = updates.status;
+
     const { error } = await supabase
       .from('workers')
-      .update({
-        full_name: updates.fullName || updates.full_name,
-        phone: updates.phone,
-        email: updates.email,
-        trade: updates.trade,
-        hourly_rate: updates.hourlyRate || updates.hourly_rate,
-        payment_type: updates.paymentType || updates.payment_type,
-        daily_rate: updates.dailyRate || updates.daily_rate,
-        weekly_salary: updates.weeklySalary || updates.weekly_salary,
-        project_rate: updates.projectRate || updates.project_rate,
-        status: updates.status,
-      })
+      .update(updateData)
       .eq('id', workerId);
 
     if (error) {

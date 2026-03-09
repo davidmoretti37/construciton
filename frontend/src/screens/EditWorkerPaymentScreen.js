@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { updateWorker } from '../utils/storage';
+import { updateWorker, deleteWorker } from '../utils/storage';
 
 export default function EditWorkerPaymentScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -24,64 +24,106 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
   const { t } = useTranslation(['workers', 'common']);
   const { worker } = route.params;
 
+  // Worker info fields
+  const [fullName, setFullName] = useState(worker.full_name || '');
+  const [phone, setPhone] = useState(worker.phone || '');
+  const [email, setEmail] = useState(worker.email || '');
+  const [trade, setTrade] = useState(worker.trade || '');
+
+  // Payment fields
   const [paymentType, setPaymentType] = useState(worker.payment_type || 'hourly');
   const [hourlyRate, setHourlyRate] = useState(worker.hourly_rate?.toString() || '');
   const [dailyRate, setDailyRate] = useState(worker.daily_rate?.toString() || '');
   const [weeklySalary, setWeeklySalary] = useState(worker.weekly_salary?.toString() || '');
   const [projectRate, setProjectRate] = useState(worker.project_rate?.toString() || '');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleSave = async () => {
+    if (!fullName.trim()) {
+      Alert.alert('Error', 'Worker name is required.');
+      return;
+    }
+
     try {
       setSaving(true);
 
-      // Prepare payment data based on type
-      const paymentData = {
+      const updates = {
+        full_name: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        trade: trade.trim(),
         payment_type: paymentType,
-        hourly_rate: paymentType === 'hourly' ? parseFloat(hourlyRate) || 0 : 0,
-        daily_rate: paymentType === 'daily' ? parseFloat(dailyRate) || 0 : 0,
-        weekly_salary: paymentType === 'weekly' ? parseFloat(weeklySalary) || 0 : 0,
-        project_rate: paymentType === 'project_based' ? parseFloat(projectRate) || 0 : 0,
+        hourly_rate: paymentType === 'hourly' ? parseFloat(hourlyRate) || 0 : (worker.hourly_rate || 0),
+        daily_rate: paymentType === 'daily' ? parseFloat(dailyRate) || 0 : (worker.daily_rate || 0),
+        weekly_salary: paymentType === 'weekly' ? parseFloat(weeklySalary) || 0 : (worker.weekly_salary || 0),
+        project_rate: paymentType === 'project_based' ? parseFloat(projectRate) || 0 : (worker.project_rate || 0),
       };
 
-      // Validate that the selected payment type has a rate
-      if (paymentType === 'hourly' && !hourlyRate) {
-        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.hourlyRate') }));
-        setSaving(false);
-        return;
-      }
-      if (paymentType === 'daily' && !dailyRate) {
-        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.dailyRate') }));
-        setSaving(false);
-        return;
-      }
-      if (paymentType === 'weekly' && !weeklySalary) {
-        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.weeklySalary') }));
-        setSaving(false);
-        return;
-      }
-      if (paymentType === 'project_based' && !projectRate) {
-        Alert.alert(t('common:alerts.error'), t('common:messages.pleaseEnter', { item: t('workers:form.projectRate') }));
-        setSaving(false);
-        return;
-      }
-
-      const success = await updateWorker(worker.id, paymentData);
+      const success = await updateWorker(worker.id, updates);
 
       if (success) {
-        Alert.alert(t('common:alerts.success'), t('common:messages.updatedSuccessfully', { item: t('workers:workerDetails.paymentInformation') }), [
-          { text: t('common:buttons.ok'), onPress: () => navigation.goBack() }
+        Alert.alert('Success', 'Worker updated successfully.', [
+          { text: 'OK', onPress: () => navigation.goBack() }
         ]);
       } else {
-        Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: t('workers:workerDetails.paymentInformation') }));
+        Alert.alert('Error', 'Failed to update worker. Please try again.');
       }
     } catch (error) {
-      console.error('Error updating payment:', error);
-      Alert.alert(t('common:alerts.error'), t('common:messages.failedToSave', { item: t('workers:workerDetails.paymentInformation') }));
+      console.error('Error updating worker:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
   };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Worker',
+      `Are you sure you want to delete ${worker.full_name}? This will remove all their data and cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const success = await deleteWorker(worker.id);
+              if (success) {
+                Alert.alert('Deleted', `${worker.full_name} has been removed.`, [
+                  { text: 'OK', onPress: () => navigation.popToTop() }
+                ]);
+              } else {
+                Alert.alert('Error', 'Failed to delete worker.');
+              }
+            } catch (error) {
+              console.error('Error deleting worker:', error);
+              Alert.alert('Error', 'Something went wrong.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const rateLabel = paymentType === 'hourly' ? t('workers:form.hourlyRate') :
+    paymentType === 'daily' ? t('workers:form.dailyRate') :
+    paymentType === 'weekly' ? t('workers:form.weeklySalary') : t('workers:form.projectRate');
+
+  const rateSuffix = paymentType === 'hourly' ? t('workers:workerDetails.perHour') :
+    paymentType === 'daily' ? t('workers:workerDetails.perDay') :
+    paymentType === 'weekly' ? t('workers:workerDetails.perWeek') : t('workers:workerDetails.perProject');
+
+  const rateValue = paymentType === 'hourly' ? hourlyRate :
+    paymentType === 'daily' ? dailyRate :
+    paymentType === 'weekly' ? weeklySalary : projectRate;
+
+  const setRateValue = paymentType === 'hourly' ? setHourlyRate :
+    paymentType === 'daily' ? setDailyRate :
+    paymentType === 'weekly' ? setWeeklySalary : setProjectRate;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
@@ -93,16 +135,16 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('workers:payment.editPayment')}</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Worker</Text>
         <TouchableOpacity
-          style={styles.saveButton}
+          style={[styles.saveBtn, { backgroundColor: saving ? '#9CA3AF' : '#1E40AF' }]}
           onPress={handleSave}
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator size="small" color={Colors.primaryBlue} />
+            <ActivityIndicator size="small" color="#FFF" />
           ) : (
-            <Text style={[styles.saveButtonText, { color: Colors.primaryBlue }]}>{t('common:buttons.save')}</Text>
+            <Text style={styles.saveBtnText}>Save</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -118,201 +160,150 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Worker Info */}
-          <View style={[styles.workerInfoCard, { backgroundColor: Colors.white }]}>
-            <View style={[styles.workerAvatar, { backgroundColor: Colors.primaryBlue }]}>
-              <Text style={styles.workerAvatarText}>
-                {worker.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}
-              </Text>
+          {/* Worker Information */}
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="person-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Worker Information</Text>
             </View>
-            <Text style={[styles.workerName, { color: Colors.primaryText }]}>
-              {worker.full_name}
-            </Text>
-            {worker.trade && (
-              <Text style={[styles.workerTrade, { color: Colors.secondaryText }]}>
-                {worker.trade}
-              </Text>
-            )}
+
+            {/* Name */}
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Full Name</Text>
+            <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
+              <Ionicons name="person-outline" size={18} color={Colors.secondaryText} />
+              <TextInput
+                style={[styles.textInput, { color: Colors.primaryText }]}
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="Worker name"
+                placeholderTextColor={Colors.secondaryText}
+              />
+            </View>
+
+            {/* Phone */}
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Phone</Text>
+            <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
+              <Ionicons name="call-outline" size={18} color={Colors.secondaryText} />
+              <TextInput
+                style={[styles.textInput, { color: Colors.primaryText }]}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="Phone number"
+                placeholderTextColor={Colors.secondaryText}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            {/* Email */}
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Email</Text>
+            <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
+              <Ionicons name="mail-outline" size={18} color={Colors.secondaryText} />
+              <TextInput
+                style={[styles.textInput, { color: Colors.primaryText }]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Email address"
+                placeholderTextColor={Colors.secondaryText}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            {/* Trade */}
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Trade / Specialty</Text>
+            <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
+              <Ionicons name="construct-outline" size={18} color={Colors.secondaryText} />
+              <TextInput
+                style={[styles.textInput, { color: Colors.primaryText }]}
+                value={trade}
+                onChangeText={setTrade}
+                placeholder="e.g. Carpentry, Electrical, Plumbing"
+                placeholderTextColor={Colors.secondaryText}
+              />
+            </View>
           </View>
 
           {/* Payment Type Selection */}
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('workers:payment.paymentType')}</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="wallet-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('workers:payment.paymentType')}</Text>
+            </View>
 
             <View style={styles.paymentTypeGrid}>
-              <TouchableOpacity
-                style={[
-                  styles.paymentTypeOption,
-                  paymentType === 'hourly' && { backgroundColor: Colors.primaryBlue },
-                  paymentType !== 'hourly' && { backgroundColor: Colors.lightGray, borderColor: Colors.border }
-                ]}
-                onPress={() => setPaymentType('hourly')}
-              >
-                <Ionicons
-                  name="time"
-                  size={24}
-                  color={paymentType === 'hourly' ? '#FFFFFF' : Colors.secondaryText}
-                />
-                <Text style={[
-                  styles.paymentTypeText,
-                  { color: paymentType === 'hourly' ? '#FFFFFF' : Colors.primaryText }
-                ]}>
-                  {t('workers:payment.hourly')}
-                </Text>
-              </TouchableOpacity>
+              {[
+                { key: 'hourly', icon: 'time', label: t('workers:payment.hourly') },
+                { key: 'daily', icon: 'sunny', label: t('workers:payment.daily') },
+                { key: 'weekly', icon: 'calendar', label: t('workers:payment.weekly') },
+                { key: 'project_based', icon: 'briefcase', label: t('workers:payment.project') },
+              ].map(({ key, icon, label }) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.paymentTypeOption,
+                    paymentType === key
+                      ? { backgroundColor: Colors.primaryBlue, borderColor: Colors.primaryBlue }
+                      : { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }
+                  ]}
+                  onPress={() => setPaymentType(key)}
+                >
+                  <Ionicons
+                    name={icon}
+                    size={22}
+                    color={paymentType === key ? '#FFFFFF' : Colors.secondaryText}
+                  />
+                  <Text style={[
+                    styles.paymentTypeText,
+                    { color: paymentType === key ? '#FFFFFF' : Colors.primaryText }
+                  ]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.paymentTypeOption,
-                  paymentType === 'daily' && { backgroundColor: Colors.primaryBlue },
-                  paymentType !== 'daily' && { backgroundColor: Colors.lightGray, borderColor: Colors.border }
-                ]}
-                onPress={() => setPaymentType('daily')}
-              >
-                <Ionicons
-                  name="sunny"
-                  size={24}
-                  color={paymentType === 'daily' ? '#FFFFFF' : Colors.secondaryText}
-                />
-                <Text style={[
-                  styles.paymentTypeText,
-                  { color: paymentType === 'daily' ? '#FFFFFF' : Colors.primaryText }
-                ]}>
-                  {t('workers:payment.daily')}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.paymentTypeOption,
-                  paymentType === 'weekly' && { backgroundColor: Colors.primaryBlue },
-                  paymentType !== 'weekly' && { backgroundColor: Colors.lightGray, borderColor: Colors.border }
-                ]}
-                onPress={() => setPaymentType('weekly')}
-              >
-                <Ionicons
-                  name="calendar"
-                  size={24}
-                  color={paymentType === 'weekly' ? '#FFFFFF' : Colors.secondaryText}
-                />
-                <Text style={[
-                  styles.paymentTypeText,
-                  { color: paymentType === 'weekly' ? '#FFFFFF' : Colors.primaryText }
-                ]}>
-                  {t('workers:payment.weekly')}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.paymentTypeOption,
-                  paymentType === 'project_based' && { backgroundColor: Colors.primaryBlue },
-                  paymentType !== 'project_based' && { backgroundColor: Colors.lightGray, borderColor: Colors.border }
-                ]}
-                onPress={() => setPaymentType('project_based')}
-              >
-                <Ionicons
-                  name="briefcase"
-                  size={24}
-                  color={paymentType === 'project_based' ? '#FFFFFF' : Colors.secondaryText}
-                />
-                <Text style={[
-                  styles.paymentTypeText,
-                  { color: paymentType === 'project_based' ? '#FFFFFF' : Colors.primaryText }
-                ]}>
-                  {t('workers:payment.project')}
-                </Text>
-              </TouchableOpacity>
+            {/* Rate Input */}
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText, marginTop: 16 }]}>{rateLabel}</Text>
+            <View style={[styles.rateInputContainer, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
+              <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
+              <TextInput
+                style={[styles.rateInput, { color: Colors.primaryText }]}
+                value={rateValue}
+                onChangeText={setRateValue}
+                placeholder="0.00"
+                placeholderTextColor={Colors.secondaryText}
+                keyboardType="decimal-pad"
+              />
+              <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{rateSuffix}</Text>
             </View>
           </View>
 
-          {/* Payment Rate Input */}
+          {/* Delete Worker */}
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              {paymentType === 'hourly' ? t('workers:form.hourlyRate') :
-               paymentType === 'daily' ? t('workers:form.dailyRate') :
-               paymentType === 'weekly' ? t('workers:form.weeklySalary') : t('workers:form.projectRate')}
-            </Text>
-
-            {paymentType === 'hourly' && (
-              <View style={[styles.rateInputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
-                <Ionicons name="cash-outline" size={24} color={Colors.secondaryText} />
-                <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
-                <TextInput
-                  style={[styles.rateInput, { color: Colors.primaryText }]}
-                  value={hourlyRate}
-                  onChangeText={setHourlyRate}
-                  placeholder="0.00"
-                  placeholderTextColor={Colors.secondaryText}
-                  keyboardType="decimal-pad"
-                  autoFocus={!hourlyRate}
-                />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perHour')}</Text>
-              </View>
-            )}
-
-            {paymentType === 'daily' && (
-              <View style={[styles.rateInputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
-                <Ionicons name="cash-outline" size={24} color={Colors.secondaryText} />
-                <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
-                <TextInput
-                  style={[styles.rateInput, { color: Colors.primaryText }]}
-                  value={dailyRate}
-                  onChangeText={setDailyRate}
-                  placeholder="0.00"
-                  placeholderTextColor={Colors.secondaryText}
-                  keyboardType="decimal-pad"
-                  autoFocus={!dailyRate}
-                />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perDay')}</Text>
-              </View>
-            )}
-
-            {paymentType === 'weekly' && (
-              <View style={[styles.rateInputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
-                <Ionicons name="cash-outline" size={24} color={Colors.secondaryText} />
-                <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
-                <TextInput
-                  style={[styles.rateInput, { color: Colors.primaryText }]}
-                  value={weeklySalary}
-                  onChangeText={setWeeklySalary}
-                  placeholder="0.00"
-                  placeholderTextColor={Colors.secondaryText}
-                  keyboardType="decimal-pad"
-                  autoFocus={!weeklySalary}
-                />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perWeek')}</Text>
-              </View>
-            )}
-
-            {paymentType === 'project_based' && (
-              <View style={[styles.rateInputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
-                <Ionicons name="cash-outline" size={24} color={Colors.secondaryText} />
-                <Text style={[styles.currencySymbol, { color: Colors.primaryText }]}>$</Text>
-                <TextInput
-                  style={[styles.rateInput, { color: Colors.primaryText }]}
-                  value={projectRate}
-                  onChangeText={setProjectRate}
-                  placeholder="0.00"
-                  placeholderTextColor={Colors.secondaryText}
-                  keyboardType="decimal-pad"
-                  autoFocus={!projectRate}
-                />
-                <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{t('workers:workerDetails.perProject')}</Text>
-              </View>
-            )}
-
-            {/* Help Text */}
-            <View style={styles.helpTextContainer}>
-              <Ionicons name="information-circle-outline" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.helpText, { color: Colors.secondaryText }]}>
-                {paymentType === 'hourly' ? t('workers:payment.hourlyHelp') :
-                 paymentType === 'daily' ? t('workers:payment.dailyHelp') :
-                 paymentType === 'weekly' ? t('workers:payment.weeklyHelp') :
-                 t('workers:payment.projectHelp')}
-              </Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="warning-outline" size={20} color="#EF4444" />
+              <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>Danger Zone</Text>
             </View>
+            <Text style={[styles.deleteDescription, { color: Colors.secondaryText }]}>
+              Permanently delete this worker and all associated data. This action cannot be undone.
+            </Text>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={18} color="#FFF" />
+                  <Text style={styles.deleteButtonText}>Delete Worker</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
+
+          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -328,7 +319,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
   },
   backButton: {
@@ -338,13 +329,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  saveButton: {
-    padding: 4,
-    minWidth: 50,
-    alignItems: 'flex-end',
+  saveBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 60,
+    alignItems: 'center',
   },
-  saveButtonText: {
-    fontSize: 16,
+  saveBtnText: {
+    color: '#FFF',
+    fontSize: 14,
     fontWeight: '600',
   },
   content: {
@@ -353,108 +347,106 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 20,
   },
-  workerInfoCard: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  workerAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  workerAvatarText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  workerName: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  workerTrade: {
-    fontSize: 15,
-  },
   card: {
     borderRadius: 16,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 16,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    marginBottom: 16,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  fieldInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 10,
+    borderWidth: 1,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 0,
   },
   paymentTypeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   paymentTypeOption: {
     flex: 1,
     minWidth: '45%',
-    aspectRatio: 1,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     borderWidth: 2,
   },
   paymentTypeText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
   },
   rateInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 8,
     borderWidth: 1,
   },
   currencySymbol: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
   },
   rateInput: {
     flex: 1,
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
     padding: 0,
   },
   rateSuffix: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
-  helpTextContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-  },
-  helpText: {
-    flex: 1,
+  deleteDescription: {
     fontSize: 13,
     lineHeight: 18,
+    marginBottom: 14,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EF4444',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    gap: 8,
+  },
+  deleteButtonText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
