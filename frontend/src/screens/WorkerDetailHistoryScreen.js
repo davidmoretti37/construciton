@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Linking,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +17,9 @@ import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getWorkerClockInHistory, getWorkerStats, getActiveClockIn, calculateWorkerPaymentForPeriod } from '../utils/storage';
+import { remoteClockOutWorker } from '../utils/storage/timeTracking';
 import DateRangePicker from '../components/DateRangePicker';
+import TimeEditModal from '../components/TimeEditModal';
 import { formatHoursMinutes } from '../utils/calculations';
 
 export default function WorkerDetailHistoryScreen({ navigation, route }) {
@@ -56,6 +59,51 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const [dateRange, setDateRange] = useState(getDefaultDateRange());
   const [paymentData, setPaymentData] = useState(null);
   const [loadingPayment, setLoadingPayment] = useState(true);
+  const [clockOutLoading, setClockOutLoading] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+
+  const handleClockOutWorker = () => {
+    Alert.alert(
+      'Clock Out Worker',
+      `Are you sure you want to clock out ${worker.full_name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clock Out',
+          style: 'destructive',
+          onPress: async () => {
+            setClockOutLoading(true);
+            try {
+              const result = await remoteClockOutWorker(worker.id);
+              if (result.success) {
+                Alert.alert('Success', `${worker.full_name} has been clocked out. (${formatHoursMinutes(result.hours || 0)})`);
+                setActiveSession(null);
+                loadData();
+                loadPaymentData();
+              } else {
+                Alert.alert('Error', result.error || 'Failed to clock out worker.');
+              }
+            } catch (e) {
+              Alert.alert('Error', 'Something went wrong.');
+            } finally {
+              setClockOutLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditTimeRecord = (record) => {
+    setEditingRecord({
+      id: record.id,
+      clock_in: record.clock_in,
+      clock_out: record.clock_out,
+      projects: record.projects,
+    });
+    setEditModalVisible(true);
+  };
 
   useEffect(() => {
     loadData();
@@ -261,7 +309,12 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{worker.full_name}</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity
+          style={{ padding: 4 }}
+          onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
+        >
+          <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -299,12 +352,6 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                 </Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={{ padding: 8 }}
-              onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
-            >
-              <Ionicons name="create-outline" size={22} color={Colors.secondaryText} />
-            </TouchableOpacity>
           </View>
 
           {/* Contact Info */}
@@ -391,6 +438,24 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               {t('history.memberSince', { date: new Date(worker.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) })}
             </Text>
           )}
+
+          {/* Edit Worker Button */}
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#1E40AF',
+              borderRadius: 10,
+              paddingVertical: 12,
+              marginTop: 14,
+              gap: 8,
+            }}
+            onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
+          >
+            <Ionicons name="create-outline" size={18} color="#FFF" />
+            <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '600' }}>Edit Worker</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Active Session */}
@@ -447,6 +512,21 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                   </Text>
                 </View>
               )}
+              {/* Clock Out Button */}
+              <TouchableOpacity
+                style={styles.clockOutButton}
+                onPress={handleClockOutWorker}
+                disabled={clockOutLoading}
+              >
+                {clockOutLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="log-out-outline" size={18} color="#FFF" />
+                    <Text style={styles.clockOutButtonText}>Clock Out</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -646,15 +726,26 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                         <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText, flex: 1 }}>
                           {session.projects?.name || t('history.unknownProject')}
                         </Text>
-                        {session.hoursWorked != null ? (
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryBlue }}>
-                            {formatHoursMinutes(session.hoursWorked)}
-                          </Text>
-                        ) : (
-                          <View style={{ backgroundColor: '#10B981' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>{t('history.active')}</Text>
-                          </View>
-                        )}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          {session.hoursWorked != null ? (
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryBlue }}>
+                              {formatHoursMinutes(session.hoursWorked)}
+                            </Text>
+                          ) : (
+                            <View style={{ backgroundColor: '#10B981' + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>{t('history.active')}</Text>
+                            </View>
+                          )}
+                          {/* Edit button for completed entries */}
+                          {session.clock_out && (
+                            <TouchableOpacity
+                              style={{ padding: 2 }}
+                              onPress={() => handleEditTimeRecord(session)}
+                            >
+                              <Ionicons name="create-outline" size={16} color={Colors.secondaryText} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                         <Ionicons name="time-outline" size={13} color={Colors.secondaryText} />
@@ -689,6 +780,21 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
         </View>
 
       </ScrollView>
+
+      {/* Time Edit Modal */}
+      <TimeEditModal
+        visible={editModalVisible}
+        onClose={() => {
+          setEditModalVisible(false);
+          setEditingRecord(null);
+        }}
+        onSaved={() => {
+          loadData();
+          loadPaymentData();
+        }}
+        record={editingRecord}
+        isSupervisor={false}
+      />
     </SafeAreaView>
   );
 }
@@ -849,6 +955,22 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 8,
     gap: 8,
+  },
+  clockOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 8,
+    backgroundColor: '#EF4444',
+  },
+  clockOutButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFF',
   },
   locationButtonText: {
     fontSize: 15,
