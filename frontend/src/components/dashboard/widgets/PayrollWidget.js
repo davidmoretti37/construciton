@@ -1,23 +1,32 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function PayrollWidget({ payrollSummary, size, editMode, onPress, fmt }) {
   const { grossPay = 0, workerCount = 0 } = payrollSummary || {};
+
+  const personIcons = Math.min(workerCount, 5);
+  const extraCount = workerCount > 5 ? workerCount - 5 : 0;
 
   if (size === 'small') {
     return (
       <TouchableOpacity
         style={styles.containerSmall}
         onPress={onPress}
-        activeOpacity={editMode ? 1 : 0.7}
+        activeOpacity={editMode ? 1 : 0.85}
         disabled={editMode}
       >
-        <View style={styles.iconCircle}>
-          <Ionicons name="wallet-outline" size={16} color="#8B5CF6" />
-        </View>
-        <Text style={styles.valueSmall}>{fmt(grossPay)}</Text>
-        <Text style={styles.label}>PAYROLL</Text>
+        <LinearGradient
+          colors={['#6D28D9', '#7C3AED']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientSmall}
+        >
+          <Ionicons name="wallet" size={16} color="rgba(255,255,255,0.4)" style={styles.bgIcon} />
+          <Text style={styles.valueSmall}>{fmt(grossPay)}</Text>
+          <Text style={styles.label}>PAYROLL</Text>
+        </LinearGradient>
       </TouchableOpacity>
     );
   }
@@ -26,78 +35,102 @@ export default function PayrollWidget({ payrollSummary, size, editMode, onPress,
     <TouchableOpacity
       style={styles.containerMedium}
       onPress={onPress}
-      activeOpacity={editMode ? 1 : 0.7}
+      activeOpacity={editMode ? 1 : 0.85}
       disabled={editMode}
     >
-      <View style={styles.iconCircle}>
-        <Ionicons name="wallet-outline" size={16} color="#8B5CF6" />
-      </View>
-      <View style={styles.mediumContent}>
-        <Text style={styles.valueMedium}>{fmt(grossPay)}</Text>
-        <Text style={styles.label}>
-          {workerCount} worker{workerCount !== 1 ? 's' : ''} paid this week
-        </Text>
-      </View>
+      <LinearGradient
+        colors={['#6D28D9', '#7C3AED']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.gradientMedium}
+      >
+        <View style={styles.mediumLeft}>
+          <Text style={styles.valueMedium}>{fmt(grossPay)}</Text>
+          <View style={styles.peopleRow}>
+            {Array.from({ length: personIcons }).map((_, i) => (
+              <Ionicons key={i} name="person" size={12} color="rgba(255,255,255,0.5)" style={{ marginLeft: i > 0 ? -2 : 0 }} />
+            ))}
+            {extraCount > 0 && (
+              <Text style={styles.extraText}>+{extraCount}</Text>
+            )}
+            <Text style={styles.paidText}>
+              {workerCount} paid this week
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="wallet" size={28} color="rgba(255,255,255,0.12)" />
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   containerSmall: {
-    backgroundColor: '#FFFFFF',
+    width: '100%',
+    height: 130,
     borderRadius: 16,
-    padding: 14,
-    height: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    overflow: 'hidden',
   },
   containerMedium: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    width: '100%',
     height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  gradientSmall: {
+    flex: 1,
+    padding: 14,
+    justifyContent: 'flex-end',
+  },
+  gradientMedium: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    justifyContent: 'space-between',
   },
-  iconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#8B5CF61A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mediumContent: {
-    marginLeft: 12,
+  bgIcon: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
   },
   valueSmall: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
-    marginTop: 8,
   },
   valueMedium: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
   },
   label: {
     fontSize: 10,
-    fontWeight: '500',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 0.5,
     marginTop: 2,
+  },
+  mediumLeft: {
+    flex: 1,
+  },
+  peopleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  extraText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '600',
+  },
+  paidText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '500',
   },
 });

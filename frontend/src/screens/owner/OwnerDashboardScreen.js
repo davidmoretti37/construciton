@@ -36,11 +36,20 @@ import { colWidth, getWidgetSize } from '../../components/dashboard/WidgetGrid';
 import PnLWidget from '../../components/dashboard/widgets/PnLWidget';
 import CashFlowWidget from '../../components/dashboard/widgets/CashFlowWidget';
 import AlertsWidget from '../../components/dashboard/widgets/AlertsWidget';
-import StatWidget from '../../components/dashboard/widgets/StatWidget';
 import AgingWidget from '../../components/dashboard/widgets/AgingWidget';
 import PayrollWidget from '../../components/dashboard/widgets/PayrollWidget';
 import RecentReportsWidget from '../../components/dashboard/widgets/RecentReportsWidget';
 import PipelineWidget from '../../components/dashboard/widgets/PipelineWidget';
+import ActiveProjectsWidget from '../../components/dashboard/widgets/ActiveProjectsWidget';
+import WorkersWidget from '../../components/dashboard/widgets/WorkersWidget';
+import SupervisorsWidget from '../../components/dashboard/widgets/SupervisorsWidget';
+import TransactionsWidget from '../../components/dashboard/widgets/TransactionsWidget';
+import OverdueInvoicesWidget from '../../components/dashboard/widgets/OverdueInvoicesWidget';
+import ProfitMarginWidget from '../../components/dashboard/widgets/ProfitMarginWidget';
+import ContractValueWidget from '../../components/dashboard/widgets/ContractValueWidget';
+import PendingInvitesWidget from '../../components/dashboard/widgets/PendingInvitesWidget';
+import ForgottenClockoutsWidget from '../../components/dashboard/widgets/ForgottenClockoutsWidget';
+import UnmatchedTxnsWidget from '../../components/dashboard/widgets/UnmatchedTxnsWidget';
 import AddWidgetSheet from '../../components/dashboard/AddWidgetSheet';
 import WidgetSizeSheet from '../../components/dashboard/WidgetSizeSheet';
 import { fetchAgingReport, fetchInvoicesForOwner } from '../../utils/storage/invoices';
@@ -400,50 +409,34 @@ export default function OwnerDashboardScreen() {
         );
       case 'active_projects':
         return (
-          <StatWidget
-            value={stats.activeProjects}
-            label="Active Projects"
-            icon="construct-outline"
-            accentColor="#3B82F6"
+          <ActiveProjectsWidget
+            activeProjects={stats.activeProjects}
+            totalProjects={stats.totalProjects}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Projects')}
-            breakdowns={[
-              { color: '#10B981', text: `${stats.activeProjects} active` },
-              { color: '#CBD5E1', text: `${stats.totalProjects} total` },
-            ]}
           />
         );
       case 'workers':
         return (
-          <StatWidget
-            value={stats.totalWorkers}
-            label="Workers"
-            icon="people-outline"
-            accentColor="#F59E0B"
+          <WorkersWidget
+            totalWorkers={stats.totalWorkers}
+            totalSupervisors={stats.totalSupervisors}
+            totalProjects={stats.totalProjects}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Workers')}
-            breakdowns={[
-              { color: '#8B5CF6', text: `${stats.totalSupervisors} supervisors` },
-              { color: '#3B82F6', text: `${stats.totalProjects} projects` },
-            ]}
           />
         );
       case 'supervisors':
         return (
-          <StatWidget
-            value={stats.totalSupervisors}
-            label="Supervisors"
-            icon="shield-outline"
-            accentColor="#8B5CF6"
+          <SupervisorsWidget
+            totalSupervisors={stats.totalSupervisors}
+            totalWorkers={stats.totalWorkers}
+            totalProjects={stats.totalProjects}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
-            breakdowns={[
-              { color: '#F59E0B', text: `${stats.totalWorkers} workers` },
-              { color: '#3B82F6', text: `${stats.totalProjects} projects` },
-            ]}
           />
         );
       case 'transactions': {
@@ -451,11 +444,10 @@ export default function OwnerDashboardScreen() {
         const txUnmatched = reconciliation?.unmatched || 0;
         const txSuggested = reconciliation?.suggested_matches || 0;
         return (
-          <StatWidget
-            value={transactionCount}
-            label="Transactions"
-            icon="card-outline"
-            accentColor="#10B981"
+          <TransactionsWidget
+            transactionCount={transactionCount}
+            matched={txMatched}
+            unmatched={txUnmatched + txSuggested}
             size={item.size}
             editMode={editMode}
             onPress={() =>
@@ -463,98 +455,65 @@ export default function OwnerDashboardScreen() {
                 ? navigation.navigate('BankReconciliation')
                 : navigation.navigate('BankConnection')
             }
-            breakdowns={[
-              { color: '#10B981', text: `${txMatched} matched` },
-              { color: '#F97316', text: `${txUnmatched + txSuggested} unmatched` },
-            ]}
           />
         );
       }
       case 'overdue_invoices':
         return (
-          <StatWidget
-            value={overdueInvoices.count}
-            label="Overdue"
-            icon="alert-circle-outline"
-            accentColor="#EF4444"
+          <OverdueInvoicesWidget
+            count={overdueInvoices.count}
+            amount={overdueInvoices.amount}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('ARAging')}
-            breakdowns={[
-              { color: '#EF4444', text: `${fmt(overdueInvoices.amount)} outstanding` },
-            ]}
           />
         );
       case 'profit_margin':
         return (
-          <StatWidget
-            value={`${pnl.margin.toFixed(1)}%`}
-            label={marginHealth.text}
-            icon="trending-up-outline"
-            accentColor={marginHealth.color}
+          <ProfitMarginWidget
+            margin={pnl.margin}
+            healthText={marginHealth.text}
+            revenue={pnl.revenue}
+            expenses={pnl.expenses}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('FinancialReport')}
-            breakdowns={[
-              { color: '#10B981', text: `${fmt(pnl.revenue)} rev` },
-              { color: '#EF4444', text: `${fmt(pnl.expenses)} exp` },
-            ]}
           />
         );
       case 'contract_value':
         return (
-          <StatWidget
-            value={fmt(stats.totalContractValue)}
-            label="Contracts"
-            icon="document-text-outline"
-            accentColor="#6366F1"
+          <ContractValueWidget
+            totalContractValue={stats.totalContractValue}
+            totalRevenue={stats.totalRevenue}
+            totalProjects={stats.totalProjects}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Contracts')}
-            breakdowns={[
-              { color: '#10B981', text: `${fmt(stats.totalRevenue)} earned` },
-              { color: '#3B82F6', text: `${stats.totalProjects} projects` },
-            ]}
           />
         );
       case 'pending_invites':
         return (
-          <StatWidget
-            value={stats.pendingInvites}
-            label="Pending Invites"
-            icon="mail-unread-outline"
-            accentColor="#3B82F6"
+          <PendingInvitesWidget
+            pendingInvites={stats.pendingInvites}
+            totalSupervisors={stats.totalSupervisors}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
-            breakdowns={[
-              { color: '#3B82F6', text: `${stats.totalSupervisors} supervisors total` },
-            ]}
           />
         );
       case 'forgotten_clockouts': {
         const forgottenNames = [
           ...forgottenClockOuts.workers.map(w => w.worker_name),
           ...forgottenClockOuts.supervisors.map(s => s.supervisor_name),
-        ].filter(Boolean).slice(0, 2);
+        ].filter(Boolean).slice(0, 3);
         const forgottenTotal = forgottenClockOuts.workers.length + forgottenClockOuts.supervisors.length;
         return (
-          <StatWidget
-            value={forgottenTotal}
-            label="Forgot Clock-out"
-            icon="time-outline"
-            accentColor="#F59E0B"
+          <ForgottenClockoutsWidget
+            count={forgottenTotal}
+            names={forgottenNames}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('ClockOuts')}
-            breakdowns={
-              forgottenNames.length > 0
-                ? [
-                    { color: '#F59E0B', text: forgottenNames.join(', ') + (forgottenTotal > 2 ? ` +${forgottenTotal - 2}` : '') },
-                    { color: '#EF4444', text: '10+ hrs' },
-                  ]
-                : [{ color: '#EF4444', text: '10+ hrs each' }]
-            }
           />
         );
       }
@@ -562,11 +521,9 @@ export default function OwnerDashboardScreen() {
         const unmatchedOnly = reconciliation?.unmatched || 0;
         const suggestedOnly = reconciliation?.suggested_matches || 0;
         return (
-          <StatWidget
-            value={unmatchedOnly + suggestedOnly}
-            label="Unmatched"
-            icon="git-compare-outline"
-            accentColor="#F97316"
+          <UnmatchedTxnsWidget
+            unmatchedCount={unmatchedOnly}
+            suggestedCount={suggestedOnly}
             size={item.size}
             editMode={editMode}
             onPress={() =>
@@ -574,10 +531,6 @@ export default function OwnerDashboardScreen() {
                 ? navigation.navigate('BankReconciliation', { filter: 'unmatched' })
                 : navigation.navigate('BankConnection')
             }
-            breakdowns={[
-              { color: '#F97316', text: `${unmatchedOnly} unmatched` },
-              { color: '#3B82F6', text: `${suggestedOnly} suggested` },
-            ]}
           />
         );
       }

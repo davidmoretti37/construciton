@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import VerticalBarGroup from './svg/VerticalBarGroup';
 
 function fmtK(amount) {
   const abs = Math.abs(amount);
@@ -9,57 +11,72 @@ function fmtK(amount) {
 }
 
 export default function CashFlowWidget({ cashFlowData, maxCashFlowVal, totalNet, size, editMode, onPress }) {
+  const barData = cashFlowData.map((month) => ({
+    label: month.label,
+    values: [
+      { value: month.cashIn, color: '#34D399', opacity: 1 },
+      { value: month.cashOut, color: 'rgba(251,113,133,0.8)', opacity: 0.9 },
+    ],
+  }));
+
   return (
     <TouchableOpacity
       style={styles.container}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.85}
       disabled={editMode}
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>Cash Flow</Text>
-        <Text style={[styles.net, { color: totalNet >= 0 ? '#10B981' : '#F43F5E' }]}>
-          Net: {fmtK(totalNet)}
-        </Text>
-      </View>
-
-      <View style={styles.chart}>
-        {cashFlowData.map((month) => {
-          const inH = Math.max(4, (month.cashIn / maxCashFlowVal) * 80);
-          const outH = Math.max(4, (month.cashOut / maxCashFlowVal) * 80);
-          return (
-            <View key={month.key} style={styles.monthCol}>
-              <View style={styles.barContainer}>
-                <View style={[styles.barIn, { height: inH }]} />
-                <View style={[styles.barOut, { height: outH }]} />
-              </View>
-              <Text style={styles.monthLabel}>{month.label}</Text>
-            </View>
-          );
-        })}
-      </View>
-
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-          <Text style={styles.legendText}>In</Text>
+      <LinearGradient
+        colors={['#064E3B', '#065F46']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradient}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Cash Flow</Text>
+          <View style={styles.netPill}>
+            <Text style={[styles.netText, { color: totalNet >= 0 ? '#34D399' : '#FB7185' }]}>
+              Net: {fmtK(totalNet)}
+            </Text>
+          </View>
         </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: 'rgba(244,63,94,0.7)' }]} />
-          <Text style={styles.legendText}>Out</Text>
+
+        <View style={styles.chart}>
+          <VerticalBarGroup
+            data={barData}
+            maxValue={maxCashFlowVal}
+            barWidth={16}
+            barGap={4}
+            chartHeight={90}
+            labelColor="rgba(255,255,255,0.6)"
+          />
         </View>
-      </View>
+
+        <View style={styles.legend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendBar, { backgroundColor: '#34D399' }]} />
+            <Text style={styles.legendText}>In</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendBar, { backgroundColor: 'rgba(251,113,133,0.8)' }]} />
+            <Text style={styles.legendText}>Out</Text>
+          </View>
+        </View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
     width: '100%',
     height: 200,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  gradient: {
+    flex: 1,
+    padding: 20,
   },
   header: {
     flexDirection: 'row',
@@ -69,62 +86,40 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
-  net: {
+  netPill: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  netText: {
     fontSize: 13,
     fontWeight: '700',
   },
   chart: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginTop: 12,
-    gap: 8,
-  },
-  monthCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  barContainer: {
-    width: 40,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 3,
-  },
-  barIn: {
-    width: 17,
-    backgroundColor: '#10B981',
-    borderRadius: 4,
-  },
-  barOut: {
-    width: 17,
-    backgroundColor: 'rgba(244,63,94,0.6)',
-    borderRadius: 4,
-  },
-  monthLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginTop: 4,
+    marginTop: 8,
   },
   legend: {
     flexDirection: 'row',
     gap: 16,
-    marginTop: 8,
+    marginTop: 4,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  legendBar: {
+    width: 12,
+    height: 3,
+    borderRadius: 2,
   },
   legendText: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
   },
 });

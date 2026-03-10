@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function RecentReportsWidget({ reports, size, editMode, onPress }) {
@@ -11,90 +12,104 @@ export default function RecentReportsWidget({ reports, size, editMode, onPress }
     <TouchableOpacity
       style={styles.container}
       onPress={onPress}
-      activeOpacity={editMode ? 1 : 0.7}
+      activeOpacity={editMode ? 1 : 0.85}
       disabled={editMode}
     >
-      <View style={styles.topRow}>
-        <View style={styles.iconCircle}>
-          <Ionicons name="clipboard-outline" size={16} color="#0EA5E9" />
+      <LinearGradient
+        colors={['#0E7490', '#06B6D4']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradient}
+      >
+        <View style={styles.topRow}>
+          <View style={styles.statBlock}>
+            <Text style={styles.statValue}>{reportCount}</Text>
+            <Text style={styles.statLabel}>reports</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.statBlock}>
+            <Text style={styles.statValue}>{totalPhotos}</Text>
+            <Text style={styles.statLabel}>photos</Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          <View style={styles.iconCircle}>
+            <Ionicons name="clipboard-outline" size={16} color="#A5F3FC" />
+          </View>
         </View>
-        <View style={styles.statsRow}>
-          <Text style={styles.statValue}>{reportCount}</Text>
-          <Text style={styles.statLabel}> reports</Text>
-          <Text style={styles.statDot}> · </Text>
-          <Text style={styles.statValue}>{totalPhotos}</Text>
-          <Text style={styles.statLabel}> photos</Text>
-        </View>
-      </View>
 
-      {lastReport ? (
-        <Text style={styles.lastReport} numberOfLines={1}>
-          Last: {lastReport.workerName} — {lastReport.phaseName || lastReport.projectName}
-        </Text>
-      ) : (
-        <Text style={styles.lastReport}>No recent reports</Text>
-      )}
-
-      <Text style={styles.label}>DAILY REPORTS</Text>
+        {lastReport ? (
+          <View style={styles.lastPill}>
+            <Text style={styles.lastText} numberOfLines={1}>
+              {lastReport.workerName} — {lastReport.phaseName || lastReport.projectName}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.noReports}>No recent reports</Text>
+        )}
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
     width: '100%',
     height: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  gradient: {
+    flex: 1,
+    padding: 14,
+    justifyContent: 'space-between',
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
+  },
+  statBlock: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  divider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   iconCircle: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: '#0EA5E91A',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+  lastPill: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  statDot: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
-  lastReport: {
+  lastText: {
     fontSize: 11,
-    color: '#64748B',
-    marginTop: 6,
-  },
-  label: {
-    fontSize: 10,
+    color: 'rgba(255,255,255,0.8)',
     fontWeight: '500',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: 4,
+  },
+  noReports: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
   },
 });
