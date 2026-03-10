@@ -12,7 +12,7 @@ const STAGES = [
   { key: 'paid',     label: 'Paid',    color: '#6EE7B7', source: 'invoices' },
 ];
 
-export default function PipelineWidget({ pipeline, size, editMode, onPress }) {
+export default function PipelineWidget({ pipeline, size, editMode, onEstimatesPress, onInvoicesPress }) {
   const estimates = pipeline?.estimates || {};
   const invoices = pipeline?.invoices || {};
 
@@ -21,12 +21,7 @@ export default function PipelineWidget({ pipeline, size, editMode, onPress }) {
 
   if (size === 'large') {
     return (
-      <TouchableOpacity
-        style={styles.container}
-        onPress={onPress}
-        activeOpacity={editMode ? 1 : 0.85}
-        disabled={editMode}
-      >
+      <View style={styles.container}>
         <LinearGradient
           colors={['#4338CA', '#6366F1']}
           start={{ x: 0, y: 0 }}
@@ -35,7 +30,12 @@ export default function PipelineWidget({ pipeline, size, editMode, onPress }) {
         >
           <Text style={styles.title}>Pipeline</Text>
 
-          <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.section}
+            onPress={onEstimatesPress}
+            activeOpacity={editMode ? 1 : 0.7}
+            disabled={editMode}
+          >
             <Text style={styles.sectionLabel}>ESTIMATES</Text>
             <View style={styles.stagesRow}>
               {STAGES.filter(s => s.source === 'estimates').map((stage, i, arr) => (
@@ -56,9 +56,14 @@ export default function PipelineWidget({ pipeline, size, editMode, onPress }) {
                 </React.Fragment>
               ))}
             </View>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.section}
+            onPress={onInvoicesPress}
+            activeOpacity={editMode ? 1 : 0.7}
+            disabled={editMode}
+          >
             <Text style={styles.sectionLabel}>INVOICES</Text>
             <View style={styles.stagesRow}>
               {STAGES.filter(s => s.source === 'invoices').map((stage, i, arr) => (
@@ -79,9 +84,9 @@ export default function PipelineWidget({ pipeline, size, editMode, onPress }) {
                 </React.Fragment>
               ))}
             </View>
-          </View>
+          </TouchableOpacity>
         </LinearGradient>
-      </TouchableOpacity>
+      </View>
     );
   }
 
@@ -91,7 +96,7 @@ export default function PipelineWidget({ pipeline, size, editMode, onPress }) {
   return (
     <TouchableOpacity
       style={styles.containerMedium}
-      onPress={onPress}
+      onPress={onEstimatesPress}
       activeOpacity={editMode ? 1 : 0.85}
       disabled={editMode}
     >

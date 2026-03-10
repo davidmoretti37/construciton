@@ -285,7 +285,7 @@ export default function OwnerDashboardScreen() {
         color: ACCENT.primaryLight,
         bg: `${ACCENT.primaryLight}12`,
         text: t('dashboardScreen.pendingInvites', { count: stats.pendingInvites }),
-        onPress: () => navigation.navigate('Workers'),
+        onPress: () => navigation.navigate('Workers', { initialTab: 'team' }),
       });
     }
     const forgottenCount = forgottenClockOuts.workers.length + forgottenClockOuts.supervisors.length;
@@ -300,7 +300,7 @@ export default function OwnerDashboardScreen() {
         color: ACCENT.warning,
         bg: `${ACCENT.warning}12`,
         text: `${forgottenCount} team member${forgottenCount > 1 ? 's' : ''} may have forgotten to clock out (${names}${forgottenCount > 3 ? '...' : ''})`,
-        onPress: () => navigation.navigate('Workers'),
+        onPress: () => navigation.navigate('Workers', { initialTab: 'team' }),
       });
     }
     return items;
@@ -425,7 +425,7 @@ export default function OwnerDashboardScreen() {
             totalProjects={stats.totalProjects}
             size={item.size}
             editMode={editMode}
-            onPress={() => navigation.navigate('Workers')}
+            onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
           />
         );
       case 'supervisors':
@@ -488,7 +488,7 @@ export default function OwnerDashboardScreen() {
             totalProjects={stats.totalProjects}
             size={item.size}
             editMode={editMode}
-            onPress={() => navigation.navigate('Contracts')}
+            onPress={() => navigation.navigate('Projects')}
           />
         );
       case 'pending_invites':
@@ -569,7 +569,8 @@ export default function OwnerDashboardScreen() {
             pipeline={pipeline}
             size={item.size}
             editMode={editMode}
-            onPress={() => navigation.navigate('InvoicesDetail')}
+            onEstimatesPress={() => navigation.navigate('EstimatesDetail')}
+            onInvoicesPress={() => navigation.navigate('InvoicesDetail')}
           />
         );
       default:
@@ -597,7 +598,8 @@ export default function OwnerDashboardScreen() {
   // ── Draggable item (edit mode) ──
 
   const renderDraggableItem = useCallback(({ item, drag, isActive }) => {
-    const { width, height } = getWidgetSize(item.size);
+    const { height } = getWidgetSize(item.size);
+    const width = screenWidth - Spacing.lg * 2;
     return (
       <ScaleDecorator>
         <TouchableOpacity

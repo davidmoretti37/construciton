@@ -206,6 +206,9 @@ export default function OwnerDailyReportsScreen({ navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('reports.dailyReports')}</Text>
       </View>
 
@@ -254,9 +257,14 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.body,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
+  },
+  backButton: {
+    marginRight: 12,
   },
   headerTitle: {
     fontSize: FontSizes.title,
