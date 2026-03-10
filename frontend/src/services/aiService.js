@@ -7,6 +7,14 @@ import { supabase } from '../lib/supabase';
 // Backend API URL for AI calls (keeps API keys secure on server)
 const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
+// File types that the vision API (GPT-4o) can actually process
+const VISION_SUPPORTED_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp'
+]);
+
 /**
  * Get the current Supabase auth token for authenticated API calls.
  * Retries if session isn't loaded yet (race condition with AsyncStorage).
@@ -1407,7 +1415,12 @@ If any field is not found in the document, use null. Be accurate and only extrac
 export const describeAttachments = async (attachments) => {
   if (!attachments || attachments.length === 0) return '';
 
+  console.log('[describeAttachments] Processing attachments:',
+    attachments.map(a => ({ name: a.filename, mimeType: a.mimeType, sizeBytes: a.size ?? a.data?.length ?? 'unknown' }))
+  );
+
   const descriptions = [];
+  const MAX_DOC_CHARS = 40000; // ~10k tokens — fits large SOWs and contracts
   const token = await getAuthToken();
 
   for (let i = 0; i < attachments.length; i++) {
@@ -1426,6 +1439,7 @@ export const describeAttachments = async (attachments) => {
 
       // PDFs: extract text directly on the backend (much more reliable than vision)
       if (isPDF) {
+        let pdfScanned = false;
         try {
           logger.debug(`📄 [Attachments] Sending PDF to text extraction: ${att.name} (${(base64.length / 1024).toFixed(0)}KB base64)`);
           const extractResponse = await fetch(`${BACKEND_URL}/api/documents/extract-text`, {
@@ -1438,25 +1452,84 @@ export const describeAttachments = async (attachments) => {
           });
 
           if (extractResponse.ok) {
-            const { text: extractedText, scanned } = await extractResponse.json();
-            logger.debug(`📄 [Attachments] PDF extraction result: ${extractedText?.length || 0} chars, scanned=${scanned}`);
+            const result = await extractResponse.json();
+            const extractedText = result.text;
+            pdfScanned = result.scanned;
+            logger.debug(`📄 [Attachments] PDF extraction result: ${extractedText?.length || 0} chars, scanned=${pdfScanned}`);
             if (extractedText && extractedText.trim().length > 50) {
-              descriptions.push(`${i + 1}. "${att.name}" (PDF document — ${extractedText.length} characters extracted):\n---\n${extractedText}\n---`);
+              const pdfTruncated = extractedText.length > MAX_DOC_CHARS;
+              const pdfText = pdfTruncated ? extractedText.substring(0, MAX_DOC_CHARS) : extractedText;
+              const pdfNote = pdfTruncated
+                ? ` — showing first ${MAX_DOC_CHARS.toLocaleString()} of ${extractedText.length.toLocaleString()} characters. If you need content from later in the document, ask the user to paste the specific section.`
+                : '';
+              descriptions.push(`${i + 1}. "${att.name}" (PDF document — ${extractedText.length.toLocaleString()} characters extracted${pdfNote}):\n---\n${pdfText}\n---`);
+              if (pdfTruncated) {
+                logger.warn(`📄 [Attachments] PDF truncated for AI context: ${att.name} — ${extractedText.length} chars → ${MAX_DOC_CHARS}`);
+              }
               continue;
             }
-            // Scanned PDF with little/no text — fall through to vision API
-            logger.debug(`📄 [Attachments] PDF has insufficient text, falling back to vision API`);
+            logger.debug(`📄 [Attachments] PDF has insufficient text`);
           } else {
             logger.warn(`📄 [Attachments] PDF extraction HTTP error: ${extractResponse.status}`);
           }
         } catch (pdfError) {
           logger.warn(`📄 [Attachments] PDF text extraction failed for ${att.name}:`, pdfError.message);
         }
+
+        // PDFs that failed text extraction: don't send to vision (GPT-4o can't process PDF binary)
+        if (pdfScanned === true) {
+          descriptions.push(`${i + 1}. "${att.name}" (PDF document — this appears to be a scanned document. The text content cannot be extracted automatically.)`);
+        } else {
+          descriptions.push(`${i + 1}. "${att.name}" (PDF document — text extraction failed.)`);
+        }
+        continue;
       }
 
-      // PDFs that failed text extraction: don't send to vision (GPT-4o can't process PDF binary)
-      if (isPDF) {
-        descriptions.push(`${i + 1}. "${att.name}" (PDF document) - The text could not be fully extracted from this PDF. It may be a scanned document or image-based PDF. Ask the user to describe the contents or take a photo of the document instead.`);
+      // DOCX/DOC: extract text server-side
+      const isDOCX = att.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || att.mimeType === 'application/msword'
+        || att.name?.toLowerCase().endsWith('.docx')
+        || att.name?.toLowerCase().endsWith('.doc');
+
+      if (isDOCX) {
+        try {
+          logger.debug(`📄 [Attachments] Sending DOCX to text extraction: ${att.name}`);
+          const docxResponse = await fetch(`${BACKEND_URL}/api/documents/extract-text-docx`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ base64, filename: att.name }),
+          });
+
+          if (docxResponse.ok) {
+            const result = await docxResponse.json();
+            if (result.success && result.text && result.text.length > 50) {
+              const docxTruncated = result.text.length > MAX_DOC_CHARS;
+              const docxText = docxTruncated ? result.text.substring(0, MAX_DOC_CHARS) : result.text;
+              const docxNote = docxTruncated
+                ? ` — showing first ${MAX_DOC_CHARS.toLocaleString()} of ${result.text.length.toLocaleString()} characters. If you need content from later in the document, ask the user to paste the specific section.`
+                : '';
+              descriptions.push(`${i + 1}. "${att.name}" (Word document — ${result.text.length.toLocaleString()} characters extracted${docxNote}):\n---\n${docxText}\n---`);
+              if (docxTruncated) {
+                logger.warn(`📄 [Attachments] DOCX truncated for AI context: ${att.name} — ${result.text.length} chars → ${MAX_DOC_CHARS}`);
+              }
+              continue;
+            }
+          }
+        } catch (docxError) {
+          logger.warn(`📄 [Attachments] DOCX text extraction failed for ${att.name}:`, docxError.message);
+        }
+        // Extraction failed or text too short
+        descriptions.push(`${i + 1}. "${att.name}" (Word document — unable to extract text. This may be a complex document format.)`);
+        continue;
+      }
+
+      // Guard: only send supported image types to the vision API
+      if (!VISION_SUPPORTED_MIME_TYPES.has(att.mimeType)) {
+        console.warn('[describeAttachments] Unsupported file type for vision API, skipping:', att.mimeType, att.name);
+        descriptions.push(`${i + 1}. "${att.name}" (unsupported file type — cannot extract content from this file format)`);
         continue;
       }
 
@@ -1499,7 +1572,7 @@ export const describeAttachments = async (attachments) => {
       }
     } catch (error) {
       logger.error(`📄 [Attachments] Error describing attachment ${att.name}:`, error.message || error);
-      descriptions.push(`${i + 1}. "${att.name}" - (Error reading file — ask the user to describe what's in it or re-attach)`);
+      descriptions.push(`${i + 1}. "${att.name}" - (Error reading file — the file could not be processed. The user may need to re-attach it.)`);
     }
   }
 

@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
-      "buildNumber": "31",
+      "buildNumber": "33",
       "config": {
         "usesNonExemptEncryption": false
       },

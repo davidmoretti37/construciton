@@ -22,7 +22,8 @@ import { useProjects } from '../hooks/useProjects';
 import NotificationBell from '../components/NotificationBell';
 import TrialBanner from '../components/TrialBanner';
 import { fetchDailyReportsWithFilters, getProject } from '../utils/storage';
-import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet } from '../utils/storage/timeTracking';
+import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet, checkForgottenClockOuts, remoteClockOutWorker } from '../utils/storage/timeTracking';
+import TimeEditModal from '../components/TimeEditModal';
 import logger from '../utils/logger';
 import { formatHoursMinutes } from '../utils/calculations';
 import SkeletonBox from '../components/skeletons/SkeletonBox';
@@ -55,6 +56,9 @@ export default function HomeScreen({ navigation }) {
   const [supervisorTodayHours, setSupervisorTodayHours] = useState(0);
   const [supervisorTimeHistory, setSupervisorTimeHistory] = useState([]);
   const [showTimeHistory, setShowTimeHistory] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [forgottenClockOuts, setForgottenClockOuts] = useState({ workers: [], supervisors: [] });
 
   // Load today's daily reports
   const loadTodaysDailyReports = useCallback(async () => {
@@ -186,6 +190,12 @@ export default function HomeScreen({ navigation }) {
       // Store recent history (last 10 completed entries)
       const completedEntries = timesheet.filter(e => e.clock_out).slice(0, 10);
       setSupervisorTimeHistory(completedEntries);
+
+      // Check for forgotten clock-outs (supervisor's workers)
+      try {
+        const forgotten = await checkForgottenClockOuts(10);
+        setForgottenClockOuts(forgotten);
+      } catch (e) { /* ignore */ }
     } catch (error) {
       console.error('Error loading supervisor time data:', error);
     }
@@ -489,12 +499,68 @@ export default function HomeScreen({ navigation }) {
                       {entry.projects?.name || 'Unknown Project'}
                     </Text>
                   </View>
-                  <Text style={[styles.timeHistoryHours, { color: Colors.primaryBlue }]}>
-                    {formatHoursMinutes(entry.hours)}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.timeHistoryHours, { color: Colors.primaryBlue }]}>
+                      {formatHoursMinutes(entry.hours)}
+                    </Text>
+                    <TouchableOpacity
+                      style={{ padding: 4 }}
+                      onPress={() => {
+                        setEditingRecord(entry);
+                        setEditModalVisible(true);
+                      }}
+                    >
+                      <Ionicons name="create-outline" size={16} color={Colors.secondaryText} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))
             )}
+          </View>
+        )}
+
+        {/* Forgotten Clock-Out Alert */}
+        {forgottenClockOuts.workers.length > 0 && (
+          <View style={[styles.forgottenAlert, { backgroundColor: '#FEF3C7' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Ionicons name="warning" size={20} color="#D97706" />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#92400E' }}>
+                Forgotten Clock-Outs
+              </Text>
+            </View>
+            {forgottenClockOuts.workers.map((w) => (
+              <View key={w.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#92400E' }}>{w.worker_name}</Text>
+                  <Text style={{ fontSize: 12, color: '#B45309' }}>{w.project_name} - {w.hoursElapsed}h</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                  onPress={() => {
+                    Alert.alert(
+                      'Clock Out Worker',
+                      `Clock out ${w.worker_name}?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Clock Out',
+                          style: 'destructive',
+                          onPress: async () => {
+                            const result = await remoteClockOutWorker(w.worker_id);
+                            if (result.success) {
+                              Alert.alert('Success', `${w.worker_name} clocked out.`);
+                              loadSupervisorTimeData();
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFF' }}>Clock Out</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
           </View>
         )}
 
@@ -797,6 +863,18 @@ export default function HomeScreen({ navigation }) {
         onAction={handleProjectAction}
         navigation={navigation}
         onRefreshNeeded={loadProjects}
+      />
+
+      {/* Time Edit Modal (for supervisor self-edit) */}
+      <TimeEditModal
+        visible={editModalVisible}
+        onClose={() => {
+          setEditModalVisible(false);
+          setEditingRecord(null);
+        }}
+        onSaved={() => loadSupervisorTimeData()}
+        record={editingRecord}
+        isSupervisor={true}
       />
     </SafeAreaView>
   );
@@ -1297,5 +1375,13 @@ const createStyles = (Colors) => StyleSheet.create({
   noHistoryText: {
     textAlign: 'center',
     paddingVertical: 20,
+  },
+  forgottenAlert: {
+    marginHorizontal: Spacing.lg,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
   },
 });

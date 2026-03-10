@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from './auth';
 import * as FileSystem from 'expo-file-system/legacy';
+import { exportDocument, getConnectionStatus } from '../../services/googleDriveService';
 
 /**
  * Upload a document to a project
@@ -75,6 +76,19 @@ export const uploadProjectDocument = async (projectId, fileUri, fileName, fileTy
     if (dbError) {
       console.error('Database error:', dbError);
       throw dbError;
+    }
+
+    // Attempt Google Drive sync (non-blocking — Drive failure must not fail the upload)
+    try {
+      const status = await getConnectionStatus();
+      if (status.connected && data?.id) {
+        const driveResult = await exportDocument(data.id, projectId);
+        if (driveResult?.driveFileId) {
+          data.drive_synced = true;
+        }
+      }
+    } catch (driveError) {
+      console.warn('Google Drive sync failed (non-blocking):', driveError.message || driveError);
     }
 
     return data;

@@ -54,6 +54,10 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 // Import daily report screens
 import DailyReportFormScreen from '../screens/worker/DailyReportFormScreen';
 import DailyReportDetailScreen from '../screens/worker/DailyReportDetailScreen';
+import OwnerDailyReportsScreen from '../screens/OwnerDailyReportsScreen';
+
+// Import clock-outs screen
+import ClockOutsScreen from '../screens/owner/ClockOutsScreen';
 
 // Import expense form screen (with AI receipt analysis)
 import ExpenseFormScreen from '../screens/worker/ExpenseFormScreen';
@@ -212,6 +216,16 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="DailyReportDetail"
         component={DailyReportDetailScreen}
+      />
+      <Stack.Screen
+        name="OwnerDailyReports"
+        component={OwnerDailyReportsScreen}
+      />
+
+      {/* Clock-Outs Screen */}
+      <Stack.Screen
+        name="ClockOuts"
+        component={ClockOutsScreen}
       />
 
       {/* Expense Form Screen (with AI receipt analysis) */}

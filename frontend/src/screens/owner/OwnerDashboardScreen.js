@@ -1,6 +1,6 @@
 /**
  * OwnerDashboardScreen
- * Minimalist dashboard — P&L card, alerts, quick access grid
+ * Widget-based customizable dashboard with drag-to-reorder editing
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
@@ -11,11 +11,14 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -26,6 +29,26 @@ import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
 import { getReconciliationSummary } from '../../services/plaidService';
 import { fetchAllOwnerTransactions, calculateCashFlow } from '../../utils/financialReportUtils';
+import { checkForgottenClockOuts, sendForgottenClockOutNotifications } from '../../utils/storage/timeTracking';
+
+import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT, loadLayout, saveLayout, resetLayout } from '../../utils/dashboardLayout';
+import { colWidth, getWidgetSize } from '../../components/dashboard/WidgetGrid';
+import PnLWidget from '../../components/dashboard/widgets/PnLWidget';
+import CashFlowWidget from '../../components/dashboard/widgets/CashFlowWidget';
+import AlertsWidget from '../../components/dashboard/widgets/AlertsWidget';
+import StatWidget from '../../components/dashboard/widgets/StatWidget';
+import AgingWidget from '../../components/dashboard/widgets/AgingWidget';
+import PayrollWidget from '../../components/dashboard/widgets/PayrollWidget';
+import RecentReportsWidget from '../../components/dashboard/widgets/RecentReportsWidget';
+import PipelineWidget from '../../components/dashboard/widgets/PipelineWidget';
+import AddWidgetSheet from '../../components/dashboard/AddWidgetSheet';
+import WidgetSizeSheet from '../../components/dashboard/WidgetSizeSheet';
+import { fetchAgingReport, fetchInvoicesForOwner } from '../../utils/storage/invoices';
+import { fetchEstimatesForOwner } from '../../utils/storage/estimates';
+import { fetchDailyReportsWithFilters } from '../../utils/storage/dailyReports';
+
+const { width: screenWidth } = Dimensions.get('window');
+const FULL_WIDTH = screenWidth - Spacing.lg * 2;
 
 const ACCENT = {
   primary: '#1E40AF',
@@ -57,6 +80,20 @@ export default function OwnerDashboardScreen() {
   const [reconciliation, setReconciliation] = useState(null);
   const [overdueInvoices, setOverdueInvoices] = useState({ count: 0, amount: 0 });
   const [cashFlowData, setCashFlowData] = useState([]);
+  const [forgottenClockOuts, setForgottenClockOuts] = useState({ workers: [], supervisors: [] });
+
+  // Heavy widget data
+  const [agingData, setAgingData] = useState({ totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } });
+  const [payrollSummary, setPayrollSummary] = useState({ grossPay: 0, workerCount: 0 });
+  const [recentReports, setRecentReports] = useState([]);
+  const [pipeline, setPipeline] = useState({ estimates: { draft: 0, sent: 0, accepted: 0 }, invoices: { unpaid: 0, partial: 0, paid: 0 } });
+
+  // Widget layout state
+  const [layout, setLayout] = useState(DEFAULT_LAYOUT);
+  const [editMode, setEditMode] = useState(false);
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [resizingWidget, setResizingWidget] = useState(null);
+  const [pendingLayout, setPendingLayout] = useState(null);
 
   const pnl = useMemo(() => {
     const revenue = stats.totalRevenue || 0;
@@ -130,6 +167,56 @@ export default function OwnerDashboardScreen() {
         const reconSummary = await getReconciliationSummary();
         setReconciliation(reconSummary);
       } catch (e) { setReconciliation(null); }
+
+      // Check forgotten clock-outs (>10 hours)
+      try {
+        const forgotten = await checkForgottenClockOuts(10);
+        setForgottenClockOuts(forgotten);
+        // Send push notifications for forgotten clock-outs (fire and forget)
+        if (forgotten.workers.length > 0 || forgotten.supervisors.length > 0) {
+          sendForgottenClockOutNotifications(10);
+        }
+      } catch (e) { setForgottenClockOuts({ workers: [], supervisors: [] }); }
+
+      // AR Aging report
+      try {
+        const aging = await fetchAgingReport();
+        setAgingData(aging);
+      } catch (e) { setAgingData({ totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } }); }
+
+      // Payroll summary (this week's labor from already-fetched transactions)
+      try {
+        const projectIds = projects.map(p => p.id);
+        const txs = await fetchAllOwnerTransactions(projectIds);
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - dayOfWeek);
+        const weekStartStr = weekStart.toISOString().split('T')[0];
+        const laborTxs = txs.filter(tx => tx.type === 'expense' && tx.category === 'labor' && tx.date >= weekStartStr);
+        const payrollGross = laborTxs.reduce((s, tx) => s + parseFloat(tx.amount || 0), 0);
+        const payrollWorkers = new Set(laborTxs.filter(tx => tx.worker_id).map(tx => tx.worker_id)).size;
+        setPayrollSummary({ grossPay: payrollGross, workerCount: payrollWorkers });
+      } catch (e) { setPayrollSummary({ grossPay: 0, workerCount: 0 }); }
+
+      // Recent daily reports
+      try {
+        const reports = await fetchDailyReportsWithFilters({ limit: 5 });
+        setRecentReports(reports || []);
+      } catch (e) { setRecentReports([]); }
+
+      // Invoice/Estimate pipeline
+      try {
+        const [allEstimates, allInvoices] = await Promise.all([
+          fetchEstimatesForOwner(),
+          fetchInvoicesForOwner(),
+        ]);
+        const estCounts = { draft: 0, sent: 0, accepted: 0 };
+        (allEstimates || []).forEach(e => { if (estCounts[e.status] !== undefined) estCounts[e.status]++; });
+        const invCounts = { unpaid: 0, partial: 0, paid: 0 };
+        (allInvoices || []).forEach(i => { if (invCounts[i.status] !== undefined) invCounts[i.status]++; });
+        setPipeline({ estimates: estCounts, invoices: invCounts });
+      } catch (e) { setPipeline({ estimates: { draft: 0, sent: 0, accepted: 0 }, invoices: { unpaid: 0, partial: 0, paid: 0 } }); }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -140,6 +227,11 @@ export default function OwnerDashboardScreen() {
 
   useEffect(() => { fetchDashboardData(); }, []);
   useFocusEffect(useCallback(() => { fetchDashboardData(); }, [fetchDashboardData]));
+
+  // Load persisted layout on mount
+  useEffect(() => {
+    loadLayout().then(setLayout);
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -187,8 +279,23 @@ export default function OwnerDashboardScreen() {
         onPress: () => navigation.navigate('Workers'),
       });
     }
+    const forgottenCount = forgottenClockOuts.workers.length + forgottenClockOuts.supervisors.length;
+    if (forgottenCount > 0) {
+      const names = [
+        ...forgottenClockOuts.workers.map(w => w.worker_name),
+        ...forgottenClockOuts.supervisors.map(s => s.supervisor_name),
+      ].slice(0, 3).join(', ');
+      items.push({
+        key: 'forgotten-clockout',
+        icon: 'time',
+        color: ACCENT.warning,
+        bg: `${ACCENT.warning}12`,
+        text: `${forgottenCount} team member${forgottenCount > 1 ? 's' : ''} may have forgotten to clock out (${names}${forgottenCount > 3 ? '...' : ''})`,
+        onPress: () => navigation.navigate('Workers'),
+      });
+    }
     return items;
-  }, [overdueInvoices, reconciliation, stats.pendingInvites, navigation, t]);
+  }, [overdueInvoices, reconciliation, stats.pendingInvites, forgottenClockOuts, navigation, t]);
 
   const maxCashFlowVal = useMemo(() => {
     let max = 1;
@@ -204,23 +311,396 @@ export default function OwnerDashboardScreen() {
     return { text: t('financial.atRisk'), color: ACCENT.error };
   }, [pnl.margin, t]);
 
-  const styles = createStyles(Colors);
+  const transactionCount = reconciliation && !reconciliation.message ? (reconciliation.total || 0) : '\u2014';
+
+  // ── Edit mode handlers ──
+
+  const enterEditMode = useCallback(() => {
+    setEditMode(true);
+    setPendingLayout([...layout]);
+  }, [layout]);
+
+  const exitEditMode = useCallback(async () => {
+    if (pendingLayout) {
+      await saveLayout(pendingLayout);
+      setLayout(pendingLayout);
+    }
+    setEditMode(false);
+    setPendingLayout(null);
+  }, [pendingLayout]);
+
+  const handleReset = useCallback(async () => {
+    const fresh = await resetLayout();
+    setPendingLayout([...fresh]);
+  }, []);
+
+  const handleRemoveWidget = useCallback((widgetId) => {
+    setPendingLayout((prev) => prev.filter((w) => w.id !== widgetId));
+  }, []);
+
+  const handleAddWidget = useCallback((widgetId, size) => {
+    setPendingLayout((prev) => {
+      const maxPos = prev.reduce((max, w) => Math.max(max, w.position), -1);
+      return [...prev, { id: widgetId, size, position: maxPos + 1 }];
+    });
+    setShowAddSheet(false);
+  }, []);
+
+  const handleResize = useCallback((newSize) => {
+    if (!resizingWidget) return;
+    setPendingLayout((prev) =>
+      prev.map((w) => (w.id === resizingWidget.id ? { ...w, size: newSize } : w))
+    );
+    setResizingWidget(null);
+  }, [resizingWidget]);
+
+  const availableWidgets = useMemo(() => {
+    const activeLayout = editMode ? pendingLayout : layout;
+    const placedIds = new Set((activeLayout || []).map((w) => w.id));
+    return WIDGET_DEFINITIONS.filter((w) => !placedIds.has(w.id));
+  }, [editMode, pendingLayout, layout]);
+
+  const resizingWidgetDef = useMemo(() => {
+    if (!resizingWidget) return null;
+    return WIDGET_DEFINITIONS.find((w) => w.id === resizingWidget.id) || null;
+  }, [resizingWidget]);
+
+  // ── Widget render function ──
+
+  const renderWidget = useCallback((item) => {
+    switch (item.id) {
+      case 'pnl':
+        return (
+          <PnLWidget
+            pnl={pnl}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('FinancialReport')}
+          />
+        );
+      case 'cashflow':
+        return (
+          <CashFlowWidget
+            cashFlowData={cashFlowData}
+            maxCashFlowVal={maxCashFlowVal}
+            totalNet={totalNet}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('FinancialReport')}
+          />
+        );
+      case 'alerts':
+        return (
+          <AlertsWidget
+            alerts={alerts}
+            size={item.size}
+            editMode={editMode}
+            onNavigate={(target) => target && navigation.navigate(target)}
+          />
+        );
+      case 'active_projects':
+        return (
+          <StatWidget
+            value={stats.activeProjects}
+            label="Active Projects"
+            icon="construct-outline"
+            accentColor="#3B82F6"
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Projects')}
+            breakdowns={[
+              { color: '#10B981', text: `${stats.activeProjects} active` },
+              { color: '#CBD5E1', text: `${stats.totalProjects} total` },
+            ]}
+          />
+        );
+      case 'workers':
+        return (
+          <StatWidget
+            value={stats.totalWorkers}
+            label="Workers"
+            icon="people-outline"
+            accentColor="#F59E0B"
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Workers')}
+            breakdowns={[
+              { color: '#8B5CF6', text: `${stats.totalSupervisors} supervisors` },
+              { color: '#3B82F6', text: `${stats.totalProjects} projects` },
+            ]}
+          />
+        );
+      case 'supervisors':
+        return (
+          <StatWidget
+            value={stats.totalSupervisors}
+            label="Supervisors"
+            icon="shield-outline"
+            accentColor="#8B5CF6"
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
+            breakdowns={[
+              { color: '#F59E0B', text: `${stats.totalWorkers} workers` },
+              { color: '#3B82F6', text: `${stats.totalProjects} projects` },
+            ]}
+          />
+        );
+      case 'transactions': {
+        const txMatched = reconciliation?.matched || 0;
+        const txUnmatched = reconciliation?.unmatched || 0;
+        const txSuggested = reconciliation?.suggested_matches || 0;
+        return (
+          <StatWidget
+            value={transactionCount}
+            label="Transactions"
+            icon="card-outline"
+            accentColor="#10B981"
+            size={item.size}
+            editMode={editMode}
+            onPress={() =>
+              reconciliation && !reconciliation.message
+                ? navigation.navigate('BankReconciliation')
+                : navigation.navigate('BankConnection')
+            }
+            breakdowns={[
+              { color: '#10B981', text: `${txMatched} matched` },
+              { color: '#F97316', text: `${txUnmatched + txSuggested} unmatched` },
+            ]}
+          />
+        );
+      }
+      case 'overdue_invoices':
+        return (
+          <StatWidget
+            value={overdueInvoices.count}
+            label="Overdue"
+            icon="alert-circle-outline"
+            accentColor="#EF4444"
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('ARAging')}
+            breakdowns={[
+              { color: '#EF4444', text: `${fmt(overdueInvoices.amount)} outstanding` },
+            ]}
+          />
+        );
+      case 'profit_margin':
+        return (
+          <StatWidget
+            value={`${pnl.margin.toFixed(1)}%`}
+            label={marginHealth.text}
+            icon="trending-up-outline"
+            accentColor={marginHealth.color}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('FinancialReport')}
+            breakdowns={[
+              { color: '#10B981', text: `${fmt(pnl.revenue)} rev` },
+              { color: '#EF4444', text: `${fmt(pnl.expenses)} exp` },
+            ]}
+          />
+        );
+      case 'contract_value':
+        return (
+          <StatWidget
+            value={fmt(stats.totalContractValue)}
+            label="Contracts"
+            icon="document-text-outline"
+            accentColor="#6366F1"
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Contracts')}
+            breakdowns={[
+              { color: '#10B981', text: `${fmt(stats.totalRevenue)} earned` },
+              { color: '#3B82F6', text: `${stats.totalProjects} projects` },
+            ]}
+          />
+        );
+      case 'pending_invites':
+        return (
+          <StatWidget
+            value={stats.pendingInvites}
+            label="Pending Invites"
+            icon="mail-unread-outline"
+            accentColor="#3B82F6"
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
+            breakdowns={[
+              { color: '#3B82F6', text: `${stats.totalSupervisors} supervisors total` },
+            ]}
+          />
+        );
+      case 'forgotten_clockouts': {
+        const forgottenNames = [
+          ...forgottenClockOuts.workers.map(w => w.worker_name),
+          ...forgottenClockOuts.supervisors.map(s => s.supervisor_name),
+        ].filter(Boolean).slice(0, 2);
+        const forgottenTotal = forgottenClockOuts.workers.length + forgottenClockOuts.supervisors.length;
+        return (
+          <StatWidget
+            value={forgottenTotal}
+            label="Forgot Clock-out"
+            icon="time-outline"
+            accentColor="#F59E0B"
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('ClockOuts')}
+            breakdowns={
+              forgottenNames.length > 0
+                ? [
+                    { color: '#F59E0B', text: forgottenNames.join(', ') + (forgottenTotal > 2 ? ` +${forgottenTotal - 2}` : '') },
+                    { color: '#EF4444', text: '10+ hrs' },
+                  ]
+                : [{ color: '#EF4444', text: '10+ hrs each' }]
+            }
+          />
+        );
+      }
+      case 'unmatched_txns': {
+        const unmatchedOnly = reconciliation?.unmatched || 0;
+        const suggestedOnly = reconciliation?.suggested_matches || 0;
+        return (
+          <StatWidget
+            value={unmatchedOnly + suggestedOnly}
+            label="Unmatched"
+            icon="git-compare-outline"
+            accentColor="#F97316"
+            size={item.size}
+            editMode={editMode}
+            onPress={() =>
+              reconciliation && !reconciliation.message
+                ? navigation.navigate('BankReconciliation', { filter: 'unmatched' })
+                : navigation.navigate('BankConnection')
+            }
+            breakdowns={[
+              { color: '#F97316', text: `${unmatchedOnly} unmatched` },
+              { color: '#3B82F6', text: `${suggestedOnly} suggested` },
+            ]}
+          />
+        );
+      }
+      case 'ar_aging':
+        return (
+          <AgingWidget
+            agingTotals={agingData?.totals}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('ARAging')}
+            fmt={fmt}
+          />
+        );
+      case 'payroll':
+        return (
+          <PayrollWidget
+            payrollSummary={payrollSummary}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('PayrollSummary')}
+            fmt={fmt}
+          />
+        );
+      case 'recent_reports':
+        return (
+          <RecentReportsWidget
+            reports={recentReports}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('OwnerDailyReports')}
+          />
+        );
+      case 'pipeline':
+        return (
+          <PipelineWidget
+            pipeline={pipeline}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('InvoicesDetail')}
+          />
+        );
+      default:
+        return null;
+    }
+  }, [pnl, cashFlowData, maxCashFlowVal, totalNet, alerts, stats, transactionCount, reconciliation, editMode, navigation, overdueInvoices, marginHealth, forgottenClockOuts, agingData, payrollSummary, recentReports, pipeline]);
+
+  // ── Sized widget wrapper (view mode) ──
+
+  const renderSizedWidget = useCallback((item, index) => {
+    const { width, height } = getWidgetSize(item.size);
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={{ width, height }}
+        onLongPress={enterEditMode}
+        activeOpacity={0.9}
+        delayLongPress={500}
+      >
+        {renderWidget(item)}
+      </TouchableOpacity>
+    );
+  }, [renderWidget, enterEditMode]);
+
+  // ── Draggable item (edit mode) ──
+
+  const renderDraggableItem = useCallback(({ item, drag, isActive }) => {
+    const { width, height } = getWidgetSize(item.size);
+    return (
+      <ScaleDecorator>
+        <TouchableOpacity
+          onLongPress={drag}
+          onPress={() => {
+            const def = WIDGET_DEFINITIONS.find((w) => w.id === item.id);
+            if (def && def.availableSizes.length > 1) {
+              setResizingWidget({ ...item, ...def });
+            }
+          }}
+          delayLongPress={200}
+          activeOpacity={0.8}
+          style={[
+            styles.editWidgetWrap,
+            { width, height, marginBottom: 12 },
+            isActive && { opacity: 0.85 },
+          ]}
+        >
+          <View
+            style={[
+              { width: '100%', height: '100%' },
+              styles.editWidgetHighlight,
+            ]}
+          >
+            {renderWidget(item)}
+          </View>
+          {/* Remove badge — outside overflow container */}
+          <TouchableOpacity
+            style={styles.removeBadge}
+            onPress={() => handleRemoveWidget(item.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="remove-circle" size={22} color="#EF4444" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }, [renderWidget, handleRemoveWidget]);
+
+  // ── Loading skeleton ──
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={[styles.topBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]} />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header} />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={{ padding: 20 }}>
-            <SkeletonBox width="50%" height={22} borderRadius={4} />
-            <SkeletonBox width="70%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
-          </View>
-          <View style={{ paddingHorizontal: 16 }}>
-            <SkeletonBox width="100%" height={160} borderRadius={12} />
-            <SkeletonBox width="100%" height={90} borderRadius={12} style={{ marginTop: 16 }} />
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <SkeletonBox width="48%" height={80} borderRadius={12} />
-              <SkeletonBox width="48%" height={80} borderRadius={12} />
+          <View style={{ paddingHorizontal: Spacing.lg }}>
+            <SkeletonBox width="50%" height={26} borderRadius={4} />
+            <SkeletonBox width="60%" height={14} borderRadius={4} style={{ marginTop: 6 }} />
+            <SkeletonBox width="100%" height={190} borderRadius={20} style={{ marginTop: Spacing.md }} />
+            <SkeletonBox width="100%" height={50} borderRadius={BorderRadius.md} style={{ marginTop: Spacing.lg }} />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: Spacing.lg }}>
+              <SkeletonBox width={86} height={110} borderRadius={16} />
+              <SkeletonBox width={86} height={110} borderRadius={16} />
+              <SkeletonBox width={86} height={110} borderRadius={16} />
+              <SkeletonBox width={86} height={110} borderRadius={16} />
             </View>
           </View>
         </ScrollView>
@@ -228,351 +708,226 @@ export default function OwnerDashboardScreen() {
     );
   }
 
+  // ── Main render ──
+
+  const activeLayout = editMode ? (pendingLayout || layout) : layout;
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      <View style={[styles.topBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]}>
-        <View style={styles.topBarLeft}>
-          <Text style={[styles.welcomeText, { color: Colors.primaryText }]}>{t('dashboardScreen.welcome')}</Text>
-          <Text style={[styles.dateText, { color: Colors.secondaryText }]}>
+    <SafeAreaView style={styles.container}>
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcomeText}>{t('dashboardScreen.welcome')}</Text>
+          <Text style={styles.dateText}>
             {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </Text>
         </View>
-        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={enterEditMode} style={styles.customizeIconBtn}>
+            <Ionicons name="grid-outline" size={22} color="#64748B" />
+          </TouchableOpacity>
+          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        </View>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT.primary} />}
-      >
-
-        {/* ── P&L Card ── */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: Colors.cardBackground }]}
-            onPress={() => navigation.navigate('FinancialReport')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.pnlColumns}>
-              <View style={styles.pnlCol}>
-                <Ionicons name="trending-up" size={18} color={ACCENT.success} />
-                <Text style={[styles.pnlValue, { color: ACCENT.success }]}>{fmt(pnl.revenue)}</Text>
-                <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.revenue')}</Text>
-              </View>
-              <View style={[styles.pnlDivider, { backgroundColor: Colors.border }]} />
-              <View style={styles.pnlCol}>
-                <Ionicons name="trending-down" size={18} color={ACCENT.error} />
-                <Text style={[styles.pnlValue, { color: ACCENT.error }]}>{fmt(pnl.expenses)}</Text>
-                <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.expenses')}</Text>
-              </View>
-              <View style={[styles.pnlDivider, { backgroundColor: Colors.border }]} />
-              <View style={styles.pnlCol}>
-                <Ionicons name="wallet" size={18} color={pnl.profit >= 0 ? ACCENT.success : ACCENT.error} />
-                <Text style={[styles.pnlValue, { color: pnl.profit >= 0 ? ACCENT.success : ACCENT.error }]}>{fmt(pnl.profit)}</Text>
-                <Text style={[styles.pnlLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.grossProfit')}</Text>
-              </View>
-            </View>
-
-            <View style={[styles.viewReportRow, { backgroundColor: `${ACCENT.primary}08` }]}>
-              <Ionicons name="bar-chart-outline" size={14} color={ACCENT.primary} />
-              <Text style={styles.viewReportText}>{t('dashboardScreen.viewPLReport')}</Text>
-              <Ionicons name="chevron-forward" size={14} color={ACCENT.primary} />
-            </View>
+      {/* ── Edit mode header overlay ── */}
+      {editMode && (
+        <View style={styles.editHeader}>
+          <TouchableOpacity onPress={handleReset}>
+            <Text style={styles.editHeaderReset}>Reset</Text>
+          </TouchableOpacity>
+          <Text style={styles.editHeaderTitle}>Editing Dashboard</Text>
+          <TouchableOpacity onPress={exitEditMode}>
+            <Text style={styles.editHeaderDone}>Done</Text>
           </TouchableOpacity>
         </View>
+      )}
 
-        {/* ── Needs Attention ── */}
-        {alerts.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.needsAttention')}</Text>
-            {alerts.map(alert => (
-              <TouchableOpacity
-                key={alert.key}
-                style={[styles.alertCard, { backgroundColor: Colors.cardBackground, borderLeftColor: alert.color }]}
-                onPress={alert.onPress}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.alertIcon, { backgroundColor: `${alert.color}15` }]}>
-                  <Ionicons name={alert.icon} size={16} color={alert.color} />
-                </View>
-                <Text style={[styles.alertText, { color: Colors.primaryText }]} numberOfLines={1}>{alert.text}</Text>
-                <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
-              </TouchableOpacity>
-            ))}
+      {/* ── Content ── */}
+      {editMode ? (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <DraggableFlatList
+            data={activeLayout}
+            keyExtractor={(item) => item.id}
+            renderItem={renderDraggableItem}
+            onDragEnd={({ data }) => {
+              setPendingLayout(data.map((item, i) => ({ ...item, position: i })));
+            }}
+            contentContainerStyle={styles.editListContent}
+            ListFooterComponent={
+              <View>
+                {/* Add widget slot */}
+                <TouchableOpacity style={styles.addSlot} onPress={() => setShowAddSheet(true)}>
+                  <Ionicons name="add-circle-outline" size={20} color="#94A3B8" />
+                  <Text style={styles.addSlotText}>Add Widget</Text>
+                </TouchableOpacity>
+                <View style={{ height: 100 }} />
+              </View>
+            }
+          />
+        </GestureHandlerRootView>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+        >
+          {/* Widget grid */}
+          <View style={styles.widgetGrid}>
+            {activeLayout.map((item, index) => renderSizedWidget(item, index))}
           </View>
-        )}
 
-        {/* ── Quick Access Grid ── */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.quickAccess')}</Text>
-          <View style={styles.grid}>
-            <TouchableOpacity
-              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.primaryLight }]}
-              onPress={() => navigation.navigate('Projects')}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.primaryLight}15` }]}>
-                <Ionicons name="construct-outline" size={18} color={ACCENT.primaryLight} />
-              </View>
-              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>{stats.activeProjects}</Text>
-              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>
-                {t('dashboardScreen.activeProjects')}
-              </Text>
-            </TouchableOpacity>
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      )}
 
-            <TouchableOpacity
-              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.warning }]}
-              onPress={() => navigation.navigate('Workers')}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.warning}15` }]}>
-                <Ionicons name="people-outline" size={18} color={ACCENT.warning} />
-              </View>
-              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>{stats.totalWorkers}</Text>
-              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalWorkers')}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.primary }]}
-              onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.primary}15` }]}>
-                <Ionicons name="shield-outline" size={18} color={ACCENT.primary} />
-              </View>
-              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>{stats.totalSupervisors}</Text>
-              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.totalSupervisors')}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.gridCard, { backgroundColor: Colors.cardBackground, borderLeftColor: ACCENT.success }]}
-              onPress={() => reconciliation && !reconciliation.message
-                ? navigation.navigate('BankReconciliation')
-                : navigation.navigate('BankConnection')}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.gridIcon, { backgroundColor: `${ACCENT.success}15` }]}>
-                <Ionicons name="card-outline" size={18} color={ACCENT.success} />
-              </View>
-              <Text style={[styles.gridValue, { color: Colors.primaryText }]}>
-                {reconciliation && !reconciliation.message ? (reconciliation.total || 0) : '—'}
-              </Text>
-              <Text style={[styles.gridLabel, { color: Colors.secondaryText }]}>{t('dashboardScreen.transactions')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── Cash Flow ── */}
-        {cashFlowData.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('dashboardScreen.cashFlow')}</Text>
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: Colors.cardBackground }]}
-              onPress={() => navigation.navigate('FinancialReport')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cfChart}>
-                {cashFlowData.map((month) => {
-                  const inH = Math.max(6, (month.cashIn / maxCashFlowVal) * 56);
-                  const outH = Math.max(6, (month.cashOut / maxCashFlowVal) * 56);
-                  return (
-                    <View key={month.key} style={styles.cfMonth}>
-                      <View style={styles.cfBars}>
-                        <View style={[styles.cfBar, { height: inH, backgroundColor: ACCENT.success }]} />
-                        <View style={[styles.cfBar, { height: outH, backgroundColor: `${ACCENT.error}50` }]} />
-                      </View>
-                      <Text style={[styles.cfLabel, { color: Colors.secondaryText }]}>{month.label}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-
-              <View style={[styles.cfFooter, { borderTopColor: Colors.border }]}>
-                <View style={styles.cfLegend}>
-                  <View style={[styles.legendDot, { backgroundColor: ACCENT.success }]} />
-                  <Text style={[styles.cfFooterText, { color: Colors.secondaryText }]}>{t('dashboardScreen.cashIn')}</Text>
-                  <View style={[styles.legendDot, { backgroundColor: `${ACCENT.error}50`, marginLeft: 10 }]} />
-                  <Text style={[styles.cfFooterText, { color: Colors.secondaryText }]}>{t('dashboardScreen.cashOut')}</Text>
-                </View>
-                <Text style={[styles.cfNetText, { color: totalNet >= 0 ? ACCENT.success : ACCENT.error }]}>
-                  {t('dashboardScreen.net')}: {fmt(totalNet)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={{ height: 90 }} />
-      </ScrollView>
+      {/* ── Bottom sheets ── */}
+      <AddWidgetSheet
+        visible={showAddSheet}
+        onClose={() => setShowAddSheet(false)}
+        availableWidgets={availableWidgets}
+        onAdd={handleAddWidget}
+      />
+      <WidgetSizeSheet
+        visible={!!resizingWidget}
+        onClose={() => setResizingWidget(null)}
+        widget={resizingWidgetDef}
+        currentSize={resizingWidget?.size}
+        onResize={handleResize}
+      />
     </SafeAreaView>
   );
 }
 
-const createStyles = (Colors) => StyleSheet.create({
-  container: { flex: 1 },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-  },
-  topBarLeft: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 20 },
-
-  welcomeText: {
-    fontSize: FontSizes.header,
-    fontWeight: '600',
-    marginBottom: Spacing.xs,
-  },
-  dateText: { fontSize: FontSizes.small },
-
-  // Section
-  section: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
-  sectionTitle: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    marginBottom: Spacing.sm,
-    letterSpacing: 0.2,
-  },
-
-  // P&L unified card columns
-  pnlColumns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  pnlCol: {
+const styles = StyleSheet.create({
+  // Root
+  container: {
     flex: 1,
+    backgroundColor: '#F1F5F9',
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  welcomeText: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+  },
+  dateText: {
+    fontSize: FontSizes.small,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+
+  // Scroll
+  scroll: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: 20,
+    paddingTop: Spacing.md,
+  },
+
+  // Widget grid (view mode)
+  widgetGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+
+  // Edit mode header
+  editHeader: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  editHeaderReset: {
+    fontSize: 13,
+    color: '#94A3B8',
+  },
+  editHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  editHeaderDone: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+
+  // Edit mode list
+  editListContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: 20,
+  },
+  editWidgetWrap: {
+    // width set dynamically per widget size
+  },
+  editWidgetHighlight: {
+    borderWidth: 2,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+    backgroundColor: 'rgba(59, 130, 246, 0.03)',
+  },
+
+  // Remove badge
+  removeBadge: {
+    position: 'absolute',
+    top: -6,
+    left: -6,
+    zIndex: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 11,
+  },
+
+  // Add widget slot (edit mode)
+  addSlot: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    height: 80,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  addSlotText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginLeft: 6,
+  },
+
+  // Header right (customize + notification bell)
+  headerRight: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  pnlDivider: {
-    width: 1,
-    height: 48,
-    alignSelf: 'center',
+  customizeIconBtn: {
+    padding: 8,
   },
-  pnlValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  pnlLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
-  // Card
-  card: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-
-  // Margin row
-  marginRow: { alignItems: 'flex-start', marginBottom: Spacing.sm },
-  // View report button
-  viewReportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: BorderRadius.md,
-  },
-  viewReportText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E40AF',
-  },
-  marginBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    gap: 6,
-  },
-  marginDot: { width: 7, height: 7, borderRadius: 4 },
-  marginText: { fontSize: 12, fontWeight: '600' },
-
-  // Alerts
-  alertCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderLeftWidth: 4,
-    gap: 10,
-    marginBottom: Spacing.xs,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  alertIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  alertText: { flex: 1, fontSize: 13, fontWeight: '600' },
-
-  // Cash Flow
-  cfChart: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    height: 60,
-    marginBottom: Spacing.sm,
-  },
-  cfMonth: { alignItems: 'center', flex: 1 },
-  cfBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginBottom: 6 },
-  cfBar: { width: 16, borderRadius: 4, minHeight: 6 },
-  cfLabel: { fontSize: 11, fontWeight: '500' },
-  cfFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-  },
-  cfLegend: { flexDirection: 'row', alignItems: 'center' },
-  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
-  cfFooterText: { fontSize: 11 },
-  cfNetText: { fontSize: 13, fontWeight: '700' },
-
-  // Quick Access Grid
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  gridCard: {
-    width: '47%',
-    flexGrow: 1,
-    borderRadius: BorderRadius.md,
-    padding: 10,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  gridIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 7,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  gridValue: { fontSize: 18, fontWeight: '700' },
-  gridLabel: { fontSize: 11, marginTop: 2 },
 });

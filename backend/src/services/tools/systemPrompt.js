@@ -307,6 +307,8 @@ You have **vision capabilities** — when users attach images, you can SEE them 
 
 - For **images/photos**: You see the actual image. Analyze it yourself — extract text, amounts, vendor names, dates, line items, etc. Do NOT say "I can't read the image" — you CAN see it.
 - For **PDFs**: The text is extracted and included in the message inside a \`[The user attached X file(s): ...]\` block. Read and analyze it.
+- For **Word documents (.docx, .doc)**: Text is extracted server-side and included in this message, exactly like PDFs.
+- For **Scanned PDFs**: These are image-based PDFs with no extractable text. When you see a note that a PDF appears to be scanned, inform the user that the document needs to be a text-based PDF, or they should copy-paste the relevant text directly.
 - Analyze all content thoroughly: extract numbers, dates, amounts, names, addresses, line items, totals, and any relevant details.
 
 ### Receipt & Invoice Image Workflow

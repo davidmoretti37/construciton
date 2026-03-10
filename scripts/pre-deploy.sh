@@ -214,6 +214,47 @@ if [ -n "$BRANCH" ]; then
 fi
 
 # ============================================================
+section "9. TypeScript Check"
+# ============================================================
+
+cd "$REPO_ROOT/frontend"
+
+if [ -d "node_modules" ]; then
+  echo "  Running tsc --noEmit..."
+  TSC_OUTPUT=$(npx tsc --noEmit 2>&1)
+  if echo "$TSC_OUTPUT" | grep -q "error TS"; then
+    TS_ERRORS=$(echo "$TSC_OUTPUT" | grep -c "error TS")
+    fail "TypeScript — $TS_ERRORS error(s) found"
+    echo "$TSC_OUTPUT" | grep "error TS" | head -10
+  else
+    pass "TypeScript — no errors"
+  fi
+else
+  warn "Frontend node_modules not installed — skipping TypeScript check"
+fi
+
+# ============================================================
+section "10. Code Quality"
+# ============================================================
+
+cd "$REPO_ROOT"
+
+# Check for excessive console.log in production code
+CONSOLE_LOGS=$(grep -rn "console\.log" --include="*.js" --include="*.ts" \
+  --exclude-dir=node_modules --exclude-dir=__tests__ --exclude-dir=coverage \
+  --exclude-dir=__mocks__ --exclude="logger.js" --exclude="*.test.*" \
+  --exclude="jest.setup.js" --exclude="jest.config.js" \
+  "$REPO_ROOT/backend/src" "$REPO_ROOT/frontend/src" 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "$CONSOLE_LOGS" -gt 100 ]; then
+  warn "$CONSOLE_LOGS console.log calls found in src/ (consider using logger utility)"
+elif [ "$CONSOLE_LOGS" -gt 0 ]; then
+  pass "Console.log usage: $CONSOLE_LOGS calls (acceptable)"
+else
+  pass "No console.log calls in source code"
+fi
+
+# ============================================================
 # SUMMARY
 # ============================================================
 
