@@ -11,7 +11,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
   Linking,
   RefreshControl,
   ActivityIndicator,
@@ -73,7 +72,6 @@ export default function OwnerSettingsScreen() {
   const saveTimeoutRef = useRef(null);
 
   // Supervisor permissions state
-  const [hideContractFromSupervisors, setHideContractFromSupervisors] = useState(false);
 
   // Load data
   const loadData = async () => {
@@ -109,17 +107,6 @@ export default function OwnerSettingsScreen() {
       // Load current language
       const language = await getSelectedLanguage();
       setCurrentLanguage(language || 'en');
-
-      // Load supervisor permission settings
-      const ownerId = await getCurrentUserId();
-      if (ownerId) {
-        const { data: ownerFlags } = await supabase
-          .from('profiles')
-          .select('hide_contract_from_supervisors')
-          .eq('id', ownerId)
-          .maybeSingle();
-        setHideContractFromSupervisors(ownerFlags?.hide_contract_from_supervisors || false);
-      }
 
       // Load AI settings
       const aiSettings = await getAISettings();
@@ -185,22 +172,6 @@ export default function OwnerSettingsScreen() {
     saveTimeoutRef.current = setTimeout(() => {
       updateAISettings({ aboutYou, responseStyle, projectInstructions: trimmed });
     }, 1000);
-  };
-
-  const handleToggleHideContract = async (value) => {
-    setHideContractFromSupervisors(value);
-    try {
-      const id = await getCurrentUserId();
-      if (id) {
-        await supabase
-          .from('profiles')
-          .update({ hide_contract_from_supervisors: value })
-          .eq('id', id);
-      }
-    } catch (error) {
-      console.error('Error updating supervisor permission:', error);
-      setHideContractFromSupervisors(!value); // revert on failure
-    }
   };
 
   const handleLogout = async () => {
@@ -423,32 +394,6 @@ export default function OwnerSettingsScreen() {
               </View>
             </View>
           )}
-        </View>
-
-        {/* Supervisor Permissions */}
-        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          SUPERVISOR PERMISSIONS
-        </Text>
-        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Ionicons name="eye-off-outline" size={22} color={Colors.primaryText} />
-              <View style={styles.toggleTextContainer}>
-                <Text style={[styles.toggleLabel, { color: Colors.primaryText }]}>
-                  Hide contract amounts
-                </Text>
-                <Text style={[styles.toggleDescription, { color: Colors.secondaryText }]}>
-                  Supervisors won't see contract amounts on projects
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={hideContractFromSupervisors}
-              onValueChange={handleToggleHideContract}
-              trackColor={{ false: Colors.border, true: '#3B82F6' }}
-              thumbColor="#fff"
-            />
-          </View>
         </View>
 
         {/* Documents & Financials */}
