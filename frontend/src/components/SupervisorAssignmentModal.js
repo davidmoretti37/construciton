@@ -78,16 +78,6 @@ export default function SupervisorAssignmentModal({
       const result = await assignProjectToSupervisor(project.id, selectedId);
 
       if (result.success) {
-        const actionText = selectedId
-          ? t('assign.successAssigned', 'Project assigned successfully')
-          : t('assign.successUnassigned', 'Project is now managed by you');
-
-        Alert.alert(
-          t('common.success', 'Success'),
-          actionText,
-          [{ text: t('common.ok', 'OK'), onPress: onClose }]
-        );
-
         if (onAssignmentChange) {
           onAssignmentChange(selectedId);
         }

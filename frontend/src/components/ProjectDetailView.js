@@ -290,7 +290,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       // Reset editing state
       setIsEditing(false);
     }
-  }, [project?.id, project?.hasPhases, project?.contract_amount, project?.updated_at, visible, isDemo]);
+  }, [project?.id, project?.hasPhases, project?.contract_amount, project?.updated_at, project?.assigned_supervisor_id, visible, isDemo]);
 
   // Sync modal visibility with prop and refresh data when becoming visible
   useEffect(() => {
@@ -1376,7 +1376,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <View style={styles.sectionHeader}>
               <Ionicons name="people-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
-                Assigned ({workers.length})
+                Assigned ({workers.length + (supervisorName ? 1 : 0)})
               </Text>
               <View style={styles.assignButtonsRow}>
                 {canAssignToSupervisor && (
@@ -1990,22 +1990,24 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         }}
         onAssignmentChange={async (newSupervisorId) => {
           setShowSupervisorAssignment(false);
-          // Update supervisor name display
           if (newSupervisorId) {
+            // Set placeholder immediately so the chip renders right away
+            setSupervisorName('Supervisor');
             try {
               const { data: supProfile } = await supabase
                 .from('profiles')
                 .select('full_name')
                 .eq('id', newSupervisorId)
                 .single();
-              setSupervisorName(supProfile?.full_name || null);
+              if (supProfile?.full_name) {
+                setSupervisorName(supProfile.full_name);
+              }
             } catch (e) {
-              setSupervisorName(null);
+              // Keep the placeholder — chip still shows
             }
           } else {
             setSupervisorName(null);
           }
-          // Trigger refresh if callback provided
           if (onRefreshNeeded) {
             onRefreshNeeded();
           }
