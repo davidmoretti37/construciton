@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "8db57701-1e05-489b-823a-d1c88c798126"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.davidmoretti.constructionmanager",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

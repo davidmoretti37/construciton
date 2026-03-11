@@ -703,6 +703,7 @@ export default function OwnerDashboardScreen() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <DraggableFlatList
             data={activeLayout}
+            extraData={pendingLayout}
             keyExtractor={(item) => item.id}
             renderItem={renderDraggableItem}
             onDragEnd={({ data }) => {
