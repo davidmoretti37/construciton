@@ -384,6 +384,100 @@ function rememberToolResult(userId, toolName, args, result) {
 }
 
 /**
+ * Condense a single tool result into a brief summary string.
+ * Used for conversation memory — helps the model resolve references in future turns.
+ */
+function condenseTool(toolName, result) {
+  if (result.error) return `${toolName} -> ERROR: ${result.error}`;
+
+  // Projects: extract name + id + status
+  if (toolName === 'search_projects' && Array.isArray(result)) {
+    const items = result.slice(0, 5).map(p =>
+      `${p.name}(id:${p.id?.slice(0, 8)})`
+    );
+    return `${toolName} -> ${result.length} projects: ${items.join(', ')}`;
+  }
+  if (toolName === 'get_project_details' || toolName === 'get_project_summary') {
+    return `${toolName} -> "${result.name}" id:${result.id?.slice(0, 8)} status:${result.status} budget:$${result.contract_amount || result.budget || 0}`;
+  }
+
+  // Workers
+  if (toolName === 'get_workers' && Array.isArray(result)) {
+    const items = result.slice(0, 5).map(w => `${w.full_name}(id:${w.id?.slice(0, 8)})`);
+    return `${toolName} -> ${result.length} workers: ${items.join(', ')}`;
+  }
+  if (toolName === 'get_worker_details' && result.full_name) {
+    return `${toolName} -> "${result.full_name}" id:${result.id?.slice(0, 8)} trade:${result.trade} status:${result.status}`;
+  }
+
+  // Estimates
+  if ((toolName === 'search_estimates' || toolName === 'get_estimates') && Array.isArray(result)) {
+    const items = result.slice(0, 5).map(e => `#${e.estimate_number} ${e.client_name}(id:${e.id?.slice(0, 8)})`);
+    return `${toolName} -> ${result.length} estimates: ${items.join(', ')}`;
+  }
+  if (toolName === 'get_estimate_details' && result.id) {
+    return `${toolName} -> #${result.estimate_number} "${result.client_name}" id:${result.id?.slice(0, 8)} total:$${result.total} status:${result.status}`;
+  }
+
+  // Invoices
+  if ((toolName === 'search_invoices' || toolName === 'get_invoices') && Array.isArray(result)) {
+    const items = result.slice(0, 5).map(inv => `#${inv.invoice_number} ${inv.client_name}(id:${inv.id?.slice(0, 8)})`);
+    return `${toolName} -> ${result.length} invoices: ${items.join(', ')}`;
+  }
+  if (toolName === 'get_invoice_details' && result.id) {
+    return `${toolName} -> #${result.invoice_number} "${result.client_name}" id:${result.id?.slice(0, 8)} total:$${result.total} status:${result.status}`;
+  }
+
+  // Financials
+  if (toolName === 'get_project_financials' && result.budget !== undefined) {
+    return `${toolName} -> budget:$${result.budget} spent:$${result.spent || result.total_expenses || 0} income:$${result.income || result.total_income || 0}`;
+  }
+
+  // Actions that confirm something was done
+  if (toolName === 'record_expense' && result.id) {
+    return `${toolName} -> recorded $${result.amount} "${result.description}" to project ${result.project_name || result.project_id?.slice(0, 8)}`;
+  }
+  if (toolName === 'delete_expense') {
+    return `${toolName} -> deleted expense`;
+  }
+
+  // Fallback: truncated JSON
+  return `${toolName} -> ${JSON.stringify(result).slice(0, 300)}`;
+}
+
+/**
+ * Build a condensed summary of all tool calls and results from the messages array.
+ * This is appended to conversation history so the model can reference previous tool data.
+ *
+ * @param {Array} messages - The full messages array including tool calls and results
+ * @returns {string} Condensed tool context string, or empty string if no tools were called
+ */
+function buildToolContext(messages) {
+  const entries = [];
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (msg.role === 'tool' && msg.content) {
+      // Find the preceding assistant message to get tool name
+      const toolCallId = msg.tool_call_id;
+      let toolName = 'unknown';
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = messages[j];
+        if (prev.role === 'assistant' && prev.tool_calls) {
+          const tc = prev.tool_calls.find(t => t.id === toolCallId);
+          if (tc) { toolName = tc.function.name; break; }
+        }
+      }
+      try {
+        const result = JSON.parse(msg.content);
+        const summary = condenseTool(toolName, result);
+        if (summary) entries.push(summary);
+      } catch (e) { /* skip unparseable */ }
+    }
+  }
+  return entries.length > 0 ? entries.join(' | ').slice(0, 2000) : '';
+}
+
+/**
  * Main agentic loop — processes a user request with streaming tool calling.
  * Continues processing even if the client disconnects (background persistence).
  *
@@ -578,6 +672,12 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       trackUsage(model, estInput, estOutput);
 
       logger.info(`📊 Agent: ${toolRound} rounds, model=${model.includes('haiku') ? 'haiku' : 'sonnet'}, ~${estInput}+${estOutput} tokens, ${totalTime}ms`);
+
+      // Build and emit condensed tool context for conversation memory
+      const toolContext = buildToolContext(messages);
+      if (toolContext) {
+        writer.emit({ type: 'tool_context', context: toolContext });
+      }
 
       // Signal completion
       writer.emit({ type: 'done' });

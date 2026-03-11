@@ -1412,14 +1412,17 @@ export default function ChatScreen({ navigation, route }) {
             }
           }
 
-          // Update conversation history — store text only (no base64 images)
+          // Update conversation history — store text + tool context (no base64 images)
           const historyContent = imageAttachments.length > 0
             ? `[User attached ${imageAttachments.length} image(s)]\n\n${enhancedText}`
             : enhancedText;
+          const toolSuffix = parsedResponse.toolContext
+            ? '\n\n[TOOL CONTEXT: ' + parsedResponse.toolContext + ']'
+            : '';
           setConversationHistory((prev) => [
             ...prev,
             { role: 'user', content: historyContent },
-            { role: 'assistant', content: parsedResponse.text || '' },
+            { role: 'assistant', content: (parsedResponse.text || '') + toolSuffix },
           ]);
 
           // Extract and save facts from conversation for long-term memory

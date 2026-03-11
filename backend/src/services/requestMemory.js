@@ -121,8 +121,8 @@ class RequestMemory {
 
     let context = '\n## CONTEXT FROM EARLIER IN THIS CONVERSATION:\n';
     let itemCount = 0;
-    const MAX_ITEMS = 10; // Limit to avoid prompt bloat
-    const RECENT_THRESHOLD = 15 * 60 * 1000; // Only show items from last 15 min
+    const MAX_ITEMS = 20; // Limit to avoid prompt bloat
+    const RECENT_THRESHOLD = 30 * 60 * 1000; // Only show items from last 30 min
 
     for (const [key, entry] of userCache.entries()) {
       const age = Date.now() - entry.timestamp;

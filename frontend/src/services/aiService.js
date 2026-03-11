@@ -1992,6 +1992,7 @@ export const sendAgentMessage = async (
     let completionData = null;        // Parsed response for deferred onComplete
     let pendingVisualElements = [];   // From backend metadata event
     let pendingActions = [];          // From backend metadata event
+    let pendingToolContext = '';       // Condensed tool context for conversation memory
 
     /**
      * Drip-feed text to UI at a smooth pace (adaptive 3-15 chars per 20ms tick).
@@ -2105,6 +2106,9 @@ export const sendAgentMessage = async (
                 onMetadata?.({ visualElements: pendingVisualElements });
               }
               break;
+            case 'tool_context':
+              pendingToolContext = event.context || '';
+              break;
             case 'done':
               streamDone = true;
               break;
@@ -2143,6 +2147,7 @@ export const sendAgentMessage = async (
         text: displayedText || 'Unable to process response',
         visualElements: pendingVisualElements,
         actions: pendingActions,
+        toolContext: pendingToolContext,
       };
 
       // If no animation running, complete immediately
