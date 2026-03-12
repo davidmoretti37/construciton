@@ -677,6 +677,30 @@ export default function SupervisorDetailScreen() {
               </Text>
             </View>
 
+            {/* Daily breakdown - show full/half day details for daily payment type */}
+            {paymentData.paymentType === 'daily' && paymentData.byDate && paymentData.byDate.length > 0 && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primaryText, marginBottom: 8 }}>
+                  {t('supervisorDetailScreen.breakdownByDay', { defaultValue: 'Daily Breakdown' })}
+                </Text>
+                {[...paymentData.byDate]
+                  .sort((a, b) => new Date(b.date) - new Date(a.date))
+                  .map((day, index) => (
+                  <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText }}>
+                        {new Date(day.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: Colors.secondaryText }}>
+                        {formatHoursMinutes(day.hours)} — {day.dayType === 'full' ? t('supervisorDetailScreen.fullDay', { defaultValue: 'Full Day' }) : t('supervisorDetailScreen.halfDay', { defaultValue: 'Half Day' })}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E40AF' }}>${day.amount?.toFixed(2) || '0.00'}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {paymentData.byProject && paymentData.byProject.length > 0 && (
               <View style={{ marginTop: 8 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primaryText, marginBottom: 8 }}>
