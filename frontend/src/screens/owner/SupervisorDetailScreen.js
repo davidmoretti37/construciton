@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -142,6 +142,13 @@ export default function SupervisorDetailScreen() {
 
   const supervisorParam = route.params?.supervisor;
   const [supervisor, setSupervisor] = useState(supervisorParam);
+
+  // Update supervisor when params change (e.g. after editing)
+  useEffect(() => {
+    if (route.params?.updatedAt) {
+      setSupervisor(route.params.supervisor);
+    }
+  }, [route.params?.updatedAt]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -323,28 +330,6 @@ export default function SupervisorDetailScreen() {
   useEffect(() => {
     fetchSupervisorData();
   }, [fetchSupervisorData]);
-
-  // Re-fetch supervisor profile when screen comes back into focus (e.g. after editing)
-  useFocusEffect(
-    useCallback(() => {
-      if (!supervisorParam?.id) return;
-      const refreshSupervisor = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', supervisorParam.id)
-            .single();
-          if (!error && data) {
-            setSupervisor(data);
-          }
-        } catch (e) {
-          console.error('Error refreshing supervisor:', e);
-        }
-      };
-      refreshSupervisor();
-    }, [supervisorParam?.id])
-  );
 
   // Update elapsed time every second for active session
   useEffect(() => {

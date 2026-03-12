@@ -56,9 +56,14 @@ export default function EditSupervisorScreen({ navigation, route }) {
       const success = await updateSupervisorProfile(supervisor.id, updates);
 
       if (success) {
-        Alert.alert('Success', 'Supervisor updated successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
+        // Pass updated supervisor data back to the detail screen
+        const updatedSupervisor = { ...supervisor, ...updates };
+        navigation.navigate({
+          name: 'SupervisorDetail',
+          params: { supervisor: updatedSupervisor, updatedAt: Date.now() },
+          merge: true,
+        });
+        Alert.alert('Success', 'Supervisor updated successfully.');
       } else {
         Alert.alert('Error', 'Failed to update supervisor. Please try again.');
       }
