@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { updateSupervisorProfile, removeSupervisor } from '../../utils/storage';
+import { CommonActions } from '@react-navigation/native';
 
 export default function EditSupervisorScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -56,14 +57,22 @@ export default function EditSupervisorScreen({ navigation, route }) {
       const success = await updateSupervisorProfile(supervisor.id, updates);
 
       if (success) {
-        // Pass updated supervisor data back to the detail screen
+        // Set updated params on the existing SupervisorDetail screen before going back
         const updatedSupervisor = { ...supervisor, ...updates };
-        navigation.navigate({
-          name: 'SupervisorDetail',
-          params: { supervisor: updatedSupervisor, updatedAt: Date.now() },
-          merge: true,
-        });
-        Alert.alert('Success', 'Supervisor updated successfully.');
+        const state = navigation.getState();
+        const previousRoute = state.routes[state.routes.length - 2];
+        if (previousRoute) {
+          navigation.dispatch({
+            ...CommonActions.setParams({
+              supervisor: updatedSupervisor,
+              updatedAt: Date.now(),
+            }),
+            source: previousRoute.key,
+          });
+        }
+        Alert.alert('Success', 'Supervisor updated successfully.', [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
       } else {
         Alert.alert('Error', 'Failed to update supervisor. Please try again.');
       }
