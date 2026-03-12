@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -140,7 +140,8 @@ export default function SupervisorDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
 
-  const supervisor = route.params?.supervisor;
+  const supervisorParam = route.params?.supervisor;
+  const [supervisor, setSupervisor] = useState(supervisorParam);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -317,11 +318,33 @@ export default function SupervisorDetailScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [supervisor?.id]);
+  }, [supervisor]);
 
   useEffect(() => {
     fetchSupervisorData();
   }, [fetchSupervisorData]);
+
+  // Re-fetch supervisor profile when screen comes back into focus (e.g. after editing)
+  useFocusEffect(
+    useCallback(() => {
+      if (!supervisorParam?.id) return;
+      const refreshSupervisor = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', supervisorParam.id)
+            .single();
+          if (!error && data) {
+            setSupervisor(data);
+          }
+        } catch (e) {
+          console.error('Error refreshing supervisor:', e);
+        }
+      };
+      refreshSupervisor();
+    }, [supervisorParam?.id])
+  );
 
   // Update elapsed time every second for active session
   useEffect(() => {
@@ -345,10 +368,10 @@ export default function SupervisorDetailScreen() {
     return () => clearInterval(interval);
   }, [activeSession]);
 
-  // Load payment data when date range changes
+  // Load payment data when date range or supervisor payment info changes
   useEffect(() => {
     loadPaymentData();
-  }, [dateRange, supervisor?.id]);
+  }, [dateRange, supervisor?.id, supervisor?.payment_type, supervisor?.hourly_rate, supervisor?.daily_rate, supervisor?.weekly_salary, supervisor?.project_rate]);
 
   const loadPaymentData = async () => {
     if (!supervisor?.id) return;
