@@ -453,19 +453,6 @@ export default function BankConnectionScreen() {
         }}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                setShowTellerConnect(false);
-                setConnecting(false);
-              }}
-              style={styles.modalClose}
-            >
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Connect Bank</Text>
-            <View style={{ width: 40 }} />
-          </View>
           {tellerAppId && (
             <WebView
               source={{ html: getTellerConnectHTML() }}
@@ -664,22 +651,5 @@ const styles = StyleSheet.create({
   reconcileLinkSubtitle: {
     fontSize: FontSizes.tiny,
     marginTop: 2,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalClose: {
-    padding: Spacing.xs,
-  },
-  modalTitle: {
-    fontSize: FontSizes.subheader,
-    fontWeight: '700',
-    color: '#333',
   },
 });
