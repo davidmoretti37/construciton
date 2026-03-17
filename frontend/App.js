@@ -75,26 +75,8 @@ function AppContent() {
           logger.debug('Supabase connected successfully');
         }
       });
-    // Save Teller callback deep link data to AsyncStorage for BankConnectionScreen to process
-    const saveTellerCallback = async (url) => {
-      if (!url || !url.includes('teller-callback')) return;
-      try {
-        const queryString = url.split('?')[1] || '';
-        const params = Object.fromEntries(new URLSearchParams(queryString));
-        if (params.type === 'success' && params.accessToken) {
-          await AsyncStorage.setItem('@pending_teller_enrollment', JSON.stringify(params));
-          logger.info('Teller callback saved to AsyncStorage');
-        }
-      } catch (error) {
-        logger.error('Failed to save Teller callback:', error.message);
-      }
-    };
-
-    Linking.getInitialURL().then(saveTellerCallback);
-    const tellerSub = Linking.addEventListener('url', ({ url }) => saveTellerCallback(url));
-
+    // Teller callback handling is done in the linking config (getInitialURL/subscribe)
     // Auth state is handled by the useEffect watching [session, authLoading, profile]
-    return () => tellerSub?.remove();
   }, []);
 
   // Monitor auth state from AuthContext
@@ -316,18 +298,34 @@ function AppContent() {
                   // Deep link config handled by AuthNavigator internally
                 },
               },
-              // Intercept teller-callback URLs before React Navigation consumes them
+              // Intercept teller-callback URLs — save to AsyncStorage before React Navigation consumes them
               async getInitialURL() {
                 const url = await Linking.getInitialURL();
                 if (url && url.includes('teller-callback')) {
-                  return null; // Don't let React Navigation handle it
+                  try {
+                    const qs = url.split('?')[1] || '';
+                    const params = Object.fromEntries(new URLSearchParams(qs));
+                    if (params.accessToken) {
+                      await AsyncStorage.setItem('@pending_teller_enrollment', JSON.stringify(params));
+                      logger.info('Teller callback saved from getInitialURL');
+                    }
+                  } catch (e) { logger.error('Teller getInitialURL save error:', e); }
+                  return null;
                 }
                 return url;
               },
               subscribe(listener) {
                 const sub = Linking.addEventListener('url', ({ url }) => {
                   if (url && url.includes('teller-callback')) {
-                    return; // Don't let React Navigation handle it
+                    try {
+                      const qs = url.split('?')[1] || '';
+                      const params = Object.fromEntries(new URLSearchParams(qs));
+                      if (params.accessToken) {
+                        AsyncStorage.setItem('@pending_teller_enrollment', JSON.stringify(params));
+                        logger.info('Teller callback saved from subscribe');
+                      }
+                    } catch (e) { logger.error('Teller subscribe save error:', e); }
+                    return;
                   }
                   listener(url);
                 });
