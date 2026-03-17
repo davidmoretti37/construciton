@@ -213,15 +213,91 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 });
 
+// ============================================================
+// TELLER CONNECT PAGE (public — loaded by WebView without auth)
+// ============================================================
+const connectSessions = new Map();
+
+router.get('/connect-page/:sessionId', (req, res) => {
+  const session = connectSessions.get(req.params.sessionId);
+  if (!session) {
+    return res.status(404).send('<html><body><p>Session expired. Please close and try again.</p></body></html>');
+  }
+
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html>
+<html style="height:100%;width:100%;">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: #fff; }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.teller.io/connect/connect.js"></script>
+  <script>
+    var tellerConnect = TellerConnect.setup({
+      applicationId: "${session.application_id}",
+      environment: "${session.environment}",
+      products: ["transactions"],
+      onSuccess: function(enrollment) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: "success",
+          accessToken: enrollment.accessToken,
+          enrollment: enrollment
+        }));
+      },
+      onExit: function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: "exit"
+        }));
+      }
+    });
+    tellerConnect.open();
+  </script>
+</body>
+</html>`);
+});
+
 // Log all incoming Teller requests for debugging
 router.use((req, res, next) => {
   logger.info(`[Teller] ${req.method} ${req.path} from ${req.ip}`);
   next();
 });
 
-// Apply auth + owner check to all routes (below webhook)
+// Apply auth + owner check to all routes (below webhook + connect-page)
 router.use(authenticateUser);
 router.use(requireOwnerRole);
+
+// ============================================================
+// POST /connect-session
+// Creates a session for the WebView to load the connect page via URL
+// ============================================================
+router.post('/connect-session', async (req, res) => {
+  try {
+    const applicationId = process.env.TELLER_APPLICATION_ID;
+    if (!applicationId) {
+      return res.status(503).json({ error: 'Teller is not configured' });
+    }
+
+    const sessionId = crypto.randomUUID();
+    connectSessions.set(sessionId, {
+      application_id: applicationId,
+      environment: tellerEnv,
+    });
+
+    setTimeout(() => connectSessions.delete(sessionId), 10 * 60 * 1000);
+
+    const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : `${req.protocol}://${req.get('host')}`;
+
+    res.json({ url: `${baseUrl}/api/teller/connect-page/${sessionId}` });
+  } catch (error) {
+    logger.error('Connect session error:', error.message);
+    res.status(500).json({ error: 'Failed to create connect session' });
+  }
+});
 
 // ============================================================
 // GET /connect-config

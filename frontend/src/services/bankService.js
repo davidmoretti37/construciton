@@ -76,6 +76,13 @@ export const getConnectConfig = async () => {
 };
 
 /**
+ * Create a connect session — returns { url } to load in WebView
+ */
+export const getConnectSession = async () => {
+  return fetchWithAuth('/api/teller/connect-session', { method: 'POST' });
+};
+
+/**
  * Save enrollment after Teller Connect success
  */
 export const saveEnrollment = async (accessToken, enrollment) => {

@@ -26,7 +26,7 @@ import { WebView } from 'react-native-webview';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
-  getConnectConfig,
+  getConnectSession,
   saveEnrollment,
   getConnectedAccounts,
   disconnectAccount,
@@ -55,8 +55,7 @@ export default function BankConnectionScreen() {
   const [syncing, setSyncing] = useState({});
   const [uploading, setUploading] = useState(false);
   const [showTellerConnect, setShowTellerConnect] = useState(false);
-  const [tellerAppId, setTellerAppId] = useState(null);
-  const [tellerEnv, setTellerEnv] = useState('sandbox');
+  const [tellerConnectUrl, setTellerConnectUrl] = useState(null);
 
   const loadAccounts = async () => {
     try {
@@ -80,9 +79,8 @@ export default function BankConnectionScreen() {
     try {
       setConnecting(true);
 
-      const config = await getConnectConfig();
-      setTellerAppId(config.application_id);
-      setTellerEnv(config.environment || 'sandbox');
+      const { url } = await getConnectSession();
+      setTellerConnectUrl(url);
       setShowTellerConnect(true);
     } catch (error) {
       setConnecting(false);
@@ -111,54 +109,6 @@ export default function BankConnectionScreen() {
     } finally {
       setConnecting(false);
     }
-  };
-
-  const getTellerConnectHTML = () => {
-    return `
-      <!DOCTYPE html>
-      <html style="height:100%;width:100%;overflow:hidden;">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-        <style>
-          * { touch-action: manipulation; -webkit-touch-callout: none; }
-          html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #fff; }
-          iframe { touch-action: manipulation; pointer-events: auto; }
-        </style>
-      </head>
-      <body>
-        <script src="https://cdn.teller.io/connect/connect.js"></script>
-        <script>
-          var tellerConnect = TellerConnect.setup({
-            applicationId: "${tellerAppId}",
-            environment: "${tellerEnv}",
-            products: ["transactions"],
-            onSuccess: function(enrollment) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: "success",
-                accessToken: enrollment.accessToken,
-                enrollment: enrollment
-              }));
-            },
-            onExit: function() {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: "exit"
-              }));
-            }
-          });
-          tellerConnect.open();
-
-          // Force touch-action on dynamically created iframes
-          var observer = new MutationObserver(function(mutations) {
-            document.querySelectorAll('iframe').forEach(function(iframe) {
-              iframe.style.touchAction = 'manipulation';
-              iframe.style.pointerEvents = 'auto';
-            });
-          });
-          observer.observe(document.body, { childList: true, subtree: true });
-        </script>
-      </body>
-      </html>
-    `;
   };
 
   const handleUploadCSV = async () => {
@@ -478,19 +428,13 @@ export default function BankConnectionScreen() {
             <Text style={styles.modalTitle}>Connect Bank</Text>
             <View style={{ width: 40 }} />
           </View>
-          {tellerAppId && (
+          {tellerConnectUrl && (
             <WebView
-              source={{ html: getTellerConnectHTML() }}
+              source={{ uri: tellerConnectUrl }}
               onMessage={handleTellerMessage}
               javaScriptEnabled
               domStorageEnabled
               startInLoadingState
-              scrollEnabled={false}
-              bounces={false}
-              allowsBackForwardNavigationGestures={false}
-              showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
-              contentMode="mobile"
               style={{ flex: 1 }}
               renderLoading={() => (
                 <View style={styles.loadingContainer}>
