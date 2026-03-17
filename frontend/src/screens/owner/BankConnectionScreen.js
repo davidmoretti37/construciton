@@ -23,6 +23,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -227,14 +228,30 @@ export default function BankConnectionScreen() {
     return t('bank.daysAgo', { count: diffDays });
   };
 
-  const getAccountIcon = (type) => {
-    switch (type) {
-      case 'credit': return 'card';
-      case 'depository':
-      case 'checking':
-      case 'savings': return 'wallet';
-      default: return 'card';
-    }
+  const getCardGradient = (type, subtype) => {
+    if (type === 'credit') return ['#1E3A8A', '#4338CA'];
+    if (subtype === 'checking') return ['#064E3B', '#0D9488'];
+    if (subtype === 'savings') return ['#4C1D95', '#7C3AED'];
+    if (subtype === 'money_market') return ['#7C2D12', '#EA580C'];
+    return ['#1E293B', '#475569'];
+  };
+
+  const getCardIcon = (type) => {
+    if (type === 'credit') return 'card';
+    return 'wallet';
+  };
+
+  const formatCardNumber = (mask) => {
+    if (!mask) return '';
+    return `\u2022\u2022\u2022\u2022  \u2022\u2022\u2022\u2022  \u2022\u2022\u2022\u2022  ${mask}`;
+  };
+
+  const formatAccountType = (type, subtype) => {
+    if (type === 'credit') return 'CREDIT CARD';
+    if (subtype === 'checking') return 'CHECKING';
+    if (subtype === 'savings') return 'SAVINGS';
+    if (subtype === 'money_market') return 'MONEY MARKET';
+    return (type || 'ACCOUNT').toUpperCase();
   };
 
   if (loading) {
@@ -293,74 +310,79 @@ export default function BankConnectionScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Connected Accounts List */}
+        {/* Connected Accounts — Wallet-style Cards */}
         {accounts.length > 0 ? (
           <View style={styles.accountsSection}>
             <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
               {t('bank.yourAccounts')}
             </Text>
             {accounts.map((account) => (
-              <View
-                key={account.id}
-                style={[styles.accountCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
-              >
-                <View style={styles.accountHeader}>
-                  <View style={[styles.accountIcon, { backgroundColor: OWNER_COLORS.primaryLight }]}>
-                    <Ionicons
-                      name={getAccountIcon(account.account_type)}
-                      size={20}
-                      color={OWNER_COLORS.primary}
-                    />
+              <View key={account.id} style={styles.walletCardWrapper}>
+                <LinearGradient
+                  colors={getCardGradient(account.account_type, account.account_subtype)}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.walletCard}
+                >
+                  {/* Top row: bank name + status */}
+                  <View style={styles.walletCardTop}>
+                    <View style={styles.walletBankRow}>
+                      <Ionicons name={getCardIcon(account.account_type)} size={20} color="rgba(255,255,255,0.8)" />
+                      <Text style={styles.walletBankName}>{account.institution_name}</Text>
+                    </View>
+                    <View style={[styles.walletStatus, { backgroundColor: account.sync_status === 'active' ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.15)' }]}>
+                      <View style={[styles.walletStatusDot, { backgroundColor: getStatusColor(account.sync_status) }]} />
+                      <Text style={styles.walletStatusText}>{getStatusLabel(account.sync_status)}</Text>
+                    </View>
                   </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={[styles.accountName, { color: Colors.primaryText }]}>
-                      {account.institution_name}
-                    </Text>
-                    <Text style={[styles.accountDetail, { color: Colors.secondaryText }]}>
-                      {account.account_name} {account.account_mask ? `****${account.account_mask}` : ''}
-                    </Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(account.sync_status) + '20' }]}>
-                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(account.sync_status) }]} />
-                    <Text style={[styles.statusText, { color: getStatusColor(account.sync_status) }]}>
-                      {getStatusLabel(account.sync_status)}
-                    </Text>
-                  </View>
-                </View>
 
-                {account.sync_error && (
-                  <View style={[styles.errorBanner, { backgroundColor: OWNER_COLORS.danger + '10' }]}>
-                    <Ionicons name="warning" size={14} color={OWNER_COLORS.danger} />
-                    <Text style={[styles.errorText, { color: OWNER_COLORS.danger }]}>{account.sync_error}</Text>
-                  </View>
-                )}
+                  {/* Account name */}
+                  <Text style={styles.walletAccountName}>{account.account_name}</Text>
 
-                <View style={[styles.accountFooter, { borderTopColor: Colors.border }]}>
-                  <Text style={[styles.lastSync, { color: Colors.secondaryText }]}>
-                    {account.is_manual ? t('bank.csvImport') : t('bank.lastSynced', { time: formatLastSync(account.last_sync_at) })}
-                  </Text>
-                  <View style={styles.accountActions}>
-                    {!account.is_manual && (
+                  {/* Card number */}
+                  {account.account_mask && (
+                    <Text style={styles.walletCardNumber}>{formatCardNumber(account.account_mask)}</Text>
+                  )}
+
+                  {/* Error banner */}
+                  {account.sync_error && (
+                    <View style={styles.walletError}>
+                      <Ionicons name="warning" size={12} color="#FCA5A5" />
+                      <Text style={styles.walletErrorText}>{account.sync_error}</Text>
+                    </View>
+                  )}
+
+                  {/* Bottom row: type + actions */}
+                  <View style={styles.walletCardBottom}>
+                    <View>
+                      <Text style={styles.walletTypeLabel}>{formatAccountType(account.account_type, account.account_subtype)}</Text>
+                      <Text style={styles.walletSyncText}>
+                        {account.is_manual ? t('bank.csvImport') : formatLastSync(account.last_sync_at)}
+                      </Text>
+                    </View>
+                    <View style={styles.walletActions}>
+                      {!account.is_manual && (
+                        <TouchableOpacity
+                          style={styles.walletActionBtn}
+                          onPress={() => handleSync(account.id)}
+                          disabled={syncing[account.id]}
+                        >
+                          {syncing[account.id] ? (
+                            <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
+                          ) : (
+                            <Ionicons name="sync" size={18} color="rgba(255,255,255,0.8)" />
+                          )}
+                        </TouchableOpacity>
+                      )}
                       <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => handleSync(account.id)}
-                        disabled={syncing[account.id]}
+                        style={styles.walletActionBtn}
+                        onPress={() => handleDisconnect(account.id, account.institution_name)}
                       >
-                        {syncing[account.id] ? (
-                          <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
-                        ) : (
-                          <Ionicons name="sync" size={18} color={OWNER_COLORS.primary} />
-                        )}
+                        <Ionicons name="trash-outline" size={18} color="rgba(255,200,200,0.8)" />
                       </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => handleDisconnect(account.id, account.institution_name)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={OWNER_COLORS.danger} />
-                    </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
+                </LinearGradient>
               </View>
             ))}
           </View>
@@ -466,81 +488,108 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: Spacing.md,
   },
-  accountCard: {
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
+  // Wallet-style card styles
+  walletCardWrapper: {
+    marginBottom: Spacing.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  accountHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  accountIcon: {
-    width: 40,
-    height: 40,
+  walletCard: {
     borderRadius: 20,
-    justifyContent: 'center',
+    padding: 20,
+    minHeight: 190,
+    justifyContent: 'space-between',
+  },
+  walletCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginRight: Spacing.md,
   },
-  accountInfo: {
-    flex: 1,
-  },
-  accountName: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
-  accountDetail: {
-    fontSize: FontSizes.small,
-    marginTop: 2,
-  },
-  statusBadge: {
+  walletBankRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    gap: 4,
+    gap: 8,
   },
-  statusDot: {
+  walletBankName: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  walletStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 5,
+  },
+  walletStatusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  statusText: {
-    fontSize: FontSizes.tiny,
+  walletStatusText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 11,
     fontWeight: '600',
   },
-  errorBanner: {
+  walletAccountName: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 12,
+  },
+  walletCardNumber: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '300',
+    letterSpacing: 2,
+    marginTop: 4,
+  },
+  walletError: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 8,
   },
-  errorText: {
-    fontSize: FontSizes.tiny,
+  walletErrorText: {
+    color: '#FCA5A5',
+    fontSize: 11,
     flex: 1,
   },
-  accountFooter: {
+  walletCardBottom: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderTopWidth: 1,
+    alignItems: 'flex-end',
+    marginTop: 12,
   },
-  lastSync: {
-    fontSize: FontSizes.tiny,
+  walletTypeLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
   },
-  accountActions: {
+  walletSyncText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  walletActions: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: 12,
   },
-  actionBtn: {
-    padding: Spacing.xs,
+  walletActionBtn: {
+    padding: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
   },
   emptyState: {
     alignItems: 'center',
