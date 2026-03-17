@@ -1194,9 +1194,11 @@ async function syncAccountTransactions(userId, account) {
 
     // Upsert transactions
     for (const tx of allTransactions) {
-      // Negate Teller amounts: Teller uses negative=debit, positive=credit
-      // Our convention: positive=expense (debit), negative=income (credit)
-      const amount = -parseFloat(tx.amount);
+      // Convert Teller amounts to our convention (positive=expense, negative=income)
+      // Depository accounts: Teller uses negative=debit, positive=credit → negate
+      // Credit card accounts: Teller uses positive=charge, negative=payment → keep as-is
+      const rawAmount = parseFloat(tx.amount);
+      const amount = account.account_type === 'credit' ? rawAmount : -rawAmount;
 
       const { error } = await supabaseAdmin
         .from('bank_transactions')
