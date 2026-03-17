@@ -283,21 +283,36 @@ router.get('/connect-page/:sessionId', (req, res) => {
           environment: "${session.environment}",
           products: ["transactions"],
           onSuccess: function(enrollment) {
-            status.textContent = "Connected! Returning to app...";
+            status.textContent = "Saving account...";
             btn.disabled = true;
-            btn.textContent = "Done";
-            window.location.href = "${scheme}://teller-callback"
-              + "?type=success"
-              + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
-              + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
-              + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
-              + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
+            btn.textContent = "Saving...";
+            // Save enrollment server-side, then redirect to app
+            fetch("/api/teller/connect-page/${req.params.sessionId}/complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                access_token: enrollment.accessToken,
+                enrollment: {
+                  id: enrollment.enrollment ? enrollment.enrollment.id : "",
+                  institution: enrollment.institution || {}
+                }
+              })
+            }).then(function(r) { return r.json(); }).then(function(data) {
+              if (data.success) {
+                status.textContent = "Connected! Returning to app...";
+                btn.textContent = "Done";
+                window.location.href = "${scheme}://teller-callback?type=success";
+              } else {
+                status.textContent = "Error: " + (data.error || "Failed to save");
+                btn.textContent = "Error";
+              }
+            }).catch(function(e) {
+              status.textContent = "Error: " + e.message;
+              btn.textContent = "Error";
+            });
           },
           onExit: function() {
-            status.textContent = "Cancelled. Returning to app...";
-            setTimeout(function() {
-              window.location.href = "${scheme}://teller-callback?type=exit";
-            }, 500);
+            window.location.href = "${scheme}://teller-callback?type=exit";
           }
         });
         btn.disabled = false;
@@ -326,6 +341,74 @@ router.get('/connect-page/:sessionId', (req, res) => {
 </body></html>`);
 });
 
+// POST /connect-page/:sessionId/complete — called from Safari JS after Teller success
+// Public route (no auth) but protected by session ID
+router.post('/connect-page/:sessionId/complete', express.json(), async (req, res) => {
+  const session = connectSessions.get(req.params.sessionId);
+  if (!session || !session.user_id) {
+    return res.status(404).json({ error: 'Session expired' });
+  }
+
+  try {
+    const { access_token, enrollment } = req.body;
+    if (!access_token || !enrollment) {
+      return res.status(400).json({ error: 'Missing access_token or enrollment' });
+    }
+
+    const userId = session.user_id;
+    logger.info(`[Teller] Saving enrollment for user ${userId.substring(0, 8)} from Safari callback`);
+
+    // Fetch accounts from Teller API
+    const accounts = await tellerFetch(access_token, '/accounts');
+
+    const savedAccounts = [];
+    for (const account of accounts) {
+      const { data, error } = await supabaseAdmin
+        .from('connected_bank_accounts')
+        .insert({
+          user_id: userId,
+          teller_access_token: access_token,
+          teller_enrollment_id: enrollment.id,
+          teller_institution_id: enrollment.institution?.id || null,
+          institution_name: enrollment.institution?.name || 'Unknown Bank',
+          account_name: account.name,
+          account_mask: account.last_four,
+          account_type: account.type,
+          account_subtype: account.subtype,
+          teller_account_id: account.id,
+          sync_status: 'active',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        logger.error('Error saving account:', error);
+      } else {
+        savedAccounts.push(data);
+      }
+    }
+
+    logger.info(`[Teller] Connected ${savedAccounts.length} accounts for user ${userId.substring(0, 8)}`);
+
+    // Trigger initial sync
+    for (const account of savedAccounts) {
+      try {
+        await syncAccountTransactions(userId, account);
+      } catch (syncError) {
+        logger.error(`Initial sync failed for account ${account.id}:`, syncError.message);
+      }
+    }
+
+    // Clean up session
+    connectSessions.delete(req.params.sessionId);
+
+    res.json({ success: true, accounts: savedAccounts.length });
+  } catch (error) {
+    logger.error('[Teller] Complete enrollment error:', error.message);
+    res.status(500).json({ error: 'Failed to save enrollment' });
+  }
+});
+
 // Log all incoming Teller requests for debugging
 router.use((req, res, next) => {
   logger.info(`[Teller] ${req.method} ${req.path} from ${req.ip}`);
@@ -351,6 +434,7 @@ router.post('/connect-session', async (req, res) => {
     connectSessions.set(sessionId, {
       application_id: applicationId,
       environment: tellerEnv,
+      user_id: req.user.id, // Store user ID for server-side enrollment save
     });
 
     setTimeout(() => connectSessions.delete(sessionId), 10 * 60 * 1000);

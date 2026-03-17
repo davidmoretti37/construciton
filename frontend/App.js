@@ -298,18 +298,14 @@ function AppContent() {
                   // Deep link config handled by AuthNavigator internally
                 },
               },
-              // Intercept teller-callback URLs — save to AsyncStorage before React Navigation consumes them
+              // Intercept teller-callback URLs — just flag that enrollment happened
               async getInitialURL() {
                 const url = await Linking.getInitialURL();
                 if (url && url.includes('teller-callback')) {
-                  try {
-                    const qs = url.split('?')[1] || '';
-                    const params = Object.fromEntries(new URLSearchParams(qs));
-                    if (params.accessToken) {
-                      await AsyncStorage.setItem('@pending_teller_enrollment', JSON.stringify(params));
-                      logger.info('Teller callback saved from getInitialURL');
-                    }
-                  } catch (e) { logger.error('Teller getInitialURL save error:', e); }
+                  if (url.includes('type=success')) {
+                    await AsyncStorage.setItem('@teller_enrollment_complete', 'true');
+                    logger.info('Teller enrollment flagged from getInitialURL');
+                  }
                   return null;
                 }
                 return url;
@@ -317,14 +313,10 @@ function AppContent() {
               subscribe(listener) {
                 const sub = Linking.addEventListener('url', ({ url }) => {
                   if (url && url.includes('teller-callback')) {
-                    try {
-                      const qs = url.split('?')[1] || '';
-                      const params = Object.fromEntries(new URLSearchParams(qs));
-                      if (params.accessToken) {
-                        AsyncStorage.setItem('@pending_teller_enrollment', JSON.stringify(params));
-                        logger.info('Teller callback saved from subscribe');
-                      }
-                    } catch (e) { logger.error('Teller subscribe save error:', e); }
+                    if (url.includes('type=success')) {
+                      AsyncStorage.setItem('@teller_enrollment_complete', 'true');
+                      logger.info('Teller enrollment flagged from subscribe');
+                    }
                     return;
                   }
                   listener(url);

@@ -27,7 +27,6 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import {
   getConnectSession,
-  saveEnrollment,
   getConnectedAccounts,
   disconnectAccount,
   syncAccount,
@@ -67,41 +66,29 @@ export default function BankConnectionScreen() {
     }
   };
 
-  // Check for pending Teller enrollment from deep link callback
-  const processPendingEnrollment = async () => {
+  // Check if a Teller enrollment was completed (saved server-side)
+  const checkEnrollmentComplete = async () => {
     try {
-      const pending = await AsyncStorage.getItem('@pending_teller_enrollment');
-      if (!pending) return;
+      const complete = await AsyncStorage.getItem('@teller_enrollment_complete');
+      if (!complete) return;
 
-      const params = JSON.parse(pending);
-      await AsyncStorage.removeItem('@pending_teller_enrollment');
-
-      if (params.accessToken) {
-        await saveEnrollment(params.accessToken, {
-          id: params.enrollmentId || '',
-          institution: {
-            id: params.institutionId || '',
-            name: params.institutionName || 'Bank account',
-          },
-        });
-
-        Alert.alert(
-          t('bank.accountConnected'),
-          t('bank.accountConnectedDesc', { name: params.institutionName || 'Bank account' })
-        );
-        loadAccounts();
-      }
-    } catch (error) {
-      Alert.alert(t('common:alerts.error'), error.message || 'Failed to save bank connection');
-    } finally {
+      await AsyncStorage.removeItem('@teller_enrollment_complete');
       setConnecting(false);
+
+      Alert.alert(
+        t('bank.accountConnected'),
+        t('bank.accountConnectedDesc', { name: 'Bank account' })
+      );
+      loadAccounts();
+    } catch (error) {
+      console.error('Error checking enrollment:', error);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
       loadAccounts();
-      processPendingEnrollment();
+      checkEnrollmentComplete();
     }, [])
   );
 
