@@ -214,49 +214,90 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 });
 
 // ============================================================
-// TELLER CONNECT PAGE (public — loaded by WebView without auth)
+// TELLER CONNECT PAGE (public — opened in Safari, no auth needed)
 // ============================================================
 const connectSessions = new Map();
 
 router.get('/connect-page/:sessionId', (req, res) => {
   const session = connectSessions.get(req.params.sessionId);
   if (!session) {
-    return res.status(404).send('<html><body><p>Session expired. Please close and try again.</p></body></html>');
+    return res.status(404).send(`<!DOCTYPE html><html><head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>body{font-family:-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;color:#666;text-align:center;padding:20px;}</style>
+      </head><body><p>Session expired. Please go back to the app and try again.</p></body></html>`);
   }
+
+  const scheme = 'sylk';
 
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!DOCTYPE html>
-<html style="height:100%;width:100%;">
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<html><head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: #fff; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; width: 100%; background: #fff; font-family: -apple-system, sans-serif; }
+    #launcher {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; padding: 32px; text-align: center;
+    }
+    #launcher h2 { font-size: 22px; color: #1a1a1a; margin-bottom: 12px; }
+    #launcher p { font-size: 15px; color: #666; line-height: 1.5; margin-bottom: 32px; max-width: 300px; }
+    #openBtn {
+      width: 100%; max-width: 320px; padding: 18px 24px;
+      background: #1E40AF; color: #fff; border: none; border-radius: 14px;
+      font-size: 17px; font-weight: 600; cursor: pointer;
+    }
+    #openBtn:disabled { background: #93a3c0; }
+    #status { margin-top: 16px; font-size: 13px; color: #999; }
   </style>
-</head>
-<body>
+</head><body>
+  <div id="launcher">
+    <h2>Connect Your Bank</h2>
+    <p>Securely link your bank account to automatically track and match transactions.</p>
+    <button id="openBtn" disabled>Loading...</button>
+    <div id="status"></div>
+  </div>
   <script src="https://cdn.teller.io/connect/connect.js"></script>
   <script>
-    var tellerConnect = TellerConnect.setup({
-      applicationId: "${session.application_id}",
-      environment: "${session.environment}",
-      products: ["transactions"],
-      onSuccess: function(enrollment) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: "success",
-          accessToken: enrollment.accessToken,
-          enrollment: enrollment
-        }));
-      },
-      onExit: function() {
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: "exit"
-        }));
-      }
+    var btn = document.getElementById('openBtn');
+    var status = document.getElementById('status');
+    var tc = null;
+
+    try {
+      tc = TellerConnect.setup({
+        applicationId: "${session.application_id}",
+        environment: "${session.environment}",
+        products: ["transactions"],
+        onSuccess: function(enrollment) {
+          status.textContent = "Connected! Returning to app...";
+          btn.disabled = true;
+          btn.textContent = "Done";
+          window.location.href = "${scheme}://teller-callback"
+            + "?type=success"
+            + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
+            + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
+            + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
+            + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
+        },
+        onExit: function() {
+          status.textContent = "Cancelled. Returning to app...";
+          setTimeout(function() {
+            window.location.href = "${scheme}://teller-callback?type=exit";
+          }, 500);
+        }
+      });
+      btn.disabled = false;
+      btn.textContent = "Connect Bank Account";
+    } catch(e) {
+      btn.textContent = "Error";
+      status.textContent = "Failed to load: " + e.message;
+    }
+
+    btn.addEventListener('click', function() {
+      if (tc) tc.open();
     });
-    tellerConnect.open();
   </script>
-</body>
-</html>`);
+</body></html>`);
 });
 
 // Log all incoming Teller requests for debugging

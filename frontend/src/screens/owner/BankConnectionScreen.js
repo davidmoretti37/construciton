@@ -1,10 +1,10 @@
 /**
  * BankConnectionScreen
- * Connect bank accounts via Teller Connect or upload CSV statements.
+ * Connect bank accounts via Teller Connect (opens in Safari) or upload CSV statements.
  * Owner-only screen.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
-  Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,11 +22,10 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { WebView } from 'react-native-webview';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
-  getConnectConfig,
+  getConnectSession,
   saveEnrollment,
   getConnectedAccounts,
   disconnectAccount,
@@ -54,9 +53,7 @@ export default function BankConnectionScreen() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState({});
   const [uploading, setUploading] = useState(false);
-  const [showTellerConnect, setShowTellerConnect] = useState(false);
-  const [tellerAppId, setTellerAppId] = useState(null);
-  const [tellerEnv, setTellerEnv] = useState('sandbox');
+  const waitingForCallback = useRef(false);
 
   const loadAccounts = async () => {
     try {
@@ -76,94 +73,54 @@ export default function BankConnectionScreen() {
     }, [])
   );
 
+  // Listen for deep link callback from Safari
+  useEffect(() => {
+    const handleDeepLink = async ({ url }) => {
+      if (!url || !url.includes('teller-callback')) return;
+      if (!waitingForCallback.current) return;
+      waitingForCallback.current = false;
+
+      try {
+        const queryString = url.split('?')[1] || '';
+        const params = Object.fromEntries(new URLSearchParams(queryString));
+
+        if (params.type === 'success' && params.accessToken) {
+          await saveEnrollment(params.accessToken, {
+            id: params.enrollmentId || '',
+            institution: {
+              id: params.institutionId || '',
+              name: params.institutionName || 'Bank account',
+            },
+          });
+
+          Alert.alert(
+            t('bank.accountConnected'),
+            t('bank.accountConnectedDesc', { name: params.institutionName || 'Bank account' })
+          );
+          loadAccounts();
+        }
+      } catch (error) {
+        Alert.alert(t('common:alerts.error'), error.message || 'Failed to save bank connection');
+      } finally {
+        setConnecting(false);
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    return () => subscription?.remove();
+  }, []);
+
   const handleConnectBank = async () => {
     try {
       setConnecting(true);
+      waitingForCallback.current = true;
 
-      const config = await getConnectConfig();
-      setTellerAppId(config.application_id);
-      setTellerEnv(config.environment || 'sandbox');
-      setShowTellerConnect(true);
+      const { url } = await getConnectSession();
+      await Linking.openURL(url);
     } catch (error) {
+      waitingForCallback.current = false;
       setConnecting(false);
       Alert.alert(t('common:alerts.error'), error.message || 'Failed to start bank connection');
-    }
-  };
-
-  const getTellerConnectHTML = () => {
-    return `<!DOCTYPE html>
-<html><head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; width: 100%; background: #fff; font-family: -apple-system, sans-serif; }
-  #launcher {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    height: 100%; padding: 32px; text-align: center;
-  }
-  #launcher h2 { font-size: 22px; color: #1a1a1a; margin-bottom: 12px; }
-  #launcher p { font-size: 15px; color: #666; line-height: 1.5; margin-bottom: 32px; max-width: 300px; }
-  #openBtn {
-    width: 100%; max-width: 320px; padding: 18px 24px;
-    background: #1E40AF; color: #fff; border: none; border-radius: 14px;
-    font-size: 17px; font-weight: 600; cursor: pointer;
-    -webkit-tap-highlight-color: rgba(0,0,0,0.1);
-  }
-  #openBtn:active { background: #1a3a9e; transform: scale(0.98); }
-  #launcher.hidden { display: none; }
-</style>
-</head><body>
-<div id="launcher">
-  <h2>Connect Your Bank</h2>
-  <p>Securely link your bank account to automatically track and match transactions.</p>
-  <button id="openBtn">Connect Bank Account</button>
-</div>
-<script src="https://cdn.teller.io/connect/connect.js"></script>
-<script>
-  var tc = TellerConnect.setup({
-    applicationId: "${tellerAppId}",
-    environment: "${tellerEnv}",
-    products: ["transactions"],
-    onSuccess: function(enrollment) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: "success",
-        accessToken: enrollment.accessToken,
-        enrollment: enrollment
-      }));
-    },
-    onExit: function() {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: "exit" }));
-    }
-  });
-
-  document.getElementById("openBtn").addEventListener("click", function() {
-    document.getElementById("launcher").classList.add("hidden");
-    tc.open();
-  });
-</script>
-</body></html>`;
-  };
-
-  const handleTellerMessage = async (event) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-
-      if (data.type === 'success') {
-        setShowTellerConnect(false);
-        await saveEnrollment(data.accessToken, data.enrollment);
-
-        Alert.alert(
-          t('bank.accountConnected'),
-          t('bank.accountConnectedDesc', { name: data.enrollment?.institution?.name || 'Bank account' })
-        );
-        loadAccounts();
-      } else if (data.type === 'exit') {
-        setShowTellerConnect(false);
-      }
-    } catch (error) {
-      Alert.alert(t('common:alerts.error'), error.message || 'Failed to connect account');
-    } finally {
-      setConnecting(false);
     }
   };
 
@@ -458,44 +415,6 @@ export default function BankConnectionScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-
-      {/* Teller Connect WebView Modal */}
-      <Modal
-        visible={showTellerConnect}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => {
-          setShowTellerConnect(false);
-          setConnecting(false);
-        }}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                setShowTellerConnect(false);
-                setConnecting(false);
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.modalClose}
-            >
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Connect Bank</Text>
-            <View style={{ width: 40 }} />
-          </View>
-          {tellerAppId && (
-            <WebView
-              source={{ html: getTellerConnectHTML() }}
-              onMessage={handleTellerMessage}
-              javaScriptEnabled
-              domStorageEnabled
-              originWhitelist={['*']}
-              style={{ flex: 1 }}
-            />
-          )}
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -677,22 +596,5 @@ const styles = StyleSheet.create({
   reconcileLinkSubtitle: {
     fontSize: FontSizes.tiny,
     marginTop: 2,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalClose: {
-    padding: Spacing.xs,
-  },
-  modalTitle: {
-    fontSize: FontSizes.subheader,
-    fontWeight: '700',
-    color: '#333',
   },
 });
