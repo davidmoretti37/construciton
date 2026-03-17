@@ -26,7 +26,7 @@ import { WebView } from 'react-native-webview';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
-  getConnectSession,
+  getConnectConfig,
   saveEnrollment,
   getConnectedAccounts,
   disconnectAccount,
@@ -55,7 +55,8 @@ export default function BankConnectionScreen() {
   const [syncing, setSyncing] = useState({});
   const [uploading, setUploading] = useState(false);
   const [showTellerConnect, setShowTellerConnect] = useState(false);
-  const [tellerConnectUrl, setTellerConnectUrl] = useState(null);
+  const [tellerAppId, setTellerAppId] = useState(null);
+  const [tellerEnv, setTellerEnv] = useState('sandbox');
 
   const loadAccounts = async () => {
     try {
@@ -79,14 +80,68 @@ export default function BankConnectionScreen() {
     try {
       setConnecting(true);
 
-      const { url } = await getConnectSession();
-      console.log('[Teller] Connect URL:', url);
-      setTellerConnectUrl(url);
+      const config = await getConnectConfig();
+      setTellerAppId(config.application_id);
+      setTellerEnv(config.environment || 'sandbox');
       setShowTellerConnect(true);
     } catch (error) {
       setConnecting(false);
       Alert.alert(t('common:alerts.error'), error.message || 'Failed to start bank connection');
     }
+  };
+
+  const getTellerConnectHTML = () => {
+    return `<!DOCTYPE html>
+<html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; width: 100%; background: #fff; font-family: -apple-system, sans-serif; }
+  #launcher {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; padding: 32px; text-align: center;
+  }
+  #launcher h2 { font-size: 22px; color: #1a1a1a; margin-bottom: 12px; }
+  #launcher p { font-size: 15px; color: #666; line-height: 1.5; margin-bottom: 32px; max-width: 300px; }
+  #openBtn {
+    width: 100%; max-width: 320px; padding: 18px 24px;
+    background: #1E40AF; color: #fff; border: none; border-radius: 14px;
+    font-size: 17px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+  }
+  #openBtn:active { background: #1a3a9e; transform: scale(0.98); }
+  #launcher.hidden { display: none; }
+</style>
+</head><body>
+<div id="launcher">
+  <h2>Connect Your Bank</h2>
+  <p>Securely link your bank account to automatically track and match transactions.</p>
+  <button id="openBtn">Connect Bank Account</button>
+</div>
+<script src="https://cdn.teller.io/connect/connect.js"></script>
+<script>
+  var tc = TellerConnect.setup({
+    applicationId: "${tellerAppId}",
+    environment: "${tellerEnv}",
+    products: ["transactions"],
+    onSuccess: function(enrollment) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: "success",
+        accessToken: enrollment.accessToken,
+        enrollment: enrollment
+      }));
+    },
+    onExit: function() {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: "exit" }));
+    }
+  });
+
+  document.getElementById("openBtn").addEventListener("click", function() {
+    document.getElementById("launcher").classList.add("hidden");
+    tc.open();
+  });
+</script>
+</body></html>`;
   };
 
   const handleTellerMessage = async (event) => {
@@ -429,25 +484,14 @@ export default function BankConnectionScreen() {
             <Text style={styles.modalTitle}>Connect Bank</Text>
             <View style={{ width: 40 }} />
           </View>
-          {tellerConnectUrl && (
+          {tellerAppId && (
             <WebView
-              source={{ uri: tellerConnectUrl }}
+              source={{ html: getTellerConnectHTML() }}
               onMessage={handleTellerMessage}
-              onError={(e) => console.error('[Teller] WebView error:', e.nativeEvent)}
-              onHttpError={(e) => console.error('[Teller] HTTP error:', e.nativeEvent.statusCode)}
               javaScriptEnabled
               domStorageEnabled
-              startInLoadingState
-              allowsInlineMediaPlayback
-              setSupportMultipleWindows={false}
               originWhitelist={['*']}
-              mixedContentMode="compatibility"
               style={{ flex: 1 }}
-              renderLoading={() => (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={OWNER_COLORS.primary} />
-                </View>
-              )}
             />
           )}
         </SafeAreaView>
