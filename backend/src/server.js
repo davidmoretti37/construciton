@@ -45,7 +45,26 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors());
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+    },
+  },
+}));
+
+// Teller Connect page needs permissive CSP for external scripts and iframes
+app.use('/api/teller/connect-page', (req, res, next) => {
+  res.setHeader('Content-Security-Policy',
+    "default-src * 'unsafe-inline' 'unsafe-eval'; " +
+    "script-src * 'unsafe-inline' 'unsafe-eval'; " +
+    "frame-src *; " +
+    "connect-src *; " +
+    "img-src * data: blob:; " +
+    "style-src * 'unsafe-inline';"
+  );
+  next();
+});
 
 // Stripe webhook needs raw body - MUST be before express.json()
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));

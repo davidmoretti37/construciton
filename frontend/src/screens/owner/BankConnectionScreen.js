@@ -4,7 +4,7 @@
  * Owner-only screen.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -53,7 +53,6 @@ export default function BankConnectionScreen() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState({});
   const [uploading, setUploading] = useState(false);
-  const waitingForCallback = useRef(false);
 
   const loadAccounts = async () => {
     try {
@@ -73,52 +72,55 @@ export default function BankConnectionScreen() {
     }, [])
   );
 
-  // Listen for deep link callback from Safari
-  useEffect(() => {
-    const handleDeepLink = async ({ url }) => {
-      if (!url || !url.includes('teller-callback')) return;
-      if (!waitingForCallback.current) return;
-      waitingForCallback.current = false;
+  // Handle Teller callback deep link
+  const handleTellerCallback = useCallback(async (url) => {
+    if (!url || !url.includes('teller-callback')) return;
 
-      try {
-        const queryString = url.split('?')[1] || '';
-        const params = Object.fromEntries(new URLSearchParams(queryString));
+    try {
+      const queryString = url.split('?')[1] || '';
+      const params = Object.fromEntries(new URLSearchParams(queryString));
 
-        if (params.type === 'success' && params.accessToken) {
-          await saveEnrollment(params.accessToken, {
-            id: params.enrollmentId || '',
-            institution: {
-              id: params.institutionId || '',
-              name: params.institutionName || 'Bank account',
-            },
-          });
+      if (params.type === 'success' && params.accessToken) {
+        await saveEnrollment(params.accessToken, {
+          id: params.enrollmentId || '',
+          institution: {
+            id: params.institutionId || '',
+            name: params.institutionName || 'Bank account',
+          },
+        });
 
-          Alert.alert(
-            t('bank.accountConnected'),
-            t('bank.accountConnectedDesc', { name: params.institutionName || 'Bank account' })
-          );
-          loadAccounts();
-        }
-      } catch (error) {
-        Alert.alert(t('common:alerts.error'), error.message || 'Failed to save bank connection');
-      } finally {
-        setConnecting(false);
+        Alert.alert(
+          t('bank.accountConnected'),
+          t('bank.accountConnectedDesc', { name: params.institutionName || 'Bank account' })
+        );
+        loadAccounts();
       }
-    };
-
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-    return () => subscription?.remove();
+    } catch (error) {
+      Alert.alert(t('common:alerts.error'), error.message || 'Failed to save bank connection');
+    } finally {
+      setConnecting(false);
+    }
   }, []);
+
+  // Listen for deep link callback from Safari (app in foreground or background)
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => handleTellerCallback(url));
+
+    // Also check if app was opened via deep link (cold start)
+    Linking.getInitialURL().then((url) => {
+      if (url) handleTellerCallback(url);
+    });
+
+    return () => subscription?.remove();
+  }, [handleTellerCallback]);
 
   const handleConnectBank = async () => {
     try {
       setConnecting(true);
-      waitingForCallback.current = true;
 
       const { url } = await getConnectSession();
       await Linking.openURL(url);
     } catch (error) {
-      waitingForCallback.current = false;
       setConnecting(false);
       Alert.alert(t('common:alerts.error'), error.message || 'Failed to start bank connection');
     }
