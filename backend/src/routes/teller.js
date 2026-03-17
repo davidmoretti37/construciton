@@ -229,6 +229,15 @@ router.get('/connect-page/:sessionId', (req, res) => {
 
   const scheme = 'sylk';
 
+  // Override CSP to allow Teller Connect scripts, iframes, and inline JS
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' https://cdn.teller.io; " +
+    "frame-src https://teller.io https://*.teller.io; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "connect-src *; " +
+    "img-src * data:;"
+  );
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!DOCTYPE html>
 <html><head>
