@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -78,12 +77,12 @@ export default function BankConnectionScreen() {
       setConnecting(true);
 
       const { url } = await getConnectSession();
-      const callbackUrl = Linking.createURL('teller-callback');
+      const callbackUrl = 'sylk://teller-callback';
       const result = await WebBrowser.openAuthSessionAsync(url, callbackUrl);
 
       if (result.type === 'success' && result.url) {
-        const parsed = Linking.parse(result.url);
-        const params = parsed.queryParams || {};
+        const queryString = result.url.split('?')[1] || '';
+        const params = Object.fromEntries(new URLSearchParams(queryString));
 
         if (params.type === 'success' && params.accessToken) {
           await saveEnrollment(params.accessToken, {
