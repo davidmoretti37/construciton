@@ -2,7 +2,7 @@ import 'react-native-gesture-handler';
 import React, { useState, useEffect, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { LogBox, View, Linking } from 'react-native';
+import { LogBox, View, Linking, Alert } from 'react-native';
 import AppLoadingScreen from './src/components/AppLoadingScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import WorkerMainNavigator from './src/navigation/WorkerMainNavigator';
@@ -24,6 +24,7 @@ import { isOnboarded, saveLanguage, checkAndStartScheduledProjects } from './src
 import { supabase } from './src/lib/supabase';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import logger from './src/utils/logger';
+import { saveEnrollment } from './src/services/bankService';
 import './src/i18n'; // Initialize i18n
 import { changeLanguage } from './src/i18n';
 
@@ -74,7 +75,34 @@ function AppContent() {
           logger.debug('Supabase connected successfully');
         }
       });
+    // Handle Teller Connect callback deep link (from Safari)
+    const handleTellerCallback = async (url) => {
+      if (!url || !url.includes('teller-callback')) return;
+      try {
+        const queryString = url.split('?')[1] || '';
+        const params = Object.fromEntries(new URLSearchParams(queryString));
+        if (params.type === 'success' && params.accessToken) {
+          await saveEnrollment(params.accessToken, {
+            id: params.enrollmentId || '',
+            institution: {
+              id: params.institutionId || '',
+              name: params.institutionName || 'Bank account',
+            },
+          });
+          Alert.alert('Account Connected', `${params.institutionName || 'Bank account'} connected successfully.`);
+        }
+      } catch (error) {
+        logger.error('Teller callback error:', error.message);
+        Alert.alert('Error', error.message || 'Failed to save bank connection');
+      }
+    };
+
+    // Check if app was opened via teller deep link
+    Linking.getInitialURL().then(handleTellerCallback);
+    const tellerSub = Linking.addEventListener('url', ({ url }) => handleTellerCallback(url));
+
     // Auth state is handled by the useEffect watching [session, authLoading, profile]
+    return () => tellerSub?.remove();
   }, []);
 
   // Monitor auth state from AuthContext
