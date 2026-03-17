@@ -293,9 +293,10 @@ router.get('/connect-page/:sessionId', (req, res) => {
               body: JSON.stringify({
                 access_token: enrollment.accessToken,
                 enrollment: {
-                  id: enrollment.enrollment ? enrollment.enrollment.id : "",
-                  institution: enrollment.institution || {}
-                }
+                  id: enrollment.enrollment ? enrollment.enrollment.id : (enrollment.id || ""),
+                  institution: enrollment.institution || (enrollment.enrollment ? enrollment.enrollment.institution : {})
+                },
+                raw_enrollment: enrollment
               })
             }).then(function(r) { return r.json(); }).then(function(data) {
               if (data.success) {
@@ -354,16 +355,30 @@ router.post('/connect-page/:sessionId/complete', express.json(), async (req, res
   }
 
   try {
-    const { access_token, enrollment } = req.body;
+    const { access_token, enrollment, raw_enrollment } = req.body;
     if (!access_token || !enrollment) {
       return res.status(400).json({ error: 'Missing access_token or enrollment' });
     }
 
     const userId = session.user_id;
     logger.info(`[Teller] Saving enrollment for user ${userId.substring(0, 8)} from Safari callback`);
+    logger.info(`[Teller] Raw enrollment data: ${JSON.stringify(raw_enrollment || enrollment)}`);
 
-    // Fetch accounts from Teller API
+    // Fetch accounts from Teller API — accounts have institution info
     const accounts = await tellerFetch(access_token, '/accounts');
+    logger.info(`[Teller] Fetched ${accounts.length} accounts from Teller API`);
+
+    // Get institution name from enrollment, raw enrollment, or first account
+    const institutionName = enrollment.institution?.name
+      || raw_enrollment?.institution?.name
+      || (accounts[0]?.institution?.name)
+      || (accounts[0]?.institution?.id)
+      || 'Unknown Bank';
+
+    const institutionId = enrollment.institution?.id
+      || raw_enrollment?.institution?.id
+      || accounts[0]?.institution?.id
+      || null;
 
     const savedAccounts = [];
     for (const account of accounts) {
@@ -373,8 +388,8 @@ router.post('/connect-page/:sessionId/complete', express.json(), async (req, res
           user_id: userId,
           teller_access_token: access_token,
           teller_enrollment_id: enrollment.id,
-          teller_institution_id: enrollment.institution?.id || null,
-          institution_name: enrollment.institution?.name || 'Unknown Bank',
+          teller_institution_id: institutionId,
+          institution_name: account.institution?.name || institutionName,
           account_name: account.name,
           account_mask: account.last_four,
           account_type: account.type,
