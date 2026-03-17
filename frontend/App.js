@@ -2,7 +2,8 @@ import 'react-native-gesture-handler';
 import React, { useState, useEffect, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { LogBox, View, Linking, Alert } from 'react-native';
+import { LogBox, View, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppLoadingScreen from './src/components/AppLoadingScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import WorkerMainNavigator from './src/navigation/WorkerMainNavigator';
@@ -24,7 +25,6 @@ import { isOnboarded, saveLanguage, checkAndStartScheduledProjects } from './src
 import { supabase } from './src/lib/supabase';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import logger from './src/utils/logger';
-import { saveEnrollment } from './src/services/bankService';
 import './src/i18n'; // Initialize i18n
 import { changeLanguage } from './src/i18n';
 
@@ -75,31 +75,23 @@ function AppContent() {
           logger.debug('Supabase connected successfully');
         }
       });
-    // Handle Teller Connect callback deep link (from Safari)
-    const handleTellerCallback = async (url) => {
+    // Save Teller callback deep link data to AsyncStorage for BankConnectionScreen to process
+    const saveTellerCallback = async (url) => {
       if (!url || !url.includes('teller-callback')) return;
       try {
         const queryString = url.split('?')[1] || '';
         const params = Object.fromEntries(new URLSearchParams(queryString));
         if (params.type === 'success' && params.accessToken) {
-          await saveEnrollment(params.accessToken, {
-            id: params.enrollmentId || '',
-            institution: {
-              id: params.institutionId || '',
-              name: params.institutionName || 'Bank account',
-            },
-          });
-          Alert.alert('Account Connected', `${params.institutionName || 'Bank account'} connected successfully.`);
+          await AsyncStorage.setItem('@pending_teller_enrollment', JSON.stringify(params));
+          logger.info('Teller callback saved to AsyncStorage');
         }
       } catch (error) {
-        logger.error('Teller callback error:', error.message);
-        Alert.alert('Error', error.message || 'Failed to save bank connection');
+        logger.error('Failed to save Teller callback:', error.message);
       }
     };
 
-    // Check if app was opened via teller deep link
-    Linking.getInitialURL().then(handleTellerCallback);
-    const tellerSub = Linking.addEventListener('url', ({ url }) => handleTellerCallback(url));
+    Linking.getInitialURL().then(saveTellerCallback);
+    const tellerSub = Linking.addEventListener('url', ({ url }) => saveTellerCallback(url));
 
     // Auth state is handled by the useEffect watching [session, authLoading, profile]
     return () => tellerSub?.remove();
@@ -323,6 +315,23 @@ function AppContent() {
                 screens: {
                   // Deep link config handled by AuthNavigator internally
                 },
+              },
+              // Intercept teller-callback URLs before React Navigation consumes them
+              async getInitialURL() {
+                const url = await Linking.getInitialURL();
+                if (url && url.includes('teller-callback')) {
+                  return null; // Don't let React Navigation handle it
+                }
+                return url;
+              },
+              subscribe(listener) {
+                const sub = Linking.addEventListener('url', ({ url }) => {
+                  if (url && url.includes('teller-callback')) {
+                    return; // Don't let React Navigation handle it
+                  }
+                  listener(url);
+                });
+                return () => sub.remove();
               },
             }}
           >

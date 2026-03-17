@@ -4,7 +4,8 @@
  * Owner-only screen.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -14,7 +15,6 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,21 +66,16 @@ export default function BankConnectionScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadAccounts();
-    }, [])
-  );
-
-  // Handle Teller callback deep link
-  const handleTellerCallback = useCallback(async (url) => {
-    if (!url || !url.includes('teller-callback')) return;
-
+  // Check for pending Teller enrollment from deep link callback
+  const processPendingEnrollment = async () => {
     try {
-      const queryString = url.split('?')[1] || '';
-      const params = Object.fromEntries(new URLSearchParams(queryString));
+      const pending = await AsyncStorage.getItem('@pending_teller_enrollment');
+      if (!pending) return;
 
-      if (params.type === 'success' && params.accessToken) {
+      const params = JSON.parse(pending);
+      await AsyncStorage.removeItem('@pending_teller_enrollment');
+
+      if (params.accessToken) {
         await saveEnrollment(params.accessToken, {
           id: params.enrollmentId || '',
           institution: {
@@ -100,19 +95,14 @@ export default function BankConnectionScreen() {
     } finally {
       setConnecting(false);
     }
-  }, []);
+  };
 
-  // Listen for deep link callback from Safari (app in foreground or background)
-  useEffect(() => {
-    const subscription = Linking.addEventListener('url', ({ url }) => handleTellerCallback(url));
-
-    // Also check if app was opened via deep link (cold start)
-    Linking.getInitialURL().then((url) => {
-      if (url) handleTellerCallback(url);
-    });
-
-    return () => subscription?.remove();
-  }, [handleTellerCallback]);
+  useFocusEffect(
+    useCallback(() => {
+      loadAccounts();
+      processPendingEnrollment();
+    }, [])
+  );
 
   const handleConnectBank = async () => {
     try {
