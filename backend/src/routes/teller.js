@@ -257,45 +257,62 @@ router.get('/connect-page/:sessionId', (req, res) => {
     <button id="openBtn" disabled>Loading...</button>
     <div id="status"></div>
   </div>
-  <script src="https://cdn.teller.io/connect/connect.js"></script>
   <script>
     var btn = document.getElementById('openBtn');
     var status = document.getElementById('status');
     var tc = null;
 
-    try {
-      tc = TellerConnect.setup({
-        applicationId: "${session.application_id}",
-        environment: "${session.environment}",
-        products: ["transactions"],
-        onSuccess: function(enrollment) {
-          status.textContent = "Connected! Returning to app...";
-          btn.disabled = true;
-          btn.textContent = "Done";
-          window.location.href = "${scheme}://teller-callback"
-            + "?type=success"
-            + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
-            + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
-            + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
-            + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
-        },
-        onExit: function() {
-          status.textContent = "Cancelled. Returning to app...";
-          setTimeout(function() {
-            window.location.href = "${scheme}://teller-callback?type=exit";
-          }, 500);
-        }
-      });
-      btn.disabled = false;
-      btn.textContent = "Connect Bank Account";
-    } catch(e) {
-      btn.textContent = "Error";
-      status.textContent = "Failed to load: " + e.message;
+    function initTeller() {
+      if (typeof TellerConnect === 'undefined') {
+        status.textContent = "Teller script not available. Retrying...";
+        setTimeout(initTeller, 500);
+        return;
+      }
+      try {
+        tc = TellerConnect.setup({
+          applicationId: "${session.application_id}",
+          environment: "${session.environment}",
+          products: ["transactions"],
+          onSuccess: function(enrollment) {
+            status.textContent = "Connected! Returning to app...";
+            btn.disabled = true;
+            btn.textContent = "Done";
+            window.location.href = "${scheme}://teller-callback"
+              + "?type=success"
+              + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
+              + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
+              + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
+              + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
+          },
+          onExit: function() {
+            status.textContent = "Cancelled. Returning to app...";
+            setTimeout(function() {
+              window.location.href = "${scheme}://teller-callback?type=exit";
+            }, 500);
+          }
+        });
+        btn.disabled = false;
+        btn.textContent = "Connect Bank Account";
+        status.textContent = "";
+      } catch(e) {
+        btn.textContent = "Error";
+        status.textContent = "Failed: " + e.message;
+      }
     }
 
     btn.addEventListener('click', function() {
       if (tc) tc.open();
     });
+
+    // Load Teller Connect script dynamically
+    var s = document.createElement('script');
+    s.src = "https://cdn.teller.io/connect/connect.js";
+    s.onload = initTeller;
+    s.onerror = function() {
+      btn.textContent = "Error";
+      status.textContent = "Failed to load Teller Connect script.";
+    };
+    document.body.appendChild(s);
   </script>
 </body></html>`);
 });
