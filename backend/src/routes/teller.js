@@ -233,27 +233,55 @@ router.get('/connect-page/:sessionId', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html><head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <style>body{margin:0;padding:0;background:#fff;}</style>
+  <style>
+    body { margin: 0; padding: 0; background: #fff; font-family: -apple-system, sans-serif; }
+    #loading { display: flex; justify-content: center; align-items: center; height: 100vh; color: #666; }
+    #error { display: none; padding: 20px; color: red; text-align: center; }
+  </style>
 </head><body>
-  <script src="https://cdn.teller.io/connect/connect.js"></script>
+  <div id="loading">Loading Teller Connect...</div>
+  <div id="error"></div>
   <script>
-    var tc = TellerConnect.setup({
-      applicationId: "${session.application_id}",
-      environment: "${session.environment}",
-      products: ["transactions"],
-      onSuccess: function(enrollment) {
-        window.location.href = "${callbackScheme}://teller-callback"
-          + "?type=success"
-          + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
-          + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
-          + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
-          + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
-      },
-      onExit: function() {
-        window.location.href = "${callbackScheme}://teller-callback?type=exit";
+    window.onerror = function(msg) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = 'Error: ' + msg;
+    };
+  </script>
+  <script src="https://cdn.teller.io/connect/connect.js" onload="initTeller()" onerror="showError('Failed to load Teller Connect script')"></script>
+  <script>
+    function showError(msg) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = msg;
+    }
+    function initTeller() {
+      try {
+        document.getElementById('loading').style.display = 'none';
+        var tc = TellerConnect.setup({
+          applicationId: "${session.application_id}",
+          environment: "${session.environment}",
+          products: ["transactions"],
+          onSuccess: function(enrollment) {
+            window.location.href = "${callbackScheme}://teller-callback"
+              + "?type=success"
+              + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
+              + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
+              + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
+              + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
+          },
+          onExit: function() {
+            window.location.href = "${callbackScheme}://teller-callback?type=exit";
+          },
+          onFailure: function(failure) {
+            showError('Teller error: ' + (failure.message || JSON.stringify(failure)));
+          }
+        });
+        tc.open();
+      } catch (e) {
+        showError('Setup error: ' + e.message);
       }
-    });
-    tc.open();
+    }
   </script>
 </body></html>`);
 });
