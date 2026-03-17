@@ -80,6 +80,7 @@ export default function BankConnectionScreen() {
       setConnecting(true);
 
       const { url } = await getConnectSession();
+      console.log('[Teller] Connect URL:', url);
       setTellerConnectUrl(url);
       setShowTellerConnect(true);
     } catch (error) {
@@ -432,9 +433,15 @@ export default function BankConnectionScreen() {
             <WebView
               source={{ uri: tellerConnectUrl }}
               onMessage={handleTellerMessage}
+              onError={(e) => console.error('[Teller] WebView error:', e.nativeEvent)}
+              onHttpError={(e) => console.error('[Teller] HTTP error:', e.nativeEvent.statusCode)}
               javaScriptEnabled
               domStorageEnabled
               startInLoadingState
+              allowsInlineMediaPlayback
+              setSupportMultipleWindows={false}
+              originWhitelist={['*']}
+              mixedContentMode="compatibility"
               style={{ flex: 1 }}
               renderLoading={() => (
                 <View style={styles.loadingContainer}>
