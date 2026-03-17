@@ -299,16 +299,20 @@ router.get('/connect-page/:sessionId', (req, res) => {
               })
             }).then(function(r) { return r.json(); }).then(function(data) {
               if (data.success) {
-                status.textContent = "Connected! Returning to app...";
+                status.textContent = "Connected " + data.accounts + " account(s)! Returning to app...";
                 btn.textContent = "Done";
-                window.location.href = "${scheme}://teller-callback?type=success";
+                setTimeout(function() {
+                  window.location.href = "${scheme}://teller-callback?type=success";
+                }, 1000);
               } else {
-                status.textContent = "Error: " + (data.error || "Failed to save");
+                status.textContent = "Server error: " + (data.error || "Unknown error");
                 btn.textContent = "Error";
+                btn.disabled = false;
               }
             }).catch(function(e) {
-              status.textContent = "Error: " + e.message;
+              status.textContent = "Network error: " + e.message;
               btn.textContent = "Error";
+              btn.disabled = false;
             });
           },
           onExit: function() {
@@ -404,8 +408,8 @@ router.post('/connect-page/:sessionId/complete', express.json(), async (req, res
 
     res.json({ success: true, accounts: savedAccounts.length });
   } catch (error) {
-    logger.error('[Teller] Complete enrollment error:', error.message);
-    res.status(500).json({ error: 'Failed to save enrollment' });
+    logger.error('[Teller] Complete enrollment error:', error.message, error.stack);
+    res.status(500).json({ error: error.message || 'Failed to save enrollment' });
   }
 });
 
