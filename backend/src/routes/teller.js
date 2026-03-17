@@ -213,152 +213,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 });
 
-// ============================================================
-// TELLER CONNECT VIA IN-APP BROWSER (public routes)
-// These are before auth middleware because SFSafariViewController
-// opens them directly without an auth token.
-// ============================================================
-const connectSessions = new Map();
-
-// GET /connect-page/:sessionId — serves Teller Connect HTML for in-app browser
-router.get('/connect-page/:sessionId', (req, res) => {
-  const session = connectSessions.get(req.params.sessionId);
-  if (!session) {
-    return res.status(404).send('<html><body><h2>Session expired. Please try again from the app.</h2></body></html>');
-  }
-
-  const callbackScheme = 'sylk';
-
-  res.setHeader('Content-Type', 'text/html');
-  res.send(`<!DOCTYPE html>
-<html><head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8f9fa; }
-    .container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
-    .card { background: #fff; border-radius: 16px; padding: 32px 24px; text-align: center; max-width: 360px; width: 100%; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
-    .icon { font-size: 48px; margin-bottom: 16px; }
-    h2 { font-size: 20px; color: #1a1a1a; margin-bottom: 8px; }
-    p { font-size: 14px; color: #666; line-height: 1.5; margin-bottom: 24px; }
-    .btn { display: block; width: 100%; padding: 16px; background: #1E40AF; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-    .btn:active { background: #1a3a9e; }
-    .btn:disabled { background: #93a3c0; }
-    #error { display: none; color: #e53e3e; font-size: 13px; margin-top: 16px; }
-    #loading { display: none; color: #666; font-size: 14px; margin-top: 16px; }
-  </style>
-</head><body>
-  <div class="container">
-    <div class="card">
-      <div class="icon">🏦</div>
-      <h2>Connect Your Bank</h2>
-      <p>Securely link your bank account to automatically track transactions and match them to your projects.</p>
-      <button class="btn" id="connectBtn" disabled>Loading...</button>
-      <div id="loading"></div>
-      <div id="error"></div>
-    </div>
-  </div>
-  <script src="https://cdn.teller.io/connect/connect.js"></script>
-  <script>
-    var tc = null;
-    var btn = document.getElementById('connectBtn');
-    var errorEl = document.getElementById('error');
-
-    function showError(msg) {
-      errorEl.style.display = 'block';
-      errorEl.textContent = msg;
-      btn.disabled = false;
-      btn.textContent = 'Try Again';
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-      try {
-        tc = TellerConnect.setup({
-          applicationId: "${session.application_id}",
-          environment: "${session.environment}",
-          products: ["transactions"],
-          onInit: function() {
-            btn.disabled = false;
-            btn.textContent = 'Connect Bank Account';
-          },
-          onSuccess: function(enrollment) {
-            window.location.href = "${callbackScheme}://teller-callback"
-              + "?type=success"
-              + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
-              + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
-              + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
-              + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
-          },
-          onExit: function() {
-            window.location.href = "${callbackScheme}://teller-callback?type=exit";
-          },
-          onFailure: function(failure) {
-            showError('Connection failed: ' + (failure.message || JSON.stringify(failure)));
-          }
-        });
-        btn.disabled = false;
-        btn.textContent = 'Connect Bank Account';
-      } catch (e) {
-        showError('Setup error: ' + e.message);
-      }
-    });
-
-    btn.addEventListener('click', function() {
-      errorEl.style.display = 'none';
-      if (tc) {
-        tc.open();
-      } else {
-        showError('Teller Connect not ready. Please refresh.');
-      }
-    });
-  </script>
-</body></html>`);
-});
-
 // Log all incoming Teller requests for debugging
 router.use((req, res, next) => {
   logger.info(`[Teller] ${req.method} ${req.path} from ${req.ip}`);
   next();
 });
 
-// Apply auth + owner check to all routes (below webhook + connect-page)
+// Apply auth + owner check to all routes (below webhook)
 router.use(authenticateUser);
 router.use(requireOwnerRole);
-
-// ============================================================
-// POST /connect-session
-// Creates a temporary session for the in-app browser Teller Connect flow
-// ============================================================
-router.post('/connect-session', async (req, res) => {
-  try {
-    const applicationId = process.env.TELLER_APPLICATION_ID;
-    if (!applicationId) {
-      return res.status(503).json({ error: 'Teller is not configured' });
-    }
-
-    const sessionId = crypto.randomUUID();
-    connectSessions.set(sessionId, {
-      application_id: applicationId,
-      environment: tellerEnv,
-      created_at: Date.now(),
-    });
-
-    // Auto-cleanup after 10 minutes
-    setTimeout(() => connectSessions.delete(sessionId), 10 * 60 * 1000);
-
-    const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN
-      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-      : `${req.protocol}://${req.get('host')}`;
-
-    res.json({
-      sessionId,
-      url: `${baseUrl}/api/teller/connect-page/${sessionId}`,
-    });
-  } catch (error) {
-    logger.error('Connect session error:', error.message);
-    res.status(500).json({ error: 'Failed to create connect session' });
-  }
-});
 
 // ============================================================
 // GET /connect-config
