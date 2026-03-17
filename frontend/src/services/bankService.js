@@ -76,6 +76,14 @@ export const getConnectConfig = async () => {
 };
 
 /**
+ * Create a Teller Connect session for in-app browser flow
+ * Returns { sessionId, url } where url opens Teller Connect in SFSafariViewController
+ */
+export const getConnectSession = async () => {
+  return fetchWithAuth('/api/teller/connect-session', { method: 'POST' });
+};
+
+/**
  * Save enrollment after Teller Connect success
  */
 export const saveEnrollment = async (accessToken, enrollment) => {

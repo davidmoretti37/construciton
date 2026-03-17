@@ -213,15 +213,95 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 });
 
+// ============================================================
+// TELLER CONNECT VIA IN-APP BROWSER (public routes)
+// These are before auth middleware because SFSafariViewController
+// opens them directly without an auth token.
+// ============================================================
+const connectSessions = new Map();
+
+// GET /connect-page/:sessionId — serves Teller Connect HTML for in-app browser
+router.get('/connect-page/:sessionId', (req, res) => {
+  const session = connectSessions.get(req.params.sessionId);
+  if (!session) {
+    return res.status(404).send('<html><body><h2>Session expired. Please try again from the app.</h2></body></html>');
+  }
+
+  const callbackScheme = 'sylk';
+
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html>
+<html><head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>body{margin:0;padding:0;background:#fff;}</style>
+</head><body>
+  <script src="https://cdn.teller.io/connect/connect.js"></script>
+  <script>
+    var tc = TellerConnect.setup({
+      applicationId: "${session.application_id}",
+      environment: "${session.environment}",
+      products: ["transactions"],
+      onSuccess: function(enrollment) {
+        window.location.href = "${callbackScheme}://teller-callback"
+          + "?type=success"
+          + "&accessToken=" + encodeURIComponent(enrollment.accessToken)
+          + "&enrollmentId=" + encodeURIComponent(enrollment.enrollment ? enrollment.enrollment.id : "")
+          + "&institutionId=" + encodeURIComponent(enrollment.institution ? enrollment.institution.id : "")
+          + "&institutionName=" + encodeURIComponent(enrollment.institution ? enrollment.institution.name : "");
+      },
+      onExit: function() {
+        window.location.href = "${callbackScheme}://teller-callback?type=exit";
+      }
+    });
+    tc.open();
+  </script>
+</body></html>`);
+});
+
 // Log all incoming Teller requests for debugging
 router.use((req, res, next) => {
   logger.info(`[Teller] ${req.method} ${req.path} from ${req.ip}`);
   next();
 });
 
-// Apply auth + owner check to all routes (below webhook)
+// Apply auth + owner check to all routes (below webhook + connect-page)
 router.use(authenticateUser);
 router.use(requireOwnerRole);
+
+// ============================================================
+// POST /connect-session
+// Creates a temporary session for the in-app browser Teller Connect flow
+// ============================================================
+router.post('/connect-session', async (req, res) => {
+  try {
+    const applicationId = process.env.TELLER_APPLICATION_ID;
+    if (!applicationId) {
+      return res.status(503).json({ error: 'Teller is not configured' });
+    }
+
+    const sessionId = crypto.randomUUID();
+    connectSessions.set(sessionId, {
+      application_id: applicationId,
+      environment: tellerEnv,
+      created_at: Date.now(),
+    });
+
+    // Auto-cleanup after 10 minutes
+    setTimeout(() => connectSessions.delete(sessionId), 10 * 60 * 1000);
+
+    const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : `${req.protocol}://${req.get('host')}`;
+
+    res.json({
+      sessionId,
+      url: `${baseUrl}/api/teller/connect-page/${sessionId}`,
+    });
+  } catch (error) {
+    logger.error('Connect session error:', error.message);
+    res.status(500).json({ error: 'Failed to create connect session' });
+  }
+});
 
 // ============================================================
 // GET /connect-config
