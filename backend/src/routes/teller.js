@@ -234,34 +234,53 @@ router.get('/connect-page/:sessionId', (req, res) => {
 <html><head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
-    body { margin: 0; padding: 0; background: #fff; font-family: -apple-system, sans-serif; }
-    #loading { display: flex; justify-content: center; align-items: center; height: 100vh; color: #666; }
-    #error { display: none; padding: 20px; color: red; text-align: center; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8f9fa; }
+    .container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .card { background: #fff; border-radius: 16px; padding: 32px 24px; text-align: center; max-width: 360px; width: 100%; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h2 { font-size: 20px; color: #1a1a1a; margin-bottom: 8px; }
+    p { font-size: 14px; color: #666; line-height: 1.5; margin-bottom: 24px; }
+    .btn { display: block; width: 100%; padding: 16px; background: #1E40AF; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .btn:active { background: #1a3a9e; }
+    .btn:disabled { background: #93a3c0; }
+    #error { display: none; color: #e53e3e; font-size: 13px; margin-top: 16px; }
+    #loading { display: none; color: #666; font-size: 14px; margin-top: 16px; }
   </style>
 </head><body>
-  <div id="loading">Loading Teller Connect...</div>
-  <div id="error"></div>
+  <div class="container">
+    <div class="card">
+      <div class="icon">🏦</div>
+      <h2>Connect Your Bank</h2>
+      <p>Securely link your bank account to automatically track transactions and match them to your projects.</p>
+      <button class="btn" id="connectBtn" disabled>Loading...</button>
+      <div id="loading"></div>
+      <div id="error"></div>
+    </div>
+  </div>
+  <script src="https://cdn.teller.io/connect/connect.js"></script>
   <script>
-    window.onerror = function(msg) {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('error').style.display = 'block';
-      document.getElementById('error').textContent = 'Error: ' + msg;
-    };
-  </script>
-  <script src="https://cdn.teller.io/connect/connect.js" onload="initTeller()" onerror="showError('Failed to load Teller Connect script')"></script>
-  <script>
+    var tc = null;
+    var btn = document.getElementById('connectBtn');
+    var errorEl = document.getElementById('error');
+
     function showError(msg) {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('error').style.display = 'block';
-      document.getElementById('error').textContent = msg;
+      errorEl.style.display = 'block';
+      errorEl.textContent = msg;
+      btn.disabled = false;
+      btn.textContent = 'Try Again';
     }
-    function initTeller() {
+
+    document.addEventListener('DOMContentLoaded', function() {
       try {
-        document.getElementById('loading').style.display = 'none';
-        var tc = TellerConnect.setup({
+        tc = TellerConnect.setup({
           applicationId: "${session.application_id}",
           environment: "${session.environment}",
           products: ["transactions"],
+          onInit: function() {
+            btn.disabled = false;
+            btn.textContent = 'Connect Bank Account';
+          },
           onSuccess: function(enrollment) {
             window.location.href = "${callbackScheme}://teller-callback"
               + "?type=success"
@@ -274,14 +293,24 @@ router.get('/connect-page/:sessionId', (req, res) => {
             window.location.href = "${callbackScheme}://teller-callback?type=exit";
           },
           onFailure: function(failure) {
-            showError('Teller error: ' + (failure.message || JSON.stringify(failure)));
+            showError('Connection failed: ' + (failure.message || JSON.stringify(failure)));
           }
         });
-        tc.open();
+        btn.disabled = false;
+        btn.textContent = 'Connect Bank Account';
       } catch (e) {
         showError('Setup error: ' + e.message);
       }
-    }
+    });
+
+    btn.addEventListener('click', function() {
+      errorEl.style.display = 'none';
+      if (tc) {
+        tc.open();
+      } else {
+        showError('Teller Connect not ready. Please refresh.');
+      }
+    });
   </script>
 </body></html>`);
 });
