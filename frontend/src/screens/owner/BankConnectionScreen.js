@@ -473,6 +473,12 @@ export default function BankConnectionScreen() {
               javaScriptEnabled
               domStorageEnabled
               startInLoadingState
+              scrollEnabled={true}
+              bounces={false}
+              allowsInlineMediaPlayback
+              mixedContentMode="compatibility"
+              originWhitelist={['*']}
+              style={{ flex: 1, opacity: 0.99 }}
               renderLoading={() => (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color={OWNER_COLORS.primary} />
