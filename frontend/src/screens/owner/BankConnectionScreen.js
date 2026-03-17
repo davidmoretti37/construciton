@@ -116,11 +116,13 @@ export default function BankConnectionScreen() {
   const getTellerConnectHTML = () => {
     return `
       <!DOCTYPE html>
-      <html>
+      <html style="height:100%;width:100%;overflow:hidden;">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
         <style>
-          body { margin: 0; padding: 0; background: #fff; }
+          * { touch-action: manipulation; -webkit-touch-callout: none; }
+          html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #fff; }
+          iframe { touch-action: manipulation; pointer-events: auto; }
         </style>
       </head>
       <body>
@@ -144,6 +146,15 @@ export default function BankConnectionScreen() {
             }
           });
           tellerConnect.open();
+
+          // Force touch-action on dynamically created iframes
+          var observer = new MutationObserver(function(mutations) {
+            document.querySelectorAll('iframe').forEach(function(iframe) {
+              iframe.style.touchAction = 'manipulation';
+              iframe.style.pointerEvents = 'auto';
+            });
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
         </script>
       </body>
       </html>
@@ -442,7 +453,7 @@ export default function BankConnectionScreen() {
         )}
       </ScrollView>
 
-      {/* Teller Connect WebView Modal — fullScreen to avoid pageSheet gesture conflicts */}
+      {/* Teller Connect WebView Modal */}
       <Modal
         visible={showTellerConnect}
         animationType="slide"
@@ -453,6 +464,20 @@ export default function BankConnectionScreen() {
         }}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setShowTellerConnect(false);
+                setConnecting(false);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.modalClose}
+            >
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Connect Bank</Text>
+            <View style={{ width: 40 }} />
+          </View>
           {tellerAppId && (
             <WebView
               source={{ html: getTellerConnectHTML() }}
@@ -460,6 +485,12 @@ export default function BankConnectionScreen() {
               javaScriptEnabled
               domStorageEnabled
               startInLoadingState
+              scrollEnabled={false}
+              bounces={false}
+              allowsBackForwardNavigationGestures={false}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              contentMode="mobile"
               style={{ flex: 1 }}
               renderLoading={() => (
                 <View style={styles.loadingContainer}>
@@ -651,5 +682,22 @@ const styles = StyleSheet.create({
   reconcileLinkSubtitle: {
     fontSize: FontSizes.tiny,
     marginTop: 2,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalClose: {
+    padding: Spacing.xs,
+  },
+  modalTitle: {
+    fontSize: FontSizes.subheader,
+    fontWeight: '700',
+    color: '#333',
   },
 });
