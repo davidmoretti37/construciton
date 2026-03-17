@@ -27,7 +27,7 @@ import NotificationBell from '../../components/NotificationBell';
 import SkeletonBox from '../../components/skeletons/SkeletonBox';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
-import { getReconciliationSummary } from '../../services/plaidService';
+import { getReconciliationSummary } from '../../services/bankService';
 import { fetchAllOwnerTransactions, calculateCashFlow } from '../../utils/financialReportUtils';
 import { checkForgottenClockOuts, sendForgottenClockOutNotifications } from '../../utils/storage/timeTracking';
 

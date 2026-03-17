@@ -24,7 +24,7 @@ import {
   getBankTransactions,
   getReconciliationSummary,
   ignoreBankTransaction,
-} from '../../services/plaidService';
+} from '../../services/bankService';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',

@@ -19,6 +19,7 @@ import {
   AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -50,7 +51,7 @@ import OrbitalLoader from '../components/OrbitalLoader';
 import StatusMessage from '../components/StatusMessage';
 import SkeletonCard from '../components/skeletons/SkeletonCard';
 import SkeletonBox from '../components/skeletons/SkeletonBox';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import NotificationBell from '../components/NotificationBell';
 import OwnerHeader from '../components/OwnerHeader';
 import { useAuth } from '../contexts/AuthContext';
@@ -119,6 +120,7 @@ export default function ChatScreen({ navigation, route }) {
   const [bgOverlay, setBgOverlay] = useState(false); // Overlay to hide thinking→answer transition
   const [statusMessage, setStatusMessage] = useState(null);
   const [showCardSkeleton, setShowCardSkeleton] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
   const streamingMessageIdRef = useRef(null);
   const activeJobIdRef = useRef(null);
@@ -3426,7 +3428,12 @@ export default function ChatScreen({ navigation, route }) {
                   )}
 
                   {message.text && message.text.trim() !== '' && (
-            <View
+                  <View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onLongPress={() => {
+                setCopiedMessageId(prev => prev === message.id ? null : message.id);
+              }}
               style={[
                 styles.messageBubble,
                       message.isUser
@@ -3437,6 +3444,7 @@ export default function ChatScreen({ navigation, route }) {
             >
               {message.isUser ? (
                 <Text
+                  selectable
                   style={[
                     styles.messageText,
                     { color: Colors.userMessageText },
@@ -3446,6 +3454,7 @@ export default function ChatScreen({ navigation, route }) {
                 </Text>
               ) : (
                 <LinkifiedText
+                  selectable
                   style={[
                     styles.messageText,
                     { color: Colors.primaryText },
@@ -3454,6 +3463,45 @@ export default function ChatScreen({ navigation, route }) {
                   {typeof message.text === 'string' ? message.text : JSON.stringify(message.text)}
                 </LinkifiedText>
               )}
+                  </TouchableOpacity>
+                  {copiedMessageId === message.id && (
+                    <Animated.View
+                      entering={FadeInDown.duration(150)}
+                      exiting={FadeOutDown.duration(150)}
+                      style={[
+                        styles.copyBubble,
+                        message.isUser ? { alignSelf: 'flex-end' } : { alignSelf: 'flex-start' },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={styles.copyButton}
+                        onPress={() => {
+                          const textToCopy = typeof message.text === 'string' ? message.text : JSON.stringify(message.text);
+                          Clipboard.setStringAsync(textToCopy);
+                          setCopiedMessageId('copied-' + message.id);
+                          setTimeout(() => setCopiedMessageId(null), 1500);
+                        }}
+                      >
+                        <Ionicons name="copy-outline" size={14} color={Colors.primaryText} />
+                        <Text style={[styles.copyButtonText, { color: Colors.primaryText }]}>Copy all</Text>
+                      </TouchableOpacity>
+                    </Animated.View>
+                  )}
+                  {copiedMessageId === 'copied-' + message.id && (
+                    <Animated.View
+                      entering={FadeInDown.duration(150)}
+                      exiting={FadeOutDown.duration(150)}
+                      style={[
+                        styles.copyBubble,
+                        message.isUser ? { alignSelf: 'flex-end' } : { alignSelf: 'flex-start' },
+                      ]}
+                    >
+                      <View style={styles.copyButton}>
+                        <Ionicons name="checkmark-circle" size={14} color="#34C759" />
+                        <Text style={[styles.copyButtonText, { color: '#34C759' }]}>Copied!</Text>
+                      </View>
+                    </Animated.View>
+                  )}
                   </View>
                   )}
 
@@ -3687,6 +3735,23 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: FontSizes.body,
+  },
+  copyBubble: {
+    marginTop: -4,
+    marginBottom: Spacing.xs,
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  copyButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   messageAttachmentImage: {
     width: 200,

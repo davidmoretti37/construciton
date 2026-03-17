@@ -9,8 +9,10 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchConversations, sendManualMessage, markConversationHandled } from '../utils/storage';
@@ -24,6 +26,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
   const [conversations, setConversations] = useState([]);
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const scrollViewRef = useRef(null);
 
@@ -168,7 +171,11 @@ export default function ConversationsSection({ projectId, clientPhone }) {
           conversations.map(conv => (
             <View key={conv.id} style={styles.messageContainer}>
               {/* Message Bubble */}
-              <View
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onLongPress={() => {
+                  setCopiedMessageId(prev => prev === conv.id ? null : conv.id);
+                }}
                 style={[
                   styles.messageBubble,
                   conv.direction === 'inbound'
@@ -177,6 +184,7 @@ export default function ConversationsSection({ projectId, clientPhone }) {
                 ]}
               >
                 <Text
+                  selectable
                   style={[
                     styles.messageText,
                     { color: conv.direction === 'inbound' ? Colors.primaryText : Colors.white }
@@ -209,7 +217,44 @@ export default function ConversationsSection({ projectId, clientPhone }) {
                     minute: '2-digit',
                   })}
                 </Text>
-              </View>
+              </TouchableOpacity>
+              {copiedMessageId === conv.id && (
+                <Animated.View
+                  entering={FadeInDown.duration(150)}
+                  exiting={FadeOutDown.duration(150)}
+                  style={[
+                    styles.copyBubble,
+                    conv.direction === 'inbound' ? { alignSelf: 'flex-start' } : { alignSelf: 'flex-end' },
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={styles.copyButton}
+                    onPress={() => {
+                      Clipboard.setStringAsync(conv.message_body);
+                      setCopiedMessageId('copied-' + conv.id);
+                      setTimeout(() => setCopiedMessageId(null), 1500);
+                    }}
+                  >
+                    <Ionicons name="copy-outline" size={14} color={Colors.primaryText} />
+                    <Text style={[styles.copyButtonText, { color: Colors.primaryText }]}>Copy all</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              )}
+              {copiedMessageId === 'copied-' + conv.id && (
+                <Animated.View
+                  entering={FadeInDown.duration(150)}
+                  exiting={FadeOutDown.duration(150)}
+                  style={[
+                    styles.copyBubble,
+                    conv.direction === 'inbound' ? { alignSelf: 'flex-start' } : { alignSelf: 'flex-end' },
+                  ]}
+                >
+                  <View style={styles.copyButton}>
+                    <Ionicons name="checkmark-circle" size={14} color="#34C759" />
+                    <Text style={[styles.copyButtonText, { color: '#34C759' }]}>Copied!</Text>
+                  </View>
+                </Animated.View>
+              )}
 
               {/* Needs Attention Badge */}
               {conv.needs_attention && (
@@ -344,6 +389,23 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: FontSizes.body,
     lineHeight: 20,
+  },
+  copyBubble: {
+    marginTop: -4,
+    marginBottom: Spacing.xs,
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  copyButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   aiIndicator: {
     flexDirection: 'row',

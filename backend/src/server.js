@@ -31,7 +31,7 @@ const supabase = createClient(
 const geocodingRoutes = require('./routes/geocoding');
 const transcriptionRoutes = require('./routes/transcription');
 const stripeRoutes = require('./routes/stripe');
-const plaidRoutes = require('./routes/plaid');
+const tellerRoutes = require('./routes/teller');
 const googleDriveRoutes = require('./routes/googleDrive');
 
 // Rate Limiters
@@ -88,7 +88,7 @@ app.use('/api', servicesLimiter, geocodingRoutes);
 app.use('/api', servicesLimiter, transcriptionRoutes);
 app.use('/api/stripe', servicesLimiter, stripeRoutes);
 app.use('/api/subscription', servicesLimiter, stripeRoutes);
-app.use('/api/plaid', servicesLimiter, plaidRoutes);
+app.use('/api/teller', servicesLimiter, tellerRoutes);
 app.use('/api/integrations/google-drive', servicesLimiter, googleDriveRoutes);
 
 // ============================================================
@@ -190,11 +190,11 @@ app.get('/ready', async (req, res) => {
     checks.deepgram = { status: 'skip', reason: 'DEEPGRAM_API_KEY not set' };
   }
 
-  // 6. Plaid — check if configured
-  if (process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET) {
-    checks.plaid = { status: 'ok', env: process.env.PLAID_ENV || 'sandbox' };
+  // 6. Teller — check if configured
+  if (process.env.TELLER_APPLICATION_ID) {
+    checks.teller = { status: 'ok', env: process.env.TELLER_ENV || 'sandbox' };
   } else {
-    checks.plaid = { status: 'skip', reason: 'PLAID_CLIENT_ID or PLAID_SECRET not set' };
+    checks.teller = { status: 'skip', reason: 'TELLER_APPLICATION_ID not set' };
   }
 
   // 7. Environment variables — verify required vars are set
@@ -1212,8 +1212,8 @@ if (require.main === module) {
     if (process.env.STRIPE_SECRET_KEY) {
       logger.info(`   Stripe payments enabled`);
     }
-    if (process.env.PLAID_CLIENT_ID) {
-      logger.info(`   Plaid bank integration enabled (${process.env.PLAID_ENV || 'sandbox'})`);
+    if (process.env.TELLER_APPLICATION_ID) {
+      logger.info(`   Teller bank integration enabled (${process.env.TELLER_ENV || 'sandbox'})`);
     }
   });
 }

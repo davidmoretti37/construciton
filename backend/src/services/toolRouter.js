@@ -18,7 +18,7 @@ const INTENT_PATTERNS = {
   search: [/\bfind\b/g, /\bsearch\b/g, /\blookup\b/g, /\blocate\b/g],
   reports: [/photo/g, /picture/g, /image/g, /\breport\b/g, /daily/g, /documentation/g, /progress pic/g],
   settings: [/setting/g, /business info/g, /profit margin/g, /service catalog/g, /pricing catalog/g, /configure/g],
-  bank: [/bank/g, /card/g, /reconcil/g, /unmatched/g, /statement/g, /plaid/g, /csv/g, /bank transaction/g, /card transaction/g],
+  bank: [/bank/g, /card/g, /reconcil/g, /unmatched/g, /statement/g, /teller/g, /csv/g, /bank transaction/g, /card transaction/g],
   document: [/document/g, /\bfile\b/g, /upload/g, /\bpdf\b/g, /blueprint/g, /permit/g, /attachment/g, /scope of work/g],
 };
 

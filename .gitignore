@@ -30,6 +30,9 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Teller mTLS certificates
+backend/certs/
+
 # local env files
 .env
 .env*.local

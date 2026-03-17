@@ -1,6 +1,6 @@
 /**
  * BankConnectionScreen
- * Connect bank accounts via Plaid Link or upload CSV statements.
+ * Connect bank accounts via Teller Connect or upload CSV statements.
  * Owner-only screen.
  */
 
@@ -14,8 +14,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
-  NativeModules,
-  Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,17 +22,17 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { create, open, dismissLink } from 'react-native-plaid-link-sdk';
+import { WebView } from 'react-native-webview';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
-  createLinkToken,
-  exchangePublicToken,
+  getConnectConfig,
+  saveEnrollment,
   getConnectedAccounts,
   disconnectAccount,
   syncAccount,
   uploadCSV,
-} from '../../services/plaidService';
+} from '../../services/bankService';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',
@@ -55,6 +54,9 @@ export default function BankConnectionScreen() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState({});
   const [uploading, setUploading] = useState(false);
+  const [showTellerConnect, setShowTellerConnect] = useState(false);
+  const [tellerAppId, setTellerAppId] = useState(null);
+  const [tellerEnv, setTellerEnv] = useState('sandbox');
 
   const loadAccounts = async () => {
     try {
@@ -78,69 +80,74 @@ export default function BankConnectionScreen() {
     try {
       setConnecting(true);
 
-      // Check if native Plaid module is available (requires native build)
-      const plaidNative = Platform.OS === 'ios'
-        ? NativeModules.RNLinksdk
-        : NativeModules.PlaidAndroid;
-      if (!plaidNative) {
-        setConnecting(false);
-        Alert.alert(
-          t('bank.buildRequired'),
-          t('bank.buildRequiredDesc')
-        );
-        return;
-      }
-
-      const { link_token } = await createLinkToken();
-
-      // Wait for native Plaid SDK to load (with fallback timeout)
-      await new Promise((resolve) => {
-        let resolved = false;
-        create({
-          token: link_token,
-          onLoad: () => { if (!resolved) { resolved = true; resolve(); } },
-        });
-        setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 2000);
-      });
-
-      // Now safe to open the Plaid Link flow
-      open({
-        onSuccess: async (success) => {
-          try {
-            const publicToken = success.publicToken;
-            const metadata = success.metadata;
-
-            await exchangePublicToken(
-              publicToken,
-              metadata?.institution?.id,
-              metadata?.institution?.name
-            );
-
-            Alert.alert(
-              t('bank.accountConnected'),
-              t('bank.accountConnectedDesc', { name: metadata?.institution?.name || 'Bank account' })
-            );
-            loadAccounts();
-          } catch (error) {
-            Alert.alert(t('common:alerts.error'), error.message || 'Failed to connect account');
-          } finally {
-            setConnecting(false);
-          }
-        },
-        onExit: (exit) => {
-          setConnecting(false);
-          if (exit.error) {
-            Alert.alert(
-              t('bank.connectionIssue'),
-              exit.error.displayMessage || exit.error.errorMessage || t('bank.connectionInterrupted')
-            );
-          }
-        },
-      });
+      const config = await getConnectConfig();
+      setTellerAppId(config.application_id);
+      setTellerEnv(config.environment || 'sandbox');
+      setShowTellerConnect(true);
     } catch (error) {
       setConnecting(false);
       Alert.alert(t('common:alerts.error'), error.message || 'Failed to start bank connection');
     }
+  };
+
+  const handleTellerMessage = async (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+
+      if (data.type === 'success') {
+        setShowTellerConnect(false);
+        await saveEnrollment(data.accessToken, data.enrollment);
+
+        Alert.alert(
+          t('bank.accountConnected'),
+          t('bank.accountConnectedDesc', { name: data.enrollment?.institution?.name || 'Bank account' })
+        );
+        loadAccounts();
+      } else if (data.type === 'exit') {
+        setShowTellerConnect(false);
+      }
+    } catch (error) {
+      Alert.alert(t('common:alerts.error'), error.message || 'Failed to connect account');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const getTellerConnectHTML = () => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { margin: 0; padding: 0; background: #fff; }
+        </style>
+      </head>
+      <body>
+        <script src="https://cdn.teller.io/connect/connect.js"></script>
+        <script>
+          var tellerConnect = TellerConnect.setup({
+            applicationId: "${tellerAppId}",
+            environment: "${tellerEnv}",
+            products: ["transactions"],
+            onSuccess: function(enrollment) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: "success",
+                accessToken: enrollment.accessToken,
+                enrollment: enrollment
+              }));
+            },
+            onExit: function() {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: "exit"
+              }));
+            }
+          });
+          tellerConnect.open();
+        </script>
+      </body>
+      </html>
+    `;
   };
 
   const handleUploadCSV = async () => {
@@ -434,6 +441,47 @@ export default function BankConnectionScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      {/* Teller Connect WebView Modal */}
+      <Modal
+        visible={showTellerConnect}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowTellerConnect(false);
+          setConnecting(false);
+        }}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setShowTellerConnect(false);
+                setConnecting(false);
+              }}
+              style={styles.modalClose}
+            >
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Connect Bank</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          {tellerAppId && (
+            <WebView
+              source={{ html: getTellerConnectHTML() }}
+              onMessage={handleTellerMessage}
+              javaScriptEnabled
+              domStorageEnabled
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={OWNER_COLORS.primary} />
+                </View>
+              )}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -615,5 +663,22 @@ const styles = StyleSheet.create({
   reconcileLinkSubtitle: {
     fontSize: FontSizes.tiny,
     marginTop: 2,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalClose: {
+    padding: Spacing.xs,
+  },
+  modalTitle: {
+    fontSize: FontSizes.subheader,
+    fontWeight: '700',
+    color: '#333',
   },
 });

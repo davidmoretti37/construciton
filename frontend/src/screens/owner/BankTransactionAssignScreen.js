@@ -25,7 +25,7 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { assignBankTransaction } from '../../services/plaidService';
+import { assignBankTransaction } from '../../services/bankService';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',

@@ -45,9 +45,9 @@ function renderFormattedText(str, key) {
  * LinkifiedText - Renders markdown bold, and makes addresses/phone numbers clickable.
  * Addresses open in maps, phone numbers open dialer.
  */
-const LinkifiedText = ({ children, style, linkStyle }) => {
+const LinkifiedText = ({ children, style, linkStyle, selectable }) => {
   if (typeof children !== 'string') {
-    return <Text style={style}>{children}</Text>;
+    return <Text selectable={selectable} style={style}>{children}</Text>;
   }
 
   const text = children;
@@ -105,7 +105,7 @@ const LinkifiedText = ({ children, style, linkStyle }) => {
 
   // If no link matches found, render with just markdown formatting
   if (parts.length === 0) {
-    return <Text style={style}>{renderFormattedText(text, 'root')}</Text>;
+    return <Text selectable={selectable} style={style}>{renderFormattedText(text, 'root')}</Text>;
   }
 
   const openMaps = (address) => {
@@ -133,7 +133,7 @@ const LinkifiedText = ({ children, style, linkStyle }) => {
   };
 
   return (
-    <Text style={style}>
+    <Text selectable={selectable} style={style}>
       {parts.map((part, index) => {
         if (part.type === 'text') {
           return renderFormattedText(part.content, index);
