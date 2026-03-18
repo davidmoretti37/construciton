@@ -188,16 +188,48 @@ export default function BankReconciliationScreen() {
     );
   };
 
+  const getTypeColor = (txType) => {
+    switch (txType) {
+      case 'expense': return OWNER_COLORS.danger;
+      case 'income': return OWNER_COLORS.success;
+      case 'transfer': return '#6B7280';
+      default: return Colors.secondaryText;
+    }
+  };
+
+  const getTypeLabel = (txType) => {
+    switch (txType) {
+      case 'expense': return 'Expense';
+      case 'income': return 'Income';
+      case 'transfer': return 'Transfer';
+      default: return '';
+    }
+  };
+
   const renderTransaction = ({ item }) => {
     const badge = getStatusBadge(item.match_status);
-    const isExpense = item.amount > 0;
+    const txType = item.transaction_type || (item.amount > 0 ? 'expense' : 'income');
+    const typeColor = getTypeColor(txType);
     const linkedProject = item.matched_transaction?.project?.name || item.assigned_project?.name;
+    const isLowConfidence = item.classification_confidence === 'low';
 
     return (
       <View style={[styles.txCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
         <View style={styles.txMain}>
           <View style={styles.txLeft}>
-            <Text style={[styles.txDate, { color: Colors.secondaryText }]}>{formatDate(item.date)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.txDate, { color: Colors.secondaryText }]}>{formatDate(item.date)}</Text>
+              {txType === 'transfer' && (
+                <View style={{ backgroundColor: '#6B728015', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#6B7280', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>TRANSFER</Text>
+                </View>
+              )}
+              {isLowConfidence && txType !== 'expense' && (
+                <View style={{ backgroundColor: '#F59E0B15', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '600' }}>Verify</Text>
+                </View>
+              )}
+            </View>
             <Text style={[styles.txDescription, { color: Colors.primaryText }]} numberOfLines={1}>
               {item.merchant_name || item.description}
             </Text>
@@ -205,6 +237,11 @@ export default function BankReconciliationScreen() {
               <Text style={[styles.txSubDesc, { color: Colors.secondaryText }]} numberOfLines={1}>
                 {item.description}
               </Text>
+            )}
+            {item.subcategory && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                <Text style={{ color: Colors.secondaryText, fontSize: 11, fontStyle: 'italic' }}>{item.subcategory}</Text>
+              </View>
             )}
             {linkedProject && (
               <View style={styles.linkedProject}>
@@ -214,8 +251,8 @@ export default function BankReconciliationScreen() {
             )}
           </View>
           <View style={styles.txRight}>
-            <Text style={[styles.txAmount, { color: isExpense ? OWNER_COLORS.danger : OWNER_COLORS.success }]}>
-              {isExpense ? '-' : '+'}{formatAmount(item.amount)}
+            <Text style={[styles.txAmount, { color: typeColor }]}>
+              {txType === 'expense' ? '-' : txType === 'income' ? '+' : ''}{formatAmount(item.amount)}
             </Text>
             <View style={[styles.txBadge, { backgroundColor: badge.color + '15' }]}>
               <Ionicons name={badge.icon} size={12} color={badge.color} />

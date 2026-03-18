@@ -84,6 +84,100 @@ const supabaseAdmin = createClient(
 );
 
 // ============================================================
+// TRANSACTION CLASSIFICATION HELPERS
+// ============================================================
+
+const TRANSFER_KEYWORDS = ['PAYMENT', 'PYMT', 'TRANSFER', 'XFER', 'ACH PAYMENT', 'AUTOPAY', 'DIRECT PAY', 'BILL PAY'];
+const REFUND_KEYWORDS = ['REFUND', 'RETURN', 'CASHBACK', 'CASH BACK', 'REVERSAL', 'CREDIT ADJ'];
+const FEE_KEYWORDS = ['INTEREST CHARGE', 'LATE FEE', 'ANNUAL FEE', 'FINANCE CHARGE', 'OVERDRAFT FEE'];
+
+/**
+ * Normalize a transaction description for rule matching.
+ * Strips numbers, store IDs, city/state suffixes, and noise.
+ */
+function normalizeDescription(desc) {
+  if (!desc) return '';
+  let normalized = desc.toUpperCase();
+  // Strip store IDs like #1234
+  normalized = normalized.replace(/#\d+/g, '');
+  // Strip standalone numbers (amounts, zip codes, etc.)
+  normalized = normalized.replace(/\b\d{3,}\b/g, '');
+  // Strip common US state abbreviations at end (CITY ST pattern)
+  normalized = normalized.replace(/\b[A-Z]{2,}\s+[A-Z]{2}\s*\d*\s*(USA?)?\s*$/i, '');
+  // Strip "USA" suffix
+  normalized = normalized.replace(/\s+USA?\s*$/i, '');
+  // Collapse whitespace
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  return normalized;
+}
+
+/**
+ * Classify a transaction based on rules, keywords, and amount direction.
+ * Returns { transaction_type, classification_confidence }
+ */
+async function classifyTransaction(userId, description, amount, accountType, connectedInstitutions) {
+  const normalizedDesc = normalizeDescription(description);
+  const upperDesc = (description || '').toUpperCase();
+
+  // 1. Check user rules FIRST (highest confidence)
+  const { data: rules } = await supabaseAdmin
+    .from('transaction_rules')
+    .select('transaction_type, subcategory')
+    .eq('user_id', userId);
+
+  if (rules && rules.length > 0) {
+    for (const rule of rules) {
+      if (normalizedDesc.includes(rule.description_pattern)) {
+        return {
+          transaction_type: rule.transaction_type,
+          classification_confidence: 'high',
+          subcategory: rule.subcategory || null,
+        };
+      }
+    }
+  }
+
+  // 2. Keyword-based detection (medium confidence)
+  const isTransferKeyword = TRANSFER_KEYWORDS.some(kw => upperDesc.includes(kw));
+  const isRefundKeyword = REFUND_KEYWORDS.some(kw => upperDesc.includes(kw));
+
+  // Check if description matches any of owner's connected institution names
+  const isOwnAccountTransfer = connectedInstitutions.some(name =>
+    upperDesc.includes(name.toUpperCase())
+  );
+
+  if (accountType === 'credit') {
+    // Credit card
+    if (amount > 0) {
+      // Charge — expense
+      return { transaction_type: 'expense', classification_confidence: 'medium' };
+    } else {
+      // Negative on credit card
+      if (isRefundKeyword) {
+        return { transaction_type: 'income', classification_confidence: 'medium' };
+      }
+      if (isTransferKeyword || isOwnAccountTransfer) {
+        return { transaction_type: 'transfer', classification_confidence: 'medium' };
+      }
+      // Default: credit card payments are transfers
+      return { transaction_type: 'transfer', classification_confidence: 'low' };
+    }
+  } else {
+    // Depository (checking/savings)
+    if (amount > 0) {
+      // Positive stored = debit = expense
+      return { transaction_type: 'expense', classification_confidence: amount > 0 && !isTransferKeyword ? 'medium' : 'low' };
+    } else {
+      // Negative stored = credit = income or transfer
+      if (isTransferKeyword || isOwnAccountTransfer) {
+        return { transaction_type: 'transfer', classification_confidence: 'medium' };
+      }
+      return { transaction_type: 'income', classification_confidence: 'low' };
+    }
+  }
+}
+
+// ============================================================
 // AUTHENTICATION MIDDLEWARE
 // ============================================================
 const authenticateUser = async (req, res, next) => {
@@ -780,6 +874,134 @@ router.patch('/transactions/:txId/ignore', async (req, res) => {
 });
 
 // ============================================================
+// PATCH /transactions/:txId/edit
+// Edit transaction type, subcategory, notes. Creates learning rule.
+// ============================================================
+router.patch('/transactions/:txId/edit', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { txId } = req.params;
+    const { transaction_type, subcategory, notes } = req.body;
+
+    // Build update object with only provided fields
+    const updates = {};
+    if (transaction_type !== undefined) updates.transaction_type = transaction_type;
+    if (subcategory !== undefined) updates.subcategory = subcategory;
+    if (notes !== undefined) updates.notes = notes;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    // If type was changed, set confidence to high (user-verified)
+    if (transaction_type) {
+      updates.classification_confidence = 'high';
+    }
+
+    const { data: tx, error } = await supabaseAdmin
+      .from('bank_transactions')
+      .update(updates)
+      .eq('id', txId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Create/update learning rule when type is changed
+    if (transaction_type && tx.description) {
+      const pattern = normalizeDescription(tx.description);
+      if (pattern.length > 2) {
+        await supabaseAdmin
+          .from('transaction_rules')
+          .upsert({
+            user_id: userId,
+            description_pattern: pattern,
+            transaction_type: transaction_type,
+            subcategory: subcategory || null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id, description_pattern' });
+      }
+    }
+
+    res.json({ transaction: tx });
+  } catch (error) {
+    logger.error('Edit transaction error:', error);
+    res.status(500).json({ error: 'Failed to edit transaction' });
+  }
+});
+
+// ============================================================
+// PATCH /transactions/bulk-edit
+// Bulk update type, subcategory, or assign to project
+// ============================================================
+router.patch('/transactions/bulk-edit', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { transaction_ids, transaction_type, subcategory, project_id, action } = req.body;
+
+    if (!transaction_ids || !Array.isArray(transaction_ids) || transaction_ids.length === 0) {
+      return res.status(400).json({ error: 'transaction_ids array required' });
+    }
+
+    if (action === 'reclassify' && !transaction_type) {
+      return res.status(400).json({ error: 'transaction_type required for reclassify' });
+    }
+
+    let updated = 0;
+
+    if (action === 'reclassify') {
+      const updates = { transaction_type, classification_confidence: 'high' };
+      if (subcategory !== undefined) updates.subcategory = subcategory;
+
+      const { data, error } = await supabaseAdmin
+        .from('bank_transactions')
+        .update(updates)
+        .in('id', transaction_ids)
+        .eq('user_id', userId)
+        .select('id, description');
+
+      if (error) throw error;
+      updated = data?.length || 0;
+
+      // Create learning rules for each unique description
+      if (data) {
+        const seenPatterns = new Set();
+        for (const tx of data) {
+          const pattern = normalizeDescription(tx.description);
+          if (pattern.length > 2 && !seenPatterns.has(pattern)) {
+            seenPatterns.add(pattern);
+            await supabaseAdmin
+              .from('transaction_rules')
+              .upsert({
+                user_id: userId,
+                description_pattern: pattern,
+                transaction_type,
+                subcategory: subcategory || null,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'user_id, description_pattern' });
+          }
+        }
+      }
+    } else if (action === 'ignore') {
+      const { error } = await supabaseAdmin
+        .from('bank_transactions')
+        .update({ match_status: 'ignored' })
+        .in('id', transaction_ids)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      updated = transaction_ids.length;
+    }
+
+    res.json({ updated });
+  } catch (error) {
+    logger.error('Bulk edit error:', error);
+    res.status(500).json({ error: 'Failed to bulk edit transactions' });
+  }
+});
+
+// ============================================================
 // POST /transactions/:txId/assign
 // Create a new project_transaction from an unmatched bank transaction
 // ============================================================
@@ -819,19 +1041,21 @@ router.post('/transactions/:txId/assign', async (req, res) => {
 
     // Create project_transaction from bank transaction
     const txAmount = Math.abs(bankTx.amount);
-    const txType = bankTx.amount > 0 ? 'expense' : 'income';
+    // Use classified transaction_type, fallback to amount-based logic
+    const txType = bankTx.transaction_type === 'transfer' ? 'expense'
+      : bankTx.transaction_type || (bankTx.amount > 0 ? 'expense' : 'income');
 
     const { data: projectTx, error: insertError } = await supabaseAdmin
       .from('project_transactions')
       .insert({
         project_id,
         type: txType,
-        category: category || bankTx.category || 'misc',
+        category: category || bankTx.subcategory || bankTx.category || 'misc',
         description: description || bankTx.description,
         amount: txAmount,
         date: bankTx.date,
         payment_method: 'card',
-        notes: `Imported from bank statement: ${bankTx.merchant_name || bankTx.description}`,
+        notes: bankTx.notes || `Imported from bank statement: ${bankTx.merchant_name || bankTx.description}`,
         created_by: userId,
         bank_transaction_id: txId,
       })
@@ -1192,13 +1416,23 @@ async function syncAccountTransactions(userId, account) {
       fromId = transactions[transactions.length - 1].id;
     }
 
-    // Upsert transactions
+    // Get owner's connected institution names for transfer detection
+    const { data: ownerAccounts } = await supabaseAdmin
+      .from('connected_bank_accounts')
+      .select('institution_name')
+      .eq('user_id', userId);
+    const connectedInstitutions = (ownerAccounts || []).map(a => a.institution_name).filter(Boolean);
+
+    // Upsert transactions with classification
     for (const tx of allTransactions) {
       // Convert Teller amounts to our convention (positive=expense, negative=income)
-      // Depository accounts: Teller uses negative=debit, positive=credit → negate
-      // Credit card accounts: Teller uses positive=charge, negative=payment → keep as-is
       const rawAmount = parseFloat(tx.amount);
       const amount = account.account_type === 'credit' ? rawAmount : -rawAmount;
+
+      // Classify transaction
+      const classification = await classifyTransaction(
+        userId, tx.description, amount, account.account_type, connectedInstitutions
+      );
 
       const { error } = await supabaseAdmin
         .from('bank_transactions')
@@ -1214,6 +1448,9 @@ async function syncAccountTransactions(userId, account) {
           is_pending: tx.status === 'pending',
           import_batch_id: batchId,
           match_status: 'unmatched',
+          transaction_type: classification.transaction_type,
+          classification_confidence: classification.classification_confidence,
+          subcategory: classification.subcategory || tx.details?.category || null,
         }, { onConflict: 'teller_transaction_id' });
 
       if (!error) added++;

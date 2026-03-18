@@ -157,6 +157,30 @@ export const ignoreBankTransaction = async (bankTxId) => {
 };
 
 /**
+ * Edit a bank transaction (type, subcategory, notes). Creates a learning rule.
+ */
+export const editBankTransaction = async (bankTxId, updates) => {
+  return fetchWithAuth(`/api/teller/transactions/${bankTxId}/edit`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+};
+
+/**
+ * Bulk edit transactions (reclassify, ignore, or assign)
+ */
+export const bulkEditTransactions = async (transactionIds, action, options = {}) => {
+  return fetchWithAuth('/api/teller/transactions/bulk-edit', {
+    method: 'PATCH',
+    body: JSON.stringify({
+      transaction_ids: transactionIds,
+      action,
+      ...options,
+    }),
+  });
+};
+
+/**
  * Assign an unmatched bank transaction to a project
  */
 export const assignBankTransaction = async (bankTxId, projectId, category, description) => {
