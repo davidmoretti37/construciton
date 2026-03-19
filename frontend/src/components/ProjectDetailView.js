@@ -185,10 +185,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           try {
             const { data: supProfile } = await supabase
               .from('profiles')
-              .select('full_name')
+              .select('business_name')
               .eq('id', supervisorId)
               .single();
-            setSupervisorName(supProfile?.full_name || null);
+            setSupervisorName(supProfile?.business_name || null);
           } catch (error) {
             console.error('Error loading supervisor:', error);
             setSupervisorName(null);
