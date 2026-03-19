@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
@@ -407,7 +408,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     // Persist via backend (atomic transaction with rollback)
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
       const baseUrl = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
       const resp = await fetch(`${baseUrl}/api/project-sections/move-task`, {
