@@ -180,7 +180,7 @@ export default function BankReconciliationScreen() {
           <View style={[styles.unmatchedBanner, { backgroundColor: OWNER_COLORS.danger + '10' }]}>
             <Ionicons name="alert-circle" size={16} color={OWNER_COLORS.danger} />
             <Text style={[styles.unmatchedText, { color: OWNER_COLORS.danger }]}>
-              ${summary.unmatched_amount?.toFixed(2) || '0.00'} {t('reconciliation.inUnrecordedExpenses')}
+              ${summary.unmatched_total_amount?.toFixed(2) || '0.00'} {t('reconciliation.inUnrecordedExpenses')}
             </Text>
           </View>
         )}
