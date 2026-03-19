@@ -98,7 +98,10 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => dragActivated.current,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => dragActivated.current,
+      onPanResponderTerminationRequest: () => !dragActivated.current,
+      onShouldBlockNativeResponder: () => dragActivated.current,
       onPanResponderGrant: () => {
         dragActivated.current = false;
         longPressTimer.current = setTimeout(() => {
@@ -122,7 +125,7 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
         animY.setValue(offsetY.current + gs.dy);
         onDragMove(item.id, offsetY.current + gs.dy + slot.h / 2);
       },
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (_, gs) => {
         clearTimeout(longPressTimer.current);
         if (dragActivated.current) {
           isDragging.current = false;
@@ -134,10 +137,13 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
       },
       onPanResponderTerminate: () => {
         clearTimeout(longPressTimer.current);
-        isDragging.current = false;
-        dragActivated.current = false;
-        setIsLifted(false);
-        Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
+        if (isDragging.current) {
+          isDragging.current = false;
+          dragActivated.current = false;
+          setIsLifted(false);
+          Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
+          onDragEnd(item.id);
+        }
       },
     })
   ).current;
