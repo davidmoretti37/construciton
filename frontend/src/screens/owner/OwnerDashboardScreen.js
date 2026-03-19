@@ -598,8 +598,7 @@ export default function OwnerDashboardScreen() {
   // ── Draggable item (edit mode) ──
 
   const renderDraggableItem = useCallback(({ item, drag, isActive }) => {
-    const { height } = getWidgetSize(item.size);
-    const width = screenWidth - Spacing.lg * 2;
+    const { width, height } = getWidgetSize(item.size);
     return (
       <ScaleDecorator>
         <TouchableOpacity
