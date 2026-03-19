@@ -6,6 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { shareProjectPDF, emailProjectPDF, smsProjectPDF } from '../../utils/projectPDF';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import WorkingDaysSelector from '../WorkingDaysSelector';
 
 // Normalize project data to ensure phase days match schedule dates
@@ -347,6 +348,75 @@ export default function ProjectPreview({ data, onAction }) {
       task.order = idx + 1;
     });
     newPhases[phaseIndex] = { ...newPhases[phaseIndex], tasks: newTasks };
+    setEditedData({ ...editedData, phases: newPhases });
+  };
+
+  // Section management handlers
+  const handleAddSection = () => {
+    const newPhases = [...(editedData.phases || phases)];
+    newPhases.push({
+      name: '',
+      plannedDays: 1,
+      tasks: [],
+    });
+    setEditedData({ ...editedData, phases: newPhases });
+    setExpandedPhases(prev => ({ ...prev, [newPhases.length - 1]: true }));
+  };
+
+  const handleRenameSection = (phaseIndex, newName) => {
+    const newPhases = [...(editedData.phases || phases)];
+    newPhases[phaseIndex] = { ...newPhases[phaseIndex], name: newName };
+    setEditedData({ ...editedData, phases: newPhases });
+  };
+
+  const handleRemoveSection = (phaseIndex) => {
+    const currentPhases = editedData.phases || phases;
+    const phase = currentPhases[phaseIndex];
+    const hasTasks = phase.tasks && phase.tasks.length > 0;
+
+    const doRemove = () => {
+      const newPhases = [...currentPhases];
+      newPhases.splice(phaseIndex, 1);
+      setEditedData({ ...editedData, phases: newPhases });
+    };
+
+    if (hasTasks) {
+      Alert.alert(
+        'Delete Section',
+        `"${phase.name || 'Untitled'}" has ${phase.tasks.length} tasks. Delete anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: doRemove },
+        ]
+      );
+    } else {
+      doRemove();
+    }
+  };
+
+  const handleMoveTaskBetweenSections = (sourcePhaseIndex, taskIndex, targetPhaseIndex) => {
+    const newPhases = [...(editedData.phases || phases)];
+    const task = newPhases[sourcePhaseIndex].tasks[taskIndex];
+
+    // Remove from source
+    const sourceTasks = [...newPhases[sourcePhaseIndex].tasks];
+    sourceTasks.splice(taskIndex, 1);
+    sourceTasks.forEach((t, i) => { t.order = i + 1; });
+    newPhases[sourcePhaseIndex] = { ...newPhases[sourcePhaseIndex], tasks: sourceTasks };
+
+    // Add to target
+    const targetTasks = [...(newPhases[targetPhaseIndex].tasks || []), { ...task, order: (newPhases[targetPhaseIndex].tasks?.length || 0) + 1 }];
+    newPhases[targetPhaseIndex] = { ...newPhases[targetPhaseIndex], tasks: targetTasks };
+
+    setEditedData({ ...editedData, phases: newPhases });
+  };
+
+  const handleReorderTasks = (phaseIndex, reorderedTasks) => {
+    const newPhases = [...(editedData.phases || phases)];
+    newPhases[phaseIndex] = {
+      ...newPhases[phaseIndex],
+      tasks: reorderedTasks.map((t, i) => ({ ...t, order: i + 1 })),
+    };
     setEditedData({ ...editedData, phases: newPhases });
   };
 
@@ -789,103 +859,163 @@ export default function ProjectPreview({ data, onAction }) {
       {phases && phases.length > 0 && (
         <View style={[styles.section, { borderTopColor: Colors.border }]}>
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('project.projectPhases')}</Text>
-          {phases.map((phase, index) => (
-            <View key={index} style={[styles.phaseCard, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
+          {phases.map((phase, phaseIndex) => {
+            const otherPhases = phases.filter((_, i) => i !== phaseIndex);
+            return (
+            <View key={phaseIndex} style={[styles.phaseCard, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
               <TouchableOpacity
                 style={styles.phaseHeader}
-                onPress={() => togglePhase(index)}
+                onPress={() => togglePhase(phaseIndex)}
                 activeOpacity={0.7}
               >
                 <View style={styles.phaseHeaderLeft}>
                   <Ionicons
-                    name={expandedPhases[index] ? "chevron-down" : "chevron-forward"}
+                    name={expandedPhases[phaseIndex] ? "chevron-down" : "chevron-forward"}
                     size={20}
                     color={Colors.primaryBlue}
                   />
-                  <Text style={[styles.phaseName, { color: Colors.primaryText }]}>{phase.name}</Text>
-                </View>
-                <View style={[styles.phaseBadge, { backgroundColor: Colors.primaryBlue + '15' }]}>
-                  <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
                   {isEditing ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <TextInput
-                        style={[styles.editInputTiny, { color: Colors.primaryBlue, borderColor: Colors.primaryBlue }]}
-                        value={(phase.plannedDays || phase.duration || 0).toString()}
-                        onChangeText={(value) => handlePhaseDaysChange(index, parseInt(value) || 1)}
-                        keyboardType="numeric"
-                        placeholder="1"
-                        selectTextOnFocus={true}
-                      />
-                      <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>{t('project.days')}</Text>
-                    </View>
+                    <TextInput
+                      style={[styles.editInput, styles.phaseName, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
+                      value={phase.name}
+                      onChangeText={(value) => handleRenameSection(phaseIndex, value)}
+                      placeholder="Section name"
+                      placeholderTextColor={Colors.secondaryText}
+                    />
                   ) : (
-                    <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>
-                      {phase.plannedDays || phase.duration || 0} {t('project.days')}
-                    </Text>
+                    <Text style={[styles.phaseName, { color: Colors.primaryText }]}>{phase.name}</Text>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={[styles.phaseBadge, { backgroundColor: Colors.primaryBlue + '15' }]}>
+                    <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
+                    {isEditing ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <TextInput
+                          style={[styles.editInputTiny, { color: Colors.primaryBlue, borderColor: Colors.primaryBlue }]}
+                          value={(phase.plannedDays || phase.duration || 0).toString()}
+                          onChangeText={(value) => handlePhaseDaysChange(phaseIndex, parseInt(value) || 1)}
+                          keyboardType="numeric"
+                          placeholder="1"
+                          selectTextOnFocus={true}
+                        />
+                        <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>{t('project.days')}</Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.phaseDays, { color: Colors.primaryBlue }]}>
+                        {phase.plannedDays || phase.duration || 0} {t('project.days')}
+                      </Text>
+                    )}
+                  </View>
+                  {isEditing && (
+                    <TouchableOpacity onPress={() => handleRemoveSection(phaseIndex)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
                   )}
                 </View>
               </TouchableOpacity>
 
-              {expandedPhases[index] && (
+              {expandedPhases[phaseIndex] && (
                 <View style={styles.phaseContent}>
                   {/* Tasks List */}
-                  {phase.tasks && phase.tasks.length > 0 && (
-                    <View style={styles.tasksSection}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
-                        <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>{t('project.tasks')}:</Text>
-                        {isEditing && (
-                          <TouchableOpacity
-                            onPress={() => handleAddTask(index)}
-                            style={[styles.addTaskButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
-                          >
-                            <Ionicons name="add" size={14} color={Colors.primaryBlue} />
-                            <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>{t('actions.addTask')}</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      {phase.tasks.map((task, taskIndex) => (
-                        <View key={taskIndex} style={styles.taskRow}>
-                          <Ionicons name="checkmark-circle-outline" size={16} color={Colors.secondaryText} />
-                          {isEditing ? (
-                            <>
-                              <TextInput
-                                style={[styles.editInput, styles.taskText, { color: Colors.primaryText, borderColor: Colors.border }]}
-                                value={task.description}
-                                onChangeText={(value) => handleUpdateTask(index, taskIndex, value)}
-                                placeholder={t('placeholders.taskDescription')}
-                                placeholderTextColor={Colors.secondaryText}
-                                multiline
-                              />
-                              <TouchableOpacity
-                                onPress={() => handleRemoveTask(index, taskIndex)}
-                                style={styles.removeTaskButton}
-                              >
-                                <Ionicons name="close-circle" size={20} color="#EF4444" />
-                              </TouchableOpacity>
-                            </>
-                          ) : (
-                            <Text style={[styles.taskText, { color: Colors.primaryText }]}>
-                              {task.description}
-                            </Text>
-                          )}
-                        </View>
-                      ))}
+                  <View style={styles.tasksSection}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
+                      <Text style={[styles.tasksTitle, { color: Colors.secondaryText }]}>{t('project.tasks')}:</Text>
+                      {isEditing && (
+                        <TouchableOpacity
+                          onPress={() => handleAddTask(phaseIndex)}
+                          style={[styles.addTaskButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
+                        >
+                          <Ionicons name="add" size={14} color={Colors.primaryBlue} />
+                          <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>{t('actions.addTask')}</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
-                  )}
+                    {phase.tasks && phase.tasks.length > 0 ? (
+                      isEditing ? (
+                        <DraggableFlatList
+                          data={phase.tasks}
+                          keyExtractor={(item, idx) => item.id || `task-${idx}`}
+                          scrollEnabled={false}
+                          onDragEnd={({ data }) => handleReorderTasks(phaseIndex, data)}
+                          renderItem={({ item: task, drag, isActive, getIndex }) => {
+                            const taskIndex = getIndex();
+                            return (
+                              <ScaleDecorator>
+                                <View style={[styles.taskRow, isActive && { backgroundColor: '#EFF6FF', borderRadius: 8 }]}>
+                                  <TouchableOpacity onLongPress={drag} delayLongPress={150} style={{ paddingRight: 6 }}>
+                                    <Ionicons name="reorder-three" size={16} color={Colors.secondaryText + '60'} />
+                                  </TouchableOpacity>
+                                  <TextInput
+                                    style={[styles.editInput, styles.taskText, { color: Colors.primaryText, borderColor: Colors.border }]}
+                                    value={task.description}
+                                    onChangeText={(value) => handleUpdateTask(phaseIndex, taskIndex, value)}
+                                    placeholder="Task description"
+                                    placeholderTextColor={Colors.secondaryText}
+                                    multiline
+                                  />
+                                  {otherPhases.length > 0 && (
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        Alert.alert('Move Task', `Move to:`, [
+                                          ...otherPhases.map(p => ({
+                                            text: p.name || 'Untitled',
+                                            onPress: () => handleMoveTaskBetweenSections(phaseIndex, taskIndex, phases.indexOf(p)),
+                                          })),
+                                          { text: 'Cancel', style: 'cancel' },
+                                        ]);
+                                      }}
+                                      style={{ paddingHorizontal: 4 }}
+                                    >
+                                      <Ionicons name="swap-horizontal" size={16} color={Colors.secondaryText + '80'} />
+                                    </TouchableOpacity>
+                                  )}
+                                  <TouchableOpacity onPress={() => handleRemoveTask(phaseIndex, taskIndex)} style={styles.removeTaskButton}>
+                                    <Ionicons name="close-circle" size={20} color="#EF4444" />
+                                  </TouchableOpacity>
+                                </View>
+                              </ScaleDecorator>
+                            );
+                          }}
+                        />
+                      ) : (
+                        phase.tasks.map((task, taskIndex) => (
+                          <View key={taskIndex} style={styles.taskRow}>
+                            <Ionicons name="checkmark-circle-outline" size={16} color={Colors.secondaryText} />
+                            <Text style={[styles.taskText, { color: Colors.primaryText }]}>{task.description}</Text>
+                          </View>
+                        ))
+                      )
+                    ) : (
+                      <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>No tasks yet</Text>
+                    )}
+                  </View>
 
-                  {/* Phase Timeline - Read-only, dates calculated from timeline + phase days */}
-                  {schedule.phaseSchedule && schedule.phaseSchedule[index] && (
+                  {/* Phase Timeline - Read-only */}
+                  {!isEditing && schedule.phaseSchedule && schedule.phaseSchedule[phaseIndex] && (
                     <View style={styles.phaseTimeline}>
                       <Ionicons name="time-outline" size={14} color={Colors.secondaryText} />
                       <Text style={[styles.phaseTimelineText, { color: Colors.secondaryText }]}>
-                        {formatDate(schedule.phaseSchedule[index].startDate)} → {formatDate(schedule.phaseSchedule[index].endDate)}
+                        {formatDate(schedule.phaseSchedule[phaseIndex].startDate)} → {formatDate(schedule.phaseSchedule[phaseIndex].endDate)}
                       </Text>
                     </View>
                   )}
                 </View>
               )}
             </View>
-          ))}
+            );
+          })}
+
+          {/* Add Section button */}
+          {isEditing && (
+            <TouchableOpacity
+              onPress={handleAddSection}
+              style={[styles.addSectionButton, { borderColor: Colors.primaryBlue }]}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
+              <Text style={{ color: Colors.primaryBlue, fontWeight: '600', fontSize: 14 }}>Add Section</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Overall Timeline */}
           {schedule.startDate && schedule.projectdEndDate && (
@@ -1382,6 +1512,17 @@ const styles = StyleSheet.create({
   },
   phaseTimelineText: {
     fontSize: FontSizes.tiny,
+  },
+  addSectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.md,
   },
   overallTimeline: {
     flexDirection: 'row',
