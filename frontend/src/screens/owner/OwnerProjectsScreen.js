@@ -12,7 +12,9 @@ import {
   Text,
   StyleSheet,
   SectionList,
+  ScrollView,
   RefreshControl,
+  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
@@ -67,6 +69,7 @@ export default function OwnerProjectsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
 
   // Load projects
   const loadProjects = useCallback(async () => {
@@ -102,15 +105,45 @@ export default function OwnerProjectsScreen() {
     await loadProjects();
   }, [loadProjects]);
 
+  // Filter projects based on active filter
+  const filteredProjects = useMemo(() => {
+    if (activeFilter === 'all') return projects;
+    return projects.filter(project => {
+      switch (activeFilter) {
+        case 'active':
+          return ['active', 'on-track', 'behind', 'over-budget'].includes(project.status);
+        case 'completed':
+          return project.status === 'completed';
+        case 'mine':
+          return project.assignment_status === 'owner_direct';
+        case 'draft':
+          return project.status === 'draft';
+        case 'archived':
+          return project.status === 'archived';
+        default:
+          return true;
+      }
+    });
+  }, [projects, activeFilter]);
+
+  // Filter pill definitions
+  const FILTERS = [
+    { key: 'all', label: 'All', count: projects.length },
+    { key: 'active', label: 'Active', count: projects.filter(p => ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)).length },
+    { key: 'completed', label: 'Done', count: projects.filter(p => p.status === 'completed').length },
+    { key: 'mine', label: 'Mine', count: projects.filter(p => p.assignment_status === 'owner_direct').length },
+    { key: 'draft', label: 'Draft', count: projects.filter(p => p.status === 'draft').length },
+  ];
+
   // Group projects by manager for sectioned display
   const sections = useMemo(() => {
     const ownerProjects = [];
     const supervisorGroups = {};
 
     // Add demo project if no real projects
-    const projectsToGroup = projects.length === 0 && hasLoadedOnce
+    const projectsToGroup = filteredProjects.length === 0 && hasLoadedOnce && activeFilter === 'all'
       ? [DEMO_PROJECT]
-      : projects;
+      : filteredProjects;
 
     projectsToGroup.forEach(project => {
       if (project.assignment_status === 'owner_direct' || project.isDemo) {
@@ -143,7 +176,7 @@ export default function OwnerProjectsScreen() {
     });
 
     return result;
-  }, [projects, hasLoadedOnce]);
+  }, [filteredProjects, hasLoadedOnce, activeFilter]);
 
   // Handle project card press
   const handleProjectCardPress = useCallback((project) => {
@@ -249,6 +282,50 @@ export default function OwnerProjectsScreen() {
         <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
 
+      {/* Filter Pills */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterBar}
+      >
+        {FILTERS.map(filter => {
+          const isActive = activeFilter === filter.key;
+          return (
+            <TouchableOpacity
+              key={filter.key}
+              style={[
+                styles.filterPill,
+                {
+                  backgroundColor: isActive ? OWNER_COLORS.primary : Colors.lightGray,
+                },
+              ]}
+              onPress={() => setActiveFilter(filter.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.filterPillText,
+                { color: isActive ? '#FFFFFF' : Colors.secondaryText },
+              ]}>
+                {filter.label}
+              </Text>
+              {filter.count > 0 && (
+                <View style={[
+                  styles.filterPillBadge,
+                  { backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : Colors.border },
+                ]}>
+                  <Text style={[
+                    styles.filterPillBadgeText,
+                    { color: isActive ? '#FFFFFF' : Colors.secondaryText },
+                  ]}>
+                    {filter.count}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
       {/* Projects List */}
       <SectionList
         sections={sections}
@@ -297,6 +374,34 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.5,
+  },
+  filterBar: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    gap: 8,
+  },
+  filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  filterPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterPillBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  filterPillBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
