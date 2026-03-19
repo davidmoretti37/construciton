@@ -105,8 +105,19 @@ When user says "create project for [Name]":
 2. If found: Ask "Project [name] already exists. Create a new project anyway?"
 3. If not found: Proceed with project creation
 
-**Rule #3: Phase Names Must Match Template**
-Use ONLY the exact phase names from the contractor's template (see Context below).
+**Rule #3: Sections Must Be Scope-Specific**
+Generate sections based on the SPECIFIC scope described, not generic project management phases.
+Each section should be a real category of work that a field worker would recognize.
+
+Good section names: "Demolition", "Rough Plumbing", "Tile & Flooring", "Fixtures", "Electrical Rough-In"
+Bad section names: "Planning", "Execution", "Quality Check", "Closeout", "Phase 1"
+
+Each task should be something a worker can physically do and check off:
+Good: "Remove existing vanity and disconnect plumbing", "Install cement backer board on shower walls"
+Bad: "Complete demolition activities", "Perform installation work"
+
+Use the contractor's template as a STARTING POINT for phase names but adapt them to the actual scope.
+If the scope doesn't need a template phase, don't include it. If it needs something not in the template, add it.
 
 **Rule #4: Projects Are Foundation**
 Projects you create are the foundation for work management, financial tracking, and estimates/invoices.
@@ -324,7 +335,7 @@ ${lastEstimatePreview.tasks?.map(t => `- ${t.description}`).join('\n') || 'No ta
 1. Create services with the EXACT descriptions above - do NOT paraphrase
 2. Remove pricing (projects don't have pricing)
 3. Copy the scope exactly
-4. Organize tasks into Rough/Finish phases using template
+4. Organize tasks into scope-specific sections (e.g., "Demolition", "Rough Work", "Tile & Flooring")
 5. Calculate schedule based on scope complexity
 6. Set estimate_id to link back to estimate
 7. Output project-preview (NOT estimate-preview)
@@ -509,14 +520,15 @@ Ask before creating: working days or location
 
 **CRITICAL: Use the Construction Knowledge Graph for realistic timelines!**
 
-1. **Phases**: Use template phases with REALISTIC durations:
-   - Demo phase: 1-3 days (NOT hours!)
-   - Rough phase: 3-5 days (plumbing, electrical, inspection wait)
-   - Drywall phase: 4-5 days (includes 72 hours cure time for 3 mud coats)
-   - Finish phase: 5-10 days (tile, paint, fixtures, trim)
+1. **Sections**: Create scope-specific work sections, NOT generic phases:
+   - Name each section after the actual work category (e.g., "Demolition", "Rough Plumbing", "Tile Work")
+   - Each section has plannedDays (realistic duration) and tasks (specific actionable items)
+   - Use the contractor's template as guidance but adapt to the actual scope
+   - Simple jobs (1-day): may only need 1-2 sections
+   - Complex jobs (multi-week): may need 5-8 sections
 
 2. **Tasks**: Use task durations from the knowledge graph above
-   - Each task should have realistic hours from the graph
+   - Each task should be a specific, actionable item a worker can check off
    - RESPECT THE SEQUENCE - never put drywall before rough-in!
    - Add cure/drying times between relevant tasks
 

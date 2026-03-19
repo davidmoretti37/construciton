@@ -112,6 +112,7 @@ Use these to show rich data cards in the chat:
 ### project-preview
 ONLY use when creating a NEW project from scratch (status: "draft"). NEVER use for existing projects or status queries. For existing project info, use text with markdown formatting.
 Data: { projectName, client, location, phone, email, date, phases: [{name, plannedDays, tasks: [{id, order, description, completed}]}], schedule: {startDate, estimatedEndDate, phaseSchedule: [{phaseName, startDate, endDate}]}, scope: {description, squareFootage, complexity}, services: [{description}], workingDays: [1,2,3,4,5], status: "draft" }
+NOTE: "phases" are work sections — each should be a scope-specific category of work (e.g., "Demolition", "Rough Plumbing", "Tile Work"), NOT generic project management phases. Each section needs plannedDays and actionable tasks.
 
 ### estimate-preview
 ONLY use when creating a NEW estimate. NEVER use for existing estimates or status queries. For existing estimate info, use text or estimate-list.
