@@ -17,8 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import DraggableWidgetGrid from '../../components/dashboard/DraggableWidgetGrid';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -594,48 +593,7 @@ export default function OwnerDashboardScreen() {
     );
   }, [renderWidget, enterEditMode]);
 
-  // ── Draggable item (edit mode) ──
-
-  const renderDraggableItem = useCallback(({ item, drag, isActive }) => {
-    const { width, height } = getWidgetSize(item.size);
-    return (
-      <ScaleDecorator>
-        <TouchableOpacity
-          onLongPress={drag}
-          onPress={() => {
-            const def = WIDGET_DEFINITIONS.find((w) => w.id === item.id);
-            if (def && def.availableSizes.length > 1) {
-              setResizingWidget({ ...item, ...def });
-            }
-          }}
-          delayLongPress={200}
-          activeOpacity={0.8}
-          style={[
-            styles.editWidgetWrap,
-            { width, height, marginBottom: 12 },
-            isActive && { opacity: 0.85 },
-          ]}
-        >
-          <View
-            style={[
-              { width: '100%', height: '100%' },
-              styles.editWidgetHighlight,
-            ]}
-          >
-            {renderWidget(item)}
-          </View>
-          {/* Remove badge — outside overflow container */}
-          <TouchableOpacity
-            style={styles.removeBadge}
-            onPress={() => handleRemoveWidget(item.id)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="remove-circle" size={22} color="#EF4444" />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </ScaleDecorator>
-    );
-  }, [renderWidget, handleRemoveWidget]);
+  // Edit mode widget rendering is handled by DraggableWidgetGrid
 
   // ── Loading skeleton ──
 
@@ -698,28 +656,29 @@ export default function OwnerDashboardScreen() {
 
       {/* ── Content ── */}
       {editMode ? (
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <DraggableFlatList
-            data={activeLayout}
-            extraData={pendingLayout}
-            keyExtractor={(item) => item.id}
-            renderItem={renderDraggableItem}
-            onDragEnd={({ data }) => {
-              setPendingLayout(data.map((item, i) => ({ ...item, position: i })));
-            }}
-            contentContainerStyle={styles.editListContent}
-            ListFooterComponent={
-              <View>
-                {/* Add widget slot */}
-                <TouchableOpacity style={styles.addSlot} onPress={() => setShowAddSheet(true)}>
-                  <Ionicons name="add-circle-outline" size={20} color="#94A3B8" />
-                  <Text style={styles.addSlotText}>Add Widget</Text>
-                </TouchableOpacity>
-                <View style={{ height: 100 }} />
-              </View>
+        <DraggableWidgetGrid
+          items={activeLayout}
+          onReorder={(data) => {
+            setPendingLayout(data.map((item, i) => ({ ...item, position: i })));
+          }}
+          onRemove={handleRemoveWidget}
+          onResize={(item) => {
+            const def = WIDGET_DEFINITIONS.find((w) => w.id === item.id);
+            if (def && def.availableSizes.length > 1) {
+              setResizingWidget({ ...item, ...def });
             }
-          />
-        </GestureHandlerRootView>
+          }}
+          renderWidget={renderWidget}
+          footer={
+            <View>
+              <TouchableOpacity style={styles.addSlot} onPress={() => setShowAddSheet(true)}>
+                <Ionicons name="add-circle-outline" size={20} color="#94A3B8" />
+                <Text style={styles.addSlotText}>Add Widget</Text>
+              </TouchableOpacity>
+              <View style={{ height: 100 }} />
+            </View>
+          }
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
