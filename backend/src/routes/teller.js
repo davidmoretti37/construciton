@@ -1310,7 +1310,7 @@ router.get('/reconciliation-summary', async (req, res) => {
 
     let baseQuery = supabaseAdmin
       .from('bank_transactions')
-      .select('match_status, amount')
+      .select('match_status, amount, transaction_type')
       .eq('user_id', userId);
 
     if (start_date) baseQuery = baseQuery.gte('date', start_date);
@@ -1333,11 +1333,19 @@ router.get('/reconciliation-summary', async (req, res) => {
 
     for (const tx of data) {
       const absAmount = Math.abs(tx.amount);
-      summary.total_amount += absAmount;
+      const isTransfer = tx.transaction_type === 'transfer';
+
+      // Exclude transfers from totals — they're not real expenses/income
+      if (!isTransfer) {
+        summary.total_amount += absAmount;
+      }
 
       if (tx.match_status === 'unmatched') {
         summary.unmatched++;
-        summary.unmatched_total_amount += absAmount;
+        // Only count expenses in unrecorded amount (not transfers)
+        if (!isTransfer) {
+          summary.unmatched_total_amount += absAmount;
+        }
       } else if (summary[tx.match_status] !== undefined) {
         summary[tx.match_status]++;
       }
