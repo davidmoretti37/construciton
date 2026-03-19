@@ -1474,19 +1474,30 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
             {/* Assigned Supervisor */}
             {supervisorName && (
-              <View style={[styles.supervisorChip, { backgroundColor: Colors.lightGray, borderLeftWidth: 3, borderLeftColor: '#1E40AF' }]}>
-                <View style={[styles.workerAvatar, { backgroundColor: '#1E40AF' }]}>
+              <TouchableOpacity
+                style={[styles.workerCard, { backgroundColor: Colors.lightGray, borderLeftWidth: 3, borderLeftColor: '#1E40AF' }]}
+                onPress={() => {
+                  const supervisorId = project?.assignedTo || project?.assigned_supervisor_id;
+                  if (navigation && supervisorId) {
+                    onClose?.();
+                    navigation.navigate('SupervisorDetail', { supervisorId });
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.workerCardAvatar, { backgroundColor: '#1E40AF' }]}>
                   <Text style={styles.workerAvatarText}>{getInitials(supervisorName)}</Text>
                 </View>
-                <View style={styles.workerChipInfo}>
-                  <Text style={[styles.workerChipName, { color: Colors.primaryText }]} numberOfLines={1}>
+                <View style={styles.workerCardInfo}>
+                  <Text style={[styles.workerCardName, { color: Colors.primaryText }]} numberOfLines={1}>
                     {supervisorName}
                   </Text>
-                  <Text style={[styles.workerChipTrade, { color: '#1E40AF' }]} numberOfLines={1}>
+                  <Text style={[styles.workerCardRole, { color: '#1E40AF' }]} numberOfLines={1}>
                     Supervisor
                   </Text>
                 </View>
-              </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+              </TouchableOpacity>
             )}
 
             {workers.length === 0 && !supervisorName ? (
@@ -1497,23 +1508,34 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 </Text>
               </View>
             ) : workers.length > 0 ? (
-              <View style={styles.workersGrid}>
+              <View style={styles.workersList}>
                 {workers.map((worker) => (
-                  <View key={worker.id} style={[styles.workerChip, { backgroundColor: Colors.lightGray }]}>
-                    <View style={[styles.workerAvatar, { backgroundColor: Colors.primaryBlue }]}>
+                  <TouchableOpacity
+                    key={worker.id}
+                    style={[styles.workerCard, { backgroundColor: Colors.lightGray }]}
+                    onPress={() => {
+                      if (navigation && worker.id) {
+                        onClose?.();
+                        navigation.navigate('WorkerDetailHistory', { workerId: worker.id, workerName: worker.full_name });
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.workerCardAvatar, { backgroundColor: Colors.primaryBlue }]}>
                       <Text style={styles.workerAvatarText}>{getInitials(worker.full_name)}</Text>
                     </View>
-                    <View style={styles.workerChipInfo}>
-                      <Text style={[styles.workerChipName, { color: Colors.primaryText }]} numberOfLines={1}>
+                    <View style={styles.workerCardInfo}>
+                      <Text style={[styles.workerCardName, { color: Colors.primaryText }]} numberOfLines={1}>
                         {worker.full_name}
                       </Text>
                       {worker.trade && (
-                        <Text style={[styles.workerChipTrade, { color: Colors.secondaryText }]} numberOfLines={1}>
+                        <Text style={[styles.workerCardRole, { color: Colors.secondaryText }]} numberOfLines={1}>
                           {worker.trade}
                         </Text>
                       )}
                     </View>
-                  </View>
+                    <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+                  </TouchableOpacity>
                 ))}
               </View>
             ) : null}
@@ -2754,50 +2776,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
-  workersGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  workersList: {
     gap: 8,
     marginTop: 8,
   },
-  supervisorChip: {
+  workerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  workerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  workerCardAvatar: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    maxWidth: '48%',
-  },
-  workerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
   },
   workerAvatarText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  workerChipInfo: {
+  workerCardInfo: {
     flex: 1,
   },
-  workerChipName: {
-    fontSize: 13,
+  workerCardName: {
+    fontSize: 15,
     fontWeight: '600',
   },
-  workerChipTrade: {
-    fontSize: 11,
+  workerCardRole: {
+    fontSize: 13,
+    marginTop: 1,
   },
   deleteProjectLink: {
     flexDirection: 'row',
