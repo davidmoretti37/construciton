@@ -85,7 +85,7 @@ export default function PhaseOverview({ data, onAction }) {
               </Text>
             )}
             <Text style={[styles.title, { color: Colors.primaryText }]}>
-              Project Phases
+              Work Sections
             </Text>
           </View>
         </View>

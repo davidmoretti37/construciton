@@ -82,7 +82,7 @@
     "projectDetails": "Project Details",
     "location": "Location",
     "clientPhone": "Client Phone",
-    "projectPhases": "Project Phases",
+    "projectPhases": "Work Sections",
     "editing": "Editing",
     "assignedWorkersCount": "Workers Assigned ({{count}})",
     "photosCount": "Photos ({{count}})",
@@ -358,7 +358,7 @@
   },
   "project": {
     "projectTitle": "PROJECT",
-    "projectPhases": "Project Phases",
+    "projectPhases": "Work Sections",
     "days": "days",
     "workingDays": "Working Days",
     "scope": "Scope",

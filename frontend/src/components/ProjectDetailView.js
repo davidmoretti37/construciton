@@ -1324,7 +1324,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           )}
 
-          {/* Project Phases Section */}
+          {/* Work Sections */}
           {project.hasPhases && phases.length > 0 && (
             <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
               <View style={styles.sectionHeader}>
