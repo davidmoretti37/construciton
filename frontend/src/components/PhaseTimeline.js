@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import Slider from '@react-native-community/slider';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,6 +10,8 @@ export default function PhaseTimeline({
   phases,
   onPhasePress,
   onTaskToggle,
+  onTaskReorder,
+  onTaskMove,
   compact = false,
   expandedPhaseId = null,
   projectProgress = null,
@@ -26,39 +29,14 @@ export default function PhaseTimeline({
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'completed':
-        return '#22C55E'; // Green
-      case 'in_progress':
-        return '#3B82F6'; // Blue
-      case 'behind':
-        return '#EF4444'; // Red
+      case 'completed': return '#22C55E';
+      case 'in_progress': return '#3B82F6';
+      case 'behind': return '#EF4444';
       case 'not_started':
-      default:
-        return Colors.lightGray;
+      default: return Colors.lightGray;
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'checkmark-circle';
-      case 'in_progress':
-        return 'play-circle';
-      case 'behind':
-        return 'alert-circle';
-      case 'not_started':
-      default:
-        return 'ellipse-outline';
-    }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  // Use project timeline progress if provided, otherwise calculate from phases
   const overallCompletion = projectProgress !== null
     ? projectProgress
     : (phases.length > 0
@@ -66,14 +44,12 @@ export default function PhaseTimeline({
         : 0);
 
   if (compact) {
-    // Compact view: Just show segmented progress bar
     return (
       <View style={styles.compactContainer}>
         <View style={styles.segmentedProgressBar}>
           {phases.map((phase, index) => {
             const statusColor = getStatusColor(phase.status);
             const completion = phase.completion_percentage || 0;
-
             return (
               <View
                 key={phase.id || index}
@@ -81,28 +57,20 @@ export default function PhaseTimeline({
                   styles.progressSegment,
                   {
                     flex: 1,
-                    backgroundColor: statusColor + '40', // Increased opacity from 20 to 40
+                    backgroundColor: statusColor + '40',
                     borderLeftWidth: index > 0 ? 1 : 0,
                     borderColor: Colors.border,
                   },
                 ]}
               >
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${completion}%`,
-                      backgroundColor: statusColor,
-                    },
-                  ]}
-                />
+                <View style={[styles.progressFill, { width: `${completion}%`, backgroundColor: statusColor }]} />
               </View>
             );
           })}
         </View>
         <View style={styles.compactLabels}>
           <Text style={[styles.compactLabel, { color: Colors.secondaryText }]}>
-            {phases.length} phases
+            {phases.length} sections
           </Text>
           <Text style={[styles.compactLabel, { color: Colors.primaryText, fontWeight: '600' }]}>
             {overallCompletion}% complete
@@ -112,210 +80,164 @@ export default function PhaseTimeline({
     );
   }
 
-  // Full view: Show detailed phase list
-  return (
-    <View style={styles.container}>
-      {/* Overall Progress Label */}
-      <View style={styles.overallLabelRow}>
-        <Text style={[styles.overallLabel, { color: Colors.secondaryText }]}>
-          Overall Progress
-        </Text>
-        <Text style={[styles.overallPercentage, { color: Colors.primaryText }]}>
-          {overallCompletion}%
-        </Text>
-      </View>
+  const handleTaskDragEnd = useCallback((phaseId, { data }) => {
+    if (onTaskReorder) {
+      onTaskReorder(phaseId, data);
+    }
+  }, [onTaskReorder]);
 
-      {/* Overall Progress Bar - Shows total completion across all tasks */}
-      <View style={styles.segmentedProgressBar}>
-        <View
+  const renderTask = useCallback(({ item: task, drag, isActive, phase }) => {
+    return (
+      <ScaleDecorator>
+        <TouchableOpacity
           style={[
-            styles.progressSegment,
-            {
-              flex: 1,
-              backgroundColor: '#E5E7EB',
-            },
+            styles.taskItem,
+            { borderBottomColor: Colors.border },
+            isActive && styles.taskItemDragging,
           ]}
+          activeOpacity={0.6}
+          onPress={() => onTaskToggle && onTaskToggle(task, phase)}
+          onLongPress={drag}
+          delayLongPress={200}
         >
+          <View style={styles.taskDragHandle}>
+            <Ionicons name="reorder-three" size={16} color={Colors.secondaryText + '60'} />
+          </View>
           <View
             style={[
-              styles.progressFill,
+              styles.taskCheckbox,
               {
-                width: `${overallCompletion}%`,
-                backgroundColor: '#10B981',
-              },
+                borderColor: task.completed ? '#10B981' : Colors.border,
+                backgroundColor: task.completed ? '#10B981' : 'transparent',
+              }
             ]}
-          />
-        </View>
+          >
+            {task.completed && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+          <Text
+            style={[
+              styles.taskText,
+              {
+                color: task.completed ? Colors.secondaryText : Colors.primaryText,
+                textDecorationLine: task.completed ? 'line-through' : 'none',
+              }
+            ]}
+            numberOfLines={2}
+          >
+            {task.description || task.name}
+          </Text>
+        </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }, [onTaskToggle, Colors]);
+
+  return (
+    <View style={styles.container}>
+      {/* Overall Progress */}
+      <View style={styles.overallLabelRow}>
+        <Text style={[styles.overallLabel, { color: Colors.secondaryText }]}>Overall Progress</Text>
+        <Text style={[styles.overallPercentage, { color: Colors.primaryText }]}>{overallCompletion}%</Text>
+      </View>
+      <View style={[styles.overallProgressBar, { backgroundColor: '#E5E7EB' }]}>
+        <View style={[styles.overallProgressFill, { width: `${overallCompletion}%`, backgroundColor: '#10B981' }]} />
       </View>
 
-      {/* Phase List */}
-      <View style={styles.phaseList}>
-        {phases.map((phase, index) => {
-          const statusColor = getStatusColor(phase.status);
-          const isLast = index === phases.length - 1;
-          const isExpanded = expandedPhaseId === phase.id;
-          const phaseTasks = phase.tasks || [];
+      {/* Section List */}
+      {phases.map((phase, index) => {
+        const statusColor = getStatusColor(phase.status);
+        const isExpanded = expandedPhaseId === phase.id;
+        const phaseTasks = phase.tasks || [];
+        const completedCount = phaseTasks.filter(t => t.completed).length;
 
-          return (
-            <View key={phase.id || index}>
-              <TouchableOpacity
-                style={[
-                  styles.phaseItem,
-                  { borderBottomColor: Colors.border },
-                  (isLast && !isExpanded) && styles.lastPhaseItem,
-                ]}
-                onPress={() => onPhasePress && onPhasePress(phase)}
-                activeOpacity={0.7}
-              >
-                {/* Left: Status Icon */}
-                <View style={styles.phaseIconContainer}>
-                  <Ionicons
-                    name={getStatusIcon(phase.status)}
-                    size={24}
-                    color={statusColor}
-                  />
-                  {!isLast && (
-                    <View
-                      style={[
-                        styles.connector,
-                        { backgroundColor: Colors.border },
-                      ]}
-                    />
-                  )}
-                </View>
-
-                {/* Middle: Phase Info */}
-                <View style={styles.phaseInfo}>
-                  <View style={styles.phaseHeader}>
-                    <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
-                      {phase.name}
-                    </Text>
-                    <Text style={[styles.phasePercentage, { color: Colors.primaryText }]}>
-                      {phase.completion_percentage || 0}%
-                    </Text>
-                  </View>
-
-                  {/* Progress Bar or Slider */}
-                  {isEditing ? (
-                    <View style={styles.sliderContainer}>
-                      <Slider
-                        style={styles.slider}
-                        minimumValue={0}
-                        maximumValue={100}
-                        step={5}
-                        value={progressValues[phase.id] ?? phase.completion_percentage ?? 0}
-                        onValueChange={(value) => onProgressChange?.(phase.id, value)}
-                        onSlidingComplete={(value) => onProgressSave?.(phase.id, value)}
-                        minimumTrackTintColor="#10B981"
-                        maximumTrackTintColor="#E5E7EB"
-                        thumbTintColor="#10B981"
-                      />
-                      <Text style={[styles.sliderValue, { color: Colors.primaryText }]}>
-                        {Math.round(progressValues[phase.id] ?? phase.completion_percentage ?? 0)}%
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={[styles.phaseProgressBar, { backgroundColor: '#E5E7EB' }]}>
-                      <View
-                        style={[
-                          styles.phaseProgressFill,
-                          {
-                            width: `${phase.completion_percentage || 0}%`,
-                            backgroundColor: '#10B981',
-                          },
-                        ]}
-                      />
-                    </View>
-                  )}
-
-                  {/* Dates */}
-                  <View style={styles.phaseDates}>
-                    {phase.start_date && (
-                      <Text style={[styles.dateText, { color: Colors.secondaryText }]}>
-                        {formatDate(phase.start_date)}
-                      </Text>
-                    )}
-                    {phase.start_date && phase.end_date && (
-                      <Ionicons name="arrow-forward" size={12} color={Colors.secondaryText} />
-                    )}
-                    {phase.end_date && (
-                      <Text style={[styles.dateText, { color: Colors.secondaryText }]}>
-                        {formatDate(phase.end_date)}
-                      </Text>
-                    )}
+        return (
+          <View key={phase.id || index} style={[styles.sectionCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
+            {/* Section Header */}
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => onPhasePress && onPhasePress(phase)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.sectionHeaderLeft}>
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                <View style={styles.sectionTitleArea}>
+                  <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{phase.name}</Text>
+                  <View style={styles.sectionMeta}>
                     {phase.planned_days && (
-                      <Text style={[styles.daysText, { color: Colors.secondaryText }]}>
-                        ({phase.planned_days} days)
+                      <Text style={[styles.sectionDays, { color: Colors.secondaryText }]}>
+                        {phase.planned_days} {phase.planned_days === 1 ? 'day' : 'days'}
                       </Text>
                     )}
+                    <Text style={[styles.sectionTaskCount, { color: Colors.secondaryText }]}>
+                      {completedCount}/{phaseTasks.length} tasks
+                    </Text>
                   </View>
                 </View>
+              </View>
 
-                {/* Right: Chevron */}
-                {onPhasePress && (
-                  <Ionicons
-                    name={isExpanded ? "chevron-down" : "chevron-forward"}
-                    size={20}
-                    color={Colors.secondaryText}
-                  />
-                )}
-              </TouchableOpacity>
-
-              {/* Expanded Tasks List */}
-              {isExpanded && phaseTasks.length > 0 && (
-                <View style={[styles.tasksContainer, { backgroundColor: Colors.lightGray + '50' }]}>
-                  {phaseTasks.map((task, taskIndex) => (
-                    <TouchableOpacity
-                      key={task.id || taskIndex}
-                      style={[
-                        styles.taskItem,
-                        { borderBottomColor: Colors.border },
-                        taskIndex === phaseTasks.length - 1 && styles.lastTaskItem,
-                      ]}
-                      activeOpacity={onTaskToggle ? 0.6 : 1}
-                      onPress={() => onTaskToggle && onTaskToggle(task, phase)}
-                    >
-                      <View
-                        style={[
-                          styles.taskCheckbox,
-                          {
-                            borderColor: task.completed ? '#10B981' : Colors.border,
-                            backgroundColor: task.completed ? '#10B981' : 'transparent',
-                          }
-                        ]}
-                      >
-                        {task.completed && (
-                          <Ionicons name="checkmark" size={14} color="#fff" />
-                        )}
-                      </View>
-                      <Text
-                        style={[
-                          styles.taskText,
-                          {
-                            color: task.completed ? Colors.secondaryText : Colors.primaryText,
-                            textDecorationLine: task.completed ? 'line-through' : 'none',
-                          }
-                        ]}
-                      >
-                        {task.description || task.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* No tasks message */}
-              {isExpanded && phaseTasks.length === 0 && (
-                <View style={[styles.emptyTasksContainer, { backgroundColor: Colors.lightGray + '50' }]}>
-                  <Text style={[styles.emptyTasksText, { color: Colors.secondaryText }]}>
-                    No tasks yet
+              <View style={styles.sectionHeaderRight}>
+                {/* Progress or Slider */}
+                {isEditing ? (
+                  <View style={styles.sliderContainer}>
+                    <Slider
+                      style={styles.slider}
+                      minimumValue={0}
+                      maximumValue={100}
+                      step={5}
+                      value={progressValues[phase.id] ?? phase.completion_percentage ?? 0}
+                      onValueChange={(value) => onProgressChange?.(phase.id, value)}
+                      onSlidingComplete={(value) => onProgressSave?.(phase.id, value)}
+                      minimumTrackTintColor="#10B981"
+                      maximumTrackTintColor="#E5E7EB"
+                      thumbTintColor="#10B981"
+                    />
+                    <Text style={[styles.sliderValue, { color: Colors.primaryText }]}>
+                      {Math.round(progressValues[phase.id] ?? phase.completion_percentage ?? 0)}%
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.sectionPercentage, { color: statusColor }]}>
+                    {phase.completion_percentage || 0}%
                   </Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
-      </View>
+                )}
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={Colors.secondaryText}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Progress Bar */}
+            {!isEditing && (
+              <View style={[styles.sectionProgressBar, { backgroundColor: '#E5E7EB' }]}>
+                <View
+                  style={[styles.sectionProgressFill, { width: `${phase.completion_percentage || 0}%`, backgroundColor: statusColor }]}
+                />
+              </View>
+            )}
+
+            {/* Expanded Tasks */}
+            {isExpanded && phaseTasks.length > 0 && (
+              <View style={[styles.tasksContainer, { borderTopColor: Colors.border }]}>
+                <DraggableFlatList
+                  data={phaseTasks}
+                  keyExtractor={(item) => item.id || `task-${item.order}`}
+                  renderItem={(props) => renderTask({ ...props, phase })}
+                  onDragEnd={({ data }) => handleTaskDragEnd(phase.id, { data })}
+                  containerStyle={styles.tasksList}
+                  scrollEnabled={false}
+                />
+              </View>
+            )}
+
+            {isExpanded && phaseTasks.length === 0 && (
+              <View style={[styles.emptyTasks, { borderTopColor: Colors.border }]}>
+                <Text style={[styles.emptyTasksText, { color: Colors.secondaryText }]}>No tasks yet</Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -327,40 +249,13 @@ const styles = StyleSheet.create({
   compactContainer: {
     marginVertical: Spacing.sm,
   },
-  overallLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  overallLabel: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  overallProgressBar: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: Spacing.xs,
-  },
-  overallProgressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  overallPercentage: {
-    fontSize: FontSizes.small,
-    fontWeight: '700',
-    textAlign: 'right',
-  },
   segmentedProgressBar: {
     flexDirection: 'row',
-    height: 16, // Increased from 12 to 16
-    borderRadius: 8, // Increased from 6 to 8 to match new height
+    height: 16,
+    borderRadius: 8,
     overflow: 'hidden',
-    marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#D1D5DB', // Light gray border
+    borderColor: '#D1D5DB',
   },
   progressSegment: {
     position: 'relative',
@@ -377,123 +272,136 @@ const styles = StyleSheet.create({
   compactLabel: {
     fontSize: FontSizes.tiny,
   },
-  phaseList: {
-    marginTop: Spacing.sm,
-  },
-  phaseItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-  },
-  lastPhaseItem: {
-    borderBottomWidth: 0,
-  },
-  phaseIconContainer: {
-    alignItems: 'center',
-    marginRight: Spacing.md,
-    position: 'relative',
-  },
-  connector: {
-    position: 'absolute',
-    top: 30,
-    bottom: -16,
-    width: 2,
-    left: 11,
-  },
-  phaseInfo: {
-    flex: 1,
-    marginRight: Spacing.sm,
-  },
-  phaseHeader: {
+  overallLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.xs,
   },
-  phaseName: {
-    fontSize: FontSizes.body,
+  overallLabel: {
+    fontSize: FontSizes.small,
     fontWeight: '600',
-    flex: 1,
   },
-  phasePercentage: {
+  overallPercentage: {
     fontSize: FontSizes.small,
     fontWeight: '700',
-    marginLeft: Spacing.sm,
   },
-  phaseProgressBar: {
-    height: 6,
-    borderRadius: 3,
+  overallProgressBar: {
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.lg,
   },
-  phaseProgressFill: {
+  overallProgressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 4,
+  },
+
+  // Section card styles
+  sectionCard: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: Spacing.md,
+  },
+  sectionTitleArea: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  sectionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: 2,
+  },
+  sectionDays: {
+    fontSize: FontSizes.tiny,
+  },
+  sectionTaskCount: {
+    fontSize: FontSizes.tiny,
+  },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  sectionPercentage: {
+    fontSize: FontSizes.small,
+    fontWeight: '700',
+  },
+  sectionProgressBar: {
+    height: 3,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  sectionProgressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   sliderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 4,
+    width: 140,
   },
   slider: {
     flex: 1,
     height: 40,
   },
   sliderValue: {
-    width: 45,
+    width: 35,
     textAlign: 'right',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
-  phaseDates: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    flexWrap: 'wrap',
-  },
-  dateText: {
-    fontSize: FontSizes.tiny,
-  },
-  daysText: {
-    fontSize: FontSizes.tiny,
-  },
-  behindBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: Spacing.xs,
-  },
-  behindText: {
-    fontSize: FontSizes.tiny,
-    color: '#EF4444',
-    fontWeight: '600',
-  },
-  extensionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: Spacing.xs,
-  },
-  extensionText: {
-    fontSize: FontSizes.tiny,
-    fontWeight: '600',
-  },
+
+  // Tasks
   tasksContainer: {
-    paddingLeft: 50,
-    paddingRight: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderTopWidth: 1,
+  },
+  tasksList: {
+    paddingHorizontal: Spacing.md,
   },
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
-    borderBottomWidth: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  lastTaskItem: {
-    borderBottomWidth: 0,
+  taskItemDragging: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  taskDragHandle: {
+    paddingRight: Spacing.sm,
   },
   taskCheckbox: {
     width: 20,
@@ -507,13 +415,11 @@ const styles = StyleSheet.create({
   taskText: {
     fontSize: FontSizes.small,
     flex: 1,
+    lineHeight: 20,
   },
-  emptyTasksContainer: {
-    paddingLeft: 50,
-    paddingRight: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+  emptyTasks: {
+    borderTopWidth: 1,
+    paddingVertical: Spacing.lg,
     alignItems: 'center',
   },
   emptyTasksText: {
