@@ -415,6 +415,11 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
+    // Default to last 30 days if no date range specified (prevents full table scan)
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    const startDate = filters.startDate || defaultStartDate.toISOString().split('T')[0];
+
     let query = supabase
       .from('daily_reports')
       .select(`
@@ -424,6 +429,7 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
         project_phases (id, name, completion_percentage)
       `)
       .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
+      .gte('report_date', startDate)
       .order('report_date', { ascending: false });
 
     if (filters.projectId) {
@@ -434,9 +440,6 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
     }
     if (filters.phaseId) {
       query = query.eq('phase_id', filters.phaseId);
-    }
-    if (filters.startDate) {
-      query = query.gte('report_date', filters.startDate);
     }
     if (filters.endDate) {
       query = query.lte('report_date', filters.endDate);

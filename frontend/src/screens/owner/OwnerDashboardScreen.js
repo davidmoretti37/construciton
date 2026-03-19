@@ -234,8 +234,7 @@ export default function OwnerDashboardScreen() {
     }
   }, [user?.id]);
 
-  useEffect(() => { fetchDashboardData(); }, []);
-  useFocusEffect(useCallback(() => { fetchDashboardData(); }, [fetchDashboardData]));
+  useFocusEffect(useCallback(() => { fetchDashboardData(); }, []));
 
   // Load persisted layout on mount
   useEffect(() => {
