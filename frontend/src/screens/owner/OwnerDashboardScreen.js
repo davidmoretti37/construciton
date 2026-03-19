@@ -325,7 +325,8 @@ export default function OwnerDashboardScreen() {
   const enterEditMode = useCallback(() => {
     setEditMode(true);
     setPendingLayout([...layout]);
-  }, [layout]);
+    navigation.setOptions({ swipeEnabled: false });
+  }, [layout, navigation]);
 
   const exitEditMode = useCallback(async () => {
     if (pendingLayout) {
@@ -334,7 +335,8 @@ export default function OwnerDashboardScreen() {
     }
     setEditMode(false);
     setPendingLayout(null);
-  }, [pendingLayout]);
+    navigation.setOptions({ swipeEnabled: true });
+  }, [pendingLayout, navigation]);
 
   const handleReset = useCallback(async () => {
     const fresh = await resetLayout();
