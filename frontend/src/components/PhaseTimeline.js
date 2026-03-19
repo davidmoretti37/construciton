@@ -171,10 +171,12 @@ export default function PhaseTimeline({
 
       {/* Section List */}
       {phases.map((phase, index) => {
-        const statusColor = getStatusColor(phase.status);
         const isExpanded = expandedPhaseIds.has(phase.id);
         const phaseTasks = phase.tasks || [];
         const completedCount = phaseTasks.filter(t => t.completed).length;
+        const completion = phase.completion_percentage || (phaseTasks.length > 0 ? Math.round((completedCount / phaseTasks.length) * 100) : 0);
+        // Derive status color from actual completion, not stored status
+        const dotColor = completion >= 100 ? '#22C55E' : completion > 0 ? '#3B82F6' : Colors.lightGray;
 
         return (
           <View key={phase.id || index} style={[styles.sectionCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
@@ -185,7 +187,7 @@ export default function PhaseTimeline({
               activeOpacity={0.7}
             >
               <View style={styles.sectionHeaderLeft}>
-                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
                 <View style={styles.sectionTitleArea}>
                   <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{phase.name}</Text>
                   <View style={styles.sectionMeta}>
@@ -222,8 +224,8 @@ export default function PhaseTimeline({
                     </Text>
                   </View>
                 ) : (
-                  <Text style={[styles.sectionPercentage, { color: statusColor }]}>
-                    {phase.completion_percentage || 0}%
+                  <Text style={[styles.sectionPercentage, { color: dotColor }]}>
+                    {completion}%
                   </Text>
                 )}
                 <Ionicons
@@ -238,7 +240,7 @@ export default function PhaseTimeline({
             {!isEditing && (
               <View style={[styles.sectionProgressBar, { backgroundColor: '#E5E7EB' }]}>
                 <View
-                  style={[styles.sectionProgressFill, { width: `${phase.completion_percentage || 0}%`, backgroundColor: statusColor }]}
+                  style={[styles.sectionProgressFill, { width: `${completion}%`, backgroundColor: '#10B981' }]}
                 />
               </View>
             )}
