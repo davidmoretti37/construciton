@@ -12,7 +12,6 @@ import {
   Text,
   StyleSheet,
   SectionList,
-  ScrollView,
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
@@ -70,6 +69,7 @@ export default function OwnerProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   // Load projects
   const loadProjects = useCallback(async () => {
@@ -278,56 +278,57 @@ export default function OwnerProjectsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.white }]}>
-        <View style={styles.headerLeft} />
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setShowFilterDropdown(!showFilterDropdown)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="filter" size={20} color={activeFilter !== 'all' ? OWNER_COLORS.primary : Colors.secondaryText} />
+          {activeFilter !== 'all' && <View style={[styles.filterDot, { backgroundColor: OWNER_COLORS.primary }]} />}
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
           {t('title', 'Projects')}
         </Text>
         <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
 
-      {/* Filter Pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterBar}
-      >
-        {FILTERS.map(filter => {
-          const isActive = activeFilter === filter.key;
-          return (
-            <TouchableOpacity
-              key={filter.key}
-              style={[
-                styles.filterPill,
-                {
-                  backgroundColor: isActive ? OWNER_COLORS.primary : Colors.lightGray,
-                },
-              ]}
-              onPress={() => setActiveFilter(filter.key)}
-              activeOpacity={0.7}
-            >
-              <Text style={[
-                styles.filterPillText,
-                { color: isActive ? '#FFFFFF' : Colors.secondaryText },
-              ]}>
-                {filter.label}
-              </Text>
-              {filter.count > 0 && (
-                <View style={[
-                  styles.filterPillBadge,
-                  { backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : Colors.border },
-                ]}>
+      {/* Filter Dropdown */}
+      {showFilterDropdown && (
+        <View style={[styles.filterDropdown, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
+          {FILTERS.map(filter => {
+            const isActive = activeFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[
+                  styles.filterDropdownItem,
+                  isActive && { backgroundColor: OWNER_COLORS.primary + '10' },
+                ]}
+                onPress={() => {
+                  setActiveFilter(filter.key);
+                  setShowFilterDropdown(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.filterDropdownLeft}>
+                  {isActive && <Ionicons name="checkmark" size={18} color={OWNER_COLORS.primary} />}
+                  {!isActive && <View style={{ width: 18 }} />}
                   <Text style={[
-                    styles.filterPillBadgeText,
-                    { color: isActive ? '#FFFFFF' : Colors.secondaryText },
+                    styles.filterDropdownText,
+                    { color: isActive ? OWNER_COLORS.primary : Colors.primaryText },
+                    isActive && { fontWeight: '700' },
                   ]}>
-                    {filter.count}
+                    {filter.label}
                   </Text>
                 </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+                <Text style={[styles.filterDropdownCount, { color: Colors.secondaryText }]}>
+                  {filter.count}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {/* Projects List */}
       <SectionList
@@ -370,41 +371,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  headerLeft: {
+  filterButton: {
     width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.5,
   },
-  filterBar: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    gap: 8,
+  filterDropdown: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  filterPill: {
+  filterDropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
   },
-  filterPillText: {
+  filterDropdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  filterDropdownText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  filterDropdownCount: {
     fontSize: 13,
     fontWeight: '600',
-  },
-  filterPillBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 10,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  filterPillBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
