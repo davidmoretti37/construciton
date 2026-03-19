@@ -80,7 +80,7 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
   const offsetX = useRef(0);
   const offsetY = useRef(0);
   const scale = useRef(new Animated.Value(1)).current;
-  const elevation = useRef(new Animated.Value(1)).current;
+  const [isLifted, setIsLifted] = useState(false);
   const isDragging = useRef(false);
   const longPressTimer = useRef(null);
   const dragActivated = useRef(false);
@@ -106,10 +106,8 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
           isDragging.current = true;
           offsetX.current = animX._value;
           offsetY.current = animY._value;
-          Animated.parallel([
-            Animated.spring(scale, { toValue: 1.06, useNativeDriver: false, tension: 300 }),
-            Animated.timing(elevation, { toValue: 20, duration: 100, useNativeDriver: false }),
-          ]).start();
+          setIsLifted(true);
+          Animated.spring(scale, { toValue: 1.06, useNativeDriver: false, tension: 300 }).start();
           onDragStart(item.id);
         }, LONG_PRESS_MS);
       },
@@ -129,10 +127,8 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
         if (dragActivated.current) {
           isDragging.current = false;
           dragActivated.current = false;
-          Animated.parallel([
-            Animated.spring(scale, { toValue: 1, useNativeDriver: false }),
-            Animated.timing(elevation, { toValue: 1, duration: 100, useNativeDriver: false }),
-          ]).start();
+          setIsLifted(false);
+          Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
           onDragEnd(item.id);
         }
       },
@@ -140,10 +136,8 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
         clearTimeout(longPressTimer.current);
         isDragging.current = false;
         dragActivated.current = false;
-        Animated.parallel([
-          Animated.spring(scale, { toValue: 1, useNativeDriver: false }),
-          Animated.timing(elevation, { toValue: 1, duration: 100, useNativeDriver: false }),
-        ]).start();
+        setIsLifted(false);
+        Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
       },
     })
   ).current;
@@ -158,11 +152,11 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
         width: slot.w,
         height: slot.h,
         transform: [{ scale }],
-        zIndex: elevation,
+        zIndex: isLifted ? 100 : 1,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: isLifted ? 8 : 2 },
+        shadowOpacity: isLifted ? 0.25 : 0.1,
+        shadowRadius: isLifted ? 16 : 4,
       }}
     >
       <View style={styles.widgetInner}>
