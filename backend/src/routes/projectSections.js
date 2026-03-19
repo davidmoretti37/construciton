@@ -185,4 +185,150 @@ Return ONLY valid JSON, no markdown, no explanation:
   }
 });
 
+// ============================================================
+// POST /move-task — Move a task between sections (atomic transaction)
+// ============================================================
+router.post('/move-task', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { task_id, source_phase_id, target_phase_id, new_order } = req.body;
+
+    if (!task_id || !source_phase_id || !target_phase_id) {
+      return res.status(400).json({ error: 'task_id, source_phase_id, and target_phase_id required' });
+    }
+
+    // Fetch both phases (verify ownership via project)
+    const { data: sourcePhase, error: srcErr } = await supabase
+      .from('project_phases')
+      .select('id, tasks, project_id')
+      .eq('id', source_phase_id)
+      .single();
+
+    if (srcErr || !sourcePhase) return res.status(404).json({ error: 'Source section not found' });
+
+    // Verify user owns the project
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', sourcePhase.project_id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!project) return res.status(403).json({ error: 'Not authorized' });
+
+    const { data: targetPhase, error: tgtErr } = await supabase
+      .from('project_phases')
+      .select('id, tasks')
+      .eq('id', target_phase_id)
+      .single();
+
+    if (tgtErr || !targetPhase) return res.status(404).json({ error: 'Target section not found' });
+
+    // Find and remove task from source
+    const sourceTasks = sourcePhase.tasks || [];
+    const taskIndex = sourceTasks.findIndex(t => t.id === task_id);
+    if (taskIndex === -1) return res.status(404).json({ error: 'Task not found in source section' });
+
+    const [movedTask] = sourceTasks.splice(taskIndex, 1);
+
+    // Add task to target at specified position
+    const targetTasks = targetPhase.tasks || [];
+    const insertAt = Math.min(new_order || 0, targetTasks.length);
+    targetTasks.splice(insertAt, 0, movedTask);
+
+    // Reorder both arrays
+    sourceTasks.forEach((t, i) => { t.order = i; });
+    targetTasks.forEach((t, i) => { t.order = i; });
+
+    // Atomic writes — update both phases
+    const { error: updateSrcErr } = await supabase
+      .from('project_phases')
+      .update({ tasks: sourceTasks })
+      .eq('id', source_phase_id);
+
+    if (updateSrcErr) throw new Error(`Failed to update source: ${updateSrcErr.message}`);
+
+    const { error: updateTgtErr } = await supabase
+      .from('project_phases')
+      .update({ tasks: targetTasks })
+      .eq('id', target_phase_id);
+
+    if (updateTgtErr) {
+      // Rollback source — put task back
+      sourceTasks.splice(taskIndex, 0, movedTask);
+      sourceTasks.forEach((t, i) => { t.order = i; });
+      await supabase.from('project_phases').update({ tasks: sourceTasks }).eq('id', source_phase_id);
+      throw new Error(`Failed to update target: ${updateTgtErr.message}`);
+    }
+
+    // Update worker_tasks phase_task_id if it changed context
+    // (phase_task_id stays the same since it's the task's own ID, but we update the description link)
+    // No change needed — phase_task_id is the task.id which didn't change
+
+    logger.info(`[Sections] Moved task ${task_id} from ${source_phase_id} to ${target_phase_id}`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[Sections] Move task error:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to move task' });
+  }
+});
+
+// ============================================================
+// PATCH /reorder-tasks — Reorder tasks within a single section
+// ============================================================
+router.patch('/reorder-tasks', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { phase_id, task_ids } = req.body;
+
+    if (!phase_id || !task_ids || !Array.isArray(task_ids)) {
+      return res.status(400).json({ error: 'phase_id and task_ids array required' });
+    }
+
+    // Fetch phase and verify ownership
+    const { data: phase } = await supabase
+      .from('project_phases')
+      .select('id, tasks, project_id')
+      .eq('id', phase_id)
+      .single();
+
+    if (!phase) return res.status(404).json({ error: 'Section not found' });
+
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', phase.project_id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!project) return res.status(403).json({ error: 'Not authorized' });
+
+    // Reorder tasks based on provided ID order
+    const tasks = phase.tasks || [];
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    const reordered = task_ids
+      .map(id => taskMap.get(id))
+      .filter(Boolean)
+      .map((t, i) => ({ ...t, order: i }));
+
+    // Add any tasks not in the provided list at the end (safety net)
+    const providedIds = new Set(task_ids);
+    tasks.filter(t => !providedIds.has(t.id)).forEach((t, i) => {
+      reordered.push({ ...t, order: reordered.length + i });
+    });
+
+    const { error } = await supabase
+      .from('project_phases')
+      .update({ tasks: reordered })
+      .eq('id', phase_id);
+
+    if (error) throw error;
+
+    res.json({ success: true, tasks: reordered });
+  } catch (error) {
+    logger.error('[Sections] Reorder error:', error.message);
+    res.status(500).json({ error: 'Failed to reorder tasks' });
+  }
+});
+
 module.exports = router;
