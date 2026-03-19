@@ -4,7 +4,7 @@
  * Long-press to drag, drop to reorder, remove button, tap to resize.
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -23,10 +23,10 @@ const screenWidth = Dimensions.get('window').width;
 const GAP = 12;
 const GRID_PADDING = Spacing.lg;
 const FULL_WIDTH = screenWidth - GRID_PADDING * 2;
+const LONG_PRESS_MS = 300;
 
 /**
  * Calculate grid positions for items based on their sizes.
- * Small items pair up on the same row; medium/large take full rows.
  */
 function calculateGridPositions(items) {
   const positions = [];
@@ -38,24 +38,20 @@ function calculateGridPositions(items) {
     const { width, height } = getWidgetSize(item.size);
 
     if (item.size === 'small') {
-      // Check if next item is also small → pair them
       if (i + 1 < items.length && items[i + 1].size === 'small') {
         const nextItem = items[i + 1];
         const { height: nextHeight } = getWidgetSize(nextItem.size);
         const rowHeight = Math.max(height, nextHeight);
-
         positions.push({ ...item, x: 0, y, w: width, h: rowHeight });
         positions.push({ ...nextItem, x: colWidth + GAP, y, w: colWidth, h: rowHeight });
         y += rowHeight + GAP;
         i += 2;
       } else {
-        // Lone small widget — still half-width, left-aligned
         positions.push({ ...item, x: 0, y, w: width, h: height });
         y += height + GAP;
         i += 1;
       }
     } else {
-      // Medium or large — full width
       positions.push({ ...item, x: 0, y, w: FULL_WIDTH, h: height });
       y += height + GAP;
       i += 1;
@@ -65,15 +61,17 @@ function calculateGridPositions(items) {
   return { positions, totalHeight: y };
 }
 
-function DraggableWidget({ item, position, onRemove, onResize, renderWidget, onDragStart, onDragMove, onDragEnd, isDragging }) {
+function DraggableWidget({ item, position, onRemove, onResize, renderWidget, onDragStart, onDragMove, onDragEnd }) {
   const pan = useRef(new Animated.ValueXY({ x: position.x, y: position.y })).current;
   const scale = useRef(new Animated.Value(1)).current;
-  const zIndex = useRef(new Animated.Value(0)).current;
-  const dragStartPos = useRef({ x: 0, y: 0 });
+  const zIndexVal = useRef(new Animated.Value(0)).current;
+  const isDragging = useRef(false);
+  const longPressTimer = useRef(null);
+  const dragActivated = useRef(false);
 
-  // Update position when layout changes (and not dragging)
+  // Snap to position when not dragging
   React.useEffect(() => {
-    if (!isDragging) {
+    if (!isDragging.current) {
       Animated.spring(pan, {
         toValue: { x: position.x, y: position.y },
         useNativeDriver: false,
@@ -81,41 +79,75 @@ function DraggableWidget({ item, position, onRemove, onResize, renderWidget, onD
         friction: 25,
       }).start();
     }
-  }, [position.x, position.y, isDragging]);
+  }, [position.x, position.y]);
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gs) => {
-        return Math.abs(gs.dx) > 5 || Math.abs(gs.dy) > 5;
-      },
-      onPanResponderGrant: () => {
-        dragStartPos.current = { x: position.x, y: position.y };
-        pan.setOffset({ x: pan.x._value, y: pan.y._value });
-        pan.setValue({ x: 0, y: 0 });
-        Animated.parallel([
-          Animated.spring(scale, { toValue: 1.05, useNativeDriver: false }),
-          Animated.timing(zIndex, { toValue: 100, duration: 0, useNativeDriver: false }),
-        ]).start();
-        onDragStart(item.id);
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => dragActivated.current,
+      onPanResponderGrant: (_, gs) => {
+        dragActivated.current = false;
+        // Start long-press timer
+        longPressTimer.current = setTimeout(() => {
+          dragActivated.current = true;
+          isDragging.current = true;
+          pan.setOffset({ x: pan.x._value, y: pan.y._value });
+          pan.setValue({ x: 0, y: 0 });
+          Animated.parallel([
+            Animated.spring(scale, { toValue: 1.08, useNativeDriver: false, tension: 300 }),
+            Animated.timing(zIndexVal, { toValue: 100, duration: 0, useNativeDriver: false }),
+          ]).start();
+          onDragStart(item.id);
+        }, LONG_PRESS_MS);
       },
       onPanResponderMove: (_, gs) => {
-        pan.setValue({ x: gs.dx, y: gs.dy });
-        onDragMove(item.id, dragStartPos.current.x + gs.dx, dragStartPos.current.y + gs.dy);
+        // Cancel long-press if moved too much before activation
+        if (!dragActivated.current && (Math.abs(gs.dx) > 8 || Math.abs(gs.dy) > 8)) {
+          clearTimeout(longPressTimer.current);
+          return;
+        }
+        if (dragActivated.current) {
+          pan.setValue({ x: gs.dx, y: gs.dy });
+          onDragMove(item.id, position.x + gs.dx, position.y + gs.dy);
+        }
       },
-      onPanResponderRelease: () => {
-        pan.flattenOffset();
-        Animated.parallel([
-          Animated.spring(scale, { toValue: 1, useNativeDriver: false }),
-          Animated.timing(zIndex, { toValue: 0, duration: 0, useNativeDriver: false }),
-        ]).start();
-        onDragEnd(item.id);
+      onPanResponderRelease: (_, gs) => {
+        clearTimeout(longPressTimer.current);
+        if (dragActivated.current) {
+          pan.flattenOffset();
+          isDragging.current = false;
+          dragActivated.current = false;
+          Animated.parallel([
+            Animated.spring(scale, { toValue: 1, useNativeDriver: false }),
+            Animated.timing(zIndexVal, { toValue: 0, duration: 0, useNativeDriver: false }),
+          ]).start();
+          onDragEnd(item.id);
+        } else {
+          // It was a tap — trigger resize
+          if (Math.abs(gs.dx) < 8 && Math.abs(gs.dy) < 8) {
+            onResize(item);
+          }
+        }
+      },
+      onPanResponderTerminate: () => {
+        clearTimeout(longPressTimer.current);
+        if (isDragging.current) {
+          pan.flattenOffset();
+          isDragging.current = false;
+          dragActivated.current = false;
+          Animated.parallel([
+            Animated.spring(scale, { toValue: 1, useNativeDriver: false }),
+            Animated.timing(zIndexVal, { toValue: 0, duration: 0, useNativeDriver: false }),
+          ]).start();
+          onDragEnd(item.id);
+        }
       },
     })
   ).current;
 
   return (
     <Animated.View
+      {...panResponder.panHandlers}
       style={[
         styles.widgetContainer,
         {
@@ -126,25 +158,16 @@ function DraggableWidget({ item, position, onRemove, onResize, renderWidget, onD
             { translateY: pan.y },
             { scale },
           ],
-          zIndex,
+          zIndex: zIndexVal,
           position: 'absolute',
           left: 0,
           top: 0,
         },
       ]}
     >
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => onResize(item)}
-        onLongPress={() => {}} // PanResponder handles the gesture after long press
-        delayLongPress={200}
-        style={[styles.widgetTouchable, { width: '100%', height: '100%' }]}
-        {...panResponder.panHandlers}
-      >
-        <View style={styles.widgetHighlight}>
-          {renderWidget(item)}
-        </View>
-      </TouchableOpacity>
+      <View style={styles.widgetHighlight}>
+        {renderWidget(item)}
+      </View>
       <TouchableOpacity
         style={styles.removeBadge}
         onPress={() => onRemove(item.id)}
@@ -165,35 +188,32 @@ export default function DraggableWidgetGrid({
   footer,
 }) {
   const draggingId = useRef(null);
+  const [, forceUpdate] = useState(0);
 
   const { positions, totalHeight } = useMemo(() => calculateGridPositions(items), [items]);
 
-  const handleDragStart = (id) => {
+  const handleDragStart = useCallback((id) => {
     draggingId.current = id;
-  };
+  }, []);
 
-  const handleDragMove = (id, x, y) => {
-    // Find which position the dragged item is closest to
-    // This could be enhanced to show visual insertion points
-  };
+  const handleDragMove = useCallback((id, x, y) => {
+    // Could add visual insertion indicators here
+  }, []);
 
-  const handleDragEnd = (id) => {
+  const handleDragEnd = useCallback((id) => {
     draggingId.current = null;
-
-    // Find the current position of the dragged item in the grid
-    // and determine the new order based on y-position
-    // For now, just let the spring animation snap back
-    // The reorder happens through the existing reorder mechanism
-  };
+    forceUpdate(n => n + 1);
+  }, []);
 
   return (
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
       showsVerticalScrollIndicator={false}
+      scrollEnabled={!draggingId.current}
     >
       <View style={[styles.gridContainer, { height: totalHeight }]}>
-        {positions.map((pos, index) => (
+        {positions.map((pos) => (
           <DraggableWidget
             key={pos.id}
             item={pos}
@@ -204,7 +224,6 @@ export default function DraggableWidgetGrid({
             onDragStart={handleDragStart}
             onDragMove={handleDragMove}
             onDragEnd={handleDragEnd}
-            isDragging={draggingId.current === pos.id}
           />
         ))}
       </View>
@@ -224,10 +243,6 @@ const styles = StyleSheet.create({
   },
   widgetContainer: {
     overflow: 'visible',
-  },
-  widgetTouchable: {
-    borderRadius: 20,
-    overflow: 'hidden',
   },
   widgetHighlight: {
     width: '100%',
