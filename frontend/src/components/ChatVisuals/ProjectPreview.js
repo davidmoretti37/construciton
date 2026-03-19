@@ -199,44 +199,9 @@ export default function ProjectPreview({ data, onAction }) {
     setIsEditing(false);
   };
 
-  const handleSaveEdit = async () => {
-    // FIX: Use ref to get the LATEST editedData, avoiding stale closure issue
-    const latestEditedData = editedDataRef.current;
-
-    const newPhases = latestEditedData.phases || phases;
-    const newServices = latestEditedData.services || services;
-    const currentSchedule = latestEditedData.schedule || schedule;
-
-    // DEBUG: Log what we're saving
-    console.log('🔍 [handleSaveEdit] latestEditedData.schedule:', latestEditedData.schedule);
-    console.log('🔍 [handleSaveEdit] currentSchedule:', currentSchedule);
-    console.log('🔍 [handleSaveEdit] startDate will be:', currentSchedule?.startDate || data.startDate || data.date);
-    console.log('🔍 [handleSaveEdit] endDate will be:', currentSchedule?.estimatedEndDate || currentSchedule?.projectdEndDate || data.endDate);
-
-    const updatedData = {
-      ...data,
-      ...latestEditedData,
-      phases: newPhases,
-      services: newServices,
-      // Extract schedule dates to top-level so they take precedence over original data
-      startDate: currentSchedule?.startDate || data.startDate || data.date,
-      endDate: currentSchedule?.estimatedEndDate || currentSchedule?.projectdEndDate || data.endDate,
-    };
-
-    console.log('🔍 [handleSaveEdit] Final updatedData.startDate:', updatedData.startDate);
-    console.log('🔍 [handleSaveEdit] Final updatedData.endDate:', updatedData.endDate);
-
-    if (onAction) {
-      setIsDistributing(true);  // Show loading overlay
-      try {
-        const actionType = data.id ? 'update-project' : 'save-project';
-        await onAction({ type: actionType, data: updatedData });
-      } catch (error) {
-        console.error('Error saving edit:', error);
-      } finally {
-        setIsDistributing(false);  // Hide loading overlay
-      }
-    }
+  const handleSaveEdit = () => {
+    // Just exit edit mode — edits are already stored in editedData state
+    // The actual project save only happens when user taps the Save Project button
     setIsEditing(false);
   };
 
