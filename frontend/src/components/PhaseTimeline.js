@@ -13,7 +13,7 @@ export default function PhaseTimeline({
   onTaskReorder,
   onTaskMove,
   compact = false,
-  expandedPhaseId = null,
+  expandedPhaseIds = new Set(),
   projectProgress = null,
   isEditing = false,
   progressValues = {},
@@ -86,7 +86,25 @@ export default function PhaseTimeline({
     }
   }, [onTaskReorder]);
 
+  const handleMoveTask = useCallback((task, sourcePhase) => {
+    const otherPhases = phases.filter(p => p.id !== sourcePhase.id);
+    if (otherPhases.length === 0) return;
+
+    Alert.alert(
+      'Move Task',
+      `Move "${task.description || task.name}" to:`,
+      [
+        ...otherPhases.map(targetPhase => ({
+          text: targetPhase.name,
+          onPress: () => onTaskMove && onTaskMove(task, sourcePhase, targetPhase),
+        })),
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }, [phases, onTaskMove]);
+
   const renderTask = useCallback(({ item: task, drag, isActive, phase }) => {
+    const hasMultipleSections = phases.length > 1;
     return (
       <ScaleDecorator>
         <TouchableOpacity
@@ -126,10 +144,19 @@ export default function PhaseTimeline({
           >
             {task.description || task.name}
           </Text>
+          {hasMultipleSections && onTaskMove && (
+            <TouchableOpacity
+              style={styles.taskMoveBtn}
+              onPress={() => handleMoveTask(task, phase)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="swap-horizontal" size={16} color={Colors.secondaryText + '80'} />
+            </TouchableOpacity>
+          )}
         </TouchableOpacity>
       </ScaleDecorator>
     );
-  }, [onTaskToggle, Colors]);
+  }, [onTaskToggle, onTaskMove, handleMoveTask, Colors, phases.length]);
 
   return (
     <View style={styles.container}>
@@ -145,7 +172,7 @@ export default function PhaseTimeline({
       {/* Section List */}
       {phases.map((phase, index) => {
         const statusColor = getStatusColor(phase.status);
-        const isExpanded = expandedPhaseId === phase.id;
+        const isExpanded = expandedPhaseIds.has(phase.id);
         const phaseTasks = phase.tasks || [];
         const completedCount = phaseTasks.filter(t => t.completed).length;
 
@@ -416,6 +443,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     flex: 1,
     lineHeight: 20,
+  },
+  taskMoveBtn: {
+    padding: Spacing.xs,
+    marginLeft: Spacing.xs,
   },
   emptyTasks: {
     borderTopWidth: 1,

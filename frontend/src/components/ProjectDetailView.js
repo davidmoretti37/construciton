@@ -85,8 +85,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const isOwnProject = project?.createdBy === profile?.id || project?.user_id === profile?.id;
   const canAssignToSupervisor = isOwner && isOwnProject && !isDemo;
 
-  // Expanded phase for showing tasks
-  const [expandedPhaseId, setExpandedPhaseId] = useState(null);
+  // Expanded phases for showing tasks (multiple can be open)
+  const [expandedPhaseIds, setExpandedPhaseIds] = useState(new Set());
 
   // Manual progress override
   // Note: Progress override removed - progress is now calculated from task completion in schedule
@@ -391,6 +391,50 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     return name.substring(0, 2).toUpperCase();
   };
 
+  const handleTaskMove = async (task, sourcePhase, targetPhase) => {
+    // Optimistic update — remove from source, add to target
+    setPhases(prev => prev.map(p => {
+      if (p.id === sourcePhase.id) {
+        return { ...p, tasks: (p.tasks || []).filter(t => t.id !== task.id).map((t, i) => ({ ...t, order: i })) };
+      }
+      if (p.id === targetPhase.id) {
+        const tasks = [...(p.tasks || []), { ...task, order: (p.tasks || []).length }];
+        return { ...p, tasks };
+      }
+      return p;
+    }));
+
+    // Persist via backend (atomic transaction with rollback)
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
+      const baseUrl = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+
+      const resp = await fetch(`${baseUrl}/api/project-sections/move-task`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          task_id: task.id,
+          source_phase_id: sourcePhase.id,
+          target_phase_id: targetPhase.id,
+          new_order: (targetPhase.tasks || []).length,
+        }),
+      });
+
+      if (!resp.ok) {
+        throw new Error('Move failed');
+      }
+    } catch (err) {
+      console.error('Task move error:', err);
+      // Revert on failure
+      const updated = await fetchProjectPhases(project.id);
+      if (updated) setPhases(updated);
+    }
+  };
+
   const handleTaskReorder = async (phaseId, reorderedTasks) => {
     // Optimistic update
     setPhases(prev => prev.map(p => {
@@ -417,12 +461,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   };
 
   const handlePhasePress = (phase) => {
-    // Toggle expand/collapse of phase tasks
-    if (expandedPhaseId === phase.id) {
-      setExpandedPhaseId(null); // Collapse if already expanded
-    } else {
-      setExpandedPhaseId(phase.id); // Expand this phase
-    }
+    setExpandedPhaseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(phase.id)) {
+        next.delete(phase.id);
+      } else {
+        next.add(phase.id);
+      }
+      return next;
+    });
   };
 
   const handleTaskToggle = (task, phase) => {
@@ -1302,8 +1349,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 onPhasePress={handlePhasePress}
                 onTaskToggle={handleTaskToggle}
                 onTaskReorder={handleTaskReorder}
+                onTaskMove={handleTaskMove}
                 compact={false}
-                expandedPhaseId={expandedPhaseId}
+                expandedPhaseIds={expandedPhaseIds}
                 isEditing={isEditingPhases}
                 progressValues={phaseProgressValues}
                 onProgressChange={(phaseId, value) => {
