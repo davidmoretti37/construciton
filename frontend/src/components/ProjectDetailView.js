@@ -1514,9 +1514,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     key={worker.id}
                     style={[styles.workerCard, { backgroundColor: Colors.lightGray }]}
                     onPress={() => {
-                      if (navigation && worker.id) {
+                      if (navigation) {
                         onClose?.();
-                        navigation.navigate('WorkerDetailHistory', { workerId: worker.id, workerName: worker.full_name });
+                        navigation.navigate('WorkerDetailHistory', { worker });
                       }
                     }}
                     activeOpacity={0.7}
