@@ -2533,7 +2533,7 @@ async function create_project_phase(userId, { project_id, phase_name, planned_da
       project_id: resolved.id,
       name: phase_name.trim(),
       order_index: maxOrder + 1,
-      planned_days: planned_days || 5,
+      planned_days: planned_days || null,
       tasks: phaseTasks,
       completion_percentage: 0,
       status: 'not_started',

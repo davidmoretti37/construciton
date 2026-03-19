@@ -401,7 +401,7 @@ const toolDefinitions = [
           },
           planned_days: {
             type: 'number',
-            description: 'Estimated number of working days for this phase. Defaults to 5.'
+            description: 'Optional estimated number of working days. Leave empty if unknown — owner can add later.'
           },
           tasks: {
             type: 'array',

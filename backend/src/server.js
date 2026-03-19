@@ -110,6 +110,10 @@ app.use('/api/subscription', servicesLimiter, stripeRoutes);
 app.use('/api/teller', servicesLimiter, tellerRoutes);
 app.use('/api/integrations/google-drive', servicesLimiter, googleDriveRoutes);
 
+// Project sections AI generation
+const projectSectionsRoutes = require('./routes/projectSections');
+app.use('/api/project-sections', servicesLimiter, projectSectionsRoutes);
+
 // ============================================================
 // HEALTH & READINESS CHECKS
 // ============================================================
