@@ -391,6 +391,31 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     return name.substring(0, 2).toUpperCase();
   };
 
+  const handleTaskReorder = async (phaseId, reorderedTasks) => {
+    // Optimistic update
+    setPhases(prev => prev.map(p => {
+      if (p.id !== phaseId) return p;
+      return { ...p, tasks: reorderedTasks.map((t, i) => ({ ...t, order: i })) };
+    }));
+
+    // Persist to DB
+    try {
+      const tasksWithOrder = reorderedTasks.map((t, i) => ({ ...t, order: i }));
+      const { error } = await supabase
+        .from('project_phases')
+        .update({ tasks: tasksWithOrder })
+        .eq('id', phaseId);
+
+      if (error) {
+        console.error('Reorder failed:', error);
+        const updated = await fetchProjectPhases(project.id);
+        if (updated) setPhases(updated);
+      }
+    } catch (err) {
+      console.error('Reorder error:', err);
+    }
+  };
+
   const handlePhasePress = (phase) => {
     // Toggle expand/collapse of phase tasks
     if (expandedPhaseId === phase.id) {
@@ -1276,6 +1301,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 projectProgress={calculatedProgress}
                 onPhasePress={handlePhasePress}
                 onTaskToggle={handleTaskToggle}
+                onTaskReorder={handleTaskReorder}
                 compact={false}
                 expandedPhaseId={expandedPhaseId}
                 isEditing={isEditingPhases}
