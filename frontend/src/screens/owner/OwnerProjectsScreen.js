@@ -116,6 +116,8 @@ export default function OwnerProjectsScreen() {
           return project.status === 'completed';
         case 'mine':
           return project.assignment_status === 'owner_direct';
+        case 'assigned':
+          return project.assignment_status === 'assigned_to_supervisor' || project.assignment_status === 'supervisor_own';
         case 'draft':
           return project.status === 'draft';
         case 'archived':
@@ -130,8 +132,9 @@ export default function OwnerProjectsScreen() {
   const FILTERS = [
     { key: 'all', label: 'All', count: projects.length },
     { key: 'active', label: 'Active', count: projects.filter(p => ['active', 'on-track', 'behind', 'over-budget'].includes(p.status)).length },
-    { key: 'completed', label: 'Done', count: projects.filter(p => p.status === 'completed').length },
     { key: 'mine', label: 'Mine', count: projects.filter(p => p.assignment_status === 'owner_direct').length },
+    { key: 'assigned', label: 'Assigned', count: projects.filter(p => p.assignment_status === 'assigned_to_supervisor' || p.assignment_status === 'supervisor_own').length },
+    { key: 'completed', label: 'Done', count: projects.filter(p => p.status === 'completed').length },
     { key: 'draft', label: 'Draft', count: projects.filter(p => p.status === 'draft').length },
   ];
 
