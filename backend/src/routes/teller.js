@@ -1800,12 +1800,18 @@ async function syncAccountTransactions(userId, account, overrideFromDate = null)
       unmatched: reconcileResult.unmatched,
     };
   } catch (error) {
+    // Clean up error message for display
+    const isExpired = error.message?.includes('not_found') || error.message?.includes('404') || error.message?.includes('unauthorized') || error.message?.includes('401');
+    const displayError = isExpired
+      ? 'Connection expired. Please disconnect and reconnect this account.'
+      : error.message;
+
     // Update account with error
     await supabaseAdmin
       .from('connected_bank_accounts')
       .update({
         sync_status: 'error',
-        sync_error: error.message,
+        sync_error: displayError,
       })
       .eq('id', account.id);
 

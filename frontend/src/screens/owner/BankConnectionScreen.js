@@ -405,12 +405,28 @@ export default function BankConnectionScreen() {
                   )}
 
                   {/* Error banner */}
-                  {account.sync_error && (
-                    <View style={styles.walletError}>
-                      <Ionicons name="warning" size={12} color="#FCA5A5" />
-                      <Text style={styles.walletErrorText}>{account.sync_error}</Text>
-                    </View>
-                  )}
+                  {account.sync_error && (() => {
+                    const isExpired = account.sync_error.includes('not_found') || account.sync_error.includes('404') || account.sync_error.includes('unauthorized') || account.sync_error.includes('401');
+                    return isExpired ? (
+                      <View style={styles.walletExpired}>
+                        <Ionicons name="link-outline" size={14} color="#FCA5A5" />
+                        <Text style={styles.walletExpiredText}>Connection expired — reconnect this account</Text>
+                        <TouchableOpacity
+                          style={styles.walletReconnectBtn}
+                          onPress={() => {
+                            handleDisconnect(account.id, account.institution_name);
+                          }}
+                        >
+                          <Text style={styles.walletReconnectText}>Remove & Reconnect</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={styles.walletError}>
+                        <Ionicons name="warning" size={12} color="#FCA5A5" />
+                        <Text style={styles.walletErrorText}>{account.sync_error}</Text>
+                      </View>
+                    );
+                  })()}
 
                   {/* Bottom row: type + actions */}
                   <View style={styles.walletCardBottom}>
@@ -725,6 +741,32 @@ const styles = StyleSheet.create({
     color: '#FCA5A5',
     fontSize: 11,
     flex: 1,
+  },
+  walletExpired: {
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    padding: 10,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  walletExpiredText: {
+    color: '#FCA5A5',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  walletReconnectBtn: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  walletReconnectText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   walletCardBottom: {
     flexDirection: 'row',
