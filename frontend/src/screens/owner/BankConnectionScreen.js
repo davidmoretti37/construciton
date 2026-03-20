@@ -62,7 +62,7 @@ export default function BankConnectionScreen() {
   const [isFreshStart, setIsFreshStart] = useState(true);
   const [monthsBack, setMonthsBack] = useState('');
   const [importLoading, setImportLoading] = useState(false);
-  const accountIdsBeforeConnect = useRef([]);
+  const checkingRef = useRef(false);
 
   const getFromDate = () => {
     if (isFreshStart) return new Date().toISOString().split('T')[0];
@@ -84,45 +84,61 @@ export default function BankConnectionScreen() {
     }
   };
 
-  // Detect new accounts when app returns to foreground
+  // Check if we were connecting and detect new accounts — all via AsyncStorage, survives reloads
   const checkForNewAccounts = async () => {
-    if (!connecting) return; // Only check if we were in the middle of connecting
-
+    if (checkingRef.current) return; // Prevent double-runs
     try {
-      // Small delay to let AsyncStorage flag and backend enrollment finish
-      await new Promise(r => setTimeout(r, 2000));
+      const savedBefore = await AsyncStorage.getItem('@teller_accounts_before');
+      if (!savedBefore) return; // Not in the middle of connecting
 
-      const result = await getConnectedAccounts();
-      const updatedAccounts = result.accounts || [];
-      setAccounts(updatedAccounts);
-      setConnecting(false);
+      checkingRef.current = true;
+      const beforeIds = JSON.parse(savedBefore);
 
-      const beforeIds = accountIdsBeforeConnect.current;
-      const newIds = updatedAccounts
-        .filter(a => !beforeIds.includes(a.id))
-        .map(a => a.id);
+      // Retry up to 3 times with 2s gaps (enrollment may still be processing)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
 
-      if (newIds.length > 0) {
-        // Clear the AsyncStorage flag if it exists
-        await AsyncStorage.removeItem('@teller_enrollment_complete');
-        setNewAccountIds(newIds);
-        setIsFreshStart(true);
-        setMonthsBack('');
-        setShowImportModal(true);
+        const result = await getConnectedAccounts();
+        const currentAccounts = result.accounts || [];
+        setAccounts(currentAccounts);
+
+        const newIds = currentAccounts
+          .filter(a => !beforeIds.includes(a.id))
+          .map(a => a.id);
+
+        if (newIds.length > 0) {
+          // Found new accounts — clean up and show modal
+          await AsyncStorage.removeItem('@teller_accounts_before');
+          await AsyncStorage.removeItem('@teller_enrollment_complete');
+          setConnecting(false);
+          setNewAccountIds(newIds);
+          setIsFreshStart(true);
+          setMonthsBack('');
+          setShowImportModal(true);
+          checkingRef.current = false;
+          return;
+        }
       }
+
+      // 3 attempts, no new accounts found — give up
+      await AsyncStorage.removeItem('@teller_accounts_before');
+      setConnecting(false);
+      checkingRef.current = false;
     } catch (error) {
       console.error('Error checking for new accounts:', error);
       setConnecting(false);
+      checkingRef.current = false;
     }
   };
 
   useFocusEffect(
     useCallback(() => {
       loadAccounts();
+      checkForNewAccounts();
     }, [])
   );
 
-  // Listen for app returning from Safari
+  // Also check when app returns to foreground (from Safari)
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
@@ -130,13 +146,13 @@ export default function BankConnectionScreen() {
       }
     });
     return () => sub.remove();
-  }, [connecting]);
+  }, []);
 
   const handleConnectBank = async () => {
     try {
       setConnecting(true);
-      // Snapshot current account IDs so we can detect new ones after Safari return
-      accountIdsBeforeConnect.current = accounts.map(a => a.id);
+      // Save current account IDs to AsyncStorage — survives app reloads
+      await AsyncStorage.setItem('@teller_accounts_before', JSON.stringify(accounts.map(a => a.id)));
 
       const { url } = await getConnectSession();
       await Linking.openURL(url);
