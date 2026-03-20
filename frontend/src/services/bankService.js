@@ -191,6 +191,18 @@ export const assignBankTransaction = async (bankTxId, projectId, category, descr
   });
 };
 
+export const assignBankTransactionAsOverhead = async (bankTxId, { description, isRecurring, frequency }) => {
+  return fetchWithAuth(`/api/teller/transactions/${bankTxId}/assign`, {
+    method: 'POST',
+    body: JSON.stringify({
+      is_overhead: true,
+      overhead_name: description,
+      is_recurring: isRecurring,
+      frequency: frequency || 'monthly',
+    }),
+  });
+};
+
 /**
  * Bulk assign multiple transactions
  */

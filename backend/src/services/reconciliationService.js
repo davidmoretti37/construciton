@@ -58,6 +58,13 @@ async function reconcileTransactions(userId, bankAccountId, supabase) {
   const userProjectIds = new Set((userProjects || []).map(p => p.id));
   const filteredPlatformTxs = (platformTxs || []).filter(tx => userProjectIds.has(tx.project_id));
 
+  // Get active overhead items for overhead matching
+  const { data: overheadItems } = await supabase
+    .from('recurring_expenses')
+    .select('id, description, amount, frequency')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
   let autoMatched = 0;
   let suggestedMatch = 0;
   let unmatched = 0;
@@ -118,7 +125,85 @@ async function reconcileTransactions(userId, bankAccountId, supabase) {
 
       suggestedMatch++;
     } else {
-      unmatched++;
+      // No project match — try matching to overhead items
+      let overheadMatched = false;
+
+      if (overheadItems && overheadItems.length > 0) {
+        let bestOverhead = null;
+        let bestOverheadScore = 0;
+
+        for (const oh of overheadItems) {
+          const ohAmount = parseFloat(oh.amount);
+          const ohDesc = (oh.description || '').toLowerCase();
+
+          // Amount match
+          let amountScore = 0;
+          if (bankAmount === ohAmount) {
+            amountScore = 1.0;
+          } else {
+            const diff = Math.abs(bankAmount - ohAmount);
+            const pctDiff = diff / Math.max(bankAmount, ohAmount);
+            if (pctDiff <= 0.01) amountScore = 0.9;
+            else if (pctDiff <= 0.05) amountScore = 0.5;
+          }
+
+          if (amountScore === 0) continue;
+
+          // Description match
+          let descScore = 0;
+          if (ohDesc && bankDesc) {
+            if (bankDesc.includes(ohDesc) || ohDesc.includes(bankDesc)) {
+              descScore = 0.9;
+            } else {
+              const ohWords = ohDesc.split(/\s+/).filter(w => w.length > 2);
+              const bankWords = bankDesc.split(/\s+/).filter(w => w.length > 2);
+              if (ohWords.length > 0 && bankWords.length > 0) {
+                const overlap = ohWords.filter(w => bankWords.some(bw => bw.includes(w) || w.includes(bw))).length;
+                descScore = (overlap / Math.max(ohWords.length, bankWords.length)) * 0.8;
+              }
+            }
+          } else {
+            descScore = 0.2;
+          }
+
+          const score = (amountScore * 0.6) + (descScore * 0.4);
+          if (score > bestOverheadScore) {
+            bestOverheadScore = score;
+            bestOverhead = oh;
+          }
+        }
+
+        if (bestOverheadScore >= 0.85 && bestOverhead) {
+          await supabase
+            .from('bank_transactions')
+            .update({
+              match_status: 'created',
+              assigned_category: 'overhead',
+              overhead_expense_id: bestOverhead.id,
+              match_confidence: bestOverheadScore,
+              matched_at: new Date().toISOString(),
+              matched_by: 'auto',
+            })
+            .eq('id', bankTx.id);
+          autoMatched++;
+          overheadMatched = true;
+        } else if (bestOverheadScore >= 0.60 && bestOverhead) {
+          await supabase
+            .from('bank_transactions')
+            .update({
+              match_status: 'suggested_match',
+              assigned_category: 'overhead',
+              overhead_expense_id: bestOverhead.id,
+              match_confidence: bestOverheadScore,
+              matched_by: 'auto',
+            })
+            .eq('id', bankTx.id);
+          suggestedMatch++;
+          overheadMatched = true;
+        }
+      }
+
+      if (!overheadMatched) unmatched++;
     }
   }
 

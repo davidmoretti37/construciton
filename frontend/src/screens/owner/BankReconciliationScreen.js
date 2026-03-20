@@ -223,7 +223,8 @@ export default function BankReconciliationScreen() {
     const isUnknown = !txType;
     const displayType = txType || 'unknown';
     const typeColor = getTypeColor(displayType);
-    const linkedProject = item.matched_transaction?.project?.name || item.assigned_project?.name;
+    const isOverhead = item.assigned_category === 'overhead';
+    const linkedProject = isOverhead ? null : (item.matched_transaction?.project?.name || item.assigned_project?.name);
     const isLowConfidence = item.classification_confidence === 'low';
     const subcategoryLabel = item.subcategory ? getSubcategoryLabel(item.subcategory) : null;
 
@@ -273,6 +274,12 @@ export default function BankReconciliationScreen() {
                 <Text style={[styles.linkedProjectText, { color: OWNER_COLORS.primary }]}>{linkedProject}</Text>
               </View>
             )}
+            {isOverhead && (
+              <View style={styles.linkedProject}>
+                <Ionicons name="business-outline" size={12} color="#F59E0B" />
+                <Text style={[styles.linkedProjectText, { color: '#F59E0B' }]}>Overhead</Text>
+              </View>
+            )}
           </View>
           <View style={styles.txRight}>
             <Text style={[styles.txAmount, { color: typeColor }]}>
@@ -320,14 +327,21 @@ export default function BankReconciliationScreen() {
               onPress={() => handleAssign(item)}
             >
               <Ionicons name="arrow-forward-circle-outline" size={16} color={OWNER_COLORS.primary} />
-              <Text style={[styles.txActionText, { color: OWNER_COLORS.primary }]}>{t('reconciliation.assignToProject')}</Text>
+              <Text style={[styles.txActionText, { color: OWNER_COLORS.primary }]}>Project</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.txActionBtn, { backgroundColor: '#F59E0B10' }]}
+              onPress={() => navigation.navigate('BankTransactionAssign', { transaction: item, isOverhead: true })}
+            >
+              <Ionicons name="business-outline" size={16} color="#F59E0B" />
+              <Text style={[styles.txActionText, { color: '#F59E0B' }]}>Overhead</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.txActionBtn, { backgroundColor: Colors.border + '50' }]}
               onPress={() => handleIgnore(item.id)}
             >
               <Ionicons name="eye-off-outline" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>{t('reconciliation.ignore')}</Text>
+              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>Ignore</Text>
             </TouchableOpacity>
           </View>
         )}

@@ -25,7 +25,7 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { assignBankTransaction } from '../../services/bankService';
+import { assignBankTransaction, assignBankTransactionAsOverhead } from '../../services/bankService';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',
@@ -53,7 +53,9 @@ export default function BankTransactionAssignScreen() {
   const { t } = useTranslation('owner');
 
   const transaction = route.params?.transaction;
+  const initialOverhead = route.params?.isOverhead === true;
 
+  const [mode, setMode] = useState(initialOverhead ? 'overhead' : 'project');
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('materials');
@@ -61,6 +63,10 @@ export default function BankTransactionAssignScreen() {
   const [projectSearch, setProjectSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // Overhead state
+  const [overheadType, setOverheadType] = useState('one_time');
+  const [overheadFrequency, setOverheadFrequency] = useState('monthly');
 
   useEffect(() => {
     loadProjects();
@@ -91,6 +97,28 @@ export default function BankTransactionAssignScreen() {
   });
 
   const handleSubmit = async () => {
+    if (mode === 'overhead') {
+      try {
+        setSubmitting(true);
+        await assignBankTransactionAsOverhead(transaction.id, {
+          description: description,
+          isRecurring: overheadType === 'recurring',
+          frequency: overheadFrequency,
+        });
+
+        const msg = overheadType === 'recurring'
+          ? `Marked as recurring overhead ($${Math.abs(transaction.amount).toFixed(2)}/${overheadFrequency})`
+          : `Marked as one-time overhead ($${Math.abs(transaction.amount).toFixed(2)})`;
+
+        Alert.alert('Assigned to Overhead', msg, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      } catch (error) {
+        Alert.alert('Error', error.message || 'Failed to assign as overhead');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (!selectedProject) {
       Alert.alert(t('transactionAssign.selectProject'), t('transactionAssign.selectProjectDesc'));
       return;
@@ -165,127 +193,155 @@ export default function BankTransactionAssignScreen() {
             </Text>
           </View>
 
+          {/* Mode Toggle: Project or Overhead */}
+          <View style={[styles.modeToggle, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
+            <TouchableOpacity
+              style={[styles.modeBtn, mode === 'project' && { backgroundColor: OWNER_COLORS.primary }]}
+              onPress={() => setMode('project')}
+            >
+              <Ionicons name="briefcase-outline" size={16} color={mode === 'project' ? '#FFF' : Colors.secondaryText} />
+              <Text style={[styles.modeBtnText, { color: mode === 'project' ? '#FFF' : Colors.secondaryText }]}>Project</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeBtn, mode === 'overhead' && { backgroundColor: '#F59E0B' }]}
+              onPress={() => setMode('overhead')}
+            >
+              <Ionicons name="business-outline" size={16} color={mode === 'overhead' ? '#FFF' : Colors.secondaryText} />
+              <Text style={[styles.modeBtnText, { color: mode === 'overhead' ? '#FFF' : Colors.secondaryText }]}>Overhead</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Description */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.description')}</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>Description</Text>
             <TextInput
               style={[styles.input, { backgroundColor: Colors.cardBackground, borderColor: Colors.border, color: Colors.primaryText }]}
               value={description}
               onChangeText={setDescription}
-              placeholder={t('transactionAssign.descriptionPlaceholder')}
+              placeholder={mode === 'overhead' ? 'e.g., Truck Payment, Office Rent' : t('transactionAssign.descriptionPlaceholder')}
               placeholderTextColor={Colors.placeholderText}
             />
           </View>
 
-          {/* Category Selection */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.category')}</Text>
-            <View style={styles.categoryGrid}>
-              {CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat.key}
-                  style={[
-                    styles.categoryItem,
-                    {
-                      backgroundColor: selectedCategory === cat.key ? OWNER_COLORS.primary : Colors.cardBackground,
-                      borderColor: selectedCategory === cat.key ? OWNER_COLORS.primary : Colors.border,
-                    },
-                  ]}
-                  onPress={() => setSelectedCategory(cat.key)}
-                >
-                  <Ionicons
-                    name={cat.icon}
-                    size={18}
-                    color={selectedCategory === cat.key ? '#FFF' : Colors.secondaryText}
-                  />
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      { color: selectedCategory === cat.key ? '#FFF' : Colors.primaryText },
-                    ]}
-                  >
-                    {t(cat.labelKey)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Project Selection */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.assignToProject')}</Text>
-
-            <TextInput
-              style={[styles.input, { backgroundColor: Colors.cardBackground, borderColor: Colors.border, color: Colors.primaryText, marginBottom: Spacing.md }]}
-              value={projectSearch}
-              onChangeText={setProjectSearch}
-              placeholder={t('transactionAssign.searchProjects')}
-              placeholderTextColor={Colors.placeholderText}
-            />
-
-            {loading ? (
-              <ActivityIndicator color={OWNER_COLORS.primary} />
-            ) : (
-              <View style={styles.projectList}>
-                {filteredProjects.map((project) => (
+          {mode === 'overhead' ? (
+            <>
+              {/* Overhead Type */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>Type</Text>
+                <View style={styles.categoryGrid}>
                   <TouchableOpacity
-                    key={project.id}
-                    style={[
-                      styles.projectItem,
-                      {
-                        backgroundColor: selectedProject?.id === project.id
-                          ? OWNER_COLORS.primaryLight
-                          : Colors.cardBackground,
-                        borderColor: selectedProject?.id === project.id
-                          ? OWNER_COLORS.primary
-                          : Colors.border,
-                      },
-                    ]}
-                    onPress={() => setSelectedProject(project)}
+                    style={[styles.categoryItem, { backgroundColor: overheadType === 'one_time' ? '#F59E0B' : Colors.cardBackground, borderColor: overheadType === 'one_time' ? '#F59E0B' : Colors.border }]}
+                    onPress={() => setOverheadType('one_time')}
                   >
-                    <View style={styles.projectInfo}>
-                      <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-                        {project.name}
-                      </Text>
-                      {project.location && (
-                        <Text style={[styles.projectClient, { color: Colors.secondaryText }]}>
-                          {project.location}
-                        </Text>
-                      )}
-                    </View>
-                    {selectedProject?.id === project.id && (
-                      <Ionicons name="checkmark-circle" size={22} color={OWNER_COLORS.primary} />
-                    )}
+                    <Ionicons name="receipt-outline" size={18} color={overheadType === 'one_time' ? '#FFF' : Colors.secondaryText} />
+                    <Text style={[styles.categoryLabel, { color: overheadType === 'one_time' ? '#FFF' : Colors.primaryText }]}>One-time</Text>
                   </TouchableOpacity>
-                ))}
+                  <TouchableOpacity
+                    style={[styles.categoryItem, { backgroundColor: overheadType === 'recurring' ? '#F59E0B' : Colors.cardBackground, borderColor: overheadType === 'recurring' ? '#F59E0B' : Colors.border }]}
+                    onPress={() => setOverheadType('recurring')}
+                  >
+                    <Ionicons name="repeat-outline" size={18} color={overheadType === 'recurring' ? '#FFF' : Colors.secondaryText} />
+                    <Text style={[styles.categoryLabel, { color: overheadType === 'recurring' ? '#FFF' : Colors.primaryText }]}>Recurring</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-                {filteredProjects.length === 0 && (
-                  <Text style={[styles.noProjects, { color: Colors.secondaryText }]}>
-                    {projectSearch ? t('transactionAssign.noMatchingProjects') : t('transactionAssign.noActiveProjects')}
-                  </Text>
+              {/* Frequency (only for recurring) */}
+              {overheadType === 'recurring' && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>Frequency</Text>
+                  <View style={styles.categoryGrid}>
+                    {['weekly', 'biweekly', 'monthly', 'quarterly', 'annually'].map(f => (
+                      <TouchableOpacity
+                        key={f}
+                        style={[styles.categoryItem, { backgroundColor: overheadFrequency === f ? OWNER_COLORS.primary : Colors.cardBackground, borderColor: overheadFrequency === f ? OWNER_COLORS.primary : Colors.border }]}
+                        onPress={() => setOverheadFrequency(f)}
+                      >
+                        <Text style={[styles.categoryLabel, { color: overheadFrequency === f ? '#FFF' : Colors.primaryText }]}>
+                          {f.charAt(0).toUpperCase() + f.slice(1)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Category Selection */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.category')}</Text>
+                <View style={styles.categoryGrid}>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.key}
+                      style={[styles.categoryItem, { backgroundColor: selectedCategory === cat.key ? OWNER_COLORS.primary : Colors.cardBackground, borderColor: selectedCategory === cat.key ? OWNER_COLORS.primary : Colors.border }]}
+                      onPress={() => setSelectedCategory(cat.key)}
+                    >
+                      <Ionicons name={cat.icon} size={18} color={selectedCategory === cat.key ? '#FFF' : Colors.secondaryText} />
+                      <Text style={[styles.categoryLabel, { color: selectedCategory === cat.key ? '#FFF' : Colors.primaryText }]}>{t(cat.labelKey)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Project Selection */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>{t('transactionAssign.assignToProject')}</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: Colors.cardBackground, borderColor: Colors.border, color: Colors.primaryText, marginBottom: Spacing.md }]}
+                  value={projectSearch}
+                  onChangeText={setProjectSearch}
+                  placeholder={t('transactionAssign.searchProjects')}
+                  placeholderTextColor={Colors.placeholderText}
+                />
+
+                {loading ? (
+                  <ActivityIndicator color={OWNER_COLORS.primary} />
+                ) : (
+                  <View style={styles.projectList}>
+                    {filteredProjects.map((project) => (
+                      <TouchableOpacity
+                        key={project.id}
+                        style={[styles.projectItem, { backgroundColor: selectedProject?.id === project.id ? OWNER_COLORS.primaryLight : Colors.cardBackground, borderColor: selectedProject?.id === project.id ? OWNER_COLORS.primary : Colors.border }]}
+                        onPress={() => setSelectedProject(project)}
+                      >
+                        <View style={styles.projectInfo}>
+                          <Text style={[styles.projectName, { color: Colors.primaryText }]}>{project.name}</Text>
+                          {project.location && <Text style={[styles.projectClient, { color: Colors.secondaryText }]}>{project.location}</Text>}
+                        </View>
+                        {selectedProject?.id === project.id && <Ionicons name="checkmark-circle" size={22} color={OWNER_COLORS.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                    {filteredProjects.length === 0 && (
+                      <Text style={[styles.noProjects, { color: Colors.secondaryText }]}>
+                        {projectSearch ? t('transactionAssign.noMatchingProjects') : t('transactionAssign.noActiveProjects')}
+                      </Text>
+                    )}
+                  </View>
                 )}
               </View>
-            )}
-          </View>
+            </>
+          )}
         </ScrollView>
 
         {/* Submit Button */}
         <View style={[styles.footer, { borderTopColor: Colors.border, backgroundColor: Colors.background }]}>
           <TouchableOpacity
-            style={[
-              styles.submitButton,
-              { backgroundColor: selectedProject ? OWNER_COLORS.primary : Colors.border },
-            ]}
+            style={[styles.submitButton, { backgroundColor: mode === 'overhead' ? '#F59E0B' : (selectedProject ? OWNER_COLORS.primary : Colors.border) }]}
             onPress={handleSubmit}
-            disabled={!selectedProject || submitting}
+            disabled={(mode === 'project' && !selectedProject) || submitting}
           >
             {submitting ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
               <>
-                <Ionicons name="checkmark" size={20} color="#FFF" />
+                <Ionicons name={mode === 'overhead' ? 'business' : 'checkmark'} size={20} color="#FFF" />
                 <Text style={styles.submitButtonText}>
-                  {t('transactionAssign.assignTo', { name: selectedProject?.name || t('common:project.project') })}
+                  {mode === 'overhead'
+                    ? (overheadType === 'recurring' ? 'Add as Recurring Overhead' : 'Mark as Overhead')
+                    : t('transactionAssign.assignTo', { name: selectedProject?.name || 'Project' })
+                  }
                 </Text>
               </>
             )}
@@ -425,6 +481,25 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#FFF',
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  // Mode toggle
+  modeToggle: {
+    flexDirection: 'row',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+  },
+  modeBtnText: {
     fontSize: FontSizes.body,
     fontWeight: '600',
   },

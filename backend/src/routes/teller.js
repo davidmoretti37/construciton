@@ -1255,7 +1255,54 @@ router.post('/transactions/:txId/assign', async (req, res) => {
   try {
     const userId = req.user.id;
     const { txId } = req.params;
-    const { project_id, category, description } = req.body;
+    const { project_id, category, description, is_overhead, overhead_name, is_recurring, frequency } = req.body;
+
+    // Handle overhead assignment
+    if (is_overhead) {
+      const { data: bankTx } = await supabaseAdmin
+        .from('bank_transactions')
+        .select('*')
+        .eq('id', txId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!bankTx) return res.status(404).json({ error: 'Bank transaction not found' });
+
+      let overheadExpenseId = null;
+
+      // Create recurring expense if requested
+      if (is_recurring) {
+        const { data: newExpense } = await supabaseAdmin
+          .from('recurring_expenses')
+          .insert({
+            user_id: userId,
+            description: overhead_name || description || bankTx.merchant_name || bankTx.description,
+            amount: Math.abs(bankTx.amount),
+            category: 'overhead',
+            frequency: frequency || 'monthly',
+            next_due_date: bankTx.date,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+        if (newExpense) overheadExpenseId = newExpense.id;
+      }
+
+      // Mark bank transaction as overhead
+      await supabaseAdmin
+        .from('bank_transactions')
+        .update({
+          match_status: 'created',
+          assigned_category: 'overhead',
+          overhead_expense_id: overheadExpenseId,
+          matched_at: new Date().toISOString(),
+          matched_by: 'manual',
+        })
+        .eq('id', txId);
+
+      logger.info(`Assigned bank tx ${txId} as overhead${is_recurring ? ' (recurring)' : ' (one-time)'}`);
+      return res.json({ success: true, type: 'overhead', is_recurring: !!is_recurring });
+    }
 
     if (!project_id) {
       return res.status(400).json({ error: 'project_id is required' });
