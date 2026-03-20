@@ -96,6 +96,7 @@ export const fetchDailyReportById = async (reportId) => {
       .from('daily_reports')
       .select(`
         id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, task_progress, created_at,
+        weather, manpower, work_performed, materials, equipment, delays, safety, visitors, photo_captions, next_day_plan,
         workers (id, full_name, trade),
         projects (id, name, location, status),
         project_phases (id, name, completion_percentage)
@@ -135,6 +136,7 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
 
     const selectFields = `
         id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, created_at,
+        weather, manpower, work_performed, materials, equipment, delays, safety, visitors, photo_captions, next_day_plan,
         workers (id, full_name, trade),
         projects (id, name, user_id, assigned_supervisor_id),
         project_phases (id, name)

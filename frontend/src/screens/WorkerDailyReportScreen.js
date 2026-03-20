@@ -171,7 +171,11 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
 
   const renderReportItem = ({ item: report }) => {
     const photoCount = getPhotoCount(report);
-    const notesPreview = getNotesPreview(report);
+    const workDone = report.tags?.[0] || '';
+    const weather = report.weather;
+    const manpowerCount = report.manpower?.length || 0;
+    const delayCount = report.delays?.length || 0;
+    const materialCount = report.materials?.length || 0;
 
     return (
       <TouchableOpacity
@@ -183,30 +187,58 @@ export default function WorkerDailyReportScreen({ navigation, route }) {
           <Text style={[styles.reportDate, { color: Colors.primaryText }]}>
             {formatDate(report.report_date)}
           </Text>
-          {photoCount > 0 && (
-            <View style={[styles.photoBadge, { backgroundColor: Colors.primaryBlue + '20' }]}>
-              <Ionicons name="camera" size={14} color={Colors.primaryBlue} />
-              <Text style={[styles.photoBadgeText, { color: Colors.primaryBlue }]}>
-                {photoCount}
-              </Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {weather?.conditions && (
+              <View style={[styles.photoBadge, { backgroundColor: '#F59E0B20' }]}>
+                <Ionicons name={weather.conditions === 'sunny' ? 'sunny-outline' : weather.conditions === 'rain' ? 'rainy-outline' : 'cloud-outline'} size={13} color="#F59E0B" />
+                {weather.temp && <Text style={[styles.photoBadgeText, { color: '#F59E0B' }]}>{weather.temp}°</Text>}
+              </View>
+            )}
+            {photoCount > 0 && (
+              <View style={[styles.photoBadge, { backgroundColor: Colors.primaryBlue + '20' }]}>
+                <Ionicons name="camera" size={13} color={Colors.primaryBlue} />
+                <Text style={[styles.photoBadgeText, { color: Colors.primaryBlue }]}>{photoCount}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <Text style={[styles.projectName, { color: Colors.primaryText }]}>
           {report.projects?.name || t('reports.unknownProject')}
         </Text>
 
-        {report.project_phases?.name && (
+        {workDone ? (
+          <Text style={[styles.notesPreview, { color: Colors.secondaryText }]} numberOfLines={2}>
+            {workDone}
+          </Text>
+        ) : report.project_phases?.name ? (
           <Text style={[styles.phaseName, { color: Colors.secondaryText }]}>
             {report.project_phases.name}
           </Text>
-        )}
+        ) : null}
 
-        {notesPreview && (
-          <Text style={[styles.notesPreview, { color: Colors.secondaryText }]} numberOfLines={2}>
-            {notesPreview}
-          </Text>
+        {/* Detail badges */}
+        {(manpowerCount > 0 || delayCount > 0 || materialCount > 0) && (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+            {manpowerCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="people-outline" size={12} color={Colors.secondaryText} />
+                <Text style={{ fontSize: 11, color: Colors.secondaryText }}>{manpowerCount}</Text>
+              </View>
+            )}
+            {materialCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="cube-outline" size={12} color={Colors.secondaryText} />
+                <Text style={{ fontSize: 11, color: Colors.secondaryText }}>{materialCount}</Text>
+              </View>
+            )}
+            {delayCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="warning-outline" size={12} color="#F59E0B" />
+                <Text style={{ fontSize: 11, color: '#F59E0B' }}>{delayCount} delay{delayCount > 1 ? 's' : ''}</Text>
+              </View>
+            )}
+          </View>
         )}
 
         <View style={styles.reportFooter}>

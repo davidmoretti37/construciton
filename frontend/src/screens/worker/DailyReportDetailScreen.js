@@ -15,6 +15,16 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDailyReportById } from '../../utils/storage';
 import FullscreenPhotoViewer from '../../components/FullscreenPhotoViewer';
 
+const ACCENT = '#1E40AF';
+
+const WEATHER_ICONS = {
+  sunny: 'sunny-outline',
+  cloudy: 'cloud-outline',
+  rain: 'rainy-outline',
+  snow: 'snow-outline',
+  wind: 'flag-outline',
+};
+
 export default function DailyReportDetailScreen({ navigation, route }) {
   const { report: passedReport, reportId } = route.params || {};
   const { isDark = false } = useTheme() || {};
@@ -25,18 +35,14 @@ export default function DailyReportDetailScreen({ navigation, route }) {
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
 
-  // Fetch report if only reportId is provided
   useEffect(() => {
-    if (!passedReport && reportId) {
-      loadReport();
-    }
+    if (!passedReport && reportId) loadReport();
   }, [reportId]);
 
   const loadReport = async () => {
     try {
       setLoading(true);
-      const fetchedReport = await fetchDailyReportById(reportId);
-      setReport(fetchedReport);
+      setReport(await fetchDailyReportById(reportId));
     } catch (error) {
       console.error('Error loading report:', error);
     } finally {
@@ -44,365 +50,261 @@ export default function DailyReportDetailScreen({ navigation, route }) {
     }
   };
 
-  const openPhoto = (index) => {
-    setSelectedPhotoIndex(index);
-    setPhotoModalVisible(true);
-  };
-
-  const closePhoto = () => {
-    setPhotoModalVisible(false);
-    setSelectedPhotoIndex(null);
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return 'Unknown date';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    return new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   };
 
-  // Show loading state
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Report Details</Text>
-          <View style={{ width: 40 }} />
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+          <View style={{ width: 36 }} />
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading report...</Text>
-        </View>
+        <View style={styles.center}><ActivityIndicator size="large" color={ACCENT} /></View>
       </SafeAreaView>
     );
   }
 
-  // Show error if no report found
   if (!report) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Report Details</Text>
-          <View style={{ width: 40 }} />
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+          <View style={{ width: 36 }} />
         </View>
-        <View style={styles.loadingContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
-          <Text style={[styles.loadingText, { color: Colors.primaryText }]}>Report not found</Text>
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.secondaryText} />
+          <Text style={[{ color: Colors.secondaryText, marginTop: 8 }]}>Report not found</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   const photos = report.photos || [];
-  const completedSteps = report.completed_steps || [];
-  const workDone = report.tags?.[0] || '';  // Work description stored in tags
-  const taskProgress = report.task_progress || {};
+  const workDone = report.tags?.[0] || '';
+  const weather = report.weather;
+  const manpower = report.manpower || [];
+  const materials = report.materials || [];
+  const equipment = report.equipment || [];
+  const delays = report.delays || [];
+  const safety = report.safety;
+  const visitors = report.visitors || [];
+  const nextDayPlan = report.next_day_plan;
+
+  const Section = ({ icon, title, children }) => (
+    <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name={icon} size={18} color={ACCENT} />
+        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+      <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Report Details</Text>
-        <View style={{ width: 40 }} />
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+        <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Date & Project Info */}
-        <View style={[styles.section, { backgroundColor: Colors.white }]}>
-          <Text style={[styles.reportDate, { color: Colors.primaryText }]}>
-            {formatDate(report.report_date)}
-          </Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
+        {/* Date & Project */}
+        <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+          <Text style={[styles.reportDate, { color: Colors.primaryText }]}>{formatDate(report.report_date)}</Text>
           <View style={styles.infoRow}>
-            <Ionicons name="briefcase-outline" size={18} color={Colors.secondaryText} />
-            <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-              {report.projects?.name || 'Unknown Project'}
-            </Text>
+            <Ionicons name="briefcase-outline" size={16} color={Colors.secondaryText} />
+            <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{report.projects?.name || 'Unknown Project'}</Text>
           </View>
-
-          {report.project_phases?.name && (
+          {report.workers?.full_name && (
             <View style={styles.infoRow}>
-              <Ionicons name="layers-outline" size={18} color={Colors.secondaryText} />
-              <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                {report.project_phases.name}
-              </Text>
+              <Ionicons name="person-outline" size={16} color={Colors.secondaryText} />
+              <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{report.workers.full_name}{report.workers.trade ? ` · ${report.workers.trade}` : ''}</Text>
             </View>
           )}
         </View>
 
-        {/* Photos Section */}
-        {photos.length > 0 && (
-          <View style={[styles.section, { backgroundColor: Colors.white }]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="images-outline" size={20} color={Colors.primaryText} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                Photos ({photos.length})
+        {/* Weather */}
+        {weather && weather.conditions && (
+          <Section icon="partly-sunny-outline" title="Weather">
+            <View style={styles.weatherDisplay}>
+              <Ionicons name={WEATHER_ICONS[weather.conditions] || 'cloud-outline'} size={28} color={ACCENT} />
+              <Text style={[styles.weatherText, { color: Colors.primaryText }]}>
+                {weather.conditions.charAt(0).toUpperCase() + weather.conditions.slice(1)}
+                {weather.temp ? ` · ${weather.temp}°F` : ''}
               </Text>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.photoScrollContent}
-            >
-              {photos.map((photoUrl, index) => (
-                <TouchableOpacity key={index} onPress={() => openPhoto(index)} activeOpacity={0.8}>
-                  <Image
-                    source={{ uri: photoUrl }}
-                    style={styles.photo}
-                    resizeMode="cover"
-                  />
+          </Section>
+        )}
+
+        {/* Work Performed */}
+        {workDone && (
+          <Section icon="construct-outline" title="Work Performed">
+            <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{workDone}</Text>
+          </Section>
+        )}
+
+        {/* Photos */}
+        {photos.length > 0 && (
+          <Section icon="images-outline" title={`Photos (${photos.length})`}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {photos.map((url, i) => (
+                <TouchableOpacity key={i} onPress={() => { setSelectedPhotoIndex(i); setPhotoModalVisible(true); }} activeOpacity={0.8}>
+                  <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
+          </Section>
         )}
 
-        {/* Full Screen Photo Viewer with Swipe Navigation */}
         <FullscreenPhotoViewer
           photos={photos.map(url => ({ url }))}
           visible={photoModalVisible}
           initialIndex={selectedPhotoIndex || 0}
-          onClose={closePhoto}
+          onClose={() => { setPhotoModalVisible(false); setSelectedPhotoIndex(null); }}
         />
 
-        {/* Task Progress Section */}
-        {Object.keys(taskProgress).length > 0 && (
-          <View style={[styles.section, { backgroundColor: Colors.white }]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="checkbox-outline" size={20} color={Colors.primaryText} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                Task Progress
-              </Text>
-            </View>
-            <View style={styles.taskList}>
-              {Object.entries(taskProgress).map(([taskId, progress]) => (
-                <View key={taskId} style={styles.taskItem}>
-                  <View style={[styles.taskProgressBar, { backgroundColor: Colors.border }]}>
-                    <View
-                      style={[
-                        styles.taskProgressFill,
-                        {
-                          width: `${progress}%`,
-                          backgroundColor: progress === 100 ? Colors.success : Colors.primaryBlue
-                        }
-                      ]}
-                    />
+        {/* Manpower */}
+        {manpower.length > 0 && (
+          <Section icon="people-outline" title={`Manpower (${manpower.length})`}>
+            {manpower.map((m, i) => (
+              <View key={i} style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 2, color: Colors.primaryText }]}>{m.name}</Text>
+                <Text style={[styles.tableCell, { flex: 1, color: Colors.secondaryText }]}>{m.trade}</Text>
+                <Text style={[styles.tableCell, { width: 50, textAlign: 'right', color: Colors.primaryText, fontWeight: '600' }]}>{m.hours ? `${m.hours}h` : '-'}</Text>
+              </View>
+            ))}
+          </Section>
+        )}
+
+        {/* Materials */}
+        {materials.length > 0 && (
+          <Section icon="cube-outline" title={`Materials (${materials.length})`}>
+            {materials.map((m, i) => (
+              <View key={i} style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 1, color: Colors.primaryText }]}>{m.description}</Text>
+                {m.quantity && <Text style={[styles.tableCell, { color: Colors.secondaryText }]}>Qty: {m.quantity}</Text>}
+              </View>
+            ))}
+          </Section>
+        )}
+
+        {/* Equipment */}
+        {equipment.length > 0 && (
+          <Section icon="construct-outline" title={`Equipment (${equipment.length})`}>
+            {equipment.map((e, i) => (
+              <View key={i} style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 1, color: Colors.primaryText }]}>{e.name}</Text>
+                {e.hours && <Text style={[styles.tableCell, { color: Colors.secondaryText }]}>{e.hours}h</Text>}
+              </View>
+            ))}
+          </Section>
+        )}
+
+        {/* Delays */}
+        {delays.length > 0 && (
+          <Section icon="warning-outline" title={`Delays (${delays.length})`}>
+            {delays.map((d, i) => (
+              <View key={i} style={[styles.delayItem, { backgroundColor: '#FEF3C720' }]}>
+                <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{d.description}</Text>
+                {d.reason && (
+                  <View style={styles.delayReason}>
+                    <Text style={styles.delayReasonText}>Reason: {d.reason}</Text>
                   </View>
-                  <Text style={[styles.taskProgressText, { color: Colors.secondaryText }]}>
-                    {progress}%
-                  </Text>
-                  {progress === 100 && (
-                    <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
-                  )}
-                </View>
-              ))}
-            </View>
-          </View>
+                )}
+                {d.hours_lost && <Text style={[styles.delayHours, { color: '#EF4444' }]}>{d.hours_lost}h lost</Text>}
+              </View>
+            ))}
+          </Section>
         )}
 
-        {/* Work Done Section */}
-        {workDone && (
-          <View style={[styles.section, { backgroundColor: Colors.white }]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="construct-outline" size={20} color={Colors.primaryText} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                Work Done
-              </Text>
-            </View>
-            <Text style={[styles.workDoneText, { color: Colors.primaryText }]}>
-              {workDone}
-            </Text>
-          </View>
+        {/* Safety */}
+        {safety && (safety.observations || safety.incidents) && (
+          <Section icon="shield-checkmark-outline" title="Safety">
+            {safety.observations && <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{safety.observations}</Text>}
+            {safety.incidents && <Text style={[styles.bodyText, { color: '#EF4444', marginTop: 4 }]}>Incidents: {safety.incidents}</Text>}
+          </Section>
         )}
 
-        {/* Notes Section */}
+        {/* Visitors */}
+        {visitors.length > 0 && (
+          <Section icon="person-add-outline" title={`Visitors (${visitors.length})`}>
+            {visitors.map((v, i) => (
+              <View key={i} style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 1, color: Colors.primaryText, fontWeight: '500' }]}>{v.name}</Text>
+                {v.purpose && <Text style={[styles.tableCell, { flex: 1, color: Colors.secondaryText }]}>{v.purpose}</Text>}
+              </View>
+            ))}
+          </Section>
+        )}
+
+        {/* Tomorrow's Plan */}
+        {nextDayPlan && (
+          <Section icon="calendar-outline" title="Tomorrow's Plan">
+            <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{nextDayPlan}</Text>
+          </Section>
+        )}
+
+        {/* Notes */}
         {report.notes && (
-          <View style={[styles.section, { backgroundColor: Colors.white }]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="document-text-outline" size={20} color={Colors.primaryText} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                Notes
-              </Text>
-            </View>
-            <Text style={[styles.notesText, { color: Colors.secondaryText }]}>
-              {report.notes}
-            </Text>
-          </View>
+          <Section icon="document-text-outline" title="Notes">
+            <Text style={[styles.bodyText, { color: Colors.secondaryText }]}>{report.notes}</Text>
+          </Section>
         )}
 
-        {/* Empty State if no content */}
-        {photos.length === 0 &&
-         Object.keys(taskProgress).length === 0 &&
-         !workDone &&
-         !report.notes && (
-          <View style={[styles.section, { backgroundColor: Colors.white }]}>
-            <View style={styles.emptyState}>
-              <Ionicons name="document-outline" size={48} color={Colors.border} />
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                No details recorded for this report
-              </Text>
-            </View>
-          </View>
-        )}
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: Spacing.xs,
-  },
-  headerTitle: {
-    fontSize: FontSizes.title,
-    fontWeight: '700',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: Spacing.xl * 2,
-  },
-  section: {
-    marginTop: Spacing.md,
-    marginHorizontal: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  reportDate: {
-    fontSize: FontSizes.title,
-    fontWeight: '700',
-    marginBottom: Spacing.md,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  infoText: {
-    fontSize: FontSizes.body,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-  },
-  photoScrollContent: {
-    gap: Spacing.sm,
-  },
-  photo: {
-    width: 200,
-    height: 150,
-    borderRadius: BorderRadius.md,
-  },
-  taskList: {
-    gap: Spacing.sm,
-  },
-  taskItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  taskProgressBar: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  taskProgressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  taskProgressText: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-    minWidth: 40,
-    textAlign: 'right',
-  },
-  customTaskList: {
-    gap: Spacing.sm,
-  },
-  customTaskItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-  },
-  bulletPoint: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginTop: 6,
-  },
-  customTaskText: {
-    flex: 1,
-    fontSize: FontSizes.body,
-    lineHeight: 22,
-  },
-  workDoneText: {
-    fontSize: FontSizes.body,
-    fontWeight: '500',
-  },
-  notesText: {
-    fontSize: FontSizes.body,
-    lineHeight: 24,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-  },
-  emptyText: {
-    marginTop: Spacing.md,
-    fontSize: FontSizes.body,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  loadingText: {
-    fontSize: FontSizes.body,
-    marginTop: Spacing.sm,
-  },
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1 },
+  backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: FontSizes.subheader, fontWeight: '700' },
+  scrollContent: { padding: Spacing.lg, gap: 12 },
+
+  // Date card
+  reportDate: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  infoText: { fontSize: 14 },
+
+  // Sections
+  section: { borderRadius: 14, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: '700' },
+
+  // Content
+  bodyText: { fontSize: 14, lineHeight: 20 },
+
+  // Weather
+  weatherDisplay: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  weatherText: { fontSize: 16, fontWeight: '600' },
+
+  // Photos
+  photo: { width: 160, height: 120, borderRadius: 10, marginRight: 8 },
+
+  // Table rows
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
+  tableCell: { fontSize: 13 },
+
+  // Delays
+  delayItem: { padding: 10, borderRadius: 8, marginBottom: 6 },
+  delayReason: { marginTop: 4 },
+  delayReasonText: { fontSize: 12, fontWeight: '600', color: '#F59E0B' },
+  delayHours: { fontSize: 12, fontWeight: '600', marginTop: 2 },
 });

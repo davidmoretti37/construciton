@@ -140,37 +140,30 @@ export default function OwnerProjectsScreen() {
 
   // Group projects by manager for sectioned display
   const sections = useMemo(() => {
-    const ownerProjects = [];
-    const supervisorGroups = {};
-
     // Add demo project if no real projects
     const projectsToGroup = filteredProjects.length === 0 && hasLoadedOnce && activeFilter === 'all'
       ? [DEMO_PROJECT]
       : filteredProjects;
 
+    // "All" filter — flat list, everything mixed together
+    if (activeFilter === 'all' || activeFilter !== 'assigned') {
+      return [{
+        title: activeFilter === 'all' ? 'All Projects' : activeFilter === 'active' ? 'Active Projects' : activeFilter === 'completed' ? 'Completed' : activeFilter === 'mine' ? 'Your Projects' : activeFilter === 'draft' ? 'Drafts' : 'Projects',
+        data: chunkArray(projectsToGroup, 2),
+      }];
+    }
+
+    // "Assigned" filter — grouped by supervisor
+    const supervisorGroups = {};
     projectsToGroup.forEach(project => {
-      if (project.assignment_status === 'owner_direct' || project.isDemo) {
-        ownerProjects.push(project);
-      } else {
-        const managerName = project.managed_by_name || 'Unassigned';
-        if (!supervisorGroups[managerName]) {
-          supervisorGroups[managerName] = [];
-        }
-        supervisorGroups[managerName].push(project);
+      const managerName = project.managed_by_name || 'Unassigned';
+      if (!supervisorGroups[managerName]) {
+        supervisorGroups[managerName] = [];
       }
+      supervisorGroups[managerName].push(project);
     });
 
     const result = [];
-
-    // Owner's projects first
-    if (ownerProjects.length > 0) {
-      result.push({
-        title: 'Your Projects',
-        data: chunkArray(ownerProjects, 2), // Group into pairs for 2-column display
-      });
-    }
-
-    // Supervisor sections (sorted alphabetically)
     Object.keys(supervisorGroups).sort().forEach(name => {
       result.push({
         title: `${name}'s Projects`,

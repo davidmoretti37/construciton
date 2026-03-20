@@ -112,9 +112,13 @@ export default function OwnerDailyReportsScreen({ navigation }) {
 
   const renderReportItem = ({ item: report }) => {
     const photoCount = getPhotoCount(report);
-    const notesPreview = getNotesPreview(report);
     const reporterName = getReporterName(report);
     const isOwnerReport = report.reporter_type === 'owner';
+    const workDone = report.tags?.[0] || '';
+    const weather = report.weather;
+    const manpowerCount = report.manpower?.length || 0;
+    const delayCount = report.delays?.length || 0;
+    const materialCount = report.materials?.length || 0;
 
     return (
       <TouchableOpacity
@@ -132,12 +136,16 @@ export default function OwnerDailyReportsScreen({ navigation }) {
                 <Text style={[styles.ownerBadgeText, { color: '#10B981' }]}>{t('reports.owner')}</Text>
               </View>
             )}
+            {weather?.conditions && (
+              <View style={[styles.photoBadge, { backgroundColor: '#F59E0B20' }]}>
+                <Ionicons name={weather.conditions === 'sunny' ? 'sunny-outline' : weather.conditions === 'rain' ? 'rainy-outline' : 'cloud-outline'} size={13} color="#F59E0B" />
+                {weather.temp && <Text style={[styles.photoBadgeText, { color: '#F59E0B' }]}>{weather.temp}°</Text>}
+              </View>
+            )}
             {photoCount > 0 && (
               <View style={[styles.photoBadge, { backgroundColor: Colors.primaryBlue + '20' }]}>
-                <Ionicons name="camera" size={14} color={Colors.primaryBlue} />
-                <Text style={[styles.photoBadgeText, { color: Colors.primaryBlue }]}>
-                  {photoCount}
-                </Text>
+                <Ionicons name="camera" size={13} color={Colors.primaryBlue} />
+                <Text style={[styles.photoBadgeText, { color: Colors.primaryBlue }]}>{photoCount}</Text>
               </View>
             )}
           </View>
@@ -148,28 +156,42 @@ export default function OwnerDailyReportsScreen({ navigation }) {
         </Text>
 
         <View style={styles.reporterRow}>
-          <Ionicons
-            name={isOwnerReport ? "person" : "construct"}
-            size={14}
-            color={Colors.secondaryText}
-          />
-          <Text style={[styles.reporterName, { color: Colors.secondaryText }]}>
-            {reporterName}
-          </Text>
-          {report.project_phases?.name && (
+          <Ionicons name={isOwnerReport ? "person" : "construct"} size={14} color={Colors.secondaryText} />
+          <Text style={[styles.reporterName, { color: Colors.secondaryText }]}>{reporterName}</Text>
+          {report.workers?.trade && (
             <>
-              <Text style={[styles.separator, { color: Colors.secondaryText }]}> | </Text>
-              <Text style={[styles.phaseName, { color: Colors.secondaryText }]}>
-                {report.project_phases.name}
-              </Text>
+              <Text style={[styles.separator, { color: Colors.secondaryText }]}> · </Text>
+              <Text style={[styles.phaseName, { color: Colors.secondaryText }]}>{report.workers.trade}</Text>
             </>
           )}
         </View>
 
-        {notesPreview && (
-          <Text style={[styles.notesPreview, { color: Colors.secondaryText }]} numberOfLines={2}>
-            {notesPreview}
-          </Text>
+        {workDone ? (
+          <Text style={[styles.notesPreview, { color: Colors.secondaryText }]} numberOfLines={2}>{workDone}</Text>
+        ) : null}
+
+        {/* Detail badges */}
+        {(manpowerCount > 0 || delayCount > 0 || materialCount > 0) && (
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+            {manpowerCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="people-outline" size={12} color={Colors.secondaryText} />
+                <Text style={{ fontSize: 11, color: Colors.secondaryText }}>{manpowerCount} on site</Text>
+              </View>
+            )}
+            {materialCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="cube-outline" size={12} color={Colors.secondaryText} />
+                <Text style={{ fontSize: 11, color: Colors.secondaryText }}>{materialCount} materials</Text>
+              </View>
+            )}
+            {delayCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="warning-outline" size={12} color="#F59E0B" />
+                <Text style={{ fontSize: 11, color: '#F59E0B' }}>{delayCount} delay{delayCount > 1 ? 's' : ''}</Text>
+              </View>
+            )}
+          </View>
         )}
 
         <View style={styles.reportFooter}>
