@@ -70,7 +70,7 @@ import ARAgingScreen from '../screens/owner/ARAgingScreen';
 import TaxSummaryScreen from '../screens/owner/TaxSummaryScreen';
 import ContractorPaymentsScreen from '../screens/owner/ContractorPaymentsScreen';
 import PayrollSummaryScreen from '../screens/owner/PayrollSummaryScreen';
-import RecurringExpenseScreen from '../screens/owner/RecurringExpenseScreen';
+import CompanyOverheadScreen from '../screens/owner/CompanyOverheadScreen';
 
 // Import bank integration screens
 import BankConnectionScreen from '../screens/owner/BankConnectionScreen';
@@ -252,8 +252,8 @@ export default function OwnerMainNavigator() {
         component={PayrollSummaryScreen}
       />
       <Stack.Screen
-        name="RecurringExpenses"
-        component={RecurringExpenseScreen}
+        name="CompanyOverhead"
+        component={CompanyOverheadScreen}
       />
 
       {/* Document Viewer */}

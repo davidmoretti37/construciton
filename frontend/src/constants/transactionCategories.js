@@ -86,6 +86,7 @@ export const EXPENSE_SUBCATEGORIES = {
     { value: 'professional_fees', label: 'Professional Fees' },
     { value: 'advertising', label: 'Advertising' },
     { value: 'misc_other', label: 'Other Miscellaneous' },
+    { value: 'bank_fee', label: 'Bank Fee' },
   ],
 };
 
@@ -100,6 +101,20 @@ export const INCOME_SUBCATEGORIES = [
   { value: 'retainage_release', label: 'Retainage Release' },
   { value: 'income_other', label: 'Other Income' },
 ];
+
+// ============================================================
+// Transfer subcategories (flat — transfer has no parent categories)
+// ============================================================
+
+export const TRANSFER_SUBCATEGORIES = [
+  { value: 'credit_card_payment', label: 'Credit Card Payment' },
+  { value: 'wire_transfer', label: 'Wire Transfer' },
+  { value: 'ach_transfer', label: 'ACH Transfer' },
+  { value: 'p2p_transfer', label: 'P2P Transfer' },
+  { value: 'loan_payment', label: 'Loan Payment' },
+  { value: 'internal_transfer', label: 'Internal Transfer' },
+];
+
 
 // ============================================================
 // IRS Tax Categories (Schedule C mapping)
@@ -145,5 +160,8 @@ export const getSubcategoryLabel = (subcategory) => {
     if (found) return found.label;
   }
   const incomeFound = INCOME_SUBCATEGORIES.find(s => s.value === subcategory);
-  return incomeFound?.label || subcategory;
+  if (incomeFound) return incomeFound.label;
+  const transferFound = TRANSFER_SUBCATEGORIES.find(s => s.value === subcategory);
+  if (transferFound) return transferFound.label;
+  return subcategory;
 };

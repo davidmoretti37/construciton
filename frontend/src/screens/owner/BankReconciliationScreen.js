@@ -24,7 +24,9 @@ import {
   getBankTransactions,
   getReconciliationSummary,
   ignoreBankTransaction,
+  editBankTransaction,
 } from '../../services/bankService';
+import { getSubcategoryLabel } from '../../constants/transactionCategories';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',
@@ -193,7 +195,7 @@ export default function BankReconciliationScreen() {
       case 'expense': return OWNER_COLORS.danger;
       case 'income': return OWNER_COLORS.success;
       case 'transfer': return '#6B7280';
-      default: return Colors.secondaryText;
+      default: return OWNER_COLORS.warning; // unknown
     }
   };
 
@@ -202,31 +204,53 @@ export default function BankReconciliationScreen() {
       case 'expense': return 'Expense';
       case 'income': return 'Income';
       case 'transfer': return 'Transfer';
-      default: return '';
+      default: return 'Unknown';
+    }
+  };
+
+  const handleQuickClassify = async (txId, type) => {
+    try {
+      await editBankTransaction(txId, { transaction_type: type });
+      loadData();
+    } catch (err) {
+      console.error('Quick classify error:', err);
     }
   };
 
   const renderTransaction = ({ item }) => {
     const badge = getStatusBadge(item.match_status);
-    const txType = item.transaction_type || (item.amount > 0 ? 'expense' : 'income');
-    const typeColor = getTypeColor(txType);
+    const txType = item.transaction_type;
+    const isUnknown = !txType;
+    const displayType = txType || 'unknown';
+    const typeColor = getTypeColor(displayType);
     const linkedProject = item.matched_transaction?.project?.name || item.assigned_project?.name;
     const isLowConfidence = item.classification_confidence === 'low';
+    const subcategoryLabel = item.subcategory ? getSubcategoryLabel(item.subcategory) : null;
 
     return (
       <View style={[styles.txCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
         <View style={styles.txMain}>
           <View style={styles.txLeft}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <Text style={[styles.txDate, { color: Colors.secondaryText }]}>{formatDate(item.date)}</Text>
+              {isUnknown && (
+                <View style={{ backgroundColor: '#F59E0B20', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>UNKNOWN</Text>
+                </View>
+              )}
               {txType === 'transfer' && (
                 <View style={{ backgroundColor: '#6B728015', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
                   <Text style={{ color: '#6B7280', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>TRANSFER</Text>
                 </View>
               )}
-              {isLowConfidence && txType !== 'expense' && (
+              {!isUnknown && isLowConfidence && txType !== 'expense' && (
                 <View style={{ backgroundColor: '#F59E0B15', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
                   <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '600' }}>Verify</Text>
+                </View>
+              )}
+              {item.worker_id && (
+                <View style={{ backgroundColor: '#3B82F620', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#3B82F6', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>WORKER</Text>
                 </View>
               )}
             </View>
@@ -238,9 +262,9 @@ export default function BankReconciliationScreen() {
                 {item.description}
               </Text>
             )}
-            {item.subcategory && (
+            {subcategoryLabel && (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                <Text style={{ color: Colors.secondaryText, fontSize: 11, fontStyle: 'italic' }}>{item.subcategory}</Text>
+                <Text style={{ color: Colors.secondaryText, fontSize: 11, fontStyle: 'italic' }}>{subcategoryLabel}</Text>
               </View>
             )}
             {linkedProject && (
@@ -252,7 +276,7 @@ export default function BankReconciliationScreen() {
           </View>
           <View style={styles.txRight}>
             <Text style={[styles.txAmount, { color: typeColor }]}>
-              {txType === 'expense' ? '-' : txType === 'income' ? '+' : ''}{formatAmount(item.amount)}
+              {displayType === 'expense' ? '-' : displayType === 'income' ? '+' : ''}{formatAmount(item.amount)}
             </Text>
             <View style={[styles.txBadge, { backgroundColor: badge.color + '15' }]}>
               <Ionicons name={badge.icon} size={12} color={badge.color} />
@@ -261,8 +285,35 @@ export default function BankReconciliationScreen() {
           </View>
         </View>
 
-        {/* Action buttons for unmatched/suggested */}
-        {(item.match_status === 'unmatched' || item.match_status === 'suggested_match') && (
+        {/* Quick classify buttons for unknown transactions */}
+        {isUnknown && (
+          <View style={[styles.txActions, { borderTopColor: Colors.border }]}>
+            {[
+              { type: 'expense', label: 'Expense', color: OWNER_COLORS.danger, icon: 'arrow-down-circle-outline' },
+              { type: 'income', label: 'Income', color: OWNER_COLORS.success, icon: 'arrow-up-circle-outline' },
+              { type: 'transfer', label: 'Transfer', color: '#6B7280', icon: 'swap-horizontal-outline' },
+            ].map(opt => (
+              <TouchableOpacity
+                key={opt.type}
+                style={[styles.txActionBtn, { backgroundColor: opt.color + '10' }]}
+                onPress={() => handleQuickClassify(item.id, opt.type)}
+              >
+                <Ionicons name={opt.icon} size={14} color={opt.color} />
+                <Text style={[styles.txActionText, { color: opt.color }]}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.txActionBtn, { backgroundColor: Colors.border + '50' }]}
+              onPress={() => handleIgnore(item.id)}
+            >
+              <Ionicons name="bookmark-outline" size={14} color={Colors.secondaryText} />
+              <Text style={[styles.txActionText, { color: Colors.secondaryText }]}>Register</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Action buttons for unmatched/suggested (only when type is known) */}
+        {!isUnknown && (item.match_status === 'unmatched' || item.match_status === 'suggested_match') && (
           <View style={[styles.txActions, { borderTopColor: Colors.border }]}>
             <TouchableOpacity
               style={[styles.txActionBtn, { backgroundColor: OWNER_COLORS.primary + '10' }]}

@@ -28,13 +28,24 @@ import {
 } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
 
+const ACCENT = '#1E40AF';
+
+const WEATHER_OPTIONS = [
+  { key: 'sunny', icon: 'sunny-outline', label: 'Sunny' },
+  { key: 'cloudy', icon: 'cloud-outline', label: 'Cloudy' },
+  { key: 'rain', icon: 'rainy-outline', label: 'Rain' },
+  { key: 'snow', icon: 'snow-outline', label: 'Snow' },
+  { key: 'wind', icon: 'flag-outline', label: 'Windy' },
+];
+
+const DELAY_REASONS = ['Weather', 'Materials', 'Inspection', 'Labor', 'Equipment', 'Other'];
+
 export default function DailyReportFormScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('common');
   const { user, profile } = useAuth();
 
-  // Check if owner mode from route params
   const isOwner = route.params?.isOwner === true;
   const isSupervisor = profile?.role === 'supervisor';
 
@@ -43,18 +54,53 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const [workerId, setWorkerId] = useState(null);
   const [assignedProjects, setAssignedProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [photos, setPhotos] = useState([]);
+
+  // Core fields (always visible)
   const [workDone, setWorkDone] = useState('');
+  const [photos, setPhotos] = useState([]);
+
+  // Optional sections (expandable)
+  const [expanded, setExpanded] = useState({});
+  const [weather, setWeather] = useState({ conditions: '', temp: '' });
+  const [manpower, setManpower] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [delays, setDelays] = useState([]);
+  const [safety, setSafety] = useState('');
+  const [visitors, setVisitors] = useState([]);
+  const [nextDayPlan, setNextDayPlan] = useState('');
 
   useEffect(() => {
-    if (isOwner) {
-      loadOwnerProjects();
-    } else if (isSupervisor) {
-      loadSupervisorProjects();
-    } else {
-      loadWorkerProjects();
-    }
+    if (isOwner) loadOwnerProjects();
+    else if (isSupervisor) loadSupervisorProjects();
+    else loadWorkerProjects();
   }, [isOwner, isSupervisor]);
+
+  // Auto-populate manpower when project is selected
+  useEffect(() => {
+    if (selectedProject && (isOwner || isSupervisor)) {
+      loadManpower(selectedProject.id);
+    }
+  }, [selectedProject]);
+
+  const loadManpower = async (projectId) => {
+    try {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const { data } = await supabase
+        .from('time_tracking')
+        .select('worker_id, clock_in, clock_out, workers(full_name, trade)')
+        .eq('project_id', projectId)
+        .gte('clock_in', todayStart.toISOString());
+      if (data && data.length > 0) {
+        setManpower(data.map(t => ({
+          name: t.workers?.full_name || 'Worker',
+          trade: t.workers?.trade || '',
+          hours: t.clock_out ? Math.round((new Date(t.clock_out) - new Date(t.clock_in)) / 3600000 * 10) / 10 : 0,
+        })));
+      }
+    } catch (e) { /* not critical */ }
+  };
 
   const loadOwnerProjects = async () => {
     try {
@@ -62,343 +108,438 @@ export default function DailyReportFormScreen({ navigation, route }) {
       const projects = await fetchProjects();
       setAssignedProjects(projects || []);
     } catch (error) {
-      console.error('Error loading owner projects:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'projects' }));
-    } finally {
-      setLoading(false);
-    }
+      Alert.alert(t('alerts.error'), 'Failed to load projects');
+    } finally { setLoading(false); }
   };
 
   const loadSupervisorProjects = async () => {
     try {
       setLoading(true);
       const currentUserId = await getCurrentUserId();
-
-      // Get projects assigned to supervisor OR created by supervisor
-      const { data: projects, error } = await supabase
+      const { data: projects } = await supabase
         .from('projects')
         .select('*')
         .or(`assigned_supervisor_id.eq.${currentUserId},user_id.eq.${currentUserId}`)
         .order('created_at', { ascending: false });
-
-      if (error) throw error;
       setAssignedProjects(projects || []);
     } catch (error) {
-      console.error('Error loading supervisor projects:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'projects' }));
-    } finally {
-      setLoading(false);
-    }
+      Alert.alert(t('alerts.error'), 'Failed to load projects');
+    } finally { setLoading(false); }
   };
 
   const loadWorkerProjects = async () => {
     try {
       setLoading(true);
-
       const currentUserId = await getCurrentUserId();
-      const { data: workerData, error: workerError } = await supabase
-        .from('workers')
-        .select('id')
-        .eq('user_id', currentUserId)
-        .single();
-
-      if (workerError || !workerData) {
-        console.error('Error fetching worker:', workerError);
-        Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'worker profile' }));
-        setLoading(false);
-        return;
-      }
-
+      const { data: workerData } = await supabase
+        .from('workers').select('id').eq('user_id', currentUserId).single();
+      if (!workerData) { setLoading(false); return; }
       setWorkerId(workerData.id);
       const assignments = await getWorkerAssignments(workerData.id);
-      const projects = assignments.projects?.filter(Boolean) || [];
-      setAssignedProjects(projects);
+      setAssignedProjects(assignments.projects?.filter(Boolean) || []);
     } catch (error) {
-      console.error('Error loading worker projects:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'assigned projects' }));
-    } finally {
-      setLoading(false);
-    }
+      Alert.alert(t('alerts.error'), 'Failed to load projects');
+    } finally { setLoading(false); }
   };
 
-  const handleProjectSelect = (project) => {
-    setSelectedProject(project);
-  };
+  const toggle = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
   const handlePickImage = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(t('alerts.permissionRequired'), t('permissions.photoLibraryRequired'));
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 0.8,
-        aspect: [4, 3],
-      });
-
-      if (!result.canceled) {
-        setPhotos(prev => [...prev, ...result.assets.map(asset => asset.uri)]);
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'image' }));
-    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission needed', 'Photo library access is required'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: true, quality: 0.8 });
+    if (!result.canceled) setPhotos(prev => [...prev, ...result.assets.map(a => a.uri)]);
   };
 
   const handleTakePhoto = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(t('alerts.permissionRequired'), t('permissions.cameraRequired'));
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.8,
-        aspect: [4, 3],
-      });
-
-      if (!result.canceled) {
-        setPhotos(prev => [...prev, result.assets[0].uri]);
-      }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'photo' }));
-    }
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission needed', 'Camera access is required'); return; }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (!result.canceled) setPhotos(prev => [...prev, result.assets[0].uri]);
   };
 
-  const handleRemovePhoto = (index) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
-  };
+  const addListItem = (setter, defaultItem) => setter(prev => [...prev, defaultItem]);
+  const updateListItem = (setter, index, field, value) => setter(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  const removeListItem = (setter, index) => setter(prev => prev.filter((_, i) => i !== index));
 
   const handleSubmit = async () => {
-    if (!selectedProject) {
-      Alert.alert(t('alerts.missingInfo'), t('messages.pleaseSelect', { item: 'project' }));
-      return;
-    }
-
-    // Work done is mandatory
-    if (!workDone.trim()) {
-      Alert.alert(t('alerts.required'), t('messages.pleaseEnter', { item: 'work description' }));
-      return;
-    }
+    if (!selectedProject) { Alert.alert('Required', 'Select a project'); return; }
+    if (!workDone.trim()) { Alert.alert('Required', 'Describe what was done today'); return; }
 
     try {
       setSubmitting(true);
 
-      // Upload photos first
-      const uploadedPhotoUrls = [];
-      for (const photoUri of photos) {
-        const url = await uploadPhoto(photoUri, selectedProject.id);
-        if (url) {
-          uploadedPhotoUrls.push(url);
-        }
+      // Upload photos
+      const uploadedUrls = [];
+      for (const uri of photos) {
+        const url = await uploadPhoto(uri, selectedProject.id);
+        if (url) uploadedUrls.push(url);
       }
 
-      // If user added photos but none uploaded successfully, abort
-      if (photos.length > 0 && uploadedPhotoUrls.length === 0) {
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'photos' }));
-        setSubmitting(false);
-        return;
-      }
+      // Build report with new fields
+      const reportData = {
+        project_id: selectedProject.id,
+        phase_id: null,
+        report_date: new Date().toISOString().split('T')[0],
+        photos: uploadedUrls,
+        completed_steps: [],
+        custom_tasks: [],
+        notes: '',
+        tags: [workDone.trim()],
+        // New fields
+        weather: weather.conditions ? weather : null,
+        manpower: manpower.length > 0 ? manpower : null,
+        work_performed: [{ description: workDone.trim() }],
+        materials: materials.length > 0 ? materials : null,
+        equipment: equipment.length > 0 ? equipment : null,
+        delays: delays.length > 0 ? delays : null,
+        safety: safety.trim() ? { observations: safety.trim() } : null,
+        visitors: visitors.length > 0 ? visitors : null,
+        next_day_plan: nextDayPlan.trim() || null,
+      };
 
-      // Warn if some photos failed but continue if at least one succeeded
-      if (photos.length > 0 && uploadedPhotoUrls.length < photos.length) {
-        console.warn(`Only ${uploadedPhotoUrls.length} of ${photos.length} photos uploaded successfully`);
-      }
-
-      const report = await saveDailyReport(
-        workerId,
-        selectedProject.id,
-        null,  // phaseId - no longer used
-        uploadedPhotoUrls,
-        [],    // completedTaskIds - no longer used
-        [],    // customTasks - no longer used
-        '',    // notes - no longer used
-        {},    // taskProgress - no longer used
-        isOwner,
-        [workDone.trim()]  // tags - stores the work description
-      );
-
-      if (report) {
-        Alert.alert(
-          t('alerts.success'),
-          t('messages.savedSuccessfully', { item: 'daily report' }),
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack()
-            }
-          ]
-        );
+      if (isOwner || !workerId) {
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+        reportData.owner_id = userId;
+        reportData.worker_id = null;
+        reportData.reporter_type = isOwner ? 'owner' : 'supervisor';
       } else {
-        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'daily report' }));
+        reportData.worker_id = workerId;
+        reportData.owner_id = null;
+        reportData.reporter_type = 'worker';
       }
+
+      const { error } = await supabase.from('daily_reports').insert(reportData).select('id').single();
+      if (error) throw error;
+
+      Alert.alert('Success', 'Daily report submitted', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (error) {
-      console.error('Error submitting daily report:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'daily report' }));
-    } finally {
-      setSubmitting(false);
+      console.error('Error submitting report:', error);
+      Alert.alert('Error', 'Failed to submit report');
+    } finally { setSubmitting(false); }
+  };
+
+  const filledCount = (key) => {
+    switch (key) {
+      case 'weather': return weather.conditions ? 1 : 0;
+      case 'manpower': return manpower.length;
+      case 'materials': return materials.length;
+      case 'equipment': return equipment.length;
+      case 'delays': return delays.length;
+      case 'safety': return safety.trim() ? 1 : 0;
+      case 'visitors': return visitors.length;
+      case 'tomorrow': return nextDayPlan.trim() ? 1 : 0;
+      default: return 0;
     }
+  };
+
+  const SectionHeader = ({ sectionKey, icon, title }) => {
+    const count = filledCount(sectionKey);
+    const isOpen = expanded[sectionKey];
+    return (
+      <TouchableOpacity
+        style={[styles.optionalHeader, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
+        onPress={() => toggle(sectionKey)}
+        activeOpacity={0.7}
+      >
+        <Ionicons name={icon} size={18} color={count > 0 ? ACCENT : Colors.secondaryText} />
+        <Text style={[styles.optionalTitle, { color: count > 0 ? Colors.primaryText : Colors.secondaryText }]}>{title}</Text>
+        {count > 0 && (
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>{count}</Text>
+          </View>
+        )}
+        <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
+      </TouchableOpacity>
+    );
   };
 
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: Colors.background }]}>
-        <ActivityIndicator size="large" color={Colors.primaryBlue} />
-        <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-          Loading projects...
-        </Text>
+        <ActivityIndicator size="large" color={ACCENT} />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header */}
-          <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
-            </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>New Daily Report</Text>
-            <View style={{ width: 40 }} />
-          </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
           {/* Project Selection */}
-          <View style={[styles.section, { backgroundColor: Colors.white }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>1. Select Project</Text>
+          <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Project</Text>
             {assignedProjects.length === 0 ? (
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                No assigned projects
-              </Text>
+              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects available</Text>
             ) : (
-              <View style={styles.projectList}>
-                {assignedProjects.map((project) => (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectScroll}>
+                {assignedProjects.map(p => (
                   <TouchableOpacity
-                    key={project.id}
-                    style={[
-                      styles.projectItem,
-                      {
-                        backgroundColor: selectedProject?.id === project.id ? Colors.primaryBlue + '15' : Colors.lightBackground,
-                        borderColor: selectedProject?.id === project.id ? Colors.primaryBlue : Colors.border
-                      }
-                    ]}
-                    onPress={() => handleProjectSelect(project)}
+                    key={p.id}
+                    style={[styles.projectChip, { borderColor: selectedProject?.id === p.id ? ACCENT : Colors.border, backgroundColor: selectedProject?.id === p.id ? ACCENT + '10' : 'transparent' }]}
+                    onPress={() => setSelectedProject(p)}
                   >
-                    <View style={styles.projectItemContent}>
-                      <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-                        {project.name}
-                      </Text>
-                      {project.location && (
-                        <Text style={[styles.projectClient, { color: Colors.secondaryText }]}>
-                          {project.location}
-                        </Text>
-                      )}
-                    </View>
-                    {selectedProject?.id === project.id && (
-                      <Ionicons name="checkmark-circle" size={24} color={Colors.primaryBlue} />
-                    )}
+                    <Text style={[styles.projectChipText, { color: selectedProject?.id === p.id ? ACCENT : Colors.primaryText }]} numberOfLines={1}>{p.name}</Text>
                   </TouchableOpacity>
                 ))}
-              </View>
+              </ScrollView>
             )}
           </View>
 
-          {/* Photos Section - shown after project selection */}
           {selectedProject && (
-            <View style={[styles.section, { backgroundColor: Colors.white }]}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>2. Add Photos (Optional)</Text>
-              <View style={styles.photoActions}>
-                <TouchableOpacity
-                  style={[styles.photoButton, { backgroundColor: Colors.primaryBlue }]}
-                  onPress={handleTakePhoto}
-                >
-                  <Ionicons name="camera" size={20} color="#fff" />
-                  <Text style={styles.photoButtonText}>Take Photo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.photoButton, { backgroundColor: Colors.primaryBlue }]}
-                  onPress={handlePickImage}
-                >
-                  <Ionicons name="images" size={20} color="#fff" />
-                  <Text style={styles.photoButtonText}>Choose Photos</Text>
-                </TouchableOpacity>
+            <>
+              {/* Work Done — always visible, required */}
+              <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+                <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Work Performed *</Text>
+                <TextInput
+                  style={[styles.textArea, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
+                  value={workDone}
+                  onChangeText={setWorkDone}
+                  placeholder="What was done on site today..."
+                  placeholderTextColor={Colors.secondaryText}
+                  multiline
+                  textAlignVertical="top"
+                />
               </View>
-              {photos.length > 0 && (
-                <View style={styles.photoGrid}>
-                  {photos.map((photoUri, index) => (
-                    <View key={index} style={styles.photoContainer}>
-                      <Image source={{ uri: photoUri }} style={styles.photoThumbnail} />
+
+              {/* Photos — always visible */}
+              <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+                <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Photos</Text>
+                <View style={styles.photoRow}>
+                  <TouchableOpacity style={[styles.photoBtn, { backgroundColor: ACCENT }]} onPress={handleTakePhoto}>
+                    <Ionicons name="camera" size={18} color="#FFF" />
+                    <Text style={styles.photoBtnText}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.photoBtn, { backgroundColor: ACCENT }]} onPress={handlePickImage}>
+                    <Ionicons name="images" size={18} color="#FFF" />
+                    <Text style={styles.photoBtnText}>Gallery</Text>
+                  </TouchableOpacity>
+                </View>
+                {photos.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+                    {photos.map((uri, i) => (
+                      <View key={i} style={styles.photoThumbWrap}>
+                        <Image source={{ uri }} style={styles.photoThumb} />
+                        <TouchableOpacity style={styles.photoRemove} onPress={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}>
+                          <Ionicons name="close-circle" size={22} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+
+              {/* Optional Sections */}
+              <Text style={[styles.optionalLabel, { color: Colors.secondaryText }]}>ADDITIONAL DETAILS</Text>
+
+              {/* Weather */}
+              <SectionHeader sectionKey="weather" icon="partly-sunny-outline" title="Weather" />
+              {expanded.weather && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  <View style={styles.weatherRow}>
+                    {WEATHER_OPTIONS.map(w => (
                       <TouchableOpacity
-                        style={styles.removePhotoButton}
-                        onPress={() => handleRemovePhoto(index)}
+                        key={w.key}
+                        style={[styles.weatherChip, weather.conditions === w.key && { backgroundColor: ACCENT + '15', borderColor: ACCENT }]}
+                        onPress={() => setWeather(prev => ({ ...prev, conditions: prev.conditions === w.key ? '' : w.key }))}
                       >
-                        <Ionicons name="close-circle" size={24} color="#EF4444" />
+                        <Ionicons name={w.icon} size={20} color={weather.conditions === w.key ? ACCENT : Colors.secondaryText} />
+                        <Text style={[styles.weatherChipText, { color: weather.conditions === w.key ? ACCENT : Colors.secondaryText }]}>{w.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={styles.tempRow}>
+                    <Text style={[styles.tempLabel, { color: Colors.secondaryText }]}>Temp:</Text>
+                    <TextInput
+                      style={[styles.tempInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                      value={weather.temp}
+                      onChangeText={(v) => setWeather(prev => ({ ...prev, temp: v.replace(/[^0-9]/g, '') }))}
+                      placeholder="72"
+                      placeholderTextColor={Colors.secondaryText}
+                      keyboardType="number-pad"
+                      maxLength={3}
+                    />
+                    <Text style={[styles.tempUnit, { color: Colors.secondaryText }]}>°F</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Manpower */}
+              <SectionHeader sectionKey="manpower" icon="people-outline" title="Manpower" />
+              {expanded.manpower && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  {manpower.map((m, i) => (
+                    <View key={i} style={styles.listItemRow}>
+                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={m.name} onChangeText={v => updateListItem(setManpower, i, 'name', v)} placeholder="Name" placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={m.trade} onChangeText={v => updateListItem(setManpower, i, 'trade', v)} placeholder="Trade" placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { width: 45, color: Colors.primaryText, borderColor: Colors.border }]} value={String(m.hours || '')} onChangeText={v => updateListItem(setManpower, i, 'hours', v)} placeholder="Hrs" placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
+                      <TouchableOpacity onPress={() => removeListItem(setManpower, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close" size={18} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
                   ))}
+                  <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setManpower, { name: '', trade: '', hours: '' })}>
+                    <Ionicons name="add" size={16} color={ACCENT} />
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Person</Text>
+                  </TouchableOpacity>
                 </View>
               )}
-            </View>
-          )}
 
-          {/* What was done today */}
-          {selectedProject && (
-            <View style={[styles.section, { backgroundColor: Colors.white }]}>
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                3. What was done today *
-              </Text>
-              <TextInput
-                style={[
-                  styles.workDoneInput,
-                  { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground }
-                ]}
-                value={workDone}
-                onChangeText={setWorkDone}
-                placeholder="e.g., Framing, Pool cleaning, Electrical work..."
-                placeholderTextColor={Colors.secondaryText}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </View>
-          )}
+              {/* Materials */}
+              <SectionHeader sectionKey="materials" icon="cube-outline" title="Materials" />
+              {expanded.materials && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  {materials.map((m, i) => (
+                    <View key={i} style={styles.listItemRow}>
+                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={m.description} onChangeText={v => updateListItem(setMaterials, i, 'description', v)} placeholder="Material" placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { width: 50, color: Colors.primaryText, borderColor: Colors.border }]} value={m.quantity} onChangeText={v => updateListItem(setMaterials, i, 'quantity', v)} placeholder="Qty" placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
+                      <TouchableOpacity onPress={() => removeListItem(setMaterials, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setMaterials, { description: '', quantity: '' })}>
+                    <Ionicons name="add" size={16} color={ACCENT} />
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Material</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-          {/* Submit Button */}
-          {selectedProject && (
-            <View style={styles.submitSection}>
+              {/* Equipment */}
+              <SectionHeader sectionKey="equipment" icon="construct-outline" title="Equipment" />
+              {expanded.equipment && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  {equipment.map((e, i) => (
+                    <View key={i} style={styles.listItemRow}>
+                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={e.name} onChangeText={v => updateListItem(setEquipment, i, 'name', v)} placeholder="Equipment" placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { width: 45, color: Colors.primaryText, borderColor: Colors.border }]} value={String(e.hours || '')} onChangeText={v => updateListItem(setEquipment, i, 'hours', v)} placeholder="Hrs" placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
+                      <TouchableOpacity onPress={() => removeListItem(setEquipment, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setEquipment, { name: '', hours: '' })}>
+                    <Ionicons name="add" size={16} color={ACCENT} />
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Equipment</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Delays */}
+              <SectionHeader sectionKey="delays" icon="warning-outline" title="Delays / Issues" />
+              {expanded.delays && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  {delays.map((d, i) => (
+                    <View key={i} style={{ gap: 8, marginBottom: 10 }}>
+                      <View style={styles.listItemRow}>
+                        <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={d.description} onChangeText={v => updateListItem(setDelays, i, 'description', v)} placeholder="What happened" placeholderTextColor={Colors.secondaryText} />
+                        <TouchableOpacity onPress={() => removeListItem(setDelays, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="close" size={18} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          {DELAY_REASONS.map(r => (
+                            <TouchableOpacity
+                              key={r}
+                              style={[styles.reasonChip, d.reason === r && { backgroundColor: '#F59E0B20', borderColor: '#F59E0B' }]}
+                              onPress={() => updateListItem(setDelays, i, 'reason', r)}
+                            >
+                              <Text style={[styles.reasonText, { color: d.reason === r ? '#F59E0B' : Colors.secondaryText }]}>{r}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setDelays, { description: '', reason: '' })}>
+                    <Ionicons name="add" size={16} color={ACCENT} />
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Delay</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Safety */}
+              <SectionHeader sectionKey="safety" icon="shield-checkmark-outline" title="Safety" />
+              {expanded.safety && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  <TextInput
+                    style={[styles.textArea, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background, minHeight: 60 }]}
+                    value={safety}
+                    onChangeText={setSafety}
+                    placeholder="Any incidents, observations, or toolbox talks..."
+                    placeholderTextColor={Colors.secondaryText}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+              )}
+
+              {/* Visitors */}
+              <SectionHeader sectionKey="visitors" icon="person-add-outline" title="Visitors" />
+              {expanded.visitors && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  {visitors.map((v, i) => (
+                    <View key={i} style={styles.listItemRow}>
+                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={v.name} onChangeText={val => updateListItem(setVisitors, i, 'name', val)} placeholder="Name" placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={v.purpose} onChangeText={val => updateListItem(setVisitors, i, 'purpose', val)} placeholder="Purpose" placeholderTextColor={Colors.secondaryText} />
+                      <TouchableOpacity onPress={() => removeListItem(setVisitors, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setVisitors, { name: '', purpose: '' })}>
+                    <Ionicons name="add" size={16} color={ACCENT} />
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Visitor</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Tomorrow's Plan */}
+              <SectionHeader sectionKey="tomorrow" icon="calendar-outline" title="Tomorrow's Plan" />
+              {expanded.tomorrow && (
+                <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
+                  <TextInput
+                    style={[styles.textArea, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background, minHeight: 60 }]}
+                    value={nextDayPlan}
+                    onChangeText={setNextDayPlan}
+                    placeholder="What's planned for tomorrow..."
+                    placeholderTextColor={Colors.secondaryText}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+              )}
+
+              {/* Submit */}
               <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  { backgroundColor: submitting ? Colors.lightGray : Colors.primaryBlue }
-                ]}
+                style={[styles.submitBtn, { backgroundColor: submitting ? Colors.border : ACCENT }]}
                 onPress={handleSubmit}
                 disabled={submitting}
               >
                 {submitting ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color="#FFF" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle" size={24} color="#fff" />
-                    <Text style={styles.submitButtonText}>Submit Report</Text>
+                    <Ionicons name="checkmark-circle" size={22} color="#FFF" />
+                    <Text style={styles.submitText}>Submit Daily Log</Text>
                   </>
                 )}
               </TouchableOpacity>
-            </View>
+            </>
           )}
+
+          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -406,149 +547,64 @@ export default function DailyReportFormScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: FontSizes.body,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: Spacing.xl * 2,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: Spacing.xs,
-  },
-  headerTitle: {
-    fontSize: FontSizes.title,
-    fontWeight: '700',
-  },
-  section: {
-    marginTop: Spacing.md,
-    marginHorizontal: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    marginBottom: Spacing.md,
-  },
-  emptyText: {
-    fontSize: FontSizes.small,
-    fontStyle: 'italic',
-  },
-  projectList: {
-    gap: Spacing.sm,
-  },
-  projectItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 2,
-  },
-  projectItemContent: {
-    flex: 1,
-  },
-  projectName: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-  },
-  projectClient: {
-    fontSize: FontSizes.small,
-    marginTop: 2,
-  },
-  photoActions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  photoButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  photoButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-  },
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  photoContainer: {
-    position: 'relative',
-    width: 100,
-    height: 100,
-  },
-  photoThumbnail: {
-    width: '100%',
-    height: '100%',
-    borderRadius: BorderRadius.md,
-  },
-  removePhotoButton: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-  },
-  workDoneInput: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    fontSize: FontSizes.body,
-    minHeight: 80,
-  },
-  submitSection: {
-    marginTop: Spacing.lg,
-    marginHorizontal: Spacing.md,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-  },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1 },
+  backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: FontSizes.subheader, fontWeight: '700' },
+  scrollContent: { padding: Spacing.lg, gap: 12 },
+
+  // Cards
+  card: { borderRadius: 14, padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
+  cardTitle: { fontSize: 14, fontWeight: '700' },
+  emptyText: { fontSize: 13, fontStyle: 'italic' },
+
+  // Project chips
+  projectScroll: { flexGrow: 0 },
+  projectChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, marginRight: 8 },
+  projectChipText: { fontSize: 14, fontWeight: '600' },
+
+  // Text area
+  textArea: { padding: 12, borderRadius: 10, borderWidth: 1, fontSize: 15, minHeight: 80 },
+
+  // Photos
+  photoRow: { flexDirection: 'row', gap: 8 },
+  photoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
+  photoBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
+  photoThumbWrap: { marginRight: 8, position: 'relative' },
+  photoThumb: { width: 80, height: 80, borderRadius: 10 },
+  photoRemove: { position: 'absolute', top: -6, right: -6, backgroundColor: '#FFF', borderRadius: 11 },
+
+  // Optional sections
+  optionalLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1, marginTop: 8, marginBottom: 2 },
+  optionalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
+  optionalTitle: { flex: 1, fontSize: 14, fontWeight: '600' },
+  countBadge: { backgroundColor: '#1E40AF', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  countText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  expandedCard: { borderRadius: 12, padding: 14, gap: 8, marginTop: -4 },
+
+  // Weather
+  weatherRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  weatherChip: { alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
+  weatherChipText: { fontSize: 11, fontWeight: '500' },
+  tempRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  tempLabel: { fontSize: 13, fontWeight: '500' },
+  tempInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, fontSize: 16, fontWeight: '700', width: 60, textAlign: 'center' },
+  tempUnit: { fontSize: 14 },
+
+  // List items
+  listItemRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  listInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13 },
+
+  // Add button
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
+  addBtnText: { fontSize: 13, fontWeight: '600' },
+
+  // Delay reasons
+  reasonChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  reasonText: { fontSize: 12, fontWeight: '500' },
+
+  // Submit
+  submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, borderRadius: 14, marginTop: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  submitText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

@@ -111,9 +111,10 @@ export const disconnectAccount = async (accountId) => {
 /**
  * Trigger manual sync for an account
  */
-export const syncAccount = async (accountId) => {
+export const syncAccount = async (accountId, fromDate = null) => {
   return fetchWithAuth(`/api/teller/accounts/${accountId}/sync`, {
     method: 'POST',
+    body: fromDate ? JSON.stringify({ from_date: fromDate }) : undefined,
   });
 };
 

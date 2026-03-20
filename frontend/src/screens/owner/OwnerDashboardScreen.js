@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import DraggableWidgetGrid from '../../components/dashboard/DraggableWidgetGrid';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -28,6 +30,7 @@ import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
 import { getReconciliationSummary } from '../../services/bankService';
 import { fetchAllOwnerTransactions, calculateCashFlow } from '../../utils/financialReportUtils';
+import { fetchRecurringExpenses } from '../../utils/storage/recurringExpenses';
 import { checkForgottenClockOuts, sendForgottenClockOutNotifications } from '../../utils/storage/timeTracking';
 
 import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT, loadLayout, saveLayout, resetLayout } from '../../utils/dashboardLayout';
@@ -95,6 +98,8 @@ export default function OwnerDashboardScreen() {
   const [payrollSummary, setPayrollSummary] = useState({ grossPay: 0, workerCount: 0 });
   const [recentReports, setRecentReports] = useState([]);
   const [pipeline, setPipeline] = useState({ estimates: { draft: 0, sent: 0, accepted: 0 }, invoices: { unpaid: 0, partial: 0, paid: 0 } });
+  const [monthlyOverhead, setMonthlyOverhead] = useState(0);
+  const [businessName, setBusinessName] = useState('');
 
   // Widget layout state
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
@@ -147,6 +152,28 @@ export default function OwnerDashboardScreen() {
         totalExpenses,
         pendingInvites: pendingInviteCount,
       });
+
+      // Load business name
+      try {
+        const { data: profile } = await supabase.from('profiles').select('business_name').eq('id', user.id).single();
+        if (profile?.business_name) setBusinessName(profile.business_name);
+      } catch (e) { /* not critical */ }
+
+      // Load overhead expenses
+      try {
+        const overheadItems = await fetchRecurringExpenses();
+        const overhead = (overheadItems || [])
+          .filter(i => i.is_active)
+          .reduce((sum, i) => {
+            const amt = parseFloat(i.amount || 0);
+            if (i.frequency === 'weekly') return sum + amt * 4.33;
+            if (i.frequency === 'biweekly') return sum + amt * 2.17;
+            if (i.frequency === 'quarterly') return sum + amt / 3;
+            if (i.frequency === 'annually') return sum + amt / 12;
+            return sum + amt;
+          }, 0);
+        setMonthlyOverhead(overhead);
+      } catch (e) { /* overhead not critical */ }
 
       // Overdue invoices
       try {
@@ -688,6 +715,67 @@ export default function OwnerDashboardScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
         >
+          {/* Company Info Card */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('CompanyOverhead')}
+            style={styles.companyCard}
+          >
+            <View style={styles.companyHeader}>
+              <Text style={styles.companyName}>{businessName || 'My Company'}</Text>
+            </View>
+
+            <View style={styles.companyStats}>
+              <View style={styles.companyStat}>
+                <Text style={styles.companyStatLabel}>Overhead</Text>
+                <Text style={[styles.companyStatValue, { color: '#FCA5A5' }]}>
+                  ${Math.round(monthlyOverhead).toLocaleString()}
+                </Text>
+                <Text style={styles.companyStatSuffix}>/month</Text>
+              </View>
+              <View style={styles.companyStatDivider} />
+              <View style={styles.companyStat}>
+                <Text style={styles.companyStatLabel}>Revenue</Text>
+                <Text style={[styles.companyStatValue, { color: '#6EE7B7' }]}>
+                  ${Math.round(pnl.revenue).toLocaleString()}
+                </Text>
+              </View>
+              <View style={styles.companyStatDivider} />
+              <View style={styles.companyStat}>
+                <Text style={styles.companyStatLabel}>Net Profit</Text>
+                <Text style={[styles.companyStatValue, { color: (pnl.profit - monthlyOverhead) >= 0 ? '#6EE7B7' : '#FCA5A5' }]}>
+                  ${Math.round(pnl.profit - monthlyOverhead).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+
+            {pnl.revenue > 0 && (
+              <View style={styles.companyRatio}>
+                {(() => {
+                  const ratio = Math.round((monthlyOverhead / pnl.revenue) * 100);
+                  const isHealthy = ratio < 20;
+                  const isModerate = ratio >= 20 && ratio < 35;
+                  const color = isHealthy ? '#6EE7B7' : isModerate ? '#FBBF24' : '#FCA5A5';
+                  const bgColor = isHealthy ? 'rgba(16,185,129,0.15)' : isModerate ? 'rgba(251,191,36,0.15)' : 'rgba(244,63,94,0.15)';
+                  const label = isHealthy ? 'Healthy' : isModerate ? 'Moderate' : 'High';
+                  return (
+                    <View style={[styles.companyRatioPill, { backgroundColor: bgColor }]}>
+                      <View style={[styles.companyRatioDot, { backgroundColor: color }]} />
+                      <Text style={[styles.companyRatioText, { color }]}>
+                        Overhead {ratio}% — {label}
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </View>
+            )}
+
+            <View style={styles.companyBadge}>
+              <Text style={styles.companyBadgeText}>Manage Overhead</Text>
+              <Ionicons name="chevron-forward" size={13} color="#38BDF8" />
+            </View>
+          </TouchableOpacity>
+
           {/* Widget grid */}
           <View style={styles.widgetGrid}>
             {activeLayout.map((item, index) => renderSizedWidget(item, index))}
@@ -749,9 +837,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: 20,
     paddingTop: Spacing.md,
+    paddingBottom: 20,
   },
 
   // Widget grid (view mode)
@@ -759,6 +846,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
   },
 
   // Edit mode header
@@ -844,5 +933,98 @@ const styles = StyleSheet.create({
   },
   customizeIconBtn: {
     padding: 8,
+  },
+
+  // Company card — same dark style as PnL widget
+  companyCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderRadius: 20,
+    backgroundColor: '#0F172A',
+    padding: 20,
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  companyHeader: {
+    alignItems: 'center',
+  },
+  companyName: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  companyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(56,189,248,0.1)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  companyBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#38BDF8',
+  },
+  companyStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  companyStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  companyStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  companyStatLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  companyStatValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 3,
+    letterSpacing: -0.5,
+  },
+  companyStatSuffix: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  companyRatio: {
+    alignItems: 'center',
+  },
+  companyRatioPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+  },
+  companyRatioDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  companyRatioText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

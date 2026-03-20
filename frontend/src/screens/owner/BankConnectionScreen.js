@@ -16,6 +16,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Linking,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -54,6 +56,20 @@ export default function BankConnectionScreen() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState({});
   const [uploading, setUploading] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [newAccountIds, setNewAccountIds] = useState([]);
+  const [isFreshStart, setIsFreshStart] = useState(true);
+  const [monthsBack, setMonthsBack] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [accountIdsBeforeConnect, setAccountIdsBeforeConnect] = useState([]);
+
+  const getFromDate = () => {
+    if (isFreshStart) return new Date().toISOString().split('T')[0];
+    const months = parseInt(monthsBack, 10) || 1;
+    const d = new Date();
+    d.setMonth(d.getMonth() - months);
+    return d.toISOString().split('T')[0];
+  };
 
   const loadAccounts = async () => {
     try {
@@ -67,7 +83,7 @@ export default function BankConnectionScreen() {
     }
   };
 
-  // Check if a Teller enrollment was completed (saved server-side)
+  // Check if a Teller enrollment was completed — detect new accounts and show import modal
   const checkEnrollmentComplete = async () => {
     try {
       const complete = await AsyncStorage.getItem('@teller_enrollment_complete');
@@ -76,11 +92,21 @@ export default function BankConnectionScreen() {
       await AsyncStorage.removeItem('@teller_enrollment_complete');
       setConnecting(false);
 
-      Alert.alert(
-        t('bank.accountConnected'),
-        t('bank.accountConnectedDesc', { name: 'Bank account' })
-      );
-      loadAccounts();
+      // Fetch updated accounts and find new ones
+      const result = await getConnectedAccounts();
+      const updatedAccounts = result.accounts || [];
+      setAccounts(updatedAccounts);
+
+      const newIds = updatedAccounts
+        .filter(a => !accountIdsBeforeConnect.includes(a.id))
+        .map(a => a.id);
+
+      if (newIds.length > 0) {
+        setNewAccountIds(newIds);
+        setIsFreshStart(true);
+        setMonthsBack('');
+        setShowImportModal(true);
+      }
     } catch (error) {
       console.error('Error checking enrollment:', error);
     }
@@ -96,6 +122,8 @@ export default function BankConnectionScreen() {
   const handleConnectBank = async () => {
     try {
       setConnecting(true);
+      // Snapshot current account IDs so we can detect new ones after Safari return
+      setAccountIdsBeforeConnect(accounts.map(a => a.id));
 
       const { url } = await getConnectSession();
       await Linking.openURL(url);
@@ -194,6 +222,38 @@ export default function BankConnectionScreen() {
         },
       ]
     );
+  };
+
+  const handleImportRange = async () => {
+    if (!isFreshStart && (!monthsBack || parseInt(monthsBack, 10) < 1)) {
+      Alert.alert('Enter months', 'Please enter how many months back to import.');
+      return;
+    }
+
+    const fromDate = getFromDate();
+    setImportLoading(true);
+    try {
+      for (const accountId of newAccountIds) {
+        await syncAccount(accountId, fromDate);
+      }
+      setShowImportModal(false);
+      setNewAccountIds([]);
+      loadAccounts();
+      Alert.alert(
+        t('bank.accountConnected'),
+        isFreshStart
+          ? 'Your account is connected! Transactions will be tracked from now on.'
+          : `Imported transactions from the last ${monthsBack} month${parseInt(monthsBack, 10) > 1 ? 's' : ''}.`,
+        [
+          { text: 'Review', onPress: () => navigation.navigate('BankReconciliation') },
+          { text: 'OK' },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Import Error', error.message || 'Failed to import transactions');
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -417,6 +477,107 @@ export default function BankConnectionScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      {/* Import Range Modal */}
+      <Modal visible={showImportModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: Colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
+              How far back should we import?
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: Colors.secondaryText }]}>
+              Choose to start fresh or import past transactions
+            </Text>
+
+            <View style={styles.rangeOptions}>
+              {/* Fresh Start Option */}
+              <TouchableOpacity
+                style={[
+                  styles.rangeOption,
+                  { borderColor: isFreshStart ? OWNER_COLORS.primary : Colors.border },
+                  isFreshStart && { backgroundColor: OWNER_COLORS.primary + '08' },
+                ]}
+                onPress={() => setIsFreshStart(true)}
+                disabled={importLoading}
+              >
+                <View style={[
+                  styles.rangeRadio,
+                  { borderColor: isFreshStart ? OWNER_COLORS.primary : Colors.border },
+                  isFreshStart && { backgroundColor: OWNER_COLORS.primary },
+                ]}>
+                  {isFreshStart && <View style={styles.rangeRadioDot} />}
+                </View>
+                <Ionicons name="flash-outline" size={20} color={isFreshStart ? OWNER_COLORS.primary : Colors.secondaryText} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rangeLabel, { color: Colors.primaryText }]}>Fresh Start</Text>
+                  <Text style={[styles.rangeDesc, { color: Colors.secondaryText }]}>Track from today — no past transactions</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Import Past Months Option */}
+              <TouchableOpacity
+                style={[
+                  styles.rangeOption,
+                  { borderColor: !isFreshStart ? OWNER_COLORS.primary : Colors.border },
+                  !isFreshStart && { backgroundColor: OWNER_COLORS.primary + '08' },
+                ]}
+                onPress={() => setIsFreshStart(false)}
+                disabled={importLoading}
+              >
+                <View style={[
+                  styles.rangeRadio,
+                  { borderColor: !isFreshStart ? OWNER_COLORS.primary : Colors.border },
+                  !isFreshStart && { backgroundColor: OWNER_COLORS.primary },
+                ]}>
+                  {!isFreshStart && <View style={styles.rangeRadioDot} />}
+                </View>
+                <Ionicons name="calendar-outline" size={20} color={!isFreshStart ? OWNER_COLORS.primary : Colors.secondaryText} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rangeLabel, { color: Colors.primaryText }]}>Import Past Transactions</Text>
+                  <Text style={[styles.rangeDesc, { color: Colors.secondaryText }]}>Choose how many months to go back</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Month Input — only visible when not fresh start */}
+              {!isFreshStart && (
+                <View style={[styles.monthInputRow, { borderColor: Colors.border }]}>
+                  <Text style={[styles.monthInputLabel, { color: Colors.primaryText }]}>Months back:</Text>
+                  <TextInput
+                    style={[styles.monthInput, { color: Colors.primaryText, borderColor: OWNER_COLORS.primary }]}
+                    value={monthsBack}
+                    onChangeText={(text) => setMonthsBack(text.replace(/[^0-9]/g, ''))}
+                    keyboardType="number-pad"
+                    placeholder="e.g. 6"
+                    placeholderTextColor={Colors.secondaryText}
+                    maxLength={2}
+                    autoFocus
+                  />
+                  <Text style={[styles.monthInputHint, { color: Colors.secondaryText }]}>
+                    {monthsBack ? `${parseInt(monthsBack, 10) * 30} days` : ''}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.importButton, { backgroundColor: OWNER_COLORS.primary }, importLoading && { opacity: 0.7 }]}
+              onPress={handleImportRange}
+              disabled={importLoading}
+            >
+              {importLoading ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <ActivityIndicator color="#FFF" size="small" />
+                  <Text style={styles.importButtonText}>Importing transactions...</Text>
+                </View>
+              ) : (
+                <Text style={styles.importButtonText}>
+                  {isFreshStart ? 'Start Fresh' : 'Import Transactions'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -625,5 +786,97 @@ const styles = StyleSheet.create({
   reconcileLinkSubtitle: {
     fontSize: FontSizes.tiny,
     marginTop: 2,
+  },
+  // Import Range Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  rangeOptions: {
+    gap: 10,
+  },
+  rangeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 12,
+  },
+  rangeRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rangeRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FFF',
+  },
+  rangeLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rangeDesc: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  monthInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  monthInputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  monthInput: {
+    borderWidth: 2,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    width: 70,
+  },
+  monthInputHint: {
+    fontSize: 12,
+  },
+  importButton: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  importButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

@@ -34,7 +34,7 @@ import { shareFinancialReportPDF, shareProjectReportPDF } from '../../utils/fina
 import { fetchProjectTransactionsForReport, calculateCashFlow } from '../../utils/financialReportUtils';
 import { fetchAgingReport } from '../../utils/storage/invoices';
 import { exportTransactionsCSV } from '../../utils/csvExport';
-import { processOverdueRecurring } from '../../utils/storage/recurringExpenses';
+import { processOverdueRecurring, fetchRecurringExpenses } from '../../utils/storage/recurringExpenses';
 
 const OWNER_COLORS = {
   primary: '#1E40AF',
@@ -65,6 +65,8 @@ export default function FinancialReportScreen() {
   const [exporting, setExporting] = useState(false);
   const [businessInfo, setBusinessInfo] = useState({});
   const [outstandingReceivables, setOutstandingReceivables] = useState(0);
+  const [monthlyOverhead, setMonthlyOverhead] = useState(0);
+  const [overheadItems, setOverheadItems] = useState([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -84,6 +86,23 @@ export default function FinancialReportScreen() {
       ]);
       setTransactions(txData || []);
       setOutstandingReceivables(agingData?.totals?.total || 0);
+
+      // Load overhead
+      try {
+        const ohItems = await fetchRecurringExpenses();
+        setOverheadItems(ohItems || []);
+        const total = (ohItems || [])
+          .filter(i => i.is_active)
+          .reduce((sum, i) => {
+            const amt = parseFloat(i.amount || 0);
+            if (i.frequency === 'weekly') return sum + amt * 4.33;
+            if (i.frequency === 'biweekly') return sum + amt * 2.17;
+            if (i.frequency === 'quarterly') return sum + amt / 3;
+            if (i.frequency === 'annually') return sum + amt / 12;
+            return sum + amt;
+          }, 0);
+        setMonthlyOverhead(total);
+      } catch (e) { /* not critical */ }
 
       // Process any overdue recurring expenses silently
       processOverdueRecurring().catch(() => {});
@@ -149,8 +168,11 @@ export default function FinancialReportScreen() {
 
   const { startDate, endDate } = getDateRangeForPeriod(period);
   const pnl = aggregatePnL(transactions, projects, startDate, endDate);
+  const netProfit = pnl.grossProfit - monthlyOverhead;
+  const netMargin = pnl.totalRevenue > 0 ? (netProfit / pnl.totalRevenue) * 100 : 0;
 
   const profitColor = pnl.grossProfit >= 0 ? OWNER_COLORS.success : OWNER_COLORS.error;
+  const netProfitColor = netProfit >= 0 ? OWNER_COLORS.success : OWNER_COLORS.error;
 
   if (loading && !refreshing) {
     return (
@@ -263,54 +285,102 @@ export default function FinancialReportScreen() {
           </View>
         )}
 
-        {/* Metric Cards */}
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricsRow}>
-            <MetricCard
-              label={t('financial.totalRevenue')}
-              value={formatCurrency(pnl.totalRevenue)}
-              icon="wallet-outline"
-              color={OWNER_COLORS.success}
-              subtitle={t('financial.revenueSubtitle')}
-            />
-            <View style={{ width: Spacing.md }} />
-            <MetricCard
-              label={t('financial.totalExpenses')}
-              value={formatCurrency(pnl.totalCosts)}
-              icon="card-outline"
-              color={OWNER_COLORS.error}
-              subtitle={t('financial.expensesSubtitle')}
-            />
+        {/* Quick Summary */}
+        <View style={[styles.summaryStrip, { backgroundColor: Colors.cardBackground }]}>
+          <View style={styles.summaryStat}>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Revenue</Text>
+            <Text style={[styles.summaryValue, { color: OWNER_COLORS.success }]}>{formatCurrency(pnl.totalRevenue)}</Text>
           </View>
-          <View style={styles.metricsRow}>
-            <MetricCard
-              label={t('financial.grossProfit')}
-              value={formatCurrency(pnl.grossProfit)}
-              icon="trending-up"
-              color={profitColor}
-              subtitle={t('financial.profitSubtitle')}
-            />
-            <View style={{ width: Spacing.md }} />
-            <MetricCard
-              label={t('financial.grossMargin')}
-              value={`${pnl.grossMargin.toFixed(1)}%`}
-              icon="pie-chart-outline"
-              color={profitColor}
-              subtitle={pnl.grossMargin >= 20 ? t('financial.healthy') : pnl.grossMargin >= 10 ? t('financial.moderate') : t('financial.atRisk')}
-            />
+          <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
+          <View style={styles.summaryStat}>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Expenses</Text>
+            <Text style={[styles.summaryValue, { color: OWNER_COLORS.error }]}>{formatCurrency(pnl.totalCosts)}</Text>
+          </View>
+          <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
+          <View style={styles.summaryStat}>
+            <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{monthlyOverhead > 0 ? 'Net Profit' : 'Profit'}</Text>
+            <Text style={[styles.summaryValue, { color: monthlyOverhead > 0 ? netProfitColor : profitColor }]}>
+              {formatCurrency(monthlyOverhead > 0 ? netProfit : pnl.grossProfit)}
+            </Text>
           </View>
         </View>
 
+        {/* Income Statement */}
         {view === 'company' ? (
           <>
-            {/* P&L Waterfall */}
-            <PnLWaterfall
-              revenue={pnl.totalRevenue}
-              costBreakdown={pnl.costBreakdown}
-              totalCosts={pnl.totalCosts}
-              grossProfit={pnl.grossProfit}
-              grossMargin={pnl.grossMargin}
-            />
+            <View style={[styles.isCard, { backgroundColor: Colors.cardBackground }]}>
+              <Text style={[styles.isTitle, { color: Colors.primaryText }]}>Detailed Breakdown</Text>
+
+              {/* Revenue */}
+              <View style={styles.isRow}>
+                <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Revenue</Text>
+                <Text style={[styles.isValue, { color: OWNER_COLORS.success }]}>{formatCurrency(pnl.totalRevenue)}</Text>
+              </View>
+
+              {/* Project Costs */}
+              <View style={styles.isRow}>
+                <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Project Costs</Text>
+                <Text style={[styles.isValue, { color: OWNER_COLORS.error }]}>({formatCurrency(pnl.totalCosts)})</Text>
+              </View>
+              {/* Cost breakdown */}
+              {Object.entries(pnl.costBreakdown)
+                .filter(([, amt]) => amt > 0)
+                .sort(([, a], [, b]) => b - a)
+                .map(([cat, amt]) => (
+                  <View key={cat} style={styles.isSubRow}>
+                    <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</Text>
+                    <Text style={[styles.isSubValue, { color: Colors.secondaryText }]}>{formatCurrency(amt)}</Text>
+                  </View>
+                ))
+              }
+
+              {/* Gross Profit */}
+              <View style={[styles.isDivider, { backgroundColor: Colors.border }]} />
+              <View style={styles.isRow}>
+                <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>Gross Profit</Text>
+                <Text style={[styles.isBoldValue, { color: profitColor }]}>{formatCurrency(pnl.grossProfit)}</Text>
+              </View>
+              <View style={styles.isSubRow}>
+                <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>Gross Margin</Text>
+                <Text style={[styles.isSubValue, { color: profitColor }]}>{pnl.grossMargin.toFixed(1)}%</Text>
+              </View>
+
+              {/* Overhead (if any) */}
+              {monthlyOverhead > 0 && (
+                <>
+                  <View style={{ height: 8 }} />
+                  <View style={styles.isRow}>
+                    <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Company Overhead</Text>
+                    <Text style={[styles.isValue, { color: OWNER_COLORS.error }]}>({formatCurrency(monthlyOverhead)})</Text>
+                  </View>
+                  {overheadItems.filter(i => i.is_active).map(item => {
+                    const amt = parseFloat(item.amount || 0);
+                    const monthly = item.frequency === 'weekly' ? amt * 4.33
+                      : item.frequency === 'biweekly' ? amt * 2.17
+                      : item.frequency === 'quarterly' ? amt / 3
+                      : item.frequency === 'annually' ? amt / 12
+                      : amt;
+                    return (
+                      <View key={item.id} style={styles.isSubRow}>
+                        <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>{item.description}</Text>
+                        <Text style={[styles.isSubValue, { color: Colors.secondaryText }]}>{formatCurrency(monthly)}</Text>
+                      </View>
+                    );
+                  })}
+
+                  {/* Net Profit */}
+                  <View style={[styles.isDivider, { backgroundColor: Colors.border }]} />
+                  <View style={styles.isRow}>
+                    <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>Net Profit</Text>
+                    <Text style={[styles.isBoldValue, { color: netProfitColor }]}>{formatCurrency(netProfit)}</Text>
+                  </View>
+                  <View style={styles.isSubRow}>
+                    <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>Net Margin</Text>
+                    <Text style={[styles.isSubValue, { color: netProfitColor }]}>{netMargin.toFixed(1)}%</Text>
+                  </View>
+                </>
+              )}
+            </View>
 
             {/* Category Breakdown */}
             {pnl.totalCosts > 0 && (
@@ -366,7 +436,7 @@ export default function FinancialReportScreen() {
             { icon: 'receipt-outline', label: t('financial.arAging'), desc: t('financial.arAgingDesc'), route: 'ARAging', color: '#F59E0B' },
             { icon: 'document-text-outline', label: t('financial.taxSummary'), desc: t('financial.taxSummaryDesc'), route: 'TaxSummary', color: '#8B5CF6' },
             { icon: 'people-outline', label: t('financial.payrollSummary'), desc: t('financial.payrollDesc'), route: 'PayrollSummary', color: '#3B82F6' },
-            { icon: 'repeat-outline', label: t('financial.recurringExpenses'), desc: t('financial.recurringDesc'), route: 'RecurringExpenses', color: '#10B981' },
+            { icon: 'business-outline', label: 'Company Overhead', desc: 'Manage fixed monthly costs', route: 'CompanyOverhead', color: '#10B981' },
           ].map((item) => (
             <TouchableOpacity
               key={item.route}
@@ -566,5 +636,93 @@ const styles = StyleSheet.create({
   exportDesc: {
     fontSize: FontSizes.tiny,
     marginTop: 2,
+  },
+  // Quick Summary
+  summaryStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: BorderRadius.lg,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  summaryStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 4,
+    letterSpacing: -0.5,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 32,
+  },
+  // Income Statement card
+  isCard: {
+    borderRadius: BorderRadius.lg,
+    padding: 20,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  isTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  isRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  isLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  isValue: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  isSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingLeft: 16,
+    paddingVertical: 1,
+  },
+  isSubLabel: {
+    fontSize: 13,
+  },
+  isSubValue: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  isDivider: {
+    height: 1,
+    marginVertical: 8,
+  },
+  isBoldLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  isBoldValue: {
+    fontSize: 18,
+    fontWeight: '800',
   },
 });
