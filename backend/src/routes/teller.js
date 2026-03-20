@@ -1694,7 +1694,7 @@ async function syncAccountTransactions(userId, account, overrideFromDate = null)
     const pageSize = 250;
 
     while (true) {
-      let path = `/accounts/${account.teller_account_id}/transactions?count=${pageSize}&from_date=${startDate}`;
+      let path = `/accounts/${account.teller_account_id}/transactions?count=${pageSize}&start_date=${startDate}`;
       if (fromId) {
         path += `&from_id=${fromId}`;
       }
