@@ -4,7 +4,7 @@
  * Owner-only screen.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
@@ -18,6 +18,7 @@ import {
   Linking,
   Modal,
   TextInput,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,7 +62,7 @@ export default function BankConnectionScreen() {
   const [isFreshStart, setIsFreshStart] = useState(true);
   const [monthsBack, setMonthsBack] = useState('');
   const [importLoading, setImportLoading] = useState(false);
-  const [accountIdsBeforeConnect, setAccountIdsBeforeConnect] = useState([]);
+  const accountIdsBeforeConnect = useRef([]);
 
   const getFromDate = () => {
     if (isFreshStart) return new Date().toISOString().split('T')[0];
@@ -98,7 +99,7 @@ export default function BankConnectionScreen() {
       setAccounts(updatedAccounts);
 
       const newIds = updatedAccounts
-        .filter(a => !accountIdsBeforeConnect.includes(a.id))
+        .filter(a => !accountIdsBeforeConnect.current.includes(a.id))
         .map(a => a.id);
 
       if (newIds.length > 0) {
@@ -115,15 +116,24 @@ export default function BankConnectionScreen() {
   useFocusEffect(
     useCallback(() => {
       loadAccounts();
-      checkEnrollmentComplete();
     }, [])
   );
+
+  // Listen for app returning from Safari — this is when enrollment completes
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkEnrollmentComplete();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleConnectBank = async () => {
     try {
       setConnecting(true);
       // Snapshot current account IDs so we can detect new ones after Safari return
-      setAccountIdsBeforeConnect(accounts.map(a => a.id));
+      accountIdsBeforeConnect.current = accounts.map(a => a.id);
 
       const { url } = await getConnectSession();
       await Linking.openURL(url);
