@@ -18,6 +18,8 @@ import {
   Modal,
   TextInput,
   AppState,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -484,7 +486,7 @@ export default function BankConnectionScreen() {
 
       {/* Import Range Modal */}
       <Modal visible={showImportModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalContent, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
               How far back should we import?
@@ -580,7 +582,7 @@ export default function BankConnectionScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
