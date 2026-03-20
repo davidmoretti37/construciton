@@ -868,16 +868,9 @@ router.post('/save-enrollment', async (req, res) => {
 
     logger.info(`Connected ${savedAccounts.length} accounts for user ${userId.substring(0, 8)}`);
 
-    // Trigger initial sync for each account
-    for (const account of savedAccounts) {
-      try {
-        await syncAccountTransactions(userId, account);
-      } catch (syncError) {
-        logger.error(`Initial sync failed for account ${account.id}:`, syncError.message);
-      }
-    }
+    // Don't auto-sync — frontend will trigger sync after user picks import range
 
-    res.json({ accounts: savedAccounts });
+    res.json({ accounts: savedAccounts, accountIds: savedAccounts.map(a => a.id) });
   } catch (error) {
     logger.error('Save enrollment error:', error.message);
     res.status(500).json({ error: 'Failed to connect bank account' });
