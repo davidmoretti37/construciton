@@ -4,8 +4,7 @@
  * Owner-only screen.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -62,7 +61,6 @@ export default function BankConnectionScreen() {
   const [isFreshStart, setIsFreshStart] = useState(true);
   const [monthsBack, setMonthsBack] = useState('');
   const [importLoading, setImportLoading] = useState(false);
-  const checkingRef = useRef(false);
 
   const getFromDate = () => {
     if (isFreshStart) return new Date().toISOString().split('T')[0];
@@ -75,74 +73,38 @@ export default function BankConnectionScreen() {
   const loadAccounts = async () => {
     try {
       const result = await getConnectedAccounts();
-      setAccounts(result.accounts || []);
+      const accts = result.accounts || [];
+      setAccounts(accts);
+
+      // Check for never-synced accounts — these need the import date picker
+      const neverSynced = accts.filter(a => !a.last_sync_at && !a.is_manual && a.sync_status === 'active');
+      if (neverSynced.length > 0 && !showImportModal) {
+        setNewAccountIds(neverSynced.map(a => a.id));
+        setIsFreshStart(true);
+        setMonthsBack('');
+        setShowImportModal(true);
+        setConnecting(false);
+      }
     } catch (error) {
       console.error('Error loading accounts:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
-    }
-  };
-
-  // Check if we were connecting and detect new accounts — all via AsyncStorage, survives reloads
-  const checkForNewAccounts = async () => {
-    if (checkingRef.current) return; // Prevent double-runs
-    try {
-      const savedBefore = await AsyncStorage.getItem('@teller_accounts_before');
-      if (!savedBefore) return; // Not in the middle of connecting
-
-      checkingRef.current = true;
-      const beforeIds = JSON.parse(savedBefore);
-
-      // Retry up to 3 times with 2s gaps (enrollment may still be processing)
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
-
-        const result = await getConnectedAccounts();
-        const currentAccounts = result.accounts || [];
-        setAccounts(currentAccounts);
-
-        const newIds = currentAccounts
-          .filter(a => !beforeIds.includes(a.id))
-          .map(a => a.id);
-
-        if (newIds.length > 0) {
-          // Found new accounts — clean up and show modal
-          await AsyncStorage.removeItem('@teller_accounts_before');
-          await AsyncStorage.removeItem('@teller_enrollment_complete');
-          setConnecting(false);
-          setNewAccountIds(newIds);
-          setIsFreshStart(true);
-          setMonthsBack('');
-          setShowImportModal(true);
-          checkingRef.current = false;
-          return;
-        }
-      }
-
-      // 3 attempts, no new accounts found — give up
-      await AsyncStorage.removeItem('@teller_accounts_before');
       setConnecting(false);
-      checkingRef.current = false;
-    } catch (error) {
-      console.error('Error checking for new accounts:', error);
-      setConnecting(false);
-      checkingRef.current = false;
     }
   };
 
   useFocusEffect(
     useCallback(() => {
       loadAccounts();
-      checkForNewAccounts();
     }, [])
   );
 
-  // Also check when app returns to foreground (from Safari)
+  // Also reload when app returns to foreground (from Safari)
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        checkForNewAccounts();
+        loadAccounts();
       }
     });
     return () => sub.remove();
@@ -151,9 +113,6 @@ export default function BankConnectionScreen() {
   const handleConnectBank = async () => {
     try {
       setConnecting(true);
-      // Save current account IDs to AsyncStorage — survives app reloads
-      await AsyncStorage.setItem('@teller_accounts_before', JSON.stringify(accounts.map(a => a.id)));
-
       const { url } = await getConnectSession();
       await Linking.openURL(url);
     } catch (error) {
