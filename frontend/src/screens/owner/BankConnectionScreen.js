@@ -84,32 +84,35 @@ export default function BankConnectionScreen() {
     }
   };
 
-  // Check if a Teller enrollment was completed — detect new accounts and show import modal
-  const checkEnrollmentComplete = async () => {
+  // Detect new accounts when app returns to foreground
+  const checkForNewAccounts = async () => {
+    if (!connecting) return; // Only check if we were in the middle of connecting
+
     try {
-      const complete = await AsyncStorage.getItem('@teller_enrollment_complete');
-      if (!complete) return;
+      // Small delay to let AsyncStorage flag and backend enrollment finish
+      await new Promise(r => setTimeout(r, 2000));
 
-      await AsyncStorage.removeItem('@teller_enrollment_complete');
-      setConnecting(false);
-
-      // Fetch updated accounts and find new ones
       const result = await getConnectedAccounts();
       const updatedAccounts = result.accounts || [];
       setAccounts(updatedAccounts);
+      setConnecting(false);
 
+      const beforeIds = accountIdsBeforeConnect.current;
       const newIds = updatedAccounts
-        .filter(a => !accountIdsBeforeConnect.current.includes(a.id))
+        .filter(a => !beforeIds.includes(a.id))
         .map(a => a.id);
 
       if (newIds.length > 0) {
+        // Clear the AsyncStorage flag if it exists
+        await AsyncStorage.removeItem('@teller_enrollment_complete');
         setNewAccountIds(newIds);
         setIsFreshStart(true);
         setMonthsBack('');
         setShowImportModal(true);
       }
     } catch (error) {
-      console.error('Error checking enrollment:', error);
+      console.error('Error checking for new accounts:', error);
+      setConnecting(false);
     }
   };
 
@@ -119,15 +122,15 @@ export default function BankConnectionScreen() {
     }, [])
   );
 
-  // Listen for app returning from Safari — this is when enrollment completes
+  // Listen for app returning from Safari
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        checkEnrollmentComplete();
+        checkForNewAccounts();
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [connecting]);
 
   const handleConnectBank = async () => {
     try {
