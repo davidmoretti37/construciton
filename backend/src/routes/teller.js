@@ -1711,6 +1711,19 @@ async function syncAccountTransactions(userId, account, overrideFromDate = null)
       fromId = transactions[transactions.length - 1].id;
     }
 
+    // Filter transactions by start date (Teller may return older ones)
+    if (startDate && allTransactions.length > 0) {
+      const cutoff = new Date(startDate);
+      const beforeFilter = allTransactions.length;
+      allTransactions = allTransactions.filter(tx => {
+        const txDate = new Date(tx.date);
+        return txDate >= cutoff;
+      });
+      if (allTransactions.length < beforeFilter) {
+        console.log(`📅 Filtered ${beforeFilter - allTransactions.length} transactions before ${startDate}`);
+      }
+    }
+
     // Get owner's connected institution names for transfer detection
     const { data: ownerAccounts } = await supabaseAdmin
       .from('connected_bank_accounts')

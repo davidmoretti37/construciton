@@ -486,7 +486,8 @@ export default function BankConnectionScreen() {
 
       {/* Import Range Modal */}
       <Modal visible={showImportModal} transparent animationType="slide">
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={10}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }} keyboardShouldPersistTaps="handled" bounces={false}>
           <View style={[styles.modalContent, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
               How far back should we import?
@@ -582,6 +583,7 @@ export default function BankConnectionScreen() {
               )}
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
