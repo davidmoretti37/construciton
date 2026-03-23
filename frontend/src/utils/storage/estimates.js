@@ -49,6 +49,42 @@ export const saveEstimate = async (estimateData) => {
       .single();
 
     if (error) {
+      // Handle duplicate estimate number — retry once
+      if (error.code === '23505' && error.message?.includes('estimate_number')) {
+        console.log('Duplicate estimate number, retrying...');
+        const { data: retryData, error: retryError } = await supabase
+          .from('estimates')
+          .insert({
+            user_id: userId,
+            project_id: projectId,
+            client_name: estimateData.client?.name || estimateData.client || estimateData.clientName || 'Unnamed Client',
+            client_phone: estimateData.client?.phone || estimateData.clientPhone || null,
+            client_email: estimateData.client?.email || estimateData.clientEmail || null,
+            client_address: estimateData.client?.address || estimateData.clientAddress || null,
+            project_name: estimateData.projectName || null,
+            items: estimateData.lineItems || estimateData.items || [],
+            phases: estimateData.phases || [],
+            schedule: estimateData.schedule || {},
+            scope: estimateData.scope || {},
+            subtotal: estimateData.subtotal || 0,
+            tax_rate: estimateData.taxRate || 0,
+            tax_amount: estimateData.taxAmount || 0,
+            total: estimateData.total || 0,
+            valid_until: estimateData.validUntil || null,
+            payment_terms: estimateData.paymentTerms || 'Net 30',
+            notes: estimateData.notes || '',
+            status: 'draft'
+          })
+          .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+          .single();
+
+        if (retryError) {
+          console.error('Error saving estimate on retry:', retryError);
+          return null;
+        }
+        // Use retryData for the rest of the function
+        return retryData;
+      }
       console.error('Error saving estimate:', error);
       return null;
     }

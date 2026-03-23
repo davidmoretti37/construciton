@@ -2332,7 +2332,7 @@ export default function ChatScreen({ navigation, route }) {
 
       // If no valid projectId, try to get it from saved project in conversation state
       if (!completeEstimateData.projectId) {
-        const savedProjectId = coreAgentRef.current?.conversationState?.lastProjectPreview?.id;
+        const savedProjectId = CoreAgent.conversationState?.lastProjectPreview?.id;
         if (savedProjectId && savedProjectId.length === 36) {
           console.log('✅ Found project ID from saved project in conversation state:', savedProjectId);
           completeEstimateData.projectId = savedProjectId;

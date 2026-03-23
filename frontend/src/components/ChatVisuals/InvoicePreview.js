@@ -321,7 +321,7 @@ export default function InvoicePreview({ data, onAction }) {
         animationType="slide"
         onRequestClose={() => setShowPreview(false)}
       >
-        <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top', 'bottom']}>
           <View style={[styles.previewHeader, { borderBottomColor: Colors.border, backgroundColor: Colors.background }]}>
             <TouchableOpacity
               onPress={() => setShowPreview(false)}
@@ -338,7 +338,7 @@ export default function InvoicePreview({ data, onAction }) {
             source={{ html: previewHTML }}
             style={{ flex: 1 }}
           />
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

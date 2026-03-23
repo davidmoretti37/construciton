@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   TextInput,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -261,15 +262,24 @@ export default function OwnerSettingsScreen() {
       >
         {/* Profile Header */}
         <View style={styles.profileSection}>
-          <View style={[styles.avatar, { backgroundColor: OWNER_COLORS.primary }]}>
-            <Text style={styles.avatarText}>{getInitials()}</Text>
-          </View>
+          {(userProfile?.business_logo || profile?.business_logo) ? (
+            <Image source={{ uri: userProfile?.business_logo || profile?.business_logo }} style={styles.avatarImage} />
+          ) : (
+            <View style={[styles.avatar, { backgroundColor: OWNER_COLORS.primary }]}>
+              <Text style={styles.avatarText}>{getInitials()}</Text>
+            </View>
+          )}
           <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: Colors.primaryText }]}>
               {userProfile?.business_name || profile?.business_name || profile?.full_name || t('business.info')}
             </Text>
+            {(userProfile?.business_phone || profile?.business_phone) ? (
+              <Text style={[styles.profileEmail, { color: Colors.secondaryText }]}>
+                {userProfile?.business_phone || profile?.business_phone}
+              </Text>
+            ) : null}
             <Text style={[styles.profileEmail, { color: Colors.secondaryText }]}>
-              {userProfile?.email || profile?.email || user?.email || ''}
+              {userProfile?.business_email || profile?.business_email || userProfile?.email || profile?.email || user?.email || ''}
             </Text>
           </View>
           <TouchableOpacity
@@ -639,6 +649,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   avatarText: {
     color: '#FFFFFF',

@@ -1011,10 +1011,10 @@ export default function EstimatePreview({ data, onAction }) {
         animationType="slide"
         onRequestClose={() => setShowPreview(false)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top', 'bottom']}>
           <View style={[styles.previewHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setShowPreview(false)}>
-              <Ionicons name="close" size={28} color={Colors.primaryText} />
+            <TouchableOpacity onPress={() => setShowPreview(false)} style={{ padding: 8 }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="close-circle" size={32} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text style={[styles.previewTitle, { color: Colors.primaryText }]}>Estimate Preview</Text>
             <View style={{ width: 28 }} />

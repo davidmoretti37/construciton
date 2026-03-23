@@ -282,7 +282,7 @@ async function resolveEstimateId(userId, idOrName) {
   const { data } = await supabase
     .from('estimates')
     .select('id, estimate_number, client_name, project_name, status')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .eq('user_id', userId)
     .or(filter)
     .limit(5);
 
@@ -312,7 +312,7 @@ async function resolveInvoiceId(userId, idOrName) {
   const { data } = await supabase
     .from('invoices')
     .select('id, invoice_number, client_name, project_name, status')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .eq('user_id', userId)
     .or(filter)
     .limit(5);
 
@@ -556,7 +556,7 @@ async function search_estimates(userId, args = {}) {
   let q = supabase
     .from('estimates')
     .select('id, estimate_number, client_name, project_name, total, status, created_at, project_id')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+    .eq('user_id', userId);
 
   if (query) {
     const filter = buildWordSearch(query, ['client_name', 'project_name', 'estimate_number']);
@@ -592,7 +592,7 @@ async function get_estimate_details(userId, args) {
     .from('estimates')
     .select('*')
     .eq('id', estimate_id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .eq('user_id', userId)
     .single();
 
   if (error || !data) {
@@ -665,7 +665,7 @@ async function search_invoices(userId, args = {}) {
   let q = supabase
     .from('invoices')
     .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date, created_at, estimate_id, project_id')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+    .eq('user_id', userId);
 
   if (query) {
     const filter = buildWordSearch(query, ['client_name', 'project_name', 'invoice_number']);
@@ -698,7 +698,7 @@ async function get_invoice_details(userId, args) {
     .from('invoices')
     .select('*')
     .eq('id', invoice_id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .eq('user_id', userId)
     .single();
 
   if (error || !data) {
@@ -982,7 +982,7 @@ async function get_project_financials(userId, args) {
     .from('invoices')
     .select('id, invoice_number, total, amount_paid, status')
     .eq('project_id', project_id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+    .eq('user_id', userId);
 
   return {
     project: project.name,
@@ -1040,7 +1040,7 @@ async function get_financial_overview(userId, args = {}) {
   const { data: invoices } = await supabase
     .from('invoices')
     .select('total, amount_paid, status')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`);
+    .eq('user_id', userId);
 
   let totalInvoiced = 0, totalCollected = 0, totalOutstanding = 0;
   if (invoices) {
@@ -1456,7 +1456,7 @@ async function global_search(userId, args = {}) {
     supabase
       .from('estimates')
       .select('id, estimate_number, client_name, project_name, total, status, created_at')
-      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+      .eq('user_id', userId)
       .or(estimateFilter)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -1464,7 +1464,7 @@ async function global_search(userId, args = {}) {
     supabase
       .from('invoices')
       .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date')
-      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+      .eq('user_id', userId)
       .or(invoiceFilter)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -1520,7 +1520,7 @@ async function get_daily_briefing(userId, args = {}) {
     supabase
       .from('invoices')
       .select('id, invoice_number, client_name, total, amount_paid, due_date')
-      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+      .eq('user_id', userId)
       .eq('status', 'overdue'),
 
     // All active projects (check for behind/over-budget)
@@ -2602,7 +2602,7 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
     .from('estimates')
     .select('*')
     .eq('id', resolved.id)
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .eq('user_id', userId)
     .single();
 
   if (estErr || !estimate) return { error: 'Estimate not found' };
@@ -3237,7 +3237,7 @@ async function get_ar_aging(userId) {
   const { data: invoices } = await supabase
     .from('invoices')
     .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date, created_at')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .eq('user_id', userId)
     .in('status', ['unpaid', 'partial', 'overdue']);
 
   if (!invoices || invoices.length === 0) {
@@ -3512,7 +3512,7 @@ async function get_cash_flow(userId, args = {}) {
   const { data: invoices } = await supabase
     .from('invoices')
     .select('total, amount_paid')
-    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .eq('user_id', userId)
     .in('status', ['unpaid', 'partial', 'overdue']);
 
   let outstandingReceivables = 0;
