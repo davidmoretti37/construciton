@@ -367,7 +367,12 @@ export default function BankConnectionScreen() {
               {t('bank.yourAccounts')}
             </Text>
             {accounts.map((account) => (
-              <View key={account.id} style={styles.walletCardWrapper}>
+              <TouchableOpacity
+                key={account.id}
+                style={styles.walletCardWrapper}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate('BankReconciliation', { accountId: account.id, accountName: account.institution_name + ' ' + (account.account_name || '') })}
+              >
                 <LinearGradient
                   colors={getCardGradient(account.account_type, account.account_subtype)}
                   start={{ x: 0, y: 0 }}
@@ -449,7 +454,7 @@ export default function BankConnectionScreen() {
                     </View>
                   </View>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         ) : (
@@ -464,24 +469,6 @@ export default function BankConnectionScreen() {
           </View>
         )}
 
-        {/* View Reconciliation Link */}
-        {accounts.length > 0 && (
-          <TouchableOpacity
-            style={[styles.reconcileLink, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
-            onPress={() => navigation.navigate('BankReconciliation')}
-          >
-            <Ionicons name="git-compare-outline" size={22} color={OWNER_COLORS.primary} />
-            <View style={styles.reconcileLinkText}>
-              <Text style={[styles.reconcileLinkTitle, { color: Colors.primaryText }]}>
-                {t('bank.viewReconciliation')}
-              </Text>
-              <Text style={[styles.reconcileLinkSubtitle, { color: Colors.secondaryText }]}>
-                {t('bank.matchTransactions')}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
       {/* Import Range Modal */}

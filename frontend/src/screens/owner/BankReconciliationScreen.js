@@ -52,20 +52,29 @@ export default function BankReconciliationScreen() {
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('owner');
 
-  const initialFilter = route.params?.filter || 'all';
+  const accountId = route.params?.accountId || null;
+  const accountName = route.params?.accountName || null;
+  const initialFilter = route.params?.filter || (accountId ? 'unmatched' : 'all');
   const [activeFilter, setActiveFilter] = useState(initialFilter);
   const [transactions, setTransactions] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const buildFilters = (matchStatus) => {
+    const filters = {};
+    if (accountId) filters.bank_account_id = accountId;
+    if (matchStatus) filters.match_status = matchStatus;
+    return filters;
+  };
+
   const loadData = async () => {
     try {
       const [txResult, summaryResult] = await Promise.all([
         getBankTransactions(
-          activeFilter === 'all' ? {} :
-          activeFilter === 'matched' ? { match_status: 'auto_matched' } :
-          { match_status: activeFilter }
+          activeFilter === 'all' ? (accountId ? { bank_account_id: accountId } : {}) :
+          activeFilter === 'matched' ? buildFilters('auto_matched') :
+          buildFilters(activeFilter)
         ),
         getReconciliationSummary(),
       ]);
@@ -73,9 +82,9 @@ export default function BankReconciliationScreen() {
       // For "matched" tab, combine all matched statuses
       if (activeFilter === 'matched') {
         const allMatched = await Promise.all([
-          getBankTransactions({ match_status: 'auto_matched' }),
-          getBankTransactions({ match_status: 'manually_matched' }),
-          getBankTransactions({ match_status: 'created' }),
+          getBankTransactions(buildFilters('auto_matched')),
+          getBankTransactions(buildFilters('manually_matched')),
+          getBankTransactions(buildFilters('created')),
         ]);
         const combined = [
           ...(allMatched[0].transactions || []),
@@ -258,6 +267,11 @@ export default function BankReconciliationScreen() {
             <Text style={[styles.txDescription, { color: Colors.primaryText }]} numberOfLines={1}>
               {item.merchant_name || item.description}
             </Text>
+            {item.bank_account && !accountId && (
+              <Text style={{ color: Colors.secondaryText, fontSize: 10, marginTop: 1 }}>
+                {item.bank_account.institution_name}{item.bank_account.account_mask ? ` ••${item.bank_account.account_mask}` : ''}
+              </Text>
+            )}
             {item.description !== item.merchant_name && item.merchant_name && (
               <Text style={[styles.txSubDesc, { color: Colors.secondaryText }]} numberOfLines={1}>
                 {item.description}
@@ -356,7 +370,10 @@ export default function BankReconciliationScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('reconciliation.title')}</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{accountName ? accountName.trim() : t('reconciliation.title')}</Text>
+          {accountName && <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }}>Transactions</Text>}
+        </View>
         <TouchableOpacity onPress={() => navigation.navigate('BankConnection')} style={styles.settingsButton}>
           <Ionicons name="settings-outline" size={22} color={Colors.secondaryText} />
         </TouchableOpacity>

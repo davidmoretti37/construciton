@@ -1003,6 +1003,9 @@ router.get('/transactions', async (req, res) => {
       .from('bank_transactions')
       .select(`
         *,
+        bank_account:bank_account_id (
+          institution_name, account_name, account_mask
+        ),
         matched_transaction:matched_transaction_id (
           id, description, amount, category, project_id,
           project:project_id ( id, name )
