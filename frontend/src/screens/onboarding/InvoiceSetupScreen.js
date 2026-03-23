@@ -22,6 +22,7 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateInvoiceHTML } from '../../utils/pdfGenerator';
+import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 
 const PAYMENT_TERMS = [
   'Due on Receipt',
@@ -272,12 +273,12 @@ export default function InvoiceSetupScreen({ navigation, route }) {
   if (setupNow === null) {
     // Initial intro screen
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice Setup</Text>
+          <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice Setup</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -326,12 +327,12 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
   // Setup form
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
+      <View style={[styles.header, { borderBottomColor: '#F1F5F9' }]}>
         <TouchableOpacity onPress={() => setSetupNow(null)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice Template</Text>
+        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice Template</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -387,7 +388,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             <Text style={[styles.label, { color: Colors.secondaryText }]}>Business Name</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+              style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessName}
               onChangeText={setBusinessName}
               placeholder="Enter business name"
@@ -396,7 +397,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             <Text style={[styles.label, { color: Colors.secondaryText }]}>Address</Text>
             <TextInput
-              style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+              style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessAddress}
               onChangeText={setBusinessAddress}
               placeholder="123 Main St, City, State 12345"
@@ -407,7 +408,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+              style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessPhone}
               onChangeText={setBusinessPhone}
               placeholder="(555) 123-4567"
@@ -417,7 +418,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             <Text style={[styles.label, { color: Colors.secondaryText }]}>Email</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+              style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={businessEmail}
               onChangeText={setBusinessEmail}
               placeholder="contact@business.com"
@@ -464,7 +465,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             {/* Zelle */}
             <TouchableOpacity
-              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.zelle ? Colors.primaryBlue : Colors.border }]}
+              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.zelle ? Colors.primaryBlue : '#F1F5F9' }]}
               onPress={() => togglePaymentMethod('zelle')}
             >
               <View style={styles.paymentMethodHeader}>
@@ -482,7 +483,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
             {enabledPayments.zelle && (
               <View style={styles.paymentInput}>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="Email or phone for Zelle"
                   placeholderTextColor={Colors.secondaryText}
                   value={zelleInfo}
@@ -493,7 +494,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             {/* Bank Transfer */}
             <TouchableOpacity
-              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.bank ? Colors.primaryBlue : Colors.border }]}
+              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.bank ? Colors.primaryBlue : '#F1F5F9' }]}
               onPress={() => togglePaymentMethod('bank')}
             >
               <View style={styles.paymentMethodHeader}>
@@ -512,7 +513,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
               <View style={styles.paymentInput}>
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Bank Name</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="e.g., Chase Bank"
                   placeholderTextColor={Colors.secondaryText}
                   value={bankName}
@@ -521,7 +522,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Account Number</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="123456789"
                   placeholderTextColor={Colors.secondaryText}
                   value={accountNumber}
@@ -531,7 +532,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>ACH Routing (Optional)</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="021000021"
                   placeholderTextColor={Colors.secondaryText}
                   value={achRouting}
@@ -541,7 +542,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Wire Routing (Optional)</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="021000021"
                   placeholderTextColor={Colors.secondaryText}
                   value={wireRouting}
@@ -553,7 +554,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             {/* PayPal */}
             <TouchableOpacity
-              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.paypal ? Colors.primaryBlue : Colors.border }]}
+              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.paypal ? Colors.primaryBlue : '#F1F5F9' }]}
               onPress={() => togglePaymentMethod('paypal')}
             >
               <View style={styles.paymentMethodHeader}>
@@ -571,7 +572,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
             {enabledPayments.paypal && (
               <View style={styles.paymentInput}>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="PayPal email or link"
                   placeholderTextColor={Colors.secondaryText}
                   value={paypalInfo}
@@ -582,7 +583,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             {/* Venmo */}
             <TouchableOpacity
-              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.venmo ? Colors.primaryBlue : Colors.border }]}
+              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.venmo ? Colors.primaryBlue : '#F1F5F9' }]}
               onPress={() => togglePaymentMethod('venmo')}
             >
               <View style={styles.paymentMethodHeader}>
@@ -600,7 +601,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
             {enabledPayments.venmo && (
               <View style={styles.paymentInput}>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="@username or phone"
                   placeholderTextColor={Colors.secondaryText}
                   value={venmoInfo}
@@ -611,7 +612,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
 
             {/* Cash App */}
             <TouchableOpacity
-              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.cashapp ? Colors.primaryBlue : Colors.border }]}
+              style={[styles.paymentMethodCard, { backgroundColor: Colors.white, borderColor: enabledPayments.cashapp ? Colors.primaryBlue : '#F1F5F9' }]}
               onPress={() => togglePaymentMethod('cashapp')}
             >
               <View style={styles.paymentMethodHeader}>
@@ -629,7 +630,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
             {enabledPayments.cashapp && (
               <View style={styles.paymentInput}>
                 <TextInput
-                  style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                  style={[styles.input, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                   placeholder="$cashtag"
                   placeholderTextColor={Colors.secondaryText}
                   value={cashAppInfo}
@@ -646,7 +647,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
               Thank you message or additional notes
             </Text>
             <TextInput
-              style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+              style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
               value={footerText}
               onChangeText={setFooterText}
               placeholder="Thank you for your business!"
@@ -673,7 +674,8 @@ export default function InvoiceSetupScreen({ navigation, route }) {
         </ScrollView>
 
         {/* Bottom Buttons */}
-        <View style={[styles.footer, { backgroundColor: Colors.background, borderTopColor: Colors.border }]}>
+        <View style={styles.footer}>
+          <View style={styles.footerFade} />
           <TouchableOpacity
             style={[styles.continueButton, { backgroundColor: Colors.primaryBlue }]}
             onPress={handleContinue}
@@ -683,15 +685,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
           </TouchableOpacity>
 
           {/* Progress */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressDots}>
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
-            </View>
-            <Text style={[styles.progressText, { color: Colors.secondaryText }]}>Step 4 of 4</Text>
-          </View>
+          <ProgressStepBar currentStep={5} totalSteps={5} />
         </View>
       </KeyboardAvoidingView>
 
@@ -701,12 +695,12 @@ export default function InvoiceSetupScreen({ navigation, route }) {
         animationType="slide"
         onRequestClose={() => setShowPreview(false)}
       >
-        <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-          <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setShowPreview(false)} style={styles.backButton}>
-              <Ionicons name="close" size={24} color={Colors.primaryText} />
+        <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]} edges={['top', 'bottom']}>
+          <View style={[styles.header, { borderBottomColor: '#F1F5F9' }]}>
+            <TouchableOpacity onPress={() => setShowPreview(false)} style={styles.closeButton}>
+              <Ionicons name="close-circle" size={32} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice Preview</Text>
+            <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice Preview</Text>
             <View style={{ width: 40 }} />
           </View>
           <WebView
@@ -731,13 +725,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderBottomColor: '#F1F5F9',
   },
   backButton: {
     padding: 4,
   },
+  closeButton: {
+    padding: 8,
+  },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#1F2937',
   },
   choiceContent: {
     flex: 1,
@@ -776,9 +776,14 @@ const styles = StyleSheet.create({
   primaryButton: {
     width: '100%',
     paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 14,
     alignItems: 'center',
     marginBottom: Spacing.md,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   primaryButtonText: {
     color: '#fff',
@@ -851,12 +856,17 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   multilineInput: {
     minHeight: 60,
@@ -884,6 +894,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 2,
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   paymentMethodHeader: {
     flex: 1,
@@ -916,16 +931,31 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 20,
-    borderTopWidth: 1,
+    paddingTop: 16,
+    backgroundColor: '#F8FAFC',
+  },
+  footerFade: {
+    position: 'absolute',
+    top: -32,
+    left: 0,
+    right: 0,
+    height: 32,
+    backgroundColor: '#F8FAFC',
+    opacity: 0.8,
   },
   continueButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     gap: 8,
     marginBottom: Spacing.lg,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   continueButtonText: {
     color: '#fff',
@@ -934,19 +964,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignItems: 'center',
-  },
-  progressDots: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeDot: {
-    width: 24,
   },
   progressText: {
     fontSize: FontSizes.small,

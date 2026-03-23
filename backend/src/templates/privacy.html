@@ -266,7 +266,7 @@
 
     <div class="hero">
       <h1>Privacy Policy</h1>
-      <p class="effective">Effective Date: February 26, 2026</p>
+      <p class="effective">Effective Date: March 23, 2026</p>
     </div>
 
     <div class="toc">
@@ -295,7 +295,7 @@
     <!-- 1. Introduction -->
     <div class="section" id="introduction">
       <h2>1. Introduction</h2>
-      <p>Sylk ("we," "our," or "us") provides a construction management platform through our mobile application and related web services (collectively, the "Service"). We are committed to protecting the privacy and security of your personal information.</p>
+      <p>Sylk ("we," "our," or "us") provides a service business management platform through our mobile application and related web services (collectively, the "Service"). We are committed to protecting the privacy and security of your personal information.</p>
       <p>This Privacy Policy explains what information we collect, how we use and share it, and your choices regarding your data. This policy applies to all users of the Service, including business owners, supervisors, and workers.</p>
       <p>By using Sylk, you acknowledge that you have read and understood this Privacy Policy. If you do not agree with our practices, please do not use the Service.</p>
     </div>
@@ -316,7 +316,7 @@
 
       <h3>2.2 Financial Information</h3>
       <ul>
-        <li><strong>Bank account data</strong> collected via Plaid: account and routing numbers, institution name, account balances, and transaction history</li>
+        <li><strong>Bank account data</strong> collected via Teller: account and routing numbers, institution name, account balances, and transaction history</li>
         <li><strong>Payment card data</strong> processed via Stripe: card number, expiration date, billing address (we do not store card details on our servers)</li>
         <li>Project budgets, expenses, income, and profit calculations</li>
         <li>Worker pay rates (hourly, daily, weekly, or project-based)</li>
@@ -327,8 +327,8 @@
       <h3>2.3 Location Data</h3>
       <ul>
         <li>GPS coordinates collected during supervisor clock-in/clock-out</li>
-        <li>Job site addresses and geocoded coordinates</li>
-        <li>Distance calculations between your location and job sites</li>
+        <li>Service location addresses and geocoded coordinates</li>
+        <li>Distance calculations between your location and service locations</li>
         <li>Location is collected in the <strong>foreground only</strong> — we do not track your location in the background</li>
       </ul>
 
@@ -390,11 +390,11 @@
       <p>We use the information we collect for the following purposes:</p>
 
       <ul>
-        <li><strong>Service Delivery:</strong> Operating and maintaining the core construction management features including project tracking, task management, and team coordination</li>
+        <li><strong>Service Delivery:</strong> Operating and maintaining the core business management features including project tracking, task management, and team coordination</li>
         <li><strong>AI-Powered Features:</strong> Generating estimates, providing suggestions, analyzing project data, processing voice input, and personalizing your experience through learned preferences</li>
-        <li><strong>Payment Processing:</strong> Managing subscriptions through Stripe, connecting bank accounts through Plaid, and processing financial transactions</li>
+        <li><strong>Payment Processing:</strong> Managing subscriptions through Stripe, connecting bank accounts through Teller, and processing financial transactions</li>
         <li><strong>Team Management:</strong> Enabling the owner-supervisor-worker hierarchy, facilitating invitations, managing assignments, and providing role-appropriate data access</li>
-        <li><strong>Location Services:</strong> Calculating distances to job sites, verifying supervisor clock-in locations, and providing location-based appointment reminders</li>
+        <li><strong>Location Services:</strong> Calculating distances to service locations, verifying supervisor clock-in locations, and providing location-based appointment reminders</li>
         <li><strong>Communications:</strong> Sending push notifications, enabling SMS/WhatsApp messaging, delivering email invitations, and providing in-app alerts</li>
         <li><strong>Financial Tracking:</strong> Reconciling bank transactions with project expenses, generating invoices, tracking payments, and providing financial reports</li>
         <li><strong>Service Improvement:</strong> Understanding usage patterns, diagnosing technical issues, and improving app performance and features</li>
@@ -438,7 +438,7 @@
 
       <h3>4.4 How AI Providers Handle Your Data</h3>
       <p>Under their commercial API terms, <strong>Anthropic and Groq do not use data submitted through their APIs to train their AI models</strong>. Your data is processed to generate responses and is subject to their respective data retention and security policies.</p>
-      <p>AI-generated outputs (estimates, suggestions, analysis) are provided for informational purposes only and should not be relied upon as professional construction, financial, or engineering advice. You are responsible for independently verifying all AI-generated content.</p>
+      <p>AI-generated outputs (estimates, suggestions, analysis) are provided for informational purposes only and should not be relied upon as professional, financial, or engineering advice. You are responsible for independently verifying all AI-generated content.</p>
     </div>
 
     <!-- 5. Third-Party Services -->
@@ -457,7 +457,7 @@
           </thead>
           <tbody>
             <tr>
-              <td><strong>Plaid</strong></td>
+              <td><strong>Teller</strong></td>
               <td>Bank credentials, account info, transactions</td>
               <td>Bank account connections &amp; transaction reconciliation</td>
             </tr>
@@ -495,6 +495,11 @@
               <td><strong>Supabase</strong></td>
               <td>All app data</td>
               <td>Database, authentication, file storage</td>
+            </tr>
+            <tr>
+              <td><strong>Sentry</strong></td>
+              <td>Error logs, stack traces, device info</td>
+              <td>Error monitoring &amp; crash reporting</td>
             </tr>
           </tbody>
         </table>
@@ -556,7 +561,7 @@
         <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising any of your CCPA rights</li>
       </ul>
 
-      <p><strong>Categories of sensitive personal information we collect:</strong> financial account information (bank data via Plaid), precise geolocation data, and audio recordings (voice-to-text).</p>
+      <p><strong>Categories of sensitive personal information we collect:</strong> financial account information (bank data via Teller), precise geolocation data, and audio recordings (voice-to-text).</p>
       <p>To exercise any of these rights, please contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>. We will verify your identity and respond within 45 days.</p>
     </div>
 
@@ -565,9 +570,9 @@
       <h2>8. Location Tracking</h2>
       <p>Sylk collects location data in the following circumstances:</p>
       <ul>
-        <li><strong>Supervisor clock-in/clock-out:</strong> GPS coordinates are captured at the time of clock-in and clock-out to verify presence at job sites</li>
-        <li><strong>Distance calculations:</strong> Your location may be used to calculate travel distances to job sites for appointment reminders</li>
-        <li><strong>Job site geocoding:</strong> Project addresses are converted to coordinates for mapping and distance features</li>
+        <li><strong>Supervisor clock-in/clock-out:</strong> GPS coordinates are captured at the time of clock-in and clock-out to verify presence at service locations</li>
+        <li><strong>Distance calculations:</strong> Your location may be used to calculate travel distances to service locations for appointment reminders</li>
+        <li><strong>Location geocoding:</strong> Project addresses are converted to coordinates for mapping and distance features</li>
       </ul>
       <p>Location data is collected <strong>only while the app is in use (foreground)</strong>. We do not track your location in the background or outside of the specific features described above.</p>
       <p><strong>How to opt out:</strong> You can revoke location permissions at any time through your device's Settings app. Some features that depend on location (distance calculations, clock-in location verification) will be limited if location access is disabled.</p>
@@ -592,8 +597,8 @@
       <h2>10. Financial Data</h2>
       <p>Sylk handles financial information through secure, regulated third-party providers:</p>
 
-      <h3>10.1 Bank Connections (Plaid)</h3>
-      <p>When you connect a bank account, Plaid securely handles authentication with your bank. Sylk receives account identifiers, account names and types, and transaction data. <strong>We never see or store your bank login credentials.</strong> Plaid access tokens are stored encrypted on our servers and are never exposed to the mobile app.</p>
+      <h3>10.1 Bank Connections (Teller)</h3>
+      <p>When you connect a bank account, Teller securely handles authentication with your bank. Sylk receives account identifiers, account names and types, and transaction data. <strong>We never see or store your bank login credentials.</strong> Teller access tokens are stored encrypted on our servers and are never exposed to the mobile app.</p>
 
       <h3>10.2 Payments (Stripe)</h3>
       <p>Subscription payments are processed entirely by Stripe. <strong>We never see, process, or store your full payment card number.</strong> Stripe is PCI-DSS Level 1 certified, the highest level of security certification.</p>
@@ -625,7 +630,7 @@
         <li><strong>Account deletion:</strong> When you delete your account, all associated data (profile, projects, estimates, invoices, workers, chat history, AI memories, financial records, photos, and notifications) is permanently deleted within 30 days</li>
         <li><strong>Audio recordings:</strong> Not permanently stored — only text transcriptions are retained</li>
         <li><strong>Financial records:</strong> May be retained for the legally required period for tax and accounting purposes even after account deletion</li>
-        <li><strong>Bank connections:</strong> Plaid access tokens are revoked and deleted upon account deletion or when you disconnect a bank account</li>
+        <li><strong>Bank connections:</strong> Teller access tokens are revoked and deleted upon account deletion or when you disconnect a bank account</li>
         <li><strong>Subscription data:</strong> Billing records maintained by Stripe are subject to Stripe's own data retention policies</li>
       </ul>
       <p>To request deletion of your account and data, contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
@@ -634,7 +639,7 @@
     <!-- 13. Children's Privacy -->
     <div class="section" id="childrens-privacy">
       <h2>13. Children's Privacy</h2>
-      <p>Sylk is a professional construction management tool intended for users who are 18 years of age or older. We do not knowingly collect personal information from anyone under the age of 18. If we learn that we have collected personal information from a person under 18, we will promptly delete that information. If you believe a minor has provided us with personal information, please contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
+      <p>Sylk is a professional business management tool intended for users who are 18 years of age or older. We do not knowingly collect personal information from anyone under the age of 18. If we learn that we have collected personal information from a person under 18, we will promptly delete that information. If you believe a minor has provided us with personal information, please contact us at <a href="mailto:support@sylkapp.com">support@sylkapp.com</a>.</p>
     </div>
 
     <!-- 14. Data Breach Notification -->

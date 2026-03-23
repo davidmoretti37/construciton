@@ -18,3 +18,4 @@ export { default as ChatBubble } from './ChatBubble';
 export { default as AnimatedBarChart } from './AnimatedBarChart';
 export { default as TestimonialCard } from './TestimonialCard';
 export { default as PricingCard } from './PricingCard';
+export { default as ProgressStepBar } from './ProgressStepBar';

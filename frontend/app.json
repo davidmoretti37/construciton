@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.davidmoretti.constructionmanager",
-      "buildNumber": "38",
+      "buildNumber": "41",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -66,6 +66,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "sylk",
+          "project": "sylk"
+        }
+      ],
       "expo-web-browser",
       "expo-mail-composer",
       "expo-font",

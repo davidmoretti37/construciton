@@ -3613,6 +3613,34 @@ async function get_project_documents(userId, args) {
   };
 }
 
+async function get_business_contracts(userId, args) {
+  const { data, error } = await supabase
+    .from('contract_documents')
+    .select('id, file_name, file_url, file_type, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    logger.error('get_business_contracts error:', error);
+    return { error: 'Failed to fetch business contracts' };
+  }
+
+  if (!data || data.length === 0) {
+    return { contracts: [], count: 0, message: 'No business contracts have been uploaded yet. You can upload contracts in Settings > Contracts.' };
+  }
+
+  return {
+    contracts: data.map(d => ({
+      id: d.id,
+      fileName: d.file_name,
+      fileUrl: d.file_url,
+      fileType: d.file_type,
+      uploadedAt: d.created_at,
+    })),
+    count: data.length,
+  };
+}
+
 async function upload_project_document(userId, args) {
   const { project_id, category = 'general', visible_to_workers = false } = args;
   const attachments = args._attachments;
@@ -4067,6 +4095,7 @@ const TOOL_HANDLERS = {
   get_recurring_expenses,
   // Document management tools
   get_project_documents,
+  get_business_contracts,
   upload_project_document,
   update_project_document,
   delete_project_document,

@@ -29,8 +29,8 @@ const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
 
   return (
     <Animated.View style={[styles.feature, animStyle]}>
-      <View style={[styles.featureIcon, { backgroundColor: Colors.primaryBlue + '20' }]}>
-        <Ionicons name={icon} size={20} color={Colors.primaryBlue} />
+      <View style={[styles.featureIcon, { backgroundColor: Colors.success + '12' }]}>
+        <Ionicons name={icon} size={20} color={Colors.success} />
       </View>
       <Text style={[styles.featureText, { color: Colors.primaryText }]}>
         {text}
@@ -295,11 +295,11 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
       <View style={styles.content}>
         {/* Success Animation/Icon */}
-        <Animated.View style={[styles.iconContainer, { backgroundColor: Colors.success + '20' }, iconAnim]}>
-          <Ionicons name="checkmark-circle" size={120} color={Colors.success} />
+        <Animated.View style={[styles.iconContainer, { backgroundColor: Colors.success + '15' }, iconAnim]}>
+          <Ionicons name="checkmark-circle" size={56} color={Colors.success} />
         </Animated.View>
 
         {/* Success Message */}
@@ -307,6 +307,10 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
           <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
             {t('completion.title')} {t('completion.titleEmoji')}
           </Animated.Text>
+
+          {/* Accent horizontal rule */}
+          <View style={[styles.accentRule, { backgroundColor: Colors.success }]} />
+
           <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
             {t('completion.subtitle')}
           </Animated.Text>
@@ -339,7 +343,7 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
         </Animated.View>
 
         {/* Tips */}
-        <Animated.View style={[styles.tipBox, { backgroundColor: Colors.lightGray }, tipAnim]}>
+        <Animated.View style={[styles.tipBox, tipAnim]}>
           <Ionicons name="bulb-outline" size={16} color={Colors.secondaryText} />
           <Text style={[styles.tipText, { color: Colors.secondaryText }]}>
             {t('completion.tip')}
@@ -361,9 +365,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconContainer: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.xxl,
@@ -373,10 +377,17 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxl,
   },
   title: {
-    fontSize: FontSizes.large,
+    fontSize: 26,
     fontWeight: '700',
+    letterSpacing: -0.5,
     textAlign: 'center',
     marginBottom: Spacing.md,
+  },
+  accentRule: {
+    width: 40,
+    height: 2,
+    borderRadius: 1,
+    marginVertical: 16,
   },
   subtitle: {
     fontSize: FontSizes.body,
@@ -413,10 +424,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 14,
     width: '100%',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     color: '#fff',
@@ -426,9 +442,12 @@ const styles = StyleSheet.create({
   tipBox: {
     flexDirection: 'row',
     padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: 12,
     gap: Spacing.sm,
     alignItems: 'flex-start',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   tipText: {
     flex: 1,

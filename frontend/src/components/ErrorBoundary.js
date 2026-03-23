@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import logger from '../utils/logger';
 
 /**
@@ -28,6 +29,17 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     logger.error('ErrorBoundary caught an error:', error);
     logger.error('Component stack:', errorInfo?.componentStack);
+
+    // Report to Sentry in production
+    if (!__DEV__) {
+      Sentry.captureException(error, {
+        contexts: {
+          react: {
+            componentStack: errorInfo?.componentStack,
+          },
+        },
+      });
+    }
   }
 
   handleReset = () => {

@@ -1078,6 +1078,18 @@ const toolDefinitions = [
   {
     type: 'function',
     function: {
+      name: 'get_business_contracts',
+      description: "Get all business-level contract documents uploaded by the user in their Settings > Contracts section. Use when user asks about their contracts, business documents, uploaded documents, templates, or files they saved in settings. These are NOT project-specific documents — they are general business contracts and templates.",
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'upload_project_document',
       description: "Upload document(s) attached in the current chat message to a project. The user must have attached files (PDFs, images) in this message. Use when user says 'upload this to project X', 'save these documents', or 'add this file to the kitchen project'. If no project is specified, ask which project.",
       parameters: {
@@ -1376,6 +1388,7 @@ const TOOL_STATUS_MESSAGES = {
   get_recurring_expenses: 'Checking recurring expenses...',
   // Document management tools
   get_project_documents: 'Fetching project documents...',
+  get_business_contracts: 'Fetching your business contracts...',
   upload_project_document: 'Uploading documents...',
   update_project_document: 'Updating document...',
   delete_project_document: 'Deleting document...',

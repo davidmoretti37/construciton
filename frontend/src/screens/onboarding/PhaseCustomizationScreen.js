@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 
 export default function PhaseCustomizationScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -122,13 +123,13 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
   const currentService = selectedServices?.find(s => s.id === activeService);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('phaseCustomization.headerTitle')}</Text>
+        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>{t('phaseCustomization.headerTitle')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -200,7 +201,7 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
                   activeOpacity={0.7}
                 >
                   <View style={[styles.insertPhaseLine, { backgroundColor: Colors.primaryBlue + '30' }]} />
-                  <View style={[styles.insertPhaseIcon, { backgroundColor: Colors.background, borderColor: Colors.primaryBlue + '40' }]}>
+                  <View style={[styles.insertPhaseIcon, { backgroundColor: '#F8FAFC', borderColor: Colors.primaryBlue + '40' }]}>
                     <Ionicons name="add" size={14} color={Colors.primaryBlue} />
                   </View>
                   <View style={[styles.insertPhaseLine, { backgroundColor: Colors.primaryBlue + '30' }]} />
@@ -211,8 +212,8 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
                   style={[
                     styles.phaseCard,
                     {
-                      backgroundColor: Colors.white,
-                      borderColor: Colors.border,
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#F1F5F9',
                     },
                   ]}
                 >
@@ -297,7 +298,8 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
       </View>
 
       {/* Bottom Section */}
-      <View style={[styles.bottomSection, { backgroundColor: Colors.white, borderTopColor: Colors.border }]}>
+      <View style={[styles.bottomSection, { backgroundColor: '#F8FAFC' }]}>
+
         <TouchableOpacity
           style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
           onPress={handleContinue}
@@ -309,13 +311,7 @@ export default function PhaseCustomizationScreen({ navigation, route }) {
 
         {/* Progress */}
         <View style={styles.progressContainer}>
-          <View style={styles.progressDots}>
-            <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-            <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-          </View>
-          <Text style={[styles.progressText, { color: Colors.secondaryText }]}>{t('progress.step', { current: 2, total: 4 })}</Text>
+          <ProgressStepBar currentStep={3} totalSteps={5} />
         </View>
       </View>
 
@@ -394,7 +390,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
           <View style={styles.modalField}>
             <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('phaseCustomization.modal.phaseName')}</Text>
             <TextInput
-              style={[styles.modalInput, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
+              style={[styles.modalInput, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: '#E2E8F0' }]}
               value={name}
               onChangeText={setName}
               placeholder={t('phaseCustomization.modal.phaseNamePlaceholder')}
@@ -406,7 +402,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
           <View style={styles.modalField}>
             <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('phaseCustomization.modal.description')}</Text>
             <TextInput
-              style={[styles.modalInput, styles.modalTextArea, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
+              style={[styles.modalInput, styles.modalTextArea, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: '#E2E8F0' }]}
               value={description}
               onChangeText={setDescription}
               placeholder={t('phaseCustomization.modal.descriptionPlaceholder')}
@@ -420,7 +416,7 @@ function PhaseEditModal({ phase, onSave, onCancel, Colors, t }) {
           <View style={styles.modalField}>
             <Text style={[styles.modalLabel, { color: Colors.primaryText }]}>{t('phaseCustomization.modal.estimatedDays')}</Text>
             <TextInput
-              style={[styles.modalInput, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: Colors.border }]}
+              style={[styles.modalInput, { backgroundColor: Colors.white, color: Colors.primaryText, borderColor: '#E2E8F0' }]}
               value={days}
               onChangeText={setDays}
               keyboardType="number-pad"
@@ -471,8 +467,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 20,
     paddingVertical: Spacing.md,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   backButton: {
     width: 40,
@@ -481,8 +480,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: FontSizes.subheader,
+    fontSize: 17,
     fontWeight: '600',
+    color: '#1F2937',
   },
   title: {
     fontSize: FontSizes.header,
@@ -526,6 +526,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   phaseHeader: {
     flexDirection: 'row',
@@ -610,8 +615,18 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.body,
   },
   bottomSection: {
-    padding: Spacing.xl,
-    borderTopWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  bottomFade: {
+    position: 'absolute',
+    top: -32,
+    left: 0,
+    right: 0,
+    height: 32,
+    backgroundColor: '#F8FAFC',
+    opacity: 0.8,
   },
   button: {
     flexDirection: 'row',
@@ -619,10 +634,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 14,
     width: '100%',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     color: '#fff',
@@ -631,19 +651,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignItems: 'center',
-  },
-  progressDots: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeDot: {
-    width: 24,
   },
   progressText: {
     fontSize: FontSizes.small,
@@ -714,11 +721,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   modalInput: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     fontSize: FontSizes.body,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   modalTextArea: {
     height: 80,

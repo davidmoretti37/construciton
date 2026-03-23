@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 import {
   useIconWithGlow,
   useTextSlideUp,
@@ -24,7 +25,9 @@ const AnimatedFeature = ({ icon, text, index, isActive, Colors }) => {
 
   return (
     <Animated.View style={[styles.feature, animStyle]}>
-      <Ionicons name={icon} size={24} color={Colors.success} />
+      <View style={[styles.featureIconCircle, { backgroundColor: Colors.primaryBlue + '12' }]}>
+        <Ionicons name={icon} size={18} color={Colors.success} />
+      </View>
       <Text style={[styles.featureText, { color: Colors.primaryText }]}>
         {text}
       </Text>
@@ -69,7 +72,7 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
       {/* Back Button */}
       {onGoBack && (
         <TouchableOpacity
@@ -86,7 +89,7 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
         <Animated.View
           style={[
             styles.iconContainer,
-            { backgroundColor: Colors.primaryBlue + '20' },
+            { backgroundColor: Colors.primaryBlue + '15' },
             iconContainerAnim,
           ]}
         >
@@ -97,16 +100,16 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
               iconGlowAnim,
             ]}
           >
-            <Ionicons name="construct" size={56} color={Colors.primaryBlue} />
+            <Ionicons name="construct" size={48} color={Colors.primaryBlue} />
           </Animated.View>
         </Animated.View>
 
         {/* Welcome Text */}
         <View style={styles.textContainer}>
-          <Animated.Text style={[styles.title, { color: Colors.primaryText }, titleAnim]}>
+          <Animated.Text style={[styles.title, { color: '#0F172A' }, titleAnim]}>
             {t('welcome.title')}
           </Animated.Text>
-          <Animated.Text style={[styles.subtitle, { color: Colors.secondaryText }, subtitleAnim]}>
+          <Animated.Text style={[styles.subtitle, { color: '#6B7280' }, subtitleAnim]}>
             {t('welcome.subtitle')}
           </Animated.Text>
         </View>
@@ -139,15 +142,7 @@ export default function WelcomeScreen({ navigation, onGoBack }) {
 
         {/* Progress Indicator */}
         <Animated.View style={[styles.progressContainer, progressAnim]}>
-          <View style={styles.progressDots}>
-            <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-          </View>
-          <Text style={[styles.progressText, { color: Colors.secondaryText }]}>
-            {t('progress.step', { current: 1, total: 4 })}
-          </Text>
+          <ProgressStepBar currentStep={1} totalSteps={5} />
         </Animated.View>
       </View>
     </SafeAreaView>
@@ -172,12 +167,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.xl,
   },
   iconGlow: {
     shadowOffset: { width: 0, height: 0 },
@@ -189,16 +184,17 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxl,
   },
   title: {
-    fontSize: FontSizes.header,
+    fontSize: 26,
     fontWeight: '700',
+    letterSpacing: -0.5,
     textAlign: 'center',
     marginBottom: Spacing.md,
   },
   subtitle: {
-    fontSize: FontSizes.body,
+    fontSize: 15,
     textAlign: 'center',
     paddingHorizontal: Spacing.lg,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   featuresContainer: {
     width: '100%',
@@ -209,6 +205,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.lg,
     paddingLeft: Spacing.lg,
+  },
+  featureIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   featureText: {
     fontSize: FontSizes.body,
@@ -221,9 +224,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 14,
     width: '100%',
     gap: Spacing.sm,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     color: '#fff',
@@ -232,22 +240,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     marginTop: Spacing.xxl,
-    alignItems: 'center',
-  },
-  progressDots: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeDot: {
-    width: 24,
-  },
-  progressText: {
-    fontSize: FontSizes.small,
+    width: '100%',
   },
 });

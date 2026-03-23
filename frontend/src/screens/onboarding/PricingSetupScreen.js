@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { saveUserProfile, completeOnboarding } from '../../utils/storage';
+import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 
 export default function PricingSetupScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -218,7 +219,7 @@ export default function PricingSetupScreen({ navigation, route }) {
   // Show loading while initializing
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
           <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
@@ -230,13 +231,13 @@ export default function PricingSetupScreen({ navigation, route }) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Pricing Setup</Text>
+        <Text style={styles.headerTitle}>Pricing Setup</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -335,7 +336,7 @@ export default function PricingSetupScreen({ navigation, route }) {
                       </View>
                     </View>
 
-                    <View style={[styles.priceInput, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+                    <View style={[styles.priceInput, { backgroundColor: Colors.white, borderColor: '#E2E8F0' }]}>
                       <Text style={[styles.currencySymbol, { color: Colors.secondaryText }]}>$</Text>
                       <TextInput
                         style={[styles.input, { color: Colors.primaryText }]}
@@ -375,7 +376,7 @@ export default function PricingSetupScreen({ navigation, route }) {
         </View>
 
         {/* Bottom Section */}
-        <View style={[styles.bottomSection, { backgroundColor: Colors.white, borderTopColor: Colors.border }]}>
+        <View style={[styles.bottomSection, { backgroundColor: '#F8FAFC' }]}>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
             onPress={handleContinue}
@@ -387,13 +388,7 @@ export default function PricingSetupScreen({ navigation, route }) {
 
           {/* Progress */}
           <View style={styles.progressContainer}>
-            <View style={styles.progressDots}>
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-            </View>
-            <Text style={[styles.progressText, { color: Colors.secondaryText }]}>Step 3 of 4</Text>
+            <ProgressStepBar currentStep={4} totalSteps={5} />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -422,7 +417,7 @@ export default function PricingSetupScreen({ navigation, route }) {
                 Item Name <Text style={{ color: Colors.error }}>*</Text>
               </Text>
               <TextInput
-                style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                 placeholder="e.g., Interior Painting"
                 placeholderTextColor={Colors.secondaryText}
                 value={editItemName}
@@ -437,7 +432,7 @@ export default function PricingSetupScreen({ navigation, route }) {
                 Description <Text style={[styles.optional, { color: Colors.secondaryText }]}>(Optional)</Text>
               </Text>
               <TextInput
-                style={[styles.modalInput, styles.modalTextArea, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                style={[styles.modalInput, styles.modalTextArea, { backgroundColor: Colors.white, borderColor: '#E2E8F0', color: Colors.primaryText }]}
                 placeholder="Brief description of what's included"
                 placeholderTextColor={Colors.secondaryText}
                 value={editItemDescription}
@@ -505,8 +500,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 20,
     paddingVertical: Spacing.md,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   backButton: {
     width: 40,
@@ -515,8 +513,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: FontSizes.subheader,
+    fontSize: 17,
     fontWeight: '600',
+    color: '#1F2937',
   },
   title: {
     fontSize: FontSizes.header,
@@ -558,6 +557,11 @@ const styles = StyleSheet.create({
   },
   priceItem: {
     marginBottom: Spacing.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   priceItemHeader: {
     flexDirection: 'row',
@@ -575,10 +579,15 @@ const styles = StyleSheet.create({
   priceInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   currencySymbol: {
     fontSize: FontSizes.subheader,
@@ -609,8 +618,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   bottomSection: {
-    padding: Spacing.xl,
-    borderTopWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  bottomFade: {
+    position: 'absolute',
+    top: -32,
+    left: 0,
+    right: 0,
+    height: 32,
+    backgroundColor: '#F8FAFC',
+    opacity: 0.8,
   },
   button: {
     flexDirection: 'row',
@@ -618,10 +637,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 14,
     width: '100%',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     color: '#fff',
@@ -630,19 +654,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignItems: 'center',
-  },
-  progressDots: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeDot: {
-    width: 24,
   },
   progressText: {
     fontSize: FontSizes.small,
@@ -743,7 +754,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   modalInput: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     fontSize: FontSizes.body,

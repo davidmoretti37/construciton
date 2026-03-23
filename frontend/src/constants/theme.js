@@ -26,6 +26,12 @@ export const LightColors = {
   // Border Colors
   border: '#E5E7EB',
 
+  // Onboarding Design Tokens
+  surfaceBackground: '#F8FAFC',
+  inputFocusBorder: '#2563EB',
+  inputDefaultBorder: '#E2E8F0',
+  subtleShadowColor: 'rgba(0,0,0,0.06)',
+
   // Additional Colors
   shadow: '#000000',
   modalOverlay: 'rgba(0,0,0,0.5)',

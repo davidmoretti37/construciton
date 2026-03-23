@@ -134,10 +134,8 @@ export default function OwnerSettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!hasLoadedOnce) {
-        loadData();
-      }
-    }, [hasLoadedOnce])
+      loadData();
+    }, [])
   );
 
   const onRefresh = useCallback(async () => {

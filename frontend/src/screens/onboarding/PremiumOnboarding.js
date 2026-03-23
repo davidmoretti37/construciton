@@ -187,11 +187,15 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: 'rgba(255,255,255,0.1)',
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
   },
   nextText: {
     fontSize: 16,

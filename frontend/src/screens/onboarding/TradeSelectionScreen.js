@@ -149,7 +149,6 @@ export default function TradeSelectionScreen({ navigation, route }) {
             <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
             <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
           </View>
-          <Text style={[styles.progressText, { color: Colors.secondaryText }]}>{t('progress.step', { current: 2, total: 4 })}</Text>
         </View>
       </View>
     </SafeAreaView>
@@ -238,7 +237,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   bottomSection: {
-    padding: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderTopWidth: 1,
   },
   button: {

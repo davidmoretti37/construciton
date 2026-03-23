@@ -1,9 +1,22 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect, useCallback } from 'react';
+import * as Sentry from '@sentry/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox, View, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Initialize Sentry early, before any other code runs
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
+  enabled: !__DEV__,
+  // Set tracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
+  // Adjust in production to a lower value (e.g., 0.2) to reduce costs.
+  tracesSampleRate: __DEV__ ? 0 : 0.2,
+  // Capture unhandled promise rejections
+  enableAutoPerformanceTracing: true,
+  debug: false,
+});
 import AppLoadingScreen from './src/components/AppLoadingScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import WorkerMainNavigator from './src/navigation/WorkerMainNavigator';
@@ -347,7 +360,7 @@ function AppContent() {
   );
 }
 
-export default function App() {
+function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
@@ -362,3 +375,5 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+export default Sentry.wrap(App);

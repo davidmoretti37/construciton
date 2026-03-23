@@ -11,6 +11,7 @@ import BusinessInfoScreen from '../screens/onboarding/BusinessInfoScreen';
 import PricingSetupScreen from '../screens/onboarding/PricingSetupScreen';
 import InvoiceSetupScreen from '../screens/onboarding/InvoiceSetupScreen';
 import TypicalContractsScreen from '../screens/onboarding/TypicalContractsScreen';
+import SubscriptionOverheadScreen from '../screens/onboarding/SubscriptionOverheadScreen';
 import CompletionScreen from '../screens/onboarding/CompletionScreen';
 
 const Stack = createStackNavigator();
@@ -33,7 +34,7 @@ export default function OnboardingNavigator({ onComplete, onGoBack }) {
       <Stack.Screen name="PricingSetup" component={PricingSetupScreen} />
       <Stack.Screen name="BusinessInfo" component={BusinessInfoScreen} />
       <Stack.Screen name="InvoiceSetup" component={InvoiceSetupScreen} />
-      <Stack.Screen name="TypicalContracts" component={TypicalContractsScreen} />
+      <Stack.Screen name="TypicalContracts" component={SubscriptionOverheadScreen} />
 
       {/* LEGACY SCREENS: Keep for backward compatibility */}
       <Stack.Screen name="TradeSelection" component={TradeSelectionScreen} />

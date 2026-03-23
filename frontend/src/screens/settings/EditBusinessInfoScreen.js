@@ -10,13 +10,16 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import * as ImagePicker from 'expo-image-picker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getUserProfile, updateBusinessInfo } from '../../utils/storage';
+import { supabase } from '../../lib/supabase';
 
 export default function EditBusinessInfoScreen({ navigation }) {
   const { t } = useTranslation('settings');
@@ -30,6 +33,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
   const [businessName, setBusinessName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [logoUrl, setLogoUrl] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     loadBusinessInfo();
@@ -42,12 +47,77 @@ export default function EditBusinessInfoScreen({ navigation }) {
         setBusinessName(profile.businessInfo.name || '');
         setPhone(profile.businessInfo.phone || '');
         setEmail(profile.businessInfo.email || '');
+        setLogoUrl(profile.businessInfo.logoUrl || null);
       }
     } catch (error) {
       console.error('Error loading business info:', error);
       Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'business information' }));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePickLogo = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Photo library access is needed to upload a logo.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadLogo(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking logo:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const uploadLogo = async (uri) => {
+    setUploadingLogo(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user logged in');
+
+      const fileName = `logo_${user.id}_${Date.now()}.jpg`;
+      const filePath = `logos/${fileName}`;
+
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const arrayBuffer = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(blob);
+      });
+
+      const { error } = await supabase.storage
+        .from('business-logos')
+        .upload(filePath, arrayBuffer, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('business-logos')
+        .getPublicUrl(filePath);
+
+      setLogoUrl(publicUrl);
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      Alert.alert('Error', 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -87,10 +157,11 @@ export default function EditBusinessInfoScreen({ navigation }) {
       const currentBusinessInfo = currentProfile?.businessInfo || {};
 
       await updateBusinessInfo({
-        ...currentBusinessInfo, // Preserve existing fields like address, paymentInfo, logoUrl
+        ...currentBusinessInfo,
         name: businessName.trim(),
         phone: phone.trim(),
         email: email.trim(),
+        logoUrl: logoUrl,
       });
 
       Alert.alert(tCommon('alerts.success'), tCommon('messages.updatedSuccessfully', { item: 'Business information' }), [
@@ -146,6 +217,40 @@ export default function EditBusinessInfoScreen({ navigation }) {
               <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
                 This information appears on your estimates and invoices.
               </Text>
+            </View>
+
+            {/* Logo */}
+            <View style={styles.logoSection}>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>Business Logo</Text>
+              <TouchableOpacity
+                style={[styles.logoUploadArea, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
+                onPress={handlePickLogo}
+                disabled={uploadingLogo}
+                activeOpacity={0.7}
+              >
+                {uploadingLogo ? (
+                  <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                ) : logoUrl ? (
+                  <View style={styles.logoPreviewWrapper}>
+                    <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+                    <View style={styles.logoChangeOverlay}>
+                      <Ionicons name="camera" size={16} color="#fff" />
+                      <Text style={styles.logoChangeText}>Change</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.logoPlaceholder}>
+                    <Ionicons name="image-outline" size={32} color={Colors.secondaryText} />
+                    <Text style={[styles.logoPlaceholderText, { color: Colors.secondaryText }]}>Tap to add logo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              {logoUrl && (
+                <TouchableOpacity onPress={() => setLogoUrl(null)} style={styles.removeLogo}>
+                  <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                  <Text style={styles.removeLogoText}>Remove logo</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Business Name */}
@@ -249,6 +354,65 @@ export default function EditBusinessInfoScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  logoSection: {
+    gap: 8,
+  },
+  logoUploadArea: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoPreviewWrapper: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+  },
+  logoChangeOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 4,
+  },
+  logoChangeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  logoPlaceholder: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  logoPlaceholderText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  removeLogo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  removeLogoText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#EF4444',
   },
   header: {
     flexDirection: 'row',

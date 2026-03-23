@@ -23,6 +23,7 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { getServiceDetails, discoverServices } from '../../services/serviceDiscoveryService';
 import { supabase } from '../../lib/supabase';
+import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 
 export default function ServiceSelectionScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -172,13 +173,13 @@ export default function ServiceSelectionScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Your Services</Text>
+        <Text style={styles.headerTitle}>Your Services</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -190,7 +191,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
 
         {/* Search Input */}
         <Pressable
-          style={[styles.searchInputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+          style={[styles.searchInputContainer, { backgroundColor: Colors.white, borderColor: '#E2E8F0' }]}
           onPress={() => searchInputRef.current?.focus()}
         >
           <Ionicons name="search-outline" size={20} color={Colors.secondaryText} />
@@ -273,8 +274,8 @@ export default function ServiceSelectionScreen({ navigation, route }) {
                 style={[
                   styles.selectedCard,
                   {
-                    backgroundColor: Colors.white,
-                    borderColor: Colors.primaryBlue + '30',
+                    backgroundColor: '#FFFFFF',
+                    borderColor: Colors.primaryBlue,
                   },
                 ]}
               >
@@ -393,8 +394,8 @@ export default function ServiceSelectionScreen({ navigation, route }) {
                   style={[
                     styles.availableCard,
                     {
-                      backgroundColor: Colors.white,
-                      borderColor: isSelected ? Colors.success : Colors.border,
+                      backgroundColor: '#FFFFFF',
+                      borderColor: isSelected ? Colors.success : '#F1F5F9',
                       opacity: isSelected ? 0.6 : 1,
                     },
                   ]}
@@ -442,7 +443,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
       </ScrollView>
 
       {/* Bottom Section */}
-      <View style={[styles.bottomSection, { backgroundColor: Colors.white, borderTopColor: Colors.border }]}>
+      <View style={[styles.bottomSection, { backgroundColor: '#F8FAFC' }]}>
         <TouchableOpacity
           style={[
             styles.button,
@@ -467,13 +468,7 @@ export default function ServiceSelectionScreen({ navigation, route }) {
 
         {/* Progress */}
         <View style={styles.progressContainer}>
-          <View style={styles.progressDots}>
-            <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-            <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-            <View style={[styles.dot, { backgroundColor: Colors.lightGray }]} />
-          </View>
-          <Text style={[styles.progressText, { color: Colors.secondaryText }]}>Step 2 of 4</Text>
+          <ProgressStepBar currentStep={2} totalSteps={5} />
         </View>
       </View>
     </SafeAreaView>
@@ -488,7 +483,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 20,
     paddingVertical: Spacing.md,
   },
   backButton: {
@@ -498,8 +493,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: FontSizes.subheader,
+    fontSize: 17,
     fontWeight: '600',
+    color: '#1F2937',
   },
   headerContent: {
     paddingHorizontal: Spacing.xl,
@@ -533,6 +529,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   searchInput: {
     flex: 1,
@@ -576,6 +577,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   availableCardContent: {
     flexDirection: 'row',
@@ -663,6 +669,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     padding: Spacing.md,
     marginBottom: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   selectedCardContent: {
     flexDirection: 'row',
@@ -736,8 +747,18 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   bottomSection: {
-    padding: Spacing.xl,
-    borderTopWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  bottomFade: {
+    position: 'absolute',
+    top: -32,
+    left: 0,
+    right: 0,
+    height: 32,
+    backgroundColor: '#F8FAFC',
+    opacity: 0.8,
   },
   button: {
     flexDirection: 'row',
@@ -745,10 +766,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 14,
     width: '100%',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     color: '#fff',
@@ -757,19 +783,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignItems: 'center',
-  },
-  progressDots: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeDot: {
-    width: 24,
   },
   progressText: {
     fontSize: FontSizes.small,

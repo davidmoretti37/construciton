@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import ProgressStepBar from '../../components/onboarding/ProgressStepBar';
 import {
   useSlideDown,
   useFormFieldPop,
@@ -41,6 +42,7 @@ export default function BusinessInfoScreen({ navigation, route }) {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [isScreenActive, setIsScreenActive] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   // Trigger animations on mount
   useEffect(() => {
@@ -86,14 +88,26 @@ export default function BusinessInfoScreen({ navigation, route }) {
     navigation.goBack();
   };
 
+  const getFocusedInputStyle = (fieldName) => {
+    if (focusedField === fieldName) {
+      return {
+        borderColor: '#2563EB',
+        shadowColor: '#2563EB',
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+      };
+    }
+    return {};
+  };
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
       {/* Header */}
       <Animated.View style={[styles.header, headerAnim]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('businessInfo.headerTitle')}</Text>
+        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>{t('businessInfo.headerTitle')}</Text>
         <View style={{ width: 40 }} />
       </Animated.View>
 
@@ -121,14 +135,16 @@ export default function BusinessInfoScreen({ navigation, route }) {
             <Text style={[styles.label, { color: Colors.primaryText }]}>
               {t('businessInfo.businessName')} <Text style={{ color: Colors.error }}>{t('businessInfo.businessNameRequired')}</Text>
             </Text>
-            <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+            <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: '#E2E8F0' }, getFocusedInputStyle('businessName')]}>
               <Ionicons name="business-outline" size={20} color={Colors.secondaryText} />
               <TextInput
-                style={[styles.input, { color: Colors.primaryText }]}
+                style={[styles.input, { color: '#1F2937' }]}
                 placeholder={t('businessInfo.businessNamePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={businessName}
                 onChangeText={setBusinessName}
+                onFocus={() => setFocusedField('businessName')}
+                onBlur={() => setFocusedField(null)}
                 autoCorrect={false}
                 textContentType="none"
                 autoComplete="off"
@@ -141,14 +157,16 @@ export default function BusinessInfoScreen({ navigation, route }) {
             <Text style={[styles.label, { color: Colors.primaryText }]}>
               {t('businessInfo.phone')} <Text style={{ color: Colors.error }}>{t('businessInfo.phoneRequired')}</Text>
             </Text>
-            <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+            <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: '#E2E8F0' }, getFocusedInputStyle('phone')]}>
               <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
               <TextInput
-                style={[styles.input, { color: Colors.primaryText }]}
+                style={[styles.input, { color: '#1F2937' }]}
                 placeholder={t('businessInfo.phonePlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={phone}
                 onChangeText={setPhone}
+                onFocus={() => setFocusedField('phone')}
+                onBlur={() => setFocusedField(null)}
                 keyboardType="phone-pad"
                 autoCorrect={false}
                 textContentType="none"
@@ -165,14 +183,16 @@ export default function BusinessInfoScreen({ navigation, route }) {
             <Text style={[styles.label, { color: Colors.primaryText }]}>
               {t('businessInfo.email')} <Text style={[styles.optional, { color: Colors.secondaryText }]}>{t('businessInfo.emailOptional')}</Text>
             </Text>
-            <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+            <View style={[styles.inputContainer, { backgroundColor: Colors.white, borderColor: '#E2E8F0' }, getFocusedInputStyle('email')]}>
               <Ionicons name="mail-outline" size={20} color={Colors.secondaryText} />
               <TextInput
-                style={[styles.input, { color: Colors.primaryText }]}
+                style={[styles.input, { color: '#1F2937' }]}
                 placeholder={t('businessInfo.emailPlaceholder')}
                 placeholderTextColor={Colors.secondaryText}
                 value={email}
                 onChangeText={setEmail}
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -192,7 +212,7 @@ export default function BusinessInfoScreen({ navigation, route }) {
         </ScrollView>
 
         {/* Bottom Section */}
-        <View style={[styles.bottomSection, { backgroundColor: Colors.white, borderTopColor: Colors.border }]}>
+        <View style={[styles.bottomSection, { backgroundColor: '#F8FAFC' }]}>
           <Animated.View style={buttonAnim}>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: Colors.primaryBlue }]}
@@ -206,13 +226,7 @@ export default function BusinessInfoScreen({ navigation, route }) {
 
           {/* Progress */}
           <Animated.View style={[styles.progressContainer, progressAnim]}>
-            <View style={styles.progressDots}>
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, { backgroundColor: Colors.primaryBlue }]} />
-              <View style={[styles.dot, styles.activeDot, { backgroundColor: Colors.primaryBlue }]} />
-            </View>
-            <Text style={[styles.progressText, { color: Colors.secondaryText }]}>{t('progress.step', { current: 4, total: 4 })}</Text>
+            <ProgressStepBar currentStep={5} totalSteps={5} />
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
@@ -228,8 +242,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 20,
     paddingVertical: Spacing.md,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   backButton: {
     width: 40,
@@ -238,8 +255,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: FontSizes.subheader,
+    fontSize: 17,
     fontWeight: '600',
+    color: '#1F2937',
   },
   scrollView: {
     flex: 1,
@@ -272,16 +290,22 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 10,
     gap: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   input: {
     flex: 1,
-    fontSize: FontSizes.body,
+    fontSize: 15,
     paddingVertical: Spacing.sm,
+    color: '#1F2937',
   },
   helperText: {
     fontSize: FontSizes.tiny,
@@ -301,8 +325,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   bottomSection: {
-    padding: Spacing.xl,
-    borderTopWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  fadeOverlay: {
+    position: 'absolute',
+    top: -32,
+    left: 0,
+    right: 0,
+    height: 32,
+    backgroundColor: '#F8FAFC',
+    opacity: 0.8,
   },
   button: {
     flexDirection: 'row',
@@ -310,10 +344,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 14,
     width: '100%',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     color: '#fff',
@@ -322,19 +361,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignItems: 'center',
-  },
-  progressDots: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeDot: {
-    width: 24,
   },
   progressText: {
     fontSize: FontSizes.small,

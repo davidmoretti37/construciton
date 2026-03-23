@@ -14,7 +14,8 @@ const Dot = ({ index, activeIndex }) => {
   const animatedStyle = useAnimatedStyle(() => {
     const isActive = index === activeIndex;
     return {
-      width: withSpring(isActive ? 24 : 8, { damping: 15, stiffness: 150 }),
+      width: withSpring(isActive ? 28 : 6, { damping: 15, stiffness: 150 }),
+      height: isActive ? 8 : 6,
       backgroundColor: isActive ? '#3B82F6' : 'rgba(255, 255, 255, 0.3)',
       opacity: withSpring(isActive ? 1 : 0.5),
     };
