@@ -153,6 +153,15 @@ export default function LoginScreen({ navigation }) {
               )}
             </TouchableOpacity>
 
+            {/* Forgot Password */}
+            <TouchableOpacity
+              style={styles.forgotPassword}
+              onPress={() => navigation.navigate('ForgotPassword')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.linkText}>{t('login.forgotPassword')}</Text>
+            </TouchableOpacity>
+
             {/* Footer */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>{t('login.noAccount')} </Text>
@@ -274,6 +283,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  forgotPassword: {
+    alignSelf: 'center',
+    marginTop: 16,
   },
   footer: {
     flexDirection: 'row',

@@ -55,6 +55,7 @@ LogBox.ignoreLogs([
 ]);
 
 function AppContent() {
+  const navigationRef = React.useRef(null);
   const { isDark = false } = useTheme() || {};
   const {
     user,
@@ -90,6 +91,21 @@ function AppContent() {
       });
     // Teller callback handling is done in the linking config (getInitialURL/subscribe)
     // Auth state is handled by the useEffect watching [session, authLoading, profile]
+
+    // Listen for PASSWORD_RECOVERY event to navigate to reset screen
+    const { data: { subscription: recoverySubscription } } = supabase.auth.onAuthStateChange(
+      (event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          logger.info('Password recovery event detected, navigating to ResetPassword');
+          // Small delay to ensure navigation is ready
+          setTimeout(() => {
+            navigationRef.current?.navigate('ResetPassword');
+          }, 100);
+        }
+      }
+    );
+
+    return () => recoverySubscription.unsubscribe();
   }, []);
 
   // Monitor auth state from AuthContext
@@ -304,11 +320,12 @@ function AppContent() {
       {contentReady && (
         <View style={{ flex: 1, opacity: splashGone ? 1 : 0 }}>
           <NavigationContainer
+            ref={navigationRef}
             linking={{
               prefixes: ['sylk://', 'https://construciton-production.up.railway.app'],
               config: {
                 screens: {
-                  // Deep link config handled by AuthNavigator internally
+                  ResetPassword: 'reset-password',
                 },
               },
               // Intercept teller-callback URLs — just flag that enrollment happened

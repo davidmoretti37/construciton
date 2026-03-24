@@ -7,6 +7,8 @@ import PremiumOnboarding from '../screens/onboarding/PremiumOnboarding';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
 import RoleSelectionScreen from '../screens/auth/RoleSelectionScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 
 const Stack = createStackNavigator();
 
@@ -65,6 +67,8 @@ export default function AuthNavigator() {
         initialParams={{ inviteEmail: inviteEmail }}
       />
       <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </Stack.Navigator>
   );
 }
