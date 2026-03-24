@@ -12,6 +12,9 @@ const links = {
     { label: 'Privacy Policy', href: '/privacy' },
     { label: 'Terms of Service', href: '/terms' },
   ],
+  Support: [
+    { label: 'support@sylkapp.ai', href: 'mailto:support@sylkapp.ai' },
+  ],
 };
 
 export default function Footer() {
