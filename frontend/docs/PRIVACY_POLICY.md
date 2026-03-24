@@ -156,7 +156,7 @@ We may update this Privacy Policy from time to time. We will notify you of any m
 
 If you have questions about this Privacy Policy or your personal data, please contact us:
 
-**Email:** privacy@constructionmanager.app
+**Email:** support@sylkapp.ai
 **Address:** [Your Business Address]
 
 ---

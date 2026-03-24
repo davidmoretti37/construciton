@@ -152,11 +152,11 @@ We're excited to help you manage your construction business more efficiently!
 
 ## Support Information
 
-**Support URL:** https://constructionmanager.app/support
+**Support URL:** https://sylkapp.ai
 
-**Marketing URL:** https://constructionmanager.app
+**Marketing URL:** https://sylkapp.ai
 
-**Privacy Policy URL:** https://constructionmanager.app/privacy
+**Privacy Policy URL:** https://sylkapp.ai/privacy
 
 ---
 
@@ -164,7 +164,7 @@ We're excited to help you manage your construction business more efficiently!
 
 **Demo Account:**
 ```
-Email: demo@constructionmanager.app
+Email: demo@sylkapp.ai
 Password: DemoAccount123!
 ```
 

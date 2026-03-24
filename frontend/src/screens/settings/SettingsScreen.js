@@ -202,7 +202,7 @@ export default function SettingsScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/support').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
+            onPress={() => Linking.openURL('mailto:support@sylkapp.ai').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
             activeOpacity={0.7}
           >
             <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
