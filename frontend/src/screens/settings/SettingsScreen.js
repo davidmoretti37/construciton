@@ -217,7 +217,7 @@ export default function SettingsScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/terms').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
+            onPress={() => Linking.openURL('https://sylkapp.ai/terms').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
             activeOpacity={0.7}
           >
             <View style={[styles.iconContainer, { backgroundColor: Colors.primaryBlue + '20' }]}>
@@ -231,7 +231,7 @@ export default function SettingsScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.settingItem, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-            onPress={() => Linking.openURL('https://construciton-production.up.railway.app/privacy').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
+            onPress={() => Linking.openURL('https://sylkapp.ai/privacy').catch(() => Alert.alert(t('common:alerts.error'), t('support.couldNotOpenLink')))}
             activeOpacity={0.7}
           >
             <View style={[styles.iconContainer, { backgroundColor: '#10B98120' }]}>

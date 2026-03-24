@@ -235,14 +235,14 @@ export default function SignupScreen({ navigation, route }) {
                 I agree to the{' '}
                 <Text
                   style={styles.termsLink}
-                  onPress={() => Linking.openURL('https://construciton-production.up.railway.app/terms')}
+                  onPress={() => Linking.openURL('https://sylkapp.ai/terms')}
                 >
                   Terms of Service
                 </Text>
                 {' '}and{' '}
                 <Text
                   style={styles.termsLink}
-                  onPress={() => Linking.openURL('https://construciton-production.up.railway.app/privacy')}
+                  onPress={() => Linking.openURL('https://sylkapp.ai/privacy')}
                 >
                   Privacy Policy
                 </Text>
