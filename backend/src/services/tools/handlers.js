@@ -4041,6 +4041,512 @@ async function clock_out_worker(userId, args) {
   };
 }
 
+// ==================== SERVICE PLAN TOOLS ====================
+
+async function get_service_plans(userId, { status } = {}) {
+  const ownerId = await resolveOwnerId(userId);
+
+  let query = supabase
+    .from('service_plans')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .order('created_at', { ascending: false });
+
+  if (status) query = query.eq('status', status);
+
+  const { data: plans, error } = await query;
+  if (error) return { error: error.message };
+  if (!plans || plans.length === 0) return [];
+
+  // Get location counts
+  const planIds = plans.map(p => p.id);
+  const { data: locations } = await supabase
+    .from('service_locations')
+    .select('service_plan_id')
+    .in('service_plan_id', planIds)
+    .eq('is_active', true);
+
+  const locCounts = {};
+  (locations || []).forEach(l => {
+    locCounts[l.service_plan_id] = (locCounts[l.service_plan_id] || 0) + 1;
+  });
+
+  // Get visit stats for current month
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const monthEnd = nextMonth.toISOString().split('T')[0];
+
+  const { data: visits } = await supabase
+    .from('service_visits')
+    .select('service_plan_id, status')
+    .in('service_plan_id', planIds)
+    .gte('scheduled_date', monthStart)
+    .lt('scheduled_date', monthEnd)
+    .neq('status', 'cancelled');
+
+  const visitStats = {};
+  (visits || []).forEach(v => {
+    if (!visitStats[v.service_plan_id]) visitStats[v.service_plan_id] = { total: 0, completed: 0 };
+    visitStats[v.service_plan_id].total++;
+    if (v.status === 'completed') visitStats[v.service_plan_id].completed++;
+  });
+
+  return plans.map(p => ({
+    id: p.id,
+    name: p.name,
+    service_type: p.service_type,
+    status: p.status,
+    billing_cycle: p.billing_cycle,
+    price_per_visit: p.price_per_visit ? parseFloat(p.price_per_visit) : null,
+    monthly_rate: p.monthly_rate ? parseFloat(p.monthly_rate) : null,
+    location_count: locCounts[p.id] || 0,
+    visits_this_month: visitStats[p.id]?.total || 0,
+    completed_this_month: visitStats[p.id]?.completed || 0,
+  }));
+}
+
+async function get_daily_route(userId, { date, worker_id } = {}) {
+  const ownerId = await resolveOwnerId(userId);
+  const targetDate = date || new Date().toISOString().split('T')[0];
+
+  // Check if user is a worker
+  const { data: workerRecord } = await supabase
+    .from('workers')
+    .select('id, owner_id')
+    .eq('user_id', userId)
+    .single();
+
+  const isWorker = !!workerRecord;
+
+  if (isWorker) {
+    // Worker: their visits for the day
+    const { data: visits } = await supabase
+      .from('service_visits')
+      .select('*')
+      .eq('assigned_worker_id', workerRecord.id)
+      .eq('scheduled_date', targetDate)
+      .neq('status', 'cancelled')
+      .order('scheduled_time', { ascending: true, nullsFirst: false });
+
+    if (!visits || visits.length === 0) return { date: targetDate, visits: [], message: 'No visits scheduled for this date.' };
+
+    const locationIds = [...new Set(visits.map(v => v.service_location_id))];
+    const { data: locations } = await supabase
+      .from('service_locations')
+      .select('id, name, address, access_notes')
+      .in('id', locationIds);
+    const locMap = {};
+    (locations || []).forEach(l => { locMap[l.id] = l; });
+
+    return {
+      date: targetDate,
+      visits: visits.map(v => ({
+        id: v.id,
+        status: v.status,
+        scheduled_time: v.scheduled_time,
+        location_name: locMap[v.service_location_id]?.name,
+        location_address: locMap[v.service_location_id]?.address,
+        access_notes: locMap[v.service_location_id]?.access_notes,
+      })),
+    };
+  }
+
+  // Owner: all routes + unrouted visits
+  const { data: routes } = await supabase
+    .from('service_routes')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .eq('route_date', targetDate);
+
+  // Worker names
+  const workerIds = [...new Set((routes || []).map(r => r.assigned_worker_id).filter(Boolean))];
+  let workerNames = {};
+  if (workerIds.length > 0) {
+    const { data: workers } = await supabase
+      .from('workers')
+      .select('id, full_name, name')
+      .in('id', workerIds);
+    if (workers) workers.forEach(w => { workerNames[w.id] = w.full_name || w.name; });
+  }
+
+  const routeResults = [];
+  for (const route of (routes || [])) {
+    const { data: stops } = await supabase
+      .from('route_stops')
+      .select('*, service_visits(id, status, scheduled_time, service_location_id)')
+      .eq('route_id', route.id)
+      .order('stop_order', { ascending: true });
+
+    const locationIds = [...new Set((stops || []).map(s => s.service_visits?.service_location_id).filter(Boolean))];
+    let locMap = {};
+    if (locationIds.length > 0) {
+      const { data: locs } = await supabase.from('service_locations').select('id, name, address').in('id', locationIds);
+      (locs || []).forEach(l => { locMap[l.id] = l; });
+    }
+
+    routeResults.push({
+      route_name: route.name,
+      worker_name: workerNames[route.assigned_worker_id] || 'Unassigned',
+      status: route.status,
+      stops: (stops || []).map(s => ({
+        stop_order: s.stop_order,
+        visit_id: s.service_visits?.id,
+        status: s.service_visits?.status,
+        location_name: locMap[s.service_visits?.service_location_id]?.name,
+        location_address: locMap[s.service_visits?.service_location_id]?.address,
+      })),
+    });
+  }
+
+  // Unrouted visits
+  const { data: unrouted } = await supabase
+    .from('service_visits')
+    .select('id, status, scheduled_time, service_location_id')
+    .eq('owner_id', ownerId)
+    .eq('scheduled_date', targetDate)
+    .is('route_id', null)
+    .neq('status', 'cancelled');
+
+  let unroutedEnriched = [];
+  if (unrouted && unrouted.length > 0) {
+    const locIds = [...new Set(unrouted.map(v => v.service_location_id))];
+    const { data: locs } = await supabase.from('service_locations').select('id, name, address').in('id', locIds);
+    const lm = {};
+    (locs || []).forEach(l => { lm[l.id] = l; });
+    unroutedEnriched = unrouted.map(v => ({
+      id: v.id, status: v.status, scheduled_time: v.scheduled_time,
+      location_name: lm[v.service_location_id]?.name,
+      location_address: lm[v.service_location_id]?.address,
+    }));
+  }
+
+  return { date: targetDate, routes: routeResults, unrouted: unroutedEnriched };
+}
+
+async function complete_visit(userId, { visit_id, notes } = {}) {
+  if (!visit_id) return { error: 'visit_id is required' };
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // Fetch visit with ownership check
+  const { data: visit } = await supabase
+    .from('service_visits')
+    .select('*, service_locations(name)')
+    .eq('id', visit_id)
+    .eq('owner_id', ownerId)
+    .single();
+
+  if (!visit) return { error: 'Visit not found' };
+
+  const now = new Date();
+  let durationMinutes = null;
+  if (visit.started_at) {
+    durationMinutes = Math.round((now.getTime() - new Date(visit.started_at).getTime()) / 60000);
+  }
+
+  const updates = {
+    status: 'completed',
+    completed_at: now.toISOString(),
+    duration_minutes: durationMinutes,
+  };
+  if (notes) updates.worker_notes = notes;
+
+  const { error } = await supabase
+    .from('service_visits')
+    .update(updates)
+    .eq('id', visit_id);
+
+  if (error) return { error: error.message };
+
+  return {
+    success: true,
+    visit_id,
+    location_name: visit.service_locations?.name || 'Unknown',
+    completed_at: now.toISOString(),
+    duration_minutes: durationMinutes,
+  };
+}
+
+async function get_billing_summary(userId, { plan_id, month } = {}) {
+  const ownerId = await resolveOwnerId(userId);
+
+  // Calculate month range
+  const now = new Date();
+  const targetMonth = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [year, mon] = targetMonth.split('-').map(Number);
+  const monthStart = `${year}-${String(mon).padStart(2, '0')}-01`;
+  const nextMonth = new Date(year, mon, 1);
+  const monthEnd = nextMonth.toISOString().split('T')[0];
+
+  // Get plans
+  let plansQuery = supabase
+    .from('service_plans')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .eq('status', 'active');
+
+  if (plan_id) {
+    // Try to resolve by name
+    if (plan_id.length !== 36) {
+      const { data: matched } = await supabase
+        .from('service_plans')
+        .select('id')
+        .eq('owner_id', ownerId)
+        .ilike('name', `%${plan_id}%`)
+        .limit(1)
+        .single();
+      if (matched) plan_id = matched.id;
+    }
+    plansQuery = plansQuery.eq('id', plan_id);
+  }
+
+  const { data: plans } = await plansQuery;
+  if (!plans || plans.length === 0) return { error: 'No active service plans found' };
+
+  const planIds = plans.map(p => p.id);
+
+  // Get completed, billable, uninvoiced visits in month
+  const { data: visits } = await supabase
+    .from('service_visits')
+    .select('service_plan_id, status, billable, invoice_id')
+    .in('service_plan_id', planIds)
+    .gte('scheduled_date', monthStart)
+    .lt('scheduled_date', monthEnd)
+    .neq('status', 'cancelled');
+
+  const summary = plans.map(plan => {
+    const planVisits = (visits || []).filter(v => v.service_plan_id === plan.id);
+    const completed = planVisits.filter(v => v.status === 'completed');
+    const unbilled = completed.filter(v => v.billable && !v.invoice_id);
+
+    const rate = plan.billing_cycle === 'per_visit'
+      ? parseFloat(plan.price_per_visit || 0)
+      : parseFloat(plan.monthly_rate || 0);
+
+    const estimatedRevenue = plan.billing_cycle === 'per_visit'
+      ? unbilled.length * rate
+      : rate;
+
+    return {
+      plan_name: plan.name,
+      service_type: plan.service_type,
+      billing_cycle: plan.billing_cycle,
+      total_visits: planVisits.length,
+      completed: completed.length,
+      unbilled: unbilled.length,
+      estimated_revenue: Math.round(estimatedRevenue * 100) / 100,
+      currency: plan.currency,
+    };
+  });
+
+  const totalRevenue = summary.reduce((sum, s) => sum + s.estimated_revenue, 0);
+
+  return {
+    month: targetMonth,
+    plans: summary,
+    total_unbilled_revenue: Math.round(totalRevenue * 100) / 100,
+  };
+}
+
+async function create_service_visit(userId, { plan_id, location_id, date, worker_id, notes } = {}) {
+  if (!plan_id || !location_id || !date) {
+    return { error: 'plan_id, location_id, and date are required' };
+  }
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // Resolve plan by name if needed
+  if (plan_id.length !== 36) {
+    const { data: matched } = await supabase
+      .from('service_plans')
+      .select('id')
+      .eq('owner_id', ownerId)
+      .ilike('name', `%${plan_id}%`)
+      .limit(1)
+      .single();
+    if (!matched) return { error: `No service plan matching "${plan_id}" found` };
+    plan_id = matched.id;
+  }
+
+  // Resolve location by name if needed
+  if (location_id.length !== 36) {
+    const { data: matched } = await supabase
+      .from('service_locations')
+      .select('id')
+      .eq('service_plan_id', plan_id)
+      .eq('is_active', true)
+      .ilike('name', `%${location_id}%`)
+      .limit(1)
+      .single();
+    if (!matched) return { error: `No location matching "${location_id}" found in this plan` };
+    location_id = matched.id;
+  }
+
+  // Resolve worker by name if needed
+  let assignedWorkerId = null;
+  if (worker_id) {
+    if (worker_id.length !== 36) {
+      const { data: matched } = await supabase
+        .from('workers')
+        .select('id')
+        .eq('owner_id', ownerId)
+        .ilike('full_name', `%${worker_id}%`)
+        .limit(1)
+        .single();
+      if (matched) assignedWorkerId = matched.id;
+    } else {
+      assignedWorkerId = worker_id;
+    }
+  }
+
+  // Create visit
+  const { data: visit, error } = await supabase
+    .from('service_visits')
+    .insert({
+      service_plan_id: plan_id,
+      service_location_id: location_id,
+      owner_id: ownerId,
+      scheduled_date: date,
+      assigned_worker_id: assignedWorkerId,
+      owner_notes: notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) return { error: error.message };
+
+  // Copy checklist templates
+  const { data: templates } = await supabase
+    .from('visit_checklist_templates')
+    .select('*')
+    .eq('service_location_id', location_id)
+    .eq('is_active', true);
+
+  if (templates && templates.length > 0) {
+    await supabase.from('visit_checklist_items').insert(
+      templates.map(t => ({
+        service_visit_id: visit.id,
+        template_id: t.id,
+        owner_id: ownerId,
+        title: t.title,
+        sort_order: t.sort_order,
+        quantity_unit: t.quantity_unit,
+      }))
+    );
+  }
+
+  // Get location name for confirmation
+  const { data: loc } = await supabase
+    .from('service_locations')
+    .select('name')
+    .eq('id', location_id)
+    .single();
+
+  return {
+    success: true,
+    visit_id: visit.id,
+    location_name: loc?.name || 'Unknown',
+    scheduled_date: date,
+    checklist_items: templates?.length || 0,
+  };
+}
+
+// ==================== RECURRING DAILY TASK TOOLS ====================
+
+async function create_recurring_tasks(userId, { project_id, phase_id, tasks } = {}) {
+  if (!project_id || !tasks || !Array.isArray(tasks) || tasks.length === 0) {
+    return { error: 'project_id and tasks array are required' };
+  }
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // Resolve project by name if needed
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return resolved;
+  if (resolved.suggestions) return resolved;
+  project_id = resolved.id;
+
+  const inserts = tasks.map((t, i) => ({
+    project_id,
+    phase_id: phase_id || null,
+    owner_id: ownerId,
+    title: t.title,
+    requires_quantity: t.requires_quantity || false,
+    quantity_unit: t.quantity_unit || null,
+    sort_order: t.sort_order ?? i,
+  }));
+
+  const { data, error } = await supabase
+    .from('project_recurring_tasks')
+    .insert(inserts)
+    .select();
+
+  if (error) return { error: error.message };
+
+  return {
+    success: true,
+    created: data.length,
+    tasks: data.map(t => ({
+      id: t.id,
+      title: t.title,
+      requires_quantity: t.requires_quantity,
+      quantity_unit: t.quantity_unit,
+    })),
+  };
+}
+
+async function get_daily_task_logs(userId, { project_id, start_date, end_date } = {}) {
+  if (!project_id) return { error: 'project_id is required' };
+
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return resolved;
+  if (resolved.suggestions) return resolved;
+  project_id = resolved.id;
+
+  const today = new Date().toISOString().split('T')[0];
+  const from = start_date || (() => {
+    const d = new Date(); d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  })();
+  const to = end_date || today;
+
+  const { data, error } = await supabase
+    .from('recurring_task_daily_logs')
+    .select('*, project_recurring_tasks(title, quantity_unit)')
+    .eq('project_id', project_id)
+    .gte('log_date', from)
+    .lte('log_date', to)
+    .order('log_date', { ascending: true });
+
+  if (error) return { error: error.message };
+
+  // Group by date
+  const byDate = {};
+  (data || []).forEach(log => {
+    if (!byDate[log.log_date]) byDate[log.log_date] = [];
+    byDate[log.log_date].push({
+      title: log.project_recurring_tasks?.title || 'Unknown',
+      completed: log.completed,
+      quantity: log.quantity ? parseFloat(log.quantity) : null,
+      quantity_unit: log.project_recurring_tasks?.quantity_unit,
+    });
+  });
+
+  // Also get templates to show what tasks exist
+  const { data: templates } = await supabase
+    .from('project_recurring_tasks')
+    .select('title, requires_quantity, quantity_unit')
+    .eq('project_id', project_id)
+    .eq('is_active', true);
+
+  return {
+    period: { from, to },
+    templates: templates || [],
+    logs: byDate,
+  };
+}
+
 const TOOL_HANDLERS = {
   // Granular tools
   search_projects,
@@ -4102,6 +4608,15 @@ const TOOL_HANDLERS = {
   // Clock in/out tools
   clock_in_worker,
   clock_out_worker,
+  // Service plan tools
+  get_service_plans,
+  get_daily_route,
+  complete_visit,
+  get_billing_summary,
+  create_service_visit,
+  // Recurring daily task tools
+  create_recurring_tasks,
+  get_daily_task_logs,
 };
 
 /**

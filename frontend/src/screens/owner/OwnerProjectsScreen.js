@@ -58,7 +58,7 @@ const OWNER_COLORS = {
   primaryLight: '#3B82F6',
 };
 
-export default function OwnerProjectsScreen() {
+export default function OwnerProjectsScreen({ embedded = false, showFilter = false }) {
   const { t } = useTranslation('projects');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -255,21 +255,26 @@ export default function OwnerProjectsScreen() {
 
   // Loading state
   if (loading && !hasLoadedOnce) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
+    const LoadingContent = (
+      <View style={[styles.container, { backgroundColor: Colors.white }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={OWNER_COLORS.primary} />
           <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
             {t('loadingProjects', 'Loading projects...')}
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
+    if (embedded) return LoadingContent;
+    return <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>{LoadingContent}</SafeAreaView>;
   }
 
+  const Wrapper = embedded ? View : SafeAreaView;
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>
-      {/* Header */}
+    <Wrapper style={[styles.container, { backgroundColor: Colors.white }]}>
+      {/* Header — hidden when embedded in WorkScreen */}
+      {!embedded && (
       <View style={[styles.header, { backgroundColor: Colors.white }]}>
         <TouchableOpacity
           style={styles.filterButton}
@@ -284,9 +289,10 @@ export default function OwnerProjectsScreen() {
         </Text>
         <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
+      )}
 
       {/* Filter Dropdown */}
-      {showFilterDropdown && (
+      {(showFilterDropdown || (embedded && showFilter)) && (
         <View style={[styles.filterDropdown, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
           {FILTERS.map(filter => {
             const isActive = activeFilter === filter.key;
@@ -340,7 +346,7 @@ export default function OwnerProjectsScreen() {
           />
         }
       />
-    </SafeAreaView>
+    </Wrapper>
   );
 }
 

@@ -61,6 +61,23 @@ export default function NotificationsScreen({ navigation }) {
     // Mark as read
     if (!notification.read) {
       await markNotificationAsRead(notification.id);
+
+      // For bank reconciliation: save acknowledged count so future notifications only show new
+      if (notification.type === 'bank_reconciliation' && notification.action_data?.current_total) {
+        try {
+          await supabase
+            .from('notifications')
+            .update({
+              action_data: {
+                ...notification.action_data,
+                acknowledged_count: notification.action_data.current_total,
+              },
+            })
+            .eq('id', notification.id);
+        } catch (e) {
+          console.warn('Failed to save acknowledged count:', e);
+        }
+      }
     }
 
     // Navigate based on action_data

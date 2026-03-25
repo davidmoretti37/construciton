@@ -114,6 +114,22 @@ app.use('/api/integrations/google-drive', servicesLimiter, googleDriveRoutes);
 const projectSectionsRoutes = require('./routes/projectSections');
 app.use('/api/project-sections', servicesLimiter, projectSectionsRoutes);
 
+// Service plans (recurring service management)
+const servicePlanRoutes = require('./routes/servicePlans');
+app.use('/api/service-plans', servicesLimiter, servicePlanRoutes);
+
+// Service visits (visit tracking, generation, actions)
+const serviceVisitRoutes = require('./routes/serviceVisits');
+app.use('/api/service-visits', servicesLimiter, serviceVisitRoutes);
+
+// Service routes (daily route management)
+const serviceRouteRoutes = require('./routes/serviceRoutes');
+app.use('/api/service-routes', servicesLimiter, serviceRouteRoutes);
+
+// Recurring daily tasks for projects
+const recurringTasksRouter = require('./routes/recurringTasks');
+app.use('/api/recurring-tasks', servicesLimiter, recurringTasksRouter);
+
 // ============================================================
 // HEALTH & READINESS CHECKS
 // ============================================================

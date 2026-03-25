@@ -13,14 +13,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
-// Owner (Boss View) has 5 tabs: Home, Projects, Chat, Workers, Settings
-// Matches Supervisor Portal structure with Chat in middle
+// Owner (Boss View) has 5 tabs: Home, Work, Chat, Workers, Settings
+// routeName is used for navigation; label is the display text
 const items = [
-  { id: 0, icon: 'home', label: 'Home', routeIndex: 0 },
-  { id: 1, icon: 'folder', label: 'Projects', routeIndex: 1 },
-  { id: 2, icon: 'chatbubbles', label: 'Chat', routeIndex: 2 },
-  { id: 3, icon: 'people', label: 'Workers', routeIndex: 3 },
-  { id: 4, icon: 'settings', label: 'Settings', routeIndex: 4 },
+  { id: 0, icon: 'home', label: 'Home', routeName: 'Home', routeIndex: 0 },
+  { id: 1, icon: 'briefcase', label: 'Work', routeName: 'Projects', routeIndex: 1 },
+  { id: 2, icon: 'chatbubbles', label: 'Chat', routeName: 'Chat', routeIndex: 2 },
+  { id: 3, icon: 'people', label: 'Workers', routeName: 'Workers', routeIndex: 3 },
+  { id: 4, icon: 'settings', label: 'Settings', routeName: 'Settings', routeIndex: 4 },
 ];
 
 const OwnerLumaBar = ({ state, navigation }) => {
@@ -68,7 +68,7 @@ const OwnerLumaBar = ({ state, navigation }) => {
 
   const handlePress = (index) => {
     const route = items[index];
-    navigation.navigate(route.label);
+    navigation.navigate(route.routeName);
   };
 
   return (

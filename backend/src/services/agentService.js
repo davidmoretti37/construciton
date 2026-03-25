@@ -357,30 +357,41 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
  * @param {*} result - Result returned by the tool
  */
 function rememberToolResult(userId, toolName, args, result) {
-  // Don't remember errors
-  if (result.error) return;
+  if (!result || result.error) return;
 
-  // Remember specific entity details
-  if (toolName === 'get_project_details' && result.id) {
+  // Universal: store last result for every tool
+  memory.remember(userId, `tool_last_${toolName}`, result, toolName);
+
+  // Universal: store last action summary for immediate reference
+  memory.remember(userId, 'last_action', {
+    tool: toolName,
+    args: args,
+    timestamp: Date.now()
+  }, toolName);
+
+  // Index by entity id if present (single objects only, not arrays)
+  if (result.id && !Array.isArray(result)) {
+    memory.remember(userId, `entity_${result.id}`, result, toolName);
+  }
+
+  // Backward-compatible specific keys
+  if (toolName === 'get_project_details' && result.id)
     memory.remember(userId, `project_${result.id}`, result, toolName);
-  }
-  if (toolName === 'get_worker_details' && result.id) {
+  if (toolName === 'get_worker_details' && result.id)
     memory.remember(userId, `worker_${result.id}`, result, toolName);
-  }
-  if (toolName === 'get_estimate_details' && result.id) {
+  if (toolName === 'get_estimate_details' && result.id)
     memory.remember(userId, `estimate_${result.id}`, result, toolName);
-  }
-  if (toolName === 'get_invoice_details' && result.id) {
+  if (toolName === 'get_invoice_details' && result.id)
     memory.remember(userId, `invoice_${result.id}`, result, toolName);
-  }
-
-  // Remember search results (lists)
-  if (toolName === 'search_projects' && Array.isArray(result)) {
+  if (toolName === 'search_projects' && Array.isArray(result))
     memory.remember(userId, 'recent_projects', result, toolName);
-  }
-  if (toolName === 'get_workers' && Array.isArray(result)) {
+  if (toolName === 'get_workers' && Array.isArray(result))
     memory.remember(userId, 'workers_list', result, toolName);
-  }
+  // New list-level keys
+  if ((toolName === 'search_estimates' || toolName === 'get_estimates') && Array.isArray(result))
+    memory.remember(userId, 'recent_estimates', result, toolName);
+  if ((toolName === 'search_invoices' || toolName === 'get_invoices') && Array.isArray(result))
+    memory.remember(userId, 'recent_invoices', result, toolName);
 }
 
 /**

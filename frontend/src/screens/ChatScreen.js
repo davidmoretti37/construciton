@@ -33,9 +33,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode, sendAgentMessage, pollAgentJob, fetchLatestAgentJob } from '../services/aiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadProjectDocument } from '../utils/storage/projectDocuments';
+import { supabase } from '../lib/supabase';
 import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
-import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap } from '../components/ChatVisuals';
+import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap, ServicePlanPreview } from '../components/ChatVisuals';
 import ChatHistorySidebar from '../components/ChatHistorySidebar';
 import { chatHistoryService } from '../services/chatHistoryService';
 import { formatEstimate } from '../utils/estimateFormatter';
@@ -185,7 +186,10 @@ export default function ChatScreen({ navigation, route }) {
         aiTimeoutRef.current = null;
       }
       setIsAIThinking(false);
+      setIsStreaming(false);
+      streamingMessageIdRef.current = null;
       setStatusMessage(null);
+      setShowCardSkeleton(false);
       setPendingEstimateContext(null);
       setCurrentProject(null);
     } catch (error) {
@@ -196,6 +200,13 @@ export default function ChatScreen({ navigation, route }) {
   // Load session messages
   const loadSession = useCallback(async (sessionId) => {
     try {
+      // Reset streaming state from any in-progress request
+      setIsAIThinking(false);
+      setIsStreaming(false);
+      streamingMessageIdRef.current = null;
+      setStatusMessage(null);
+      setShowCardSkeleton(false);
+
       const sessionMessages = await chatHistoryService.getSessionMessages(sessionId);
       setCurrentSessionId(sessionId);
 
@@ -231,9 +242,15 @@ export default function ChatScreen({ navigation, route }) {
   const checkAndMergeBackgroundJob = useCallback(async (sessionId, loadedMessages) => {
     try {
       const savedMessageId = await AsyncStorage.getItem('activeAgentMessageId');
+      const savedSessionId = await AsyncStorage.getItem('activeAgentSessionId');
       let savedJobId = activeJobIdRef.current || await AsyncStorage.getItem('activeAgentJobId');
 
       if (!savedMessageId) return loadedMessages;
+
+      // Only merge into the session that originated the request
+      if (savedSessionId && savedSessionId !== sessionId) {
+        return loadedMessages;
+      }
 
       // If no jobId, try to find the latest one
       if (!savedJobId) {
@@ -271,6 +288,7 @@ export default function ChatScreen({ navigation, route }) {
         activeJobIdRef.current = null;
         AsyncStorage.removeItem('activeAgentJobId');
         AsyncStorage.removeItem('activeAgentMessageId');
+        AsyncStorage.removeItem('activeAgentSessionId');
       }
     } catch (e) {
       console.log('Background job check skipped:', e.message);
@@ -853,8 +871,9 @@ export default function ChatScreen({ navigation, route }) {
     setMessages((prev) => [...prev, userMessage, aiMessage]);
     let messageCreated = true;
 
-    // Save messageId to AsyncStorage immediately (before any async work)
+    // Save messageId and session to AsyncStorage immediately (before any async work)
     AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
+    AsyncStorage.setItem('activeAgentSessionId', currentSessionId);
 
     // Show thinking state immediately
     setIsAIThinking(true);
@@ -1014,6 +1033,7 @@ export default function ChatScreen({ navigation, route }) {
           activeJobIdRef.current = null;
           AsyncStorage.removeItem('activeAgentJobId');
           AsyncStorage.removeItem('activeAgentMessageId');
+          AsyncStorage.removeItem('activeAgentSessionId');
 
           // Disable voice mode after response completes
           // This ensures next typed message uses standard (powerful) model
@@ -1025,6 +1045,25 @@ export default function ChatScreen({ navigation, route }) {
               hasVisualElements: parsedResponse.visualElements?.length > 0,
               visualCount: parsedResponse.visualElements?.length || 0,
               types: parsedResponse.visualElements?.map(v => v.type) || []
+            });
+          }
+
+          // Auto-correct: if AI returned project-preview for what is clearly a service plan,
+          // fix the visual element type so the correct card renders
+          const SERVICE_PLAN_TYPES = ['pest_control', 'cleaning', 'landscaping', 'pool_service', 'lawn_care', 'hvac'];
+          if (parsedResponse.visualElements?.length > 0) {
+            parsedResponse.visualElements = parsedResponse.visualElements.map(v => {
+              if (v.type === 'project-preview') {
+                const d = v.data || {};
+                const hasServiceType = d.service_type && SERVICE_PLAN_TYPES.includes(d.service_type);
+                const hasBillingCycle = d.billing_cycle || d.billingCycle;
+                const hasRecurringKeywords = (d.name || '').toLowerCase().match(/pest|clean|lawn|pool|hvac|service plan|recurring/);
+                if (hasServiceType || hasBillingCycle || hasRecurringKeywords) {
+                  logger.info('[Chat] Auto-corrected project-preview → service-plan-preview');
+                  return { ...v, type: 'service-plan-preview' };
+                }
+              }
+              return v;
             });
           }
 
@@ -1689,6 +1728,16 @@ export default function ChatScreen({ navigation, route }) {
       case 'navigate-to-projects':
         navigation.navigate('Projects');
         break;
+      case 'view-service-plan':
+        if (action.data?.servicePlanId || action.data?.id) {
+          navigation.navigate('ServicePlanDetail', {
+            planId: action.data.servicePlanId || action.data.id
+          });
+        }
+        break;
+      case 'navigate-to-services':
+        navigation.navigate('Projects');
+        break;
       case 'view-estimate':
         console.log('View estimate:', action.data);
         // Store estimate for invoice creation (Plan A/Plan B pattern)
@@ -1866,7 +1915,98 @@ export default function ChatScreen({ navigation, route }) {
       case 'confirm-project': {
         const savedProject = await projectActions.handleSaveProject(action.data, messages);
         if (savedProject?.id) {
+          // Save recurring daily tasks if provided by the agent
+          const recurringTasks = action.data?.recurringDailyTasks || action.data?.recurring_daily_tasks;
+          if (recurringTasks && Array.isArray(recurringTasks) && recurringTasks.length > 0) {
+            try {
+              const userId = user?.id || profile?.id || await getCurrentUserId();
+              await supabase.from('project_recurring_tasks').insert(
+                recurringTasks.map((t, i) => ({
+                  project_id: savedProject.id,
+                  owner_id: userId,
+                  title: typeof t === 'string' ? t : t.title,
+                  requires_quantity: t.requiresQuantity || t.requires_quantity || false,
+                  quantity_unit: t.quantityUnit || t.quantity_unit || null,
+                  sort_order: i,
+                }))
+              );
+              logger.info(`[Chat] Created ${recurringTasks.length} recurring tasks for project ${savedProject.id}`);
+            } catch (e) {
+              logger.error('[Chat] Failed to save recurring tasks:', e.message);
+            }
+          }
           return { projectId: savedProject.id };
+        }
+        break;
+      }
+      case 'save-service-plan': {
+        try {
+          const userId = user?.id || profile?.id || await getCurrentUserId();
+          const planData = action.data;
+
+          // 1. Create the service plan
+          const { data: plan, error: planError } = await supabase
+            .from('service_plans')
+            .insert({
+              owner_id: userId,
+              name: planData.name || 'Untitled Plan',
+              service_type: planData.service_type || 'other',
+              billing_cycle: planData.billing_cycle || 'monthly',
+              price_per_visit: planData.price_per_visit || null,
+              monthly_rate: planData.monthly_rate || null,
+              description: planData.description || null,
+              notes: planData.notes || null,
+              status: 'active',
+            })
+            .select()
+            .single();
+          if (planError) throw planError;
+
+          // 2. Create location if provided
+          let locationId = null;
+          if (planData.location_address) {
+            const { data: loc, error: locError } = await supabase
+              .from('service_locations')
+              .insert({
+                service_plan_id: plan.id,
+                owner_id: userId,
+                name: planData.location_name || planData.client_name || 'Main Location',
+                address: planData.location_address,
+                access_notes: planData.location_notes || null,
+              })
+              .select()
+              .single();
+            if (!locError && loc) locationId = loc.id;
+          }
+
+          // 3. Create schedule if location + frequency
+          if (locationId && planData.schedule_frequency) {
+            await supabase.from('location_schedules').insert({
+              service_location_id: locationId,
+              owner_id: userId,
+              frequency: planData.schedule_frequency,
+              scheduled_days: planData.scheduled_days || [],
+              preferred_time: planData.preferred_time || null,
+            });
+          }
+
+          // 4. Create checklist templates if provided
+          if (locationId && planData.checklist_items?.length) {
+            await supabase.from('visit_checklist_templates').insert(
+              planData.checklist_items.map((item, i) => ({
+                service_location_id: locationId,
+                owner_id: userId,
+                title: typeof item === 'string' ? item : item.title,
+                sort_order: i,
+              }))
+            );
+          }
+
+          logger.info(`[Chat] Saved service plan: ${plan.name} (${plan.id})`);
+          return { servicePlanId: plan.id };
+        } catch (e) {
+          logger.error('[Chat] Failed to save service plan:', e.message);
+          Alert.alert('Error', 'Failed to save service plan');
         }
         break;
       }
@@ -3313,6 +3453,8 @@ export default function ChatScreen({ navigation, route }) {
         return <PhotoGallery key={index} data={element.data} onAction={handleAction} />;
       case 'project-preview':
         return <ProjectPreview key={index} data={element.data} onAction={handleAction} />;
+      case 'service-plan-preview':
+        return <ServicePlanPreview key={index} data={element.data} onAction={handleAction} />;
       case 'estimate-preview':
         return <EstimatePreview key={index} data={element.data} onAction={handleAction} />;
       case 'estimate-list':

@@ -18,3 +18,4 @@ export { default as DocumentPicker } from './DocumentPicker';
 export { default as DailyReportList } from './DailyReportList';
 export { default as AppointmentCard } from './AppointmentCard';
 export { default as TimeTrackingMap } from './TimeTrackingMap';
+export { default as ServicePlanPreview } from './ServicePlanPreview';

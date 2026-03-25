@@ -20,6 +20,7 @@ const INTENT_PATTERNS = {
   settings: [/setting/g, /business info/g, /profit margin/g, /service catalog/g, /pricing catalog/g, /configure/g],
   bank: [/bank/g, /card/g, /reconcil/g, /unmatched/g, /statement/g, /teller/g, /csv/g, /bank transaction/g, /card transaction/g],
   document: [/document/g, /\bfile\b/g, /upload/g, /\bpdf\b/g, /blueprint/g, /permit/g, /attachment/g, /scope of work/g],
+  service_plan: [/service plan/g, /service route/g, /daily route/g, /today.s route/g, /visit/g, /pest/g, /cleaning/g, /lawn/g, /pool/g, /hvac/g, /scheduled visit/g, /unbilled/g, /service location/g],
 };
 
 // Tool groups for each intent
@@ -36,7 +37,8 @@ const TOOL_GROUPS = {
     'get_project_financials', 'update_phase_progress', 'delete_project',
     'update_project', 'create_worker_task', 'assign_worker', 'global_search',
     'add_project_checklist', 'create_project_phase',
-    'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document'
+    'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
+    'create_recurring_tasks', 'get_daily_task_logs'
   ],
   worker: [
     'get_workers', 'get_worker_details', 'assign_worker',
@@ -61,7 +63,7 @@ const TOOL_GROUPS = {
   ],
   reports: [
     'get_daily_reports', 'get_photos', 'generate_summary_report',
-    'search_projects', 'get_project_details'
+    'search_projects', 'get_project_details', 'get_daily_task_logs'
   ],
   settings: [
     'get_business_settings', 'update_service_pricing'
@@ -74,6 +76,10 @@ const TOOL_GROUPS = {
     'get_project_documents', 'upload_project_document', 'update_project_document',
     'delete_project_document', 'search_projects', 'get_project_details'
   ],
+  service_plan: [
+    'get_service_plans', 'get_daily_route', 'complete_visit',
+    'get_billing_summary', 'create_service_visit', 'search_projects'
+  ],
   general: [
     'global_search', 'get_daily_briefing', 'get_project_summary',
     'suggest_pricing', 'assign_worker', 'share_document',
@@ -85,7 +91,9 @@ const TOOL_GROUPS = {
     'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
     'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses',
     'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
-    'clock_in_worker', 'clock_out_worker'
+    'clock_in_worker', 'clock_out_worker',
+    'get_service_plans', 'get_daily_route', 'complete_visit', 'get_billing_summary', 'create_service_visit',
+    'create_recurring_tasks', 'get_daily_task_logs'
   ]
 };
 

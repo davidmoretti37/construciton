@@ -296,53 +296,66 @@ function calculateMatchScore(bankAmount, bankDate, bankDesc, platformTx) {
  * Create a notification for unresolved bank transactions.
  */
 async function createReconciliationNotification(userId, unmatchedCount, suggestedCount, supabase) {
-  // Check if there's already a recent (today) unresolved notification to avoid spam
-  const today = new Date().toISOString().split('T')[0];
+  const currentTotal = unmatchedCount + suggestedCount;
+  if (currentTotal === 0) return;
+
+  // Find the last acknowledged count from the most recent read notification
+  const { data: lastRead } = await supabase
+    .from('notifications')
+    .select('action_data')
+    .eq('user_id', userId)
+    .eq('type', 'bank_reconciliation')
+    .eq('read', true)
+    .order('read_at', { ascending: false })
+    .limit(1);
+
+  const acknowledgedCount = lastRead?.[0]?.action_data?.acknowledged_count || 0;
+  const newCount = Math.max(0, currentTotal - acknowledgedCount);
+
+  if (newCount === 0) return; // No new transactions since last check
+
+  // Check for existing unread notification to update
   const { data: existing } = await supabase
     .from('notifications')
     .select('id')
     .eq('user_id', userId)
     .eq('type', 'bank_reconciliation')
     .eq('read', false)
-    .gte('created_at', today)
     .limit(1);
 
+  const title = `${newCount} new transaction${newCount !== 1 ? 's' : ''} need${newCount === 1 ? 's' : ''} attention`;
+  const body = buildNotificationBody(unmatchedCount, suggestedCount, newCount);
+  const actionData = {
+    screen: 'BankReconciliation',
+    params: { filter: 'unmatched' },
+    current_total: currentTotal,
+  };
+
   if (existing && existing.length > 0) {
-    // Update existing notification instead of creating a new one
+    // Update existing unread notification with new count
     await supabase
       .from('notifications')
-      .update({
-        title: `${unmatchedCount + suggestedCount} card transactions need attention`,
-        body: buildNotificationBody(unmatchedCount, suggestedCount),
-      })
+      .update({ title, body, action_data: actionData })
       .eq('id', existing[0].id);
-    return;
+  } else {
+    // Create new notification
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId,
+        title,
+        body,
+        type: 'bank_reconciliation',
+        icon: 'card',
+        color: '#F59E0B',
+        action_type: 'navigate',
+        action_data: actionData,
+      });
   }
-
-  // Create new notification
-  await supabase
-    .from('notifications')
-    .insert({
-      user_id: userId,
-      title: `${unmatchedCount + suggestedCount} card transactions need attention`,
-      body: buildNotificationBody(unmatchedCount, suggestedCount),
-      type: 'bank_reconciliation',
-      icon: 'card',
-      color: '#F59E0B',
-      action_type: 'navigate',
-      action_data: { screen: 'BankReconciliation', params: { filter: 'unmatched' } },
-    });
 }
 
-function buildNotificationBody(unmatchedCount, suggestedCount) {
-  const parts = [];
-  if (unmatchedCount > 0) {
-    parts.push(`${unmatchedCount} unrecorded transaction${unmatchedCount !== 1 ? 's' : ''}`);
-  }
-  if (suggestedCount > 0) {
-    parts.push(`${suggestedCount} suggested match${suggestedCount !== 1 ? 'es' : ''} to review`);
-  }
-  return `${parts.join(' and ')}. Tap to review and assign to projects.`;
+function buildNotificationBody(unmatchedCount, suggestedCount, newCount) {
+  return `${newCount} new since your last review. Tap to review and assign to projects.`;
 }
 
 module.exports = { reconcileTransactions, calculateMatchScore };

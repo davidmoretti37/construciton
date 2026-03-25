@@ -1331,6 +1331,130 @@ const toolDefinitions = [
         required: []
       }
     }
+  },
+  // ==================== SERVICE PLAN TOOLS ====================
+  {
+    type: 'function',
+    function: {
+      name: 'get_service_plans',
+      description: 'Get all service plans for the user. Use when user asks about service plans, recurring services, or clients on service contracts. Returns plans with location counts and visit stats.',
+      parameters: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['active', 'paused', 'cancelled'], description: 'Filter by plan status. Omit for all.' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_daily_route',
+      description: 'Get the daily route/visit schedule for a specific date. Shows routes with stops, visit details, locations, and checklist completion. Use for "what\'s my route today?", "where do I go?", or daily scheduling questions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'Date in YYYY-MM-DD format. Defaults to today.' },
+          worker_id: { type: 'string', description: 'Worker name or UUID to filter by. Omit for all routes.' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_visit',
+      description: 'Mark a service visit as completed. Use when worker or owner says they finished a visit/stop.',
+      parameters: {
+        type: 'object',
+        properties: {
+          visit_id: { type: 'string', description: 'The visit UUID to complete.' },
+          notes: { type: 'string', description: 'Optional completion notes.' }
+        },
+        required: ['visit_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_billing_summary',
+      description: 'Get billing summary showing unbilled visit counts and estimated revenue for service plans. Use for "how much do I bill?", "unbilled visits", or billing/revenue questions about recurring services.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Service plan name or UUID. Omit for summary across all plans.' },
+          month: { type: 'string', description: 'Month in YYYY-MM format. Defaults to current month.' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_service_visit',
+      description: 'Create a one-off service visit for a location. Use when owner wants to add an extra visit outside the normal schedule.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Service plan name or UUID.' },
+          location_id: { type: 'string', description: 'Location name or UUID within the plan.' },
+          date: { type: 'string', description: 'Visit date in YYYY-MM-DD format.' },
+          worker_id: { type: 'string', description: 'Worker name or UUID to assign.' },
+          notes: { type: 'string', description: 'Optional notes for the visit.' }
+        },
+        required: ['plan_id', 'location_id', 'date']
+      }
+    }
+  },
+  // ==================== RECURRING DAILY TASK TOOLS ====================
+  {
+    type: 'function',
+    function: {
+      name: 'create_recurring_tasks',
+      description: 'Create recurring daily task templates for a project. Use when the user wants to add tasks that repeat every work day on a project — like daily quantity logging, safety checklists, or operational tasks that don\'t affect phase progress.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'UUID of the project' },
+          phase_id: { type: 'string', description: 'UUID of the phase these tasks belong to (optional)' },
+          tasks: {
+            type: 'array',
+            description: 'Array of recurring task templates to create',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'Task name, e.g. "Fiber laid", "Safety inspection", "Debris hauled"' },
+                requires_quantity: { type: 'boolean', description: 'Whether worker must log a number (meters, units, cubic yards, etc.)' },
+                quantity_unit: { type: 'string', description: 'Unit label shown next to the input, e.g. "meters", "sq ft", "units", "trucks"' },
+                sort_order: { type: 'integer', description: 'Display order, starting at 0' }
+              },
+              required: ['title']
+            }
+          }
+        },
+        required: ['project_id', 'tasks']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_daily_task_logs',
+      description: 'Get daily recurring task logs for a project. Use when owner asks about daily progress, quantities logged, task completion rates, or wants to see what was done on specific dates.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'UUID of the project' },
+          start_date: { type: 'string', description: 'Start date in YYYY-MM-DD format (default: 7 days ago)' },
+          end_date: { type: 'string', description: 'End date in YYYY-MM-DD format (default: today)' }
+        },
+        required: ['project_id']
+      }
+    }
   }
 ];
 
@@ -1395,6 +1519,15 @@ const TOOL_STATUS_MESSAGES = {
   // Clock in/out tools
   clock_in_worker: 'Clocking in worker...',
   clock_out_worker: 'Clocking out worker...',
+  // Service plan tools
+  get_service_plans: 'Checking service plans...',
+  get_daily_route: 'Loading today\'s route...',
+  complete_visit: 'Completing visit...',
+  get_billing_summary: 'Calculating billing...',
+  create_service_visit: 'Creating visit...',
+  // Recurring daily task tools
+  create_recurring_tasks: 'Setting up daily tasks...',
+  get_daily_task_logs: 'Pulling daily task history...',
 };
 
 function getToolStatusMessage(toolName) {

@@ -136,34 +136,65 @@ class RequestMemory {
           const proj = entry.value;
           if (proj.name) {
             context += `- Project "${proj.name}": status=${proj.status}, budget=$${proj.budget || proj.contract_amount || 0}\n`;
+            itemCount++;
           }
         } else if (key.startsWith('worker_')) {
           const worker = entry.value;
           if (worker.full_name) {
             context += `- Worker "${worker.full_name}": trade=${worker.trade}, status=${worker.status}\n`;
+            itemCount++;
           }
         } else if (key.startsWith('estimate_')) {
           const est = entry.value;
           if (est.estimate_number) {
             context += `- Estimate ${est.estimate_number}: client=${est.client_name}, total=$${est.total}\n`;
+            itemCount++;
           }
         } else if (key.startsWith('invoice_')) {
           const inv = entry.value;
           if (inv.invoice_number) {
             const amountDue = (inv.total || 0) - (inv.amount_paid || 0);
             context += `- Invoice ${inv.invoice_number}: client=${inv.client_name}, status=${inv.status}, due=$${amountDue}\n`;
+            itemCount++;
           }
         } else if (key === 'recent_projects') {
           if (Array.isArray(entry.value) && entry.value.length > 0) {
             context += `- Found ${entry.value.length} recent projects\n`;
+            itemCount++;
           }
         } else if (key === 'workers_list') {
           if (Array.isArray(entry.value) && entry.value.length > 0) {
             context += `- Found ${entry.value.length} workers\n`;
+            itemCount++;
+          }
+        } else if (key === 'recent_estimates') {
+          if (Array.isArray(entry.value) && entry.value.length > 0) {
+            context += `- Found ${entry.value.length} recent estimates\n`;
+            itemCount++;
+          }
+        } else if (key === 'recent_invoices') {
+          if (Array.isArray(entry.value) && entry.value.length > 0) {
+            context += `- Found ${entry.value.length} recent invoices\n`;
+            itemCount++;
+          }
+        } else if (key === 'last_action') {
+          const la = entry.value;
+          if (la.tool) {
+            const ageSec = Math.round((Date.now() - la.timestamp) / 1000);
+            context += `- Last action: ${la.tool} (${ageSec}s ago)\n`;
+            itemCount++;
+          }
+        } else if (key.startsWith('entity_')) {
+          const ent = entry.value;
+          if (ent.name || ent.full_name || ent.estimate_number || ent.invoice_number) {
+            const label = ent.name || ent.full_name || `#${ent.estimate_number || ent.invoice_number}`;
+            context += `- Entity "${label}" (id:${ent.id?.slice(0, 8)})\n`;
+            itemCount++;
           }
         }
+        // tool_last_* keys are intentionally NOT formatted into prompt context.
+        // They exist for programmatic recall only. Formatting all ~58 would bloat the prompt.
 
-        itemCount++;
         if (itemCount >= MAX_ITEMS) break;
       } catch (err) {
         // Skip malformed entries

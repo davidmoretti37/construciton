@@ -55,6 +55,10 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const [assignedProjects, setAssignedProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
 
+  // Recurring daily tasks
+  const [recurringTasks, setRecurringTasks] = useState([]);
+  const [taskLogs, setTaskLogs] = useState({}); // keyed by recurring_task_id: { completed, quantity }
+
   // Core fields (always visible)
   const [workDone, setWorkDone] = useState('');
   const [photos, setPhotos] = useState([]);
@@ -75,6 +79,43 @@ export default function DailyReportFormScreen({ navigation, route }) {
     else if (isSupervisor) loadSupervisorProjects();
     else loadWorkerProjects();
   }, [isOwner, isSupervisor]);
+
+  // Fetch recurring tasks when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      loadRecurringTasks(selectedProject.id);
+    } else {
+      setRecurringTasks([]);
+      setTaskLogs({});
+    }
+  }, [selectedProject]);
+
+  const loadRecurringTasks = async (projectId) => {
+    try {
+      const { data } = await supabase
+        .from('project_recurring_tasks')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      setRecurringTasks(data || []);
+      setTaskLogs({});
+    } catch (e) { /* not critical */ }
+  };
+
+  const toggleTaskLog = (taskId) => {
+    setTaskLogs(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], completed: !prev[taskId]?.completed },
+    }));
+  };
+
+  const updateTaskQuantity = (taskId, value) => {
+    setTaskLogs(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], quantity: value },
+    }));
+  };
 
   // Auto-populate manpower when project is selected
   useEffect(() => {
@@ -212,6 +253,29 @@ export default function DailyReportFormScreen({ navigation, route }) {
       const { error } = await supabase.from('daily_reports').insert(reportData).select('id').single();
       if (error) throw error;
 
+      // Submit recurring task logs (non-blocking)
+      const logsToSubmit = Object.entries(taskLogs).filter(([_, log]) => log.completed || log.quantity);
+      if (logsToSubmit.length > 0) {
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+        const today = new Date().toISOString().split('T')[0];
+        try {
+          for (const [taskId, log] of logsToSubmit) {
+            await supabase.from('recurring_task_daily_logs').upsert({
+              recurring_task_id: taskId,
+              project_id: selectedProject.id,
+              owner_id: selectedProject.user_id || userId,
+              worker_id: userId,
+              log_date: today,
+              completed: log.completed || false,
+              quantity: log.quantity ? parseFloat(log.quantity) : null,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'recurring_task_id,worker_id,log_date' });
+          }
+        } catch (e) {
+          console.warn('Failed to save recurring task logs:', e);
+        }
+      }
+
       Alert.alert('Success', 'Daily report submitted', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (error) {
       console.error('Error submitting report:', error);
@@ -298,6 +362,48 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
           {selectedProject && (
             <>
+              {/* Recurring Daily Tasks */}
+              {recurringTasks.length > 0 && (
+                <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+                  <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Daily Tasks</Text>
+                  {recurringTasks.map(task => {
+                    const log = taskLogs[task.id] || {};
+                    return (
+                      <View key={task.id} style={[styles.recurringTaskRow, { borderBottomColor: Colors.border }]}>
+                        <TouchableOpacity
+                          onPress={() => toggleTaskLog(task.id)}
+                          style={styles.recurringCheckbox}
+                        >
+                          <Ionicons
+                            name={log.completed ? 'checkbox' : 'square-outline'}
+                            size={24}
+                            color={log.completed ? '#10B981' : Colors.secondaryText}
+                          />
+                        </TouchableOpacity>
+                        <Text style={[styles.recurringTaskTitle, { color: Colors.primaryText }, log.completed && styles.recurringTaskDone]} numberOfLines={1}>
+                          {task.title}
+                        </Text>
+                        {task.requires_quantity && (
+                          <View style={styles.recurringQuantityWrap}>
+                            <TextInput
+                              style={[styles.recurringQuantityInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                              value={log.quantity || ''}
+                              onChangeText={(val) => updateTaskQuantity(task.id, val)}
+                              keyboardType="numeric"
+                              placeholder="0"
+                              placeholderTextColor={Colors.secondaryText}
+                            />
+                            <Text style={[styles.recurringUnit, { color: Colors.secondaryText }]}>
+                              {task.quantity_unit || ''}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
               {/* Work Done — always visible, required */}
               <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
                 <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Work Performed *</Text>
@@ -607,4 +713,13 @@ const styles = StyleSheet.create({
   // Submit
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, borderRadius: 14, marginTop: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   submitText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
+  // Recurring daily tasks
+  recurringTaskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, gap: 10 },
+  recurringCheckbox: { paddingRight: 2 },
+  recurringTaskTitle: { flex: 1, fontSize: 14, fontWeight: '500' },
+  recurringTaskDone: { textDecorationLine: 'line-through', opacity: 0.5 },
+  recurringQuantityWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  recurringQuantityInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, width: 56, fontSize: 14, textAlign: 'center' },
+  recurringUnit: { fontSize: 12, minWidth: 30 },
 });

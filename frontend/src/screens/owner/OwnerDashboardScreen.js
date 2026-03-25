@@ -57,6 +57,7 @@ import WidgetSizeSheet from '../../components/dashboard/WidgetSizeSheet';
 import { fetchAgingReport, fetchInvoicesForOwner } from '../../utils/storage/invoices';
 import { fetchEstimatesForOwner } from '../../utils/storage/estimates';
 import { fetchDailyReportsWithFilters } from '../../utils/storage/dailyReports';
+import { useWalkthrough } from '../../navigation/OwnerBottomTabNavigator';
 
 const { width: screenWidth } = Dimensions.get('window');
 const FULL_WIDTH = screenWidth - Spacing.lg * 2;
@@ -75,6 +76,7 @@ export default function OwnerDashboardScreen() {
   const { user } = useAuth();
   const navigation = useNavigation();
   const { t } = useTranslation('owner');
+  const walkthrough = useWalkthrough();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -260,6 +262,9 @@ export default function OwnerDashboardScreen() {
     }
   }, [user?.id]);
 
+  // Load on mount (so data is ready before tab is focused — needed for walkthrough)
+  useEffect(() => { fetchDashboardData(); }, []);
+  // Also refresh when tab gains focus
   useFocusEffect(useCallback(() => { fetchDashboardData(); }, []));
 
   // Load persisted layout on mount
@@ -717,6 +722,7 @@ export default function OwnerDashboardScreen() {
         >
           {/* Company Info Card */}
           <TouchableOpacity
+            ref={walkthrough?.overheadRef}
             activeOpacity={0.9}
             onPress={() => navigation.navigate('CompanyOverhead')}
             style={styles.companyCard}

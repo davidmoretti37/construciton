@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, forwardRef, useImperativeHandle } from 'react';
 import { View, TouchableOpacity, TouchableWithoutFeedback, Text, StyleSheet } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -27,13 +27,25 @@ const QUICK_ACTIONS = [
  * @param {string} primaryColor - Primary color for the FAB (default: blue)
  * @param {string} variant - 'owner' or 'supervisor' for different styling
  */
-const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'supervisor' }) => {
+const QuickActionFAB = forwardRef(({ onActionPress, primaryColor = '#3B82F6', variant = 'supervisor', menuItemRefs = {} }, ref) => {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('common');
 
   const [isExpanded, setIsExpanded] = useState(false);
   const expanded = useSharedValue(0);
+
+  // Expose expand/collapse to parent for walkthrough
+  useImperativeHandle(ref, () => ({
+    expand: () => {
+      expanded.value = withTiming(1, { duration: 200 });
+      setIsExpanded(true);
+    },
+    collapse: () => {
+      expanded.value = withTiming(0, { duration: 200 });
+      setIsExpanded(false);
+    },
+  }));
 
   // Use owner blue for owner variant
   const fabColor = variant === 'owner' ? '#1E40AF' : primaryColor;
@@ -95,6 +107,7 @@ const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'su
             onPress={() => handleActionPress(action)}
             Colors={Colors}
             t={t}
+            itemRef={menuItemRefs[action.id]}
           />
         ))}
       </View>
@@ -111,9 +124,9 @@ const QuickActionFAB = ({ onActionPress, primaryColor = '#3B82F6', variant = 'su
       </TouchableOpacity>
     </View>
   );
-};
+});
 
-const MenuItem = ({ action, index, expanded, onPress, Colors, t }) => {
+const MenuItem = ({ action, index, expanded, onPress, Colors, t, itemRef }) => {
   // Staggered animation for each menu item
   const animatedStyle = useAnimatedStyle(() => {
     const baseOffset = 70; // Base distance between items
@@ -135,6 +148,7 @@ const MenuItem = ({ action, index, expanded, onPress, Colors, t }) => {
   return (
     <Animated.View style={[styles.menuItem, animatedStyle]}>
       <TouchableOpacity
+        ref={itemRef}
         style={styles.menuItemTouchable}
         onPress={onPress}
         activeOpacity={0.8}

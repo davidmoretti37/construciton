@@ -80,6 +80,12 @@ import BankTransactionAssignScreen from '../screens/owner/BankTransactionAssignS
 // Import Google Drive integration screen
 import GoogleDriveScreen from '../screens/owner/GoogleDriveScreen';
 
+// Import service plan screens
+import ServicePlanDetailScreen from '../screens/owner/ServicePlanDetailScreen';
+import DailyRouteScreen from '../screens/owner/DailyRouteScreen';
+import RouteBuilderScreen from '../screens/owner/RouteBuilderScreen';
+import BillingScreen from '../screens/owner/BillingScreen';
+
 const Stack = createStackNavigator();
 
 export default function OwnerMainNavigator() {
@@ -95,6 +101,22 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="ProjectDetail"
         component={ProjectDetailScreen}
+      />
+      <Stack.Screen
+        name="ServicePlanDetail"
+        component={ServicePlanDetailScreen}
+      />
+      <Stack.Screen
+        name="DailyRoute"
+        component={DailyRouteScreen}
+      />
+      <Stack.Screen
+        name="RouteBuilder"
+        component={RouteBuilderScreen}
+      />
+      <Stack.Screen
+        name="Billing"
+        component={BillingScreen}
       />
       <Stack.Screen
         name="ProjectTransactions"
