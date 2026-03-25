@@ -62,7 +62,7 @@ export default function AIDemo() {
             <span className="gradient-text">You Need Done</span>
           </h2>
           <p className="text-text-secondary max-w-2xl mx-auto text-lg">
-            Your AI assistant doesn&apos;t just answer questions — it takes action. Create estimates, assign workers, log expenses, and more.
+            Foreman is your AI operations partner — 60 specialized tools, intent-based routing, and memory that learns your business. Create projects, generate estimates, reconcile bank transactions, manage routes, track daily quantities, and get proactive insights — all in plain language, in English, Spanish, or Portuguese.
           </p>
         </div>
 

@@ -81,6 +81,41 @@ function MockProject() {
   );
 }
 
+function MockServicePlan() {
+  const stops = [
+    { name: 'Smith Office', service: 'Pest Control', status: 'Complete', icon: '✓', color: 'text-emerald-600 bg-emerald-50' },
+    { name: 'Oak Plaza', service: 'Pest Control', status: 'In Progress', icon: '●', color: 'text-primary bg-blue-50' },
+    { name: 'Main St Warehouse', service: 'Pending', status: 'Pending', icon: '○', color: 'text-text-muted bg-gray-50' },
+  ];
+  return (
+    <div className="card-elevated p-5">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <p className="text-gray-900 text-sm font-bold">Today&apos;s Route</p>
+          <p className="text-text-muted text-xs">3 stops</p>
+        </div>
+        <span className="text-primary text-xs font-semibold bg-blue-50 px-2.5 py-0.5 rounded-full">In Progress</span>
+      </div>
+      <div className="space-y-2.5">
+        {stops.map((stop, i) => (
+          <div key={stop.name} className="flex items-center gap-3 bg-surface rounded-xl p-3.5 border border-border">
+            <div className="flex flex-col items-center gap-0.5">
+              <span className={`text-xs font-bold ${stop.status === 'Complete' ? 'text-emerald-600' : stop.status === 'In Progress' ? 'text-primary' : 'text-text-muted'}`}>
+                {i + 1}
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className="text-gray-900 text-xs font-medium">{stop.name}</p>
+              <p className="text-text-muted text-[10px]">{stop.service}</p>
+            </div>
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${stop.color}`}>{stop.status === 'Complete' ? 'Done' : stop.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MockInvoice() {
   return (
     <div className="card-elevated p-5">
@@ -151,6 +186,7 @@ function MockFinancial() {
 const mocks: Record<string, React.FC> = {
   estimate: MockEstimate,
   project: MockProject,
+  servicePlan: MockServicePlan,
   invoice: MockInvoice,
   financial: MockFinancial,
 };

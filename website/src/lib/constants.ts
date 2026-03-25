@@ -17,9 +17,9 @@ export const NAV_LINKS = [
 
 export const STATS = [
   { label: 'Service Professionals', value: 500, suffix: '+' },
-  { label: 'Jobs Managed', value: 10, suffix: 'K+' },
+  { label: 'AI Tools', value: 60, suffix: '+' },
   { label: 'App Rating', value: 4.9, suffix: '', decimals: 1 },
-  { label: 'Revenue Tracked', value: 2, prefix: '$', suffix: 'M+' },
+  { label: 'Months to Build', value: 5, suffix: '' },
 ] as const;
 
 export const INDUSTRIES = [
@@ -63,6 +63,19 @@ export const PILLARS = [
       'Visual timeline shows phase durations and milestones',
     ],
     mock: 'project',
+  },
+  {
+    label: 'Recurring Services',
+    title: 'Service Plans for Route-Based Businesses',
+    description:
+      'For pest control, cleaning, lawn care, pool service, and any business running recurring routes — create service plans with locations, visit schedules, and checklists. Foreman builds the route, tracks completions, and generates invoices from finished visits.',
+    bullets: [
+      'Route management with ordered daily stops',
+      'Visit checklists per location',
+      'One-tap billing from completed visits',
+      'AI creates full plans with one conversation',
+    ],
+    mock: 'servicePlan',
   },
   {
     label: 'Get Paid Faster',
@@ -208,3 +221,7 @@ export const PLANS = [
     ],
   },
 ] as const;
+
+// Unused components reference these — kept as stubs to avoid build errors
+export const FEATURES: { title: string; description: string; icon: string }[] = [];
+export const FEATURE_SHOWCASES: { title: string; description: string; bullets: string[] }[] = [];

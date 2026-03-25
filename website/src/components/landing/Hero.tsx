@@ -75,8 +75,9 @@ export default function Hero() {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="max-w-lg text-base sm:text-lg text-text-secondary mb-8 leading-relaxed mx-auto lg:mx-0"
             >
-              The AI-powered platform that helps service businesses create estimates,
-              manage projects, and grow revenue — all from your phone.
+              The AI-powered platform for service businesses — projects, crews, estimates,
+              invoices, bank reconciliation, and a 60-tool AI agent that runs your operations.
+              Built for construction, cleaning, pest control, landscaping, and every trade in between.
             </motion.p>
 
             <motion.div

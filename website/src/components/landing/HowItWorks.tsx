@@ -31,7 +31,7 @@ const steps = [
     icon: BanknotesIcon,
     title: 'Manage the Job, Get Paid',
     description:
-      'The estimate becomes a project with phases and tasks. Your crew clocks in, submits daily reports. Convert to invoices and track every dollar.',
+      'The estimate becomes a project with phases, tasks, and timelines. Your crew clocks in via GPS, submits daily reports with photos, and logs recurring daily tasks with quantity tracking. Convert to invoices, reconcile bank transactions, and see profit per job.',
     color: 'bg-emerald-50 text-emerald-600',
   },
 ];
