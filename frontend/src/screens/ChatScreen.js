@@ -125,6 +125,7 @@ export default function ChatScreen({ navigation, route }) {
   const [isLoadingChat, setIsLoadingChat] = useState(true);
   const streamingMessageIdRef = useRef(null);
   const activeJobIdRef = useRef(null);
+  const activeXhrAbortRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const scrollViewRef = useRef(null);
   const [showTimelinePicker, setShowTimelinePicker] = useState(false);
@@ -150,6 +151,12 @@ export default function ChatScreen({ navigation, route }) {
   // Create new chat session (ONLY when explicitly needed)
   const createNewSession = useCallback(async () => {
     try {
+      // Abort in-flight XHR — backend continues via disconnect handler, recovery uses AsyncStorage keys
+      if (activeXhrAbortRef.current) {
+        activeXhrAbortRef.current.abort();
+        activeXhrAbortRef.current = null;
+      }
+
       // IMPORTANT: This should ONLY create if current session has messages
       // OR if there's no current session at all
 
@@ -200,6 +207,12 @@ export default function ChatScreen({ navigation, route }) {
   // Load session messages
   const loadSession = useCallback(async (sessionId) => {
     try {
+      // Abort in-flight XHR — backend continues via disconnect handler, recovery uses AsyncStorage keys
+      if (activeXhrAbortRef.current) {
+        activeXhrAbortRef.current.abort();
+        activeXhrAbortRef.current = null;
+      }
+
       // Reset streaming state from any in-progress request
       setIsAIThinking(false);
       setIsStreaming(false);
@@ -996,6 +1009,8 @@ export default function ChatScreen({ navigation, route }) {
         agentContext,
         imageAttachments,
         {  // callbacks object:
+        // onAbortRef - Store abort function so session switch can kill XHR
+        onAbortRef: (ref) => { activeXhrAbortRef.current = ref; },
         // onJobId callback - Track background job for resume on disconnect
         onJobId: (jobId) => {
           activeJobIdRef.current = jobId;
@@ -1031,6 +1046,7 @@ export default function ChatScreen({ navigation, route }) {
 
           // Clear background job tracking
           activeJobIdRef.current = null;
+          activeXhrAbortRef.current = null;
           AsyncStorage.removeItem('activeAgentJobId');
           AsyncStorage.removeItem('activeAgentMessageId');
           AsyncStorage.removeItem('activeAgentSessionId');

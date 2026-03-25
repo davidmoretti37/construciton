@@ -1946,7 +1946,7 @@ export const sendAgentMessage = async (
   callbacks,
   rawAttachments = []
 ) => {
-  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata } = callbacks;
+  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onAbortRef } = callbacks;
   const startTime = Date.now();
 
   // Build the last user message — multipart if images are attached
@@ -2166,6 +2166,7 @@ export const sendAgentMessage = async (
     };
 
     xhr.onerror = () => {
+      if (completionCalled) { resolve(); return; } // Intentional abort — silently resolve
       flushAnimation();
       completionCalled = true;
       logger.error('🤖 [Agent] XHR error');
@@ -2174,6 +2175,7 @@ export const sendAgentMessage = async (
     };
 
     xhr.ontimeout = () => {
+      if (completionCalled) { resolve(); return; } // Intentional abort — silently resolve
       flushAnimation();
       completionCalled = true;
       logger.error('🤖 [Agent] XHR timeout');
@@ -2182,6 +2184,16 @@ export const sendAgentMessage = async (
     };
 
     xhr.timeout = 120000; // 2 minutes
+
+    // Expose abort capability so caller can kill XHR on session switch
+    onAbortRef?.({
+      abort: () => {
+        completionCalled = true; // Prevent onComplete/onError from firing
+        if (animationTimer) { clearInterval(animationTimer); animationTimer = null; }
+        xhr.abort();
+        resolve();
+      }
+    });
 
     xhr.open('POST', `${BACKEND_URL}/api/chat/agent`);
     xhr.setRequestHeader('Content-Type', 'application/json');
