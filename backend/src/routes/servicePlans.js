@@ -158,6 +158,9 @@ router.get('/:id/detail', async (req, res) => {
       clientResult,
       phasesResult,
       recurringTasksResult,
+      reportsResult,
+      documentsResult,
+      estimatesResult,
     ] = await Promise.all([
       // 2. Locations
       supabase
@@ -211,6 +214,28 @@ router.get('/:id/detail', async (req, res) => {
         .eq('service_plan_id', id)
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
+
+      // 9. Daily reports
+      supabase
+        .from('daily_reports')
+        .select('id, report_date, reporter_type, owner_id, worker_id, photos, tags, work_performed, workers(full_name), profiles:owner_id(business_name)')
+        .eq('service_plan_id', id)
+        .order('report_date', { ascending: false })
+        .limit(5),
+
+      // 10. Documents
+      supabase
+        .from('project_documents')
+        .select('id, file_name, file_url, file_type, category, visible_to_workers, created_at')
+        .eq('service_plan_id', id)
+        .order('created_at', { ascending: false }),
+
+      // 11. Estimates
+      supabase
+        .from('estimates')
+        .select('id, project_name, status, total, created_at')
+        .eq('service_plan_id', id)
+        .order('created_at', { ascending: false }),
     ]);
 
     const locations = locResult.data || [];
@@ -303,6 +328,9 @@ router.get('/:id/detail', async (req, res) => {
       workers: Object.values(workerSet),
       phases: phasesResult.data || [],
       recurring_tasks: recurringTasksResult.data || [],
+      daily_reports: reportsResult.data || [],
+      documents: documentsResult.data || [],
+      estimates: estimatesResult.data || [],
       financials: {
         total_income: totalIncome,
         total_expenses: totalExpenses,
