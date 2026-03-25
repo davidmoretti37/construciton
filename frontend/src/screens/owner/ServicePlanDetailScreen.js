@@ -1,6 +1,6 @@
 /**
- * ServicePlanDetailScreen — Rich detail view matching ProjectDetailView layout
- * Hero (client info) → Financials → Locations (work sections) → Visit History → Workers
+ * ServicePlanDetailScreen — Matches ProjectDetailView layout exactly
+ * Hero → Financial Cards → Details → Work Sections → Workers → Visits → Actions
  */
 
 import React, { useState, useCallback } from 'react';
@@ -23,19 +23,13 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { fetchServicePlanDetail } from '../../utils/storage/servicePlans';
 
 const SERVICE_TYPE_CONFIG = {
-  pest_control: { label: 'Pest Control', icon: 'bug-outline', color: '#EF4444' },
+  pest_control: { label: 'Pest Control', icon: 'bug-outline', color: '#3B82F6' },
   cleaning: { label: 'Cleaning', icon: 'sparkles-outline', color: '#8B5CF6' },
   landscaping: { label: 'Landscaping', icon: 'leaf-outline', color: '#10B981' },
   pool_service: { label: 'Pool Service', icon: 'water-outline', color: '#3B82F6' },
   lawn_care: { label: 'Lawn Care', icon: 'flower-outline', color: '#22C55E' },
   hvac: { label: 'HVAC', icon: 'thermometer-outline', color: '#F59E0B' },
-  other: { label: 'Service', icon: 'construct-outline', color: '#6B7280' },
-};
-
-const STATUS_CONFIG = {
-  active: { color: '#10B981', bg: '#10B98115' },
-  paused: { color: '#F59E0B', bg: '#F59E0B15' },
-  cancelled: { color: '#EF4444', bg: '#EF444415' },
+  other: { label: 'Service', icon: 'construct-outline', color: '#3B82F6' },
 };
 
 const VISIT_STATUS = {
@@ -77,11 +71,7 @@ export default function ServicePlanDetailScreen({ route }) {
     setLoading(false);
   }, [resolvedId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadDetail();
-    }, [loadDetail])
-  );
+  useFocusEffect(useCallback(() => { loadDetail(); }, [loadDetail]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -106,130 +96,198 @@ export default function ServicePlanDetailScreen({ route }) {
   }
 
   const typeConfig = SERVICE_TYPE_CONFIG[plan?.service_type] || SERVICE_TYPE_CONFIG.other;
-  const statusConfig = STATUS_CONFIG[plan?.status] || STATUS_CONFIG.active;
   const financials = plan?.financials || { total_income: 0, total_expenses: 0, profit: 0 };
-  const visitStats = plan?.visit_stats || { completed_this_month: 0, total_this_month: 0 };
+  const statusColor = typeConfig.color;
 
-  // Derive client contact from plan.client or first location
+  // Client contact — from plan fields, client FK, or first location
   const client = plan?.client;
   const firstLoc = plan?.locations?.[0];
-  const contactName = client?.full_name || firstLoc?.contact_name || null;
-  const contactPhone = client?.phone || firstLoc?.contact_phone || null;
-  const contactEmail = client?.email || null;
-  const contactAddress = firstLoc?.address || null;
+  const clientName = plan?.client_name || client?.full_name || firstLoc?.contact_name || null;
+  const clientPhone = plan?.client_phone || client?.phone || firstLoc?.contact_phone || null;
+  const clientEmail = plan?.client_email || client?.email || null;
+  const address = plan?.address || firstLoc?.address || null;
 
   const rate = plan?.billing_cycle === 'per_visit'
     ? plan?.price_per_visit || 0
     : plan?.monthly_rate || 0;
   const rateLabel = plan?.billing_cycle === 'per_visit' ? 'Per Visit' : plan?.billing_cycle === 'quarterly' ? 'Quarterly' : 'Monthly';
+  const profit = financials.profit;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
+      {/* Top bar */}
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
       >
-        {/* ═══ HERO SECTION ═══ */}
-        <View style={[styles.hero, { backgroundColor: typeConfig.color + '12' }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={22} color={Colors.primaryText} />
-          </TouchableOpacity>
-
+        {/* ═══ HERO SECTION — matches ProjectDetailView exactly ═══ */}
+        <View style={[styles.heroSection, { backgroundColor: statusColor }]}>
           <View style={styles.heroContent}>
-            <View style={styles.heroTop}>
-              <Ionicons name={typeConfig.icon} size={28} color={typeConfig.color} />
-              <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
-                <Text style={[styles.statusText, { color: statusConfig.color }]}>
-                  {plan?.status?.charAt(0).toUpperCase() + plan?.status?.slice(1)}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={[styles.heroTitle, { color: Colors.primaryText }]}>{plan?.name}</Text>
-
-            {contactName && (
-              <Text style={[styles.heroSubtitle, { color: Colors.secondaryText }]}>{contactName}</Text>
-            )}
-
-            {/* Contact info row */}
-            <View style={styles.contactRow}>
-              {contactAddress && (
-                <TouchableOpacity
-                  style={styles.contactItem}
-                  onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(contactAddress)}`)}
-                >
-                  <Ionicons name="location-outline" size={14} color={typeConfig.color} />
-                  <Text style={[styles.contactText, { color: Colors.secondaryText }]} numberOfLines={1}>
-                    {contactAddress}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {contactPhone && (
-                <TouchableOpacity
-                  style={styles.contactItem}
-                  onPress={() => Linking.openURL(`tel:${contactPhone}`)}
-                >
-                  <Ionicons name="call-outline" size={14} color={typeConfig.color} />
-                  <Text style={[styles.contactText, { color: '#1E40AF' }]}>{contactPhone}</Text>
-                </TouchableOpacity>
-              )}
-              {contactEmail && (
-                <TouchableOpacity
-                  style={styles.contactItem}
-                  onPress={() => Linking.openURL(`mailto:${contactEmail}`)}
-                >
-                  <Ionicons name="mail-outline" size={14} color={typeConfig.color} />
-                  <Text style={[styles.contactText, { color: '#1E40AF' }]}>{contactEmail}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Visit stats badge */}
-            {visitStats.total_this_month > 0 && (
-              <View style={[styles.visitStatsBadge, { backgroundColor: Colors.cardBackground }]}>
-                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                <Text style={[styles.visitStatsText, { color: Colors.primaryText }]}>
-                  {visitStats.completed_this_month}/{visitStats.total_this_month} visits this month
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* ═══ FINANCIAL SUMMARY ═══ */}
-        <View style={styles.financialGrid}>
-          <View style={[styles.finCard, { backgroundColor: Colors.cardBackground }]}>
-            <Text style={[styles.finLabel, { color: Colors.secondaryText }]}>{rateLabel} Rate</Text>
-            <Text style={[styles.finValue, { color: typeConfig.color }]}>${rate.toFixed(2)}</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.finCard, { backgroundColor: Colors.cardBackground }]}
-            onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'income' })}
-          >
-            <Text style={[styles.finLabel, { color: Colors.secondaryText }]}>Income</Text>
-            <Text style={[styles.finValue, { color: '#10B981' }]}>${financials.total_income.toFixed(2)}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.finCard, { backgroundColor: Colors.cardBackground }]}
-            onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'expense' })}
-          >
-            <Text style={[styles.finLabel, { color: Colors.secondaryText }]}>Expenses</Text>
-            <Text style={[styles.finValue, { color: '#EF4444' }]}>${financials.total_expenses.toFixed(2)}</Text>
-          </TouchableOpacity>
-          <View style={[styles.finCard, { backgroundColor: Colors.cardBackground }]}>
-            <Text style={[styles.finLabel, { color: Colors.secondaryText }]}>Profit</Text>
-            <Text style={[styles.finValue, { color: financials.profit >= 0 ? '#10B981' : '#EF4444' }]}>
-              ${financials.profit.toFixed(2)}
+            <Text style={styles.heroTitle} numberOfLines={2}>
+              {clientName ? `${clientName} - ` : ''}{plan?.name}
             </Text>
+
+            {/* Contact info */}
+            <View style={styles.contactContainer}>
+              {address ? (
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(address)}`)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.contactText} numberOfLines={2}>{address}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.contactRow}>
+                  <Ionicons name="location-outline" size={16} color="rgba(255,255,255,0.6)" />
+                  <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>No address added</Text>
+                </View>
+              )}
+
+              {clientPhone ? (
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={() => Linking.openURL(`tel:${clientPhone}`)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.contactText}>{clientPhone}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.contactRow}>
+                  <Ionicons name="call-outline" size={16} color="rgba(255,255,255,0.6)" />
+                  <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>No phone added</Text>
+                </View>
+              )}
+
+              {clientEmail ? (
+                <TouchableOpacity
+                  style={styles.contactRow}
+                  onPress={() => Linking.openURL(`mailto:${clientEmail}`)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.contactText}>{clientEmail}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.contactRow}>
+                  <Ionicons name="mail-outline" size={16} color="rgba(255,255,255,0.6)" />
+                  <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>No email added</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
-        {/* ═══ LOCATIONS (WORK SECTIONS) ═══ */}
+        {/* ═══ FINANCIAL CARDS — 2x2 grid matching ProjectDetailView ═══ */}
+        <View style={styles.financialContainer}>
+          <View style={styles.financialRow}>
+            {/* Rate / Contract */}
+            <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
+              <View style={[styles.iconBadge, { backgroundColor: '#3B82F615' }]}>
+                <Ionicons name="document-text" size={18} color="#3B82F6" />
+              </View>
+              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>{rateLabel}</Text>
+              <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
+                ${rate.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </Text>
+            </View>
+
+            {/* Income */}
+            <TouchableOpacity
+              style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}
+              onPress={() => navigation.navigate('ProjectTransactions', {
+                servicePlanId: plan?.id,
+                servicePlanName: plan?.name,
+                filterType: 'income',
+              })}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.iconBadge, { backgroundColor: '#10B98115' }]}>
+                <Ionicons name="cash" size={18} color="#10B981" />
+              </View>
+              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Income</Text>
+              <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
+                ${financials.total_income.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.financialRow}>
+            {/* Expenses */}
+            <TouchableOpacity
+              style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}
+              onPress={() => navigation.navigate('ProjectTransactions', {
+                servicePlanId: plan?.id,
+                servicePlanName: plan?.name,
+                filterType: 'expense',
+              })}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.iconBadge, { backgroundColor: '#EF444415' }]}>
+                <Ionicons name="trending-down" size={18} color="#EF4444" />
+              </View>
+              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Expenses</Text>
+              <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
+                ${financials.total_expenses.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Profit */}
+            <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
+              <View style={[styles.iconBadge, { backgroundColor: profit >= 0 ? '#10B98115' : '#EF444415' }]}>
+                <Ionicons name={profit >= 0 ? 'trending-up' : 'trending-down'} size={18} color={profit >= 0 ? '#10B981' : '#EF4444'} />
+              </View>
+              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Profit</Text>
+              <Text style={[styles.financialValue, { color: profit >= 0 ? '#10B981' : '#EF4444' }]} numberOfLines={1}>
+                ${profit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ═══ PLAN DETAILS ═══ */}
+        {(plan?.description || plan?.task_description) && (
+          <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Plan Details</Text>
+            {plan.description && (
+              <View style={styles.detailRow}>
+                <Ionicons name="document-text-outline" size={18} color={statusColor} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Description</Text>
+                  <Text style={[styles.detailValue, { color: Colors.primaryText }]}>{plan.description}</Text>
+                </View>
+              </View>
+            )}
+            {plan.task_description && (
+              <View style={styles.detailRow}>
+                <Ionicons name="clipboard-outline" size={18} color={statusColor} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Scope</Text>
+                  <Text style={[styles.detailValue, { color: Colors.primaryText }]}>{plan.task_description}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ═══ WORK SECTIONS — Locations with checklists ═══ */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Locations ({plan?.locations?.length || 0})
+            <Ionicons name="layers-outline" size={20} color={statusColor} style={{ marginRight: 8 }} />
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0, flex: 1 }]}>
+              Work Sections
             </Text>
+            <View style={[styles.countBadge, { backgroundColor: statusColor + '15' }]}>
+              <Text style={[styles.countBadgeText, { color: statusColor }]}>{plan?.locations?.length || 0}</Text>
+            </View>
           </View>
 
           {(plan?.locations || []).map(loc => {
@@ -244,71 +302,51 @@ export default function ServicePlanDetailScreen({ route }) {
                 onPress={() => toggleLocation(loc.id)}
                 style={[styles.locationCard, { borderColor: Colors.border }]}
               >
-                {/* Location header */}
                 <View style={styles.locationHeader}>
+                  <View style={[styles.locationDot, { backgroundColor: statusColor }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.locationName, { color: Colors.primaryText }]}>{loc.name}</Text>
-                    <Text style={[styles.locationAddress, { color: Colors.secondaryText }]} numberOfLines={1}>
-                      {loc.address}
+                    <Text style={[styles.locationMeta, { color: Colors.secondaryText }]}>
+                      {scheduleText || 'No schedule'}{checklistCount > 0 ? ` · ${checklistCount} tasks` : ''}
                     </Text>
-                    <View style={styles.locationBadges}>
-                      {scheduleText && (
-                        <View style={[styles.badge, { backgroundColor: '#3B82F615' }]}>
-                          <Ionicons name="calendar-outline" size={10} color="#3B82F6" />
-                          <Text style={[styles.badgeText, { color: '#3B82F6' }]}>{scheduleText}</Text>
-                        </View>
-                      )}
-                      {checklistCount > 0 && (
-                        <View style={[styles.badge, { backgroundColor: '#8B5CF615' }]}>
-                          <Ionicons name="checkbox-outline" size={10} color="#8B5CF6" />
-                          <Text style={[styles.badgeText, { color: '#8B5CF6' }]}>{checklistCount} tasks</Text>
-                        </View>
-                      )}
-                    </View>
                   </View>
-                  <Ionicons
-                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                    size={18}
-                    color={Colors.secondaryText}
-                  />
+                  <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
                 </View>
 
-                {/* Expanded: checklist + contact info */}
                 {isExpanded && (
                   <View style={styles.locationExpanded}>
-                    {/* Contact info */}
-                    {(loc.contact_name || loc.contact_phone) && (
-                      <View style={[styles.contactCard, { backgroundColor: Colors.background }]}>
-                        {loc.contact_name && (
-                          <View style={styles.contactItem}>
-                            <Ionicons name="person-outline" size={13} color={Colors.secondaryText} />
-                            <Text style={[styles.contactText, { color: Colors.primaryText }]}>{loc.contact_name}</Text>
-                          </View>
-                        )}
-                        {loc.contact_phone && (
-                          <TouchableOpacity style={styles.contactItem} onPress={() => Linking.openURL(`tel:${loc.contact_phone}`)}>
-                            <Ionicons name="call-outline" size={13} color="#1E40AF" />
-                            <Text style={[styles.contactText, { color: '#1E40AF' }]}>{loc.contact_phone}</Text>
-                          </TouchableOpacity>
-                        )}
+                    {loc.address && (
+                      <TouchableOpacity
+                        style={styles.locDetailRow}
+                        onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(loc.address)}`)}
+                      >
+                        <Ionicons name="location-outline" size={14} color="#3B82F6" />
+                        <Text style={[styles.locDetailText, { color: '#3B82F6' }]}>{loc.address}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {loc.contact_name && (
+                      <View style={styles.locDetailRow}>
+                        <Ionicons name="person-outline" size={14} color={Colors.secondaryText} />
+                        <Text style={[styles.locDetailText, { color: Colors.primaryText }]}>{loc.contact_name}</Text>
                       </View>
                     )}
-
-                    {/* Access notes */}
+                    {loc.contact_phone && (
+                      <TouchableOpacity style={styles.locDetailRow} onPress={() => Linking.openURL(`tel:${loc.contact_phone}`)}>
+                        <Ionicons name="call-outline" size={14} color="#3B82F6" />
+                        <Text style={[styles.locDetailText, { color: '#3B82F6' }]}>{loc.contact_phone}</Text>
+                      </TouchableOpacity>
+                    )}
                     {loc.access_notes && (
-                      <View style={[styles.accessNotes, { backgroundColor: '#F59E0B10' }]}>
+                      <View style={[styles.accessNotesBox, { backgroundColor: '#F59E0B10' }]}>
                         <Ionicons name="key-outline" size={13} color="#F59E0B" />
-                        <Text style={[styles.accessNotesText, { color: Colors.secondaryText }]}>{loc.access_notes}</Text>
+                        <Text style={[styles.locDetailText, { color: Colors.secondaryText }]}>{loc.access_notes}</Text>
                       </View>
                     )}
-
-                    {/* Checklist templates */}
                     {checklistCount > 0 && (
                       <View style={styles.checklistSection}>
-                        <Text style={[styles.checklistTitle, { color: Colors.secondaryText }]}>Daily Tasks</Text>
                         {loc.checklist_templates.map((item, i) => (
                           <View key={item.id || i} style={styles.checklistItem}>
-                            <View style={[styles.checkDot, { borderColor: typeConfig.color }]} />
+                            <Ionicons name="checkbox-outline" size={16} color={statusColor} />
                             <Text style={[styles.checklistText, { color: Colors.primaryText }]}>{item.title}</Text>
                           </View>
                         ))}
@@ -321,22 +359,82 @@ export default function ServicePlanDetailScreen({ route }) {
           })}
 
           {(!plan?.locations || plan.locations.length === 0) && (
-            <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-              No locations added yet
-            </Text>
+            <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No locations added yet</Text>
           )}
         </View>
 
-        {/* ═══ VISIT HISTORY ═══ */}
+        {/* ═══ RECURRING DAILY TASKS ═══ */}
+        {plan?.recurring_tasks?.length > 0 && (
+          <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="repeat-outline" size={20} color="#8B5CF6" style={{ marginRight: 8 }} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0, flex: 1 }]}>
+                Daily Tasks
+              </Text>
+              <View style={[styles.countBadge, { backgroundColor: '#8B5CF615' }]}>
+                <Text style={[styles.countBadgeText, { color: '#8B5CF6' }]}>{plan.recurring_tasks.length}</Text>
+              </View>
+            </View>
+            {plan.recurring_tasks.map((task, i) => (
+              <View key={task.id || i} style={[styles.taskRow, { borderColor: Colors.border }]}>
+                <Ionicons name="ellipse-outline" size={18} color={Colors.secondaryText} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.taskTitle, { color: Colors.primaryText }]}>{task.title}</Text>
+                  {task.quantity_unit && (
+                    <Text style={[styles.taskUnit, { color: Colors.secondaryText }]}>Tracks: {task.quantity_unit}</Text>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ═══ ASSIGNED WORKERS ═══ */}
+        <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="people-outline" size={20} color={statusColor} style={{ marginRight: 8 }} />
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0, flex: 1 }]}>
+              Assigned ({plan?.workers?.length || 0})
+            </Text>
+          </View>
+
+          {plan?.workers?.length > 0 ? (
+            plan.workers.map(w => (
+              <View key={w.id} style={[styles.workerRow, { backgroundColor: Colors.background }]}>
+                <View style={[styles.workerAvatar, { backgroundColor: statusColor + '20' }]}>
+                  <Text style={[styles.workerInitial, { color: statusColor }]}>
+                    {(w.full_name || '?')[0].toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.workerName, { color: Colors.primaryText }]}>{w.full_name}</Text>
+                  {w.trade && <Text style={[styles.workerTrade, { color: Colors.secondaryText }]}>{w.trade}</Text>}
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptySection}>
+              <Ionicons name="people-outline" size={32} color={Colors.secondaryText + '40'} />
+              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No workers assigned yet</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ═══ RECENT VISITS ═══ */}
         {plan?.recent_visits?.length > 0 && (
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Recent Visits</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="clipboard-outline" size={20} color={statusColor} style={{ marginRight: 8 }} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0, flex: 1 }]}>
+                Recent Visits
+              </Text>
+            </View>
             {plan.recent_visits.map(visit => {
               const vs = VISIT_STATUS[visit.status] || VISIT_STATUS.scheduled;
               return (
                 <View key={visit.id} style={[styles.visitRow, { borderColor: Colors.border }]}>
                   <View style={{ flex: 1 }}>
-                    <View style={styles.visitTop}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Text style={[styles.visitDate, { color: Colors.primaryText }]}>
                         {new Date(visit.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </Text>
@@ -344,41 +442,15 @@ export default function ServicePlanDetailScreen({ route }) {
                         <Text style={[styles.visitBadgeText, { color: vs.color }]}>{vs.label}</Text>
                       </View>
                     </View>
-                    <Text style={[styles.visitLocation, { color: Colors.secondaryText }]}>
+                    <Text style={[styles.visitMeta, { color: Colors.secondaryText }]}>
                       {visit.location_name}
+                      {visit.worker ? ` · ${visit.worker.full_name}` : ''}
+                      {visit.duration_minutes ? ` · ${visit.duration_minutes}min` : ''}
                     </Text>
-                    {visit.worker && (
-                      <Text style={[styles.visitWorker, { color: Colors.secondaryText }]}>
-                        {visit.worker.full_name}
-                        {visit.duration_minutes ? ` · ${visit.duration_minutes}min` : ''}
-                      </Text>
-                    )}
                   </View>
                 </View>
               );
             })}
-          </View>
-        )}
-
-        {/* ═══ WORKERS ═══ */}
-        {plan?.workers?.length > 0 && (
-          <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Workers</Text>
-            <View style={styles.workersRow}>
-              {plan.workers.map(w => (
-                <View key={w.id} style={styles.workerChip}>
-                  <View style={[styles.workerAvatar, { backgroundColor: typeConfig.color + '20' }]}>
-                    <Text style={[styles.workerInitial, { color: typeConfig.color }]}>
-                      {(w.full_name || '?')[0].toUpperCase()}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={[styles.workerName, { color: Colors.primaryText }]}>{w.full_name}</Text>
-                    {w.trade && <Text style={[styles.workerTrade, { color: Colors.secondaryText }]}>{w.trade}</Text>}
-                  </View>
-                </View>
-              ))}
-            </View>
           </View>
         )}
 
@@ -409,121 +481,132 @@ export default function ServicePlanDetailScreen({ route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
-
-  // Hero
-  hero: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  backButton: {
-    width: 36, height: 36, borderRadius: 18,
+  backBtn: {
+    width: 40, height: 40, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: Spacing.sm,
   },
-  heroContent: { paddingLeft: 4 },
-  heroTop: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 8,
-  },
-  heroTitle: { fontSize: 24, fontWeight: '800', marginBottom: 2 },
-  heroSubtitle: { fontSize: 15, fontWeight: '500', marginBottom: 12 },
-  contactRow: { gap: 6, marginBottom: 12 },
-  contactItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  contactText: { fontSize: 13, flex: 1 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { fontSize: 12, fontWeight: '600' },
-  visitStatsBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 10,
-  },
-  visitStatsText: { fontSize: 12, fontWeight: '600' },
 
-  // Financials
-  financialGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
-    paddingHorizontal: Spacing.lg, marginTop: -12,
-    marginBottom: Spacing.lg,
+  // Hero — matches ProjectDetailView exactly
+  heroSection: {
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  finCard: {
-    flex: 1, minWidth: '45%',
-    borderRadius: BorderRadius.lg, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
+  heroContent: { flex: 1, marginRight: 12 },
+  heroTitle: {
+    fontSize: 20, fontWeight: '700', color: '#FFFFFF',
+    marginBottom: 6, lineHeight: 24,
   },
-  finLabel: { fontSize: 11, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 },
-  finValue: { fontSize: 20, fontWeight: '800', marginTop: 4 },
+  contactContainer: { marginTop: 4, gap: 4 },
+  contactRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3,
+  },
+  contactText: {
+    fontSize: 14, color: 'rgba(255,255,255,0.9)', fontWeight: '500', flex: 1,
+  },
 
-  // Sections
+  // Financial cards — matches ProjectDetailView exactly
+  financialContainer: { padding: 12 },
+  financialRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  financialCard: {
+    flex: 1, padding: 14, borderRadius: 14,
+    elevation: 3, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6,
+    borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)',
+  },
+  iconBadge: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  financialLabel: { fontSize: 11, fontWeight: '500', marginBottom: 3 },
+  financialValue: { fontSize: 18, fontWeight: '700' },
+
+  // Sections — matches ProjectDetailView
   section: {
-    marginHorizontal: Spacing.lg, marginBottom: Spacing.md,
-    borderRadius: BorderRadius.lg, padding: Spacing.lg,
+    marginHorizontal: 12, marginBottom: 12,
+    borderRadius: 16, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: Spacing.md,
+    flexDirection: 'row', alignItems: 'center', marginBottom: 14,
   },
-  sectionTitle: { fontSize: FontSizes.body, fontWeight: '700', marginBottom: Spacing.sm },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
+  countBadge: {
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10,
+  },
+  countBadgeText: { fontSize: 12, fontWeight: '700' },
+
+  // Plan details
+  detailRow: {
+    flexDirection: 'row', gap: 10, paddingVertical: 8,
+  },
+  detailLabel: { fontSize: 11, fontWeight: '500', marginBottom: 2 },
+  detailValue: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
 
   // Locations
-  locationCard: {
-    borderBottomWidth: 1, paddingVertical: Spacing.md,
-  },
-  locationHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-  },
-  locationName: { fontSize: 14, fontWeight: '600' },
-  locationAddress: { fontSize: 12, marginTop: 2 },
-  locationBadges: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  badge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
-  },
-  badgeText: { fontSize: 10, fontWeight: '600' },
-  locationExpanded: { marginTop: 12, gap: 8 },
-  contactCard: {
-    borderRadius: 10, padding: 10, gap: 6,
-  },
-  accessNotes: {
+  locationCard: { borderBottomWidth: 1, paddingVertical: 12 },
+  locationHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  locationDot: { width: 10, height: 10, borderRadius: 5 },
+  locationName: { fontSize: 15, fontWeight: '600' },
+  locationMeta: { fontSize: 12, marginTop: 2 },
+  locationExpanded: { marginTop: 10, marginLeft: 20, gap: 6 },
+  locDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  locDetailText: { fontSize: 13, flex: 1 },
+  accessNotesBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 6,
-    borderRadius: 10, padding: 10,
+    borderRadius: 8, padding: 8,
   },
-  accessNotesText: { fontSize: 12, flex: 1 },
-  checklistSection: { gap: 4 },
-  checklistTitle: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  checklistItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
-  checkDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5 },
+  checklistSection: { marginTop: 6, gap: 4 },
+  checklistItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
   checklistText: { fontSize: 13 },
 
+  // Recurring tasks
+  taskRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, borderBottomWidth: 1,
+  },
+  taskTitle: { fontSize: 14, fontWeight: '500' },
+  taskUnit: { fontSize: 11, marginTop: 2 },
+
+  // Workers
+  workerRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 10, borderRadius: 10, marginBottom: 6,
+  },
+  workerAvatar: {
+    width: 36, height: 36, borderRadius: 18,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  workerInitial: { fontSize: 15, fontWeight: '700' },
+  workerName: { fontSize: 14, fontWeight: '600' },
+  workerTrade: { fontSize: 11, marginTop: 1 },
+
   // Visits
-  visitRow: { borderBottomWidth: 1, paddingVertical: 10 },
-  visitTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  visitRow: { paddingVertical: 10, borderBottomWidth: 1 },
   visitDate: { fontSize: 14, fontWeight: '600' },
   visitBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   visitBadgeText: { fontSize: 10, fontWeight: '600' },
-  visitLocation: { fontSize: 12, marginTop: 2 },
-  visitWorker: { fontSize: 11, marginTop: 2 },
-
-  // Workers
-  workersRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  workerChip: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  workerAvatar: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  workerInitial: { fontSize: 14, fontWeight: '700' },
-  workerName: { fontSize: 13, fontWeight: '600' },
-  workerTrade: { fontSize: 11 },
+  visitMeta: { fontSize: 12, marginTop: 3 },
 
   // Actions
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: Spacing.md, paddingHorizontal: Spacing.lg },
+  actionRow: {
+    flexDirection: 'row', gap: 12, marginTop: 12, paddingHorizontal: 12,
+  },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: BorderRadius.lg,
+    paddingVertical: 14, borderRadius: 14,
   },
-  actionBtnText: { color: '#fff', fontSize: FontSizes.small, fontWeight: '700' },
+  actionBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
-  emptyText: { fontSize: FontSizes.small, textAlign: 'center', paddingVertical: Spacing.xl },
+  // Empty states
+  emptySection: { alignItems: 'center', paddingVertical: 20, gap: 8 },
+  emptyText: { fontSize: 13, textAlign: 'center' },
 });

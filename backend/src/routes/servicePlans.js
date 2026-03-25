@@ -156,6 +156,8 @@ router.get('/:id/detail', async (req, res) => {
       monthVisitsResult,
       financialsResult,
       clientResult,
+      phasesResult,
+      recurringTasksResult,
     ] = await Promise.all([
       // 2. Locations
       supabase
@@ -192,6 +194,23 @@ router.get('/:id/detail', async (req, res) => {
       plan.client_id
         ? supabase.from('clients').select('id, full_name, email, phone').eq('id', plan.client_id).single()
         : Promise.resolve({ data: null }),
+
+      // 7. Phases (for project-mode plans)
+      plan.has_phases
+        ? supabase
+            .from('project_phases')
+            .select('*')
+            .eq('service_plan_id', id)
+            .order('order_index', { ascending: true })
+        : Promise.resolve({ data: [] }),
+
+      // 8. Recurring task templates
+      supabase
+        .from('project_recurring_tasks')
+        .select('*')
+        .eq('service_plan_id', id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
     ]);
 
     const locations = locResult.data || [];
@@ -282,6 +301,8 @@ router.get('/:id/detail', async (req, res) => {
       locations,
       recent_visits: visits,
       workers: Object.values(workerSet),
+      phases: phasesResult.data || [],
+      recurring_tasks: recurringTasksResult.data || [],
       financials: {
         total_income: totalIncome,
         total_expenses: totalExpenses,

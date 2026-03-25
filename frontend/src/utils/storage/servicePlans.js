@@ -4,6 +4,9 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+
+const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
 /**
  * Get current user ID from Supabase auth
@@ -90,9 +93,6 @@ export async function fetchServicePlanDetail(planId) {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     if (!token) return null;
-
-    const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
-    const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
     const response = await fetch(`${API_URL}/api/service-plans/${planId}/detail`, {
       method: 'GET',
