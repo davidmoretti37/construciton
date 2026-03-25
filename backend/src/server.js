@@ -635,12 +635,17 @@ app.post('/api/chat/agent', aiLimiter, authenticateUser, async (req, res) => {
 
   // Set headers for Server-Sent Events
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
+  // Disable Nagle's algorithm so SSE events flush immediately
+  if (res.socket) res.socket.setNoDelay(true);
+  res.flushHeaders();
+
   // Send jobId as the FIRST event so the frontend can track this request
   res.write(`data: ${JSON.stringify({ type: 'job_id', jobId })}\n\n`);
+  if (typeof res.flush === 'function') res.flush();
 
   logger.info(`🤖 Agent request from user ${user_id.substring(0, 8)}... (job: ${jobId.substring(0, 8)})`);
 

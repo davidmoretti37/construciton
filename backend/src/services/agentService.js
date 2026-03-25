@@ -66,6 +66,9 @@ function createJobWriter(jobId, res) {
     if (clientDisconnected) return;
     try {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
+      // Force flush so SSE events reach the client immediately
+      // Without this, Railway/Node.js may buffer events indefinitely
+      if (typeof res.flush === 'function') res.flush();
     } catch (e) {
       // Client gone — mark disconnected
       clientDisconnected = true;
