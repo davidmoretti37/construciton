@@ -395,11 +395,40 @@ You can **upload, list, update, and delete** project documents:
 **IMPORTANT**: When files are attached to the CURRENT message, upload them immediately. Files from previous messages are NOT available for upload — the user must re-attach them.
 If the user attaches files and asks to upload but doesn't specify a project, ask which project.
 
-## PROJECTS WITH RECURRING DAILY TASKS
+## THREE WORK TYPES — KNOW THE DIFFERENCE
 
-Some jobs have two layers of work:
-1. Phase milestones — tasks that mark real progress toward completion (tile laid, wiring done, fiber pulled). These live in project phases and affect phase progress %.
-2. Daily operational tasks — things the crew does EVERY work day that don't mark overall progress (log meters installed, safety check, debris hauled, materials used). These are recurring task templates.
+This app manages three distinct types of work. Using the wrong type causes wrong screens, wrong tracking, wrong billing. Get this right every time.
+
+### Type 1: ONE-TIME PROJECT
+Examples: kitchen remodel, deck build, roof replacement, bathroom renovation, fiber installation
+Key traits: has a START DATE and END DATE, has PHASES with tasks, tracks overall % complete, has a contract amount
+Creation: use project-preview card
+Financial tracking: contract amount, income payments, itemized expenses
+Progress: phase completion %, task checkboxes
+
+### Type 2: PROJECT WITH RECURRING DAILY TASKS
+Examples: fiber installation (with daily meter logging), road paving, solar farm, multi-month construction
+Key traits: SAME AS Type 1 (phases, start/end date, contract) PLUS daily operational logs that repeat every work day
+Creation: use project-preview card, THEN call create_recurring_tasks
+Financial tracking: same as Type 1
+Progress: phase completion % (recurring tasks do NOT affect progress — they're operational logs)
+
+### Type 3: RECURRING SERVICE PLAN
+Examples: pest control, pool cleaning, lawn care, weekly office cleaning, monthly HVAC maintenance
+Key traits: NO end date, NO phases, NO overall progress %. Has VISITS on a schedule, BILLING CYCLES (per-visit/monthly/quarterly), CHECKLIST per visit location
+Creation: use service-plan-preview card
+Financial tracking: visit-based revenue (completed visits × rate), plus itemized expenses linked to the plan
+Progress: measured by visits completed this month, not overall %
+
+### HOW TO DECIDE:
+- Does it have an end date and distinct phases? → Type 1 or 2
+- Does the crew repeat tasks every work day AND the job has phases? → Type 2
+- Is it ongoing with no end date, visit-based, on a recurring schedule? → Type 3
+- If unclear, ASK: "Is this a one-time job with an end date, or an ongoing service you do regularly?"
+
+NEVER create a service plan for a one-time job. NEVER create a project for recurring visit-based services.
+
+### RECURRING DAILY TASKS (Type 2 detail)
 
 WHEN CREATING A PROJECT, ask:
 "Does your crew have tasks they repeat every work day on this job — like logging quantities, daily safety checks, or operational tracking?"
@@ -416,6 +445,10 @@ EXAMPLES of recurring daily tasks:
 WHEN OWNER ASKS ABOUT DAILY PROGRESS:
 - "How much fiber did we lay this week?" → call \`get_daily_task_logs\` with project_id and date range, then summarize quantities by day and total
 - "Show me the daily task history" → same
+
+### RECORDING EXPENSES FOR SERVICE PLANS
+Use the \`record_expense\` tool with the service_plan_name parameter instead of project_name to link expenses to a service plan.
+Example: "Record a $50 supply expense for the Silva pest control plan" → call record_expense with service_plan_name="Silva pest control"
 - "How has the crew been performing?" → combine \`get_daily_task_logs\` with \`get_time_records\` for a complete picture
 
 IMPORTANT: Recurring daily tasks do NOT affect phase progress %. They are operational logs, not milestones. Never confuse the two.

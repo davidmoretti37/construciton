@@ -2063,15 +2063,9 @@ async function share_document(userId, args) {
 
 // ==================== FINANCIAL MUTATIONS ====================
 
-async function record_expense(userId, { project_id, type, amount, category, description, date, subcategory }) {
-  const resolved = await resolveProjectId(userId, project_id);
-  if (resolved.error) return resolved;
-  if (resolved.suggestions) return resolved;
-
+async function record_expense(userId, { project_id, service_plan_name, type, amount, category, description, date, subcategory }) {
   const transactionDate = date || new Date().toISOString().split('T')[0];
-
-  const insertData = {
-    project_id: resolved.id,
+  let insertData = {
     created_by: userId,
     type,
     category,
@@ -2081,6 +2075,39 @@ async function record_expense(userId, { project_id, type, amount, category, desc
   };
   if (subcategory) insertData.subcategory = subcategory;
 
+  let entityName = '';
+  let entityFilterCol = '';
+  let entityFilterId = '';
+
+  if (service_plan_name && !project_id) {
+    // Resolve service plan by name
+    const { data: plans } = await supabase
+      .from('service_plans')
+      .select('id, name')
+      .eq('owner_id', userId)
+      .ilike('name', `%${service_plan_name}%`);
+
+    if (!plans || plans.length === 0) {
+      return { error: `No service plan found matching "${service_plan_name}"` };
+    }
+    if (plans.length > 1) {
+      return { error: `Multiple service plans match "${service_plan_name}". Be more specific.`, suggestions: plans.map(p => p.name) };
+    }
+    insertData.service_plan_id = plans[0].id;
+    entityName = plans[0].name;
+    entityFilterCol = 'service_plan_id';
+    entityFilterId = plans[0].id;
+  } else {
+    // Resolve project (existing logic)
+    const resolved = await resolveProjectId(userId, project_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    insertData.project_id = resolved.id;
+    entityName = resolved.name || project_id;
+    entityFilterCol = 'project_id';
+    entityFilterId = resolved.id;
+  }
+
   const { data, error } = await supabase
     .from('project_transactions')
     .insert(insertData)
@@ -2089,11 +2116,11 @@ async function record_expense(userId, { project_id, type, amount, category, desc
 
   if (error) return { error: `Failed to record transaction: ${error.message}` };
 
-  // Get updated project totals
+  // Get updated totals
   const { data: transactions } = await supabase
     .from('project_transactions')
     .select('type, amount')
-    .eq('project_id', resolved.id);
+    .eq(entityFilterCol, entityFilterId);
 
   const totalExpenses = (transactions || [])
     .filter(t => t.type === 'expense')
@@ -2102,17 +2129,19 @@ async function record_expense(userId, { project_id, type, amount, category, desc
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
-  // Notify project owner if a supervisor recorded the expense
-  const { data: proj } = await supabase.from('projects').select('user_id, name').eq('id', resolved.id).single();
-  if (proj && proj.user_id !== userId) {
-    sendNotification({
-      userId: proj.user_id,
-      title: 'New Expense Recorded',
-      body: `$${parseFloat(amount).toFixed(2)} ${category || ''} expense on ${proj.name}`,
-      type: 'financial_update',
-      data: { screen: 'Projects' },
-      projectId: resolved.id,
-    });
+  // Notify project owner if a supervisor recorded the expense (project only)
+  if (insertData.project_id) {
+    const { data: proj } = await supabase.from('projects').select('user_id, name').eq('id', insertData.project_id).single();
+    if (proj && proj.user_id !== userId) {
+      sendNotification({
+        userId: proj.user_id,
+        title: 'New Expense Recorded',
+        body: `$${parseFloat(amount).toFixed(2)} ${category || ''} expense on ${proj.name}`,
+        type: 'financial_update',
+        data: { screen: 'Projects' },
+        projectId: insertData.project_id,
+      });
+    }
   }
 
   return {
@@ -2125,11 +2154,12 @@ async function record_expense(userId, { project_id, type, amount, category, desc
       description,
       date: transactionDate,
     },
-    projectTotals: {
+    totals: {
       totalExpenses,
       totalIncome,
       profit: totalIncome - totalExpenses,
-    }
+    },
+    entityName,
   };
 }
 

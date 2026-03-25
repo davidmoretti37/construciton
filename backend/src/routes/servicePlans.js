@@ -128,6 +128,177 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET /:id/detail — Enriched detail with client, locations, checklists, visits, workers, financials
+router.get('/:id/detail', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { id } = req.params;
+
+    // 1. Plan info
+    const { data: plan, error } = await supabase
+      .from('service_plans')
+      .select('*')
+      .eq('id', id)
+      .or(`owner_id.eq.${ownerId},assigned_supervisor_id.eq.${ownerId}`)
+      .single();
+
+    if (error || !plan) {
+      return res.status(404).json({ error: 'Service plan not found' });
+    }
+
+    // Run all secondary queries in parallel
+    const today = new Date().toISOString().split('T')[0];
+    const monthStart = today.substring(0, 7) + '-01';
+
+    const [
+      locResult,
+      visitsResult,
+      monthVisitsResult,
+      financialsResult,
+      clientResult,
+    ] = await Promise.all([
+      // 2. Locations
+      supabase
+        .from('service_locations')
+        .select('*')
+        .eq('service_plan_id', id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
+
+      // 3. Recent visits (last 10)
+      supabase
+        .from('service_visits')
+        .select('id, service_location_id, assigned_worker_id, scheduled_date, status, started_at, completed_at, duration_minutes, worker_notes')
+        .eq('service_plan_id', id)
+        .order('scheduled_date', { ascending: false })
+        .limit(10),
+
+      // 4. This month's visit stats
+      supabase
+        .from('service_visits')
+        .select('id, status')
+        .eq('service_plan_id', id)
+        .gte('scheduled_date', monthStart)
+        .lte('scheduled_date', today),
+
+      // 5. Financial transactions
+      supabase
+        .from('project_transactions')
+        .select('id, type, amount, category, description, date')
+        .eq('service_plan_id', id)
+        .order('date', { ascending: false }),
+
+      // 6. Client info
+      plan.client_id
+        ? supabase.from('clients').select('id, full_name, email, phone').eq('id', plan.client_id).single()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const locations = locResult.data || [];
+
+    // Fetch schedules and checklist templates for all locations
+    if (locations.length > 0) {
+      const locationIds = locations.map(l => l.id);
+
+      const [schedulesResult, checklistsResult] = await Promise.all([
+        supabase
+          .from('location_schedules')
+          .select('*')
+          .in('service_location_id', locationIds)
+          .eq('is_active', true)
+          .or(`effective_until.is.null,effective_until.gte.${today}`),
+        supabase
+          .from('visit_checklist_templates')
+          .select('*')
+          .in('service_location_id', locationIds)
+          .order('sort_order', { ascending: true }),
+      ]);
+
+      const scheduleMap = {};
+      (schedulesResult.data || []).forEach(s => {
+        scheduleMap[s.service_location_id] = s;
+      });
+
+      const checklistMap = {};
+      (checklistsResult.data || []).forEach(t => {
+        if (!checklistMap[t.service_location_id]) checklistMap[t.service_location_id] = [];
+        checklistMap[t.service_location_id].push(t);
+      });
+
+      locations.forEach(l => {
+        l.schedule = scheduleMap[l.id] || null;
+        l.checklist_templates = checklistMap[l.id] || [];
+      });
+    }
+
+    // Enrich visits with location names and worker names
+    const visits = visitsResult.data || [];
+    if (visits.length > 0) {
+      // Map location names
+      const locMap = {};
+      locations.forEach(l => { locMap[l.id] = l.name; });
+
+      // Get distinct worker IDs
+      const workerIds = [...new Set(visits.map(v => v.assigned_worker_id).filter(Boolean))];
+      let workerMap = {};
+
+      if (workerIds.length > 0) {
+        const { data: workers } = await supabase
+          .from('workers')
+          .select('id, full_name, trade')
+          .in('id', workerIds);
+        if (workers) {
+          workers.forEach(w => { workerMap[w.id] = w; });
+        }
+      }
+
+      visits.forEach(v => {
+        v.location_name = locMap[v.service_location_id] || 'Unknown';
+        v.worker = workerMap[v.assigned_worker_id] || null;
+      });
+    }
+
+    // Build workers list from visits
+    const workerSet = {};
+    (visitsResult.data || []).forEach(v => {
+      if (v.assigned_worker_id && v.worker) {
+        workerSet[v.assigned_worker_id] = v.worker;
+      }
+    });
+
+    // Calculate financials
+    const transactions = financialsResult.data || [];
+    const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+    const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+
+    // Month visit stats
+    const monthVisits = monthVisitsResult.data || [];
+    const completedThisMonth = monthVisits.filter(v => v.status === 'completed').length;
+    const totalThisMonth = monthVisits.length;
+
+    res.json({
+      ...plan,
+      client: clientResult.data || null,
+      locations,
+      recent_visits: visits,
+      workers: Object.values(workerSet),
+      financials: {
+        total_income: totalIncome,
+        total_expenses: totalExpenses,
+        profit: totalIncome - totalExpenses,
+        transaction_count: transactions.length,
+      },
+      visit_stats: {
+        completed_this_month: completedThisMonth,
+        total_this_month: totalThisMonth,
+      },
+    });
+  } catch (error) {
+    logger.error('[ServicePlans] Enriched detail error:', error.message);
+    res.status(500).json({ error: 'Failed to get service plan detail' });
+  }
+});
+
 // GET /:id — Plan detail with locations and schedules
 router.get('/:id', async (req, res) => {
   try {

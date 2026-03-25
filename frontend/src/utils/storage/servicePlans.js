@@ -82,49 +82,36 @@ export async function fetchServicePlans(status) {
 }
 
 /**
- * Fetch a single service plan with locations and schedules
+ * Fetch enriched service plan detail from backend
+ * Returns: plan info, client, locations with checklists, visits, workers, financials
  */
 export async function fetchServicePlanDetail(planId) {
-  const userId = await getUserId();
-  if (!userId) return null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return null;
 
-  const { data: plan, error } = await supabase
-    .from('service_plans')
-    .select('*')
-    .eq('id', planId)
-    .eq('owner_id', userId)
-    .single();
+    const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
+    const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
-  if (error || !plan) return null;
+    const response = await fetch(`${API_URL}/api/service-plans/${planId}/detail`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-  // Fetch active locations
-  const { data: locations } = await supabase
-    .from('service_locations')
-    .select('*')
-    .eq('service_plan_id', planId)
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    if (!response.ok) return null;
+    const plan = await response.json();
 
-  // Fetch schedules for locations
-  const today = new Date().toISOString().split('T')[0];
-  if (locations && locations.length > 0) {
-    const locationIds = locations.map(l => l.id);
-    const { data: schedules } = await supabase
-      .from('location_schedules')
-      .select('*')
-      .in('service_location_id', locationIds)
-      .eq('is_active', true)
-      .or(`effective_until.is.null,effective_until.gte.${today}`);
-
-    const scheduleMap = {};
-    (schedules || []).forEach(s => { scheduleMap[s.service_location_id] = s; });
-    locations.forEach(l => { l.schedule = scheduleMap[l.id] || null; });
+    return {
+      ...plan,
+      price_per_visit: plan.price_per_visit ? parseFloat(plan.price_per_visit) : null,
+      monthly_rate: plan.monthly_rate ? parseFloat(plan.monthly_rate) : null,
+    };
+  } catch (error) {
+    console.error('[ServicePlans] Detail fetch error:', error.message);
+    return null;
   }
-
-  return {
-    ...plan,
-    locations: locations || [],
-    price_per_visit: plan.price_per_visit ? parseFloat(plan.price_per_visit) : null,
-    monthly_rate: plan.monthly_rate ? parseFloat(plan.monthly_rate) : null,
-  };
 }

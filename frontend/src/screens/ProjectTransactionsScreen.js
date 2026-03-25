@@ -33,14 +33,19 @@ const CATEGORY_ICONS = {
 
 export default function ProjectTransactionsScreen({ route, navigation }) {
   const { t } = useTranslation(['owner', 'common']);
-  const { projectId, projectName, transactionType } = route.params;
+  const { projectId, projectName, transactionType, servicePlanId, servicePlanName, filterType } = route.params || {};
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [transactions, setTransactions] = useState([]);
-  const [typeFilter, setTypeFilter] = useState(transactionType || 'all');
+  const [typeFilter, setTypeFilter] = useState(transactionType || filterType || 'all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+
+  // Support both projects and service plans
+  const entityId = projectId || servicePlanId;
+  const entityName = projectName || servicePlanName || 'Transactions';
+  const isServicePlan = !!servicePlanId;
 
   useEffect(() => {
     loadTransactions();
@@ -49,8 +54,26 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
   const loadTransactions = async () => {
     try {
       setLoading(true);
-      const data = await getProjectTransactions(projectId, null);
-      setTransactions(data || []);
+      if (isServicePlan) {
+        // Query transactions by service_plan_id
+        const { supabase } = require('../lib/supabase');
+        const { data, error } = await supabase
+          .from('project_transactions')
+          .select(`
+            id, project_id, service_plan_id, type, category, subcategory, description, amount, date, worker_id,
+            payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at,
+            workers (id, full_name)
+          `)
+          .eq('service_plan_id', servicePlanId)
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        setTransactions(data || []);
+      } else {
+        const data = await getProjectTransactions(projectId, null);
+        setTransactions(data || []);
+      }
     } catch (error) {
       console.error('Error loading transactions:', error);
       Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: t('owner:transactions.transactionHistory') }));
@@ -185,7 +208,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
-          {projectName}
+          {entityName}
         </Text>
         <TouchableOpacity onPress={handleAddTransaction} style={styles.addButton}>
           <Ionicons name="add" size={24} color={Colors.primaryText} />

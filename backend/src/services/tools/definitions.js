@@ -111,13 +111,17 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'record_expense',
-      description: 'Record an expense or income transaction for a project. Call this when the user wants to log materials purchased, labor costs, payments received, deposits, etc. Returns the transaction and updated project totals.',
+      description: 'Record an expense or income transaction for a project or service plan. Call this when the user wants to log materials purchased, labor costs, payments received, deposits, etc. Provide either project_id OR service_plan_name — not both.',
       parameters: {
         type: 'object',
         properties: {
           project_id: {
             type: 'string',
             description: 'Project name or UUID to record the transaction against. Names are resolved automatically.'
+          },
+          service_plan_name: {
+            type: 'string',
+            description: 'Service plan name to record the transaction against. Use this instead of project_id for service plan expenses. Resolved automatically.'
           },
           type: {
             type: 'string',

@@ -78,7 +78,8 @@ const TOOL_GROUPS = {
   ],
   service_plan: [
     'get_service_plans', 'get_daily_route', 'complete_visit',
-    'get_billing_summary', 'create_service_visit', 'search_projects'
+    'get_billing_summary', 'create_service_visit', 'search_projects',
+    'record_expense'
   ],
   general: [
     'global_search', 'get_daily_briefing', 'get_project_summary',
