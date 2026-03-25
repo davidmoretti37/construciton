@@ -23,14 +23,14 @@ const bullets = [
 
 export default function SceneEstimates({ isActive }: { isActive: boolean }) {
   return (
-    <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-16 w-full max-w-6xl mx-auto px-6">
+    <div className="flex flex-col lg:flex-row items-center gap-4 lg:gap-16 w-full max-w-6xl mx-auto px-4 sm:px-6">
       {/* Left: Text */}
       <div className="flex-1 text-center lg:text-left">
         <motion.p
           initial={{ opacity: 0 }}
           animate={isActive ? { opacity: 1 } : { opacity: 0 }}
           transition={{ duration: 0.4 }}
-          className="text-blue-600 text-sm font-semibold tracking-wider uppercase mb-3"
+          className="text-blue-600 text-xs sm:text-sm font-semibold tracking-wider uppercase mb-2"
         >
           AI Estimates
         </motion.p>
@@ -38,7 +38,7 @@ export default function SceneEstimates({ isActive }: { isActive: boolean }) {
           initial={{ opacity: 0, y: 20 }}
           animate={isActive ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ type: 'spring', damping: 15, stiffness: 100 }}
-          className="text-2xl sm:text-3xl lg:text-5xl font-extrabold text-gray-900 mb-5 leading-tight"
+          className="text-2xl sm:text-3xl lg:text-5xl font-extrabold text-gray-900 mb-2 sm:mb-5 leading-tight"
         >
           Create Estimates in{' '}
           <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
@@ -49,12 +49,12 @@ export default function SceneEstimates({ isActive }: { isActive: boolean }) {
           initial={{ opacity: 0, y: 15 }}
           animate={isActive ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
           transition={{ duration: 0.5, delay: 0.15 }}
-          className="text-text-secondary text-base leading-relaxed mb-8 max-w-md mx-auto lg:mx-0"
+          className="text-text-secondary text-sm sm:text-base leading-relaxed mb-4 lg:mb-8 max-w-md mx-auto lg:mx-0"
         >
           Describe the job by voice or text. Your AI generates a detailed, itemized estimate with your pricing built in.
         </motion.p>
 
-        <div className="space-y-4">
+        <div className="hidden lg:block space-y-4">
           {bullets.map((b, i) => (
             <motion.div
               key={b.title}
