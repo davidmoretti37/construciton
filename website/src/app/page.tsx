@@ -3,8 +3,7 @@ import Hero from '@/components/landing/Hero';
 import SocialProof from '@/components/landing/SocialProof';
 import Industries from '@/components/landing/Industries';
 import HowItWorks from '@/components/landing/HowItWorks';
-import Pillars from '@/components/landing/Pillars';
-import AIDemo from '@/components/landing/AIDemo';
+import AppShowcase from '@/components/landing/AppShowcase';
 import TeamRoles from '@/components/landing/TeamRoles';
 import Testimonials from '@/components/landing/Testimonials';
 import Pricing from '@/components/landing/Pricing';
@@ -20,8 +19,7 @@ export default function Home() {
         <SocialProof />
         <Industries />
         <HowItWorks />
-        <Pillars />
-        <AIDemo />
+        <AppShowcase />
         <TeamRoles />
         <Testimonials />
         <Pricing />
