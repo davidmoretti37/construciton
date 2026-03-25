@@ -1973,6 +1973,14 @@ export default function ChatScreen({ navigation, route }) {
               description: planData.description || null,
               notes: planData.notes || null,
               status: 'active',
+              plan_mode: planData.plan_mode || 'recurring',
+              client_name: planData.client_name || null,
+              client_phone: planData.client_phone || null,
+              client_email: planData.client_email || null,
+              address: planData.address || planData.location_address || null,
+              start_date: planData.start_date || null,
+              end_date: planData.end_date || null,
+              contract_amount: planData.contract_amount || 0,
             })
             .select()
             .single();

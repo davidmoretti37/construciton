@@ -90,6 +90,16 @@ export default function ServicePlanPreview({ data, onAction }) {
         </View>
       </View>
 
+      {/* Mode badge */}
+      {data?.plan_mode && (
+        <View style={[styles.modeBadge, { backgroundColor: data.plan_mode === 'project' ? '#F59E0B18' : '#10B98118' }]}>
+          <Ionicons name={data.plan_mode === 'project' ? 'flag-outline' : 'repeat-outline'} size={12} color={data.plan_mode === 'project' ? '#F59E0B' : '#10B981'} />
+          <Text style={[styles.modeBadgeText, { color: data.plan_mode === 'project' ? '#F59E0B' : '#10B981' }]}>
+            {data.plan_mode === 'project' ? 'Project with end date' : 'Recurring service'}
+          </Text>
+        </View>
+      )}
+
       {/* Details */}
       <View style={styles.details}>
         {data?.clientName || data?.client_name ? (
@@ -101,12 +111,65 @@ export default function ServicePlanPreview({ data, onAction }) {
           </View>
         ) : null}
 
+        {(data?.address || data?.location_address) ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="location-outline" size={16} color={Colors.secondaryText} />
+            <Text style={[styles.detailText, { color: Colors.primaryText }]}>
+              {data.address || data.location_address}
+            </Text>
+          </View>
+        ) : null}
+
+        {(data?.client_phone) ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="call-outline" size={16} color={Colors.secondaryText} />
+            <Text style={[styles.detailText, { color: Colors.primaryText }]}>{data.client_phone}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.detailRow}>
           <Ionicons name="card-outline" size={16} color={Colors.secondaryText} />
           <Text style={[styles.detailText, { color: Colors.primaryText }]}>
             {BILLING_LABELS[billingCycle] || billingCycle} — ${Number(price).toFixed(2)}
           </Text>
         </View>
+
+        {data?.schedule_frequency && (
+          <View style={styles.detailRow}>
+            <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
+            <Text style={[styles.detailText, { color: Colors.primaryText }]}>
+              {(data.scheduled_days || []).map(d => d.charAt(0).toUpperCase() + d.slice(0, 2)).join(', ')} {data.schedule_frequency}
+              {data.preferred_time ? ` at ${data.preferred_time}` : ''}
+            </Text>
+          </View>
+        )}
+
+        {data?.checklist_items?.length > 0 && (
+          <View style={styles.detailRow}>
+            <Ionicons name="checkbox-outline" size={16} color={Colors.secondaryText} />
+            <Text style={[styles.detailText, { color: Colors.primaryText }]}>
+              {data.checklist_items.length} checklist items
+            </Text>
+          </View>
+        )}
+
+        {data?.plan_mode === 'project' && data?.start_date && (
+          <View style={styles.detailRow}>
+            <Ionicons name="play-outline" size={16} color="#10B981" />
+            <Text style={[styles.detailText, { color: Colors.primaryText }]}>
+              {data.start_date}{data.end_date ? ` → ${data.end_date}` : ''}
+            </Text>
+          </View>
+        )}
+
+        {data?.plan_mode === 'project' && data?.contract_amount > 0 && (
+          <View style={styles.detailRow}>
+            <Ionicons name="document-text-outline" size={16} color="#3B82F6" />
+            <Text style={[styles.detailText, { color: Colors.primaryText }]}>
+              Contract: ${Number(data.contract_amount).toLocaleString()}
+            </Text>
+          </View>
+        )}
 
         {data?.description ? (
           <View style={styles.detailRow}>
@@ -162,6 +225,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
+  },
+  modeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: Spacing.sm,
+  },
+  modeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',

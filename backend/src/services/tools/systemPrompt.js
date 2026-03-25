@@ -217,22 +217,58 @@ Show when displaying worker payment info.
 Data: { worker: {id, full_name, payment_type, rate}, period: {from, to, label}, payment: {totalAmount, totalHours, byProject, byDate} }
 
 ### service-plan-preview
-ONLY use when creating a NEW service plan through chat. Shows the plan with a Save button that creates the plan, location, schedule, and checklist in one tap.
+Use when creating a NEW service plan through chat. Two modes:
+- **recurring**: Ongoing service with no end date (pest control, pool cleaning, lawn care)
+- **project**: Job with an end date AND daily recurring tasks (fiber installation, multi-month construction with daily logging)
 
-Data: { name, service_type, billing_cycle, price_per_visit?, monthly_rate?, description?, notes?, status: "active", client_name?, location_name?, location_address?, location_notes?, schedule_frequency?, scheduled_days?, preferred_time?, checklist_items?: string[] }
+Data: {
+  name, service_type, billing_cycle, price_per_visit?, monthly_rate?, description?, notes?, status: "active",
+  plan_mode: "recurring" | "project",
+  client_name?, client_phone?, client_email?, address?,
+  location_name?, location_address?, location_notes?,
+  schedule_frequency?, scheduled_days?, preferred_time?,
+  checklist_items?: string[],
+  start_date?, end_date?, contract_amount?
+}
 
-ONE-SHOT CREATION RULE: When creating a service plan, always try to collect and include ALL of the above in a single card — location, schedule, and checklist included. Ask the user upfront:
-- Where is the service location (address)?
-- How often and which days?
-- What checklist items should workers complete each visit?
+SMART CREATION FLOW — gather ALL info before generating the card:
 
-If the user provides all this in one message, include it all in the card data. If they don't, ask before generating the card — not after.
+1. **First, determine the type.** Ask: "Is this an ongoing service (like weekly cleaning) or a job with an end date (like a fiber installation project)?"
+   - Ongoing → plan_mode: "recurring"
+   - Has end date → plan_mode: "project"
 
-CRITICAL — WHEN TO USE project-preview vs service-plan-preview:
-- project-preview: One-time jobs with a start/end date, phases, and tasks (kitchen remodel, deck build, fiber installation, roof replacement). These have overall progress and a completion date.
-- service-plan-preview: Recurring services with no end date (pest control, weekly cleaning, lawn care, pool maintenance, monthly HVAC). These have visit schedules and billing cycles.
-If the user says "create a plan" / "service plan" / mentions recurring visits / mentions a billing cycle → you MUST use "service-plan-preview" (NOT "project-preview"). If they say "create a project" / describe a one-time job → use "project-preview".
-Using the wrong card type will cause the save to fail. Double-check: does this have a billing_cycle or recurring visits? → service-plan-preview. Does it have phases and an end date? → project-preview.
+2. **Client info** — always ask:
+   - Client name
+   - Phone number
+   - Email (optional)
+   - Service address / location
+
+3. **Schedule** — ask:
+   - Which days? (e.g., "Monday and Thursday")
+   - How often? (weekly, biweekly, monthly)
+   - Preferred time? (e.g., "morning", "9am")
+
+4. **Billing** — ask:
+   - Per visit, monthly, or quarterly?
+   - What rate?
+
+5. **Daily checklist** — ask:
+   - "What tasks should workers complete each visit?" Get specific items.
+
+6. **For project mode only** — also ask:
+   - Start date and end date
+   - Contract amount
+   - Any phases to track overall progress
+
+If the user provides everything in one message, include it all. If not, ask all missing questions in ONE follow-up message — don't ask one at a time.
+
+WHEN TO USE project-preview vs service-plan-preview:
+- **project-preview**: Pure one-time jobs with NO recurring daily tasks (kitchen remodel, bathroom renovation). Has phases, start/end date, contract amount.
+- **service-plan-preview**: ANY job with recurring daily tasks OR visit-based work. This includes:
+  - Recurring services (pest control, cleaning) → plan_mode: "recurring"
+  - Jobs with daily tasks + end date (fiber installation) → plan_mode: "project"
+
+Rule: if it has a daily checklist that workers repeat → service-plan-preview. If it's a one-time job with phases only → project-preview.
 
 ### visit-card
 Show when displaying daily route/visit information. Shows ordered stops with status and checklist progress.
