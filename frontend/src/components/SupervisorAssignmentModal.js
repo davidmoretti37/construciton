@@ -33,6 +33,7 @@ export default function SupervisorAssignmentModal({
   onClose,
   project, // { id, name, assignedTo }
   onAssignmentChange, // callback when assignment changes
+  customAssignFn, // optional: override default assignProjectToSupervisor for service plans
 }) {
   const { t } = useTranslation('owner');
   const { isDark = false } = useTheme() || {};
@@ -75,7 +76,12 @@ export default function SupervisorAssignmentModal({
     try {
       setSaving(true);
 
-      const result = await assignProjectToSupervisor(project.id, selectedId);
+      let result;
+      if (customAssignFn) {
+        result = await customAssignFn(project.id, selectedId);
+      } else {
+        result = await assignProjectToSupervisor(project.id, selectedId);
+      }
 
       if (result.success) {
         if (onAssignmentChange) {
@@ -84,7 +90,7 @@ export default function SupervisorAssignmentModal({
       } else {
         Alert.alert(
           t('common.error', 'Error'),
-          result.error || t('assign.errorGeneric', 'Failed to assign project')
+          result.error || t('assign.errorGeneric', 'Failed to assign')
         );
       }
     } catch (error) {

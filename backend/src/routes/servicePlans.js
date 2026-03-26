@@ -302,10 +302,21 @@ router.get('/:id/detail', async (req, res) => {
       });
     }
 
-    // Build workers list from visits
+    // Build workers list from assignments (primary) and visits (fallback)
     const workerSet = {};
+
+    // Get formally assigned workers
+    const { data: assignments } = await supabase
+      .from('project_assignments')
+      .select('worker_id, workers:worker_id(id, full_name, trade)')
+      .eq('service_plan_id', id);
+    (assignments || []).forEach(a => {
+      if (a.workers) workerSet[a.worker_id] = a.workers;
+    });
+
+    // Also include workers from visits (in case they're not formally assigned)
     (visitsResult.data || []).forEach(v => {
-      if (v.assigned_worker_id && v.worker) {
+      if (v.assigned_worker_id && v.worker && !workerSet[v.assigned_worker_id]) {
         workerSet[v.assigned_worker_id] = v.worker;
       }
     });

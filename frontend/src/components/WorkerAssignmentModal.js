@@ -21,6 +21,9 @@ import {
   removeWorkerFromPhase,
   getProjectWorkers,
   getPhaseWorkers,
+  assignWorkerToServicePlan,
+  removeWorkerFromServicePlan,
+  getServicePlanWorkers,
 } from '../utils/storage';
 
 /**
@@ -62,6 +65,8 @@ export default function WorkerAssignmentModal({
       let assigned = [];
       if (assignmentType === 'project') {
         assigned = await getProjectWorkers(assignmentId);
+      } else if (assignmentType === 'service_plan') {
+        assigned = await getServicePlanWorkers(assignmentId);
       } else {
         assigned = await getPhaseWorkers(assignmentId);
       }
@@ -91,6 +96,8 @@ export default function WorkerAssignmentModal({
       for (const workerId of workersToAdd) {
         if (assignmentType === 'project') {
           await assignWorkerToProject(workerId, assignmentId);
+        } else if (assignmentType === 'service_plan') {
+          await assignWorkerToServicePlan(workerId, assignmentId);
         } else {
           await assignWorkerToPhase(workerId, assignmentId);
         }
@@ -100,6 +107,8 @@ export default function WorkerAssignmentModal({
       for (const workerId of workersToRemove) {
         if (assignmentType === 'project') {
           await removeWorkerFromProject(workerId, assignmentId);
+        } else if (assignmentType === 'service_plan') {
+          await removeWorkerFromServicePlan(workerId, assignmentId);
         } else {
           await removeWorkerFromPhase(workerId, assignmentId);
         }

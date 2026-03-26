@@ -376,6 +376,44 @@ export const getProjectWorkers = async (projectId) => {
   }
 };
 
+// ═══ SERVICE PLAN WORKER ASSIGNMENTS ═══
+
+export const assignWorkerToServicePlan = async (workerId, servicePlanId) => {
+  try {
+    const { error } = await supabase
+      .from('project_assignments')
+      .insert({ worker_id: workerId, service_plan_id: servicePlanId });
+    if (error) { console.error('Error assigning worker to service plan:', error); return false; }
+    return true;
+  } catch (error) { console.error('Error in assignWorkerToServicePlan:', error); return false; }
+};
+
+export const removeWorkerFromServicePlan = async (workerId, servicePlanId) => {
+  try {
+    const { error } = await supabase
+      .from('project_assignments')
+      .delete()
+      .eq('worker_id', workerId)
+      .eq('service_plan_id', servicePlanId);
+    if (error) { console.error('Error removing worker from service plan:', error); return false; }
+    return true;
+  } catch (error) { console.error('Error in removeWorkerFromServicePlan:', error); return false; }
+};
+
+export const getServicePlanWorkers = async (servicePlanId) => {
+  try {
+    const { data, error } = await supabase
+      .from('project_assignments')
+      .select(`
+        id, worker_id, service_plan_id,
+        workers:worker_id (id, full_name, phone, email, trade, hourly_rate, status)
+      `)
+      .eq('service_plan_id', servicePlanId);
+    if (error) { console.error('Error fetching service plan workers:', error); return []; }
+    return data?.map(a => a.workers) || [];
+  } catch (error) { console.error('Error in getServicePlanWorkers:', error); return []; }
+};
+
 /**
  * Get assignment counts for all workers
  * Returns a map of worker_id to count of project assignments

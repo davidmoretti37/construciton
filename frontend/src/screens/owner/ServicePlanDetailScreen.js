@@ -29,6 +29,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { fetchServicePlanDetail } from '../../utils/storage/servicePlans';
 import { supabase } from '../../lib/supabase';
 import { uploadProjectDocument } from '../../utils/storage/projectDocuments';
+import WorkerAssignmentModal from '../../components/WorkerAssignmentModal';
+import SupervisorAssignmentModal from '../../components/SupervisorAssignmentModal';
 
 const SERVICE_TYPE_CONFIG = {
   pest_control: { label: 'Pest Control', icon: 'bug-outline', color: '#3B82F6' },
@@ -78,6 +80,8 @@ export default function ServicePlanDetailScreen({ route }) {
   const [expandedLocationIds, setExpandedLocationIds] = useState(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showWorkerAssignment, setShowWorkerAssignment] = useState(false);
+  const [showSupervisorAssignment, setShowSupervisorAssignment] = useState(false);
 
   const resolvedId = planId || initialPlan?.id;
 
@@ -392,11 +396,11 @@ export default function ServicePlanDetailScreen({ route }) {
             <Ionicons name="people-outline" size={20} color={statusColor} />
             <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Assigned ({plan?.workers?.length || 0})</Text>
             <View style={styles.assignButtonsRow}>
-              <TouchableOpacity style={[styles.assignButton, { backgroundColor: '#1E40AF' }]} onPress={() => Alert.alert('Coming Soon', 'Supervisor assignment for service plans')}>
+              <TouchableOpacity style={[styles.assignButton, { backgroundColor: '#1E40AF' }]} onPress={() => setShowSupervisorAssignment(true)}>
                 <Ionicons name="briefcase" size={14} color="#fff" />
                 <Text style={styles.assignButtonText}>Supervisor</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.assignButton, { backgroundColor: statusColor }]} onPress={() => Alert.alert('Coming Soon', 'Worker assignment for service plans')}>
+              <TouchableOpacity style={[styles.assignButton, { backgroundColor: statusColor }]} onPress={() => setShowWorkerAssignment(true)}>
                 <Ionicons name="person-add" size={14} color="#fff" />
                 <Text style={styles.assignButtonText}>Worker</Text>
               </TouchableOpacity>
@@ -638,6 +642,38 @@ export default function ServicePlanDetailScreen({ route }) {
           </View>
         </View>
       </Modal>
+
+      {/* Worker Assignment Modal */}
+      <WorkerAssignmentModal
+        visible={showWorkerAssignment}
+        onClose={() => setShowWorkerAssignment(false)}
+        assignmentType="service_plan"
+        assignmentId={resolvedId}
+        assignmentName={plan?.name}
+        onAssignmentsChange={() => loadDetail()}
+      />
+
+      {/* Supervisor Assignment Modal */}
+      <SupervisorAssignmentModal
+        visible={showSupervisorAssignment}
+        onClose={() => setShowSupervisorAssignment(false)}
+        project={{
+          id: resolvedId,
+          name: plan?.name,
+          assignedTo: plan?.assigned_supervisor_id,
+        }}
+        customAssignFn={async (planId, supervisorId) => {
+          const { error } = await supabase
+            .from('service_plans')
+            .update({ assigned_supervisor_id: supervisorId || null })
+            .eq('id', planId);
+          return { success: !error, error: error?.message };
+        }}
+        onAssignmentChange={async () => {
+          setShowSupervisorAssignment(false);
+          await loadDetail();
+        }}
+      />
     </SafeAreaView>
   );
 }

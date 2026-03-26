@@ -138,7 +138,7 @@ export default function ServicePlanPreview({ data, onAction }) {
           <View style={styles.detailRow}>
             <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
             <Text style={[styles.detailText, { color: Colors.primaryText }]}>
-              {(data.scheduled_days || []).map(d => d.charAt(0).toUpperCase() + d.slice(0, 2)).join(', ')} {data.schedule_frequency}
+              {(data.scheduled_days || []).map(d => typeof d === 'string' ? d.charAt(0).toUpperCase() + d.slice(0, 2) : String(d)).join(', ')} {data.schedule_frequency}
               {data.preferred_time ? ` at ${data.preferred_time}` : ''}
             </Text>
           </View>
