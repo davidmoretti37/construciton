@@ -37,74 +37,6 @@ export const INDUSTRIES = [
   'Flooring',
 ] as const;
 
-export const PILLARS = [
-  {
-    label: 'Win More Jobs',
-    title: 'AI Creates Your Estimates in Seconds',
-    description:
-      'Describe the job by voice or text. Your AI assistant generates a detailed, itemized estimate with labor, materials, and your profit margin built in — priced from your history.',
-    bullets: [
-      'Voice-to-estimate in under 60 seconds',
-      'Learns your pricing from past jobs',
-      'Send to clients via SMS or WhatsApp instantly',
-      'Clients accept or request changes — you get notified',
-    ],
-    mock: 'estimate',
-  },
-  {
-    label: 'Manage Every Job',
-    title: 'Projects, Phases, Tasks — All Tracked',
-    description:
-      'Every job is a project with phases, tasks, assigned workers, and a timeline. See progress at a glance. Know which jobs are on track, behind, or over budget.',
-    bullets: [
-      'Break projects into phases with task checklists',
-      'Assign workers and supervisors to specific phases',
-      'Track progress automatically as tasks get completed',
-      'Visual timeline shows phase durations and milestones',
-    ],
-    mock: 'project',
-  },
-  {
-    label: 'Recurring Services',
-    title: 'Service Plans for Route-Based Businesses',
-    description:
-      'For pest control, cleaning, lawn care, pool service, and any business running recurring routes — create service plans with locations, visit schedules, and checklists. Foreman builds the route, tracks completions, and generates invoices from finished visits.',
-    bullets: [
-      'Route management with ordered daily stops',
-      'Visit checklists per location',
-      'One-tap billing from completed visits',
-      'AI creates full plans with one conversation',
-    ],
-    mock: 'servicePlan',
-  },
-  {
-    label: 'Get Paid Faster',
-    title: 'From Estimate to Invoice to Cash',
-    description:
-      'Convert accepted estimates to invoices with one tap. Track who owes you, how much, and how late. See your accounts receivable aging so nothing slips through the cracks.',
-    bullets: [
-      'One-tap estimate-to-invoice conversion',
-      'Partial payment tracking (deposits, progress, final)',
-      'AR aging buckets: Current, 30, 60, 90+ days',
-      'Send payment reminders via SMS or WhatsApp',
-    ],
-    mock: 'invoice',
-  },
-  {
-    label: 'Know Your Numbers',
-    title: 'See Profit Per Job, Per Month, Per Year',
-    description:
-      'Connect your bank account. Categorize transactions by project. See exactly what each job costs and makes. Track payroll, overhead, and company-wide profitability.',
-    bullets: [
-      'Bank account sync with automatic transaction import',
-      'Profit per job: contract value minus all expenses',
-      'Payroll tracking with worker rates and hours',
-      'Company overhead management (rent, insurance, trucks)',
-    ],
-    mock: 'financial',
-  },
-] as const;
-
 export const TEAM_FEATURES = [
   {
     role: 'Owner',
@@ -139,15 +71,6 @@ export const TEAM_FEATURES = [
       'Track their own hours and expenses',
     ],
   },
-] as const;
-
-export const AI_CAPABILITIES = [
-  { action: '"Create an estimate for the Johnson roof project"', result: 'Full itemized estimate generated in seconds' },
-  { action: '"Who\'s working today?"', result: 'Lists all clocked-in workers by project' },
-  { action: '"How much have I spent on materials?"', result: 'Filters and totals transactions by category' },
-  { action: '"Assign Maria to the bathroom remodel"', result: 'Worker assigned to project instantly' },
-  { action: '"Send the estimate to Mark via WhatsApp"', result: 'Formatted estimate sent to client' },
-  { action: '"What\'s my profit margin this month?"', result: 'Revenue, expenses, and margin calculated' },
 ] as const;
 
 export const TESTIMONIALS = [
@@ -222,6 +145,3 @@ export const PLANS = [
   },
 ] as const;
 
-// Unused components reference these — kept as stubs to avoid build errors
-export const FEATURES: { title: string; description: string; icon: string }[] = [];
-export const FEATURE_SHOWCASES: { title: string; description: string; bullets: string[] }[] = [];

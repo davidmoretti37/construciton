@@ -24,10 +24,7 @@ export default function CountUpNumber({
   const [display, setDisplay] = useState(0);
 
   useEffect(() => {
-    if (!isActive) {
-      setDisplay(0);
-      return;
-    }
+    if (!isActive) return;
 
     let raf: number;
     const startTimeout = setTimeout(() => {
@@ -45,6 +42,7 @@ export default function CountUpNumber({
     return () => {
       clearTimeout(startTimeout);
       cancelAnimationFrame(raf);
+      setDisplay(0);
     };
   }, [value, isActive, delay, duration]);
 

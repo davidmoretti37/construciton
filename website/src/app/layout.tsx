@@ -32,6 +32,21 @@ export const metadata: Metadata = {
     description:
       "Create estimates, manage projects, track finances, and grow your service business with AI.",
   },
+  keywords: [
+    "service business management",
+    "AI estimates",
+    "construction management app",
+    "contractor software",
+    "invoice tracking",
+    "project management",
+    "field service management",
+    "HVAC software",
+    "plumbing business app",
+    "landscaping management",
+  ],
+  alternates: {
+    canonical: "https://sylkapp.ai",
+  },
   robots: {
     index: true,
     follow: true,

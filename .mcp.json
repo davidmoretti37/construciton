@@ -1,6 +1,13 @@
 {
-  "supabase": {
-    "type": "http",
-    "url": "https://mcp.supabase.com/mcp"
+  "mcpServers": {
+    "supabase": {
+      "command": "node",
+      "args": [
+        "/opt/homebrew/lib/node_modules/@supabase/mcp-server-supabase/dist/transports/stdio.js"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_dac1b1212f329a54b8fa919dce818000aa911793"
+      }
+    }
   }
 }

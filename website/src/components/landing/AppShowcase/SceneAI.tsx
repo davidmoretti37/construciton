@@ -36,11 +36,7 @@ export default function SceneAI({ isActive }: { isActive: boolean }) {
   const aiText = useTypewriter(AI_RESPONSE, showResponse, 0, 25);
 
   useEffect(() => {
-    if (!isActive) {
-      setShowTyping(false);
-      setShowResponse(false);
-      return;
-    }
+    if (!isActive) return;
 
     const typingTimer = setTimeout(() => setShowTyping(true), 1400);
     const responseTimer = setTimeout(() => {
@@ -51,6 +47,8 @@ export default function SceneAI({ isActive }: { isActive: boolean }) {
     return () => {
       clearTimeout(typingTimer);
       clearTimeout(responseTimer);
+      setShowTyping(false);
+      setShowResponse(false);
     };
   }, [isActive]);
 

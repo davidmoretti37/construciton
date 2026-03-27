@@ -30,7 +30,10 @@ export default function Navbar() {
           ))}
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden md:flex items-center gap-4">
+          <Link href="/login" className="text-sm text-text-secondary hover:text-foreground transition-colors font-medium">
+            Sign In
+          </Link>
           <Button href="#pricing">Start Free Trial</Button>
         </div>
 
@@ -55,6 +58,9 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
+          <Link href="/login" className="block text-text-secondary hover:text-foreground transition-colors font-medium" onClick={() => setOpen(false)}>
+            Sign In
+          </Link>
           <Button href="#pricing" className="w-full">
             Start Free Trial
           </Button>

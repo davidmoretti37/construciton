@@ -42,64 +42,39 @@ export default function Hero() {
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
-          {/* Left: Text */}
+          {/* Left: Text — CSS animations so content is visible before JS loads */}
           <div className="flex-1 text-center lg:text-left">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="inline-flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-full px-4 py-1.5 mb-8"
-            >
+            <div className="animate-fade-in-up inline-flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-full px-4 py-1.5 mb-8">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
               <span className="text-xs text-primary font-semibold">Now available on iOS & Android</span>
-            </motion.div>
+            </div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 leading-[1.05] text-gray-900"
-            >
+            <h1 className="animate-fade-in-up [animation-delay:100ms] text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 leading-[1.05] text-gray-900">
               Run Your
               <br />
               Business{' '}
               <span className="gradient-text">Smarter</span>
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="max-w-lg text-base sm:text-lg text-text-secondary mb-8 leading-relaxed mx-auto lg:mx-0"
-            >
+            <p className="animate-fade-in-up [animation-delay:200ms] max-w-lg text-base sm:text-lg text-text-secondary mb-8 leading-relaxed mx-auto lg:mx-0">
               The AI-powered platform for service businesses — projects, crews, estimates,
               invoices, bank reconciliation, and a 60-tool AI agent that runs your operations.
               Built for construction, cleaning, pest control, landscaping, and every trade in between.
-            </motion.p>
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-              className="flex flex-col sm:flex-row items-center gap-4 mb-8 justify-center lg:justify-start"
-            >
+            <div className="animate-fade-in-up [animation-delay:300ms] flex flex-col sm:flex-row items-center gap-4 mb-8 justify-center lg:justify-start">
               <Button href="#pricing" className="text-base px-8 py-3.5">
                 Start Free Trial
               </Button>
               <Button href="#features" variant="secondary" className="text-base">
                 See How It Works
               </Button>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
-              className="flex items-center gap-3 justify-center lg:justify-start"
-            >
+            <div className="animate-fade-in-up [animation-delay:400ms] flex items-center gap-3 justify-center lg:justify-start">
               <div className="flex gap-0.5">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <StarIcon key={i} className="h-4 w-4 text-amber-400" />
@@ -108,10 +83,10 @@ export default function Hero() {
               <span className="text-sm text-text-muted font-medium">4.9 Rating</span>
               <span className="h-3 w-px bg-border" />
               <span className="text-sm text-text-muted font-medium">500+ Businesses</span>
-            </motion.div>
+            </div>
           </div>
 
-          {/* Right: Phone mockup */}
+          {/* Right: Phone mockup — framer-motion is fine here, it's decorative */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -155,7 +130,7 @@ export default function Hero() {
                         { name: 'Kitchen Remodel', progress: 75, color: 'bg-primary' },
                         { name: 'Roof Repair', progress: 40, color: 'bg-cyan-accent' },
                         { name: 'HVAC Install', progress: 90, color: 'bg-emerald-500' },
-                      ].map((project) => (
+                      ].map((project, i) => (
                         <div key={project.name} className="bg-surface rounded-xl p-3 border border-border">
                           <div className="flex justify-between items-center mb-2">
                             <p className="text-gray-900 text-xs font-medium">{project.name}</p>
@@ -165,7 +140,7 @@ export default function Hero() {
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${project.progress}%` }}
-                              transition={{ duration: 1.2, delay: 1 + Math.random() * 0.5, ease: 'easeOut' }}
+                              transition={{ duration: 1.2, delay: 1 + i * 0.15, ease: 'easeOut' }}
                               className={`h-full ${project.color} rounded-full`}
                             />
                           </div>
