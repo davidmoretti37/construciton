@@ -1026,10 +1026,13 @@ export default function ChatScreen({ navigation, route }) {
           setIsAIThinking(false);
           setStatusMessage(null);
 
+          // Use ref for stable ID reference (avoids stale closure)
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+
           // Append the chunk to existing bubble
           setMessages((prev) =>
             prev.map((msg) =>
-              msg.id === aiMessageId
+              msg.id === targetId
                 ? { ...msg, text: (msg.text || '') + chunk, isThinking: false }
                 : msg
             )
@@ -1084,15 +1087,18 @@ export default function ChatScreen({ navigation, route }) {
           }
 
           // CRITICAL: Force state update by using functional update with timestamp
-          // This ensures React detects the change and re-renders with visual elements
+          // Use ref for stable ID reference (avoids stale closure)
+          const targetId = aiMessageId;
+
           setMessages((prev) => {
             const updated = prev.map((msg) => {
-              if (msg.id === aiMessageId) {
+              if (msg.id === targetId) {
                 return {
                   ...msg,
                   text: parsedResponse.text || msg.text || '',
                   visualElements: parsedResponse.visualElements || [],
                   actions: parsedResponse.actions || [],
+                  isThinking: false,
                   lastUpdated: Date.now(), // Force React to detect change
                 };
               }
@@ -1101,12 +1107,18 @@ export default function ChatScreen({ navigation, route }) {
 
             // Verify the update worked
             if (__DEV__) {
-              const updatedMsg = updated.find(m => m.id === aiMessageId);
+              const updatedMsg = updated.find(m => m.id === targetId);
               console.log('✅ Message updated with visualElements:', updatedMsg?.visualElements?.length || 0);
             }
 
             return updated;
           });
+
+          // Force a secondary re-render after a tick — ensures React picks up the visual elements
+          // This handles cases where React batches the setMessages update with other state changes
+          setTimeout(() => {
+            setMessages((prev) => [...prev]);
+          }, 100);
 
           // Show loading state if creating estimate (Part 1 of estimate fix)
           const hasEstimatePreview = parsedResponse.visualElements?.some(v => v.type === 'estimate-preview');
@@ -1931,24 +1943,44 @@ export default function ChatScreen({ navigation, route }) {
       case 'confirm-project': {
         const savedProject = await projectActions.handleSaveProject(action.data, messages);
         if (savedProject?.id) {
-          // Save recurring daily tasks if provided by the agent
-          const recurringTasks = action.data?.recurringDailyTasks || action.data?.recurring_daily_tasks;
-          if (recurringTasks && Array.isArray(recurringTasks) && recurringTasks.length > 0) {
+          // Save daily checklist templates if provided
+          const checklistItems = action.data?.checklist_items || action.data?.checklistItems;
+          if (checklistItems && Array.isArray(checklistItems) && checklistItems.length > 0) {
             try {
               const userId = user?.id || profile?.id || await getCurrentUserId();
-              await supabase.from('project_recurring_tasks').insert(
-                recurringTasks.map((t, i) => ({
+              await supabase.from('daily_checklist_templates').insert(
+                checklistItems.map((item, i) => ({
                   project_id: savedProject.id,
                   owner_id: userId,
-                  title: typeof t === 'string' ? t : t.title,
-                  requires_quantity: t.requiresQuantity || t.requires_quantity || false,
-                  quantity_unit: t.quantityUnit || t.quantity_unit || null,
+                  title: typeof item === 'string' ? item : item.title,
+                  item_type: item.item_type || 'checkbox',
+                  quantity_unit: item.quantity_unit || null,
+                  requires_photo: item.requires_photo || false,
                   sort_order: i,
                 }))
               );
-              logger.info(`[Chat] Created ${recurringTasks.length} recurring tasks for project ${savedProject.id}`);
+              logger.info(`[Chat] Created ${checklistItems.length} checklist templates for project ${savedProject.id}`);
             } catch (e) {
-              logger.error('[Chat] Failed to save recurring tasks:', e.message);
+              logger.error('[Chat] Failed to save checklist templates:', e.message);
+            }
+          }
+          // Save labor role templates if provided
+          const laborRoles = action.data?.labor_roles || action.data?.laborRoles;
+          if (laborRoles && Array.isArray(laborRoles) && laborRoles.length > 0) {
+            try {
+              const userId = user?.id || profile?.id || await getCurrentUserId();
+              await supabase.from('labor_role_templates').insert(
+                laborRoles.map((role, i) => ({
+                  project_id: savedProject.id,
+                  owner_id: userId,
+                  role_name: typeof role === 'string' ? role : role.role_name,
+                  default_quantity: role.default_quantity || 1,
+                  sort_order: i,
+                }))
+              );
+              logger.info(`[Chat] Created ${laborRoles.length} labor roles for project ${savedProject.id}`);
+            } catch (e) {
+              logger.error('[Chat] Failed to save labor roles:', e.message);
             }
           }
           return { projectId: savedProject.id };
@@ -1973,14 +2005,10 @@ export default function ChatScreen({ navigation, route }) {
               description: planData.description || null,
               notes: planData.notes || null,
               status: 'active',
-              plan_mode: planData.plan_mode || 'recurring',
               client_name: planData.client_name || null,
               client_phone: planData.client_phone || null,
               client_email: planData.client_email || null,
               address: planData.address || planData.location_address || null,
-              start_date: planData.start_date || null,
-              end_date: planData.end_date || null,
-              contract_amount: planData.contract_amount || 0,
             })
             .select()
             .single();
@@ -2014,16 +2042,52 @@ export default function ChatScreen({ navigation, route }) {
             });
           }
 
-          // 4. Create checklist templates if provided
+          // 4. Create per-location visit checklist templates if provided
           if (locationId && planData.checklist_items?.length) {
-            await supabase.from('visit_checklist_templates').insert(
-              planData.checklist_items.map((item, i) => ({
-                service_location_id: locationId,
+            // Only insert as visit_checklist_templates if items are simple strings (legacy format)
+            const simpleItems = planData.checklist_items.filter(item => typeof item === 'string');
+            if (simpleItems.length > 0) {
+              await supabase.from('visit_checklist_templates').insert(
+                simpleItems.map((item, i) => ({
+                  service_location_id: locationId,
+                  owner_id: userId,
+                  title: item,
+                  sort_order: i,
+                }))
+              );
+            }
+          }
+
+          // 5. Create daily checklist templates (per-plan, not per-location)
+          const dailyItems = (planData.checklist_items || []).filter(item => typeof item !== 'string' && item.title);
+          if (dailyItems.length > 0) {
+            await supabase.from('daily_checklist_templates').insert(
+              dailyItems.map((item, i) => ({
+                service_plan_id: plan.id,
                 owner_id: userId,
-                title: typeof item === 'string' ? item : item.title,
+                title: item.title,
+                item_type: item.item_type || 'checkbox',
+                quantity_unit: item.quantity_unit || null,
+                requires_photo: item.requires_photo || false,
                 sort_order: i,
               }))
             );
+            logger.info(`[Chat] Created ${dailyItems.length} daily checklist templates for plan ${plan.id}`);
+          }
+
+          // 6. Create labor role templates if provided
+          const roles = planData.labor_roles || [];
+          if (roles.length > 0) {
+            await supabase.from('labor_role_templates').insert(
+              roles.map((role, i) => ({
+                service_plan_id: plan.id,
+                owner_id: userId,
+                role_name: typeof role === 'string' ? role : role.role_name,
+                default_quantity: role.default_quantity || 1,
+                sort_order: i,
+              }))
+            );
+            logger.info(`[Chat] Created ${roles.length} labor roles for plan ${plan.id}`);
           }
 
           logger.info(`[Chat] Saved service plan: ${plan.name} (${plan.id})`);

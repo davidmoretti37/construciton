@@ -126,9 +126,6 @@ app.use('/api/service-visits', servicesLimiter, serviceVisitRoutes);
 const serviceRouteRoutes = require('./routes/serviceRoutes');
 app.use('/api/service-routes', servicesLimiter, serviceRouteRoutes);
 
-// Recurring daily tasks for projects
-const recurringTasksRouter = require('./routes/recurringTasks');
-app.use('/api/recurring-tasks', servicesLimiter, recurringTasksRouter);
 
 // ============================================================
 // HEALTH & READINESS CHECKS

@@ -26,11 +26,13 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { getColors, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { fetchServicePlanDetail } from '../../utils/storage/servicePlans';
 import { supabase } from '../../lib/supabase';
 import { uploadProjectDocument } from '../../utils/storage/projectDocuments';
 import WorkerAssignmentModal from '../../components/WorkerAssignmentModal';
 import SupervisorAssignmentModal from '../../components/SupervisorAssignmentModal';
+import DailyChecklistSection from '../../components/DailyChecklistSection';
 
 const SERVICE_TYPE_CONFIG = {
   pest_control: { label: 'Pest Control', icon: 'bug-outline', color: '#3B82F6' },
@@ -53,10 +55,22 @@ const VISIT_STATUS = {
 const DAY_ABBREV = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
 const DAYS_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LETTERS = { monday: 'M', tuesday: 'T', wednesday: 'W', thursday: 'T', friday: 'F', saturday: 'S', sunday: 'S' };
+const NUM_TO_DAY = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
+
+// Normalize scheduled_days — handles strings ("monday"), numbers (1), abbreviations ("mon")
+const normalizeDays = (days) => {
+  if (!days || !Array.isArray(days)) return [];
+  return days.map(d => {
+    if (typeof d === 'number') return NUM_TO_DAY[d] || null;
+    const lower = String(d).toLowerCase();
+    return DAYS_ORDER.find(day => day === lower || day.startsWith(lower)) || lower;
+  }).filter(Boolean);
+};
 
 function formatSchedule(schedule) {
   if (!schedule) return null;
-  const days = (schedule.scheduled_days || []).map(d => DAY_ABBREV[d] || d.slice(0, 3)).join(', ');
+  const normalized = normalizeDays(schedule.scheduled_days || []);
+  const days = normalized.map(d => DAY_ABBREV[d] || d.charAt(0).toUpperCase() + d.slice(1, 3)).join(', ');
   if (schedule.frequency === 'weekly') return `${days} weekly`;
   if (schedule.frequency === 'biweekly') return `${days} biweekly`;
   if (schedule.frequency === 'monthly') return `Day ${schedule.day_of_month} monthly`;
@@ -73,6 +87,8 @@ export default function ServicePlanDetailScreen({ route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const { profile } = useAuth() || {};
+  const userRole = profile?.role || 'owner';
 
   const [plan, setPlan] = useState(initialPlan || null);
   const [loading, setLoading] = useState(true);
@@ -202,7 +218,7 @@ export default function ServicePlanDetailScreen({ route }) {
 
   // Schedule info for timeline
   const firstSchedule = firstLoc?.schedule;
-  const scheduledDays = firstSchedule?.scheduled_days || [];
+  const scheduledDays = normalizeDays(firstSchedule?.scheduled_days);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
@@ -322,72 +338,95 @@ export default function ServicePlanDetailScreen({ route }) {
           </View>
         )}
 
-        {/* ═══ D. WORK SECTIONS ═══ */}
-        <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="layers-outline" size={20} color={statusColor} />
-            <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Work Sections</Text>
-          </View>
-          {(plan?.locations || []).map(loc => {
-            const isExpanded = expandedLocationIds.has(loc.id);
-            const scheduleText = formatSchedule(loc.schedule);
-            const checklistCount = loc.checklist_templates?.length || 0;
-            return (
-              <TouchableOpacity key={loc.id} activeOpacity={0.7} onPress={() => toggleLocation(loc.id)} style={[styles.locationCard, { borderColor: Colors.border }]}>
-                <View style={styles.locationHeader}>
-                  <View style={[styles.locationDot, { backgroundColor: statusColor }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.locationName, { color: Colors.primaryText }]}>{loc.name}</Text>
-                    <Text style={[styles.locationMeta, { color: Colors.secondaryText }]}>{scheduleText || 'No schedule'}{checklistCount > 0 ? ` · ${checklistCount} tasks` : ''}</Text>
-                  </View>
-                  <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
-                </View>
-                {isExpanded && (
-                  <View style={styles.locationExpanded}>
-                    {loc.address && (
-                      <TouchableOpacity style={styles.locDetailRow} onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(loc.address)}`)}>
-                        <Ionicons name="location-outline" size={14} color="#3B82F6" />
-                        <Text style={[styles.locDetailText, { color: '#3B82F6' }]}>{loc.address}</Text>
-                      </TouchableOpacity>
-                    )}
-                    {loc.contact_name && <View style={styles.locDetailRow}><Ionicons name="person-outline" size={14} color={Colors.secondaryText} /><Text style={[styles.locDetailText, { color: Colors.primaryText }]}>{loc.contact_name}</Text></View>}
-                    {loc.contact_phone && <TouchableOpacity style={styles.locDetailRow} onPress={() => Linking.openURL(`tel:${loc.contact_phone}`)}><Ionicons name="call-outline" size={14} color="#3B82F6" /><Text style={[styles.locDetailText, { color: '#3B82F6' }]}>{loc.contact_phone}</Text></TouchableOpacity>}
-                    {loc.access_notes && <View style={[styles.accessNotesBox, { backgroundColor: '#F59E0B10' }]}><Ionicons name="key-outline" size={13} color="#F59E0B" /><Text style={[styles.locDetailText, { color: Colors.secondaryText }]}>{loc.access_notes}</Text></View>}
-                    {checklistCount > 0 && (
-                      <View style={styles.checklistSection}>
-                        {loc.checklist_templates.map((item, i) => (
-                          <View key={item.id || i} style={styles.checklistItem}>
-                            <Ionicons name="checkbox-outline" size={16} color={statusColor} />
-                            <Text style={[styles.checklistText, { color: Colors.primaryText }]}>{item.title}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-          {(!plan?.locations || plan.locations.length === 0) && <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No locations added yet</Text>}
-        </View>
-
-        {/* ═══ E. RECURRING DAILY TASKS ═══ */}
-        {plan?.recurring_tasks?.length > 0 && (
+        {/* ═══ D. LOCATIONS & TASKS / WORK SECTIONS ═══ */}
+        {plan?.has_phases && plan?.phases?.length > 0 ? (
+          /* ── Project-style: phases with progress ── */
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="repeat-outline" size={20} color="#8B5CF6" />
-              <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Daily Tasks</Text>
+              <Ionicons name="layers-outline" size={20} color={statusColor} />
+              <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Work Sections</Text>
             </View>
-            {plan.recurring_tasks.map((task, i) => (
-              <View key={task.id || i} style={[styles.taskRow, { borderColor: Colors.border }]}>
-                <Ionicons name="ellipse-outline" size={18} color={Colors.secondaryText} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.taskTitle, { color: Colors.primaryText }]}>{task.title}</Text>
-                  {task.quantity_unit && <Text style={[styles.taskUnit, { color: Colors.secondaryText }]}>Tracks: {task.quantity_unit}</Text>}
-                </View>
-              </View>
-            ))}
+            {plan.phases.map((phase, i) => {
+              const isExpanded = expandedLocationIds.has(phase.id);
+              const completion = phase.completion_percentage || 0;
+              return (
+                <TouchableOpacity key={phase.id || i} activeOpacity={0.7} onPress={() => toggleLocation(phase.id)} style={[styles.locationCard, { borderColor: Colors.border }]}>
+                  <View style={styles.locationHeader}>
+                    <View style={[styles.locationDot, { backgroundColor: completion === 100 ? '#10B981' : statusColor }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.locationName, { color: Colors.primaryText }]}>{phase.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                        <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: Colors.border }}>
+                          <View style={{ width: `${completion}%`, height: 4, borderRadius: 2, backgroundColor: completion === 100 ? '#10B981' : statusColor }} />
+                        </View>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: completion === 100 ? '#10B981' : Colors.secondaryText }}>{completion}%</Text>
+                      </View>
+                    </View>
+                    <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
+                  </View>
+                  {isExpanded && phase.planned_days && (
+                    <View style={styles.locationExpanded}>
+                      <View style={styles.locDetailRow}>
+                        <Ionicons name="calendar-outline" size={14} color={Colors.secondaryText} />
+                        <Text style={[styles.locDetailText, { color: Colors.secondaryText }]}>{phase.planned_days} days planned</Text>
+                      </View>
+                      {phase.status && (
+                        <View style={styles.locDetailRow}>
+                          <Ionicons name="flag-outline" size={14} color={Colors.secondaryText} />
+                          <Text style={[styles.locDetailText, { color: Colors.secondaryText }]}>{phase.status.replace('_', ' ')}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
+        ) : (plan?.locations || []).length > 1 ? (
+          /* ── Pure service plan with multiple locations: show location details only (tasks merged into checklist) ── */
+          <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="location-outline" size={20} color={statusColor} />
+              <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Service Locations</Text>
+            </View>
+            {(plan?.locations || []).map(loc => {
+              const scheduleText = formatSchedule(loc.schedule);
+              return (
+                <View key={loc.id} style={[styles.locationCard, { borderColor: Colors.border }]}>
+                  <View style={styles.locationHeader}>
+                    <Ionicons name="pin-outline" size={16} color={statusColor} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.locationName, { color: Colors.primaryText }]}>{loc.name}</Text>
+                      {loc.address && (
+                        <TouchableOpacity onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(loc.address)}`)}>
+                          <Text style={{ fontSize: 12, color: '#3B82F6', marginTop: 1 }}>{loc.address}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {scheduleText && <Text style={[styles.locationMeta, { color: Colors.secondaryText }]}>{scheduleText}</Text>}
+                    </View>
+                  </View>
+                  {(loc.contact_name || loc.contact_phone || loc.access_notes) && (
+                    <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border }}>
+                      {loc.contact_name && <View style={styles.locDetailRow}><Ionicons name="person-outline" size={13} color={Colors.secondaryText} /><Text style={[styles.locDetailText, { color: Colors.secondaryText, fontSize: 12 }]}>{loc.contact_name}</Text></View>}
+                      {loc.contact_phone && <TouchableOpacity style={styles.locDetailRow} onPress={() => Linking.openURL(`tel:${loc.contact_phone}`)}><Ionicons name="call-outline" size={13} color="#3B82F6" /><Text style={[styles.locDetailText, { color: '#3B82F6', fontSize: 12 }]}>{loc.contact_phone}</Text></TouchableOpacity>}
+                      {loc.access_notes && <View style={[styles.accessNotesBox, { backgroundColor: '#F59E0B10' }]}><Ionicons name="key-outline" size={12} color="#F59E0B" /><Text style={[styles.locDetailText, { color: Colors.secondaryText, fontSize: 12 }]}>{loc.access_notes}</Text></View>}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ) : null /* Single location pure service plan — tasks are in Today's Checklist */}
+
+        {/* ═══ E. DAILY CHECKLIST (Living) ═══ */}
+        {resolvedId && (
+          <DailyChecklistSection
+            servicePlanId={resolvedId}
+            ownerId={plan?.owner_id}
+            userRole={userRole}
+            userId={profile?.id}
+            visitTasks={!plan?.has_phases ? (plan?.locations || []).flatMap(loc => loc.checklist_templates || []) : []}
+          />
         )}
 
         {/* ═══ F. ASSIGNED ═══ */}
@@ -538,7 +577,7 @@ export default function ServicePlanDetailScreen({ route }) {
             <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Timeline</Text>
           </View>
 
-          {plan?.plan_mode === 'project' && plan?.start_date && (
+          {plan?.start_date && (
             <View style={styles.timelineRow}>
               <View style={[styles.timelineIcon, { backgroundColor: '#10B98115' }]}>
                 <Ionicons name="play-outline" size={16} color="#10B981" />
@@ -549,7 +588,7 @@ export default function ServicePlanDetailScreen({ route }) {
               </View>
             </View>
           )}
-          {plan?.plan_mode === 'project' && plan?.end_date && (
+          {plan?.end_date && (
             <View style={styles.timelineRow}>
               <View style={[styles.timelineIcon, { backgroundColor: '#EF444415' }]}>
                 <Ionicons name="flag-outline" size={16} color="#EF4444" />
@@ -588,7 +627,7 @@ export default function ServicePlanDetailScreen({ route }) {
             </View>
           )}
 
-          {!firstSchedule && plan?.plan_mode !== 'project' && (
+          {!firstSchedule && (
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No schedule configured</Text>
           )}
         </View>

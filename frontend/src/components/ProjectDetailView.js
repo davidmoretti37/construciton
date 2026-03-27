@@ -36,6 +36,7 @@ import BulkTaskShiftModal from './BulkTaskShiftModal';
 import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
+import DailyChecklistSection from './DailyChecklistSection';
 import { supabase } from '../lib/supabase';
 import { DEMO_PHASES } from '../screens/ProjectsScreen';
 
@@ -1540,6 +1541,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             ) : null}
           </View>
+
+          {/* Daily Checklist Section */}
+          {!isDemo && project?.id && (
+            <DailyChecklistSection
+              projectId={project.id}
+              ownerId={project.user_id || profile?.id}
+              userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
+              userId={profile?.id}
+            />
+          )}
 
           {/* Daily Reports Section */}
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>

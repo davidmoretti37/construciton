@@ -236,6 +236,76 @@ async function resolveProjectId(userId, idOrName) {
 }
 
 /**
+ * Resolve a service plan ID or name to a UUID.
+ * Returns { id } on single match, { suggestions } if ambiguous, { error } if not found.
+ */
+async function resolveServicePlanId(userId, idOrName) {
+  if (!idOrName) return { error: 'No service plan specified' };
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) return { id: idOrName };
+
+  const trimmed = idOrName.trim();
+  if (!trimmed) return { error: 'No service plan specified' };
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // Step 1: Exact name match (case-insensitive)
+  const { data: exact } = await supabase
+    .from('service_plans')
+    .select('id, name, service_type, status')
+    .eq('owner_id', ownerId)
+    .ilike('name', trimmed)
+    .limit(5);
+
+  if (exact && exact.length === 1) return { id: exact[0].id };
+  if (exact && exact.length > 1) {
+    return {
+      suggestions: exact.map(p => ({ id: p.id, name: p.name, service_type: p.service_type, status: p.status })),
+      message: `Multiple service plans match "${idOrName}". Which one did you mean?`
+    };
+  }
+
+  // Step 2: Phrase contains
+  const { data: phrase } = await supabase
+    .from('service_plans')
+    .select('id, name, service_type, status')
+    .eq('owner_id', ownerId)
+    .ilike('name', `%${trimmed}%`)
+    .limit(5);
+
+  if (phrase && phrase.length === 1) return { id: phrase[0].id };
+  if (phrase && phrase.length > 1) {
+    return {
+      suggestions: phrase.map(p => ({ id: p.id, name: p.name, service_type: p.service_type, status: p.status })),
+      message: `Multiple service plans match "${idOrName}". Which one did you mean?`
+    };
+  }
+
+  // Step 3: Keyword search
+  const noiseWords = new Set(['plan', 'service', 'the', 'my', 'a', 'an', 'for', 'on']);
+  const keywords = trimmed.split(/\s+/).filter(w => w.length > 1 && !noiseWords.has(w.toLowerCase()));
+
+  if (keywords.length > 0) {
+    const filter = keywords.map(w => `name.ilike.%${w}%`).join(',');
+    const { data: fallback } = await supabase
+      .from('service_plans')
+      .select('id, name, service_type, status')
+      .eq('owner_id', ownerId)
+      .or(filter)
+      .limit(5);
+
+    if (fallback && fallback.length === 1) return { id: fallback[0].id };
+    if (fallback && fallback.length > 1) {
+      return {
+        suggestions: fallback.map(p => ({ id: p.id, name: p.name, service_type: p.service_type, status: p.status })),
+        message: `Multiple service plans match "${idOrName}". Which one did you mean?`
+      };
+    }
+  }
+
+  return { error: `No service plans found matching "${idOrName}"` };
+}
+
+/**
  * Resolve a worker ID or name to a UUID.
  * Returns { id } on single match, { suggestions } if ambiguous, { error } if not found.
  */
@@ -4482,98 +4552,302 @@ async function create_service_visit(userId, { plan_id, location_id, date, worker
   };
 }
 
-// ==================== RECURRING DAILY TASK TOOLS ====================
+// ==================== DAILY CHECKLIST TOOLS ====================
 
-async function create_recurring_tasks(userId, { project_id, phase_id, tasks } = {}) {
-  if (!project_id || !tasks || !Array.isArray(tasks) || tasks.length === 0) {
-    return { error: 'project_id and tasks array are required' };
+async function setup_daily_checklist(userId, { project_id, service_plan_id, checklist_items, labor_roles } = {}) {
+  if (!checklist_items || !Array.isArray(checklist_items) || checklist_items.length === 0) {
+    return { error: 'checklist_items array is required' };
+  }
+  if (!project_id && !service_plan_id) {
+    return { error: 'Either project_id or service_plan_id is required' };
   }
 
   const ownerId = await resolveOwnerId(userId);
 
   // Resolve project by name if needed
-  const resolved = await resolveProjectId(userId, project_id);
-  if (resolved.error) return resolved;
-  if (resolved.suggestions) return resolved;
-  project_id = resolved.id;
+  if (project_id) {
+    const resolved = await resolveProjectId(userId, project_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    project_id = resolved.id;
+  }
 
-  const inserts = tasks.map((t, i) => ({
-    project_id,
-    phase_id: phase_id || null,
+  // Resolve service plan by name if needed
+  if (service_plan_id) {
+    const resolved = await resolveServicePlanId(userId, service_plan_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    service_plan_id = resolved.id;
+  }
+
+  const parentFields = project_id
+    ? { project_id, service_plan_id: null }
+    : { project_id: null, service_plan_id };
+
+  // Insert checklist templates
+  const checklistInserts = checklist_items.map((item, i) => ({
+    ...parentFields,
     owner_id: ownerId,
-    title: t.title,
-    requires_quantity: t.requires_quantity || false,
-    quantity_unit: t.quantity_unit || null,
-    sort_order: t.sort_order ?? i,
+    title: item.title,
+    item_type: item.item_type || 'checkbox',
+    quantity_unit: item.quantity_unit || null,
+    requires_photo: item.requires_photo || false,
+    sort_order: i,
   }));
 
-  const { data, error } = await supabase
-    .from('project_recurring_tasks')
-    .insert(inserts)
+  const { data: checklistData, error: checklistError } = await supabase
+    .from('daily_checklist_templates')
+    .insert(checklistInserts)
     .select();
 
-  if (error) return { error: error.message };
+  if (checklistError) return { error: checklistError.message };
+
+  // Insert labor roles if provided
+  let laborData = [];
+  if (labor_roles && Array.isArray(labor_roles) && labor_roles.length > 0) {
+    const laborInserts = labor_roles.map((role, i) => ({
+      ...parentFields,
+      owner_id: ownerId,
+      role_name: role.role_name,
+      default_quantity: role.default_quantity || 1,
+      sort_order: i,
+    }));
+
+    const { data: lData, error: laborError } = await supabase
+      .from('labor_role_templates')
+      .insert(laborInserts)
+      .select();
+
+    if (laborError) return { error: laborError.message };
+    laborData = lData || [];
+  }
 
   return {
     success: true,
-    created: data.length,
-    tasks: data.map(t => ({
+    checklist_items: checklistData.map(t => ({
       id: t.id,
       title: t.title,
-      requires_quantity: t.requires_quantity,
+      item_type: t.item_type,
       quantity_unit: t.quantity_unit,
+      requires_photo: t.requires_photo,
+    })),
+    labor_roles: laborData.map(r => ({
+      id: r.id,
+      role_name: r.role_name,
+      default_quantity: r.default_quantity,
     })),
   };
 }
 
-async function get_daily_task_logs(userId, { project_id, start_date, end_date } = {}) {
-  if (!project_id) return { error: 'project_id is required' };
+async function get_daily_checklist_report(userId, { project_id, service_plan_id, date, start_date, end_date } = {}) {
+  if (!project_id && !service_plan_id) {
+    return { error: 'Either project_id or service_plan_id is required' };
+  }
 
-  const resolved = await resolveProjectId(userId, project_id);
-  if (resolved.error) return resolved;
-  if (resolved.suggestions) return resolved;
-  project_id = resolved.id;
+  // Resolve by name if needed
+  if (project_id) {
+    const resolved = await resolveProjectId(userId, project_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    project_id = resolved.id;
+  }
+  if (service_plan_id) {
+    const resolved = await resolveServicePlanId(userId, service_plan_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    service_plan_id = resolved.id;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const from = date || start_date || (() => {
+    const d = new Date(); d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  })();
+  const to = date || end_date || today;
+
+  // Fetch reports
+  let query = supabase
+    .from('daily_service_reports')
+    .select('id, report_date, reporter_id, photos, notes, created_at')
+    .gte('report_date', from)
+    .lte('report_date', to)
+    .order('report_date', { ascending: true });
+
+  if (project_id) query = query.eq('project_id', project_id);
+  else query = query.eq('service_plan_id', service_plan_id);
+
+  const { data: reports, error } = await query;
+  if (error) return { error: error.message };
+  if (!reports || reports.length === 0) {
+    return { period: { from, to }, reports: [], message: 'No daily reports found for this period.' };
+  }
+
+  // Fetch entries for all reports
+  const reportIds = reports.map(r => r.id);
+  const { data: entries } = await supabase
+    .from('daily_report_entries')
+    .select('*')
+    .in('report_id', reportIds)
+    .order('sort_order', { ascending: true });
+
+  // Fetch reporter names
+  const reporterIds = [...new Set(reports.map(r => r.reporter_id))];
+  const { data: reporters } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', reporterIds);
+  const reporterMap = {};
+  (reporters || []).forEach(r => { reporterMap[r.id] = r.full_name; });
+
+  // Group entries by report
+  const entryMap = {};
+  (entries || []).forEach(e => {
+    if (!entryMap[e.report_id]) entryMap[e.report_id] = [];
+    entryMap[e.report_id].push(e);
+  });
+
+  // Build response grouped by date
+  const byDate = {};
+  reports.forEach(report => {
+    const reportEntries = entryMap[report.id] || [];
+    const checklist = reportEntries
+      .filter(e => e.entry_type === 'checklist')
+      .map(e => ({
+        title: e.title,
+        completed: e.completed,
+        quantity: e.quantity ? parseFloat(e.quantity) : null,
+        quantity_unit: e.quantity_unit,
+        photo_url: e.photo_url,
+        notes: e.notes,
+      }));
+    const labor = reportEntries
+      .filter(e => e.entry_type === 'labor')
+      .map(e => ({
+        role: e.title,
+        count: e.quantity ? parseFloat(e.quantity) : 0,
+      }));
+
+    if (!byDate[report.report_date]) byDate[report.report_date] = [];
+    byDate[report.report_date].push({
+      reporter: reporterMap[report.reporter_id] || 'Unknown',
+      photos: report.photos || [],
+      notes: report.notes,
+      checklist,
+      labor,
+    });
+  });
+
+  return { period: { from, to }, reports: byDate };
+}
+
+async function get_daily_checklist_summary(userId, { project_id, service_plan_id, start_date, end_date } = {}) {
+  if (!project_id && !service_plan_id) {
+    return { error: 'Either project_id or service_plan_id is required' };
+  }
+
+  // Resolve by name if needed
+  if (project_id) {
+    const resolved = await resolveProjectId(userId, project_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    project_id = resolved.id;
+  }
+  if (service_plan_id) {
+    const resolved = await resolveServicePlanId(userId, service_plan_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    service_plan_id = resolved.id;
+  }
 
   const today = new Date().toISOString().split('T')[0];
   const from = start_date || (() => {
-    const d = new Date(); d.setDate(d.getDate() - 7);
+    const d = new Date(); d.setDate(d.getDate() - 30);
     return d.toISOString().split('T')[0];
   })();
   const to = end_date || today;
 
-  const { data, error } = await supabase
-    .from('recurring_task_daily_logs')
-    .select('*, project_recurring_tasks(title, quantity_unit)')
-    .eq('project_id', project_id)
-    .gte('log_date', from)
-    .lte('log_date', to)
-    .order('log_date', { ascending: true });
+  // Fetch all reports in range
+  let query = supabase
+    .from('daily_service_reports')
+    .select('id, report_date')
+    .gte('report_date', from)
+    .lte('report_date', to);
 
+  if (project_id) query = query.eq('project_id', project_id);
+  else query = query.eq('service_plan_id', service_plan_id);
+
+  const { data: reports, error } = await query;
   if (error) return { error: error.message };
+  if (!reports || reports.length === 0) {
+    return { period: { from, to }, total_reports: 0, message: 'No daily reports found for this period.' };
+  }
 
-  // Group by date
-  const byDate = {};
-  (data || []).forEach(log => {
-    if (!byDate[log.log_date]) byDate[log.log_date] = [];
-    byDate[log.log_date].push({
-      title: log.project_recurring_tasks?.title || 'Unknown',
-      completed: log.completed,
-      quantity: log.quantity ? parseFloat(log.quantity) : null,
-      quantity_unit: log.project_recurring_tasks?.quantity_unit,
-    });
+  // Fetch all entries
+  const reportIds = reports.map(r => r.id);
+  const { data: entries } = await supabase
+    .from('daily_report_entries')
+    .select('*')
+    .in('report_id', reportIds);
+
+  // Aggregate checklist items
+  const checklistEntries = (entries || []).filter(e => e.entry_type === 'checklist');
+  const laborEntries = (entries || []).filter(e => e.entry_type === 'labor');
+
+  // Quantity totals by item title
+  const quantityTotals = {};
+  checklistEntries.forEach(e => {
+    if (e.quantity) {
+      if (!quantityTotals[e.title]) {
+        quantityTotals[e.title] = { total: 0, unit: e.quantity_unit, days: 0 };
+      }
+      quantityTotals[e.title].total += parseFloat(e.quantity);
+      quantityTotals[e.title].days += 1;
+    }
   });
 
-  // Also get templates to show what tasks exist
-  const { data: templates } = await supabase
-    .from('project_recurring_tasks')
-    .select('title, requires_quantity, quantity_unit')
-    .eq('project_id', project_id)
-    .eq('is_active', true);
+  // Completion rates by item title
+  const completionRates = {};
+  checklistEntries.forEach(e => {
+    if (!completionRates[e.title]) {
+      completionRates[e.title] = { completed: 0, total: 0 };
+    }
+    completionRates[e.title].total += 1;
+    if (e.completed) completionRates[e.title].completed += 1;
+  });
+
+  // Labor totals by role
+  const laborTotals = {};
+  laborEntries.forEach(e => {
+    if (!laborTotals[e.title]) {
+      laborTotals[e.title] = { total_headcount: 0, days: 0 };
+    }
+    laborTotals[e.title].total_headcount += parseFloat(e.quantity || 0);
+    laborTotals[e.title].days += 1;
+  });
 
   return {
     period: { from, to },
-    templates: templates || [],
-    logs: byDate,
+    total_reports: reports.length,
+    days_reported: [...new Set(reports.map(r => r.report_date))].length,
+    quantities: Object.entries(quantityTotals).map(([title, data]) => ({
+      item: title,
+      total: data.total,
+      unit: data.unit,
+      days_logged: data.days,
+      daily_average: Math.round((data.total / data.days) * 100) / 100,
+    })),
+    completion_rates: Object.entries(completionRates).map(([title, data]) => ({
+      item: title,
+      completed: data.completed,
+      total: data.total,
+      rate: Math.round((data.completed / data.total) * 100) + '%',
+    })),
+    labor: Object.entries(laborTotals).map(([role, data]) => ({
+      role,
+      total_headcount: data.total_headcount,
+      days: data.days,
+      avg_per_day: Math.round((data.total_headcount / data.days) * 10) / 10,
+    })),
   };
 }
 
@@ -4644,9 +4918,10 @@ const TOOL_HANDLERS = {
   complete_visit,
   get_billing_summary,
   create_service_visit,
-  // Recurring daily task tools
-  create_recurring_tasks,
-  get_daily_task_logs,
+  // Daily checklist tools
+  setup_daily_checklist,
+  get_daily_checklist_report,
+  get_daily_checklist_summary,
 };
 
 /**

@@ -14,6 +14,7 @@ import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDailyReportById } from '../../utils/storage';
 import FullscreenPhotoViewer from '../../components/FullscreenPhotoViewer';
+import { supabase } from '../../lib/supabase';
 
 const ACCENT = '#1E40AF';
 
@@ -34,10 +35,49 @@ export default function DailyReportDetailScreen({ navigation, route }) {
   const [loading, setLoading] = useState(!passedReport && !!reportId);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [checklistItems, setChecklistItems] = useState([]);
+  const [laborItems, setLaborItems] = useState([]);
 
   useEffect(() => {
     if (!passedReport && reportId) loadReport();
   }, [reportId]);
+
+  // Load matching daily checklist entries
+  useEffect(() => {
+    if (report) loadChecklistData();
+  }, [report]);
+
+  const loadChecklistData = async () => {
+    try {
+      const projectId = report.project_id;
+      const servicePlanId = report.service_plan_id;
+      const reportDate = report.report_date;
+      if (!reportDate || (!projectId && !servicePlanId)) return;
+
+      // Find the daily_service_report for this date + parent
+      let query = supabase
+        .from('daily_service_reports')
+        .select('id')
+        .eq('report_date', reportDate);
+      if (projectId) query = query.eq('project_id', projectId);
+      else query = query.eq('service_plan_id', servicePlanId);
+
+      const { data: serviceReports } = await query.limit(1);
+      if (!serviceReports || serviceReports.length === 0) return;
+
+      // Fetch entries for the first matching report
+      const { data: entries } = await supabase
+        .from('daily_report_entries')
+        .select('*')
+        .eq('report_id', serviceReports[0].id)
+        .order('sort_order', { ascending: true });
+
+      if (entries) {
+        setChecklistItems(entries.filter(e => e.entry_type === 'checklist'));
+        setLaborItems(entries.filter(e => e.entry_type === 'labor'));
+      }
+    } catch (e) { /* not critical */ }
+  };
 
   const loadReport = async () => {
     try {
@@ -153,6 +193,44 @@ export default function DailyReportDetailScreen({ navigation, route }) {
         {workDone && (
           <Section icon="construct-outline" title="Work Performed">
             <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{workDone}</Text>
+          </Section>
+        )}
+
+        {/* Daily Checklist */}
+        {checklistItems.length > 0 && (
+          <Section icon="checkbox-outline" title="Daily Checklist">
+            {checklistItems.map((item, i) => (
+              <View key={item.id || i} style={styles.checklistRow}>
+                <Ionicons
+                  name={item.completed ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={item.completed ? '#10B981' : Colors.secondaryText}
+                />
+                <Text style={[styles.checklistTitle, { color: Colors.primaryText }, item.completed && styles.checklistDone]}>
+                  {item.title}
+                </Text>
+                {item.quantity != null && (
+                  <Text style={[styles.checklistQty, { color: ACCENT }]}>
+                    {item.quantity}{item.quantity_unit ? ` ${item.quantity_unit}` : ''}
+                  </Text>
+                )}
+              </View>
+            ))}
+          </Section>
+        )}
+
+        {/* Crew */}
+        {laborItems.length > 0 && (
+          <Section icon="people-outline" title="Crew">
+            {laborItems.map((item, i) => (
+              <View key={item.id || i} style={styles.tableRow}>
+                <Ionicons name="person-outline" size={14} color="#10B981" />
+                <Text style={[styles.tableCell, { flex: 1, color: Colors.primaryText }]}>{item.title}</Text>
+                <View style={[styles.crewBadge, { backgroundColor: '#10B98118' }]}>
+                  <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '700' }}>x{Math.round(item.quantity || 0)}</Text>
+                </View>
+              </View>
+            ))}
           </Section>
         )}
 
@@ -307,4 +385,13 @@ const styles = StyleSheet.create({
   delayReason: { marginTop: 4 },
   delayReasonText: { fontSize: 12, fontWeight: '600', color: '#F59E0B' },
   delayHours: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+
+  // Checklist
+  checklistRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
+  checklistTitle: { flex: 1, fontSize: 14, fontWeight: '500' },
+  checklistDone: { textDecorationLine: 'line-through', opacity: 0.5 },
+  checklistQty: { fontSize: 14, fontWeight: '700' },
+
+  // Crew
+  crewBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
 });

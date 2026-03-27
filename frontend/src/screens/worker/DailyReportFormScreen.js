@@ -48,16 +48,22 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
   const isOwner = route.params?.isOwner === true;
   const isSupervisor = profile?.role === 'supervisor';
+  const routeServicePlanId = route.params?.servicePlanId || null;
+  const isServicePlanMode = !!routeServicePlanId;
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [workerId, setWorkerId] = useState(null);
   const [assignedProjects, setAssignedProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [servicePlan, setServicePlan] = useState(null); // { id, name, owner_id }
 
-  // Recurring daily tasks
-  const [recurringTasks, setRecurringTasks] = useState([]);
-  const [taskLogs, setTaskLogs] = useState({}); // keyed by recurring_task_id: { completed, quantity }
+  // Daily checklist + labor roles
+  const [checklistTemplates, setChecklistTemplates] = useState([]);
+  const [checklistLogs, setChecklistLogs] = useState({}); // keyed by template_id: { completed, quantity }
+  const [laborRoleTemplates, setLaborRoleTemplates] = useState([]);
+  const [laborCounts, setLaborCounts] = useState({}); // keyed by role_id: headcount string
+  const [existingReportId, setExistingReportId] = useState(null);
 
   // Core fields (always visible)
   const [workDone, setWorkDone] = useState('');
@@ -75,45 +81,168 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const [nextDayPlan, setNextDayPlan] = useState('');
 
   useEffect(() => {
-    if (isOwner) loadOwnerProjects();
+    if (isServicePlanMode) {
+      loadServicePlan();
+    } else if (isOwner) loadOwnerProjects();
     else if (isSupervisor) loadSupervisorProjects();
     else loadWorkerProjects();
-  }, [isOwner, isSupervisor]);
+  }, [isOwner, isSupervisor, isServicePlanMode]);
 
-  // Fetch recurring tasks when project changes
+  // Fetch daily checklist templates + labor roles when project changes
   useEffect(() => {
     if (selectedProject) {
-      loadRecurringTasks(selectedProject.id);
+      loadChecklistAndRoles(selectedProject.id);
     } else {
-      setRecurringTasks([]);
-      setTaskLogs({});
+      setChecklistTemplates([]);
+      setChecklistLogs({});
+      setLaborRoleTemplates([]);
+      setLaborCounts({});
+      setExistingReportId(null);
     }
   }, [selectedProject]);
 
-  const loadRecurringTasks = async (projectId) => {
+  const loadChecklistAndRoles = async (projectId) => {
     try {
-      const { data } = await supabase
-        .from('project_recurring_tasks')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-      setRecurringTasks(data || []);
-      setTaskLogs({});
+      const today = new Date().toISOString().split('T')[0];
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+
+      // Fetch templates, roles, and today's existing report in parallel
+      const [templatesResult, rolesResult, reportResult] = await Promise.all([
+        supabase
+          .from('daily_checklist_templates')
+          .select('*')
+          .eq('project_id', projectId)
+          .eq('is_active', true)
+          .or(`specific_date.is.null,specific_date.eq.${today}`)
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('labor_role_templates')
+          .select('*')
+          .eq('project_id', projectId)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('daily_service_reports')
+          .select('id')
+          .eq('project_id', projectId)
+          .eq('reporter_id', userId)
+          .eq('report_date', today)
+          .maybeSingle(),
+      ]);
+
+      setChecklistTemplates(templatesResult.data || []);
+      setLaborRoleTemplates(rolesResult.data || []);
+
+      // Pre-fill from existing report entries (items already checked off from project detail)
+      if (reportResult.data?.id) {
+        setExistingReportId(reportResult.data.id);
+        const { data: entries } = await supabase
+          .from('daily_report_entries')
+          .select('*')
+          .eq('report_id', reportResult.data.id);
+
+        const logs = {};
+        const counts = {};
+        (entries || []).forEach(e => {
+          if (e.entry_type === 'checklist' && e.checklist_template_id) {
+            logs[e.checklist_template_id] = {
+              completed: e.completed,
+              quantity: e.quantity != null ? String(e.quantity) : '',
+            };
+          } else if (e.entry_type === 'labor' && e.labor_template_id) {
+            counts[e.labor_template_id] = e.quantity != null ? String(Math.round(e.quantity)) : '';
+          }
+        });
+        setChecklistLogs(logs);
+        setLaborCounts(counts);
+      } else {
+        setChecklistLogs({});
+        // Pre-fill labor counts from defaults
+        const defaults = {};
+        (rolesResult.data || []).forEach(r => {
+          defaults[r.id] = String(r.default_quantity || 1);
+        });
+        setLaborCounts(defaults);
+        setExistingReportId(null);
+      }
     } catch (e) { /* not critical */ }
   };
 
-  const toggleTaskLog = (taskId) => {
-    setTaskLogs(prev => ({
+  const loadChecklistAndRolesForPlan = async (planId) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+
+      const [templatesResult, rolesResult, reportResult] = await Promise.all([
+        supabase
+          .from('daily_checklist_templates')
+          .select('*')
+          .eq('service_plan_id', planId)
+          .eq('is_active', true)
+          .or(`specific_date.is.null,specific_date.eq.${today}`)
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('labor_role_templates')
+          .select('*')
+          .eq('service_plan_id', planId)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('daily_service_reports')
+          .select('id')
+          .eq('service_plan_id', planId)
+          .eq('reporter_id', userId)
+          .eq('report_date', today)
+          .maybeSingle(),
+      ]);
+
+      setChecklistTemplates(templatesResult.data || []);
+      setLaborRoleTemplates(rolesResult.data || []);
+
+      if (reportResult.data?.id) {
+        setExistingReportId(reportResult.data.id);
+        const { data: entries } = await supabase
+          .from('daily_report_entries')
+          .select('*')
+          .eq('report_id', reportResult.data.id);
+
+        const logs = {};
+        const counts = {};
+        (entries || []).forEach(e => {
+          if (e.entry_type === 'checklist' && e.checklist_template_id) {
+            logs[e.checklist_template_id] = {
+              completed: e.completed,
+              quantity: e.quantity != null ? String(e.quantity) : '',
+            };
+          } else if (e.entry_type === 'labor' && e.labor_template_id) {
+            counts[e.labor_template_id] = e.quantity != null ? String(Math.round(e.quantity)) : '';
+          }
+        });
+        setChecklistLogs(logs);
+        setLaborCounts(counts);
+      } else {
+        setChecklistLogs({});
+        const defaults = {};
+        (rolesResult.data || []).forEach(r => {
+          defaults[r.id] = String(r.default_quantity || 1);
+        });
+        setLaborCounts(defaults);
+        setExistingReportId(null);
+      }
+    } catch (e) { /* not critical */ }
+  };
+
+  const toggleChecklistLog = (templateId) => {
+    setChecklistLogs(prev => ({
       ...prev,
-      [taskId]: { ...prev[taskId], completed: !prev[taskId]?.completed },
+      [templateId]: { ...prev[templateId], completed: !prev[templateId]?.completed },
     }));
   };
 
-  const updateTaskQuantity = (taskId, value) => {
-    setTaskLogs(prev => ({
+  const updateChecklistQuantity = (templateId, value) => {
+    setChecklistLogs(prev => ({
       ...prev,
-      [taskId]: { ...prev[taskId], quantity: value },
+      [templateId]: { ...prev[templateId], quantity: value },
     }));
   };
 
@@ -141,6 +270,23 @@ export default function DailyReportFormScreen({ navigation, route }) {
         })));
       }
     } catch (e) { /* not critical */ }
+  };
+
+  const loadServicePlan = async () => {
+    try {
+      setLoading(true);
+      const { data: plan } = await supabase
+        .from('service_plans')
+        .select('id, name, owner_id')
+        .eq('id', routeServicePlanId)
+        .single();
+      if (plan) {
+        setServicePlan(plan);
+        loadChecklistAndRolesForPlan(routeServicePlanId);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to load service plan');
+    } finally { setLoading(false); }
   };
 
   const loadOwnerProjects = async () => {
@@ -204,8 +350,11 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const removeListItem = (setter, index) => setter(prev => prev.filter((_, i) => i !== index));
 
   const handleSubmit = async () => {
-    if (!selectedProject) { Alert.alert('Required', 'Select a project'); return; }
+    if (!isServicePlanMode && !selectedProject) { Alert.alert('Required', 'Select a project'); return; }
     if (!workDone.trim()) { Alert.alert('Required', 'Describe what was done today'); return; }
+
+    const parentId = isServicePlanMode ? routeServicePlanId : selectedProject.id;
+    const parentOwnerId = isServicePlanMode ? servicePlan?.owner_id : (selectedProject.user_id || null);
 
     try {
       setSubmitting(true);
@@ -213,13 +362,14 @@ export default function DailyReportFormScreen({ navigation, route }) {
       // Upload photos
       const uploadedUrls = [];
       for (const uri of photos) {
-        const url = await uploadPhoto(uri, selectedProject.id);
+        const url = await uploadPhoto(uri, parentId);
         if (url) uploadedUrls.push(url);
       }
 
       // Build report with new fields
       const reportData = {
-        project_id: selectedProject.id,
+        project_id: isServicePlanMode ? null : selectedProject.id,
+        service_plan_id: isServicePlanMode ? routeServicePlanId : null,
         phase_id: null,
         report_date: new Date().toISOString().split('T')[0],
         photos: uploadedUrls,
@@ -253,26 +403,96 @@ export default function DailyReportFormScreen({ navigation, route }) {
       const { error } = await supabase.from('daily_reports').insert(reportData).select('id').single();
       if (error) throw error;
 
-      // Submit recurring task logs (non-blocking)
-      const logsToSubmit = Object.entries(taskLogs).filter(([_, log]) => log.completed || log.quantity);
-      if (logsToSubmit.length > 0) {
+      // Submit daily checklist + labor entries
+      const logsToSubmit = Object.entries(checklistLogs).filter(([_, log]) => log.completed || log.quantity);
+      const laborToSubmit = Object.entries(laborCounts).filter(([_, count]) => count && parseFloat(count) > 0);
+      const hasChecklistOrLabor = logsToSubmit.length > 0 || laborToSubmit.length > 0;
+
+      if (hasChecklistOrLabor) {
         const userId = (await supabase.auth.getUser()).data.user?.id;
         const today = new Date().toISOString().split('T')[0];
         try {
-          for (const [taskId, log] of logsToSubmit) {
-            await supabase.from('recurring_task_daily_logs').upsert({
-              recurring_task_id: taskId,
-              project_id: selectedProject.id,
-              owner_id: selectedProject.user_id || userId,
-              worker_id: userId,
-              log_date: today,
-              completed: log.completed || false,
-              quantity: log.quantity ? parseFloat(log.quantity) : null,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'recurring_task_id,worker_id,log_date' });
+          // Find or create today's daily service report
+          const parentFilter = isServicePlanMode
+            ? { service_plan_id: routeServicePlanId }
+            : { project_id: selectedProject.id };
+
+          let reportId = existingReportId;
+          if (!reportId) {
+            let query = supabase
+              .from('daily_service_reports')
+              .select('id')
+              .eq('reporter_id', userId)
+              .eq('report_date', today);
+            if (isServicePlanMode) query = query.eq('service_plan_id', routeServicePlanId);
+            else query = query.eq('project_id', selectedProject.id);
+
+            let { data: existing } = await query.maybeSingle();
+
+            if (existing) {
+              reportId = existing.id;
+            } else {
+              const { data: newReport } = await supabase
+                .from('daily_service_reports')
+                .insert({
+                  ...parentFilter,
+                  owner_id: parentOwnerId || userId,
+                  reporter_id: userId,
+                  report_date: today,
+                })
+                .select()
+                .single();
+              reportId = newReport?.id;
+            }
+          }
+
+          if (reportId) {
+            // Delete existing entries and re-insert all
+            await supabase.from('daily_report_entries')
+              .delete()
+              .eq('report_id', reportId);
+
+            const allEntries = [];
+
+            // Checklist entries
+            logsToSubmit.forEach(([templateId, log]) => {
+              const template = checklistTemplates.find(t => t.id === templateId);
+              allEntries.push({
+                report_id: reportId,
+                entry_type: 'checklist',
+                checklist_template_id: templateId,
+                title: template?.title || 'Unknown',
+                completed: log.completed || false,
+                quantity: log.quantity ? parseFloat(log.quantity) : null,
+                quantity_unit: template?.quantity_unit || null,
+                sort_order: template?.sort_order || 0,
+              });
+            });
+
+            // Labor entries
+            laborToSubmit.forEach(([roleId, count]) => {
+              const role = laborRoleTemplates.find(r => r.id === roleId);
+              allEntries.push({
+                report_id: reportId,
+                entry_type: 'labor',
+                labor_template_id: roleId,
+                title: role?.role_name || 'Unknown',
+                quantity: parseFloat(count) || 0,
+                sort_order: (role?.sort_order || 0) + 1000, // labor after checklist
+              });
+            });
+
+            if (allEntries.length > 0) {
+              await supabase.from('daily_report_entries').insert(allEntries);
+            }
+
+            // Update report timestamp
+            await supabase.from('daily_service_reports')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', reportId);
           }
         } catch (e) {
-          console.warn('Failed to save recurring task logs:', e);
+          console.warn('Failed to save daily checklist/labor entries:', e);
         }
       }
 
@@ -340,38 +560,47 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
-          {/* Project Selection */}
-          <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Project</Text>
-            {assignedProjects.length === 0 ? (
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects available</Text>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectScroll}>
-                {assignedProjects.map(p => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[styles.projectChip, { borderColor: selectedProject?.id === p.id ? ACCENT : Colors.border, backgroundColor: selectedProject?.id === p.id ? ACCENT + '10' : 'transparent' }]}
-                    onPress={() => setSelectedProject(p)}
-                  >
-                    <Text style={[styles.projectChipText, { color: selectedProject?.id === p.id ? ACCENT : Colors.primaryText }]} numberOfLines={1}>{p.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </View>
+          {/* Project/Plan Selection */}
+          {isServicePlanMode ? (
+            <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Service Plan</Text>
+              <View style={[styles.projectChip, { borderColor: ACCENT, backgroundColor: ACCENT + '10', alignSelf: 'flex-start' }]}>
+                <Text style={[styles.projectChipText, { color: ACCENT }]}>{servicePlan?.name || 'Loading...'}</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Project</Text>
+              {assignedProjects.length === 0 ? (
+                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects available</Text>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectScroll}>
+                  {assignedProjects.map(p => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.projectChip, { borderColor: selectedProject?.id === p.id ? ACCENT : Colors.border, backgroundColor: selectedProject?.id === p.id ? ACCENT + '10' : 'transparent' }]}
+                      onPress={() => setSelectedProject(p)}
+                    >
+                      <Text style={[styles.projectChipText, { color: selectedProject?.id === p.id ? ACCENT : Colors.primaryText }]} numberOfLines={1}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          )}
 
-          {selectedProject && (
+          {(selectedProject || isServicePlanMode) && (
             <>
-              {/* Recurring Daily Tasks */}
-              {recurringTasks.length > 0 && (
+              {/* Daily Checklist */}
+              {checklistTemplates.length > 0 && (
                 <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-                  <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Daily Tasks</Text>
-                  {recurringTasks.map(task => {
-                    const log = taskLogs[task.id] || {};
+                  <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Daily Checklist</Text>
+                  {checklistTemplates.map(template => {
+                    const log = checklistLogs[template.id] || {};
                     return (
-                      <View key={task.id} style={[styles.recurringTaskRow, { borderBottomColor: Colors.border }]}>
+                      <View key={template.id} style={[styles.recurringTaskRow, { borderBottomColor: Colors.border }]}>
                         <TouchableOpacity
-                          onPress={() => toggleTaskLog(task.id)}
+                          onPress={() => toggleChecklistLog(template.id)}
                           style={styles.recurringCheckbox}
                         >
                           <Ionicons
@@ -381,26 +610,51 @@ export default function DailyReportFormScreen({ navigation, route }) {
                           />
                         </TouchableOpacity>
                         <Text style={[styles.recurringTaskTitle, { color: Colors.primaryText }, log.completed && styles.recurringTaskDone]} numberOfLines={1}>
-                          {task.title}
+                          {template.title}
                         </Text>
-                        {task.requires_quantity && (
+                        {template.item_type === 'quantity' && (
                           <View style={styles.recurringQuantityWrap}>
                             <TextInput
                               style={[styles.recurringQuantityInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                               value={log.quantity || ''}
-                              onChangeText={(val) => updateTaskQuantity(task.id, val)}
+                              onChangeText={(val) => updateChecklistQuantity(template.id, val)}
                               keyboardType="numeric"
                               placeholder="0"
                               placeholderTextColor={Colors.secondaryText}
                             />
                             <Text style={[styles.recurringUnit, { color: Colors.secondaryText }]}>
-                              {task.quantity_unit || ''}
+                              {template.quantity_unit || ''}
                             </Text>
                           </View>
                         )}
                       </View>
                     );
                   })}
+                </View>
+              )}
+
+              {/* Labor Roles */}
+              {laborRoleTemplates.length > 0 && (
+                <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <Ionicons name="people-outline" size={18} color="#10B981" />
+                    <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Crew Today</Text>
+                  </View>
+                  {laborRoleTemplates.map(role => (
+                    <View key={role.id} style={[styles.laborRoleRow, { borderBottomColor: Colors.border }]}>
+                      <Ionicons name="person-outline" size={16} color="#10B981" />
+                      <Text style={[styles.laborRoleName, { color: Colors.primaryText }]}>{role.role_name}</Text>
+                      <TextInput
+                        style={[styles.laborCountInput, { color: Colors.primaryText, borderColor: Colors.border }]}
+                        value={laborCounts[role.id] || ''}
+                        onChangeText={(val) => setLaborCounts(prev => ({ ...prev, [role.id]: val.replace(/[^0-9]/g, '') }))}
+                        keyboardType="numeric"
+                        placeholder={String(role.default_quantity || 1)}
+                        placeholderTextColor={Colors.secondaryText + '60'}
+                        selectTextOnFocus
+                      />
+                    </View>
+                  ))}
                 </View>
               )}
 
@@ -722,4 +976,9 @@ const styles = StyleSheet.create({
   recurringQuantityWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   recurringQuantityInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, width: 56, fontSize: 14, textAlign: 'center' },
   recurringUnit: { fontSize: 12, minWidth: 30 },
+
+  // Labor roles
+  laborRoleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1 },
+  laborRoleName: { flex: 1, fontSize: 14, fontWeight: '500' },
+  laborCountInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, width: 52, fontSize: 16, fontWeight: '700', textAlign: 'center' },
 });

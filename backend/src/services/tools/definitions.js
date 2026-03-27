@@ -1414,49 +1414,78 @@ const toolDefinitions = [
       }
     }
   },
-  // ==================== RECURRING DAILY TASK TOOLS ====================
+  // ==================== DAILY CHECKLIST TOOLS ====================
   {
     type: 'function',
     function: {
-      name: 'create_recurring_tasks',
-      description: 'Create recurring daily task templates for a project. Use when the user wants to add tasks that repeat every work day on a project — like daily quantity logging, safety checklists, or operational tasks that don\'t affect phase progress.',
+      name: 'setup_daily_checklist',
+      description: 'Set up daily checklist items and labor roles for a project or service plan. Use during creation when the owner says their crew has daily items to log — quantities, materials, safety checks, etc. Takes both checklist items and labor roles in one call.',
       parameters: {
         type: 'object',
         properties: {
-          project_id: { type: 'string', description: 'UUID of the project' },
-          phase_id: { type: 'string', description: 'UUID of the phase these tasks belong to (optional)' },
-          tasks: {
+          project_id: { type: 'string', description: 'UUID of the project (provide this OR service_plan_id, not both)' },
+          service_plan_id: { type: 'string', description: 'UUID of the service plan (provide this OR project_id, not both)' },
+          checklist_items: {
             type: 'array',
-            description: 'Array of recurring task templates to create',
+            description: 'Array of daily checklist items the crew will fill out each day',
             items: {
               type: 'object',
               properties: {
-                title: { type: 'string', description: 'Task name, e.g. "Fiber laid", "Safety inspection", "Debris hauled"' },
-                requires_quantity: { type: 'boolean', description: 'Whether worker must log a number (meters, units, cubic yards, etc.)' },
-                quantity_unit: { type: 'string', description: 'Unit label shown next to the input, e.g. "meters", "sq ft", "units", "trucks"' },
-                sort_order: { type: 'integer', description: 'Display order, starting at 0' }
+                title: { type: 'string', description: 'Item name, e.g. "Fiber spliced", "Safety inspection done", "Debris hauled"' },
+                item_type: { type: 'string', enum: ['checkbox', 'quantity'], description: 'checkbox = done/not done, quantity = number + unit. Default: checkbox' },
+                quantity_unit: { type: 'string', description: 'Unit label for quantity items, e.g. "feet", "bags", "gallons", "sq ft"' },
+                requires_photo: { type: 'boolean', description: 'Whether a photo is required for this item. Default: false' }
               },
               required: ['title']
             }
+          },
+          labor_roles: {
+            type: 'array',
+            description: 'Array of labor roles that show up on this job daily',
+            items: {
+              type: 'object',
+              properties: {
+                role_name: { type: 'string', description: 'Role name, e.g. "Fiber Splicer", "Laborer", "Flagman", "Foreman"' },
+                default_quantity: { type: 'integer', description: 'Default headcount for this role. Default: 1' }
+              },
+              required: ['role_name']
+            }
           }
         },
-        required: ['project_id', 'tasks']
+        required: ['checklist_items']
       }
     }
   },
   {
     type: 'function',
     function: {
-      name: 'get_daily_task_logs',
-      description: 'Get daily recurring task logs for a project. Use when owner asks about daily progress, quantities logged, task completion rates, or wants to see what was done on specific dates.',
+      name: 'get_daily_checklist_report',
+      description: 'Get daily checklist reports for a project or service plan. Shows what the crew logged on specific dates — checklist items completed, quantities, labor headcounts, photos, and notes.',
       parameters: {
         type: 'object',
         properties: {
-          project_id: { type: 'string', description: 'UUID of the project' },
-          start_date: { type: 'string', description: 'Start date in YYYY-MM-DD format (default: 7 days ago)' },
+          project_id: { type: 'string', description: 'UUID of the project (provide this OR service_plan_id)' },
+          service_plan_id: { type: 'string', description: 'UUID of the service plan (provide this OR project_id)' },
+          date: { type: 'string', description: 'Specific date in YYYY-MM-DD format. If omitted, returns last 7 days.' },
+          start_date: { type: 'string', description: 'Start date for range query (YYYY-MM-DD)' },
+          end_date: { type: 'string', description: 'End date for range query (YYYY-MM-DD)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_daily_checklist_summary',
+      description: 'Get aggregated checklist summary over time for a project or service plan. Use when owner asks "how much fiber this week?", "show me labor totals", or "what\'s the completion rate?" Returns totals, averages, and trends.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'UUID of the project (provide this OR service_plan_id)' },
+          service_plan_id: { type: 'string', description: 'UUID of the service plan (provide this OR project_id)' },
+          start_date: { type: 'string', description: 'Start date in YYYY-MM-DD format (default: 30 days ago)' },
           end_date: { type: 'string', description: 'End date in YYYY-MM-DD format (default: today)' }
-        },
-        required: ['project_id']
+        }
       }
     }
   }
@@ -1529,9 +1558,10 @@ const TOOL_STATUS_MESSAGES = {
   complete_visit: 'Completing visit...',
   get_billing_summary: 'Calculating billing...',
   create_service_visit: 'Creating visit...',
-  // Recurring daily task tools
-  create_recurring_tasks: 'Setting up daily tasks...',
-  get_daily_task_logs: 'Pulling daily task history...',
+  // Daily checklist tools
+  setup_daily_checklist: 'Setting up daily checklist...',
+  get_daily_checklist_report: 'Pulling daily reports...',
+  get_daily_checklist_summary: 'Summarizing daily data...',
 };
 
 function getToolStatusMessage(toolName) {

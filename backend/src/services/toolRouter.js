@@ -38,7 +38,7 @@ const TOOL_GROUPS = {
     'update_project', 'create_worker_task', 'assign_worker', 'global_search',
     'add_project_checklist', 'create_project_phase',
     'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
-    'create_recurring_tasks', 'get_daily_task_logs'
+    'setup_daily_checklist', 'get_daily_checklist_report', 'get_daily_checklist_summary'
   ],
   worker: [
     'get_workers', 'get_worker_details', 'assign_worker',
@@ -63,7 +63,8 @@ const TOOL_GROUPS = {
   ],
   reports: [
     'get_daily_reports', 'get_photos', 'generate_summary_report',
-    'search_projects', 'get_project_details', 'get_daily_task_logs'
+    'search_projects', 'get_project_details',
+    'get_daily_checklist_report', 'get_daily_checklist_summary'
   ],
   settings: [
     'get_business_settings', 'update_service_pricing'
@@ -79,7 +80,8 @@ const TOOL_GROUPS = {
   service_plan: [
     'get_service_plans', 'get_daily_route', 'complete_visit',
     'get_billing_summary', 'create_service_visit', 'search_projects',
-    'record_expense'
+    'record_expense',
+    'setup_daily_checklist', 'get_daily_checklist_report', 'get_daily_checklist_summary'
   ],
   general: [
     'global_search', 'get_daily_briefing', 'get_project_summary',
@@ -94,7 +96,7 @@ const TOOL_GROUPS = {
     'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
     'clock_in_worker', 'clock_out_worker',
     'get_service_plans', 'get_daily_route', 'complete_visit', 'get_billing_summary', 'create_service_visit',
-    'create_recurring_tasks', 'get_daily_task_logs'
+    'setup_daily_checklist', 'get_daily_checklist_report', 'get_daily_checklist_summary'
   ]
 };
 

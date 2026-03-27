@@ -157,7 +157,8 @@ router.get('/:id/detail', async (req, res) => {
       financialsResult,
       clientResult,
       phasesResult,
-      recurringTasksResult,
+      checklistTemplatesResult,
+      laborRolesResult,
       reportsResult,
       documentsResult,
       estimatesResult,
@@ -207,9 +208,17 @@ router.get('/:id/detail', async (req, res) => {
             .order('order_index', { ascending: true })
         : Promise.resolve({ data: [] }),
 
-      // 8. Recurring task templates
+      // 8. Daily checklist templates
       supabase
-        .from('project_recurring_tasks')
+        .from('daily_checklist_templates')
+        .select('*')
+        .eq('service_plan_id', id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
+
+      // 8b. Labor role templates
+      supabase
+        .from('labor_role_templates')
         .select('*')
         .eq('service_plan_id', id)
         .eq('is_active', true)
@@ -338,7 +347,8 @@ router.get('/:id/detail', async (req, res) => {
       recent_visits: visits,
       workers: Object.values(workerSet),
       phases: phasesResult.data || [],
-      recurring_tasks: recurringTasksResult.data || [],
+      checklist_templates: checklistTemplatesResult.data || [],
+      labor_roles: laborRolesResult.data || [],
       daily_reports: reportsResult.data || [],
       documents: documentsResult.data || [],
       estimates: estimatesResult.data || [],

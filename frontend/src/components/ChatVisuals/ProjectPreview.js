@@ -163,6 +163,8 @@ export default function ProjectPreview({ data, onAction }) {
     businessName,
     status,
     workingDays = [1, 2, 3, 4, 5],
+    checklist_items: checklistItems = [],
+    labor_roles: laborRoles = [],
   } = editedData;  // Always use editedData - it's initialized from data and persists after save
 
   // Extract client name - handle both string and object formats
@@ -389,6 +391,48 @@ export default function ProjectPreview({ data, onAction }) {
   const handleUpdateScope = (field, value) => {
     const newScope = { ...(editedData.scope || scope), [field]: value };
     setEditedData({ ...editedData, scope: newScope });
+  };
+
+  // Daily checklist handlers
+  const handleAddChecklistItem = () => {
+    const items = [...(editedData.checklist_items || []), { title: '', item_type: 'checkbox', quantity_unit: '', requires_photo: false }];
+    setEditedData({ ...editedData, checklist_items: items });
+  };
+
+  const handleUpdateChecklistItem = (index, field, value) => {
+    const items = [...(editedData.checklist_items || [])];
+    items[index] = { ...items[index], [field]: value };
+    setEditedData({ ...editedData, checklist_items: items });
+  };
+
+  const handleRemoveChecklistItem = (index) => {
+    const items = [...(editedData.checklist_items || [])];
+    items.splice(index, 1);
+    setEditedData({ ...editedData, checklist_items: items });
+  };
+
+  const handleToggleChecklistType = (index) => {
+    const items = [...(editedData.checklist_items || [])];
+    items[index] = { ...items[index], item_type: items[index].item_type === 'checkbox' ? 'quantity' : 'checkbox' };
+    setEditedData({ ...editedData, checklist_items: items });
+  };
+
+  // Labor role handlers
+  const handleAddLaborRole = () => {
+    const roles = [...(editedData.labor_roles || []), { role_name: '', default_quantity: 1 }];
+    setEditedData({ ...editedData, labor_roles: roles });
+  };
+
+  const handleUpdateLaborRole = (index, field, value) => {
+    const roles = [...(editedData.labor_roles || [])];
+    roles[index] = { ...roles[index], [field]: value };
+    setEditedData({ ...editedData, labor_roles: roles });
+  };
+
+  const handleRemoveLaborRole = (index) => {
+    const roles = [...(editedData.labor_roles || [])];
+    roles.splice(index, 1);
+    setEditedData({ ...editedData, labor_roles: roles });
   };
 
   // Schedule update handlers
@@ -1081,6 +1125,156 @@ export default function ProjectPreview({ data, onAction }) {
               </View>
             </View>
           ))}
+        </View>
+      ) : null}
+
+      {/* Daily Checklist */}
+      {(checklistItems.length > 0 || isEditing) ? (
+        <View style={[styles.section, { borderTopColor: Colors.border }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="checkbox-outline" size={18} color="#8B5CF6" />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Daily Checklist</Text>
+            </View>
+            {isEditing && (
+              <TouchableOpacity
+                onPress={handleAddChecklistItem}
+                style={[styles.addTaskButton, { backgroundColor: '#8B5CF615', borderColor: '#8B5CF6' }]}
+              >
+                <Ionicons name="add" size={14} color="#8B5CF6" />
+                <Text style={[styles.addTaskText, { color: '#8B5CF6' }]}>Add</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {checklistItems.map((item, index) => {
+            const itemTitle = typeof item === 'string' ? item : item.title;
+            const itemType = typeof item === 'string' ? 'checkbox' : (item.item_type || 'checkbox');
+            const quantityUnit = typeof item === 'string' ? '' : (item.quantity_unit || '');
+            const requiresPhoto = typeof item === 'string' ? false : (item.requires_photo || false);
+
+            return (
+              <View key={index} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border }}>
+                {isEditing ? (
+                  <>
+                    <TouchableOpacity onPress={() => handleToggleChecklistType(index)} style={{ paddingRight: 2 }}>
+                      <Ionicons
+                        name={itemType === 'quantity' ? 'speedometer-outline' : 'checkbox-outline'}
+                        size={18}
+                        color={itemType === 'quantity' ? '#F59E0B' : '#8B5CF6'}
+                      />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
+                      value={itemTitle}
+                      onChangeText={(v) => handleUpdateChecklistItem(index, 'title', v)}
+                      placeholder="Item name"
+                      placeholderTextColor={Colors.secondaryText}
+                    />
+                    {itemType === 'quantity' && (
+                      <TextInput
+                        style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, width: 55, textAlign: 'center' }]}
+                        value={quantityUnit}
+                        onChangeText={(v) => handleUpdateChecklistItem(index, 'quantity_unit', v)}
+                        placeholder="unit"
+                        placeholderTextColor={Colors.secondaryText}
+                      />
+                    )}
+                    <TouchableOpacity
+                      onPress={() => handleUpdateChecklistItem(index, 'requires_photo', !requiresPhoto)}
+                      style={{ paddingHorizontal: 2 }}
+                    >
+                      <Ionicons name={requiresPhoto ? 'camera' : 'camera-outline'} size={16} color={requiresPhoto ? '#3B82F6' : Colors.secondaryText + '60'} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleRemoveChecklistItem(index)} style={styles.removeTaskButton}>
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons
+                      name={itemType === 'quantity' ? 'speedometer-outline' : 'checkmark-circle-outline'}
+                      size={16}
+                      color={itemType === 'quantity' ? '#F59E0B' : Colors.secondaryText}
+                    />
+                    <Text style={[styles.taskText, { color: Colors.primaryText }]}>{itemTitle}</Text>
+                    {itemType === 'quantity' && quantityUnit ? (
+                      <View style={{ backgroundColor: '#F59E0B18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ color: '#F59E0B', fontSize: 10, fontWeight: '600' }}>{quantityUnit}</Text>
+                      </View>
+                    ) : null}
+                    {requiresPhoto && <Ionicons name="camera-outline" size={14} color="#3B82F6" />}
+                  </>
+                )}
+              </View>
+            );
+          })}
+          {checklistItems.length === 0 && isEditing && (
+            <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>No checklist items yet</Text>
+          )}
+        </View>
+      ) : null}
+
+      {/* Crew Roles */}
+      {(laborRoles.length > 0 || isEditing) ? (
+        <View style={[styles.section, { borderTopColor: Colors.border }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="people-outline" size={18} color="#10B981" />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Crew Roles</Text>
+            </View>
+            {isEditing && (
+              <TouchableOpacity
+                onPress={handleAddLaborRole}
+                style={[styles.addTaskButton, { backgroundColor: '#10B98115', borderColor: '#10B981' }]}
+              >
+                <Ionicons name="add" size={14} color="#10B981" />
+                <Text style={[styles.addTaskText, { color: '#10B981' }]}>Add</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {laborRoles.map((role, index) => {
+            const roleName = typeof role === 'string' ? role : role.role_name;
+            const qty = typeof role === 'string' ? 1 : (role.default_quantity || 1);
+
+            return (
+              <View key={index} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border }}>
+                {isEditing ? (
+                  <>
+                    <Ionicons name="person-outline" size={16} color="#10B981" />
+                    <TextInput
+                      style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
+                      value={roleName}
+                      onChangeText={(v) => handleUpdateLaborRole(index, 'role_name', v)}
+                      placeholder="Role name"
+                      placeholderTextColor={Colors.secondaryText}
+                    />
+                    <Text style={{ color: Colors.secondaryText, fontSize: 12 }}>x</Text>
+                    <TextInput
+                      style={[styles.editInput, { color: Colors.primaryText, borderColor: Colors.border, width: 36, textAlign: 'center' }]}
+                      value={String(qty)}
+                      onChangeText={(v) => handleUpdateLaborRole(index, 'default_quantity', parseInt(v) || 1)}
+                      keyboardType="numeric"
+                      selectTextOnFocus
+                    />
+                    <TouchableOpacity onPress={() => handleRemoveLaborRole(index)} style={styles.removeTaskButton}>
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="person-outline" size={16} color="#10B981" />
+                    <Text style={[styles.taskText, { color: Colors.primaryText }]}>{roleName}</Text>
+                    <View style={{ backgroundColor: '#10B98118', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>x{qty}</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            );
+          })}
+          {laborRoles.length === 0 && isEditing && (
+            <Text style={{ color: Colors.secondaryText, fontStyle: 'italic', fontSize: 13 }}>No crew roles yet</Text>
+          )}
         </View>
       ) : null}
 
