@@ -2014,33 +2014,56 @@ export default function ChatScreen({ navigation, route }) {
             .single();
           if (planError) throw planError;
 
-          // 2. Create location if provided
-          let locationId = null;
-          if (planData.location_address) {
+          // 2. Create locations
+          // Support both single location_address and locations[] array
+          const locationsToCreate = [];
+          if (planData.locations && Array.isArray(planData.locations) && planData.locations.length > 0) {
+            planData.locations.forEach(loc => {
+              if (loc.address || loc.location_address) {
+                locationsToCreate.push({
+                  name: loc.name || loc.location_name || 'Location',
+                  address: loc.address || loc.location_address,
+                  access_notes: loc.access_notes || loc.location_notes || null,
+                });
+              }
+            });
+          } else if (planData.location_address || planData.address) {
+            locationsToCreate.push({
+              name: planData.location_name || planData.client_name || 'Main Location',
+              address: planData.location_address || planData.address,
+              access_notes: planData.location_notes || null,
+            });
+          }
+
+          let firstLocationId = null;
+          for (const locData of locationsToCreate) {
             const { data: loc, error: locError } = await supabase
               .from('service_locations')
               .insert({
                 service_plan_id: plan.id,
                 owner_id: userId,
-                name: planData.location_name || planData.client_name || 'Main Location',
-                address: planData.location_address,
-                access_notes: planData.location_notes || null,
+                name: locData.name,
+                address: locData.address,
+                access_notes: locData.access_notes,
               })
               .select()
               .single();
-            if (!locError && loc) locationId = loc.id;
-          }
+            if (!locError && loc) {
+              if (!firstLocationId) firstLocationId = loc.id;
 
-          // 3. Create schedule if location + frequency
-          if (locationId && planData.schedule_frequency) {
-            await supabase.from('location_schedules').insert({
-              service_location_id: locationId,
-              owner_id: userId,
-              frequency: planData.schedule_frequency,
-              scheduled_days: planData.scheduled_days || [],
-              preferred_time: planData.preferred_time || null,
-            });
+              // 3. Create schedule for each location if frequency provided
+              if (planData.schedule_frequency) {
+                await supabase.from('location_schedules').insert({
+                  service_location_id: loc.id,
+                  owner_id: userId,
+                  frequency: planData.schedule_frequency,
+                  scheduled_days: planData.scheduled_days || [],
+                  preferred_time: planData.preferred_time || null,
+                });
+              }
+            }
           }
+          const locationId = firstLocationId;
 
           // 4. Create per-location visit checklist templates if provided
           if (locationId && planData.checklist_items?.length) {

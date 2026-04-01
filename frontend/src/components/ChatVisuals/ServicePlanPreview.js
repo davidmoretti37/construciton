@@ -79,7 +79,7 @@ export default function ServicePlanPreview({ data, onAction }) {
   const clientName = editedData?.clientName || editedData?.client_name || '';
   const clientPhone = editedData?.client_phone || editedData?.clientPhone || '';
   const clientEmail = editedData?.client_email || editedData?.clientEmail || '';
-  const address = editedData?.address || editedData?.location_address || '';
+  const address = editedData?.address || editedData?.location_address || editedData?.location || '';
   const description = editedData?.description || '';
   const scheduleFrequency = editedData?.schedule_frequency || '';
   const scheduledDays = normalizeDays(editedData?.scheduled_days);
@@ -232,9 +232,9 @@ export default function ServicePlanPreview({ data, onAction }) {
           client_name: current?.clientName || current?.client_name || null,
           client_phone: current?.client_phone || current?.clientPhone || null,
           client_email: current?.client_email || current?.clientEmail || null,
-          address: current?.address || current?.location_address || null,
-          location_name: current?.location_name || null,
-          location_address: current?.location_address || current?.address || null,
+          address: current?.address || current?.location_address || current?.location || null,
+          location_name: current?.location_name || current?.clientName || current?.client_name || null,
+          location_address: current?.location_address || current?.address || current?.location || null,
           location_notes: current?.location_notes || null,
           schedule_frequency: current?.schedule_frequency || null,
           scheduled_days: current?.scheduled_days || [],
