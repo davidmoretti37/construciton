@@ -28,7 +28,7 @@ const contextCache = {
 export const AGENT_DATA_REQUIREMENTS = {
   'WorkersSchedulingAgent': ['workers', 'clockedInToday', 'workSchedules', 'completedShiftsToday', 'staleClockIns', 'scheduleEvents', 'projects'],
   'FinancialAgent': ['projects', 'invoices', 'estimates'],
-  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate', 'constructionKnowledge', 'checklistHistory'],
+  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate', 'constructionKnowledge', 'checklistHistory', 'existingSchedules'],
   'EstimateInvoiceAgent': ['projects', 'estimates', 'invoices', 'userServices', 'pricingHistory', 'subcontractorQuotes'],
   'DocumentAgent': ['projects', 'estimates', 'invoices', 'contractDocuments', 'workers'],
   'SettingsConfigAgent': ['userServices', 'pricingHistory', 'subcontractorQuotes'],
@@ -567,6 +567,56 @@ export const fetchAgentSpecificContext = async (agentName) => {
             return { checklistItems: [], laborRoles: [] };
           }
         })
+      );
+    }
+
+    if (requirements.includes('existingSchedules')) {
+      // Fetch upcoming visits grouped by day/time for conflict detection
+      fetchKeys.push('existingSchedules');
+      const { supabase: sb } = require('../../../lib/supabase');
+      fetchPromises.push(
+        (async () => {
+          try {
+            const today = new Date().toISOString().split('T')[0];
+            const fourWeeks = new Date();
+            fourWeeks.setDate(fourWeeks.getDate() + 28);
+            const endDate = fourWeeks.toISOString().split('T')[0];
+
+            const { data: visits } = await sb
+              .from('service_visits')
+              .select('scheduled_date, scheduled_time, service_location_id, service_plans!inner(name)')
+              .gte('scheduled_date', today)
+              .lte('scheduled_date', endDate)
+              .eq('status', 'scheduled')
+              .order('scheduled_date', { ascending: true })
+              .limit(100);
+
+            if (!visits || visits.length === 0) return [];
+
+            // Summarize by day-of-week + time
+            const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const summary = {};
+            visits.forEach(v => {
+              const d = new Date(v.scheduled_date + 'T12:00:00');
+              const dayName = DAY_NAMES[d.getDay()];
+              const time = v.scheduled_time || 'unset';
+              const key = `${dayName} ${time}`;
+              if (!summary[key]) summary[key] = { day: dayName, time, plans: new Set(), count: 0 };
+              summary[key].plans.add(v.service_plans?.name || 'Unknown');
+              summary[key].count++;
+            });
+
+            return Object.values(summary).map(s => ({
+              day: s.day,
+              time: s.time,
+              plans: [...s.plans],
+              visit_count: s.count,
+            }));
+          } catch (e) {
+            logger.debug('[AgentContext] Existing schedules not available:', e.message);
+            return [];
+          }
+        })()
       );
     }
 

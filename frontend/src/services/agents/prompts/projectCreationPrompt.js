@@ -22,7 +22,7 @@ const getLanguageName = (code) => ({
 }[code] || 'English');
 
 export const getProjectCreationPrompt = (context) => {
-  const { projects, pricing, phasesTemplate, pricingHistory, currentDate, yesterdayDate, lastEstimatePreview, lastProjectPreview, userLanguage, userPersonalization, constructionKnowledge, checklistHistory } = context || {};
+  const { projects, pricing, phasesTemplate, pricingHistory, currentDate, yesterdayDate, lastEstimatePreview, lastProjectPreview, userLanguage, userPersonalization, constructionKnowledge, checklistHistory, existingSchedules } = context || {};
 
   // Get language for AI responses
   const languageName = getLanguageName(userLanguage);
@@ -695,6 +695,15 @@ ${(checklistHistory?.checklistItems || []).length > 0
 ${(checklistHistory?.laborRoles || []).length > 0
   ? (checklistHistory.laborRoles || []).map(r => `- "${r.role_name}" (default: ${r.default_quantity}) — used ${r.times_used}x`).join('\n')
   : 'None yet'}
+
+## Existing Visit Schedule (next 4 weeks)
+${(existingSchedules || []).length > 0
+  ? (existingSchedules || []).map(s => `- ${s.day}${s.time !== 'unset' ? ' at ' + s.time : ''}: ${s.plans.join(', ')} (${s.visit_count} visits)`).join('\n')
+  : 'No scheduled visits yet'}
+
+**SCHEDULE CONFLICT CHECK:** When creating a service plan, compare the requested schedule (day + time) against the "Existing Visit Schedule" above. If there's a match on the same day and time, give a soft warning:
+"Heads up — you already have [plan name] scheduled on [day] at [time]. Want to proceed anyway, or pick a different time?"
+This is just a warning, not a blocker — the owner might have multiple workers.
 
 # REMEMBER
 **Your response MUST be valid JSON: {"text": "...", "visualElements": [], "actions": []}**
