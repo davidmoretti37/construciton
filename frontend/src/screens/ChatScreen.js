@@ -2071,13 +2071,21 @@ export default function ChatScreen({ navigation, route }) {
 
               // 3. Create schedule for each location if frequency provided
               if (planData.schedule_frequency) {
-                await supabase.from('location_schedules').insert({
+                // Normalize scheduled_days: AI may send numbers [1,3] or strings ['monday','wednesday']
+                const NUM_TO_DAY = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                const normalizedDays = (planData.scheduled_days || []).map(d => {
+                  if (typeof d === 'number') return NUM_TO_DAY[d] || String(d);
+                  return String(d).toLowerCase();
+                });
+
+                const { error: schedError } = await supabase.from('location_schedules').insert({
                   service_location_id: loc.id,
                   owner_id: userId,
                   frequency: planData.schedule_frequency,
-                  scheduled_days: planData.scheduled_days || [],
+                  scheduled_days: normalizedDays,
                   preferred_time: planData.preferred_time || null,
                 });
+                if (schedError) logger.error('[Chat] Schedule insert error:', schedError.message);
               }
             }
           }
