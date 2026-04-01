@@ -319,7 +319,7 @@ export default function ServicePlanDetailScreen({ route }) {
             <Ionicons name="receipt-outline" size={18} color="#fff" />
             <Text style={styles.actionBtnText}>Billing</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669' }]} onPress={() => navigation.navigate('DailyRoute')}>
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669' }]} onPress={() => navigation.navigate('MapRoute', { locations: (plan?.locations || []).filter(l => l.latitude && l.longitude) })}>
             <Ionicons name="navigate-outline" size={18} color="#fff" />
             <Text style={styles.actionBtnText}>Routes</Text>
           </TouchableOpacity>

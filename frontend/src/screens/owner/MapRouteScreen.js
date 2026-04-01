@@ -62,7 +62,7 @@ export default function MapRouteScreen({ route: navRoute }) {
 
   const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
 
-  // Load saved locations
+  // Load saved locations + pre-load from nav params
   useEffect(() => {
     loadLocations();
   }, []);
@@ -70,7 +70,18 @@ export default function MapRouteScreen({ route: navRoute }) {
   const loadLocations = async () => {
     try {
       const locs = await fetchOwnerLocations();
-      setSavedLocations(locs.filter(l => l.latitude && l.longitude));
+      const withCoords = locs.filter(l => l.latitude && l.longitude);
+      setSavedLocations(withCoords);
+
+      // Pre-load stops from nav params (e.g., from ServicePlanDetailScreen)
+      const initialLocations = navRoute?.params?.locations;
+      if (initialLocations && initialLocations.length > 0) {
+        const preloaded = initialLocations.map((loc, i) => ({
+          ...loc,
+          order: i + 1,
+        }));
+        setSelectedStops(preloaded);
+      }
     } catch (e) {
       console.error('[MapRoute] Load locations error:', e);
     } finally {
