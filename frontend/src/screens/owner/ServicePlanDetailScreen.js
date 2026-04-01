@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
   dayCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   dayCircleText: { fontSize: 13, fontWeight: '700' },
 
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: 10, marginBottom: 10, paddingHorizontal: 14 },
+  actionRow: { flexDirection: 'row', gap: 12, marginTop: 0, marginBottom: 12, paddingHorizontal: 14 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
   actionBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
