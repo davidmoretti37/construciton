@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   View,
   Text,
@@ -321,17 +322,35 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       const startISO = new Date(yr, mo, 1, 0, 0, 0).toISOString();
       const endISO = new Date(yr, mo + 1, 0, 23, 59, 59).toISOString();
 
-      const [tasks, events] = await Promise.all([
+      const [tasks, events, visitsResult] = await Promise.all([
         isSupervisor
           ? fetchTasksForSupervisorDateRange(monthStart, monthEnd)
           : fetchTasksForDateRange(monthStart, monthEnd),
         fetchScheduleEvents(startISO, endISO),
+        supabase
+          .from('service_visits')
+          .select('id, scheduled_date, scheduled_time, status, service_locations(name, address), service_plans(name)')
+          .gte('scheduled_date', monthStart)
+          .lte('scheduled_date', monthEnd)
+          .order('scheduled_date', { ascending: true }),
       ]);
 
-      setMonthTasks(tasks);
+      // Convert visits to task-like objects so the calendar can render them
+      const visitTasks = (visitsResult.data || []).map(v => ({
+        id: `visit-${v.id}`,
+        description: v.service_locations?.name || 'Visit',
+        start_date: v.scheduled_date,
+        end_date: v.scheduled_date,
+        status: v.status === 'completed' ? 'completed' : 'pending',
+        isVisit: true,
+        projects: { name: v.service_plans?.name || 'Service', working_days: [0, 1, 2, 3, 4, 5, 6] },
+      }));
+
+      const allTasks = [...tasks, ...visitTasks];
+      setMonthTasks(allTasks);
       setMonthEvents(events);
-      scheduleCacheRef.current = { ...cache, monthTasks: tasks, monthEvents: events };
-      return { tasks, events };
+      scheduleCacheRef.current = { ...cache, monthTasks: allTasks, monthEvents: events };
+      return { tasks: allTasks, events };
     } catch (error) {
       console.error('Error loading month data:', error);
     } finally {
