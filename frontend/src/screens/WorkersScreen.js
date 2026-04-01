@@ -329,7 +329,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         fetchScheduleEvents(startISO, endISO),
         supabase
           .from('service_visits')
-          .select('id, scheduled_date, scheduled_time, status, service_locations(name, address), service_plans(name)')
+          .select('id, scheduled_date, scheduled_time, status, service_locations(name, address, latitude, longitude), service_plans(name)')
           .gte('scheduled_date', monthStart)
           .lte('scheduled_date', monthEnd)
           .order('scheduled_date', { ascending: true }),
@@ -343,6 +343,9 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         end_date: v.scheduled_date,
         status: v.status === 'completed' ? 'completed' : 'pending',
         isVisit: true,
+        latitude: v.service_locations?.latitude,
+        longitude: v.service_locations?.longitude,
+        address: v.service_locations?.address,
         projects: { name: v.service_plans?.name || 'Service', working_days: [0, 1, 2, 3, 4, 5, 6] },
       }));
 
@@ -628,6 +631,33 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
   // Handle toggling task completion
   const handleToggleTaskComplete = async (task) => {
+    // Handle service visits separately — they use a different table
+    if (task.isVisit) {
+      const visitId = task.id.replace('visit-', '');
+      const newStatus = task.status === 'completed' ? 'scheduled' : 'completed';
+
+      setScheduleTasks(prevTasks =>
+        prevTasks.map(t => t.id === task.id ? { ...t, status: newStatus === 'completed' ? 'completed' : 'pending' } : t)
+      );
+
+      try {
+        const { error } = await supabase
+          .from('service_visits')
+          .update({
+            status: newStatus,
+            completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
+          })
+          .eq('id', visitId);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Error toggling visit:', e);
+        setScheduleTasks(prevTasks =>
+          prevTasks.map(t => t.id === task.id ? { ...t, status: task.status } : t)
+        );
+      }
+      return;
+    }
+
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
 
     // Update local state immediately for instant feedback
@@ -1556,24 +1586,46 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                                       </View>
                                     </View>
                                     <View style={styles.taskActions}>
-                                      <TouchableOpacity
-                                        style={styles.taskActionButton}
-                                        onPress={() => handleMoveTask(task)}
-                                      >
-                                        <Ionicons name="swap-horizontal-outline" size={18} color={Colors.primaryBlue} />
-                                      </TouchableOpacity>
-                                      <TouchableOpacity
-                                        style={styles.taskActionButton}
-                                        onPress={() => handleEditTask(task)}
-                                      >
-                                        <Ionicons name="pencil-outline" size={18} color={Colors.primaryBlue} />
-                                      </TouchableOpacity>
-                                      <TouchableOpacity
-                                        style={styles.taskActionButton}
-                                        onPress={() => handleDeleteTask(task.id)}
-                                      >
-                                        <Ionicons name="trash-outline" size={18} color={Colors.errorRed} />
-                                      </TouchableOpacity>
+                                      {task.isVisit ? (
+                                        <TouchableOpacity
+                                          style={[styles.taskActionButton, { backgroundColor: '#05966915', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }]}
+                                          onPress={() => {
+                                            // Get all visits for this day and open map route
+                                            const dayVisits = scheduleTasks.filter(t => t.isVisit && t.start_date === task.start_date);
+                                            const locations = dayVisits.map(v => ({
+                                              id: v.id,
+                                              name: v.description,
+                                              address: v.projects?.name || '',
+                                              latitude: v.latitude,
+                                              longitude: v.longitude,
+                                            })).filter(l => l.latitude && l.longitude);
+                                            navigation.navigate('MapRoute', { locations });
+                                          }}
+                                        >
+                                          <Ionicons name="navigate" size={18} color="#059669" />
+                                        </TouchableOpacity>
+                                      ) : (
+                                        <>
+                                          <TouchableOpacity
+                                            style={styles.taskActionButton}
+                                            onPress={() => handleMoveTask(task)}
+                                          >
+                                            <Ionicons name="swap-horizontal-outline" size={18} color={Colors.primaryBlue} />
+                                          </TouchableOpacity>
+                                          <TouchableOpacity
+                                            style={styles.taskActionButton}
+                                            onPress={() => handleEditTask(task)}
+                                          >
+                                            <Ionicons name="pencil-outline" size={18} color={Colors.primaryBlue} />
+                                          </TouchableOpacity>
+                                          <TouchableOpacity
+                                            style={styles.taskActionButton}
+                                            onPress={() => handleDeleteTask(task.id)}
+                                          >
+                                            <Ionicons name="trash-outline" size={18} color={Colors.errorRed} />
+                                          </TouchableOpacity>
+                                        </>
+                                      )}
                                     </View>
                                   </View>
                                 </TouchableOpacity>
