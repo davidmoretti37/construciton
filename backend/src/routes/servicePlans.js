@@ -708,7 +708,7 @@ router.post('/:planId/locations/:locationId/schedule', async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { locationId } = req.params;
-    const { frequency, scheduled_days, day_of_month, preferred_time, duration_minutes, effective_from } = req.body;
+    const { frequency, scheduled_days, day_of_month, preferred_time, duration_minutes, effective_from, billing_cycle, price_per_visit, monthly_rate } = req.body;
 
     if (!frequency) {
       return res.status(400).json({ error: 'frequency is required' });
@@ -746,6 +746,9 @@ router.post('/:planId/locations/:locationId/schedule', async (req, res) => {
         preferred_time: preferred_time || null,
         duration_minutes: duration_minutes || 60,
         effective_from: effective_from || today,
+        billing_cycle: billing_cycle || null,
+        price_per_visit: price_per_visit || null,
+        monthly_rate: monthly_rate || null,
       })
       .select()
       .single();
@@ -937,42 +940,72 @@ router.get('/:id/billing-preview', async (req, res) => {
       locationVisits[v.service_location_id].push(v.id);
     });
 
-    // Get location names
+    // Get location names and per-location pricing overrides
     const locationIds = Object.keys(locationVisits);
-    let locationNames = {};
+    let locationMap = {};
     if (locationIds.length > 0) {
       const { data: locations } = await supabase
         .from('service_locations')
         .select('id, name')
         .in('id', locationIds);
-      if (locations) locations.forEach(l => { locationNames[l.id] = l.name; });
+      if (locations) locations.forEach(l => { locationMap[l.id] = { name: l.name }; });
+
+      // Fetch active schedules with pricing overrides
+      const { data: schedules } = await supabase
+        .from('location_schedules')
+        .select('service_location_id, billing_cycle, price_per_visit, monthly_rate')
+        .in('service_location_id', locationIds)
+        .eq('is_active', true);
+      if (schedules) schedules.forEach(s => {
+        if (locationMap[s.service_location_id]) {
+          locationMap[s.service_location_id].schedule = s;
+        }
+      });
     }
 
-    // Calculate pricing
-    const rate = plan.billing_cycle === 'per_visit'
+    // Plan-level defaults
+    const planBillingCycle = plan.billing_cycle;
+    const planRate = planBillingCycle === 'per_visit'
       ? parseFloat(plan.price_per_visit || 0)
       : parseFloat(plan.monthly_rate || 0);
 
     const totalVisits = (visits || []).length;
 
+    // Calculate per-location with override support
+    let totalAmount = 0;
     const locationBreakdown = locationIds.map(locId => {
       const count = locationVisits[locId].length;
+      const loc = locationMap[locId] || {};
+      const sched = loc.schedule || {};
+
+      // Use location-level pricing if set, otherwise plan-level
+      const locBillingCycle = sched.billing_cycle || planBillingCycle;
+      const locRate = locBillingCycle === 'per_visit'
+        ? parseFloat(sched.price_per_visit || plan.price_per_visit || 0)
+        : parseFloat(sched.monthly_rate || plan.monthly_rate || 0);
+
+      const locTotal = locBillingCycle === 'per_visit'
+        ? Math.round(count * locRate * 100) / 100
+        : Math.round(locRate * 100) / 100;
+
+      totalAmount += locTotal;
+
       return {
         location_id: locId,
-        location_name: locationNames[locId] || 'Unknown',
+        location_name: loc.name || 'Unknown',
         visit_count: count,
+        billing_cycle: locBillingCycle,
+        rate: locRate,
+        total: locTotal,
       };
     });
 
-    // Per-visit: total = visits * rate. Monthly/quarterly: total = flat rate for the plan
-    const totalAmount = plan.billing_cycle === 'per_visit'
-      ? Math.round(totalVisits * rate * 100) / 100
-      : Math.round(rate * 100) / 100;
+    totalAmount = Math.round(totalAmount * 100) / 100;
 
     res.json({
       period: { from, to },
       billing_cycle: plan.billing_cycle,
-      rate,
+      rate: planRate,
       locations: locationBreakdown,
       total_visits: totalVisits,
       total_amount: totalAmount,
@@ -1041,51 +1074,67 @@ router.post('/:id/invoice', async (req, res) => {
       locationVisits[v.service_location_id].push(v.id);
     });
 
-    // Get location names
+    // Get location names and per-location pricing overrides
     const locationIds = Object.keys(locationVisits);
-    let locationNames = {};
+    let locationMap = {};
     if (locationIds.length > 0) {
       const { data: locations } = await supabase
         .from('service_locations')
         .select('id, name')
         .in('id', locationIds);
-      if (locations) locations.forEach(l => { locationNames[l.id] = l.name; });
+      if (locations) locations.forEach(l => { locationMap[l.id] = { name: l.name }; });
+
+      // Fetch active schedules with pricing overrides
+      const { data: schedules } = await supabase
+        .from('location_schedules')
+        .select('service_location_id, billing_cycle, price_per_visit, monthly_rate')
+        .in('service_location_id', locationIds)
+        .eq('is_active', true);
+      if (schedules) schedules.forEach(s => {
+        if (locationMap[s.service_location_id]) {
+          locationMap[s.service_location_id].schedule = s;
+        }
+      });
     }
 
-    // Build invoice line items
-    const rate = plan.billing_cycle === 'per_visit'
-      ? parseFloat(plan.price_per_visit || 0)
-      : parseFloat(plan.monthly_rate || 0);
+    // Build invoice line items with per-location pricing support
+    let items = [];
+    let subtotal = 0;
 
-    let items;
-    let subtotal;
+    locationIds.forEach((locId, i) => {
+      const count = locationVisits[locId].length;
+      const loc = locationMap[locId] || {};
+      const sched = loc.schedule || {};
 
-    if (plan.billing_cycle === 'per_visit') {
-      items = locationIds.map((locId, i) => {
-        const count = locationVisits[locId].length;
-        const lineTotal = Math.round(count * rate * 100) / 100;
-        return {
+      // Use location-level pricing if set, otherwise plan-level
+      const locBillingCycle = sched.billing_cycle || plan.billing_cycle;
+      const locRate = locBillingCycle === 'per_visit'
+        ? parseFloat(sched.price_per_visit || plan.price_per_visit || 0)
+        : parseFloat(sched.monthly_rate || plan.monthly_rate || 0);
+
+      if (locBillingCycle === 'per_visit') {
+        const lineTotal = Math.round(count * locRate * 100) / 100;
+        items.push({
           index: i,
-          description: `${locationNames[locId] || 'Location'} — ${count} visit${count > 1 ? 's' : ''}`,
+          description: `${loc.name || 'Location'} — ${count} visit${count > 1 ? 's' : ''}`,
           quantity: count,
           unit: 'visit',
-          price: rate,
+          price: locRate,
           total: lineTotal,
-        };
-      });
-      subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    } else {
-      // Monthly/quarterly — single line item
-      items = [{
-        index: 0,
-        description: `${plan.name} — ${plan.billing_cycle} service (${period_start} to ${period_end})`,
-        quantity: 1,
-        unit: plan.billing_cycle,
-        price: rate,
-        total: rate,
-      }];
-      subtotal = rate;
-    }
+        });
+        subtotal += lineTotal;
+      } else {
+        items.push({
+          index: i,
+          description: `${loc.name || 'Location'} — ${locBillingCycle} service (${period_start} to ${period_end})`,
+          quantity: 1,
+          unit: locBillingCycle,
+          price: locRate,
+          total: locRate,
+        });
+        subtotal += locRate;
+      }
+    });
 
     const total = Math.round(subtotal * 100) / 100;
 

@@ -8,6 +8,8 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 
+const { fetchGoogleMaps } = require('../utils/fetchWithRetry');
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -141,6 +143,155 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to create route' });
   }
 });
+
+// ============================================================
+// LOCATIONS (for route map address picker)
+// Must be before /:id to avoid Express matching "locations" as an id
+// ============================================================
+
+// GET /locations — All owner's service locations with coordinates
+router.get('/locations', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+
+    const { data: locations, error } = await supabase
+      .from('service_locations')
+      .select('id, name, address, formatted_address, latitude, longitude, contact_name, contact_phone, access_notes, service_plan_id')
+      .eq('owner_id', ownerId)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    // Enrich with plan names
+    const planIds = [...new Set((locations || []).map(l => l.service_plan_id).filter(Boolean))];
+    let planNames = {};
+    if (planIds.length > 0) {
+      const { data: plans } = await supabase
+        .from('service_plans')
+        .select('id, name')
+        .in('id', planIds);
+      if (plans) plans.forEach(p => { planNames[p.id] = p.name; });
+    }
+
+    const result = (locations || []).map(l => ({
+      ...l,
+      service_plan_name: planNames[l.service_plan_id] || null,
+    }));
+
+    res.json(result);
+  } catch (error) {
+    logger.error('[ServiceRoutes] List locations error:', error.message);
+    res.status(500).json({ error: 'Failed to list locations' });
+  }
+});
+
+// ============================================================
+// ROUTE OPTIMIZATION
+// Must be before /:id to avoid Express matching "optimize" as an id
+// ============================================================
+
+// POST /optimize — Optimize stop order using Google Directions API
+router.post('/optimize', async (req, res) => {
+  try {
+    const { stops, origin } = req.body;
+
+    if (!stops || !Array.isArray(stops) || stops.length < 2) {
+      return res.status(400).json({ error: 'At least 2 stops are required' });
+    }
+
+    if (stops.length > 25) {
+      return res.status(400).json({ error: 'Maximum 25 stops supported' });
+    }
+
+    if (!process.env.GOOGLE_MAPS_API_KEY) {
+      return res.status(500).json({ error: 'Google Maps API key not configured' });
+    }
+
+    // Use provided origin or first stop as origin
+    const originCoord = origin
+      ? `${origin.latitude},${origin.longitude}`
+      : `${stops[0].latitude},${stops[0].longitude}`;
+
+    // Last stop is destination (open-ended route, not round-trip)
+    const lastStop = stops[stops.length - 1];
+    const destinationCoord = `${lastStop.latitude},${lastStop.longitude}`;
+
+    // Middle stops become waypoints to optimize
+    const waypointStops = origin ? stops : stops.slice(1, -1);
+    const waypointsParam = waypointStops.length > 0
+      ? `&waypoints=optimize:true|${waypointStops.map(s => `${s.latitude},${s.longitude}`).join('|')}`
+      : '';
+
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originCoord}&destination=${destinationCoord}${waypointsParam}&mode=driving&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+
+    const response = await fetchGoogleMaps(url);
+    if (!response.ok) {
+      logger.error('[ServiceRoutes] Google Directions error:', response.status);
+      return res.status(502).json({ error: 'Directions API error' });
+    }
+
+    const data = await response.json();
+
+    if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
+      logger.error('[ServiceRoutes] Directions API status:', data.status);
+      return res.status(502).json({ error: `Directions API: ${data.status}` });
+    }
+
+    const route = data.routes[0];
+    const waypointOrder = route.waypoint_order || [];
+    const polyline = route.overview_polyline?.points || '';
+
+    // Build legs info
+    const legs = (route.legs || []).map(leg => ({
+      distance: leg.distance,
+      duration: leg.duration,
+      start_address: leg.start_address,
+      end_address: leg.end_address,
+    }));
+
+    const totalDistance = legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0);
+    const totalDuration = legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0);
+
+    // Reorder stops based on waypoint_order
+    let optimizedStops;
+    if (origin) {
+      // All stops were waypoints except destination
+      optimizedStops = waypointOrder.map((idx, order) => ({
+        ...waypointStops[idx],
+        order: order + 1,
+      }));
+      optimizedStops.push({ ...lastStop, order: optimizedStops.length + 1 });
+    } else {
+      // First stop was origin, middle were waypoints, last was destination
+      optimizedStops = [{ ...stops[0], order: 1 }];
+      waypointOrder.forEach((idx, i) => {
+        optimizedStops.push({ ...waypointStops[idx], order: i + 2 });
+      });
+      optimizedStops.push({ ...lastStop, order: optimizedStops.length + 1 });
+    }
+
+    res.json({
+      waypoint_order: waypointOrder,
+      polyline,
+      legs,
+      total_distance: totalDistance,
+      total_distance_text: `${(totalDistance / 1609.34).toFixed(1)} mi`,
+      total_duration: totalDuration,
+      total_duration_text: `${Math.round(totalDuration / 60)} min`,
+      optimized_stops: optimizedStops,
+    });
+
+    logger.info(`[ServiceRoutes] Optimized ${stops.length} stops — ${(totalDistance / 1609.34).toFixed(1)} mi, ${Math.round(totalDuration / 60)} min`);
+  } catch (error) {
+    logger.error('[ServiceRoutes] Optimize error:', error.message);
+    res.status(500).json({ error: 'Failed to optimize route' });
+  }
+});
+
+// ============================================================
+// ROUTE DETAIL & UPDATE
+// ============================================================
 
 // GET /:id — Route detail with full stops
 router.get('/:id', async (req, res) => {

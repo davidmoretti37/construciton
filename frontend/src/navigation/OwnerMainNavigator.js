@@ -85,6 +85,7 @@ import ServicePlanDetailScreen from '../screens/owner/ServicePlanDetailScreen';
 import DailyRouteScreen from '../screens/owner/DailyRouteScreen';
 import RouteBuilderScreen from '../screens/owner/RouteBuilderScreen';
 import BillingScreen from '../screens/owner/BillingScreen';
+import MapRouteScreen from '../screens/owner/MapRouteScreen';
 
 const Stack = createStackNavigator();
 
@@ -113,6 +114,10 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="RouteBuilder"
         component={RouteBuilderScreen}
+      />
+      <Stack.Screen
+        name="MapRoute"
+        component={MapRouteScreen}
       />
       <Stack.Screen
         name="Billing"

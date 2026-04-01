@@ -28,7 +28,7 @@ const contextCache = {
 export const AGENT_DATA_REQUIREMENTS = {
   'WorkersSchedulingAgent': ['workers', 'clockedInToday', 'workSchedules', 'completedShiftsToday', 'staleClockIns', 'scheduleEvents', 'projects'],
   'FinancialAgent': ['projects', 'invoices', 'estimates'],
-  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate', 'constructionKnowledge'],
+  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate', 'constructionKnowledge', 'checklistHistory'],
   'EstimateInvoiceAgent': ['projects', 'estimates', 'invoices', 'userServices', 'pricingHistory', 'subcontractorQuotes'],
   'DocumentAgent': ['projects', 'estimates', 'invoices', 'contractDocuments', 'workers'],
   'SettingsConfigAgent': ['userServices', 'pricingHistory', 'subcontractorQuotes'],
@@ -510,6 +510,62 @@ export const fetchAgentSpecificContext = async (agentName) => {
         })).catch(err => {
           logger.debug('[AgentContext] Construction knowledge not available:', err.message);
           return null; // Return null if tables don't exist yet
+        })
+      );
+    }
+
+    if (requirements.includes('checklistHistory')) {
+      // Fetch owner's past checklist templates so AI can suggest reusing them
+      fetchKeys.push('checklistHistory');
+      const { supabase } = require('../../../lib/supabase');
+      fetchPromises.push(
+        Promise.all([
+          supabase.rpc('get_checklist_history', { p_owner_id: userId }).then(r => r.data),
+          supabase.rpc('get_labor_role_history', { p_owner_id: userId }).then(r => r.data),
+        ]).then(([checklistItems, laborRoles]) => ({
+          checklistItems: checklistItems || [],
+          laborRoles: laborRoles || [],
+        })).catch(async () => {
+          // Fallback: direct queries if RPCs don't exist
+          try {
+            const { data: items } = await supabase
+              .from('daily_checklist_templates')
+              .select('title, item_type, quantity_unit, requires_photo')
+              .eq('owner_id', userId)
+              .eq('is_active', true)
+              .order('created_at', { ascending: false })
+              .limit(30);
+
+            const { data: roles } = await supabase
+              .from('labor_role_templates')
+              .select('role_name, default_quantity')
+              .eq('owner_id', userId)
+              .eq('is_active', true)
+              .order('created_at', { ascending: false })
+              .limit(15);
+
+            // Deduplicate by title/role_name and count frequency
+            const itemMap = {};
+            (items || []).forEach(i => {
+              const key = i.title.toLowerCase();
+              if (!itemMap[key]) itemMap[key] = { ...i, times_used: 0 };
+              itemMap[key].times_used++;
+            });
+            const roleMap = {};
+            (roles || []).forEach(r => {
+              const key = r.role_name.toLowerCase();
+              if (!roleMap[key]) roleMap[key] = { ...r, times_used: 0 };
+              roleMap[key].times_used++;
+            });
+
+            return {
+              checklistItems: Object.values(itemMap).sort((a, b) => b.times_used - a.times_used).slice(0, 20),
+              laborRoles: Object.values(roleMap).sort((a, b) => b.times_used - a.times_used).slice(0, 10),
+            };
+          } catch (e) {
+            logger.debug('[AgentContext] Checklist history not available:', e.message);
+            return { checklistItems: [], laborRoles: [] };
+          }
         })
       );
     }

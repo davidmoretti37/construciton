@@ -385,6 +385,9 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
                   schedule: projectData.schedule || projectPreview.data.schedule,
                   scope: projectPreview.data.scope || projectData.scope,
                   lineItems: projectData.lineItems || projectPreview.data.items || [],
+                  contractAmount: projectData.contractAmount || projectPreview.data.contractAmount,
+                  checklist_items: projectData.checklist_items || projectPreview.data.checklist_items,
+                  labor_roles: projectData.labor_roles || projectPreview.data.labor_roles,
                   // FIX: Extract dates from multiple sources with full fallback chain
                   startDate: projectData.startDate
                     || projectData.schedule?.startDate
@@ -425,6 +428,45 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
 
       if (savedProject && savedProject.id) {
         logger.debug('✅ Project saved successfully:', savedProject.id);
+
+        // Daily Checklist Setup — create templates if AI included them
+        const checklistItems = cleanProjectData.checklist_items || cleanProjectData.checklistItems || [];
+        const laborRoles = cleanProjectData.labor_roles || cleanProjectData.laborRoles || [];
+        if (checklistItems.length > 0) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const ownerId = user?.id;
+            if (ownerId) {
+              const checklistInserts = checklistItems.map((item, i) => ({
+                project_id: savedProject.id,
+                service_plan_id: null,
+                owner_id: ownerId,
+                title: item.title,
+                item_type: item.item_type || 'checkbox',
+                quantity_unit: item.quantity_unit || null,
+                requires_photo: item.requires_photo || false,
+                sort_order: i,
+              }));
+              await supabase.from('daily_checklist_templates').insert(checklistInserts);
+              logger.debug(`✅ Created ${checklistInserts.length} daily checklist templates`);
+
+              if (laborRoles.length > 0) {
+                const laborInserts = laborRoles.map((role, i) => ({
+                  project_id: savedProject.id,
+                  service_plan_id: null,
+                  owner_id: ownerId,
+                  role_name: role.role_name,
+                  default_quantity: role.default_quantity || 1,
+                  sort_order: i,
+                }));
+                await supabase.from('labor_role_templates').insert(laborInserts);
+                logger.debug(`✅ Created ${laborInserts.length} labor role templates`);
+              }
+            }
+          } catch (e) {
+            logger.error('⚠️ Daily checklist setup error (non-blocking):', e.message);
+          }
+        }
 
         // AI Task Distribution - distribute tasks intelligently across the timeline
         const phases = cleanProjectData.phases || [];

@@ -90,12 +90,20 @@ export default function DailyRouteScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Routes</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('RouteBuilder', { route_date: date })}
-          style={styles.buildBtn}
-        >
-          <Ionicons name="add-circle" size={28} color="#1E40AF" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('MapRoute')}
+            style={styles.buildBtn}
+          >
+            <Ionicons name="map" size={24} color="#1E40AF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('RouteBuilder', { route_date: date })}
+            style={styles.buildBtn}
+          >
+            <Ionicons name="add-circle" size={28} color="#1E40AF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Date Picker */}

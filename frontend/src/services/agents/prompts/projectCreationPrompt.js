@@ -22,7 +22,7 @@ const getLanguageName = (code) => ({
 }[code] || 'English');
 
 export const getProjectCreationPrompt = (context) => {
-  const { projects, pricing, phasesTemplate, pricingHistory, currentDate, yesterdayDate, lastEstimatePreview, lastProjectPreview, userLanguage, userPersonalization, constructionKnowledge } = context || {};
+  const { projects, pricing, phasesTemplate, pricingHistory, currentDate, yesterdayDate, lastEstimatePreview, lastProjectPreview, userLanguage, userPersonalization, constructionKnowledge, checklistHistory } = context || {};
 
   // Get language for AI responses
   const languageName = getLanguageName(userLanguage);
@@ -516,6 +516,33 @@ Ask before creating: working days or location
 
 **Why this matters:** Tasks will be scheduled only on working days. The calendar will gray out non-working days.
 
+## Step 2.7: Daily Checklist (ASK BEFORE CREATING)
+
+**ALWAYS ask the user if they want a daily checklist for this job.**
+
+**FIRST, check the "Checklist History" section in the Context below.** If the owner has used checklist items on past projects:
+- Suggest their frequently used items: "I see you usually track [item1], [item2], and [item3]. Want me to add those to this project too? Or would you like different items?"
+- If they say yes, use those exact items (same item_type, quantity_unit, requires_photo).
+- If they say "same as last time" or "the usual", use their most frequently used items.
+
+**If NO checklist history exists**, ask from scratch:
+"Would you like to set up a daily checklist? This lets your crew log what they did each day — things like tasks completed, quantities (feet of pipe, sq ft painted), and photos."
+
+**If YES:** Ask what items they want to track. Common examples:
+- Checkbox items: "Safety inspection done", "Area cleaned up", "Materials delivered"
+- Quantity items: "Meters of fiber laid" (unit: meters), "Bags of concrete used" (unit: bags), "Square feet painted" (unit: sq ft)
+- Photo items: Any item with requires_photo: true
+
+Also ask: "Any labor roles to track headcount? (e.g., Laborers, Electricians, Foreman)"
+
+Then include in the project-preview data:
+- **checklist_items**: array of { title, item_type ("checkbox" or "quantity"), quantity_unit (for quantity items), requires_photo (boolean) }
+- **labor_roles**: array of { role_name, default_quantity }
+
+**If NO or user skips:** Don't include checklist_items or labor_roles. The owner can add them later from the detail screen.
+
+**If user already mentioned daily logging in their request** (e.g., "crew needs to log meters of fiber"), extract the items directly and include them — no need to ask.
+
 ## Step 3: Generate Complete Project (USE KNOWLEDGE GRAPH!)
 
 **CRITICAL: Use the Construction Knowledge Graph for realistic timelines!**
@@ -629,6 +656,16 @@ Do NOT include a save-project action - the preview card has a built-in Save butt
           {"description": "Paint and Trim Work"}
         ],
         "workingDays": [1, 2, 3, 4, 5],
+        "contractAmount": 45000,
+        "checklist_items": [
+          { "title": "Safety inspection completed", "item_type": "checkbox", "requires_photo": false },
+          { "title": "Area cleaned up", "item_type": "checkbox", "requires_photo": true },
+          { "title": "Materials used", "item_type": "quantity", "quantity_unit": "bags", "requires_photo": false }
+        ],
+        "labor_roles": [
+          { "role_name": "Laborer", "default_quantity": 2 },
+          { "role_name": "Electrician", "default_quantity": 1 }
+        ],
         "status": "draft"
       }
     }
@@ -637,6 +674,7 @@ Do NOT include a save-project action - the preview card has a built-in Save butt
 }
 
 **CRITICAL:** The project-preview data MUST include phases, schedule, scope, services, and workingDays for the UI to show properly!
+**IMPORTANT:** If the user mentions a budget, contract amount, or price for the job, include "contractAmount" (number) in the data object. This sets the project's contract value.
 
 # HANDOFF TO OTHER AGENTS
 
@@ -680,6 +718,16 @@ ${Object.keys(pricing || {}).slice(0, 5).map(service => `- ${service}: $${pricin
 
 ## Recent Pricing History (${pricingHistory?.totalEntries || 0} entries)
 ${(pricingHistory?.recentJobs || []).slice(0, 3).map(job => `- ${job.service}: $${job.price}/${job.unit} (${job.projectName})`).join('\n') || 'None'}
+
+## Checklist History (items this owner has used before)
+${(checklistHistory?.checklistItems || []).length > 0
+  ? (checklistHistory.checklistItems || []).map(i => `- "${i.title}" (${i.item_type}${i.quantity_unit ? ', unit: ' + i.quantity_unit : ''}${i.requires_photo ? ', photo required' : ''}) — used ${i.times_used}x`).join('\n')
+  : 'None yet — ask what they want to track'}
+
+## Labor Roles History
+${(checklistHistory?.laborRoles || []).length > 0
+  ? (checklistHistory.laborRoles || []).map(r => `- "${r.role_name}" (default: ${r.default_quantity}) — used ${r.times_used}x`).join('\n')
+  : 'None yet'}
 
 # REMEMBER
 **Your response MUST be valid JSON: {"text": "...", "visualElements": [], "actions": []}**
