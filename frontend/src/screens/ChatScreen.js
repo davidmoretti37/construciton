@@ -1998,7 +1998,7 @@ export default function ChatScreen({ navigation, route }) {
             .insert({
               owner_id: userId,
               name: planData.name || 'Untitled Plan',
-              service_type: planData.service_type || 'other',
+              service_type: (planData.service_type || 'other').toLowerCase().replace(/\s+/g, '_'),
               billing_cycle: planData.billing_cycle || 'monthly',
               price_per_visit: planData.price_per_visit || null,
               monthly_rate: planData.monthly_rate || null,
