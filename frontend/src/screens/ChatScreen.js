@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { geocodeAddress } from '../utils/geocoding';
 import AIInputWithSearch from '../components/AIInputWithSearch';
 import AnimatedText from '../components/AnimatedText';
 import LinkifiedText from '../components/LinkifiedText';
@@ -2037,6 +2038,22 @@ export default function ChatScreen({ navigation, route }) {
 
           let firstLocationId = null;
           for (const locData of locationsToCreate) {
+            // Geocode address for map/route features
+            let geoData = {};
+            try {
+              const geo = await geocodeAddress(locData.address);
+              if (geo) {
+                geoData = {
+                  latitude: geo.latitude,
+                  longitude: geo.longitude,
+                  formatted_address: geo.formattedAddress || geo.formatted_address || null,
+                  place_id: geo.placeId || geo.place_id || null,
+                };
+              }
+            } catch (e) {
+              logger.debug('[Chat] Geocoding failed for:', locData.address, e.message);
+            }
+
             const { data: loc, error: locError } = await supabase
               .from('service_locations')
               .insert({
@@ -2045,6 +2062,7 @@ export default function ChatScreen({ navigation, route }) {
                 name: locData.name,
                 address: locData.address,
                 access_notes: locData.access_notes,
+                ...geoData,
               })
               .select()
               .single();

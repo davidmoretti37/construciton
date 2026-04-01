@@ -313,6 +313,18 @@ export default function ServicePlanDetailScreen({ route }) {
           </View>
         </View>
 
+        {/* ═══ ACTION BUTTONS (Billing + Routes) ═══ */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1E40AF' }]} onPress={() => navigation.navigate('Billing', { plan })}>
+            <Ionicons name="receipt-outline" size={18} color="#fff" />
+            <Text style={styles.actionBtnText}>Billing</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669' }]} onPress={() => navigation.navigate('DailyRoute')}>
+            <Ionicons name="navigate-outline" size={18} color="#fff" />
+            <Text style={styles.actionBtnText}>Routes</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ═══ C. JOB DETAILS ═══ */}
         {(plan?.description || plan?.task_description || address) && (
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
@@ -630,18 +642,6 @@ export default function ServicePlanDetailScreen({ route }) {
           {!firstSchedule && (
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No schedule configured</Text>
           )}
-        </View>
-
-        {/* ═══ K. ACTION BUTTONS ═══ */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1E40AF' }]} onPress={() => navigation.navigate('Billing', { plan })}>
-            <Ionicons name="receipt-outline" size={18} color="#fff" />
-            <Text style={styles.actionBtnText}>Billing</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669' }]} onPress={() => navigation.navigate('DailyRoute')}>
-            <Ionicons name="navigate-outline" size={18} color="#fff" />
-            <Text style={styles.actionBtnText}>Routes</Text>
-          </TouchableOpacity>
         </View>
 
         {/* ═══ L. DELETE ═══ */}
