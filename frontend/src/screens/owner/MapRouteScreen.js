@@ -30,6 +30,7 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchOwnerLocations, optimizeRoute, decodePolyline } from '../../utils/storage/routeOptimization';
 import { createRoute, addStop } from '../../utils/storage/serviceRoutes';
+import { geocodeAddress } from '../../utils/geocoding';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -59,6 +60,9 @@ export default function MapRouteScreen({ route: navRoute }) {
   const [routeInfo, setRouteInfo] = useState(null);
   const [sheetMode, setSheetMode] = useState('stops'); // 'stops' | 'add'
   const [routeName, setRouteName] = useState('');
+  const [geocodedResult, setGeocodedResult] = useState(null);
+  const [geocoding, setGeocoding] = useState(false);
+  const geocodeTimerRef = useRef(null);
 
   const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
 
@@ -121,6 +125,40 @@ export default function MapRouteScreen({ route: navRoute }) {
     }
     return filtered;
   }, [savedLocations, selectedStops, searchQuery]);
+
+  // Geocode search query when no saved locations match
+  useEffect(() => {
+    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    setGeocodedResult(null);
+
+    if (searchQuery.trim().length < 5 || availableLocations.length > 0) {
+      setGeocoding(false);
+      return;
+    }
+
+    setGeocoding(true);
+    geocodeTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await geocodeAddress(searchQuery.trim());
+        if (result && result.latitude && result.longitude) {
+          setGeocodedResult({
+            id: `geo-${Date.now()}`,
+            name: result.formattedAddress || result.formatted_address || searchQuery.trim(),
+            address: result.formattedAddress || result.formatted_address || searchQuery.trim(),
+            latitude: result.latitude,
+            longitude: result.longitude,
+            isNew: true,
+          });
+        }
+      } catch (e) {
+        console.debug('[MapRoute] Geocode error:', e.message);
+      } finally {
+        setGeocoding(false);
+      }
+    }, 800);
+
+    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
+  }, [searchQuery, availableLocations.length]);
 
   const handleAddStop = useCallback((location) => {
     setSelectedStops(prev => [...prev, { ...location, order: prev.length + 1 }]);
@@ -382,13 +420,45 @@ export default function MapRouteScreen({ route: navRoute }) {
         </View>
       </View>
 
+      {/* Geocoded result — new address from search */}
+      {geocodedResult && availableLocations.length === 0 && (
+        <TouchableOpacity
+          style={[styles.locationRow, { borderBottomColor: Colors.border, backgroundColor: Colors.primaryBlue + '08' }]}
+          onPress={() => handleAddStop(geocodedResult)}
+        >
+          <View style={[styles.locationIcon, { backgroundColor: '#10B98120' }]}>
+            <Ionicons name="add-circle" size={18} color="#10B981" />
+          </View>
+          <View style={styles.locationInfo}>
+            <Text style={[styles.locationName, { color: Colors.primaryText }]} numberOfLines={1}>
+              Add new address
+            </Text>
+            <Text style={[styles.locationAddress, { color: Colors.secondaryText }]} numberOfLines={2}>
+              {geocodedResult.address}
+            </Text>
+          </View>
+          <Ionicons name="arrow-forward-circle" size={24} color="#10B981" />
+        </TouchableOpacity>
+      )}
+
+      {geocoding && availableLocations.length === 0 && !geocodedResult && (
+        <View style={styles.emptyStops}>
+          <ActivityIndicator size="small" color={Colors.primaryBlue} />
+          <Text style={[styles.emptyText, { color: Colors.secondaryText, marginTop: 8 }]}>
+            Looking up address...
+          </Text>
+        </View>
+      )}
+
       {/* Locations list */}
-      {availableLocations.length === 0 ? (
+      {availableLocations.length === 0 && !geocodedResult && !geocoding ? (
         <View style={styles.emptyStops}>
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            {savedLocations.length === 0
-              ? 'No saved locations. Add locations to your service plans first.'
-              : 'No matching locations'}
+            {searchQuery.trim().length > 0
+              ? 'Type a full address to add a new stop'
+              : savedLocations.length === 0
+                ? 'No saved locations. Add locations to your service plans first.'
+                : 'No matching locations'}
           </Text>
         </View>
       ) : (
