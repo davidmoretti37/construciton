@@ -20,6 +20,7 @@ import {
   ActivityIndicator,
   Platform,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline } from 'react-native-maps';
@@ -230,30 +231,33 @@ export default function MapRouteScreen({ route: navRoute }) {
     }
   }, [selectedStops]);
 
-  const handleSaveRoute = useCallback(async () => {
-    if (selectedStops.length === 0) return;
+  const handleStartNavigation = useCallback(() => {
+    if (selectedStops.length < 1) return;
 
-    const name = routeName.trim() || `Route ${new Date().toLocaleDateString()}`;
-    const today = new Date().toISOString().split('T')[0];
+    const stops = selectedStops;
+    const origin = `${parseFloat(stops[0].latitude)},${parseFloat(stops[0].longitude)}`;
+    const destination = `${parseFloat(stops[stops.length - 1].latitude)},${parseFloat(stops[stops.length - 1].longitude)}`;
+    const waypoints = stops.slice(1, -1).map(s => `${parseFloat(s.latitude)},${parseFloat(s.longitude)}`).join('|');
 
-    setSaving(true);
-    try {
-      // Create the route
-      const route = await createRoute(name, today, null);
+    // Build URLs for both map apps
+    const googleMapsUrl = stops.length > 1
+      ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`
+      : `https://www.google.com/maps/dir/?api=1&destination=${origin}&travelmode=driving`;
 
-      // We need service_visit_ids to add stops, but we're working with locations.
-      // For now, save the route and navigate back. The stops can be linked when visits exist.
-      // TODO: If visits already exist for these locations today, link them.
+    // Apple Maps: uses sequential daddr params
+    const appleMapsAddresses = stops.map(s => `${parseFloat(s.latitude)},${parseFloat(s.longitude)}`);
+    const appleMapsUrl = `maps://app?saddr=Current+Location&daddr=${appleMapsAddresses.join('&daddr=')}`;
 
-      Alert.alert('Route Saved', `"${name}" created with ${selectedStops.length} stops.`, [
-        { text: 'OK', onPress: () => navigation.goBack() },
+    if (Platform.OS === 'ios') {
+      Alert.alert('Open Directions', `Navigate ${stops.length} stops`, [
+        { text: 'Apple Maps', onPress: () => Linking.openURL(appleMapsUrl) },
+        { text: 'Google Maps', onPress: () => Linking.openURL(googleMapsUrl) },
+        { text: 'Cancel', style: 'cancel' },
       ]);
-    } catch (e) {
-      Alert.alert('Save Failed', e.message);
-    } finally {
-      setSaving(false);
+    } else {
+      Linking.openURL(googleMapsUrl);
     }
-  }, [selectedStops, routeName, navigation]);
+  }, [selectedStops]);
 
   // Default map region
   const defaultRegion = useMemo(() => {
@@ -372,17 +376,10 @@ export default function MapRouteScreen({ route: navRoute }) {
 
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: Colors.successGreen }]}
-            onPress={handleSaveRoute}
-            disabled={saving}
+            onPress={handleStartNavigation}
           >
-            {saving ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={18} color="#fff" />
-                <Text style={styles.saveBtnText}>Save</Text>
-              </>
-            )}
+            <Ionicons name="navigate" size={18} color="#fff" />
+            <Text style={styles.saveBtnText}>Go</Text>
           </TouchableOpacity>
         </View>
       )}
