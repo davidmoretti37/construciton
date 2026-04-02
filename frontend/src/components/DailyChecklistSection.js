@@ -39,7 +39,7 @@ export default function DailyChecklistSection({
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const isOwner = userRole === 'owner';
-  const canCheck = !isOwner; // workers & supervisors can check items
+  const canCheck = true; // owners, workers & supervisors can all check items
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState([]);
