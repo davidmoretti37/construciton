@@ -33,6 +33,7 @@ import RoleSelectionScreen from './src/screens/auth/RoleSelectionScreen';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
+import { NetworkProvider } from './src/contexts/NetworkContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { isOnboarded, saveLanguage, checkAndStartScheduledProjects } from './src/utils/storage';
 import { supabase } from './src/lib/supabase';
@@ -380,15 +381,17 @@ function AppContent() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <SubscriptionProvider>
-            <NotificationProvider>
-              <AppContent />
-            </NotificationProvider>
-          </SubscriptionProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <NetworkProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <SubscriptionProvider>
+              <NotificationProvider>
+                <AppContent />
+              </NotificationProvider>
+            </SubscriptionProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </NetworkProvider>
     </ErrorBoundary>
   );
 }

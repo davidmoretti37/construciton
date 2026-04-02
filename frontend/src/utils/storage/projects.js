@@ -3,6 +3,7 @@ import { getCurrentUserId, getCurrentUserContext } from './auth';
 import { validateWorkingDays } from './workerTasks';
 import subscriptionService from '../../services/subscriptionService';
 import { getSupervisorsForOwner } from './workers';
+import { cacheData, getCachedData } from '../../services/offlineCache';
 
 // ============================================================
 // Project Management Functions
@@ -325,6 +326,12 @@ export const fetchProjects = async () => {
 
     if (error) {
       console.error('❌ [fetchProjects] Error:', error);
+      // Offline fallback: return cached data
+      const cached = getCachedData('projects', true);
+      if (cached) {
+        console.log('📦 [fetchProjects] Returning cached data');
+        return cached;
+      }
       return [];
     }
 
@@ -353,9 +360,14 @@ export const fetchProjects = async () => {
       return transformed;
     });
 
+    // Cache for offline access
+    cacheData('projects', projects);
     return projects;
   } catch (error) {
     console.error('❌ [fetchProjects] Exception:', error);
+    // Offline fallback
+    const cached = getCachedData('projects', true);
+    if (cached) return cached;
     return [];
   }
 };

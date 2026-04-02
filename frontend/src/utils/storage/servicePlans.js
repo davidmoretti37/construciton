@@ -5,6 +5,7 @@
 
 import { supabase } from '../../lib/supabase';
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import { cacheData, getCachedData } from '../../services/offlineCache';
 
 const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
@@ -35,6 +36,8 @@ export async function fetchServicePlans(status) {
   const { data: plans, error } = await query;
   if (error) {
     console.error('[ServicePlans] Fetch error:', error.message);
+    const cached = getCachedData('service_plans', true);
+    if (cached) return cached;
     return [];
   }
 
@@ -74,7 +77,7 @@ export async function fetchServicePlans(status) {
     if (v.status === 'completed') visitStats[v.service_plan_id].completed++;
   });
 
-  return plans.map(p => ({
+  const result = plans.map(p => ({
     ...p,
     location_count: locCounts[p.id] || 0,
     visits_this_month: visitStats[p.id]?.total || 0,
@@ -82,6 +85,9 @@ export async function fetchServicePlans(status) {
     price_per_visit: p.price_per_visit ? parseFloat(p.price_per_visit) : null,
     monthly_rate: p.monthly_rate ? parseFloat(p.monthly_rate) : null,
   }));
+
+  cacheData('service_plans', result);
+  return result;
 }
 
 /**

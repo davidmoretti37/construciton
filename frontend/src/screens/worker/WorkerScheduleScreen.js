@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import { useNetwork } from '../../contexts/NetworkContext';
+import { queueAction } from '../../services/offlineQueue';
 import {
   View,
   Text,
@@ -25,6 +27,7 @@ export default function WorkerScheduleScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('workers');
+  const { isOnline } = useNetwork();
 
   const [loading, setLoading] = useState(true);
   const [scheduleLoading, setScheduleLoading] = useState(false);
@@ -217,6 +220,16 @@ export default function WorkerScheduleScreen({ navigation }) {
   const handleToggleVisit = async (visit) => {
     const newStatus = visit.status === 'completed' ? 'scheduled' : 'completed';
     setDayVisits(prev => prev.map(v => v.id === visit.id ? { ...v, status: newStatus } : v));
+
+    // If offline, queue the action and return
+    if (!isOnline) {
+      queueAction({
+        type: newStatus === 'completed' ? 'complete_visit' : 'uncomplete_visit',
+        payload: { visit_id: visit.id, completed_at: new Date().toISOString(), started_at: visit.started_at },
+      });
+      return;
+    }
+
     try {
       await supabase.from('service_visits').update({
         status: newStatus,
