@@ -237,7 +237,7 @@ export default function ServicePlanDetailScreen({ route }) {
         <View style={[styles.heroSection, { backgroundColor: statusColor }]}>
           <View style={styles.heroContent}>
             <Text style={styles.heroTitle} numberOfLines={2}>
-              {clientName ? `${clientName} - ` : ''}{plan?.name}
+              {clientName && !plan?.name?.includes(clientName) ? `${clientName} - ` : ''}{plan?.name}
             </Text>
             <View style={styles.contactContainer}>
               {address ? (
