@@ -40,6 +40,7 @@ export default function WorkerScheduleScreen({ navigation }) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
   const [detailTask, setDetailTask] = useState(null);
+  const [dayVisits, setDayVisits] = useState([]);
 
   // Load worker data on mount
   useEffect(() => {
@@ -147,6 +148,27 @@ export default function WorkerScheduleScreen({ navigation }) {
       projects[name] = true;
     });
     setExpandedProjects(projects);
+
+    // Fetch service visits for this day
+    if (workerId) {
+      supabase
+        .from('service_visits')
+        .select('id, scheduled_date, scheduled_time, status, started_at, completed_at, service_locations(id, name, address, latitude, longitude, access_notes), service_plans(name)')
+        .eq('scheduled_date', dateString)
+        .eq('assigned_worker_id', workerId)
+        .order('scheduled_time', { ascending: true })
+        .then(({ data }) => setDayVisits(data || []))
+        .catch(() => setDayVisits([]));
+    } else {
+      // Also fetch visits assigned to the owner (for owner-operators)
+      supabase
+        .from('service_visits')
+        .select('id, scheduled_date, scheduled_time, status, started_at, completed_at, service_locations(id, name, address, latitude, longitude, access_notes), service_plans(name)')
+        .eq('scheduled_date', dateString)
+        .order('scheduled_time', { ascending: true })
+        .then(({ data }) => setDayVisits(data || []))
+        .catch(() => setDayVisits([]));
+    }
   };
 
   const onRefresh = async () => {
@@ -189,6 +211,20 @@ export default function WorkerScheduleScreen({ navigation }) {
 
   const handleTaskMoved = () => {
     loadMonthData(currentMonth);
+  };
+
+  const handleToggleVisit = async (visit) => {
+    const newStatus = visit.status === 'completed' ? 'scheduled' : 'completed';
+    setDayVisits(prev => prev.map(v => v.id === visit.id ? { ...v, status: newStatus } : v));
+    try {
+      await supabase.from('service_visits').update({
+        status: newStatus,
+        completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
+        started_at: newStatus === 'completed' && !visit.started_at ? new Date().toISOString() : visit.started_at,
+      }).eq('id', visit.id);
+    } catch (e) {
+      setDayVisits(prev => prev.map(v => v.id === visit.id ? { ...v, status: visit.status } : v));
+    }
   };
 
   // Group day tasks by project
@@ -394,6 +430,62 @@ export default function WorkerScheduleScreen({ navigation }) {
                   );
                 })
               )}
+            </View>
+          )}
+
+          {/* Visits Section */}
+          {!scheduleLoading && dayVisits.length > 0 && (
+            <View style={styles.scheduleCategory}>
+              <Text style={[styles.categoryLabel, { color: '#059669' }]}>
+                Service Visits
+              </Text>
+              {dayVisits.map((visit) => (
+                <TouchableOpacity
+                  key={visit.id}
+                  style={[styles.taskCard, { backgroundColor: Colors.white, borderLeftColor: '#059669', borderLeftWidth: 3, borderWidth: 1, borderColor: Colors.border }]}
+                  onPress={() => navigation.navigate('VisitDetail', { visit })}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.taskCardContent}>
+                    <TouchableOpacity
+                      style={styles.taskStatusIcon}
+                      onPress={() => handleToggleVisit(visit)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons
+                        name={visit.status === 'completed' ? 'checkbox' : 'square-outline'}
+                        size={22}
+                        color={visit.status === 'completed' ? '#059669' : Colors.secondaryText}
+                      />
+                    </TouchableOpacity>
+                    <View style={styles.taskDetails}>
+                      <Text style={[
+                        styles.taskTitle,
+                        { color: Colors.primaryText },
+                        visit.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
+                      ]}>
+                        {visit.service_locations?.name || 'Visit'}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 2 }} numberOfLines={1}>
+                        {visit.service_locations?.address}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <View style={{ backgroundColor: '#05966915', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                          <Text style={{ fontSize: 11, color: '#059669', fontWeight: '600' }}>
+                            {visit.service_plans?.name || 'Service'}
+                          </Text>
+                        </View>
+                        {visit.scheduled_time && (
+                          <Text style={{ fontSize: 11, color: Colors.secondaryText }}>
+                            {visit.scheduled_time}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
           )}
         </View>

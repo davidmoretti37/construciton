@@ -524,6 +524,21 @@ export default function TimeClockScreen({ navigation }) {
           </View>
         </View>
 
+        {/* Today's Route Button */}
+        <TouchableOpacity
+          style={[styles.tasksSection, { backgroundColor: Colors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }]}
+          onPress={() => navigation.navigate('WorkerDailyRoute')}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ backgroundColor: '#05966915', width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="navigate" size={18} color="#059669" />
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>Today's Route</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+        </TouchableOpacity>
+
         {/* Today's Tasks Section - Only shown when clocked in */}
         {activeSession && (
           <View style={[styles.tasksSection, { backgroundColor: Colors.white }]}>
