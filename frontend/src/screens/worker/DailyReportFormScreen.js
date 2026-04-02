@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ActionSheetIOS,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -88,10 +89,14 @@ export default function DailyReportFormScreen({ navigation, route }) {
     else loadWorkerProjects();
   }, [isOwner, isSupervisor, isServicePlanMode]);
 
-  // Fetch daily checklist templates + labor roles when project changes
+  // Fetch daily checklist templates + labor roles when project/plan changes
   useEffect(() => {
     if (selectedProject) {
-      loadChecklistAndRoles(selectedProject.id);
+      if (selectedProject.isServicePlan) {
+        loadChecklistAndRolesForPlan(selectedProject.id);
+      } else {
+        loadChecklistAndRoles(selectedProject.id);
+      }
     } else {
       setChecklistTemplates([]);
       setChecklistLogs({});
@@ -293,7 +298,20 @@ export default function DailyReportFormScreen({ navigation, route }) {
     try {
       setLoading(true);
       const projects = await fetchProjects();
-      setAssignedProjects(projects || []);
+
+      // Also fetch active service plans
+      const { data: plans } = await supabase
+        .from('service_plans')
+        .select('id, name, service_type, status')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      const planItems = (plans || []).map(p => ({
+        ...p,
+        isServicePlan: true,
+      }));
+
+      setAssignedProjects([...(projects || []), ...planItems]);
     } catch (error) {
       Alert.alert(t('alerts.error'), 'Failed to load projects');
     } finally { setLoading(false); }
@@ -350,11 +368,12 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const removeListItem = (setter, index) => setter(prev => prev.filter((_, i) => i !== index));
 
   const handleSubmit = async () => {
-    if (!isServicePlanMode && !selectedProject) { Alert.alert('Required', 'Select a project'); return; }
+    if (!isServicePlanMode && !selectedProject) { Alert.alert('Required', 'Select a project or service plan'); return; }
     if (!workDone.trim()) { Alert.alert('Required', 'Describe what was done today'); return; }
 
+    const isSelectedPlan = isServicePlanMode || selectedProject?.isServicePlan;
     const parentId = isServicePlanMode ? routeServicePlanId : selectedProject.id;
-    const parentOwnerId = isServicePlanMode ? servicePlan?.owner_id : (selectedProject.user_id || null);
+    const parentOwnerId = isServicePlanMode ? servicePlan?.owner_id : (selectedProject.user_id || selectedProject.owner_id || null);
 
     try {
       setSubmitting(true);
@@ -368,8 +387,8 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
       // Build report with new fields
       const reportData = {
-        project_id: isServicePlanMode ? null : selectedProject.id,
-        service_plan_id: isServicePlanMode ? routeServicePlanId : null,
+        project_id: (isServicePlanMode || selectedProject?.isServicePlan) ? null : selectedProject.id,
+        service_plan_id: isServicePlanMode ? routeServicePlanId : (selectedProject?.isServicePlan ? selectedProject.id : null),
         phase_id: null,
         report_date: new Date().toISOString().split('T')[0],
         photos: uploadedUrls,
@@ -570,21 +589,34 @@ export default function DailyReportFormScreen({ navigation, route }) {
             </View>
           ) : (
             <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Project</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Project / Service Plan</Text>
               {assignedProjects.length === 0 ? (
-                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects available</Text>
+                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects or service plans available</Text>
               ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectScroll}>
-                  {assignedProjects.map(p => (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[styles.projectChip, { borderColor: selectedProject?.id === p.id ? ACCENT : Colors.border, backgroundColor: selectedProject?.id === p.id ? ACCENT + '10' : 'transparent' }]}
-                      onPress={() => setSelectedProject(p)}
-                    >
-                      <Text style={[styles.projectChipText, { color: selectedProject?.id === p.id ? ACCENT : Colors.primaryText }]} numberOfLines={1}>{p.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                <TouchableOpacity
+                  style={[styles.dropdownBtn, { borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
+                  onPress={() => {
+                    const labels = assignedProjects.map(p => `${p.isServicePlan ? '🔄 ' : '📋 '}${p.name}`);
+                    labels.push('Cancel');
+                    if (Platform.OS === 'ios') {
+                      ActionSheetIOS.showActionSheetWithOptions(
+                        { options: labels, cancelButtonIndex: labels.length - 1, title: 'Select Project or Service Plan' },
+                        (idx) => { if (idx < assignedProjects.length) setSelectedProject(assignedProjects[idx]); }
+                      );
+                    } else {
+                      Alert.alert('Select', '', labels.slice(0, -1).map((label, idx) => ({
+                        text: label,
+                        onPress: () => setSelectedProject(assignedProjects[idx]),
+                      })).concat([{ text: 'Cancel', style: 'cancel' }]));
+                    }
+                  }}
+                >
+                  <Ionicons name={selectedProject?.isServicePlan ? 'refresh-circle-outline' : 'briefcase-outline'} size={18} color={selectedProject ? ACCENT : Colors.secondaryText} />
+                  <Text style={[styles.dropdownText, { color: selectedProject ? Colors.primaryText : Colors.placeholderText }]} numberOfLines={1}>
+                    {selectedProject ? selectedProject.name : 'Select a project or service plan...'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={Colors.secondaryText} />
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -923,6 +955,8 @@ const styles = StyleSheet.create({
   projectScroll: { flexGrow: 0 },
   projectChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, marginRight: 8 },
   projectChipText: { fontSize: 14, fontWeight: '600' },
+  dropdownBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
+  dropdownText: { flex: 1, fontSize: 15, fontWeight: '500' },
 
   // Text area
   textArea: { padding: 12, borderRadius: 10, borderWidth: 1, fontSize: 15, minHeight: 80 },
