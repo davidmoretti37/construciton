@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,8 @@ import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../con
 import { useTheme } from '../contexts/ThemeContext';
 import { getWorkerClockInHistory, getWorkerStats, getActiveClockIn, calculateWorkerPaymentForPeriod } from '../utils/storage';
 import { remoteClockOutWorker } from '../utils/storage/timeTracking';
+import { useFocusEffect } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 import DateRangePicker from '../components/DateRangePicker';
 import TimeEditModal from '../components/TimeEditModal';
 import { formatHoursMinutes } from '../utils/calculations';
@@ -26,7 +28,22 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('workers');
-  const { worker } = route.params;
+  const initialWorker = route.params.worker;
+  const [worker, setWorker] = useState(initialWorker);
+
+  // Re-fetch worker when screen regains focus (after editing)
+  useFocusEffect(
+    useCallback(() => {
+      if (initialWorker?.id) {
+        supabase
+          .from('workers')
+          .select('*')
+          .eq('id', initialWorker.id)
+          .single()
+          .then(({ data }) => { if (data) setWorker(data); });
+      }
+    }, [initialWorker?.id])
+  );
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

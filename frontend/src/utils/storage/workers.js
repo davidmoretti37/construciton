@@ -86,13 +86,20 @@ export const updateWorker = async (workerId, updates) => {
     }
     if (updates.status !== undefined) updateData.status = updates.status;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('workers')
       .update(updateData)
-      .eq('id', workerId);
+      .eq('id', workerId)
+      .select('id')
+      .single();
 
     if (error) {
       console.error('Error updating worker:', error);
+      return false;
+    }
+
+    if (!data) {
+      console.error('Worker update: no rows affected (RLS may be blocking)');
       return false;
     }
 
