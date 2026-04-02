@@ -32,6 +32,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { fetchOwnerLocations, optimizeRoute, decodePolyline } from '../../utils/storage/routeOptimization';
 import { createRoute, addStop } from '../../utils/storage/serviceRoutes';
 import { geocodeAddress } from '../../utils/geocoding';
+import { supabase } from '../../lib/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -161,8 +162,38 @@ export default function MapRouteScreen({ route: navRoute }) {
     return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
   }, [searchQuery, availableLocations.length]);
 
-  const handleAddStop = useCallback((location) => {
-    setSelectedStops(prev => [...prev, { ...location, order: prev.length + 1 }]);
+  const handleAddStop = useCallback(async (location) => {
+    let savedLocation = location;
+
+    // If this is a new geocoded address, save it to the DB
+    if (location.isNew) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: newLoc } = await supabase
+            .from('service_locations')
+            .insert({
+              owner_id: user.id,
+              service_plan_id: null, // standalone location, not tied to a plan
+              name: location.name || location.address,
+              address: location.address,
+              latitude: location.latitude,
+              longitude: location.longitude,
+              formatted_address: location.address,
+            })
+            .select()
+            .single();
+          if (newLoc) {
+            savedLocation = { ...newLoc, isNew: false };
+            setSavedLocations(prev => [...prev, savedLocation]);
+          }
+        }
+      } catch (e) {
+        console.debug('[MapRoute] Save location error:', e.message);
+      }
+    }
+
+    setSelectedStops(prev => [...prev, { ...savedLocation, order: prev.length + 1 }]);
     setPolylineCoords([]);
     setRouteInfo(null);
     setSheetMode('stops');
@@ -357,25 +388,27 @@ export default function MapRouteScreen({ route: navRoute }) {
       </TouchableOpacity>
 
       {/* Action buttons */}
-      {selectedStops.length >= 2 && (
+      {selectedStops.length >= 1 && (
         <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[styles.optimizeBtn, { backgroundColor: Colors.primaryBlue }]}
-            onPress={handleOptimize}
-            disabled={optimizing}
-          >
-            {optimizing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="flash" size={18} color="#fff" />
-                <Text style={styles.optimizeBtnText}>Optimize Route</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {selectedStops.length >= 2 && (
+            <TouchableOpacity
+              style={[styles.optimizeBtn, { backgroundColor: Colors.primaryBlue }]}
+              onPress={handleOptimize}
+              disabled={optimizing}
+            >
+              {optimizing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="flash" size={18} color="#fff" />
+                  <Text style={styles.optimizeBtnText}>Optimize</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: Colors.successGreen }]}
+            style={[styles.saveBtn, { backgroundColor: Colors.successGreen, flex: selectedStops.length < 2 ? 1 : undefined }]}
             onPress={handleStartNavigation}
           >
             <Ionicons name="navigate" size={18} color="#fff" />
