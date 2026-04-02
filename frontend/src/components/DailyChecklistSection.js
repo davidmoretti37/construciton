@@ -623,10 +623,9 @@ export default function DailyChecklistSection({
                     {canCheck ? (
                       <TextInput
                         style={[styles.quantityInput, { color: Colors.primaryText, borderColor: Colors.border }]}
-                        value={quantity}
-                        onChangeText={v => handleUpdateQuantity(template, v)}
+                        defaultValue={quantity}
                         onEndEditing={e => handleUpdateQuantity(template, e.nativeEvent.text)}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={Colors.secondaryText + '60'}
                       />
