@@ -37,6 +37,7 @@ import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import DailyChecklistSection from './DailyChecklistSection';
+import EditProjectModal from './EditProjectModal';
 import { supabase } from '../lib/supabase';
 import { DEMO_PHASES } from '../screens/ProjectsScreen';
 
@@ -60,6 +61,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   // Main editing mode (controls all editing)
   const [isEditing, setIsEditing] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Contact info editing
   const [editAddress, setEditAddress] = useState('');
@@ -1036,18 +1038,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           {/* Hide edit button for demo projects */}
           {!isDemo && (
             <TouchableOpacity
-              onPress={() => {
-                if (isEditing) {
-                  handleSaveAllChanges();
-                } else {
-                  setIsEditing(true);
-                }
-              }}
+              onPress={() => setShowEditModal(true)}
               style={styles.editButton}
-              disabled={savingChanges}
             >
-              <View style={[styles.editIconContainer, { backgroundColor: isEditing ? '#10B981' : Colors.primaryBlue, opacity: savingChanges ? 0.6 : 1 }]}>
-                <Ionicons name={isEditing ? "checkmark" : "create-outline"} size={20} color={Colors.white} />
+              <View style={[styles.editIconContainer, { backgroundColor: Colors.primaryBlue }]}>
+                <Ionicons name="create-outline" size={20} color={Colors.white} />
               </View>
             </TouchableOpacity>
           )}
@@ -2385,6 +2380,17 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           </View>
         </View>
       </Modal>
+
+      {/* Edit Project Modal — all fields */}
+      <EditProjectModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        projectData={project}
+        onSave={() => {
+          setShowEditModal(false);
+          onRefreshNeeded?.();
+        }}
+      />
     </>
   );
 

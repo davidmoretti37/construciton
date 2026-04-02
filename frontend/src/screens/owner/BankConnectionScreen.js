@@ -57,6 +57,7 @@ export default function BankConnectionScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState({});
+  const [syncingAll, setSyncingAll] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [newAccountIds, setNewAccountIds] = useState([]);
@@ -190,6 +191,36 @@ export default function BankConnectionScreen() {
     } finally {
       setSyncing(prev => ({ ...prev, [accountId]: false }));
     }
+  };
+
+  const handleSyncAll = async () => {
+    const syncableAccounts = accounts.filter(a => !a.is_manual);
+    if (syncableAccounts.length === 0) {
+      Alert.alert('No Accounts', 'No connected bank accounts to sync.');
+      return;
+    }
+    setSyncingAll(true);
+    let totalAdded = 0;
+    let totalMatched = 0;
+    let errors = 0;
+    for (const account of syncableAccounts) {
+      try {
+        setSyncing(prev => ({ ...prev, [account.id]: true }));
+        const result = await syncAccount(account.id);
+        totalAdded += result.transactions_added || 0;
+        totalMatched += result.auto_matched || 0;
+      } catch (e) {
+        errors++;
+      } finally {
+        setSyncing(prev => ({ ...prev, [account.id]: false }));
+      }
+    }
+    setSyncingAll(false);
+    loadAccounts();
+    Alert.alert(
+      'Sync Complete',
+      `${syncableAccounts.length} accounts synced\n${totalAdded} new transactions\n${totalMatched} auto-matched${errors > 0 ? `\n${errors} errors` : ''}`
+    );
   };
 
   const handleDisconnect = (accountId, accountName) => {
@@ -358,6 +389,21 @@ export default function BankConnectionScreen() {
             )}
             <Text style={[styles.csvButtonText, { color: OWNER_COLORS.primary }]}>{t('bank.uploadCSV')}</Text>
           </TouchableOpacity>
+
+          {accounts.filter(a => !a.is_manual).length > 0 && (
+            <TouchableOpacity
+              style={[styles.csvButton, { backgroundColor: Colors.cardBackground, borderColor: '#10B981' }]}
+              onPress={handleSyncAll}
+              disabled={syncingAll}
+            >
+              {syncingAll ? (
+                <ActivityIndicator color="#10B981" size="small" />
+              ) : (
+                <Ionicons name="refresh" size={22} color="#10B981" />
+              )}
+              <Text style={[styles.csvButtonText, { color: '#10B981' }]}>Refresh All Accounts</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Connected Accounts — Wallet-style Cards */}
