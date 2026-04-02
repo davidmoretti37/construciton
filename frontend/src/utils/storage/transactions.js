@@ -17,7 +17,8 @@ export const addProjectTransaction = async (transaction) => {
     const { data, error } = await supabase
       .from('project_transactions')
       .insert({
-        project_id: transaction.project_id,
+        project_id: transaction.project_id || null,
+        service_plan_id: transaction.service_plan_id || null,
         type: transaction.type,
         category: transaction.category,
         subcategory: transaction.subcategory || null,
