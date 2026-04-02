@@ -491,7 +491,7 @@ export default function ServicePlanDetailScreen({ route }) {
             </TouchableOpacity>
           </View>
           {reports.length > 0 ? reports.map(r => (
-            <View key={r.id} style={[styles.reportRow, { borderColor: Colors.border }]}>
+            <TouchableOpacity key={r.id} style={[styles.reportRow, { borderColor: Colors.border }]} onPress={() => navigation.navigate('DailyReportDetail', { report: r })} activeOpacity={0.7}>
               <Text style={[styles.reportDate, { color: Colors.primaryText }]}>
                 {new Date(r.report_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </Text>
@@ -513,7 +513,8 @@ export default function ServicePlanDetailScreen({ route }) {
                   {Array.isArray(r.work_performed) ? r.work_performed.map(w => w.description || w).join(', ') : (r.work_performed || r.tags?.[0] || '')}
                 </Text>
               )}
-            </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ position: 'absolute', right: 12, top: 14 }} />
+            </TouchableOpacity>
           )) : (
             <View style={styles.emptySection}>
               <Ionicons name="document-outline" size={36} color={Colors.secondaryText + '40'} />
