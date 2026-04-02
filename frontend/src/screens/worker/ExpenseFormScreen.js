@@ -107,12 +107,20 @@ export default function ExpenseFormScreen({ navigation }) {
         console.log('📊 Supervisor ID:', currentUserId);
         setAssignedProjects(projects || []);
       } else {
-        // Owner: get all their projects
+        // Owner: get all their projects + service plans
         const projects = await fetchProjects();
-        const activeProjects = (projects || []).filter(p =>
-          p.status === 'active' || p.status === 'scheduled'
-        );
-        setAssignedProjects(activeProjects);
+
+        const { data: plans } = await supabase
+          .from('service_plans')
+          .select('id, name, service_type, status, owner_id')
+          .eq('status', 'active')
+          .order('name', { ascending: true });
+
+        const allItems = [
+          ...(projects || []),
+          ...(plans || []).map(p => ({ ...p, isServicePlan: true })),
+        ];
+        setAssignedProjects(allItems);
       }
     } catch (error) {
       console.error('Error loading projects:', error);
