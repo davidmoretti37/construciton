@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { updateWorker, deleteWorker } from '../utils/storage';
+import { supabase } from '../lib/supabase';
 
 export default function EditWorkerPaymentScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -102,6 +103,56 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               Alert.alert('Error', 'Something went wrong.');
             } finally {
               setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handlePromoteToSupervisor = () => {
+    Alert.alert(
+      'Promote to Supervisor',
+      `This will give ${fullName} supervisor access. They'll be able to manage workers, view projects, and track crew operations.\n\nThis action cannot be easily undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Promote',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              // Update the worker's profile role to supervisor
+              if (worker.user_id) {
+                const { error: profileError } = await supabase
+                  .from('profiles')
+                  .update({ role: 'supervisor' })
+                  .eq('id', worker.user_id);
+
+                if (profileError) {
+                  // Profile might not exist — try upsert
+                  const { error: upsertError } = await supabase
+                    .from('profiles')
+                    .upsert({
+                      id: worker.user_id,
+                      role: 'supervisor',
+                      owner_id: worker.owner_id,
+                      full_name: fullName,
+                      email: email,
+                    });
+                  if (upsertError) throw upsertError;
+                }
+
+                Alert.alert('Promoted', `${fullName} is now a supervisor. They'll see the supervisor view next time they open the app.`, [
+                  { text: 'OK', onPress: () => navigation.goBack() }
+                ]);
+              } else {
+                Alert.alert('Error', 'This worker doesn\'t have a linked account yet. They need to accept their invite first.');
+              }
+            } catch (e) {
+              console.error('Promote error:', e);
+              Alert.alert('Error', 'Failed to promote worker.');
+            } finally {
+              setSaving(false);
             }
           },
         },
@@ -276,6 +327,25 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               />
               <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{rateSuffix}</Text>
             </View>
+          </View>
+
+          {/* Promote to Supervisor */}
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="shield-checkmark-outline" size={20} color="#8B5CF6" />
+              <Text style={[styles.sectionTitle, { color: '#8B5CF6' }]}>Role Management</Text>
+            </View>
+            <Text style={[styles.deleteDescription, { color: Colors.secondaryText }]}>
+              Promote this worker to supervisor. They'll be able to manage workers, view all projects, and oversee operations.
+            </Text>
+            <TouchableOpacity
+              style={[styles.deleteButton, { backgroundColor: '#8B5CF6' }]}
+              onPress={handlePromoteToSupervisor}
+              disabled={saving}
+            >
+              <Ionicons name="arrow-up-circle-outline" size={18} color="#FFF" />
+              <Text style={styles.deleteButtonText}>Promote to Supervisor</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Delete Worker */}

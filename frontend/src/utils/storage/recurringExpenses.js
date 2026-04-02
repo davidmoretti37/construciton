@@ -135,6 +135,8 @@ export const processOverdueRecurring = async () => {
         const nextDate = new Date(item.next_due_date + 'T12:00:00');
         if (item.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
         else if (item.frequency === 'biweekly') nextDate.setDate(nextDate.getDate() + 14);
+        else if (item.frequency === 'quarterly') nextDate.setMonth(nextDate.getMonth() + 3);
+        else if (item.frequency === 'annually') nextDate.setFullYear(nextDate.getFullYear() + 1);
         else nextDate.setMonth(nextDate.getMonth() + 1);
 
         await supabase
