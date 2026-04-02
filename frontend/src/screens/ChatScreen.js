@@ -1115,11 +1115,20 @@ export default function ChatScreen({ navigation, route }) {
             return updated;
           });
 
-          // Force a secondary re-render after a tick — ensures React picks up the visual elements
-          // This handles cases where React batches the setMessages update with other state changes
+          // Force a secondary re-render — ensures React picks up the visual elements
+          // Creates new object reference for the target message so React detects the change
           setTimeout(() => {
-            setMessages((prev) => [...prev]);
-          }, 100);
+            setMessages((prev) => prev.map(m =>
+              m.id === targetId ? { ...m, _renderKey: Date.now() } : m
+            ));
+          }, 150);
+
+          // Third attempt with longer delay as safety net
+          setTimeout(() => {
+            setMessages((prev) => prev.map(m =>
+              m.id === targetId ? { ...m, _renderKey: Date.now() } : m
+            ));
+          }, 500);
 
           // Show loading state if creating estimate (Part 1 of estimate fix)
           const hasEstimatePreview = parsedResponse.visualElements?.some(v => v.type === 'estimate-preview');
