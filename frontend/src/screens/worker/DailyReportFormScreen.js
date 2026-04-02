@@ -505,14 +505,32 @@ export default function DailyReportFormScreen({ navigation, route }) {
               await supabase.from('daily_report_entries').insert(allEntries);
             }
 
-            // Update report timestamp
+            // Delete the daily_service_reports row after capturing data
+            // This resets the checklist on the detail screen for the next round
             await supabase.from('daily_service_reports')
-              .update({ updated_at: new Date().toISOString() })
+              .delete()
               .eq('id', reportId);
           }
         } catch (e) {
           console.warn('Failed to save daily checklist/labor entries:', e);
         }
+      } else {
+        // No checklist data but still need to clear any existing checklist state
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+        const today = new Date().toISOString().split('T')[0];
+        const isSelectedPlan = isServicePlanMode || selectedProject?.isServicePlan;
+        const parentId = isServicePlanMode ? routeServicePlanId : selectedProject?.id;
+
+        let deleteQuery = supabase
+          .from('daily_service_reports')
+          .delete()
+          .eq('reporter_id', userId)
+          .eq('report_date', today);
+
+        if (isSelectedPlan) deleteQuery = deleteQuery.eq('service_plan_id', parentId);
+        else deleteQuery = deleteQuery.eq('project_id', parentId);
+
+        await deleteQuery;
       }
 
       Alert.alert('Success', 'Daily report submitted', [{ text: 'OK', onPress: () => navigation.goBack() }]);
