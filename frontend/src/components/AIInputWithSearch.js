@@ -635,7 +635,7 @@ const AIInputWithSearch = ({
                 value={value}
                 onChangeText={setValue}
                 multiline
-                maxLength={2000}
+                maxLength={2500}
                 onSubmitEditing={handleSubmit}
                 blurOnSubmit={false}
               />
