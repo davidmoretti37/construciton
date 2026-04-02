@@ -255,7 +255,8 @@ export default function ExpenseFormScreen({ navigation }) {
       } else {
         // Owner or Supervisor: use addProjectTransaction
         await addProjectTransaction({
-          project_id: selectedProject.id,
+          project_id: selectedProject.isServicePlan ? null : selectedProject.id,
+          service_plan_id: selectedProject.isServicePlan ? selectedProject.id : null,
           type: 'expense',
           amount: parseFloat(amount),
           description: description.trim(),
