@@ -509,7 +509,9 @@ export default function ServicePlanDetailScreen({ route }) {
                 )}
               </View>
               {(r.work_performed || r.tags?.[0]) && (
-                <Text style={[styles.reportWork, { color: Colors.secondaryText }]} numberOfLines={2}>{r.work_performed || r.tags?.[0]}</Text>
+                <Text style={[styles.reportWork, { color: Colors.secondaryText }]} numberOfLines={2}>
+                  {Array.isArray(r.work_performed) ? r.work_performed.map(w => w.description || w).join(', ') : (r.work_performed || r.tags?.[0] || '')}
+                </Text>
               )}
             </View>
           )) : (
