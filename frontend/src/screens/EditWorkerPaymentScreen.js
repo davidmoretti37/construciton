@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,17 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
   const [weeklySalary, setWeeklySalary] = useState(worker.weekly_salary?.toString() || '');
   const [projectRate, setProjectRate] = useState(worker.project_rate?.toString() || '');
   const [saving, setSaving] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    // Check if current user is the owner (not supervisor)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        // If auth uid matches the worker's owner_id, they're the owner
+        setIsOwner(user.id === worker.owner_id);
+      }
+    });
+  }, []);
   const [deleting, setDeleting] = useState(false);
 
   const handleSave = async () => {
@@ -274,7 +285,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* Payment Type Selection */}
+          {/* Payment Type Selection — Owner only */}
+          {isOwner && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="wallet-outline" size={20} color={Colors.primaryBlue} />
@@ -328,8 +340,10 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{rateSuffix}</Text>
             </View>
           </View>
+          )}
 
-          {/* Promote to Supervisor */}
+          {/* Promote to Supervisor — Owner only */}
+          {isOwner && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="shield-checkmark-outline" size={20} color="#8B5CF6" />
@@ -347,8 +361,10 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               <Text style={styles.deleteButtonText}>Promote to Supervisor</Text>
             </TouchableOpacity>
           </View>
+          )}
 
-          {/* Delete Worker */}
+          {/* Delete Worker — Owner only */}
+          {isOwner && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="warning-outline" size={20} color="#EF4444" />
@@ -372,6 +388,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               )}
             </TouchableOpacity>
           </View>
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
