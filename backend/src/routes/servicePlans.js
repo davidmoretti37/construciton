@@ -227,7 +227,7 @@ router.get('/:id/detail', async (req, res) => {
       // 9. Daily reports
       supabase
         .from('daily_reports')
-        .select('id, report_date, reporter_type, owner_id, worker_id, photos, tags, work_performed, workers(full_name), profiles:owner_id(business_name)')
+        .select('id, report_date, reporter_type, owner_id, worker_id, photos, tags, work_performed, workers(full_name)')
         .eq('service_plan_id', id)
         .order('report_date', { ascending: false })
         .limit(5),
