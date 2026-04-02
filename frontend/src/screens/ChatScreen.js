@@ -25,6 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { geocodeAddress } from '../utils/geocoding';
+import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import AIInputWithSearch from '../components/AIInputWithSearch';
 import AnimatedText from '../components/AnimatedText';
 import LinkifiedText from '../components/LinkifiedText';
@@ -2148,61 +2149,21 @@ export default function ChatScreen({ navigation, route }) {
             logger.info(`[Chat] Created ${roles.length} labor roles for plan ${plan.id}`);
           }
 
-          // 7. Auto-generate visits for the next 4 weeks based on schedule
-          if (planData.schedule_frequency && planData.scheduled_days?.length > 0) {
-            try {
-              const DAY_MAP = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
-              const scheduledDayNums = (planData.scheduled_days || []).map(d => {
-                if (typeof d === 'number') return d;
-                return DAY_MAP[String(d).toLowerCase()] ?? -1;
-              }).filter(d => d >= 0);
-
-              // Get all created locations for this plan
-              const { data: planLocations } = await supabase
-                .from('service_locations')
-                .select('id')
-                .eq('service_plan_id', plan.id)
-                .eq('is_active', true);
-
-              const visits = [];
-              const today = new Date();
-              const weeksAhead = planData.schedule_frequency === 'biweekly' ? 8 : 4;
-
-              for (let dayOffset = 0; dayOffset < weeksAhead * 7; dayOffset++) {
-                const date = new Date(today);
-                date.setDate(date.getDate() + dayOffset);
-                const dayOfWeek = date.getDay();
-
-                if (!scheduledDayNums.includes(dayOfWeek)) continue;
-
-                // For biweekly, skip every other week
-                if (planData.schedule_frequency === 'biweekly') {
-                  const weekNum = Math.floor(dayOffset / 7);
-                  if (weekNum % 2 !== 0) continue;
-                }
-
-                const dateStr = date.toISOString().split('T')[0];
-
-                for (const loc of (planLocations || [])) {
-                  visits.push({
-                    service_plan_id: plan.id,
-                    service_location_id: loc.id,
-                    owner_id: userId,
-                    scheduled_date: dateStr,
-                    scheduled_time: planData.preferred_time || null,
-                    status: 'scheduled',
-                    billable: true,
-                  });
-                }
-              }
-
-              if (visits.length > 0) {
-                await supabase.from('service_visits').insert(visits);
-                logger.info(`[Chat] Generated ${visits.length} visits for next ${weeksAhead} weeks`);
-              }
-            } catch (e) {
-              logger.error('[Chat] Visit generation error (non-blocking):', e.message);
-            }
+          // 7. Auto-generate visits via backend (8 weeks ahead)
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const backendUrl = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+            await fetch(`${backendUrl}/api/service-visits/generate/${plan.id}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session?.access_token}`,
+              },
+              body: JSON.stringify({ weeksAhead: 8 }),
+            });
+            logger.info(`[Chat] Triggered visit generation for plan ${plan.id}`);
+          } catch (e) {
+            logger.error('[Chat] Visit generation error (non-blocking):', e.message);
           }
 
           logger.info(`[Chat] Saved service plan: ${plan.name} (${plan.id})`);

@@ -222,6 +222,21 @@ export default function WorkerScheduleScreen({ navigation }) {
         completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
         started_at: newStatus === 'completed' && !visit.started_at ? new Date().toISOString() : visit.started_at,
       }).eq('id', visit.id);
+
+      // Trigger rolling visit regeneration if completed
+      if (newStatus === 'completed' && visit.service_plans?.name) {
+        const visitId = visit.id.replace('visit-', '');
+        const { data: v } = await supabase.from('service_visits').select('service_plan_id').eq('id', visitId).single();
+        if (v?.service_plan_id) {
+          const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
+          const { data: { session } } = await supabase.auth.getSession();
+          fetch(`${EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000'}/api/service-visits/generate/${v.service_plan_id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+            body: JSON.stringify({ weeksAhead: 8 }),
+          }).catch(() => {});
+        }
+      }
     } catch (e) {
       setDayVisits(prev => prev.map(v => v.id === visit.id ? { ...v, status: visit.status } : v));
     }

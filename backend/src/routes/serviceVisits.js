@@ -485,6 +485,14 @@ router.patch('/:id', async (req, res) => {
     if (!data) return res.status(404).json({ error: 'Visit not found' });
 
     res.json(data);
+
+    // Trigger rolling regeneration if status changed to completed
+    if (updates.status === 'completed' && data.service_plan_id) {
+      const { checkAndRegenerateVisits } = require('../services/visitGenerator');
+      checkAndRegenerateVisits(data.service_plan_id).catch(e =>
+        logger.error('[ServiceVisits] Background regeneration error:', e.message)
+      );
+    }
   } catch (error) {
     logger.error('[ServiceVisits] Update error:', error.message);
     res.status(500).json({ error: 'Failed to update visit' });
@@ -772,6 +780,14 @@ router.post('/:id/complete', async (req, res) => {
 
     logger.info(`[ServiceVisits] Completed visit ${id} (${durationMinutes || '?'} min)`);
     res.json(data);
+
+    // Trigger rolling visit regeneration in the background (non-blocking)
+    if (data.service_plan_id) {
+      const { checkAndRegenerateVisits } = require('../services/visitGenerator');
+      checkAndRegenerateVisits(data.service_plan_id).catch(e =>
+        logger.error('[ServiceVisits] Background regeneration error:', e.message)
+      );
+    }
   } catch (error) {
     logger.error('[ServiceVisits] Complete error:', error.message);
     res.status(500).json({ error: 'Failed to complete visit' });
@@ -915,6 +931,49 @@ router.patch('/:id/checklist/:itemId', async (req, res) => {
   } catch (error) {
     logger.error('[ServiceVisits] Update checklist error:', error.message);
     res.status(500).json({ error: 'Failed to update checklist item' });
+  }
+});
+
+// ============================================================
+// VISIT GENERATION
+// ============================================================
+
+// POST /generate/:planId — Generate visits for a service plan
+router.post('/generate/:planId', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { planId } = req.params;
+    const { weeksAhead = 8 } = req.body;
+
+    // Verify plan ownership
+    const { data: plan } = await supabase
+      .from('service_plans')
+      .select('id')
+      .eq('id', planId)
+      .eq('owner_id', ownerId)
+      .single();
+
+    if (!plan) return res.status(404).json({ error: 'Service plan not found' });
+
+    const { generateVisitsForPlan } = require('../services/visitGenerator');
+    const result = await generateVisitsForPlan(planId, { weeksAhead });
+
+    res.json(result);
+  } catch (error) {
+    logger.error('[ServiceVisits] Generate error:', error.message);
+    res.status(500).json({ error: 'Failed to generate visits' });
+  }
+});
+
+// POST /regenerate-all — Regenerate visits for all active plans (admin/owner)
+router.post('/regenerate-all', async (req, res) => {
+  try {
+    const { regenerateAllPlans } = require('../services/visitGenerator');
+    const result = await regenerateAllPlans();
+    res.json(result);
+  } catch (error) {
+    logger.error('[ServiceVisits] Regenerate all error:', error.message);
+    res.status(500).json({ error: 'Failed to regenerate visits' });
   }
 });
 
