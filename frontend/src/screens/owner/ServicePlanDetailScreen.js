@@ -458,7 +458,12 @@ export default function ServicePlanDetailScreen({ route }) {
             </View>
           </View>
           {plan?.workers?.length > 0 ? plan.workers.map(w => (
-            <View key={w.id} style={[styles.workerCard, { backgroundColor: Colors.background }]}>
+            <TouchableOpacity
+              key={w.id}
+              style={[styles.workerCard, { backgroundColor: Colors.background }]}
+              onPress={() => navigation.navigate('WorkerDetailHistory', { worker: w })}
+              activeOpacity={0.7}
+            >
               <View style={[styles.workerAvatar, { backgroundColor: statusColor + '20' }]}>
                 <Text style={[styles.workerInitial, { color: statusColor }]}>{getInitials(w.full_name)}</Text>
               </View>
@@ -467,7 +472,7 @@ export default function ServicePlanDetailScreen({ route }) {
                 {w.trade && <Text style={[styles.workerTrade, { color: Colors.secondaryText }]}>{w.trade}</Text>}
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-            </View>
+            </TouchableOpacity>
           )) : (
             <View style={styles.emptySection}>
               <Ionicons name="people-outline" size={40} color={Colors.secondaryText + '40'} />

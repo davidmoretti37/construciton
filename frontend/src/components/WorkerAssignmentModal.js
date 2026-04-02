@@ -119,7 +119,7 @@ export default function WorkerAssignmentModal({
         onAssignmentsChange();
       }
 
-      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully'));
+      Alert.alert(t('alerts.success'), t('messages.updatedSuccessfully', { item: 'Assignment' }));
       onClose();
     } catch (error) {
       console.error('Error saving assignments:', error);
