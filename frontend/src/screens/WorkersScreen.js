@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import {
   View,
   Text,
@@ -654,7 +655,6 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
         // Trigger rolling visit regeneration if completed
         if (newStatus === 'completed' && updatedVisit?.service_plan_id) {
-          const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
           const { data: { session } } = await supabase.auth.getSession();
           fetch(`${EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000'}/api/service-visits/generate/${updatedVisit.service_plan_id}`, {
             method: 'POST',

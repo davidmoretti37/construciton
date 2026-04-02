@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import {
   View,
   Text,
@@ -228,9 +229,9 @@ export default function WorkerScheduleScreen({ navigation }) {
         const visitId = visit.id.replace('visit-', '');
         const { data: v } = await supabase.from('service_visits').select('service_plan_id').eq('id', visitId).single();
         if (v?.service_plan_id) {
-          const { EXPO_PUBLIC_BACKEND_URL } = require('@env');
+          const backendUrl = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
           const { data: { session } } = await supabase.auth.getSession();
-          fetch(`${EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000'}/api/service-visits/generate/${v.service_plan_id}`, {
+          fetch(`${backendUrl}/api/service-visits/generate/${v.service_plan_id}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
             body: JSON.stringify({ weeksAhead: 8 }),
