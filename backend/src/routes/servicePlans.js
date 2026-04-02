@@ -317,7 +317,7 @@ router.get('/:id/detail', async (req, res) => {
     // Get formally assigned workers
     const { data: assignments } = await supabase
       .from('project_assignments')
-      .select('worker_id, workers:worker_id(id, full_name, trade)')
+      .select('worker_id, workers:worker_id(id, full_name, trade, phone, email, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate, status)')
       .eq('service_plan_id', id);
     (assignments || []).forEach(a => {
       if (a.workers) workerSet[a.worker_id] = a.workers;
