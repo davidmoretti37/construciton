@@ -491,7 +491,7 @@ export default function ServicePlanDetailScreen({ route }) {
             </TouchableOpacity>
           </View>
           {reports.length > 0 ? reports.map(r => (
-            <TouchableOpacity key={r.id} style={[styles.reportRow, { borderColor: Colors.border }]} onPress={() => navigation.navigate('DailyReportDetail', { report: r })} activeOpacity={0.7}>
+            <TouchableOpacity key={r.id} style={[styles.reportRow, { borderColor: Colors.border }]} onPress={() => navigation.navigate('DailyReportDetail', { report: { ...r, _planName: plan?.name } })} activeOpacity={0.7}>
               <Text style={[styles.reportDate, { color: Colors.primaryText }]}>
                 {new Date(r.report_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </Text>

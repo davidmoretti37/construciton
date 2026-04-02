@@ -80,10 +80,10 @@ export default function DailyChecklistSection({
       if (projectId) rQuery = rQuery.eq('project_id', projectId);
       else rQuery = rQuery.eq('service_plan_id', servicePlanId);
 
-      // 3. Fetch today's report for current user
+      // 3. Fetch today's report for current user (exclude submitted ones)
       let reportQuery = supabase
         .from('daily_service_reports')
-        .select('id')
+        .select('id, notes')
         .eq('reporter_id', userId)
         .eq('report_date', today);
       if (projectId) reportQuery = reportQuery.eq('project_id', projectId);
@@ -109,8 +109,9 @@ export default function DailyChecklistSection({
       setTemplates([...dailyTemplates, ...visitTaskTemplates]);
       setLaborRoles(rResult.data || []);
 
-      // 4. If report exists, load entries
-      if (reportResult.data?.id) {
+      // 4. If report exists and is NOT submitted, load entries
+      const isSubmitted = reportResult.data?.notes === 'submitted';
+      if (reportResult.data?.id && !isSubmitted) {
         setReportId(reportResult.data.id);
         const { data: entryData } = await supabase
           .from('daily_report_entries')

@@ -166,7 +166,7 @@ export default function DailyReportDetailScreen({ navigation, route }) {
           <Text style={[styles.reportDate, { color: Colors.primaryText }]}>{formatDate(report.report_date)}</Text>
           <View style={styles.infoRow}>
             <Ionicons name="briefcase-outline" size={16} color={Colors.secondaryText} />
-            <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{report.projects?.name || 'Unknown Project'}</Text>
+            <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{report.projects?.name || report._planName || (report.service_plan_id ? 'Service Plan' : 'Unknown Project')}</Text>
           </View>
           {report.workers?.full_name && (
             <View style={styles.infoRow}>
