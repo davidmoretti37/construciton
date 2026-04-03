@@ -18,19 +18,30 @@ const createRateLimitHandler = (limitType) => (req, res) => {
 };
 
 /**
- * AI Endpoints Rate Limiter (Strict)
+ * AI Endpoints Rate Limiter (Strict + Per-User)
  * For: /api/chat, /api/chat/stream, /api/chat/vision
  * These are expensive API calls - prevent cost abuse
+ * Uses auth token to rate-limit per user, falls back to IP
  */
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
-  max: 20, // 20 requests per minute
-  standardHeaders: true, // Return rate limit info in headers
-  legacyHeaders: false, // Disable X-RateLimit-* headers
+  max: 20, // 20 requests per minute per user
+  standardHeaders: true,
+  legacyHeaders: false,
   handler: createRateLimitHandler('ai'),
   message: 'Too many AI requests',
-  skipFailedRequests: false
-  // Use default keyGenerator (handles IPv6 properly)
+  skipFailedRequests: false,
+  keyGenerator: (req) => {
+    // Extract user ID from Bearer token (JWT payload) for per-user limiting
+    const auth = req.headers.authorization;
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64').toString());
+        if (payload.sub) return `user:${payload.sub}`;
+      } catch (_) {}
+    }
+    return req.ip;
+  },
 });
 
 /**

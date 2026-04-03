@@ -40,8 +40,22 @@ const { aiLimiter, servicesLimiter, chatHistoryLimiter } = require('./middleware
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Safe JSON parse — returns fallback on malformed data instead of crashing
+function safeJsonParse(value, fallback = []) {
+  if (typeof value !== 'string') return value || fallback;
+  try { return JSON.parse(value); } catch (_) { return fallback; }
+}
+
 // Trust proxy for Railway/cloud deployments (fixes rate limiter X-Forwarded-For error)
 app.set('trust proxy', 1);
+
+// Request ID middleware — attach unique ID for tracing across logs
+app.use((req, res, next) => {
+  const id = req.headers['x-request-id'] || `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+  req.requestId = id;
+  res.setHeader('X-Request-Id', id);
+  next();
+});
 
 // Middleware
 app.use(cors());
@@ -691,10 +705,8 @@ app.get('/api/chat/agent-latest', authenticateUser, async (req, res) => {
       jobId: job.id,
       status: job.status,
       accumulatedText: job.accumulated_text || '',
-      visualElements: typeof job.visual_elements === 'string'
-        ? JSON.parse(job.visual_elements) : (job.visual_elements || []),
-      actions: typeof job.actions === 'string'
-        ? JSON.parse(job.actions) : (job.actions || []),
+      visualElements: safeJsonParse(job.visual_elements, []),
+      actions: safeJsonParse(job.actions, []),
       error: job.error_message,
       createdAt: job.created_at,
       completedAt: job.completed_at,
@@ -722,10 +734,8 @@ app.get('/api/chat/agent/:jobId', authenticateUser, async (req, res) => {
     jobId: job.id,
     status: job.status,
     accumulatedText: job.accumulated_text || '',
-    visualElements: typeof job.visual_elements === 'string'
-      ? JSON.parse(job.visual_elements) : (job.visual_elements || []),
-    actions: typeof job.actions === 'string'
-      ? JSON.parse(job.actions) : (job.actions || []),
+    visualElements: safeJsonParse(job.visual_elements, []),
+    actions: safeJsonParse(job.actions, []),
     error: job.error_message,
     createdAt: job.created_at,
     completedAt: job.completed_at,

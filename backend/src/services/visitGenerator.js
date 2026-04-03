@@ -54,7 +54,7 @@ async function generateVisitsForPlan(planId, options = {}) {
     // Get locations with active schedules
     const { data: locations } = await supabase
       .from('service_locations')
-      .select('id')
+      .select('id, default_worker_id')
       .eq('service_plan_id', planId)
       .eq('is_active', true);
 
@@ -63,6 +63,7 @@ async function generateVisitsForPlan(planId, options = {}) {
     }
 
     const locIds = locations.map(l => l.id);
+    const locationWorkers = Object.fromEntries(locations.map(l => [l.id, l.default_worker_id || null]));
 
     // Get schedules for all locations
     const { data: schedules } = await supabase
@@ -142,6 +143,7 @@ async function generateVisitsForPlan(planId, options = {}) {
           service_plan_id: planId,
           service_location_id: sched.service_location_id,
           owner_id: plan.owner_id,
+          assigned_worker_id: locationWorkers[sched.service_location_id] || null,
           scheduled_date: dateStr,
           scheduled_time: sched.preferred_time || null,
           status: 'scheduled',

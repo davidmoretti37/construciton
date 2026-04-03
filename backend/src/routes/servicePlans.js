@@ -131,20 +131,53 @@ router.post('/', async (req, res) => {
 // GET /:id/detail — Enriched detail with client, locations, checklists, visits, workers, financials
 router.get('/:id/detail', async (req, res) => {
   try {
-    const ownerId = req.user.id;
+    const userId = req.user.id;
     const { id } = req.params;
+    console.log(`[ServicePlan Detail] userId=${userId}, planId=${id}`);
 
-    // 1. Plan info
-    const { data: plan, error } = await supabase
+    // 1. Plan info — allow owner, assigned supervisor, or assigned worker
+    let plan;
+    const { data: directPlan } = await supabase
       .from('service_plans')
       .select('*')
       .eq('id', id)
-      .or(`owner_id.eq.${ownerId},assigned_supervisor_id.eq.${ownerId}`)
+      .or(`owner_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .single();
 
-    if (error || !plan) {
+    if (directPlan) {
+      console.log(`[ServicePlan Detail] Direct access granted (owner/supervisor)`);
+      plan = directPlan;
+    } else {
+      console.log(`[ServicePlan Detail] Direct access denied, checking worker assignment...`);
+      // Check if user is a worker assigned to this plan
+      const { data: workerRecord } = await supabase
+        .from('workers')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      if (workerRecord) {
+        const { data: assignment } = await supabase
+          .from('project_assignments')
+          .select('id')
+          .eq('worker_id', workerRecord.id)
+          .eq('service_plan_id', id)
+          .single();
+        if (assignment) {
+          const { data: workerPlan } = await supabase
+            .from('service_plans')
+            .select('*')
+            .eq('id', id)
+            .single();
+          plan = workerPlan;
+        }
+      }
+    }
+
+    if (!plan) {
+      console.log(`[ServicePlan Detail] Plan NOT found for userId=${userId}, planId=${id}`);
       return res.status(404).json({ error: 'Service plan not found' });
     }
+    console.log(`[ServicePlan Detail] Plan loaded: ${plan.name}`);
 
     // Run all secondary queries in parallel
     const today = new Date().toISOString().split('T')[0];

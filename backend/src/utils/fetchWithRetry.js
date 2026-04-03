@@ -8,6 +8,39 @@ const logger = require('./logger');
 const DEFAULT_RETRY_STATUS_CODES = [500, 502, 503, 504, 429];
 
 /**
+ * Simple circuit breaker — tracks failures per service name.
+ * After 5 consecutive failures, rejects immediately for 30s (cool-down).
+ */
+const circuits = {};
+const FAILURE_THRESHOLD = 5;
+const COOLDOWN_MS = 30 * 1000;
+
+function checkCircuit(name) {
+  const c = circuits[name];
+  if (!c) return true; // no state = closed = OK
+  if (c.failures < FAILURE_THRESHOLD) return true;
+  // Circuit open — check if cooldown expired
+  if (Date.now() - c.openedAt > COOLDOWN_MS) {
+    c.failures = 0; // half-open: allow one attempt
+    return true;
+  }
+  return false; // still open
+}
+
+function recordSuccess(name) {
+  if (circuits[name]) circuits[name].failures = 0;
+}
+
+function recordFailure(name) {
+  if (!circuits[name]) circuits[name] = { failures: 0, openedAt: 0 };
+  circuits[name].failures++;
+  if (circuits[name].failures >= FAILURE_THRESHOLD) {
+    circuits[name].openedAt = Date.now();
+    logger.warn(`⚡ [CircuitBreaker] ${name} circuit OPEN after ${FAILURE_THRESHOLD} failures — cooling down ${COOLDOWN_MS / 1000}s`);
+  }
+}
+
+/**
  * Delay helper with exponential backoff
  */
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -35,6 +68,13 @@ async function fetchWithRetry(url, options = {}, config = {}) {
     retryOnNetworkError = true,
     name = 'API'
   } = config;
+
+  // Check circuit breaker before attempting
+  if (!checkCircuit(name)) {
+    const err = new Error(`${name} circuit is open — service unavailable, try again later`);
+    err.code = 'ECIRCUIT_OPEN';
+    throw err;
+  }
 
   let lastError;
   let attempt = 0;
@@ -66,6 +106,8 @@ async function fetchWithRetry(url, options = {}, config = {}) {
       }
 
       // Success or non-retryable error
+      if (response.ok) recordSuccess(name);
+      else recordFailure(name);
       return response;
 
     } catch (error) {
@@ -101,7 +143,8 @@ async function fetchWithRetry(url, options = {}, config = {}) {
     }
   }
 
-  // Should not reach here, but just in case
+  // All retries exhausted
+  recordFailure(name);
   throw lastError || new Error(`Failed to fetch from ${name} after ${retries} retries`);
 }
 
