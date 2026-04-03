@@ -292,7 +292,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           {/* Modal Header */}
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setShowEstimateModal(false)}>
+            <TouchableOpacity onPress={() => setShowEstimateModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} style={{ padding: 4 }}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('list.estimateDetails')}</Text>
@@ -300,7 +300,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
           </View>
 
           {/* Estimate Preview */}
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
             {selectedEstimate && (
               <EstimatePreview
                 data={{

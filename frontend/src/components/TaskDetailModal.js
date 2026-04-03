@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,16 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 
 export default function TaskDetailModal({
   visible,
@@ -19,6 +23,7 @@ export default function TaskDetailModal({
   onClose,
   onToggleComplete,
   canComplete = false,
+  onDatesUpdated,
 }) {
   const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
@@ -28,6 +33,52 @@ export default function TaskDetailModal({
 
   const isCompleted = task.status === 'completed';
   const isIncomplete = task.status === 'incomplete';
+  const [editingDate, setEditingDate] = useState(null); // 'start' | 'end' | null
+  const [tempDate, setTempDate] = useState(new Date());
+  const [saving, setSaving] = useState(false);
+
+  const handleDatePress = (which) => {
+    const current = which === 'start' ? task.start_date : task.end_date;
+    setTempDate(current ? new Date(current + 'T12:00:00') : new Date());
+    setEditingDate(which);
+  };
+
+  const handleDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') setEditingDate(null);
+    if (event.type === 'dismissed') { setEditingDate(null); return; }
+    if (selectedDate) setTempDate(selectedDate);
+  };
+
+  const handleDateConfirm = async () => {
+    const dateStr = tempDate.toISOString().split('T')[0];
+    const field = editingDate === 'start' ? 'start_date' : 'end_date';
+
+    // Validate: start can't be after end
+    if (editingDate === 'start' && task.end_date && dateStr > task.end_date) {
+      Alert.alert('Invalid', 'Start date cannot be after end date.');
+      setEditingDate(null);
+      return;
+    }
+    if (editingDate === 'end' && task.start_date && dateStr < task.start_date) {
+      Alert.alert('Invalid', 'End date cannot be before start date.');
+      setEditingDate(null);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const taskId = task.id?.startsWith?.('visit-') ? null : task.id;
+      if (taskId) {
+        await supabase.from('worker_tasks').update({ [field]: dateStr }).eq('id', taskId);
+      }
+      if (onDatesUpdated) onDatesUpdated();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update date.');
+    } finally {
+      setSaving(false);
+      setEditingDate(null);
+    }
+  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return null;
@@ -106,23 +157,54 @@ export default function TaskDetailModal({
             </View>
           ) : null}
 
-          {/* Dates */}
+          {/* Dates — tappable to edit */}
           <View style={[styles.section, { backgroundColor: Colors.cardBackground || Colors.white, borderColor: Colors.border }]}>
             <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
               {t('labels.dates', 'Dates')}
             </Text>
-            {task.start_date && (
-              <View style={styles.dateRow}>
-                <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
+            <View style={{ gap: 8 }}>
+              <TouchableOpacity style={styles.dateRow} onPress={() => handleDatePress('start')}>
+                <Ionicons name="play-circle-outline" size={16} color="#3B82F6" />
                 <Text style={[styles.dateText, { color: Colors.primaryText }]}>
-                  {formatDate(task.start_date)}
-                  {task.end_date && task.end_date !== task.start_date
-                    ? `  →  ${formatDate(task.end_date)}`
-                    : ''}
+                  Start: {task.start_date ? formatDate(task.start_date) : 'Not set'}
                 </Text>
-              </View>
-            )}
+                <Ionicons name="create-outline" size={14} color="#3B82F6" style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.dateRow} onPress={() => handleDatePress('end')}>
+                <Ionicons name="flag-outline" size={16} color="#EF4444" />
+                <Text style={[styles.dateText, { color: Colors.primaryText }]}>
+                  End: {task.end_date ? formatDate(task.end_date) : 'Not set'}
+                </Text>
+                <Ionicons name="create-outline" size={14} color="#3B82F6" style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {/* Date picker */}
+          {editingDate && (
+            <View style={[styles.section, { backgroundColor: Colors.cardBackground || Colors.white, borderColor: Colors.border }]}>
+              <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+                {editingDate === 'start' ? 'Pick Start Date' : 'Pick End Date'}
+              </Text>
+              <DateTimePicker
+                value={tempDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleDateChange}
+                style={{ height: 120 }}
+              />
+              {Platform.OS === 'ios' && (
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, paddingTop: 8 }}>
+                  <TouchableOpacity onPress={() => setEditingDate(null)}>
+                    <Text style={{ color: Colors.secondaryText, fontWeight: '600' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleDateConfirm} disabled={saving}>
+                    <Text style={{ color: '#3B82F6', fontWeight: '700' }}>{saving ? 'Saving...' : 'Save'}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Project */}
           {task.projects?.name && (

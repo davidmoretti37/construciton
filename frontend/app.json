@@ -58,7 +58,8 @@
         "android.permission.SEND_SMS",
         "android.permission.VIBRATE"
       ],
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -63,10 +63,23 @@ export default function ExpenseFormScreen({ navigation }) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [lineItems, setLineItems] = useState([]);
   const [notes, setNotes] = useState('');
+  const [tradeBudgets, setTradeBudgets] = useState([]);
 
   useEffect(() => {
     loadProjects();
   }, [isWorker, isSupervisor, isOwner]);
+
+  // Fetch trade budgets when project is selected
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    supabase
+      .from('project_trade_budgets')
+      .select('trade_name')
+      .eq('project_id', selectedProject.id)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setTradeBudgets(data || []))
+      .catch(() => setTradeBudgets([]));
+  }, [selectedProject?.id]);
 
   const loadProjects = async () => {
     try {
@@ -548,37 +561,75 @@ export default function ExpenseFormScreen({ navigation }) {
                 </View>
 
                 {/* Subcategory picker */}
-                {EXPENSE_SUBCATEGORIES[category] && EXPENSE_SUBCATEGORIES[category].length > 0 && (
-                  <View style={{ marginTop: Spacing.md }}>
-                    <Text style={[styles.sectionTitle, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                      Subcategory (Optional)
-                    </Text>
-                    <View style={styles.categoryGrid}>
-                      {EXPENSE_SUBCATEGORIES[category].map((sub) => (
-                        <TouchableOpacity
-                          key={sub.value}
-                          style={[
-                            styles.categoryButton,
-                            {
-                              backgroundColor: subcategory === sub.value ? Colors.primaryBlue + '15' : Colors.lightBackground,
-                              borderColor: subcategory === sub.value ? Colors.primaryBlue : Colors.border,
-                            }
-                          ]}
-                          onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
-                        >
-                          <Text
+                <View style={{ marginTop: Spacing.md }}>
+                  <Text style={[styles.sectionTitle, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
+                    Subcategory (Optional)
+                  </Text>
+
+                  {/* Project trade budgets — priority options */}
+                  {tradeBudgets.length > 0 && (
+                    <View style={{ marginBottom: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#10B981', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Project Trades</Text>
+                      <View style={styles.categoryGrid}>
+                        {tradeBudgets.map((tb) => (
+                          <TouchableOpacity
+                            key={`trade-${tb.trade_name}`}
                             style={[
-                              styles.categoryButtonText,
-                              { color: subcategory === sub.value ? Colors.primaryBlue : Colors.secondaryText }
+                              styles.categoryButton,
+                              {
+                                backgroundColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' + '15' : Colors.lightBackground,
+                                borderColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : Colors.border,
+                              }
                             ]}
+                            onPress={() => setSubcategory(subcategory === tb.trade_name.toLowerCase() ? null : tb.trade_name.toLowerCase())}
                           >
-                            {sub.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                            <Text
+                              style={[
+                                styles.categoryButtonText,
+                                { color: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : Colors.secondaryText }
+                              ]}
+                            >
+                              {tb.trade_name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                )}
+                  )}
+
+                  {/* Hardcoded subcategories by category */}
+                  {EXPENSE_SUBCATEGORIES[category] && EXPENSE_SUBCATEGORIES[category].length > 0 && (
+                    <View>
+                      {tradeBudgets.length > 0 && (
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.secondaryText, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>General</Text>
+                      )}
+                      <View style={styles.categoryGrid}>
+                        {EXPENSE_SUBCATEGORIES[category].map((sub) => (
+                          <TouchableOpacity
+                            key={sub.value}
+                            style={[
+                              styles.categoryButton,
+                              {
+                                backgroundColor: subcategory === sub.value ? Colors.primaryBlue + '15' : Colors.lightBackground,
+                                borderColor: subcategory === sub.value ? Colors.primaryBlue : Colors.border,
+                              }
+                            ]}
+                            onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
+                          >
+                            <Text
+                              style={[
+                                styles.categoryButtonText,
+                                { color: subcategory === sub.value ? Colors.primaryBlue : Colors.secondaryText }
+                              ]}
+                            >
+                              {sub.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
               </View>
 
               {/* Date */}

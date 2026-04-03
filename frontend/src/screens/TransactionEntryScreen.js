@@ -12,10 +12,13 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
 import { addProjectTransaction, updateTransaction } from '../utils/storage';
 import { fetchProjects } from '../utils/storage/projects';
 import { getCurrentUserId } from '../utils/storage/auth';
@@ -46,6 +49,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
   const [notes, setNotes] = useState(transaction?.notes || '');
   const [taxCategory, setTaxCategory] = useState(transaction?.tax_category || null);
   const [saving, setSaving] = useState(false);
+  const [receiptUri, setReceiptUri] = useState(transaction?.receipt_url || null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Project picker state (for quick action flow)
   const [projects, setProjects] = useState([]);
@@ -55,12 +60,28 @@ export default function TransactionEntryScreen({ route, navigation }) {
   );
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
+  // Project trade budgets for subcategory picker
+  const [tradeBudgets, setTradeBudgets] = useState([]);
+
   // Fetch projects when opened from quick action
   useEffect(() => {
     if (needsProjectPicker) {
       loadProjects();
     }
   }, [needsProjectPicker, isSupervisor]);
+
+  // Fetch trade budgets for the selected project
+  useEffect(() => {
+    const pid = selectedProject?.id || initialProjectId;
+    if (!pid) return;
+    supabase
+      .from('project_trade_budgets')
+      .select('trade_name')
+      .eq('project_id', pid)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setTradeBudgets(data || []))
+      .catch(() => setTradeBudgets([]));
+  }, [selectedProject?.id, initialProjectId]);
 
   const loadProjects = async () => {
     try {
@@ -112,6 +133,44 @@ export default function TransactionEntryScreen({ route, navigation }) {
     { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
   ];
 
+  const handlePickReceipt = () => {
+    Alert.alert('Add Receipt', null, [
+      { text: 'Take Photo', onPress: async () => {
+        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+        if (!result.canceled && result.assets?.[0]) setReceiptUri(result.assets[0].uri);
+      }},
+      { text: 'Choose from Gallery', onPress: async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+        if (!result.canceled && result.assets?.[0]) setReceiptUri(result.assets[0].uri);
+      }},
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const uploadReceipt = async (uri) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const fileName = `receipt_${Date.now()}.jpg`;
+      const path = `${user.id}/receipts/${fileName}`;
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const { error } = await supabase.storage.from('project-documents').upload(path, blob);
+      if (error) throw error;
+      return path;
+    } catch (e) {
+      console.error('Receipt upload error:', e);
+      return null;
+    }
+  };
+
+  const handleDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    if (selectedDate) {
+      setDate(selectedDate.toISOString().split('T')[0]);
+    }
+  };
+
   const handleSave = async () => {
     // Validation
     if (needsProjectPicker && !selectedProject) {
@@ -130,6 +189,12 @@ export default function TransactionEntryScreen({ route, navigation }) {
     try {
       setSaving(true);
 
+      // Upload receipt photo if new
+      let receiptUrl = receiptUri;
+      if (receiptUri && !receiptUri.startsWith('http') && !receiptUri.includes('/receipts/')) {
+        receiptUrl = await uploadReceipt(receiptUri);
+      }
+
       const transactionData = {
         project_id: projectId,
         type,
@@ -141,6 +206,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
         date,
         payment_method: type === 'income' ? paymentMethod : null,
         notes: notes.trim() || null,
+        receipt_url: receiptUrl || null,
       };
 
       if (isEditing) {
@@ -523,30 +589,68 @@ export default function TransactionEntryScreen({ route, navigation }) {
           )}
 
           {/* Subcategory (for expenses) */}
-          {type === 'expense' && category && EXPENSE_SUBCATEGORIES[category] && (
+          {type === 'expense' && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Subcategory (Optional)</Text>
-              <View style={styles.categoryGrid}>
-                {EXPENSE_SUBCATEGORIES[category].map((sub) => (
-                  <TouchableOpacity
-                    key={sub.value}
-                    style={[
-                      styles.categoryButton,
-                      subcategory === sub.value && styles.categoryButtonActive,
-                    ]}
-                    onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryButtonText,
-                        subcategory === sub.value && styles.categoryButtonTextActive,
-                      ]}
-                    >
-                      {sub.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+
+              {/* Project trade budgets — shown first as priority options */}
+              {tradeBudgets.length > 0 && (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={[styles.sectionLabel, { fontSize: 11, color: '#10B981', marginBottom: 6 }]}>Project Trades</Text>
+                  <View style={styles.categoryGrid}>
+                    {tradeBudgets.map((tb) => (
+                      <TouchableOpacity
+                        key={`trade-${tb.trade_name}`}
+                        style={[
+                          styles.categoryButton,
+                          subcategory === tb.trade_name.toLowerCase() && styles.categoryButtonActive,
+                          { borderColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : undefined },
+                        ]}
+                        onPress={() => setSubcategory(subcategory === tb.trade_name.toLowerCase() ? null : tb.trade_name.toLowerCase())}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryButtonText,
+                            subcategory === tb.trade_name.toLowerCase() && [styles.categoryButtonTextActive, { color: '#10B981' }],
+                          ]}
+                        >
+                          {tb.trade_name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Hardcoded subcategories by category */}
+              {category && EXPENSE_SUBCATEGORIES[category] && (
+                <View>
+                  {tradeBudgets.length > 0 && (
+                    <Text style={[styles.sectionLabel, { fontSize: 11, color: Colors.secondaryText, marginBottom: 6 }]}>General</Text>
+                  )}
+                  <View style={styles.categoryGrid}>
+                    {EXPENSE_SUBCATEGORIES[category].map((sub) => (
+                      <TouchableOpacity
+                        key={sub.value}
+                        style={[
+                          styles.categoryButton,
+                          subcategory === sub.value && styles.categoryButtonActive,
+                        ]}
+                        onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryButtonText,
+                            subcategory === sub.value && styles.categoryButtonTextActive,
+                          ]}
+                        >
+                          {sub.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           )}
 
@@ -667,16 +771,62 @@ export default function TransactionEntryScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Date */}
+          {/* Date — proper date picker */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Date</Text>
-            <TextInput
-              style={styles.input}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.placeholderText}
-            />
+            <TouchableOpacity
+              style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={{ color: Colors.primaryText, fontSize: 15 }}>
+                {new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </Text>
+              <Ionicons name="calendar-outline" size={18} color={Colors.secondaryText} />
+            </TouchableOpacity>
+            {showDatePicker && (
+              <View>
+                <DateTimePicker
+                  value={new Date(date + 'T12:00:00')}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleDateChange}
+                  style={{ height: 120 }}
+                />
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)} style={{ alignSelf: 'flex-end', padding: 8 }}>
+                    <Text style={{ color: '#3B82F6', fontWeight: '600' }}>Done</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Receipt Photo */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Receipt / Document</Text>
+            {receiptUri ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Image source={{ uri: receiptUri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                <View style={{ gap: 8 }}>
+                  <TouchableOpacity onPress={handlePickReceipt} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="swap-horizontal" size={16} color="#3B82F6" />
+                    <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 13 }}>Replace</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setReceiptUri(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 }]}
+                onPress={handlePickReceipt}
+              >
+                <Ionicons name="camera-outline" size={20} color={Colors.secondaryText} />
+                <Text style={{ color: Colors.secondaryText, fontSize: 14 }}>Add receipt photo or document</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Notes */}

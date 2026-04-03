@@ -238,6 +238,23 @@ export const saveProject = async (projectData) => {
     if (projectData.phases && projectData.phases.length > 0) {
       const { saveProjectPhases } = await import('./projectPhases');
       await saveProjectPhases(result.id, projectData.phases, projectData.schedule);
+
+      // Auto-create trade budgets from phase names (seed with $0 — owner sets amounts later)
+      try {
+        const { data: existingBudgets } = await supabase
+          .from('project_trade_budgets')
+          .select('trade_name')
+          .eq('project_id', result.id);
+        const existingNames = new Set((existingBudgets || []).map(b => b.trade_name.toLowerCase()));
+        const newBudgets = projectData.phases
+          .filter(p => p.name && !existingNames.has(p.name.toLowerCase()))
+          .map(p => ({ project_id: result.id, trade_name: p.name, budget_amount: 0 }));
+        if (newBudgets.length > 0) {
+          await supabase.from('project_trade_budgets').insert(newBudgets);
+        }
+      } catch (e) {
+        // Table may not exist yet — silent fail
+      }
     }
 
     // Record pricing to history when project is completed
