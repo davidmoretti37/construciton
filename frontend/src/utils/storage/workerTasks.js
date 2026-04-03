@@ -94,10 +94,11 @@ export const createTask = async (taskData) => {
         description: taskData.description || null,
         start_date: taskData.startDate,
         end_date: taskData.endDate,
+        color: taskData.color || null,
         status: 'pending',
       })
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name)
       `)
       .single();
@@ -133,7 +134,7 @@ export const fetchTasksForProject = async (projectId, date) => {
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name),
         completed_worker:completed_by (id, full_name),
         reporter:incomplete_reported_by (id, full_name)
@@ -166,7 +167,7 @@ export const fetchTasksForDate = async (date) => {
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
       .eq('owner_id', userId)
@@ -226,7 +227,7 @@ export const fetchTasksForDateRange = async (startDate, endDate) => {
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
       .eq('owner_id', userId)
@@ -777,11 +778,12 @@ export const updateTask = async (taskId, updates) => {
         start_date: updates.startDate,
         end_date: updates.endDate,
         project_id: updates.projectId,
+        ...(updates.color !== undefined && { color: updates.color }),
       })
       .eq('id', taskId)
       .eq('owner_id', userId)
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name)
       `)
       .single();
@@ -833,7 +835,7 @@ export const fetchAllTasks = async (filters = {}) => {
     let query = supabase
       .from('worker_tasks')
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name),
         completed_worker:completed_by (id, full_name),
         reporter:incomplete_reported_by (id, full_name)
@@ -880,7 +882,7 @@ export const fetchTasksForWorker = async (ownerId, date, projectIds) => {
     let query = supabase
       .from('worker_tasks')
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
       .eq('owner_id', ownerId)
@@ -949,7 +951,7 @@ export const fetchTasksForWorkerDateRange = async (ownerId, startDate, endDate, 
     let query = supabase
       .from('worker_tasks')
       .select(`
-        id, owner_id, project_id, title, description, start_date, end_date, status, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
+        id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
       .eq('owner_id', ownerId)

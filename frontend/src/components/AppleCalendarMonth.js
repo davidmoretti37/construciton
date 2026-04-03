@@ -34,7 +34,7 @@ const AppleCalendarMonth = ({
 
     for (const task of tasks) {
       if (!task.start_date || !task.end_date) continue;
-      const color = getProjectColor(task.project_id);
+      const color = task.color || getProjectColor(task.project_id);
       const title = task.title || task.projects?.name || '';
       const start = new Date(task.start_date + 'T00:00:00');
       const end = new Date(task.end_date + 'T00:00:00');

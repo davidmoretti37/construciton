@@ -141,9 +141,14 @@ export default function TaskDetailModal({
           </View>
 
           {/* Title */}
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
-            {task.title}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {task.color && (
+              <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: task.color }} />
+            )}
+            <Text style={[styles.title, { color: Colors.primaryText, flex: 1 }]}>
+              {task.title}
+            </Text>
+          </View>
 
           {/* Description */}
           {task.description ? (

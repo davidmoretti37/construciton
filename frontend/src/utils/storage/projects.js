@@ -257,6 +257,39 @@ export const saveProject = async (projectData) => {
       }
     }
 
+    // Save trade budgets if provided (from EditProjectModal)
+    if (projectData.trades && projectData.trades.length > 0) {
+      try {
+        const { data: existingBudgets } = await supabase
+          .from('project_trade_budgets')
+          .select('id, trade_name')
+          .eq('project_id', result.id);
+        const existingMap = new Map((existingBudgets || []).map(b => [b.id, b.trade_name]));
+
+        // Determine which to insert, update, or delete
+        const incomingDbIds = new Set(projectData.trades.filter(t => t.dbId).map(t => t.dbId));
+        const toDelete = (existingBudgets || []).filter(b => !incomingDbIds.has(b.id)).map(b => b.id);
+        const toInsert = projectData.trades.filter(t => !t.dbId);
+        const toUpdate = projectData.trades.filter(t => t.dbId);
+
+        if (toDelete.length > 0) {
+          await supabase.from('project_trade_budgets').delete().in('id', toDelete);
+        }
+        if (toInsert.length > 0) {
+          await supabase.from('project_trade_budgets').insert(
+            toInsert.map(t => ({ project_id: result.id, trade_name: t.name, budget_amount: t.amount }))
+          );
+        }
+        for (const t of toUpdate) {
+          await supabase.from('project_trade_budgets')
+            .update({ trade_name: t.name, budget_amount: t.amount })
+            .eq('id', t.dbId);
+        }
+      } catch (e) {
+        console.error('Error saving trade budgets:', e);
+      }
+    }
+
     // Record pricing to history when project is completed
     if (result.status === 'completed' && (result.contract_amount || result.base_contract)) {
       try {

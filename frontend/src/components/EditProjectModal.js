@@ -10,12 +10,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { saveProject } from '../utils/storage';
+import { supabase } from '../lib/supabase';
 
 export default function EditProjectModal({ visible, onClose, projectData, onSave }) {
   const { t } = useTranslation('common');
@@ -37,6 +39,28 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
   const [status, setStatus] = useState('active');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [trades, setTrades] = useState([]);
+
+  // Load existing trade budgets when editing
+  useEffect(() => {
+    if (projectData?.id && !projectData.id.startsWith('temp-')) {
+      supabase
+        .from('project_trade_budgets')
+        .select('id, trade_name, budget_amount')
+        .eq('project_id', projectData.id)
+        .order('created_at', { ascending: true })
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setTrades(data.map(t => ({ dbId: t.id, name: t.trade_name, amount: t.budget_amount.toString() })));
+          } else {
+            setTrades([]);
+          }
+        })
+        .catch(() => setTrades([]));
+    } else {
+      setTrades([]);
+    }
+  }, [projectData?.id]);
 
   useEffect(() => {
     if (projectData) {
@@ -128,6 +152,11 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
       endDate: endDate || null,
       daysRemaining: daysRemaining,
       estimatedDuration: daysRemaining !== null ? `${daysRemaining} days` : null,
+      trades: trades.filter(t => t.name.trim()).map(t => ({
+        dbId: t.dbId || null,
+        name: t.name.trim(),
+        amount: parseFloat(t.amount) || 0,
+      })),
     };
 
     try {
@@ -325,6 +354,59 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
 
             {/* Progress % is now auto-calculated from Start Date and End Date */}
 
+            {/* Services / Trades */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: Colors.primaryText }]}>Services / Trades</Text>
+              <Text style={[styles.helperText, { color: Colors.secondaryText, marginBottom: Spacing.sm }]}>
+                Define the trades for this project and their budgets
+              </Text>
+
+              {trades.map((trade, index) => (
+                <View key={index} style={styles.tradeRow}>
+                  <TextInput
+                    style={[styles.tradeNameInput, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
+                    placeholder="e.g. Electrical"
+                    placeholderTextColor={Colors.placeholderText}
+                    value={trade.name}
+                    onChangeText={(text) => {
+                      const updated = [...trades];
+                      updated[index] = { ...updated[index], name: text };
+                      setTrades(updated);
+                    }}
+                  />
+                  <TextInput
+                    style={[styles.tradeAmountInput, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
+                    placeholder="$0"
+                    placeholderTextColor={Colors.placeholderText}
+                    value={trade.amount}
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9.]/g, '');
+                      const updated = [...trades];
+                      updated[index] = { ...updated[index], amount: cleaned };
+                      setTrades(updated);
+                    }}
+                    keyboardType="decimal-pad"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setTrades(trades.filter((_, i) => i !== index))}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close-circle" size={22} color={Colors.error || '#EF4444'} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.addTradeButton, { borderColor: Colors.primaryBlue }]}
+                onPress={() => setTrades([...trades, { name: '', amount: '' }])}
+              >
+                <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
+                <Text style={{ color: Colors.primaryBlue, fontWeight: '600', fontSize: FontSizes.small }}>
+                  Add Trade
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Start Date */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: Colors.primaryText }]}>{t('projects:form.startDate', 'Start Date')}</Text>
@@ -509,5 +591,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.02)',
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
+  },
+  tradeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  tradeNameInput: {
+    flex: 2,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: FontSizes.body,
+  },
+  tradeAmountInput: {
+    flex: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: FontSizes.body,
+  },
+  addTradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
   },
 });

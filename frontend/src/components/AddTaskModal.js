@@ -18,6 +18,15 @@ import { useTranslation } from 'react-i18next';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjectsBasic } from '../utils/storage';
+import { PROJECT_COLORS } from '../utils/calendarUtils';
+
+const TAG_COLORS = [
+  ...PROJECT_COLORS,
+  '#64748B', // slate
+  '#14B8A6', // teal
+  '#A855F7', // violet
+  '#E11D48', // rose
+];
 
 export default function AddTaskModal({
   visible,
@@ -47,6 +56,7 @@ export default function AddTaskModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [color, setColor] = useState(null);
 
   // Load projects if not provided
   useEffect(() => {
@@ -65,6 +75,7 @@ export default function AddTaskModal({
         setSelectedProject(editingTask.projects || null);
         setStartDate(editingTask.start_date || initialDate);
         setEndDate(editingTask.end_date || initialDate);
+        setColor(editingTask.color || null);
         setTaskList([]);
       } else {
         // Create mode - checklist
@@ -75,6 +86,7 @@ export default function AddTaskModal({
         setSelectedProject(null);
         setStartDate(initialDate || new Date().toISOString().split('T')[0]);
         setEndDate(initialDate || new Date().toISOString().split('T')[0]);
+        setColor(null);
       }
     }
   }, [visible, editingTask, initialDate]);
@@ -133,6 +145,7 @@ export default function AddTaskModal({
           projectId: selectedProject.id,
           startDate,
           endDate,
+          color: color || null,
         });
         onClose();
       } catch (error) {
@@ -158,6 +171,7 @@ export default function AddTaskModal({
             projectId: selectedProject.id,
             startDate,
             endDate,
+            color: color || null,
           });
         }
         onClose();
@@ -305,6 +319,33 @@ export default function AddTaskModal({
                   </Text>
                 </View>
               )}
+            </View>
+
+            {/* Color Tag */}
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: Colors.secondaryText }]}>Color Tag</Text>
+              <View style={styles.colorRow}>
+                {/* No color option */}
+                <TouchableOpacity
+                  style={[
+                    styles.colorDot,
+                    { borderColor: !color ? Colors.primaryText : Colors.border, borderWidth: !color ? 2 : 1 },
+                  ]}
+                  onPress={() => setColor(null)}
+                >
+                  {!color && <Ionicons name="close" size={14} color={Colors.secondaryText} />}
+                </TouchableOpacity>
+                {TAG_COLORS.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[
+                      styles.colorDot,
+                      { backgroundColor: c, borderColor: color === c ? Colors.primaryText : 'transparent', borderWidth: color === c ? 2.5 : 0 },
+                    ]}
+                    onPress={() => setColor(color === c ? null : c)}
+                  />
+                ))}
+              </View>
             </View>
 
             {/* Divider */}
@@ -576,5 +617,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  colorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  colorDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

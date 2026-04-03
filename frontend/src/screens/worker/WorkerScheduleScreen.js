@@ -434,13 +434,18 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
                                   />
                                 </TouchableOpacity>
                                 <View style={styles.taskDetails}>
-                                  <Text style={[
-                                    styles.taskTitle,
-                                    { color: Colors.primaryText },
-                                    task.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
-                                  ]}>
-                                    {task.title}
-                                  </Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    {task.color && (
+                                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: task.color }} />
+                                    )}
+                                    <Text style={[
+                                      styles.taskTitle,
+                                      { color: Colors.primaryText, flex: 1 },
+                                      task.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
+                                    ]}>
+                                      {task.title}
+                                    </Text>
+                                  </View>
                                   {task.description && (
                                     <Text style={[styles.taskDescription, { color: Colors.secondaryText }]} numberOfLines={2}>
                                       {task.description}

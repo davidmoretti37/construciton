@@ -303,6 +303,9 @@ export default function TodaysWorkScreen() {
                           size={20}
                           color={task.status === 'completed' ? '#10B981' : Colors.secondaryText}
                         />
+                        {task.color && (
+                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: task.color }} />
+                        )}
                         <Text style={[styles.taskText, { color: Colors.primaryText }, task.status === 'completed' && styles.taskDone]} numberOfLines={2}>
                           {task.title}
                         </Text>
