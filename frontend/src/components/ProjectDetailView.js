@@ -38,6 +38,7 @@ import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import DailyChecklistSection from './DailyChecklistSection';
 import EditProjectModal from './EditProjectModal';
+import ClientPortalCard from './ClientPortalCard';
 import { supabase } from '../lib/supabase';
 import { DEMO_PHASES } from '../screens/ProjectsScreen';
 
@@ -1901,6 +1902,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             )}
           </View>
+
+          {/* Client Portal Card - Owner only */}
+          {!isSupervisor && !isDemo && (
+            <ClientPortalCard project={project} navigation={navigation} />
+          )}
 
           {/* Estimates Section - Hidden for supervisors */}
           {!isSupervisor && (

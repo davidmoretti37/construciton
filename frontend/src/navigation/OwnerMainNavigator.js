@@ -80,6 +80,10 @@ import BankTransactionAssignScreen from '../screens/owner/BankTransactionAssignS
 // Import Google Drive integration screen
 import GoogleDriveScreen from '../screens/owner/GoogleDriveScreen';
 
+// Import client portal screens
+import ClientVisibilityScreen from '../screens/owner/ClientVisibilityScreen';
+import ClientsScreen from '../screens/owner/ClientsScreen';
+
 // Import service plan screens
 import ServicePlanDetailScreen from '../screens/owner/ServicePlanDetailScreen';
 import DailyRouteScreen from '../screens/owner/DailyRouteScreen';
@@ -122,6 +126,14 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="Billing"
         component={BillingScreen}
+      />
+      <Stack.Screen
+        name="ClientVisibility"
+        component={ClientVisibilityScreen}
+      />
+      <Stack.Screen
+        name="Clients"
+        component={ClientsScreen}
       />
       <Stack.Screen
         name="ProjectTransactions"
