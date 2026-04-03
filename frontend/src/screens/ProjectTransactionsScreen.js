@@ -33,7 +33,7 @@ const CATEGORY_ICONS = {
 
 export default function ProjectTransactionsScreen({ route, navigation }) {
   const { t } = useTranslation(['owner', 'common']);
-  const { projectId, projectName, transactionType, servicePlanId, servicePlanName, filterType } = route.params || {};
+  const { projectId, projectName, transactionType, servicePlanId, servicePlanName, filterType, subcategoryFilter } = route.params || {};
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const [loading, setLoading] = useState(true);
@@ -124,6 +124,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
       projectId,
       projectName,
       onSave: loadTransactions,
+      ...(subcategoryFilter && { prefillSubcategory: subcategoryFilter.toLowerCase() }),
     });
   };
 
@@ -136,8 +137,11 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(tx => tx.category === categoryFilter);
     }
+    if (subcategoryFilter) {
+      filtered = filtered.filter(tx => (tx.subcategory || '').toLowerCase() === subcategoryFilter.toLowerCase());
+    }
     return filtered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [transactions, typeFilter, categoryFilter]);
+  }, [transactions, typeFilter, categoryFilter, subcategoryFilter]);
 
   // ── Available category filters (only show categories with data) ──
   const availableCategories = useMemo(() => {
@@ -208,7 +212,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
-          {entityName}
+          {subcategoryFilter ? `${entityName} · ${subcategoryFilter}` : entityName}
         </Text>
         <TouchableOpacity onPress={handleAddTransaction} style={styles.addButton}>
           <Ionicons name="add" size={24} color={Colors.primaryText} />

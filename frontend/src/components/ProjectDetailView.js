@@ -131,11 +131,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [totalProjectHours, setTotalProjectHours] = useState(0);
 
   // Financials collapsible + trade budgets
-  const [financialsExpanded, setFinancialsExpanded] = useState(false);
+  const [financialsExpanded, setFinancialsExpanded] = useState(true);
   const [tradeBudgets, setTradeBudgets] = useState([]);
   const [showAddTrade, setShowAddTrade] = useState(false);
   const [newTradeName, setNewTradeName] = useState('');
   const [newTradeAmount, setNewTradeAmount] = useState('');
+  const [newTradePaid, setNewTradePaid] = useState('');
 
   // Working days and task shifting
   const [showBulkShiftModal, setShowBulkShiftModal] = useState(false);
@@ -1288,20 +1289,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           </View>
 
-          {/* Financial Summary — Collapsible */}
-          <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 }}
-            onPress={() => setFinancialsExpanded(!financialsExpanded)}
-            activeOpacity={0.7}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="wallet-outline" size={20} color={Colors.primaryText} />
-              <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.primaryText }}>Financials</Text>
-            </View>
-            <Ionicons name={financialsExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.secondaryText} />
-          </TouchableOpacity>
+          {/* Financial Summary — Always Visible */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 }}>
+            <Ionicons name="wallet-outline" size={20} color={Colors.primaryText} />
+            <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.primaryText }}>Financials</Text>
+          </View>
 
-          {financialsExpanded && <View style={styles.financialContainer}>
+          <View style={styles.financialContainer}>
             {/* Top Row: Contract & Income */}
             <View style={styles.financialRow}>
               {/* Contract Amount */}
@@ -1399,100 +1393,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             </View>
 
-          {/* Trade Budgets */}
-          {tradeBudgets.length > 0 && (
-            <View style={{ paddingHorizontal: 14, marginTop: 8 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.secondaryText, marginBottom: 8 }}>TRADE BUDGETS</Text>
-              {tradeBudgets.map(tb => {
-                const pct = tb.budget_amount > 0 ? Math.round((tb.paid / tb.budget_amount) * 100) : 0;
-                const isOver = tb.paid > tb.budget_amount;
-                return (
-                  <View key={tb.id} style={{ marginBottom: 10 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText }}>{tb.trade_name}</Text>
-                      <Text style={{ fontSize: 13, color: isOver ? '#EF4444' : Colors.secondaryText }}>
-                        ${tb.paid.toLocaleString()} / ${parseFloat(tb.budget_amount).toLocaleString()}
-                      </Text>
-                    </View>
-                    <View style={{ height: 6, backgroundColor: Colors.lightGray, borderRadius: 3, overflow: 'hidden' }}>
-                      <View style={{
-                        height: 6, borderRadius: 3,
-                        width: `${Math.min(100, pct)}%`,
-                        backgroundColor: isOver ? '#EF4444' : pct > 80 ? '#F59E0B' : '#10B981',
-                      }} />
-                    </View>
-                    <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
-                      {isOver ? `Over budget by $${(tb.paid - tb.budget_amount).toLocaleString()}` : `$${tb.remaining.toLocaleString()} remaining`} · {pct}%
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Add Trade Budget */}
-          {isOwner && !isDemo && (
-            <View style={{ paddingHorizontal: 14, marginTop: tradeBudgets.length > 0 ? 4 : 8, marginBottom: 8 }}>
-              {!showAddTrade ? (
-                <TouchableOpacity
-                  onPress={() => setShowAddTrade(true)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                >
-                  <Ionicons name="add-circle-outline" size={16} color="#3B82F6" />
-                  <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Add Trade Budget</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={{ backgroundColor: Colors.cardBackground, borderRadius: 10, padding: 12, gap: 8 }}>
-                  <TextInput
-                    style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
-                    placeholder="Trade name (e.g. Electrical)"
-                    placeholderTextColor={Colors.secondaryText}
-                    value={newTradeName}
-                    onChangeText={setNewTradeName}
-                  />
-                  <TextInput
-                    style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
-                    placeholder="Budget amount"
-                    placeholderTextColor={Colors.secondaryText}
-                    value={newTradeAmount}
-                    onChangeText={setNewTradeAmount}
-                    keyboardType="decimal-pad"
-                  />
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: Colors.lightGray, paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                      onPress={() => { setShowAddTrade(false); setNewTradeName(''); setNewTradeAmount(''); }}
-                    >
-                      <Text style={{ color: Colors.secondaryText, fontWeight: '600' }}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                      onPress={async () => {
-                        if (!newTradeName.trim() || !newTradeAmount) return;
-                        try {
-                          await supabase.from('project_trade_budgets').insert({
-                            project_id: project.id,
-                            trade_name: newTradeName.trim(),
-                            budget_amount: parseFloat(newTradeAmount) || 0,
-                          });
-                          setShowAddTrade(false);
-                          setNewTradeName('');
-                          setNewTradeAmount('');
-                          onRefreshNeeded && onRefreshNeeded();
-                        } catch (e) {
-                          Alert.alert('Error', 'Failed to add trade budget.');
-                        }
-                      }}
-                    >
-                      <Text style={{ color: '#fff', fontWeight: '600' }}>Add</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-
-          </View>}
+          </View>
 
           {/* Hours Worked Card */}
           {totalProjectHours > 0 && (
@@ -1509,24 +1410,175 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           )}
 
-          {/* Budget Progress Bar */}
-          {contractAmount > 0 && (
-            <View style={[styles.section, { backgroundColor: Colors.cardBackground, paddingVertical: 14 }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.secondaryText }}>Budget Used</Text>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : Colors.primaryText }}>
-                  ${expenses.toLocaleString()} / ${contractAmount.toLocaleString()} ({Math.round((expenses / contractAmount) * 100)}%)
-                </Text>
-              </View>
-              <View style={{ height: 8, backgroundColor: Colors.lightGray, borderRadius: 4, overflow: 'hidden' }}>
-                <View style={{
-                  height: 8,
-                  borderRadius: 4,
-                  width: `${Math.min(100, (expenses / contractAmount) * 100)}%`,
-                  backgroundColor: expenses > contractAmount ? '#EF4444' : expenses > contractAmount * 0.8 ? '#F59E0B' : '#10B981',
-                }} />
-              </View>
-            </View>
+          {/* Budget & Trade Budgets — Collapsible */}
+          {(contractAmount > 0 || tradeBudgets.length > 0) && (
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 }}
+              onPress={() => setFinancialsExpanded(!financialsExpanded)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.secondaryText }}>Budget Breakdown</Text>
+              <Ionicons name={financialsExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
+            </TouchableOpacity>
+          )}
+
+          {financialsExpanded && (
+            <>
+              {/* Budget Progress Bar */}
+              {contractAmount > 0 && (
+                <View style={[styles.section, { backgroundColor: Colors.cardBackground, paddingVertical: 14 }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.secondaryText }}>Budget Used</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : Colors.primaryText }}>
+                      ${expenses.toLocaleString()} / ${contractAmount.toLocaleString()} ({Math.round((expenses / contractAmount) * 100)}%)
+                    </Text>
+                  </View>
+                  <View style={{ height: 8, backgroundColor: Colors.lightGray, borderRadius: 4, overflow: 'hidden' }}>
+                    <View style={{
+                      height: 8,
+                      borderRadius: 4,
+                      width: `${Math.min(100, (expenses / contractAmount) * 100)}%`,
+                      backgroundColor: expenses > contractAmount ? '#EF4444' : expenses > contractAmount * 0.8 ? '#F59E0B' : '#10B981',
+                    }} />
+                  </View>
+                </View>
+              )}
+
+              {/* Trade Budgets */}
+              {tradeBudgets.length > 0 && (
+                <View style={{ paddingHorizontal: 14, marginTop: 4, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.secondaryText, marginBottom: 8 }}>TRADE BUDGETS</Text>
+                  {tradeBudgets.map(tb => {
+                    const pct = tb.budget_amount > 0 ? Math.round((tb.paid / tb.budget_amount) * 100) : 0;
+                    const isOver = tb.paid > tb.budget_amount;
+                    return (
+                      <TouchableOpacity
+                        key={tb.id}
+                        style={{ marginBottom: 10 }}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          if (navigation) {
+                            wasNavigatingRef.current = true;
+                            setModalVisible(false);
+                            navigation.navigate('ProjectTransactions', {
+                              projectId: project.id,
+                              projectName: project.name,
+                              fromProjectDetail: true,
+                              transactionType: 'expense',
+                              subcategoryFilter: tb.trade_name,
+                            });
+                          }
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText }}>{tb.trade_name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={{ fontSize: 13, color: isOver ? '#EF4444' : Colors.secondaryText }}>
+                              ${tb.paid.toLocaleString()} / ${parseFloat(tb.budget_amount).toLocaleString()}
+                            </Text>
+                            <Ionicons name="chevron-forward" size={14} color={Colors.secondaryText} />
+                          </View>
+                        </View>
+                        <View style={{ height: 6, backgroundColor: Colors.lightGray, borderRadius: 3, overflow: 'hidden' }}>
+                          <View style={{
+                            height: 6, borderRadius: 3,
+                            width: `${Math.min(100, pct)}%`,
+                            backgroundColor: isOver ? '#EF4444' : pct > 80 ? '#F59E0B' : '#10B981',
+                          }} />
+                        </View>
+                        <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
+                          {isOver ? `Over budget by $${(tb.paid - tb.budget_amount).toLocaleString()}` : `$${tb.remaining.toLocaleString()} remaining`} · {pct}%
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Add Trade Budget */}
+              {isOwner && !isDemo && (
+                <View style={{ paddingHorizontal: 14, marginTop: tradeBudgets.length > 0 ? 0 : 4, marginBottom: 8 }}>
+                  {!showAddTrade ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAddTrade(true)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color="#3B82F6" />
+                      <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Add Trade Budget</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ backgroundColor: Colors.cardBackground, borderRadius: 10, padding: 12, gap: 8 }}>
+                      <TextInput
+                        style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
+                        placeholder="Trade name (e.g. Electrical)"
+                        placeholderTextColor={Colors.secondaryText}
+                        value={newTradeName}
+                        onChangeText={setNewTradeName}
+                      />
+                      <TextInput
+                        style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
+                        placeholder="Budget amount"
+                        placeholderTextColor={Colors.secondaryText}
+                        value={newTradeAmount}
+                        onChangeText={setNewTradeAmount}
+                        keyboardType="decimal-pad"
+                      />
+                      <TextInput
+                        style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
+                        placeholder="Amount already paid (optional)"
+                        placeholderTextColor={Colors.secondaryText}
+                        value={newTradePaid}
+                        onChangeText={setNewTradePaid}
+                        keyboardType="decimal-pad"
+                      />
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: Colors.lightGray, paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
+                          onPress={() => { setShowAddTrade(false); setNewTradeName(''); setNewTradeAmount(''); setNewTradePaid(''); }}
+                        >
+                          <Text style={{ color: Colors.secondaryText, fontWeight: '600' }}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
+                          onPress={async () => {
+                            if (!newTradeName.trim() || !newTradeAmount) return;
+                            try {
+                              const budgetAmount = parseFloat(newTradeAmount) || 0;
+                              const paidAmount = parseFloat(newTradePaid) || 0;
+                              await supabase.from('project_trade_budgets').insert({
+                                project_id: project.id,
+                                trade_name: newTradeName.trim(),
+                                budget_amount: budgetAmount,
+                              });
+                              if (paidAmount > 0) {
+                                await supabase.from('project_transactions').insert({
+                                  project_id: project.id,
+                                  type: 'expense',
+                                  category: 'subcontractor',
+                                  subcategory: newTradeName.trim().toLowerCase(),
+                                  description: `${newTradeName.trim()} - initial payment`,
+                                  amount: paidAmount,
+                                  date: new Date().toISOString().split('T')[0],
+                                });
+                              }
+                              setShowAddTrade(false);
+                              setNewTradeName('');
+                              setNewTradeAmount('');
+                              setNewTradePaid('');
+                              onRefreshNeeded && onRefreshNeeded();
+                            } catch (e) {
+                              Alert.alert('Error', 'Failed to add trade budget.');
+                            }
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '600' }}>Add</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+            </>
           )}
 
           {/* Project Status Actions */}

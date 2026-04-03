@@ -30,7 +30,7 @@ import { EXPENSE_SUBCATEGORIES, INCOME_SUBCATEGORIES, TAX_CATEGORIES, DEFAULT_TA
 
 export default function TransactionEntryScreen({ route, navigation }) {
   const { t } = useTranslation('common');
-  const { projectId: initialProjectId, projectName: initialProjectName, transaction, onSave, fromQuickAction } = route.params || {};
+  const { projectId: initialProjectId, projectName: initialProjectName, transaction, onSave, fromQuickAction, prefillSubcategory } = route.params || {};
   const isEditing = !!transaction;
   const needsProjectPicker = fromQuickAction && !initialProjectId;
 
@@ -41,7 +41,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
 
   const [type, setType] = useState(transaction?.type || 'expense');
   const [category, setCategory] = useState(transaction?.category || 'materials');
-  const [subcategory, setSubcategory] = useState(transaction?.subcategory || null);
+  const [subcategory, setSubcategory] = useState(transaction?.subcategory || prefillSubcategory || null);
   const [description, setDescription] = useState(transaction?.description || '');
   const [amount, setAmount] = useState(transaction?.amount?.toString() || '');
   const [date, setDate] = useState(transaction?.date || new Date().toISOString().split('T')[0]);
