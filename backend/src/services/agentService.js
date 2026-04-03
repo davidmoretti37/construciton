@@ -97,6 +97,7 @@ function createJobWriter(jobId, res) {
   return {
     setDisconnected() { clientDisconnected = true; },
     isDisconnected() { return clientDisconnected; },
+    hasVisualElements() { return visualElements.length > 0; },
 
     emit(event) {
       sendSSE(event);
@@ -743,6 +744,38 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       const toolContext = buildToolContext(messages);
       if (toolContext) {
         writer.emit({ type: 'tool_context', context: toolContext });
+      }
+
+      // Safety net: if final response contains card keywords but no visual elements
+      // were emitted, try to extract them directly from finalContent one more time
+      if (!writer.hasVisualElements() && finalContent) {
+        const hasCardKeywords = /project-preview|service-plan-preview|estimate-preview/i.test(finalContent);
+        if (hasCardKeywords) {
+          logger.warn('🔧 Safety net: response has card type keywords but no visualElements emitted. Attempting extraction from finalContent...');
+          try {
+            const veStart = finalContent.indexOf('"visualElements"');
+            if (veStart !== -1) {
+              const arrStart = finalContent.indexOf('[', veStart);
+              if (arrStart !== -1) {
+                let depth = 0;
+                let arrEnd = -1;
+                for (let i = arrStart; i < finalContent.length; i++) {
+                  if (finalContent[i] === '[') depth++;
+                  else if (finalContent[i] === ']') { depth--; if (depth === 0) { arrEnd = i; break; } }
+                }
+                if (arrEnd !== -1) {
+                  const extracted = JSON.parse(finalContent.substring(arrStart, arrEnd + 1));
+                  if (extracted.length > 0) {
+                    writer.emit({ type: 'metadata', visualElements: extracted, actions: [] });
+                    logger.info(`🔧 Safety net recovered ${extracted.length} visualElements`);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            logger.error('🔧 Safety net extraction failed:', e.message);
+          }
+        }
       }
 
       // Signal completion
