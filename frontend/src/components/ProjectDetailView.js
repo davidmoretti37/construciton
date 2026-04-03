@@ -1398,7 +1398,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 </Text>
               </View>
             </View>
-          </View>
+          </View>}
 
           {/* Trade Budgets */}
           {tradeBudgets.length > 0 && (
