@@ -108,7 +108,7 @@ function createJobWriter(jobId, res) {
       } else if (event.type === 'metadata') {
         visualElements = event.visualElements || [];
         actions = event.actions || [];
-        scheduleFlush(false);
+        scheduleFlush(true);
       } else if (event.type === 'clear') {
         accumulatedText = '';
         visualElements = [];
@@ -311,11 +311,22 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
             actions = Array.isArray(fullParsed.actions) ? fullParsed.actions : [];
           }
         } catch (e) {
-          logger.debug('Could not parse metadata from response:', e.message);
+          logger.warn('Could not parse metadata from response:', e.message);
+          // Fallback: try to find visualElements array directly in the content
+          try {
+            const veMatch = contentBuffer.match(/"visualElements"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
+            if (veMatch) {
+              visualElements = JSON.parse(veMatch[1]);
+              logger.info(`📦 Fallback metadata extraction: ${visualElements.length} visualElements`);
+            }
+          } catch (_) { /* ignore fallback parse errors */ }
         }
 
         if (visualElements.length > 0 || actions.length > 0) {
           writer.emit({ type: 'metadata', visualElements, actions });
+          logger.info(`📦 Emitted metadata: ${visualElements.length} visualElements, ${actions.length} actions`);
+        } else if (contentBuffer.includes('visualElements')) {
+          logger.warn('⚠️ Response contains "visualElements" but parsing failed. Content length:', contentBuffer.length);
         }
 
         // Fallback: if no text was extracted during streaming, try once more

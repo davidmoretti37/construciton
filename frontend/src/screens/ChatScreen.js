@@ -1579,6 +1579,10 @@ export default function ChatScreen({ navigation, route }) {
         onMetadata: ({ visualElements }) => {
           if (visualElements && visualElements.length > 0) {
             setShowCardSkeleton(true);
+            // Safety timeout: hide skeleton after 10s if card never renders
+            setTimeout(() => {
+              setShowCardSkeleton(false);
+            }, 10000);
           }
         }
         },
