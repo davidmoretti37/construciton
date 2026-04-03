@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -14,7 +15,6 @@ import {
   Share,
   ActionSheetIOS,
   Modal,
-  FlatList,
   Image,
   AppState,
 } from 'react-native';
@@ -25,7 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { geocodeAddress } from '../utils/geocoding';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import AIInputWithSearch from '../components/AIInputWithSearch';
 import AnimatedText from '../components/AnimatedText';
 import LinkifiedText from '../components/LinkifiedText';
@@ -129,6 +129,7 @@ export default function ChatScreen({ navigation, route }) {
   const activeJobIdRef = useRef(null);
   const activeXhrAbortRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const flatListRef = useRef(null);
   const scrollViewRef = useRef(null);
   const [showTimelinePicker, setShowTimelinePicker] = useState(false);
   const [showBudgetInput, setShowBudgetInput] = useState(false);
@@ -454,7 +455,7 @@ export default function ChatScreen({ navigation, route }) {
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages appear or AI starts thinking
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    flatListRef.current?.scrollToEnd({ animated: true });
   }, [messages, isAIThinking]);
 
   // Initialize session on mount
@@ -689,6 +690,7 @@ export default function ChatScreen({ navigation, route }) {
     return () => {
       subscription.remove();
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      if (aiTimeoutRef.current) { clearTimeout(aiTimeoutRef.current); aiTimeoutRef.current = null; }
     };
   }, [currentSessionId, messages, lastSavedMessageCount, saveCurrentMessage, isAIThinking, isStreaming]);
 
@@ -2003,6 +2005,27 @@ export default function ChatScreen({ navigation, route }) {
           const userId = user?.id || profile?.id || await getCurrentUserId();
           const planData = action.data;
 
+          // Validate required fields
+          if (!planData.name || planData.name.trim() === '' || planData.name === 'Untitled Plan') {
+            Alert.alert('Required', 'Service plan name is required.');
+            break;
+          }
+          const hasAddress = planData.address || planData.location_address ||
+            (planData.locations && planData.locations.length > 0 && planData.locations.some(l => l.address || l.location_address));
+          if (!hasAddress) {
+            Alert.alert('Required', 'At least one service location address is required.');
+            break;
+          }
+          const bc = planData.billing_cycle || 'monthly';
+          if (bc === 'per_visit' && (!planData.price_per_visit || parseFloat(planData.price_per_visit) <= 0)) {
+            Alert.alert('Required', 'Price per visit must be greater than 0 for per-visit billing.');
+            break;
+          }
+          if ((bc === 'monthly' || bc === 'quarterly') && (!planData.monthly_rate || parseFloat(planData.monthly_rate) <= 0)) {
+            Alert.alert('Required', 'Monthly rate must be greater than 0 for monthly/quarterly billing.');
+            break;
+          }
+
           // 1. Create the service plan
           const { data: plan, error: planError } = await supabase
             .from('service_plans')
@@ -2047,6 +2070,7 @@ export default function ChatScreen({ navigation, route }) {
           }
 
           let firstLocationId = null;
+          const allLocationIds = [];
           for (const locData of locationsToCreate) {
             // Geocode address for map/route features
             let geoData = {};
@@ -2077,6 +2101,7 @@ export default function ChatScreen({ navigation, route }) {
               .select()
               .single();
             if (!locError && loc) {
+              allLocationIds.push(loc.id);
               if (!firstLocationId) firstLocationId = loc.id;
 
               // 3. Create schedule for each location if frequency provided
@@ -2095,25 +2120,28 @@ export default function ChatScreen({ navigation, route }) {
                   scheduled_days: normalizedDays,
                   preferred_time: planData.preferred_time || null,
                 });
-                if (schedError) logger.error('[Chat] Schedule insert error:', schedError.message);
+                if (schedError) {
+                  logger.error('[Chat] Schedule insert error:', schedError.message);
+                  Alert.alert('Warning', 'Schedule could not be created for this location. Visits may not generate correctly.');
+                }
               }
             }
           }
           const locationId = firstLocationId;
 
-          // 4. Create per-location visit checklist templates if provided
-          if (locationId && planData.checklist_items?.length) {
-            // Only insert as visit_checklist_templates if items are simple strings (legacy format)
+          // 4. Create per-location visit checklist templates for ALL locations
+          if (allLocationIds.length > 0 && planData.checklist_items?.length) {
             const simpleItems = planData.checklist_items.filter(item => typeof item === 'string');
             if (simpleItems.length > 0) {
-              await supabase.from('visit_checklist_templates').insert(
+              const checklistRows = allLocationIds.flatMap(locId =>
                 simpleItems.map((item, i) => ({
-                  service_location_id: locationId,
+                  service_location_id: locId,
                   owner_id: userId,
                   title: item,
                   sort_order: i,
                 }))
               );
+              await supabase.from('visit_checklist_templates').insert(checklistRows);
             }
           }
 
@@ -2152,8 +2180,8 @@ export default function ChatScreen({ navigation, route }) {
           // 7. Auto-generate visits via backend (8 weeks ahead)
           try {
             const { data: { session } } = await supabase.auth.getSession();
-            const backendUrl = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
-            await fetch(`${backendUrl}/api/service-visits/generate/${plan.id}`, {
+            const backendUrl = EXPO_PUBLIC_BACKEND_URL;
+            const genResponse = await fetch(`${backendUrl}/api/service-visits/generate/${plan.id}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -2161,9 +2189,19 @@ export default function ChatScreen({ navigation, route }) {
               },
               body: JSON.stringify({ weeksAhead: 8 }),
             });
-            logger.info(`[Chat] Triggered visit generation for plan ${plan.id}`);
+            if (genResponse.ok) {
+              const genResult = await genResponse.json();
+              logger.info(`[Chat] Generated ${genResult.generated || 0} visits for plan ${plan.id}`);
+              if ((genResult.generated || 0) === 0) {
+                Alert.alert('Note', 'Service plan saved, but no visits were generated. Check that the schedule and frequency are set correctly.');
+              }
+            } else {
+              logger.error('[Chat] Visit generation failed:', genResponse.status);
+              Alert.alert('Warning', 'Service plan saved, but visit generation failed. Visits can be generated later from the plan detail screen.');
+            }
           } catch (e) {
-            logger.error('[Chat] Visit generation error (non-blocking):', e.message);
+            logger.error('[Chat] Visit generation error:', e.message);
+            Alert.alert('Warning', 'Service plan saved, but visit generation could not be triggered. Check your internet connection.');
           }
 
           logger.info(`[Chat] Saved service plan: ${plan.name} (${plan.id})`);
@@ -3669,42 +3707,42 @@ export default function ChatScreen({ navigation, route }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? -60 : 0}
       >
         <View style={{ flex: 1 }}>
-        <ScrollView
-          ref={scrollViewRef}
+        <FlatList
+          ref={flatListRef}
           style={styles.chatArea}
           contentContainerStyle={[styles.chatContent, { paddingBottom: 180 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-        >
-          {isLoadingChat ? (
-            <View style={{ paddingTop: 24, paddingHorizontal: Spacing.md }}>
-              {/* Skeleton mimicking message bubbles to prevent layout jump */}
-              <View style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
-                <SkeletonBox width={220} height={40} borderRadius={16} />
+          data={isLoadingChat ? [] : messages}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={
+            isLoadingChat ? (
+              <View style={{ paddingTop: 24, paddingHorizontal: Spacing.md }}>
+                <View style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
+                  <SkeletonBox width={220} height={40} borderRadius={16} />
+                </View>
+                <View style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                  <SkeletonBox width={260} height={60} borderRadius={16} />
+                </View>
+                <View style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
+                  <SkeletonBox width={180} height={40} borderRadius={16} />
+                </View>
+                <View style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                  <SkeletonBox width={240} height={80} borderRadius={16} />
+                </View>
               </View>
-              <View style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
-                <SkeletonBox width={260} height={60} borderRadius={16} />
+            ) : (
+              <View style={styles.emptyState}>
+                <AnimatedText
+                  text={t('welcome.title')}
+                  delay={60}
+                />
               </View>
-              <View style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
-                <SkeletonBox width={180} height={40} borderRadius={16} />
-              </View>
-              <View style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
-                <SkeletonBox width={240} height={80} borderRadius={16} />
-              </View>
-            </View>
-          ) : messages.length === 0 ? (
-            <View style={styles.emptyState}>
-              <AnimatedText
-                text={t('welcome.title')}
-                delay={60}
-              />
-            </View>
-          ) : (
-            <>
-          {messages.map((message, messageIndex) => {
-            return (
-                <View key={message.id} style={styles.messageContainer}>
-                  {/* Text bubble - only show if there's text content */}
+            )
+          }
+          ListFooterComponent={statusMessage ? <StatusMessage message={statusMessage} /> : null}
+          renderItem={({ item: message }) => (
+                <View style={styles.messageContainer}>
                   {/* Attachments display in user messages */}
                   {message.isUser && message.attachments && message.attachments.length > 0 && (
                     <View style={[
@@ -3836,16 +3874,8 @@ export default function ChatScreen({ navigation, route }) {
                     )}
 
             </View>
-            );
-          })}
-
-              {/* AI Status Message */}
-              {statusMessage && (
-                <StatusMessage message={statusMessage} />
-              )}
-            </>
           )}
-        </ScrollView>
+        />
 
         {/* AI Input Component - Floating over content with glass effect */}
         <View style={styles.inputWrapperFloat}>

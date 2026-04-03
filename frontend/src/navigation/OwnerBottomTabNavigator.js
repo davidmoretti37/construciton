@@ -18,6 +18,13 @@ import OwnerSettingsScreen from '../screens/owner/OwnerSettingsScreen';
 
 // Import shared screens
 import ChatScreen from '../screens/ChatScreen';
+import ErrorBoundary from '../components/ErrorBoundary';
+
+const ChatScreenWithBoundary = (props) => (
+  <ErrorBoundary>
+    <ChatScreen {...props} />
+  </ErrorBoundary>
+);
 
 // Import custom tab bar, FAB, and walkthrough
 import OwnerLumaBar from '../components/OwnerLumaBar';
@@ -130,7 +137,7 @@ export default function OwnerBottomTabNavigator() {
       >
         <Tab.Screen name="Home" component={OwnerDashboardScreen} />
         <Tab.Screen name="Projects" component={WorkScreen} />
-        <Tab.Screen name="Chat" component={ChatScreen} />
+        <Tab.Screen name="Chat" component={ChatScreenWithBoundary} />
         <Tab.Screen name="Workers" component={OwnerWorkersScreen} />
         <Tab.Screen name="Settings" component={OwnerSettingsScreen} />
       </Tab.Navigator>

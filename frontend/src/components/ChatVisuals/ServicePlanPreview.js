@@ -213,9 +213,24 @@ export default function ServicePlanPreview({ data, onAction }) {
   // Save handler — sends full editedData to ChatScreen
   const handleSave = async () => {
     if (!onAction || isSaving) return;
+
+    const current = editedDataRef.current;
+
+    // Validate before saving
+    const planName = current?.name || '';
+    if (!planName.trim() || planName === 'Untitled Plan') {
+      Alert.alert('Required', 'Please enter a name for this service plan.');
+      return;
+    }
+    const addr = current?.address || current?.location_address || current?.location ||
+      current?.locations?.[0]?.address || '';
+    if (!addr.trim()) {
+      Alert.alert('Required', 'Please enter at least one service location address.');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const current = editedDataRef.current;
       const bc = current?.billingCycle || current?.billing_cycle || 'monthly';
       const p = bc === 'per_visit'
         ? (current?.pricePerVisit || current?.price_per_visit || 0)

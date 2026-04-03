@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from './auth';
 import { getLocalTimestamp, getLocalDayBounds, getLocalDateString, getDateRangeBoundsUTC, formatHoursMinutes } from '../calculations';
 import { responseCache } from '../../services/agents/core/CacheService';
+import { cacheData, getCachedData } from '../../services/offlineCache';
 
 // ============================================================
 // Time Tracking Functions
@@ -310,16 +311,18 @@ export const getActiveClockIn = async (workerId) => {
 
     if (error) {
       if (error.code === 'PGRST116') {
+        cacheData(`clockin_${workerId}`, null);
         return null;
       }
       console.error('Error fetching active clock-in:', error);
-      return null;
+      return getCachedData(`clockin_${workerId}`, true);
     }
 
+    cacheData(`clockin_${workerId}`, data);
     return data;
   } catch (error) {
     console.error('Error in getActiveClockIn:', error);
-    return null;
+    return getCachedData(`clockin_${workerId}`, true);
   }
 };
 
@@ -705,14 +708,18 @@ export const getTodaysWorkersSchedule = async () => {
       }
     });
 
-    return {
+    const result = {
       unassignedWorkers,
       projectGroups: Object.values(projectGroups),
       totalWorkers: allWorkers?.length || 0,
       clockedInCount: Object.keys(workerClockIns).length
     };
+    cacheData('todays_schedule', result);
+    return result;
   } catch (error) {
     console.error('Error getting today\'s workers schedule:', error);
+    const cached = getCachedData('todays_schedule', true);
+    if (cached) return cached;
     return {
       unassignedWorkers: [],
       projectGroups: [],

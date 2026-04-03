@@ -5,10 +5,8 @@
  * - Decode Google encoded polylines for MapView
  */
 
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { supabase } from '../../lib/supabase';
-
-const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL } from '../../config/api';
 
 const getAuthHeaders = async () => {
   const { data: { session } } = await supabase.auth.getSession();

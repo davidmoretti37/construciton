@@ -3,7 +3,7 @@ import { getCurrentUserId, getCurrentUserContext } from './auth';
 import { validateWorkingDays } from './workerTasks';
 import subscriptionService from '../../services/subscriptionService';
 import { getSupervisorsForOwner } from './workers';
-import { cacheData, getCachedData } from '../../services/offlineCache';
+import { cacheData, getCachedData, clearCache } from '../../services/offlineCache';
 
 // ============================================================
 // Project Management Functions
@@ -256,6 +256,7 @@ export const saveProject = async (projectData) => {
       }
     }
 
+    clearCache('projects');
     return transformProjectFromDB(result);
   } catch (error) {
     console.error('❌ [saveProject] Error:', error);
@@ -547,6 +548,7 @@ export const deleteProject = async (projectId) => {
       return false;
     }
 
+    clearCache('projects');
     return true;
   } catch (error) {
     return false;

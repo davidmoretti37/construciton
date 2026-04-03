@@ -1,9 +1,8 @@
 import { supabase } from '../../lib/supabase';
+import { cacheData, getCachedData, clearCache } from '../../services/offlineCache';
 import logger from '../logger';
 import { getCurrentUserId, getCurrentUserContext } from './auth';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
-
-const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL as BACKEND_URL } from '../../config/api';
 
 // ============================================================
 // Worker Management Functions
@@ -46,6 +45,8 @@ export const createWorker = async (workerData) => {
       return null;
     }
 
+    clearCache('workers');
+    clearCache('workers_owner');
     return data;
   } catch (error) {
     console.error('Error in createWorker:', error);
@@ -103,6 +104,8 @@ export const updateWorker = async (workerId, updates) => {
       return false;
     }
 
+    clearCache('workers');
+    clearCache('workers_owner');
     return true;
   } catch (error) {
     console.error('Error in updateWorker:', error);
@@ -136,12 +139,18 @@ export const fetchWorkers = async () => {
 
     if (error) {
       console.error('Error fetching workers:', error);
+      const cached = getCachedData('workers', true);
+      if (cached) return cached;
       return [];
     }
 
-    return data || [];
+    const result = data || [];
+    cacheData('workers', result);
+    return result;
   } catch (error) {
     console.error('Error in fetchWorkers:', error);
+    const cached = getCachedData('workers', true);
+    if (cached) return cached;
     return [];
   }
 };
@@ -391,6 +400,43 @@ export const assignWorkerToServicePlan = async (workerId, servicePlanId) => {
       .from('project_assignments')
       .insert({ worker_id: workerId, service_plan_id: servicePlanId });
     if (error) { console.error('Error assigning worker to service plan:', error); return false; }
+
+    // Check how many workers are now assigned to this plan
+    const { data: allAssignments } = await supabase
+      .from('project_assignments')
+      .select('worker_id')
+      .eq('service_plan_id', servicePlanId)
+      .not('worker_id', 'is', null);
+
+    const workerCount = (allAssignments || []).length;
+
+    if (workerCount === 1) {
+      // Only one worker — auto-assign them to all locations + all future visits
+      const today = new Date().toISOString().split('T')[0];
+
+      // Set as default worker on all locations
+      supabase
+        .from('service_locations')
+        .update({ default_worker_id: workerId })
+        .eq('service_plan_id', servicePlanId)
+        .eq('is_active', true)
+        .then(() => {})
+        .catch(() => {});
+
+      // Assign to all future unassigned visits
+      supabase
+        .from('service_visits')
+        .update({ assigned_worker_id: workerId })
+        .eq('service_plan_id', servicePlanId)
+        .is('assigned_worker_id', null)
+        .gte('scheduled_date', today)
+        .neq('status', 'completed')
+        .neq('status', 'cancelled')
+        .then(() => console.log('[Workers] Auto-assigned sole worker to all visits'))
+        .catch(() => {});
+    }
+    // If multiple workers: owner must set per-location via "Set Default Worker"
+
     return true;
   } catch (error) { console.error('Error in assignWorkerToServicePlan:', error); return false; }
 };
@@ -551,13 +597,33 @@ export const getWorkerAssignments = async (workerId) => {
       phaseData = phaseResult;
     }
 
+    // Also fetch service plan assignments
+    let servicePlans = [];
+    try {
+      const { data: spData } = await supabase
+        .from('project_assignments')
+        .select(`
+          id, worker_id, service_plan_id,
+          service_plans:service_plan_id (
+            id, name, service_type, status, billing_cycle,
+            price_per_visit, monthly_rate, address, client_name
+          )
+        `)
+        .eq('worker_id', workerId)
+        .not('service_plan_id', 'is', null);
+      servicePlans = (spData || []).map(a => a.service_plans).filter(Boolean);
+    } catch (e) {
+      // service_plans join may fail if table doesn't exist yet
+    }
+
     return {
-      projects: projectData?.map(a => a.projects) || [],
+      projects: projectData?.map(a => a.projects).filter(Boolean) || [],
+      servicePlans,
       phases: phaseData?.map(a => ({
         ...a.project_phases,
         assignmentNotes: a.notes,
         assignedAt: a.assigned_at,
-      })) || [],
+      })).filter(Boolean) || [],
     };
   } catch (error) {
     console.error('Error in getWorkerAssignments:', error);
@@ -594,19 +660,31 @@ export const getPendingInvites = async (workerEmail) => {
 
     const invitesWithOwners = await Promise.all(
       workers.map(async (worker) => {
-        const { data: owner } = await supabase
-          .from('profiles')
-          .select('id, business_name')
-          .eq('id', worker.owner_id)
-          .single();
+        // Try profiles first, fall back to auth metadata
+        let ownerName = null;
+        let companyName = null;
+
+        try {
+          const { data: owner } = await supabase
+            .from('profiles')
+            .select('id, full_name, business_name')
+            .eq('id', worker.owner_id)
+            .single();
+          if (owner) {
+            ownerName = owner.business_name || owner.full_name || null;
+            companyName = owner.business_name || null;
+          }
+        } catch (e) {
+          // RLS may block this query for worker users
+        }
 
         return {
           ...worker,
-          owner: owner ? {
-            id: owner.id,
-            full_name: owner.business_name || 'Business Owner',
-            company_name: owner.business_name
-          } : null
+          owner: {
+            id: worker.owner_id,
+            full_name: ownerName || 'Your Employer',
+            company_name: companyName,
+          },
         };
       })
     );
@@ -1159,19 +1237,25 @@ export const fetchWorkersForOwner = async () => {
 
     if (error) {
       logger.error('Error fetching workers for owner:', error);
+      const cached = getCachedData('workers_owner', true);
+      if (cached) return cached;
       return [];
     }
 
     // Add supervisor name to each worker for attribution
-    return (data || []).map(w => ({
+    const result = (data || []).map(w => ({
       ...w,
       supervisor_name: w.owner_id === context.userId
         ? 'You (Owner)'
         : (supervisorNames[w.owner_id] || 'Unknown Supervisor'),
       supervisor_id: w.owner_id,
     }));
+    cacheData('workers_owner', result);
+    return result;
   } catch (error) {
     logger.error('Error in fetchWorkersForOwner:', error);
+    const cached = getCachedData('workers_owner', true);
+    if (cached) return cached;
     return [];
   }
 };

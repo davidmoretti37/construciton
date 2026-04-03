@@ -20,11 +20,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatHoursMinutes } from '../utils/calculations';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { supabase } from '../lib/supabase';
 import { editTimeEntry, editSupervisorTimeEntry } from '../utils/storage/timeTracking';
-
-const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL as BACKEND_URL } from '../config/api';
 
 export default function TimeEditModal({
   visible,

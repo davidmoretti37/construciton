@@ -79,18 +79,33 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
   };
 
   const handleSave = async () => {
-    // Simple validation without alerts
-    if (!name.trim() || !client.trim()) {
+    if (!name.trim()) {
+      Alert.alert('Required', 'Project name is required.');
+      return;
+    }
+    if (!client.trim()) {
+      Alert.alert('Required', 'Client name is required.');
+      return;
+    }
+
+    // Date validation
+    if (startDate && endDate && startDate > endDate) {
+      Alert.alert('Invalid Dates', 'Start date cannot be after end date.');
+      return;
+    }
+
+    // Financial validation
+    const contractAmountValue = parseFloat(contractAmount) || 0;
+    const incomeCollectedValue = parseFloat(incomeCollected) || 0;
+    const expensesValue = parseFloat(expenses) || 0;
+
+    if (contractAmountValue < 0 || incomeCollectedValue < 0 || expensesValue < 0) {
+      Alert.alert('Invalid Amount', 'Financial values cannot be negative.');
       return;
     }
 
     // Calculate daysRemaining if endDate is set
     const daysRemaining = endDate ? calculateDaysRemaining(startDate, endDate) : projectData.daysRemaining;
-
-    // Parse financial values
-    const contractAmountValue = parseFloat(contractAmount) || 0;
-    const incomeCollectedValue = parseFloat(incomeCollected) || 0;
-    const expensesValue = parseFloat(expenses) || 0;
     const profitValue = incomeCollectedValue - expensesValue;
 
     const updatedProject = {

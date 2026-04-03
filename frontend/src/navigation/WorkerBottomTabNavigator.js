@@ -1,9 +1,7 @@
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import TimeClockScreen from '../screens/worker/TimeClockScreen';
-import WorkerScheduleScreen from '../screens/worker/WorkerScheduleScreen';
-import WorkerAssignmentsScreen from '../screens/worker/WorkerAssignmentsScreen';
-import WorkerDailyReportScreen from '../screens/WorkerDailyReportScreen';
+import TodaysWorkScreen from '../screens/worker/TodaysWorkScreen';
 import WorkerLumaBar from '../components/WorkerLumaBar';
 
 const Tab = createMaterialTopTabNavigator();
@@ -21,9 +19,7 @@ export default function WorkerBottomTabNavigator() {
       }}
     >
       <Tab.Screen name="TimeClock" component={TimeClockScreen} />
-      <Tab.Screen name="Schedule" component={WorkerScheduleScreen} />
-      <Tab.Screen name="Assignments" component={WorkerAssignmentsScreen} />
-      <Tab.Screen name="Reports" component={WorkerDailyReportScreen} />
+      <Tab.Screen name="TodaysWork" component={TodaysWorkScreen} />
     </Tab.Navigator>
   );
 }

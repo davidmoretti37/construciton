@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from './auth';
+import { clearCache } from '../../services/offlineCache';
 
 // ============================================================
 // Project Transaction Functions
@@ -14,6 +15,12 @@ export const addProjectTransaction = async (transaction) => {
   try {
     const userId = await getCurrentUserId();
 
+    // Validate financial data
+    const amount = parseFloat(transaction.amount);
+    if (isNaN(amount) || amount < 0 || amount > 999999999) {
+      throw new Error(`Invalid transaction amount: ${transaction.amount}`);
+    }
+
     const { data, error } = await supabase
       .from('project_transactions')
       .insert({
@@ -24,7 +31,7 @@ export const addProjectTransaction = async (transaction) => {
         subcategory: transaction.subcategory || null,
         tax_category: transaction.tax_category || null,
         description: transaction.description,
-        amount: transaction.amount,
+        amount,
         date: transaction.date || new Date().toISOString().split('T')[0],
         worker_id: transaction.worker_id || null,
         payment_method: transaction.payment_method || null,
@@ -38,6 +45,7 @@ export const addProjectTransaction = async (transaction) => {
       .single();
 
     if (error) throw error;
+    clearCache('projects'); // Invalidate project cache after financial write
     return data;
   } catch (error) {
     console.error('Error adding transaction:', error);
@@ -87,6 +95,12 @@ export const getProjectTransactions = async (projectId, type = null) => {
  */
 export const updateTransaction = async (transactionId, updates) => {
   try {
+    // Validate financial data
+    const amount = parseFloat(updates.amount);
+    if (isNaN(amount) || amount < 0 || amount > 999999999) {
+      throw new Error(`Invalid transaction amount: ${updates.amount}`);
+    }
+
     const { data, error } = await supabase
       .from('project_transactions')
       .update({
@@ -94,7 +108,7 @@ export const updateTransaction = async (transactionId, updates) => {
         category: updates.category,
         subcategory: updates.subcategory,
         description: updates.description,
-        amount: updates.amount,
+        amount,
         date: updates.date,
         payment_method: updates.payment_method,
         notes: updates.notes,
@@ -105,6 +119,7 @@ export const updateTransaction = async (transactionId, updates) => {
       .single();
 
     if (error) throw error;
+    clearCache('projects');
     return data;
   } catch (error) {
     console.error('Error updating transaction:', error);
@@ -125,6 +140,7 @@ export const deleteTransaction = async (transactionId) => {
       .eq('id', transactionId);
 
     if (error) throw error;
+    clearCache('projects');
     return true;
   } catch (error) {
     console.error('Error deleting transaction:', error);

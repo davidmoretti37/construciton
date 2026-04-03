@@ -8,9 +8,7 @@
  * - Intelligent buffer time suggestions
  */
 
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
-
-const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL as BACKEND_URL } from '../config/api';
 
 // Cache for geocoding results to reduce API calls
 const geocodeCache = new Map();

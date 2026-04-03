@@ -395,7 +395,7 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
                     || projectPreview.data.startDate,
                   endDate: projectData.endDate
                     || projectData.schedule?.estimatedEndDate
-                    || projectData.schedule?.projectdEndDate
+                    || projectData.schedule?.projectEndDate
                     || projectPreview.data.schedule?.estimatedEndDate
                     || projectPreview.data.endDate,
                 };
@@ -464,7 +464,8 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
               }
             }
           } catch (e) {
-            logger.error('⚠️ Daily checklist setup error (non-blocking):', e.message);
+            logger.error('⚠️ Daily checklist setup error:', e.message);
+            Alert.alert('Note', 'Daily checklist items could not be saved. You can add them manually from the project detail screen.');
           }
         }
 

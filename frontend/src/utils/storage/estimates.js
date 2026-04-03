@@ -36,10 +36,10 @@ export const saveEstimate = async (estimateData) => {
         phases: estimateData.phases || [],
         schedule: estimateData.schedule || {},
         scope: estimateData.scope || {},
-        subtotal: estimateData.subtotal || 0,
-        tax_rate: estimateData.taxRate || 0,
-        tax_amount: estimateData.taxAmount || 0,
-        total: estimateData.total || 0,
+        subtotal: Math.max(0, parseFloat(estimateData.subtotal) || 0),
+        tax_rate: Math.max(0, Math.min(100, parseFloat(estimateData.taxRate) || 0)),
+        tax_amount: Math.max(0, parseFloat(estimateData.taxAmount) || 0),
+        total: Math.max(0, parseFloat(estimateData.total) || 0),
         valid_until: estimateData.validUntil || null,
         payment_terms: estimateData.paymentTerms || 'Net 30',
         notes: estimateData.notes || '',
@@ -295,6 +295,8 @@ export const updateEstimate = async (estimateData) => {
         valid_until: estimateData.validUntil || null,
         payment_terms: estimateData.paymentTerms || 'Net 30',
         notes: estimateData.notes || '',
+        updated_at: new Date().toISOString(),
+        updated_by: userId,
       })
       .eq('id', estimateId)
       .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')

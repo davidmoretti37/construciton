@@ -291,9 +291,14 @@ export const updateInvoicePDF = async (invoiceId, pdfUrl) => {
  */
 export const updateInvoice = async (invoiceId, updates) => {
   try {
+    const userId = await getCurrentUserId();
     const { error } = await supabase
       .from('invoices')
-      .update(updates)
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+        ...(userId ? { updated_by: userId } : {}),
+      })
       .eq('id', invoiceId);
 
     if (error) {

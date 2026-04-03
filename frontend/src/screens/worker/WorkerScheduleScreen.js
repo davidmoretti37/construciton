@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../../config/api';
 import { useNetwork } from '../../contexts/NetworkContext';
 import { queueAction } from '../../services/offlineQueue';
 import {
@@ -23,7 +23,7 @@ import AppleCalendarMonth from '../../components/AppleCalendarMonth';
 import TaskMoveModal from '../../components/TaskMoveModal';
 import TaskDetailModal from '../../components/TaskDetailModal';
 
-export default function WorkerScheduleScreen({ navigation }) {
+export default function WorkerScheduleScreen({ navigation, embedded = false }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('workers');
@@ -35,6 +35,7 @@ export default function WorkerScheduleScreen({ navigation }) {
   const [workerId, setWorkerId] = useState(null);
   const [ownerId, setOwnerId] = useState(null);
   const [assignedProjectIds, setAssignedProjectIds] = useState(null);
+  const [assignedPlanIds, setAssignedPlanIds] = useState([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [monthTasks, setMonthTasks] = useState([]);
@@ -92,13 +93,22 @@ export default function WorkerScheduleScreen({ navigation }) {
       }
 
       setWorkerId(workerData.id);
-      setOwnerId(workerData.owner_id);
+      const owId = workerData.owner_id;
+      setOwnerId(owId && !String(owId).includes('null') && String(owId).length > 10 ? owId : null);
 
       const { data: assignments } = await supabase
         .from('project_assignments')
         .select('project_id')
         .eq('worker_id', workerData.id);
-      setAssignedProjectIds((assignments || []).map(a => a.project_id));
+      setAssignedProjectIds((assignments || []).map(a => a.project_id).filter(Boolean));
+
+      // Also get assigned service plans
+      const { data: planAssignments } = await supabase
+        .from('project_assignments')
+        .select('service_plan_id')
+        .eq('worker_id', workerData.id)
+        .not('service_plan_id', 'is', null);
+      setAssignedPlanIds((planAssignments || []).map(a => a.service_plan_id).filter(Boolean));
     } catch (error) {
       console.error('Error loading worker data:', error);
     } finally {
@@ -107,6 +117,8 @@ export default function WorkerScheduleScreen({ navigation }) {
   };
 
   const loadMonthData = async (monthDate) => {
+    // Guard: don't query with invalid ownerId
+    if (!ownerId || typeof ownerId !== 'string' || ownerId.length < 30) return;
     try {
       setScheduleLoading(true);
       const yr = monthDate.getFullYear();
@@ -116,6 +128,7 @@ export default function WorkerScheduleScreen({ navigation }) {
       const monthEnd = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
       const tasks = await fetchTasksForWorkerDateRange(ownerId, monthStart, monthEnd, assignedProjectIds);
+
       setMonthTasks(tasks || []);
       filterDayTasks(selectedDate, tasks || []);
     } catch (error) {
@@ -154,17 +167,22 @@ export default function WorkerScheduleScreen({ navigation }) {
     setExpandedProjects(projects);
 
     // Fetch service visits for this day
-    if (workerId) {
+    const orFilters = [];
+    if (workerId) orFilters.push(`assigned_worker_id.eq.${workerId}`);
+    if (assignedPlanIds.length > 0) orFilters.push(`service_plan_id.in.(${assignedPlanIds.join(',')})`);
+
+    if (orFilters.length > 0) {
       supabase
         .from('service_visits')
         .select('id, scheduled_date, scheduled_time, status, started_at, completed_at, service_locations(id, name, address, latitude, longitude, access_notes), service_plans(name)')
         .eq('scheduled_date', dateString)
-        .eq('assigned_worker_id', workerId)
+        .neq('status', 'cancelled')
+        .or(orFilters.join(','))
         .order('scheduled_time', { ascending: true })
         .then(({ data }) => setDayVisits(data || []))
         .catch(() => setDayVisits([]));
-    } else {
-      // Also fetch visits assigned to the owner (for owner-operators)
+    } else if (!workerId) {
+      // Owner-operator: fetch all visits for the day
       supabase
         .from('service_visits')
         .select('id, scheduled_date, scheduled_time, status, started_at, completed_at, service_locations(id, name, address, latitude, longitude, access_notes), service_plans(name)')
@@ -242,7 +260,7 @@ export default function WorkerScheduleScreen({ navigation }) {
         const visitId = visit.id.replace('visit-', '');
         const { data: v } = await supabase.from('service_visits').select('service_plan_id').eq('id', visitId).single();
         if (v?.service_plan_id) {
-          const backendUrl = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+          const backendUrl = EXPO_PUBLIC_BACKEND_URL;
           const { data: { session } } = await supabase.auth.getSession();
           fetch(`${backendUrl}/api/service-visits/generate/${v.service_plan_id}`, {
             method: 'POST',
@@ -271,31 +289,38 @@ export default function WorkerScheduleScreen({ navigation }) {
     return `${y}-${m}-${d}`;
   })();
 
+  const Container = embedded ? View : SafeAreaView;
+  const containerProps = embedded ? { style: [styles.container, { backgroundColor: Colors.background }] } : { style: [styles.container, { backgroundColor: Colors.background }], edges: ['top'] };
+
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('schedule.title')}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-            <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
-          </TouchableOpacity>
-        </View>
+      <Container {...containerProps}>
+        {!embedded && (
+          <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
+            <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('schedule.title')}</Text>
+            <TouchableOpacity onPress={() => navigation?.navigate('Settings')}>
+              <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
         </View>
-      </SafeAreaView>
+      </Container>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <Container {...containerProps}>
       {/* Top Bar */}
-      <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('schedule.title')}</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-          <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
-        </TouchableOpacity>
-      </View>
+      {!embedded && (
+        <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
+          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>{t('schedule.title')}</Text>
+          <TouchableOpacity onPress={() => navigation?.navigate('Settings')}>
+            <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView
         style={styles.content}
@@ -546,7 +571,7 @@ export default function WorkerScheduleScreen({ navigation }) {
         task={selectedTask}
         onTaskMoved={handleTaskMoved}
       />
-    </SafeAreaView>
+    </Container>
   );
 }
 

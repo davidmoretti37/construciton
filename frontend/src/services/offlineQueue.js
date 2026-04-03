@@ -1,47 +1,59 @@
 /**
  * Offline Queue Service
  * Queues write actions when offline, replays them when back online.
- * Persisted to MMKV so queued actions survive app restart.
+ * Persisted to AsyncStorage so queued actions survive app restart.
  */
 
-import { MMKV } from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
-let storage;
-try {
-  storage = new MMKV({ id: 'sylk-offline-queue' });
-} catch (e) {
-  console.warn('[OfflineQueue] MMKV init failed');
-  storage = null;
+const QUEUE_KEY = 'sylk_offline_queue';
+
+// In-memory mirror for synchronous reads
+let queueMirror = null;
+
+async function loadQueue() {
+  try {
+    const raw = await AsyncStorage.getItem(QUEUE_KEY);
+    queueMirror = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    queueMirror = [];
+  }
+  return queueMirror;
 }
 
-const QUEUE_KEY = 'pending_actions';
-
 function getQueue() {
-  try {
-    const raw = storage?.getString(QUEUE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
+  return queueMirror || [];
 }
 
 function saveQueue(queue) {
-  try {
-    storage?.set(QUEUE_KEY, JSON.stringify(queue));
-  } catch (e) {
+  queueMirror = queue;
+  AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue)).catch(e => {
     console.warn('[OfflineQueue] Save error:', e.message);
-  }
+  });
 }
 
+// Load queue into memory on startup
+loadQueue();
+
 /**
- * Add an action to the offline queue
+ * Add an action to the offline queue.
+ * Uses last-write-wins deduplication: if the same entity already has a
+ * queued action, replace it with the new one (stores final state, not deltas).
+ *
  * @param {object} action - { type, payload }
  * Types: 'complete_visit', 'uncomplete_visit', 'toggle_checklist',
  *        'update_quantity', 'submit_daily_report'
  */
 export function queueAction(action) {
-  const queue = getQueue();
+  let queue = getQueue();
+  const entityKey = getEntityKey(action);
+
+  // Deduplicate: remove any prior action for the same entity
+  if (entityKey) {
+    queue = queue.filter(a => getEntityKey(a) !== entityKey);
+  }
+
   queue.push({
     ...action,
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -49,6 +61,25 @@ export function queueAction(action) {
   });
   saveQueue(queue);
   console.log(`[OfflineQueue] Queued: ${action.type} (${queue.length} pending)`);
+}
+
+/**
+ * Get a unique key for an entity so we can deduplicate.
+ * Same visit/checklist item → same key → last action wins.
+ */
+function getEntityKey(action) {
+  const { type, payload } = action;
+  switch (type) {
+    case 'complete_visit':
+    case 'uncomplete_visit':
+      return `visit:${payload.visit_id}`;
+    case 'toggle_checklist':
+      return `checklist:${payload.template_id || payload.entry_id}`;
+    case 'update_quantity':
+      return `quantity:${payload.entry_id}`;
+    default:
+      return null; // no dedup for other types
+  }
 }
 
 /**
@@ -64,6 +95,8 @@ export function getQueueSize() {
  * @returns {{ processed: number, failed: number }}
  */
 export async function processQueue() {
+  // Ensure queue is loaded from storage
+  await loadQueue();
   const queue = getQueue();
   if (queue.length === 0) return { processed: 0, failed: 0 };
 
@@ -126,14 +159,11 @@ async function executeAction(action) {
 
     case 'toggle_checklist': {
       if (payload.entry_id) {
-        // Update existing entry
         await supabase
           .from('daily_report_entries')
           .update({ completed: payload.completed })
           .eq('id', payload.entry_id);
       } else {
-        // Need to create report + entry — complex, use the full flow
-        // For now, create entry directly if report_id exists
         if (payload.report_id) {
           await supabase
             .from('daily_report_entries')

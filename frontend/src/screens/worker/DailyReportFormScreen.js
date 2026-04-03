@@ -28,6 +28,8 @@ import {
   getCurrentUserId
 } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
+import { useNetwork } from '../../contexts/NetworkContext';
+import { queueAction } from '../../services/offlineQueue';
 
 const ACCENT = '#1E40AF';
 
@@ -46,6 +48,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('common');
   const { user, profile } = useAuth();
+  const { isOnline } = useNetwork();
 
   const isOwner = route.params?.isOwner === true;
   const isSupervisor = profile?.role === 'supervisor';
@@ -368,6 +371,10 @@ export default function DailyReportFormScreen({ navigation, route }) {
   const removeListItem = (setter, index) => setter(prev => prev.filter((_, i) => i !== index));
 
   const handleSubmit = async () => {
+    if (!isOnline) {
+      Alert.alert('Offline', 'Daily reports require an internet connection to submit. Please try again when you are back online.');
+      return;
+    }
     if (!isServicePlanMode && !selectedProject) { Alert.alert('Required', 'Select a project or service plan'); return; }
     if (!workDone.trim()) { Alert.alert('Required', 'Describe what was done today'); return; }
 

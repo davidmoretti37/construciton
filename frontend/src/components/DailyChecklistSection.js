@@ -27,6 +27,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { useNetwork } from '../contexts/NetworkContext';
+import { queueAction } from '../services/offlineQueue';
 
 export default function DailyChecklistSection({
   projectId,
@@ -38,6 +40,7 @@ export default function DailyChecklistSection({
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { isOnline } = useNetwork();
   const isOwner = userRole === 'owner';
   const canCheck = true; // owners, workers & supervisors can all check items
 
@@ -147,6 +150,30 @@ export default function DailyChecklistSection({
       const existing = entries[template.id];
       const newCompleted = !existing?.completed;
 
+      // Update UI immediately
+      setEntries(prev => ({
+        ...prev,
+        [template.id]: { ...(existing || {}), completed: newCompleted, id: existing?.id || `offline-${template.id}` },
+      }));
+
+      // If offline, queue the action
+      if (!isOnline) {
+        queueAction({
+          type: 'toggle_checklist',
+          payload: {
+            entry_id: existing?.id || null,
+            report_id: reportId,
+            template_id: template.id,
+            title: template.title,
+            completed: newCompleted,
+            quantity_unit: template.quantity_unit,
+            sort_order: template.sort_order,
+          },
+        });
+        setSaving(false);
+        return;
+      }
+
       // Ensure report exists
       let rId = reportId;
       if (!rId) {
@@ -209,6 +236,23 @@ export default function DailyChecklistSection({
     if (!canCheck) return;
     const numValue = parseFloat(value) || null;
     const existing = entries[template.id];
+
+    // Update UI immediately
+    setEntries(prev => ({
+      ...prev,
+      [template.id]: { ...(existing || {}), quantity: numValue },
+    }));
+
+    // If offline, queue the action
+    if (!isOnline) {
+      if (existing?.id) {
+        queueAction({
+          type: 'update_quantity',
+          payload: { entry_id: existing.id, quantity: numValue },
+        });
+      }
+      return;
+    }
 
     try {
       let rId = reportId;

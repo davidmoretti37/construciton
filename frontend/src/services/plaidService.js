@@ -5,10 +5,8 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import logger from '../utils/logger';
-
-const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL } from '../config/api';
 
 /**
  * Get the current auth token for API calls

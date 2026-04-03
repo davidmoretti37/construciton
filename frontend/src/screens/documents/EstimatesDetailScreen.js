@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchEstimates, updateEstimate } from '../../utils/storage';
+import { createProjectFromEstimate } from '../../utils/storage/estimates';
 import EstimatePreview from '../../components/ChatVisuals/EstimatePreview';
 import { supabase } from '../../lib/supabase';
 
@@ -108,6 +109,33 @@ export default function EstimatesDetailScreen({ navigation, route }) {
             }
           }
         }
+      ]
+    );
+  };
+
+  const handleConvertToProject = (estimate) => {
+    Alert.alert(
+      'Convert to Project?',
+      `This will create a new project from "${estimate.client_name || estimate.project_name}" and mark the estimate as accepted.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Convert',
+          onPress: async () => {
+            try {
+              const project = await createProjectFromEstimate(estimate.id);
+              if (project) {
+                Alert.alert('Success', `Project "${project.name}" created successfully.`);
+                await loadEstimates();
+              } else {
+                Alert.alert('Error', 'Failed to create project from estimate.');
+              }
+            } catch (e) {
+              console.error('Error converting estimate:', e);
+              Alert.alert('Error', 'Failed to convert estimate to project.');
+            }
+          },
+        },
       ]
     );
   };
@@ -237,6 +265,15 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                     ${estimate.total?.toLocaleString() || '0'}
                   </Text>
                 </View>
+                {!estimate.project_id && (estimate.status === 'draft' || estimate.status === 'sent') && (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingTop: 8, paddingBottom: 2 }}
+                    onPress={(e) => { e.stopPropagation(); handleConvertToProject(estimate); }}
+                  >
+                    <Ionicons name="arrow-forward-circle-outline" size={16} color="#3B82F6" />
+                    <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Convert to Project</Text>
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             ))
           )}

@@ -27,12 +27,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSelectedLanguage } from '../utils/storage';
-
-const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL as BACKEND_URL } from '../config/api';
 import OrbitalLoader from './OrbitalLoader';
 import { setVoiceMode } from '../services/aiService';
 

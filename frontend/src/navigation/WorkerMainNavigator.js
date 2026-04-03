@@ -12,6 +12,8 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import NotificationSettingsScreen from '../screens/settings/NotificationSettingsScreen';
 import WorkerDailyRouteScreen from '../screens/worker/WorkerDailyRouteScreen';
 import VisitDetailScreen from '../screens/worker/VisitDetailScreen';
+import ServicePlanDetailScreen from '../screens/owner/ServicePlanDetailScreen';
+import MapRouteScreen from '../screens/owner/MapRouteScreen';
 
 const Stack = createStackNavigator();
 
@@ -71,6 +73,14 @@ export default function WorkerMainNavigator() {
       <Stack.Screen
         name="VisitDetail"
         component={VisitDetailScreen}
+      />
+      <Stack.Screen
+        name="ServicePlanDetail"
+        component={ServicePlanDetailScreen}
+      />
+      <Stack.Screen
+        name="MapRoute"
+        component={MapRouteScreen}
       />
       <Stack.Screen
         name="DocumentViewer"

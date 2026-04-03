@@ -59,6 +59,7 @@ export default function HomeScreen({ navigation }) {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [forgottenClockOuts, setForgottenClockOuts] = useState({ workers: [], supervisors: [] });
+  const [loadError, setLoadError] = useState(false);
 
   // Load today's daily reports
   const loadTodaysDailyReports = useCallback(async () => {
@@ -88,7 +89,7 @@ export default function HomeScreen({ navigation }) {
       if (!hasLoadedOnce) {
         loads.push(loadProjects());
       }
-      Promise.all(loads);
+      Promise.all(loads).then(() => setLoadError(false)).catch(() => setLoadError(true));
     }, [hasLoadedOnce, loadProjects, loadTodaysDailyReports, loadSupervisorTimeData])
   );
 
@@ -397,6 +398,15 @@ export default function HomeScreen({ navigation }) {
 
       {/* Trial Banner - shows when user is on trial */}
       <TrialBanner onPress={() => navigation.navigate('Settings', { screen: 'SubscriptionSettings' })} />
+
+      {loadError && !loading && (
+        <TouchableOpacity
+          style={{ backgroundColor: '#FF3B30', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' }}
+          onPress={() => { setLoadError(false); loadProjects(); loadTodaysDailyReports(); }}
+        >
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Failed to load data. Tap to retry.</Text>
+        </TouchableOpacity>
+      )}
 
       <ScrollView
         style={styles.content}

@@ -1,11 +1,8 @@
 // Legacy prompt archived - now using multi-agent system via CoreAgent
 // import { getSystemPrompt } from './agentPrompt';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import logger from '../utils/logger';
 import { supabase } from '../lib/supabase';
-
-// Backend API URL for AI calls (keeps API keys secure on server)
-const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL as BACKEND_URL } from '../config/api';
 
 // File types that the vision API (GPT-4o) can actually process
 const VISION_SUPPORTED_MIME_TYPES = new Set([

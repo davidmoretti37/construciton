@@ -140,6 +140,14 @@ app.use('/api/service-visits', servicesLimiter, serviceVisitRoutes);
 const serviceRouteRoutes = require('./routes/serviceRoutes');
 app.use('/api/service-routes', servicesLimiter, serviceRouteRoutes);
 
+// Client portal (public-facing client access)
+const portalRoutes = require('./routes/portal');
+app.use('/api/portal', servicesLimiter, portalRoutes);
+
+// Portal admin (owner-facing portal management)
+const portalOwnerRoutes = require('./routes/portalOwner');
+app.use('/api/portal-admin', servicesLimiter, portalOwnerRoutes);
+
 
 // ============================================================
 // HEALTH & READINESS CHECKS

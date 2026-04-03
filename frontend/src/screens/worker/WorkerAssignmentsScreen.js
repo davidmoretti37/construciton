@@ -7,6 +7,8 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +27,7 @@ export default function WorkerAssignmentsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [projects, setProjects] = useState([]);
+  const [servicePlans, setServicePlans] = useState([]);
   const [phases, setPhases] = useState([]);
 
   useEffect(() => {
@@ -49,8 +52,9 @@ export default function WorkerAssignmentsScreen({ navigation }) {
       }
 
       const assignments = await getWorkerAssignments(workerData.id);
-      setProjects(assignments.projects || []);
-      setPhases(assignments.phases || []);
+      setProjects((assignments.projects || []).filter(p => p && p.id && p.name));
+      setServicePlans((assignments.servicePlans || []).filter(p => p && p.id && p.name));
+      setPhases((assignments.phases || []).filter(p => p && p.id));
     } catch (error) {
       console.error('Error loading assignments:', error);
     } finally {
@@ -119,7 +123,7 @@ export default function WorkerAssignmentsScreen({ navigation }) {
     );
   }
 
-  const hasNoAssignments = projects.length === 0 && phases.length === 0;
+  const hasNoAssignments = projects.length === 0 && servicePlans.length === 0 && phases.length === 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
@@ -172,6 +176,39 @@ export default function WorkerAssignmentsScreen({ navigation }) {
                     <Text style={[styles.cardSubtext, { color: Colors.secondaryText }]}>{project.status}</Text>
                   </View>
                 )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Service Plans */}
+            {servicePlans.map((plan) => (
+              <TouchableOpacity
+                key={plan.id}
+                style={[styles.card, { backgroundColor: Colors.white }]}
+                onPress={() => navigation.navigate('ServicePlanDetail', { planId: plan.id })}
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{plan.name}</Text>
+                  <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+                </View>
+                {plan.client_name && (
+                  <View style={styles.cardRow}>
+                    <Ionicons name="person-outline" size={14} color={Colors.secondaryText} />
+                    <Text style={[styles.cardSubtext, { color: Colors.secondaryText }]}>{plan.client_name}</Text>
+                  </View>
+                )}
+                {plan.address && (
+                  <View style={styles.cardRow}>
+                    <Ionicons name="location-outline" size={14} color={Colors.secondaryText} />
+                    <Text style={[styles.cardSubtext, { color: Colors.secondaryText }]}>{plan.address}</Text>
+                  </View>
+                )}
+                <View style={styles.cardRow}>
+                  <View style={[styles.statusDot, { backgroundColor: plan.status === 'active' ? successColor : inactiveColor }]} />
+                  <Text style={[styles.cardSubtext, { color: Colors.secondaryText }]}>
+                    {plan.service_type?.replace(/_/g, ' ')} • {plan.billing_cycle}
+                  </Text>
+                </View>
               </TouchableOpacity>
             ))}
 

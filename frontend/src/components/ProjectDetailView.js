@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
@@ -125,6 +125,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [documentVisibilityModalVisible, setDocumentVisibilityModalVisible] = useState(false);
   const [pendingDocumentUploads, setPendingDocumentUploads] = useState([]);
   const [newDocumentVisibleToWorkers, setNewDocumentVisibleToWorkers] = useState(false);
+
+  // Time tracking
+  const [totalProjectHours, setTotalProjectHours] = useState(0);
 
   // Working days and task shifting
   const [showBulkShiftModal, setShowBulkShiftModal] = useState(false);
@@ -261,6 +264,24 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           // Fall back to project values
           setCalculatedExpenses(null);
           setCalculatedIncome(null);
+        }
+
+        // Load total hours worked on project
+        try {
+          const { data: timeEntries } = await supabase
+            .from('time_tracking')
+            .select('clock_in, clock_out, break_start, break_end')
+            .eq('project_id', project.id)
+            .not('clock_out', 'is', null);
+          let hours = 0;
+          (timeEntries || []).forEach(e => {
+            let h = (new Date(e.clock_out) - new Date(e.clock_in)) / 3600000;
+            if (e.break_start && e.break_end) h -= (new Date(e.break_end) - new Date(e.break_start)) / 3600000;
+            hours += h;
+          });
+          setTotalProjectHours(parseFloat(hours.toFixed(1)));
+        } catch (e) {
+          console.error('Error loading project hours:', e);
         }
 
         // Load project documents
@@ -411,7 +432,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     // Persist via backend (atomic transaction with rollback)
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const baseUrl = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+      const baseUrl = EXPO_PUBLIC_BACKEND_URL;
 
       const resp = await fetch(`${baseUrl}/api/project-sections/move-task`, {
         method: 'POST',
@@ -1001,6 +1022,61 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     });
   };
 
+  const handleStatusChange = (newStatus) => {
+    const labels = { completed: 'Complete', paused: 'Pause', active: 'Reopen', archived: 'Archive' };
+    Alert.alert(
+      `${labels[newStatus]} Project?`,
+      newStatus === 'completed'
+        ? 'This will mark the project as completed and notify assigned workers.'
+        : newStatus === 'archived'
+          ? 'Archived projects are hidden from the main list.'
+          : undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: labels[newStatus],
+          onPress: async () => {
+            try {
+              await saveProject({ ...project, status: newStatus });
+              onRefreshNeeded && onRefreshNeeded();
+
+              // Notify assigned workers about status change (non-blocking)
+              if (newStatus === 'completed' || newStatus === 'paused') {
+                const statusLabel = newStatus === 'completed' ? 'completed' : 'paused';
+                supabase
+                  .from('project_workers')
+                  .select('worker_id, workers(profile_id)')
+                  .eq('project_id', project.id)
+                  .then(({ data: pw }) => {
+                    if (!pw || pw.length === 0) return;
+                    const notifications = pw
+                      .filter(w => w.workers?.profile_id)
+                      .map(w => ({
+                        user_id: w.workers.profile_id,
+                        title: `Project ${statusLabel}`,
+                        body: `"${project.name}" has been marked as ${statusLabel}.`,
+                        type: 'project_status',
+                        icon: newStatus === 'completed' ? 'checkmark-circle' : 'pause-circle',
+                        color: newStatus === 'completed' ? '#10B981' : '#F59E0B',
+                        action_type: 'navigate',
+                        action_data: { screen: 'ProjectDetail', params: { projectId: project.id } },
+                        project_id: project.id,
+                      }));
+                    if (notifications.length > 0) {
+                      supabase.from('notifications').insert(notifications).then(() => {});
+                    }
+                  })
+                  .catch(() => {});
+              }
+            } catch (e) {
+              Alert.alert('Error', 'Failed to update project status.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const statusColor = getStatusColor(project.status);
   const progressPercent = project.percentComplete || 0;
   const contractAmount = project.contractAmount || project.budget || 0;
@@ -1268,6 +1344,93 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             </View>
           </View>
+
+          {/* Hours Worked Card */}
+          {totalProjectHours > 0 && (
+            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+              <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground, width: '100%' }]}>
+                <View style={[styles.iconBadge, { backgroundColor: '#8B5CF6' + '15' }]}>
+                  <Ionicons name="time" size={18} color="#8B5CF6" />
+                </View>
+                <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Hours Worked</Text>
+                <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
+                  {formatHoursMinutes(totalProjectHours)}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Budget Progress Bar */}
+          {contractAmount > 0 && (
+            <View style={[styles.section, { backgroundColor: Colors.cardBackground, paddingVertical: 14 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.secondaryText }}>Budget Used</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : Colors.primaryText }}>
+                  ${expenses.toLocaleString()} / ${contractAmount.toLocaleString()} ({Math.round((expenses / contractAmount) * 100)}%)
+                </Text>
+              </View>
+              <View style={{ height: 8, backgroundColor: Colors.lightGray, borderRadius: 4, overflow: 'hidden' }}>
+                <View style={{
+                  height: 8,
+                  borderRadius: 4,
+                  width: `${Math.min(100, (expenses / contractAmount) * 100)}%`,
+                  backgroundColor: expenses > contractAmount ? '#EF4444' : expenses > contractAmount * 0.8 ? '#F59E0B' : '#10B981',
+                }} />
+              </View>
+            </View>
+          )}
+
+          {/* Project Status Actions */}
+          {isOwner && !isDemo && (
+            <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12 }}>
+              {project.status === 'active' && (
+                <>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                    onPress={() => handleStatusChange('completed')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Mark Complete</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: Colors.cardBackground, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}
+                    onPress={() => handleStatusChange('paused')}
+                  >
+                    <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 14 }}>Pause</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {project.status === 'completed' && (
+                <>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: Colors.cardBackground, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}
+                    onPress={() => handleStatusChange('active')}
+                  >
+                    <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 14 }}>Reopen</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                    onPress={() => {
+                      if (navigation) {
+                        wasNavigatingRef.current = true;
+                        setModalVisible(false);
+                        navigation.navigate('Chat', { prefill: `Create an invoice for project "${project.name}" with contract amount $${contractAmount}` });
+                      }
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Generate Invoice</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {project.status === 'paused' && (
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                  onPress={() => handleStatusChange('active')}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Resume Project</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* Project Details Section */}
           {(project.taskDescription || project.location || project.clientPhone) && (

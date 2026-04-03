@@ -14,7 +14,14 @@ import { createStackNavigator } from '@react-navigation/stack';
 import HomeScreen from '../screens/HomeScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';
 import ChatScreen from '../screens/ChatScreen';
+import ErrorBoundary from '../components/ErrorBoundary';
 import WorkersScreen from '../screens/WorkersScreen';
+
+const ChatScreenWithBoundary = (props) => (
+  <ErrorBoundary>
+    <ChatScreen {...props} />
+  </ErrorBoundary>
+);
 import PhaseDetailScreen from '../screens/PhaseDetailScreen';
 import ProjectDetailScreen from '../screens/ProjectDetailScreen';
 import ProjectTransactionsScreen from '../screens/ProjectTransactionsScreen';
@@ -138,7 +145,7 @@ export default function BottomTabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Projects" component={ProjectsStack} />
-      <Tab.Screen name="Chat" component={ChatScreen} />
+      <Tab.Screen name="Chat" component={ChatScreenWithBoundary} />
       <Tab.Screen name="Workers" component={WorkersScreen} />
       <Tab.Screen name="Settings" component={SettingsNavigator} />
     </Tab.Navigator>

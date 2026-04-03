@@ -549,6 +549,17 @@ export default function OwnerWorkersScreen() {
       return;
     }
 
+    if (!workerForm.email.trim()) {
+      Alert.alert('Required', 'Email is required to send the worker an invite to the app.');
+      return;
+    }
+
+    // Basic email format check
+    if (!/\S+@\S+\.\S+/.test(workerForm.email.trim())) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+
     // Validate rate for selected payment type
     const rateValue = {
       hourly: parseFloat(workerForm.hourlyRate) || 0,
@@ -1073,7 +1084,7 @@ export default function OwnerWorkersScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: Colors.primaryText }]}>
-                  Email <Text style={{ color: Colors.secondaryText }}>(optional)</Text>
+                  Email <Text style={{ color: '#EF4444' }}>*</Text>
                 </Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="mail-outline" size={20} color={Colors.secondaryText} />

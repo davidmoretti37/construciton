@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from './auth';
 import { sendPlanningRequest } from '../../services/aiService';
+import { cacheData, getCachedData } from '../../services/offlineCache';
 
 // ============================================================
 // Date & Validation Utilities
@@ -175,6 +176,8 @@ export const fetchTasksForDate = async (date) => {
 
     if (error) {
       console.error('Error fetching tasks for date:', error);
+      const cached = getCachedData(`tasks_day_${date}`, true);
+      if (cached) return cached;
       return [];
     }
 
@@ -198,9 +201,12 @@ export const fetchTasksForDate = async (date) => {
       return workingDays.includes(isoDay);
     });
 
+    cacheData(`tasks_day_${date}`, filteredData);
     return filteredData;
   } catch (error) {
     console.error('Error in fetchTasksForDate:', error);
+    const cached = getCachedData(`tasks_day_${date}`, true);
+    if (cached) return cached;
     return [];
   }
 };
@@ -231,11 +237,17 @@ export const fetchTasksForDateRange = async (startDate, endDate) => {
 
     if (error) {
       console.error('Error fetching tasks for date range:', error);
+      const cached = getCachedData(`tasks_${startDate}_${endDate}`, true);
+      if (cached) return cached;
       return [];
     }
-    return data || [];
+    const result = data || [];
+    cacheData(`tasks_${startDate}_${endDate}`, result);
+    return result;
   } catch (error) {
     console.error('Error in fetchTasksForDateRange:', error);
+    const cached = getCachedData(`tasks_${startDate}_${endDate}`, true);
+    if (cached) return cached;
     return [];
   }
 };
@@ -259,10 +271,12 @@ export const fetchTasksForSupervisorDateRange = async (startDate, endDate) => {
 
     if (error) {
       console.error('Error fetching tasks for supervisor range:', error);
+      const cached = getCachedData(`sup_tasks_${startDate}_${endDate}`, true);
+      if (cached) return cached;
       return [];
     }
 
-    return (data || []).map(task => ({
+    const result = (data || []).map(task => ({
       ...task,
       projects: {
         id: task.project_id,
@@ -271,8 +285,12 @@ export const fetchTasksForSupervisorDateRange = async (startDate, endDate) => {
         non_working_dates: task.non_working_dates,
       }
     }));
+    cacheData(`sup_tasks_${startDate}_${endDate}`, result);
+    return result;
   } catch (error) {
     console.error('Error in fetchTasksForSupervisorDateRange:', error);
+    const cached = getCachedData(`sup_tasks_${startDate}_${endDate}`, true);
+    if (cached) return cached;
     return [];
   }
 };
@@ -855,8 +873,9 @@ export const fetchAllTasks = async (filters = {}) => {
  * Tasks are filtered to only show on their project's working days
  */
 export const fetchTasksForWorker = async (ownerId, date, projectIds) => {
+  const isValidUUID = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+  if (!isValidUUID(ownerId)) return [];
   try {
-    if (!ownerId) return [];
 
     let query = supabase
       .from('worker_tasks')
@@ -878,6 +897,8 @@ export const fetchTasksForWorker = async (ownerId, date, projectIds) => {
 
     if (error) {
       console.error('Error fetching tasks for worker:', error);
+      const cached = getCachedData(`worker_tasks_${ownerId}_${date}`, true);
+      if (cached) return cached;
       return [];
     }
 
@@ -901,9 +922,12 @@ export const fetchTasksForWorker = async (ownerId, date, projectIds) => {
       return workingDays.includes(isoDay);
     });
 
+    cacheData(`worker_tasks_${ownerId}_${date}`, filteredData);
     return filteredData;
   } catch (error) {
     console.error('Error in fetchTasksForWorker:', error);
+    const cached = getCachedData(`worker_tasks_${ownerId}_${date}`, true);
+    if (cached) return cached;
     return [];
   }
 };
@@ -913,9 +937,15 @@ export const fetchTasksForWorker = async (ownerId, date, projectIds) => {
  * Returns all tasks whose date range overlaps with the query range
  */
 export const fetchTasksForWorkerDateRange = async (ownerId, startDate, endDate, projectIds) => {
-  try {
-    if (!ownerId) return [];
+  // UUID validation — reject anything that isn't a valid 36-char UUID
+  const isValidUUID = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
+  if (!isValidUUID(ownerId)) {
+    console.warn('[workerTasks] fetchTasksForWorkerDateRange skipped — invalid ownerId:', ownerId);
+    return [];
+  }
+
+  try {
     let query = supabase
       .from('worker_tasks')
       .select(`
@@ -935,12 +965,18 @@ export const fetchTasksForWorkerDateRange = async (ownerId, startDate, endDate, 
 
     if (error) {
       console.error('Error fetching tasks for worker date range:', error);
+      const cached = getCachedData(`worker_tasks_range_${ownerId}_${startDate}_${endDate}`, true);
+      if (cached) return cached;
       return [];
     }
 
-    return data || [];
+    const result = data || [];
+    cacheData(`worker_tasks_range_${ownerId}_${startDate}_${endDate}`, result);
+    return result;
   } catch (error) {
     console.error('Error in fetchTasksForWorkerDateRange:', error);
+    const cached = getCachedData(`worker_tasks_range_${ownerId}_${startDate}_${endDate}`, true);
+    if (cached) return cached;
     return [];
   }
 };

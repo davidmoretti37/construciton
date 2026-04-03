@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { useAuth } from './AuthContext';
 import {
   fetchNotifications,
@@ -87,7 +88,7 @@ export const NotificationProvider = ({ children }) => {
     // Get Expo push token
     try {
       const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: 'd77d2431-4ce6-4ed4-b447-acdc3e6d8f1c',
+        projectId: Constants.expoConfig?.extra?.eas?.projectId,
       });
       const token = tokenData.data;
 

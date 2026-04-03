@@ -26,8 +26,8 @@ export default function PricingSetupScreen({ navigation, route }) {
   const { t } = useTranslation('common');
 
   // NEW: Get selected services instead of trades
-  const { selectedServices: initialServices, businessInfo, phasesTemplate } = route.params;
-  const selectedTrades = route.params.selectedTrades; // Legacy support
+  const { selectedServices: initialServices, businessInfo, phasesTemplate } = route.params || {};
+  const selectedTrades = route.params?.selectedTrades; // Legacy support
 
   const [services, setServices] = useState(initialServices || []);
   const [activeService, setActiveService] = useState(services[0]?.id || null);

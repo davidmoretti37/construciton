@@ -33,6 +33,7 @@ import { uploadProjectDocument } from '../../utils/storage/projectDocuments';
 import WorkerAssignmentModal from '../../components/WorkerAssignmentModal';
 import SupervisorAssignmentModal from '../../components/SupervisorAssignmentModal';
 import DailyChecklistSection from '../../components/DailyChecklistSection';
+import EditServicePlanModal from '../../components/EditServicePlanModal';
 
 const SERVICE_TYPE_CONFIG = {
   pest_control: { label: 'Pest Control', icon: 'bug-outline', color: '#3B82F6' },
@@ -89,6 +90,8 @@ export default function ServicePlanDetailScreen({ route }) {
   const navigation = useNavigation();
   const { profile } = useAuth() || {};
   const userRole = profile?.role || 'owner';
+  const isOwner = userRole === 'owner';
+  const isWorker = userRole === 'worker';
 
   const [plan, setPlan] = useState(initialPlan || null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +101,20 @@ export default function ServicePlanDetailScreen({ route }) {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showWorkerAssignment, setShowWorkerAssignment] = useState(false);
   const [showSupervisorAssignment, setShowSupervisorAssignment] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddLocationModal, setShowAddLocationModal] = useState(false);
+  const [newLocName, setNewLocName] = useState('');
+  const [newLocAddress, setNewLocAddress] = useState('');
+  const [newLocNotes, setNewLocNotes] = useState('');
+  const [addingLocation, setAddingLocation] = useState(false);
+  const [showAllVisits, setShowAllVisits] = useState(false);
+  const [editingScheduleLoc, setEditingScheduleLoc] = useState(null);
+  const [schedFrequency, setSchedFrequency] = useState('weekly');
+  const [schedDays, setSchedDays] = useState([]);
+  const [schedTime, setSchedTime] = useState('');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [visitFilter, setVisitFilter] = useState('all'); // 'all', 'completed', 'scheduled', 'cancelled'
+  const [allVisits, setAllVisits] = useState(null); // null = not loaded yet, [] = loaded
 
   const resolvedId = planId || initialPlan?.id;
 
@@ -133,6 +150,134 @@ export default function ServicePlanDetailScreen({ route }) {
     } catch (e) {
       Alert.alert('Error', 'Failed to delete service plan');
     }
+  };
+
+  const handleAddLocation = async () => {
+    if (!newLocAddress.trim()) { Alert.alert('Required', 'Address is required.'); return; }
+    setAddingLocation(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { API_URL } = require('../../config/api');
+      const resp = await fetch(`${API_URL}/api/service-plans/${resolvedId}/locations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          name: newLocName.trim() || 'Location',
+          address: newLocAddress.trim(),
+          access_notes: newLocNotes.trim() || null,
+        }),
+      });
+      if (!resp.ok) throw new Error('Failed to add location');
+      setShowAddLocationModal(false);
+      setNewLocName(''); setNewLocAddress(''); setNewLocNotes('');
+      await loadDetail();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to add location.');
+    } finally {
+      setAddingLocation(false);
+    }
+  };
+
+  const handleRemoveLocation = (locId, locName) => {
+    Alert.alert('Remove Location?', `Remove "${locName}" from this plan?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        try {
+          const { error } = await supabase.from('service_locations').update({ is_active: false }).eq('id', locId);
+          if (error) throw error;
+          await loadDetail();
+        } catch (e) {
+          Alert.alert('Error', 'Failed to remove location.');
+        }
+      }},
+    ]);
+  };
+
+  const handleEditSchedule = (loc) => {
+    const sched = loc.schedule;
+    setEditingScheduleLoc(loc);
+    setSchedFrequency(sched?.frequency || 'weekly');
+    setSchedDays(normalizeDays(sched?.scheduled_days || []));
+    setSchedTime(sched?.preferred_time || '');
+  };
+
+  const handleSaveSchedule = async () => {
+    if (schedDays.length === 0) { Alert.alert('Required', 'Select at least one day.'); return; }
+    setSavingSchedule(true);
+    try {
+      // Delete old schedule, insert new
+      await supabase.from('location_schedules').delete().eq('service_location_id', editingScheduleLoc.id);
+      const { error } = await supabase.from('location_schedules').insert({
+        service_location_id: editingScheduleLoc.id,
+        owner_id: plan?.owner_id,
+        frequency: schedFrequency,
+        scheduled_days: schedDays,
+        preferred_time: schedTime || null,
+      });
+      if (error) throw error;
+      setEditingScheduleLoc(null);
+      await loadDetail();
+      // Trigger visit regeneration
+      const { data: { session } } = await supabase.auth.getSession();
+      const { API_URL } = require('../../config/api');
+      fetch(`${API_URL}/api/service-visits/generate/${resolvedId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ weeksAhead: 8 }),
+      }).catch(() => {});
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update schedule.');
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const toggleSchedDay = (day) => {
+    setSchedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  };
+
+  const loadAllVisits = async () => {
+    try {
+      const { data } = await supabase
+        .from('service_visits')
+        .select('id, service_location_id, scheduled_date, scheduled_time, status, completed_at, service_locations(name)')
+        .eq('service_plan_id', resolvedId)
+        .order('scheduled_date', { ascending: false })
+        .limit(200);
+      setAllVisits(data || []);
+    } catch (e) {
+      setAllVisits([]);
+    }
+  };
+
+  const handleSetDefaultWorker = (locId, locName) => {
+    const workers = plan?.workers || [];
+    if (workers.length === 0) {
+      Alert.alert('No Workers', 'Assign workers to this plan first before setting a default.');
+      return;
+    }
+    const buttons = workers.map(w => ({
+      text: w.full_name || w.name || 'Worker',
+      onPress: async () => {
+        try {
+          await supabase.from('service_locations').update({ default_worker_id: w.id }).eq('id', locId);
+          Alert.alert('Assigned', `${w.full_name || 'Worker'} will be auto-assigned to future visits at ${locName}.`);
+          await loadDetail();
+        } catch (e) {
+          Alert.alert('Error', 'Failed to assign default worker.');
+        }
+      },
+    }));
+    buttons.push({
+      text: 'Unassign',
+      style: 'destructive',
+      onPress: async () => {
+        await supabase.from('service_locations').update({ default_worker_id: null }).eq('id', locId);
+        await loadDetail();
+      },
+    });
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Default Worker', `Select a default worker for "${locName}"`, buttons);
   };
 
   const handleUploadDocument = () => {
@@ -221,17 +366,23 @@ export default function ServicePlanDetailScreen({ route }) {
   const scheduledDays = normalizeDays(firstSchedule?.scheduled_days);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
-      {/* Top bar */}
-      <View style={styles.topBar}>
+    <SafeAreaView style={[styles.container, { backgroundColor: statusColor }]} edges={['top']}>
+      {/* Top bar — colored to match hero */}
+      <View style={[styles.topBar, { backgroundColor: statusColor }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+          <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
+        {isOwner && (
+          <TouchableOpacity onPress={() => setShowEditModal(true)} style={styles.backBtn}>
+            <Ionicons name="create-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+        style={{ backgroundColor: statusColor }}
+        contentContainerStyle={[styles.scrollContent, { backgroundColor: Colors.background }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
       >
         {/* ═══ A. HERO ═══ */}
         <View style={[styles.heroSection, { backgroundColor: statusColor }]}>
@@ -277,8 +428,8 @@ export default function ServicePlanDetailScreen({ route }) {
           </View>
         </View>
 
-        {/* ═══ B. FINANCIAL CARDS ═══ */}
-        <View style={styles.financialContainer}>
+        {/* ═══ B. FINANCIAL CARDS (owner only) ═══ */}
+        {isOwner && <View style={styles.financialContainer}>
           <View style={styles.financialRow}>
             <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
               <View style={[styles.iconBadge, { backgroundColor: '#3B82F615' }]}>
@@ -311,15 +462,17 @@ export default function ServicePlanDetailScreen({ route }) {
               <Text style={[styles.financialValue, { color: profit >= 0 ? '#10B981' : '#EF4444' }]}>${profit.toLocaleString()}</Text>
             </View>
           </View>
-        </View>
+        </View>}
 
-        {/* ═══ ACTION BUTTONS (Billing + Routes) ═══ */}
+        {/* ═══ ACTION BUTTONS ═══ */}
         <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1E40AF' }]} onPress={() => navigation.navigate('Billing', { plan })}>
-            <Ionicons name="receipt-outline" size={18} color="#fff" />
-            <Text style={styles.actionBtnText}>Billing</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669' }]} onPress={() => navigation.navigate('MapRoute', { locations: (plan?.locations || []).filter(l => l.latitude && l.longitude) })}>
+          {isOwner && (
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1E40AF' }]} onPress={() => navigation.navigate('Billing', { plan })}>
+              <Ionicons name="receipt-outline" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>Billing</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669', flex: isWorker ? 1 : undefined }]} onPress={() => navigation.navigate('MapRoute', { locations: (plan?.locations || []).filter(l => l.latitude && l.longitude) })}>
             <Ionicons name="navigate-outline" size={18} color="#fff" />
             <Text style={styles.actionBtnText}>Routes</Text>
           </TouchableOpacity>
@@ -400,6 +553,9 @@ export default function ServicePlanDetailScreen({ route }) {
             <View style={styles.sectionHeader}>
               <Ionicons name="location-outline" size={20} color={statusColor} />
               <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Service Locations</Text>
+              <TouchableOpacity onPress={() => setShowAddLocationModal(true)} style={{ marginLeft: 'auto', padding: 4 }}>
+                <Ionicons name="add-circle-outline" size={22} color="#3B82F6" />
+              </TouchableOpacity>
             </View>
             {(plan?.locations || []).map(loc => {
               const scheduleText = formatSchedule(loc.schedule);
@@ -414,16 +570,33 @@ export default function ServicePlanDetailScreen({ route }) {
                           <Text style={{ fontSize: 12, color: '#3B82F6', marginTop: 1 }}>{loc.address}</Text>
                         </TouchableOpacity>
                       )}
-                      {scheduleText && <Text style={[styles.locationMeta, { color: Colors.secondaryText }]}>{scheduleText}</Text>}
+                      {scheduleText ? (
+                        <TouchableOpacity onPress={() => handleEditSchedule(loc)}>
+                          <Text style={[styles.locationMeta, { color: '#3B82F6' }]}>{scheduleText} <Ionicons name="create-outline" size={11} color="#3B82F6" /></Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity onPress={() => handleEditSchedule(loc)}>
+                          <Text style={[styles.locationMeta, { color: '#3B82F6', fontStyle: 'italic' }]}>Add schedule</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
+                    <TouchableOpacity onPress={() => handleRemoveLocation(loc.id, loc.name)} style={{ padding: 6 }}>
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    </TouchableOpacity>
                   </View>
-                  {(loc.contact_name || loc.contact_phone || loc.access_notes) && (
-                    <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border }}>
-                      {loc.contact_name && <View style={styles.locDetailRow}><Ionicons name="person-outline" size={13} color={Colors.secondaryText} /><Text style={[styles.locDetailText, { color: Colors.secondaryText, fontSize: 12 }]}>{loc.contact_name}</Text></View>}
-                      {loc.contact_phone && <TouchableOpacity style={styles.locDetailRow} onPress={() => Linking.openURL(`tel:${loc.contact_phone}`)}><Ionicons name="call-outline" size={13} color="#3B82F6" /><Text style={[styles.locDetailText, { color: '#3B82F6', fontSize: 12 }]}>{loc.contact_phone}</Text></TouchableOpacity>}
-                      {loc.access_notes && <View style={[styles.accessNotesBox, { backgroundColor: '#F59E0B10' }]}><Ionicons name="key-outline" size={12} color="#F59E0B" /><Text style={[styles.locDetailText, { color: Colors.secondaryText, fontSize: 12 }]}>{loc.access_notes}</Text></View>}
-                    </View>
-                  )}
+                  <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border }}>
+                    {loc.contact_name && <View style={styles.locDetailRow}><Ionicons name="person-outline" size={13} color={Colors.secondaryText} /><Text style={[styles.locDetailText, { color: Colors.secondaryText, fontSize: 12 }]}>{loc.contact_name}</Text></View>}
+                    {loc.contact_phone && <TouchableOpacity style={styles.locDetailRow} onPress={() => Linking.openURL(`tel:${loc.contact_phone}`)}><Ionicons name="call-outline" size={13} color="#3B82F6" /><Text style={[styles.locDetailText, { color: '#3B82F6', fontSize: 12 }]}>{loc.contact_phone}</Text></TouchableOpacity>}
+                    {loc.access_notes && <View style={[styles.accessNotesBox, { backgroundColor: '#F59E0B10' }]}><Ionicons name="key-outline" size={12} color="#F59E0B" /><Text style={[styles.locDetailText, { color: Colors.secondaryText, fontSize: 12 }]}>{loc.access_notes}</Text></View>}
+                    <TouchableOpacity style={styles.locDetailRow} onPress={() => handleSetDefaultWorker(loc.id, loc.name)}>
+                      <Ionicons name="person-add-outline" size={13} color={loc.default_worker_id ? '#10B981' : Colors.secondaryText} />
+                      <Text style={[styles.locDetailText, { color: loc.default_worker_id ? '#10B981' : '#3B82F6', fontSize: 12, fontWeight: '600' }]}>
+                        {loc.default_worker_id
+                          ? `Default: ${(plan?.workers || []).find(w => w.id === loc.default_worker_id)?.full_name || 'Assigned'}`
+                          : 'Set Default Worker'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })}
@@ -446,16 +619,18 @@ export default function ServicePlanDetailScreen({ route }) {
           <View style={styles.sectionHeader}>
             <Ionicons name="people-outline" size={20} color={statusColor} />
             <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Assigned ({plan?.workers?.length || 0})</Text>
-            <View style={styles.assignButtonsRow}>
-              <TouchableOpacity style={[styles.assignButton, { backgroundColor: '#1E40AF' }]} onPress={() => setShowSupervisorAssignment(true)}>
-                <Ionicons name="briefcase" size={14} color="#fff" />
-                <Text style={styles.assignButtonText}>Supervisor</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.assignButton, { backgroundColor: statusColor }]} onPress={() => setShowWorkerAssignment(true)}>
-                <Ionicons name="person-add" size={14} color="#fff" />
-                <Text style={styles.assignButtonText}>Worker</Text>
-              </TouchableOpacity>
-            </View>
+            {isOwner && (
+              <View style={styles.assignButtonsRow}>
+                <TouchableOpacity style={[styles.assignButton, { backgroundColor: '#1E40AF' }]} onPress={() => setShowSupervisorAssignment(true)}>
+                  <Ionicons name="briefcase" size={14} color="#fff" />
+                  <Text style={styles.assignButtonText}>Supervisor</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.assignButton, { backgroundColor: statusColor }]} onPress={() => setShowWorkerAssignment(true)}>
+                  <Ionicons name="person-add" size={14} color="#fff" />
+                  <Text style={styles.assignButtonText}>Worker</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
           {plan?.workers?.length > 0 ? plan.workers.map(w => (
             <TouchableOpacity
@@ -480,6 +655,110 @@ export default function ServicePlanDetailScreen({ route }) {
             </View>
           )}
         </View>
+
+        {/* ═══ F2. VISITS ═══ */}
+        {((plan?.recent_visits || []).length > 0 || allVisits) && (
+          <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="calendar-outline" size={20} color={statusColor} />
+              <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>
+                Visits ({plan?.visits_this_month || 0} this month)
+              </Text>
+            </View>
+            {/* Filters — show when viewing all */}
+            {allVisits && (
+              <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 4, marginBottom: 8 }}>
+                {['all', 'scheduled', 'completed', 'cancelled'].map(f => (
+                  <TouchableOpacity
+                    key={f}
+                    onPress={() => setVisitFilter(f)}
+                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: visitFilter === f ? statusColor + '20' : Colors.lightGray }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: visitFilter === f ? statusColor : Colors.secondaryText }}>
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {(allVisits
+              ? allVisits.filter(v => visitFilter === 'all' || v.status === visitFilter)
+              : (plan?.recent_visits || []).slice(0, showAllVisits ? 50 : 5)
+            ).map(v => {
+              const isCompleted = v.status === 'completed';
+              const isCancelled = v.status === 'cancelled';
+              const locName = v.service_locations?.name || v.location_name || '';
+              return (
+                <View key={v.id} style={[styles.reportRow, { borderColor: Colors.border, flexDirection: 'row', alignItems: 'center' }]}>
+                  <TouchableOpacity
+                    style={{ marginRight: 10 }}
+                    onPress={() => {
+                      if (isCancelled) return;
+                      const newStatus = isCompleted ? 'scheduled' : 'completed';
+                      Alert.alert(
+                        isCompleted ? 'Undo Completion?' : 'Mark Complete?',
+                        locName ? `Visit at ${locName}` : undefined,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: isCompleted ? 'Undo' : 'Complete', onPress: async () => {
+                            try {
+                              await supabase.from('service_visits').update({
+                                status: newStatus,
+                                completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
+                              }).eq('id', v.id);
+                              await loadDetail();
+                            } catch (e) {
+                              Alert.alert('Error', 'Failed to update visit.');
+                            }
+                          }},
+                        ]
+                      );
+                    }}
+                  >
+                    <Ionicons
+                      name={isCompleted ? 'checkmark-circle' : isCancelled ? 'close-circle' : 'ellipse-outline'}
+                      size={22}
+                      color={isCompleted ? '#10B981' : isCancelled ? '#9CA3AF' : Colors.secondaryText}
+                    />
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ fontSize: 14, fontWeight: '600', color: isCancelled ? Colors.secondaryText : Colors.primaryText }, isCancelled && { textDecorationLine: 'line-through' }]}>
+                      {new Date(v.scheduled_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {v.scheduled_time ? ` at ${v.scheduled_time}` : ''}
+                    </Text>
+                    {locName ? <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 1 }}>{locName}</Text> : null}
+                  </View>
+                  {!isCancelled && !isCompleted && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        Alert.alert('Skip Visit?', 'This visit will be marked as cancelled.', [
+                          { text: 'No', style: 'cancel' },
+                          { text: 'Skip', style: 'destructive', onPress: async () => {
+                            await supabase.from('service_visits').update({ status: 'cancelled' }).eq('id', v.id);
+                            await loadDetail();
+                          }},
+                        ]);
+                      }}
+                      style={{ padding: 6 }}
+                    >
+                      <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '600' }}>Skip</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+            {!allVisits && (plan?.recent_visits || []).length >= 5 && (
+              <TouchableOpacity onPress={() => { loadAllVisits(); }} style={{ alignItems: 'center', paddingVertical: 8 }}>
+                <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>View All Visits</Text>
+              </TouchableOpacity>
+            )}
+            {allVisits && (
+              <TouchableOpacity onPress={() => { setAllVisits(null); setVisitFilter('all'); }} style={{ alignItems: 'center', paddingVertical: 8 }}>
+                <Text style={{ fontSize: 13, color: Colors.secondaryText, fontWeight: '600' }}>Show Less</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* ═══ G. DAILY REPORTS ═══ */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
@@ -554,8 +833,8 @@ export default function ServicePlanDetailScreen({ route }) {
           )}
         </View>
 
-        {/* ═══ I. ESTIMATES ═══ */}
-        <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+        {/* ═══ I. ESTIMATES (owner only) ═══ */}
+        {isOwner && <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="document-text-outline" size={20} color={statusColor} />
             <Text style={[styles.sectionHeaderTitle, { color: Colors.primaryText }]}>Estimates ({estimates.length})</Text>
@@ -588,7 +867,7 @@ export default function ServicePlanDetailScreen({ route }) {
               <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>Create an estimate via chat</Text>
             </View>
           )}
-        </View>
+        </View>}
 
         {/* ═══ J. TIMELINE ═══ */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
@@ -652,11 +931,11 @@ export default function ServicePlanDetailScreen({ route }) {
           )}
         </View>
 
-        {/* ═══ L. DELETE ═══ */}
-        <TouchableOpacity style={styles.deleteLink} onPress={() => setShowDeleteModal(true)}>
+        {/* ═══ L. DELETE (owner only) ═══ */}
+        {isOwner && <TouchableOpacity style={styles.deleteLink} onPress={() => setShowDeleteModal(true)}>
           <Ionicons name="trash-outline" size={16} color="#EF444480" />
           <Text style={styles.deleteLinkText}>Delete Service Plan</Text>
-        </TouchableOpacity>
+        </TouchableOpacity>}
 
         <View style={{ height: 80 }} />
       </ScrollView>
@@ -721,6 +1000,118 @@ export default function ServicePlanDetailScreen({ route }) {
           await loadDetail();
         }}
       />
+
+      <EditServicePlanModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        plan={plan}
+        onSave={loadDetail}
+      />
+
+      {/* Edit Schedule Modal */}
+      <Modal visible={!!editingScheduleLoc} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
+          <View style={[styles.modalContent, { backgroundColor: Colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Edit Schedule</Text>
+            <Text style={{ fontSize: 13, color: Colors.secondaryText, marginBottom: 12 }}>{editingScheduleLoc?.name}</Text>
+
+            {/* Frequency */}
+            <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.secondaryText, marginBottom: 6 }}>Frequency</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 14 }}>
+              {['weekly', 'biweekly', 'monthly'].map(f => (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => setSchedFrequency(f)}
+                  style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center',
+                    borderColor: schedFrequency === f ? '#3B82F6' : Colors.border,
+                    backgroundColor: schedFrequency === f ? '#3B82F6' : 'transparent',
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: schedFrequency === f ? '#fff' : Colors.secondaryText }}>
+                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Day picker */}
+            <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.secondaryText, marginBottom: 6 }}>Days</Text>
+            <View style={{ flexDirection: 'row', gap: 4, marginBottom: 14 }}>
+              {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(d => (
+                <TouchableOpacity
+                  key={d}
+                  onPress={() => toggleSchedDay(d)}
+                  style={{
+                    flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center',
+                    backgroundColor: schedDays.includes(d) ? '#3B82F6' : Colors.lightGray,
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: schedDays.includes(d) ? '#fff' : Colors.secondaryText }}>
+                    {d.slice(0, 3).toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Preferred time */}
+            <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.secondaryText, marginBottom: 6 }}>Preferred Time</Text>
+            <TextInput
+              style={[styles.modalInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground || Colors.background }]}
+              value={schedTime}
+              onChangeText={setSchedTime}
+              placeholder="e.g. 09:00"
+              placeholderTextColor={Colors.secondaryText}
+            />
+
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.lightGray }]} onPress={() => setEditingScheduleLoc(null)}>
+                <Text style={[styles.modalBtnText, { color: Colors.primaryText }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#3B82F6', opacity: savingSchedule ? 0.6 : 1 }]} onPress={handleSaveSchedule} disabled={savingSchedule}>
+                <Text style={[styles.modalBtnText, { color: '#fff' }]}>{savingSchedule ? 'Saving...' : 'Save Schedule'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Location Modal */}
+      <Modal visible={showAddLocationModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
+          <View style={[styles.modalContent, { backgroundColor: Colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Add Location</Text>
+            <TextInput
+              style={[styles.modalInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground || Colors.background }]}
+              value={newLocName}
+              onChangeText={setNewLocName}
+              placeholder="Location name"
+              placeholderTextColor={Colors.secondaryText}
+            />
+            <TextInput
+              style={[styles.modalInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground || Colors.background }]}
+              value={newLocAddress}
+              onChangeText={setNewLocAddress}
+              placeholder="Address *"
+              placeholderTextColor={Colors.secondaryText}
+            />
+            <TextInput
+              style={[styles.modalInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.inputBackground || Colors.background }]}
+              value={newLocNotes}
+              onChangeText={setNewLocNotes}
+              placeholder="Access notes (gate code, etc.)"
+              placeholderTextColor={Colors.secondaryText}
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.lightGray }]} onPress={() => { setShowAddLocationModal(false); setNewLocName(''); setNewLocAddress(''); setNewLocNotes(''); }}>
+                <Text style={[styles.modalBtnText, { color: Colors.primaryText }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#3B82F6', opacity: addingLocation ? 0.6 : 1 }]} onPress={handleAddLocation} disabled={addingLocation}>
+                <Text style={[styles.modalBtnText, { color: '#fff' }]}>{addingLocation ? 'Adding...' : 'Add Location'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -728,10 +1119,10 @@ export default function ServicePlanDetailScreen({ route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8 },
   backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 
-  heroSection: { padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
   heroContent: { flex: 1, marginRight: 12 },
   heroTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 6, lineHeight: 24 },
   contactContainer: { marginTop: 4, gap: 4 },
@@ -811,7 +1202,7 @@ const styles = StyleSheet.create({
   dayCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   dayCircleText: { fontSize: 13, fontWeight: '700' },
 
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: 0, marginBottom: 12, paddingHorizontal: 14 },
+  actionRow: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 12, paddingHorizontal: 14 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
   actionBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 

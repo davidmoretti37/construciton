@@ -34,6 +34,7 @@ import { supabase } from '../../lib/supabase';
 import WorkerInviteHandler from '../../components/WorkerInviteHandler';
 import IncompleteTasksModal from '../../components/IncompleteTasksModal';
 import { formatHoursMinutes } from '../../utils/calculations';
+import NotificationBell from '../../components/NotificationBell';
 
 export default function TimeClockScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -454,9 +455,12 @@ export default function TimeClockScreen({ navigation }) {
       {/* Minimalist Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
         <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Clock</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-          <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+          <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+            <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -524,110 +528,25 @@ export default function TimeClockScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Today's Route Button */}
-        <TouchableOpacity
-          style={[styles.tasksSection, { backgroundColor: Colors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }]}
-          onPress={() => navigation.navigate('WorkerDailyRoute')}
-          activeOpacity={0.7}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ backgroundColor: '#05966915', width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="navigate" size={18} color="#059669" />
-            </View>
-            <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>Today's Route</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-        </TouchableOpacity>
+        {/* Quick actions row */}
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 8 }}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: '#F59E0B15', paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+            onPress={() => navigation.navigate('DailyReportForm', { isOwner: false })}
+          >
+            <Ionicons name="document-text-outline" size={18} color="#F59E0B" />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#F59E0B' }}>Daily Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: '#10B98115', paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+            onPress={() => navigation.navigate('ExpenseForm')}
+          >
+            <Ionicons name="receipt-outline" size={18} color="#10B981" />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#10B981' }}>Add Expense</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Today's Tasks Section - Only shown when clocked in */}
-        {activeSession && (
-          <View style={[styles.tasksSection, { backgroundColor: Colors.white }]}>
-            <View style={styles.tasksSectionHeader}>
-              <View style={styles.tasksSectionTitleRow}>
-                <Ionicons name="checkbox-outline" size={20} color={Colors.warningOrange} />
-                <Text style={[styles.tasksSectionTitle, { color: Colors.primaryText }]}>Today's Tasks</Text>
-                {todayTasks.length > 0 && (
-                  <View style={[styles.taskBadge, { backgroundColor: Colors.warningOrange }]}>
-                    <Text style={styles.taskBadgeText}>{todayTasks.length}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {tasksLoading ? (
-              <ActivityIndicator size="small" color={Colors.primaryBlue} style={{ marginVertical: 20 }} />
-            ) : todayTasks.length === 0 ? (
-              <View style={styles.noTasksContainer}>
-                <Ionicons name="checkmark-done-outline" size={32} color={Colors.successGreen} />
-                <Text style={[styles.noTasksText, { color: Colors.secondaryText }]}>No tasks for today</Text>
-              </View>
-            ) : (
-              <View style={styles.tasksList}>
-                {todayTasks.map((task) => (
-                  <TouchableOpacity
-                    key={task.id}
-                    style={[styles.taskItem, { borderBottomColor: Colors.border }]}
-                    onPress={() => handleToggleTask(task)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.taskCheckbox}>
-                      <Ionicons
-                        name={task.status === 'completed' ? 'checkbox' : 'square-outline'}
-                        size={24}
-                        color={task.status === 'completed' ? Colors.successGreen : Colors.secondaryText}
-                      />
-                    </View>
-                    <View style={styles.taskContent}>
-                      <Text style={[
-                        styles.taskItemTitle,
-                        { color: Colors.primaryText },
-                        task.status === 'completed' && { textDecorationLine: 'line-through', color: Colors.secondaryText }
-                      ]}>
-                        {task.title}
-                      </Text>
-                      {task.description && (
-                        <Text style={[styles.taskItemDescription, { color: Colors.secondaryText }]} numberOfLines={1}>
-                          {task.description}
-                        </Text>
-                      )}
-                      {task.start_date !== task.end_date && (
-                        <View style={styles.taskItemMeta}>
-                          <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
-                          <Text style={[styles.taskItemMetaText, { color: Colors.secondaryText }]}>
-                            Due {new Date(task.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {/* Preview Upcoming Tasks */}
-            {upcomingTasks.length > 0 && (
-              <View style={[styles.upcomingSection, { borderTopColor: Colors.border }]}>
-                <View style={styles.upcomingSectionHeader}>
-                  <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
-                  <Text style={[styles.upcomingSectionTitle, { color: Colors.secondaryText }]}>
-                    Upcoming ({upcomingTasks.length})
-                  </Text>
-                </View>
-                {upcomingTasks.slice(0, 3).map((task) => (
-                  <View key={task.id} style={styles.upcomingItem}>
-                    <View style={[styles.upcomingDot, { backgroundColor: Colors.secondaryText }]} />
-                    <Text style={[styles.upcomingItemTitle, { color: Colors.secondaryText }]} numberOfLines={1}>
-                      {task.title}
-                    </Text>
-                    <Text style={[styles.upcomingItemDate, { color: Colors.secondaryText }]}>
-                      {new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
+        {/* Tasks moved to Today's Work tab */}
 
         {/* Recent History */}
         {recentEntries.length > 0 && (

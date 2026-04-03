@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import {
   View,
   Text,
@@ -73,6 +73,8 @@ import AssignWorkerModal from '../components/modals/AssignWorkerModal';
 import SkeletonBox from '../components/skeletons/SkeletonBox';
 import SkeletonCard from '../components/skeletons/SkeletonCard';
 import { formatHoursMinutes } from '../utils/calculations';
+import { useNetwork } from '../contexts/NetworkContext';
+import { queueAction } from '../services/offlineQueue';
 
 export default function WorkersScreen({ navigation, route, ownerMode = false, activeTab: externalActiveTab, onTabChange, showHeader = true }) {
   const { t } = useTranslation('workers');
@@ -80,6 +82,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
   const { isSupervisor, profile } = useAuth() || {};
+  const { isOnline } = useNetwork();
 
   const openEmailPicker = (toEmail, subject, body) => {
     const encodedSubject = encodeURIComponent(subject);
@@ -333,7 +336,9 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
           .select('id, scheduled_date, scheduled_time, status, service_locations(name, address, latitude, longitude), service_plans(name)')
           .gte('scheduled_date', monthStart)
           .lte('scheduled_date', monthEnd)
-          .order('scheduled_date', { ascending: true }),
+          .order('scheduled_date', { ascending: true })
+          .then(r => r)
+          .catch(() => ({ data: [] })),
       ]);
 
       // Convert visits to task-like objects so the calendar can render them
@@ -641,6 +646,18 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         prevTasks.map(t => t.id === task.id ? { ...t, status: newStatus === 'completed' ? 'completed' : 'pending' } : t)
       );
 
+      // If offline, queue the action
+      if (!isOnline) {
+        queueAction({
+          type: newStatus === 'completed' ? 'complete_visit' : 'uncomplete_visit',
+          payload: {
+            visit_id: visitId,
+            completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
+          },
+        });
+        return;
+      }
+
       try {
         const { data: updatedVisit, error } = await supabase
           .from('service_visits')
@@ -656,7 +673,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         // Trigger rolling visit regeneration if completed
         if (newStatus === 'completed' && updatedVisit?.service_plan_id) {
           const { data: { session } } = await supabase.auth.getSession();
-          fetch(`${EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000'}/api/service-visits/generate/${updatedVisit.service_plan_id}`, {
+          fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/service-visits/generate/${updatedVisit.service_plan_id}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
             body: JSON.stringify({ weeksAhead: 8 }),

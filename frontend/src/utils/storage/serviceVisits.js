@@ -3,10 +3,9 @@
  * Calls backend API endpoints (not direct Supabase) since visits have business logic
  */
 
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { supabase } from '../../lib/supabase';
-
-const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { cacheData, getCachedData } from '../../services/offlineCache';
+import { API_URL } from '../../config/api';
 
 const getAuthHeaders = async () => {
   const { data: { session } } = await supabase.auth.getSession();
@@ -18,14 +17,23 @@ const getAuthHeaders = async () => {
 };
 
 export async function fetchDailyVisits(date) {
-  const headers = await getAuthHeaders();
   const dateParam = date || new Date().toISOString().split('T')[0];
-  const response = await fetch(`${API_URL}/api/service-visits/daily?date=${dateParam}`, {
-    method: 'GET',
-    headers,
-  });
-  if (!response.ok) throw new Error(`Failed to fetch daily visits: ${response.status}`);
-  return response.json();
+  const cacheKey = `visits_${dateParam}`;
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/api/service-visits/daily?date=${dateParam}`, {
+      method: 'GET',
+      headers,
+    });
+    if (!response.ok) throw new Error(`Failed to fetch daily visits: ${response.status}`);
+    const result = await response.json();
+    cacheData(cacheKey, result);
+    return result;
+  } catch (e) {
+    const cached = getCachedData(cacheKey, true);
+    if (cached) return cached;
+    throw e;
+  }
 }
 
 export async function startVisit(visitId) {

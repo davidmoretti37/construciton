@@ -31,6 +31,7 @@ import {
   addVisitPhoto,
 } from '../../utils/storage/serviceVisits';
 import { uploadPhoto } from '../../services/uploadService';
+import { supabase } from '../../lib/supabase';
 
 export default function VisitDetailScreen({ route }) {
   const { visit: initialVisit } = route.params || {};
@@ -45,7 +46,8 @@ export default function VisitDetailScreen({ route }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const location = visit?.location || {};
+  const location = visit?.location || visit?.service_locations || {};
+  const planName = visit?.service_plans?.name || visit?.plan_name || '';
   const isScheduled = visit?.status === 'scheduled';
   const isInProgress = visit?.status === 'in_progress';
   const isCompleted = visit?.status === 'completed';
@@ -186,9 +188,16 @@ export default function VisitDetailScreen({ route }) {
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
             {location.name || 'Visit'}
           </Text>
-          <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
-            {location.address || ''}
-          </Text>
+          {location.address ? (
+            <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
+              {location.address}
+            </Text>
+          ) : null}
+          {planName ? (
+            <Text style={[styles.headerSubtitle, { color: '#3B82F6' }]} numberOfLines={1}>
+              {planName}
+            </Text>
+          ) : null}
         </View>
         <TouchableOpacity onPress={openMaps} style={styles.mapsBtn}>
           <Ionicons name="navigate" size={20} color="#3B82F6" />
@@ -327,6 +336,29 @@ export default function VisitDetailScreen({ route }) {
             )}
           </View>
         </View>
+
+        {/* Skip/Cancel button */}
+        {isScheduled && (
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#EF4444', marginTop: Spacing.md }]}
+            onPress={() => {
+              Alert.alert('Skip Visit?', 'This visit will be marked as cancelled and won\'t count toward billing.', [
+                { text: 'No', style: 'cancel' },
+                { text: 'Skip', style: 'destructive', onPress: async () => {
+                  try {
+                    await supabase.from('service_visits').update({ status: 'cancelled' }).eq('id', visit.id);
+                    navigation.goBack();
+                  } catch (e) {
+                    Alert.alert('Error', 'Failed to skip visit.');
+                  }
+                }},
+              ]);
+            }}
+          >
+            <Ionicons name="close-circle" size={20} color="#fff" />
+            <Text style={styles.actionButtonText}>Skip Visit</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Complete button */}
         {isInProgress && (

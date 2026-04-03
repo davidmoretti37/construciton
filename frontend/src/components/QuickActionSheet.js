@@ -24,7 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
+import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';

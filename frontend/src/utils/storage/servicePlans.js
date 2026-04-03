@@ -4,10 +4,8 @@
  */
 
 import { supabase } from '../../lib/supabase';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { cacheData, getCachedData } from '../../services/offlineCache';
-
-const API_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL } from '../../config/api';
 
 /**
  * Get current user ID from Supabase auth

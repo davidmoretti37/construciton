@@ -1,8 +1,6 @@
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { sendMessageToAI } from './aiService';
 import { supabase } from '../lib/supabase';
-
-const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL as BACKEND_URL } from '../config/api';
 
 const getAuthHeaders = async () => {
   const { data: { session } } = await supabase.auth.getSession();

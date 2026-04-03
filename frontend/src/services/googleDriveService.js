@@ -1,9 +1,7 @@
 import * as WebBrowser from 'expo-web-browser';
-import { EXPO_PUBLIC_BACKEND_URL } from '@env';
 import { supabase } from '../lib/supabase';
 import logger from '../utils/logger';
-
-const BACKEND_URL = EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+import { API_URL as BACKEND_URL } from '../config/api';
 const BASE_PATH = '/api/integrations/google-drive';
 
 /**

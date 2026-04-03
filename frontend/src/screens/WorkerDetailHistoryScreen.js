@@ -28,7 +28,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('workers');
-  const initialWorker = route.params.worker;
+  const initialWorker = route.params?.worker;
   const [worker, setWorker] = useState(initialWorker);
 
   // Re-fetch worker when screen regains focus (after editing)
