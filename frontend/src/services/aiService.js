@@ -2135,6 +2135,10 @@ export const sendAgentMessage = async (
     xhr.onload = () => {
       const remaining = xhr.responseText.substring(lastProcessedIndex);
       if (remaining) processNewData(remaining);
+      // Flush any remaining line in the buffer (SSE line not terminated by \n)
+      if (lineBuffer.trim()) {
+        processNewData('\n');
+      }
       streamDone = true;
 
       const totalTime = Date.now() - startTime;

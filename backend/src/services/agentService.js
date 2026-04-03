@@ -297,9 +297,9 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
         let visualElements = [];
         let actions = [];
 
+        // Strategy 1: Parse the full JSON response
         try {
           let jsonStr = contentBuffer;
-          // Extract from code blocks if present (handles text before/after ```json...```)
           const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/i);
           if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
 
@@ -311,22 +311,63 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
             actions = Array.isArray(fullParsed.actions) ? fullParsed.actions : [];
           }
         } catch (e) {
-          logger.warn('Could not parse metadata from response:', e.message);
-          // Fallback: try to find visualElements array directly in the content
+          logger.warn('Strategy 1 (full parse) failed:', e.message);
+        }
+
+        // Strategy 2: Extract visualElements array using bracket matching
+        if (visualElements.length === 0 && contentBuffer.includes('"visualElements"')) {
           try {
-            const veMatch = contentBuffer.match(/"visualElements"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
-            if (veMatch) {
-              visualElements = JSON.parse(veMatch[1]);
-              logger.info(`📦 Fallback metadata extraction: ${visualElements.length} visualElements`);
+            const veStart = contentBuffer.indexOf('"visualElements"');
+            const arrStart = contentBuffer.indexOf('[', veStart);
+            if (arrStart !== -1) {
+              // Find matching closing bracket by counting depth
+              let depth = 0;
+              let arrEnd = -1;
+              for (let i = arrStart; i < contentBuffer.length; i++) {
+                if (contentBuffer[i] === '[') depth++;
+                else if (contentBuffer[i] === ']') {
+                  depth--;
+                  if (depth === 0) { arrEnd = i; break; }
+                }
+              }
+              if (arrEnd !== -1) {
+                const arrStr = contentBuffer.substring(arrStart, arrEnd + 1);
+                visualElements = JSON.parse(arrStr);
+                logger.info(`📦 Strategy 2 (bracket match) extracted ${visualElements.length} visualElements`);
+              }
             }
-          } catch (_) { /* ignore fallback parse errors */ }
+          } catch (e2) {
+            logger.warn('Strategy 2 (bracket match) failed:', e2.message);
+          }
+        }
+
+        // Strategy 3: Extract actions array using bracket matching
+        if (actions.length === 0 && contentBuffer.includes('"actions"')) {
+          try {
+            const actStart = contentBuffer.indexOf('"actions"');
+            const arrStart = contentBuffer.indexOf('[', actStart);
+            if (arrStart !== -1) {
+              let depth = 0;
+              let arrEnd = -1;
+              for (let i = arrStart; i < contentBuffer.length; i++) {
+                if (contentBuffer[i] === '[') depth++;
+                else if (contentBuffer[i] === ']') {
+                  depth--;
+                  if (depth === 0) { arrEnd = i; break; }
+                }
+              }
+              if (arrEnd !== -1) {
+                actions = JSON.parse(contentBuffer.substring(arrStart, arrEnd + 1));
+              }
+            }
+          } catch (_) { /* actions are less critical */ }
         }
 
         if (visualElements.length > 0 || actions.length > 0) {
           writer.emit({ type: 'metadata', visualElements, actions });
           logger.info(`📦 Emitted metadata: ${visualElements.length} visualElements, ${actions.length} actions`);
         } else if (contentBuffer.includes('visualElements')) {
-          logger.warn('⚠️ Response contains "visualElements" but parsing failed. Content length:', contentBuffer.length);
+          logger.error('🚨 Response contains "visualElements" but ALL parsing strategies failed. Buffer length:', contentBuffer.length, 'First 500 chars:', contentBuffer.substring(0, 500));
         }
 
         // Fallback: if no text was extracted during streaming, try once more
