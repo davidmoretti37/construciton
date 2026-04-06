@@ -151,6 +151,7 @@ router.get('/dashboard', async (req, res) => {
   try {
     const clientId = req.client.id;
     const ownerId = req.client.owner_id;
+    logger.info(`[Portal] Dashboard request - clientId: ${clientId}, ownerId: ${ownerId}, email: ${req.client.email}`);
 
     // Fetch all in parallel
     const [projectsResult, servicePlansResult, invoicesResult, estimatesResult, brandingResult] = await Promise.all([
@@ -199,6 +200,7 @@ router.get('/dashboard', async (req, res) => {
     ]);
 
     // Extract projects from join
+    logger.info(`[Portal] Dashboard raw projects: ${JSON.stringify(projectsResult.data?.length)} rows, error: ${projectsResult.error?.message || 'none'}`);
     const projects = (projectsResult.data || [])
       .map(pc => pc.projects)
       .filter(Boolean);
