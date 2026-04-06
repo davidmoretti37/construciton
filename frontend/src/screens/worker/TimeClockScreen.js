@@ -139,10 +139,12 @@ export default function TimeClockScreen({ navigation }) {
 
   const loadAssignedProjects = async (wId) => {
     try {
+      // Fetch projects
       const { data, error } = await supabase
         .from('project_assignments')
         .select('project_id, projects:project_id (id, name, location, status)')
-        .eq('worker_id', wId);
+        .eq('worker_id', wId)
+        .not('project_id', 'is', null);
 
       if (error) {
         console.error('Error fetching assigned projects:', error);
@@ -151,9 +153,22 @@ export default function TimeClockScreen({ navigation }) {
 
       const projects = (data || [])
         .map(a => a.projects)
+        .filter(Boolean);
+
+      // Fetch service plans
+      const { data: spData } = await supabase
+        .from('project_assignments')
+        .select('service_plan_id, service_plans:service_plan_id (id, name, address, status)')
+        .eq('worker_id', wId)
+        .not('service_plan_id', 'is', null);
+
+      const plans = (spData || [])
+        .map(a => a.service_plans)
         .filter(Boolean)
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setAvailableProjects(projects);
+        .map(p => ({ ...p, isServicePlan: true, location: p.address }));
+
+      const all = [...projects, ...plans].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setAvailableProjects(all);
     } catch (error) {
       console.error('Error loading assigned projects:', error);
     }
