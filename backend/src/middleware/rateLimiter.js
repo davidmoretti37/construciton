@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 /**
  * User-friendly error handler for rate limiting
@@ -40,7 +40,7 @@ const aiLimiter = rateLimit({
         if (payload.sub) return `user:${payload.sub}`;
       } catch (_) {}
     }
-    return req.ip;
+    return ipKeyGenerator(req);
   },
 });
 

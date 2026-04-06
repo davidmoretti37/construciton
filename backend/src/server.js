@@ -181,7 +181,7 @@ app.get('/ready', async (req, res) => {
   // 2. OpenRouter — check API key validity with a models list call
   if (process.env.OPENROUTER_API_KEY) {
     try {
-      const controller = new (require('abort-controller'))();
+      const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
       const resp = await require('node-fetch')('https://openrouter.ai/api/v1/models', {
         headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
@@ -212,7 +212,7 @@ app.get('/ready', async (req, res) => {
   // 4. Google Maps — ping geocoding endpoint
   if (process.env.GOOGLE_MAPS_API_KEY) {
     try {
-      const controller = new (require('abort-controller'))();
+      const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
       const resp = await require('node-fetch')(
         `https://maps.googleapis.com/maps/api/geocode/json?address=test&key=${process.env.GOOGLE_MAPS_API_KEY}`,
@@ -233,7 +233,7 @@ app.get('/ready', async (req, res) => {
   // 5. Deepgram — check API key with a usage endpoint
   if (process.env.DEEPGRAM_API_KEY) {
     try {
-      const controller = new (require('abort-controller'))();
+      const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
       const resp = await require('node-fetch')('https://api.deepgram.com/v1/projects', {
         headers: { 'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}` },

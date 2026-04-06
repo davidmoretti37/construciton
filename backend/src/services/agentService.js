@@ -25,7 +25,6 @@
  */
 
 const fetch = require('node-fetch');
-const AbortController = require('abort-controller');
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
