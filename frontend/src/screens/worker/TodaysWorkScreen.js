@@ -181,14 +181,24 @@ export default function TodaysWorkScreen() {
   };
 
   const handleToggleTask = async (task) => {
+    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+    // Optimistic update — flip UI immediately
+    setProjectCards(prev => prev.map(p => ({
+      ...p,
+      tasks: p.tasks.map(t => t.id === task.id ? { ...t, status: newStatus } : t),
+    })));
     try {
       if (task.status === 'completed') {
         await uncompleteTask(task.id);
       } else {
         await completeTask(task.id);
       }
-      await loadData();
     } catch (e) {
+      // Revert on failure
+      setProjectCards(prev => prev.map(p => ({
+        ...p,
+        tasks: p.tasks.map(t => t.id === task.id ? { ...t, status: task.status } : t),
+      })));
       Alert.alert('Error', 'Failed to update task.');
     }
   };
