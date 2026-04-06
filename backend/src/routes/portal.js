@@ -161,7 +161,7 @@ router.get('/dashboard', async (req, res) => {
         .select(`
           project_id,
           projects (
-            id, name, client, status, percent_complete,
+            id, name, status, percent_complete,
             contract_amount, income_collected, location,
             start_date, end_date, created_at, updated_at
           )
