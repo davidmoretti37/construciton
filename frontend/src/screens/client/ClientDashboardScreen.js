@@ -25,6 +25,7 @@ export default function ClientDashboardScreen({ navigation }) {
   const loadData = useCallback(async () => {
     try {
       const result = await fetchDashboard();
+      console.log('CLIENT DASHBOARD:', JSON.stringify(result).substring(0, 500));
       setData(result);
     } catch (e) {
       console.error('Dashboard load error:', e);
@@ -47,9 +48,9 @@ export default function ClientDashboardScreen({ navigation }) {
   }
 
   const projects = data?.projects || [];
-  const servicePlans = data?.service_plans || [];
-  const outstandingInvoices = data?.outstanding_invoices || [];
-  const pendingEstimates = data?.pending_estimates || [];
+  const servicePlans = data?.servicePlans || data?.service_plans || [];
+  const outstandingInvoices = data?.outstandingInvoices || data?.outstanding_invoices || [];
+  const pendingEstimates = data?.pendingEstimates || data?.pending_estimates || [];
   const branding = data?.branding || {};
 
   const totalOutstanding = outstandingInvoices.reduce((sum, inv) => sum + (parseFloat(inv.amount) - parseFloat(inv.amount_paid || 0)), 0);
