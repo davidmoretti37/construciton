@@ -143,6 +143,15 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
         service_plans:service_plan_id (id, name)
       `;
 
+    // Debug: check what reports exist
+    const { data: debugReports } = await supabase
+      .from('daily_reports')
+      .select('id, project_id, service_plan_id, report_date, reporter_type, owner_id, worker_id')
+      .order('report_date', { ascending: false })
+      .limit(5);
+    console.log('DEBUG user.id:', user.id);
+    console.log('DEBUG all reports:', JSON.stringify(debugReports));
+
     let query;
     if (filters.workerView) {
       // Worker context: no owner/supervisor filter, RLS handles access
