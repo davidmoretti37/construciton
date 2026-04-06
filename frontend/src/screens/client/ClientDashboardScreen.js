@@ -65,9 +65,14 @@ export default function ClientDashboardScreen({ navigation }) {
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
             {branding.business_name || 'My Projects'}
           </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
-            <Ionicons name="notifications-outline" size={24} color={Colors.primaryText} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+              <Ionicons name="notifications-outline" size={24} color={Colors.primaryText} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+              <Ionicons name="settings-outline" size={24} color={Colors.primaryText} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Outstanding Invoices Banner */}
