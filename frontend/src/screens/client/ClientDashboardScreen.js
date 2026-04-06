@@ -39,9 +39,8 @@ export default function ClientDashboardScreen({ navigation }) {
   const loadData = useCallback(async () => {
     try {
       const result = await fetchDashboard();
-      setData(result);
 
-      // If single project, auto-load its detail inline
+      // If single project, load detail before showing anything
       const projects = result?.projects || [];
       if (projects.length === 1) {
         const [detail, photoData, summaryData] = await Promise.all([
@@ -57,6 +56,9 @@ export default function ClientDashboardScreen({ navigation }) {
         setPhotos([]);
         setSummaries([]);
       }
+
+      // Set data last so everything renders at once
+      setData(result);
     } catch (e) {
       console.error('Dashboard load error:', e);
     } finally { setLoading(false); setRefreshing(false); }
