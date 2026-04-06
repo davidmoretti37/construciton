@@ -207,11 +207,11 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* AI Weekly Summaries */}
-          {summaries.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>WEEKLY UPDATES</Text>
-              {summaries.slice(0, 3).map((summary, i) => (
+          {/* AI Weekly Summaries — always show section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>WEEKLY UPDATES</Text>
+            {summaries.length > 0 ? (
+              summaries.slice(0, 3).map((summary, i) => (
                 <View key={summary.id || i} style={[styles.summaryCard, i > 0 && { marginTop: 10 }]}>
                   <View style={styles.summaryHeader}>
                     <Ionicons name="sparkles" size={14} color={C.amber} />
@@ -221,14 +221,8 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
                   </View>
                   <Text style={styles.summaryText}>{summary.summary || summary.content}</Text>
                 </View>
-              ))}
-            </View>
-          )}
-
-          {/* Fallback: single weekly_summary from project */}
-          {summaries.length === 0 && project.weekly_summary && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>WEEKLY UPDATE</Text>
+              ))
+            ) : project.weekly_summary ? (
               <View style={styles.summaryCard}>
                 <View style={styles.summaryHeader}>
                   <Ionicons name="sparkles" size={14} color={C.amber} />
@@ -236,8 +230,14 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
                 </View>
                 <Text style={styles.summaryText}>{project.weekly_summary}</Text>
               </View>
-            </View>
-          )}
+            ) : (
+              <View style={styles.summaryEmpty}>
+                <Ionicons name="sparkles-outline" size={28} color={C.textMuted} />
+                <Text style={styles.summaryEmptyText}>No updates yet</Text>
+                <Text style={styles.summaryEmptySubtext}>Your contractor will share weekly progress updates here</Text>
+              </View>
+            )}
+          </View>
 
           <View style={{ height: 100 }} />
         </View>
@@ -314,4 +314,7 @@ const styles = StyleSheet.create({
   summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   summaryDate: { fontSize: 12, fontWeight: '600', color: C.amber },
   summaryText: { fontSize: 14, lineHeight: 21, color: C.text },
+  summaryEmpty: { alignItems: 'center', paddingVertical: 28, backgroundColor: C.surface, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 },
+  summaryEmptyText: { fontSize: 15, fontWeight: '600', color: C.textSec, marginTop: 10 },
+  summaryEmptySubtext: { fontSize: 13, color: C.textMuted, marginTop: 4, textAlign: 'center', paddingHorizontal: 32 },
 });
