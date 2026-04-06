@@ -209,6 +209,25 @@ export const AuthProvider = ({ children }) => {
           console.warn('🔐 AuthContext - Could not check for invites:', inviteCheckError);
         }
 
+        // For existing client users, ensure their clients record is linked
+        if (data?.role === 'client') {
+          try {
+            const userEmail = (await supabase.auth.getUser())?.data?.user?.email;
+            if (userEmail) {
+              const { data: unlinkedClient } = await supabase
+                .from('clients')
+                .select('id')
+                .is('user_id', null)
+                .ilike('email', userEmail)
+                .limit(1);
+              if (unlinkedClient?.length > 0) {
+                await supabase.from('clients').update({ user_id: userId }).eq('id', unlinkedClient[0].id);
+                console.log('🔐 AuthContext - Linked client record to auth user');
+              }
+            }
+          } catch (e) { /* non-critical */ }
+        }
+
         // Continue with normal profile loading below
         console.log('🔐 AuthContext - Profile loaded:', {
           role: data?.role,
