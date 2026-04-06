@@ -153,7 +153,7 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
       // Owner/supervisor context: filter by project ownership
       query = supabase
         .from('daily_reports')
-        .select(selectFields.replace('projects (', 'projects!inner ('))
+        .select(selectFields.replace('projects (', 'projects!inner (') + ', service_plans:service_plan_id (id, name)')
         .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
         .order('report_date', { ascending: false });
     }
@@ -183,7 +183,32 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
     const { data, error } = await query;
 
     if (error) throw error;
-    const reports = data || [];
+    let reports = data || [];
+
+    // Also fetch service plan reports (not caught by projects!inner join)
+    if (!filters.workerView && !projectId) {
+      let spQuery = supabase
+        .from('daily_reports')
+        .select(selectFields + ', service_plans:service_plan_id (id, name)')
+        .not('service_plan_id', 'is', null)
+        .is('project_id', null)
+        .order('report_date', { ascending: false });
+
+      if (filters.workerId) spQuery = spQuery.eq('worker_id', filters.workerId);
+      if (filters.startDate) spQuery = spQuery.gte('report_date', filters.startDate);
+      if (filters.endDate) spQuery = spQuery.lte('report_date', filters.endDate);
+      spQuery = spQuery.limit(30);
+
+      const { data: spData } = await spQuery;
+      if (spData?.length) {
+        const existingIds = new Set(reports.map(r => r.id));
+        const newReports = spData.filter(r => !existingIds.has(r.id));
+        reports = [...reports, ...newReports].sort((a, b) =>
+          new Date(b.report_date) - new Date(a.report_date)
+        );
+      }
+    }
+
     await resolveReporterProfiles(reports);
     return reports;
   } catch (error) {
@@ -330,12 +355,32 @@ export const fetchPhotosWithFilters = async (filters = {}) => {
     if (error) throw error;
 
     let filteredReports = reports || [];
+
+    // Also fetch service plan reports (not caught by projects!inner)
+    if (!filters.projectId) {
+      let spQuery = supabase
+        .from('daily_reports')
+        .select(`id, photos, tags, report_date, notes, worker_id, project_id, phase_id, owner_id, reporter_type,
+          workers (id, full_name, trade), service_plans:service_plan_id (id, name), project_phases (id, name)`)
+        .not('service_plan_id', 'is', null)
+        .is('project_id', null)
+        .order('report_date', { ascending: false });
+      if (filters.workerId) spQuery = spQuery.eq('worker_id', filters.workerId);
+      if (filters.startDate) spQuery = spQuery.gte('report_date', filters.startDate);
+      if (filters.endDate) spQuery = spQuery.lte('report_date', filters.endDate);
+      const { data: spData } = await spQuery;
+      if (spData?.length) {
+        const existingIds = new Set(filteredReports.map(r => r.id));
+        filteredReports = [...filteredReports, ...spData.filter(r => !existingIds.has(r.id))];
+      }
+    }
+
     await resolveReporterProfiles(filteredReports);
 
     if (filters.projectName) {
       const searchTerm = filters.projectName.toLowerCase();
       filteredReports = filteredReports.filter(r =>
-        r.projects?.name?.toLowerCase().includes(searchTerm)
+        (r.projects?.name || r.service_plans?.name || '').toLowerCase().includes(searchTerm)
       );
     }
 
@@ -455,12 +500,34 @@ export const fetchDailyReportsWithFilters = async (filters = {}) => {
     if (error) throw error;
 
     let filteredReports = reports || [];
+
+    // Also fetch service plan reports (not caught by projects!inner)
+    if (!filters.projectId) {
+      let spQuery = supabase
+        .from('daily_reports')
+        .select(`id, project_id, service_plan_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, task_progress, created_at,
+          workers (id, full_name, trade), service_plans:service_plan_id (id, name), project_phases (id, name, completion_percentage)`)
+        .not('service_plan_id', 'is', null)
+        .is('project_id', null)
+        .gte('report_date', startDate)
+        .order('report_date', { ascending: false })
+        .limit(limit);
+      if (filters.workerId) spQuery = spQuery.eq('worker_id', filters.workerId);
+      if (filters.endDate) spQuery = spQuery.lte('report_date', filters.endDate);
+      const { data: spData } = await spQuery;
+      if (spData?.length) {
+        const existingIds = new Set(filteredReports.map(r => r.id));
+        filteredReports = [...filteredReports, ...spData.filter(r => !existingIds.has(r.id))]
+          .sort((a, b) => new Date(b.report_date) - new Date(a.report_date));
+      }
+    }
+
     await resolveReporterProfiles(filteredReports);
 
     if (filters.projectName) {
       const searchTerm = filters.projectName.toLowerCase();
       filteredReports = filteredReports.filter(r =>
-        r.projects?.name?.toLowerCase().includes(searchTerm)
+        (r.projects?.name || r.service_plans?.name || '').toLowerCase().includes(searchTerm)
       );
     }
 
