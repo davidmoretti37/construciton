@@ -58,12 +58,16 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
       return null;
     }
 
-    // Then fetch the record with the project join (Supabase can't join on insert)
+    // Then fetch the record with the project/service_plan join (Supabase can't join on insert)
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, clock_out, notes, location_lat, location_lng, created_at,
+        id, worker_id, project_id, service_plan_id, clock_in, clock_out, notes, location_lat, location_lng, created_at,
         projects:project_id (
+          id,
+          name
+        ),
+        service_plans:service_plan_id (
           id,
           name
         )
@@ -302,8 +306,12 @@ export const getActiveClockIn = async (workerId) => {
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, clock_out, break_start, break_end, breaks, notes, location_lat, location_lng,
+        id, worker_id, project_id, service_plan_id, clock_in, clock_out, break_start, break_end, breaks, notes, location_lat, location_lng,
         projects:project_id (
+          id,
+          name
+        ),
+        service_plans:service_plan_id (
           id,
           name
         )

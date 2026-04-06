@@ -498,8 +498,8 @@ export default function TimeClockScreen({ navigation }) {
           {/* Large Timer Display */}
           <View style={styles.timerContainer}>
             <Text style={[styles.timerText, { color: Colors.primaryText }]}>{activeSession ? elapsedTime : '--:--:--'}</Text>
-            {activeSession && activeSession.projects?.name && (
-              <Text style={[styles.projectText, { color: Colors.secondaryText }]}>{activeSession.projects.name}</Text>
+            {activeSession && (activeSession.projects?.name || activeSession.service_plans?.name) && (
+              <Text style={[styles.projectText, { color: Colors.secondaryText }]}>{activeSession.projects?.name || activeSession.service_plans?.name}</Text>
             )}
           </View>
 
@@ -572,7 +572,7 @@ export default function TimeClockScreen({ navigation }) {
                   <Text style={[styles.historyDate, { color: Colors.primaryText }]}>{formatDate(entry.clock_in)}</Text>
                   <Text style={[styles.historyHours, { color: Colors.primaryText }]}>{formatHoursMinutes(entry.hours)}</Text>
                 </View>
-                <Text style={[styles.historyProject, { color: Colors.secondaryText }]}>{entry.projects?.name || 'Unknown Project'}</Text>
+                <Text style={[styles.historyProject, { color: Colors.secondaryText }]}>{entry.projects?.name || entry.service_plans?.name || 'Unknown Project'}</Text>
                 <Text style={[styles.historyTime, { color: Colors.secondaryText }]}>
                   {formatTime(entry.clock_in)} - {formatTime(entry.clock_out)}
                 </Text>
@@ -696,7 +696,7 @@ export default function TimeClockScreen({ navigation }) {
         }}
         onSubmit={handleSubmitIncompleteReasons}
         tasks={pendingOverdueTasks}
-        projectName={activeSession?.projects?.name}
+        projectName={activeSession?.projects?.name || activeSession?.service_plans?.name}
       />
 
       <WorkerInviteHandler onInvitesHandled={handleInvitesComplete} />

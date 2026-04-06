@@ -2840,7 +2840,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     <View style={styles.activeStatusBody}>
                       <Ionicons name="briefcase" size={18} color="#FFFFFF" />
                       <Text style={styles.activeStatusProject}>
-                        {activeClockIns[selectedWorker.id]?.projects?.name || 'Unknown Project'}
+                        {activeClockIns[selectedWorker.id]?.projects?.name || activeClockIns[selectedWorker.id]?.service_plans?.name || 'Unknown Project'}
                       </Text>
                     </View>
                   </View>
@@ -2874,7 +2874,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                             {formatClockDate(entry.clock_in)}
                           </Text>
                           <Text style={[styles.clockHistoryProject, { color: Colors.secondaryText }]}>
-                            {entry.projects?.name || 'Unknown Project'}
+                            {entry.projects?.name || entry.service_plans?.name || 'Unknown Project'}
                           </Text>
                         </View>
                         <View style={styles.clockHistoryRight}>
