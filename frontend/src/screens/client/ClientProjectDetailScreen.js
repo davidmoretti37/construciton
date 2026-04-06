@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { fetchProject, fetchProjectPhotos } from '../../services/clientPortalApi';
+import { fetchProject, fetchProjectPhotos, fetchProjectSummaries } from '../../services/clientPortalApi';
 
 const { width: SW } = Dimensions.get('window');
 const C = {
@@ -30,16 +30,19 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [project, setProject] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [summaries, setSummaries] = useState([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = useCallback(async () => {
     try {
-      const [proj, photoData] = await Promise.all([
+      const [proj, photoData, summaryData] = await Promise.all([
         fetchProject(projectId),
         fetchProjectPhotos(projectId).catch(() => []),
+        fetchProjectSummaries(projectId).catch(() => []),
       ]);
       setProject(proj);
       setPhotos(photoData || []);
+      setSummaries(summaryData || []);
     } catch (e) {
       console.error('Project detail load error:', e);
     } finally { setLoading(false); setRefreshing(false); }
@@ -204,11 +207,33 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* Weekly Summary */}
-          {project.weekly_summary && (
+          {/* AI Weekly Summaries */}
+          {summaries.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>WEEKLY UPDATES</Text>
+              {summaries.slice(0, 3).map((summary, i) => (
+                <View key={summary.id || i} style={[styles.summaryCard, i > 0 && { marginTop: 10 }]}>
+                  <View style={styles.summaryHeader}>
+                    <Ionicons name="sparkles" size={14} color={C.amber} />
+                    <Text style={styles.summaryDate}>
+                      {summary.week_label || (summary.created_at ? new Date(summary.created_at).toLocaleDateString() : 'This week')}
+                    </Text>
+                  </View>
+                  <Text style={styles.summaryText}>{summary.summary || summary.content}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Fallback: single weekly_summary from project */}
+          {summaries.length === 0 && project.weekly_summary && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>WEEKLY UPDATE</Text>
               <View style={styles.summaryCard}>
+                <View style={styles.summaryHeader}>
+                  <Ionicons name="sparkles" size={14} color={C.amber} />
+                  <Text style={styles.summaryDate}>This week</Text>
+                </View>
                 <Text style={styles.summaryText}>{project.weekly_summary}</Text>
               </View>
             </View>
@@ -286,5 +311,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface, padding: 16, borderRadius: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
   },
+  summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  summaryDate: { fontSize: 12, fontWeight: '600', color: C.amber },
   summaryText: { fontSize: 14, lineHeight: 21, color: C.text },
 });
