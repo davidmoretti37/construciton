@@ -1,5 +1,4 @@
 const fetch = require('node-fetch');
-const AbortController = require('abort-controller');
 const logger = require('./logger');
 
 /**
