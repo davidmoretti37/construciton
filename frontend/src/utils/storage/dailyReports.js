@@ -183,14 +183,18 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error('fetchDailyReports query error:', error);
+      throw error;
+    }
+    console.log('fetchDailyReports: got', (data || []).length, 'project reports');
     let reports = data || [];
 
     // Also fetch service plan reports (not caught by projects!inner join)
     if (!filters.workerView && !projectId) {
       let spQuery = supabase
         .from('daily_reports')
-        .select(selectFields + ', service_plans:service_plan_id (id, name)')
+        .select(selectFields)
         .not('service_plan_id', 'is', null)
         .is('project_id', null)
         .order('report_date', { ascending: false });
@@ -200,7 +204,9 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
       if (filters.endDate) spQuery = spQuery.lte('report_date', filters.endDate);
       spQuery = spQuery.limit(30);
 
-      const { data: spData } = await spQuery;
+      const { data: spData, error: spError } = await spQuery;
+      if (spError) console.error('fetchDailyReports SP query error:', spError);
+      console.log('fetchDailyReports: got', (spData || []).length, 'service plan reports');
       if (spData?.length) {
         const existingIds = new Set(reports.map(r => r.id));
         const newReports = spData.filter(r => !existingIds.has(r.id));
