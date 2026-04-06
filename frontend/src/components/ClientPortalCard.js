@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const PORTAL_URL = 'https://sylkapp.ai/portal';
+const APP_LINK = 'sylk://portal';
 
 export default function ClientPortalCard({ project, navigation }) {
   const { t } = useTranslation('common');
@@ -55,7 +56,7 @@ export default function ClientPortalCard({ project, navigation }) {
           projectClientId: pc.id,
           accessToken: pc.access_token,
           client: pc.clients,
-          portalUrl: `${PORTAL_URL}/login?token=${pc.access_token}`,
+          portalUrl: `${APP_LINK}/login?email=${encodeURIComponent(pc.clients?.email || '')}`,
           sharedAt: pc.created_at,
         });
       }
@@ -104,7 +105,7 @@ export default function ClientPortalCard({ project, navigation }) {
 
       // Offer to share the link
       Share.share({
-        message: `View your project "${project.name}" here: ${data.portalUrl}`,
+        message: `View your project "${project.name}" on Sylk: ${data.portalUrl}\n\nDon't have the app? Download Sylk from the App Store.`,
         url: data.portalUrl,
       });
     } catch (error) {

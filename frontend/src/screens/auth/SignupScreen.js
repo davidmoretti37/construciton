@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -52,6 +53,18 @@ export default function SignupScreen({ navigation, route }) {
   const [email, setEmail] = useState(inviteEmail);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Check for portal invite deep link email
+  useEffect(() => {
+    if (!inviteEmail) {
+      AsyncStorage.getItem('@portal_invite_email').then(stored => {
+        if (stored) {
+          setEmail(stored);
+          AsyncStorage.removeItem('@portal_invite_email');
+        }
+      }).catch(() => {});
+    }
+  }, []);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);

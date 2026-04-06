@@ -347,6 +347,17 @@ function AppContent() {
                   }
                   return null;
                 }
+                if (url && url.includes('portal/login')) {
+                  // Client portal deep link — store email for signup pre-fill
+                  try {
+                    const emailMatch = url.match(/email=([^&]+)/);
+                    if (emailMatch) {
+                      await AsyncStorage.setItem('@portal_invite_email', decodeURIComponent(emailMatch[1]));
+                      logger.info('Portal invite email stored from deep link');
+                    }
+                  } catch (e) { /* non-critical */ }
+                  return null;
+                }
                 return url;
               },
               subscribe(listener) {
@@ -356,6 +367,16 @@ function AppContent() {
                       AsyncStorage.setItem('@teller_enrollment_complete', 'true');
                       logger.info('Teller enrollment flagged from subscribe');
                     }
+                    return;
+                  }
+                  if (url && url.includes('portal/login')) {
+                    try {
+                      const emailMatch = url.match(/email=([^&]+)/);
+                      if (emailMatch) {
+                        AsyncStorage.setItem('@portal_invite_email', decodeURIComponent(emailMatch[1]));
+                        logger.info('Portal invite email stored from deep link');
+                      }
+                    } catch (e) { /* non-critical */ }
                     return;
                   }
                   listener(url);
