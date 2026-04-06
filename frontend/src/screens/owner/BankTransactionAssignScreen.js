@@ -82,7 +82,15 @@ export default function BankTransactionAssignScreen() {
         .order('name');
 
       if (error) throw error;
-      setProjects(data || []);
+
+      const { data: plans } = await supabase
+        .from('service_plans')
+        .select('id, name, status, address')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      const planItems = (plans || []).map(p => ({ ...p, isServicePlan: true, location: p.address }));
+      setProjects([...(data || []), ...planItems]);
     } catch (error) {
       console.error('Error loading projects:', error);
     } finally {

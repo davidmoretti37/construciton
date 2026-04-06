@@ -1291,13 +1291,15 @@ export const getClockedInWorkersTodayForOwner = async () => {
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, clock_out,
+        id, worker_id, project_id, service_plan_id, clock_in, clock_out,
         workers!inner (
           id,
           full_name,
           trade,
           owner_id
-        )
+        ),
+        projects:project_id (id, name),
+        service_plans:service_plan_id (id, name)
       `)
       .gte('clock_in', today.toISOString())
       .lt('clock_in', tomorrow.toISOString())

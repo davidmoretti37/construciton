@@ -333,7 +333,7 @@ export default function OwnerWorkersScreen() {
         // Build clock-in map: supervisor_id -> project name
         const clockInMap = {};
         (clockIns || []).forEach(ci => {
-          clockInMap[ci.supervisor_id] = ci.projects?.name || 'Unknown Job';
+          clockInMap[ci.supervisor_id] = ci.projects?.name || ci.service_plans?.name || 'Unknown Job';
         });
 
         // Fetch correct active project counts (user_id OR assigned_supervisor_id)
@@ -388,14 +388,14 @@ export default function OwnerWorkersScreen() {
         // Fetch active clock-ins from time_tracking (clock_out IS NULL)
         const { data: clockIns } = await supabase
           .from('time_tracking')
-          .select('worker_id, project_id, projects:project_id(name)')
+          .select('worker_id, project_id, service_plan_id, projects:project_id(name), service_plans:service_plan_id(name)')
           .in('worker_id', workerIds)
           .is('clock_out', null);
 
         // Build clock-in map: worker_id -> project name
         const clockInMap = {};
         (clockIns || []).forEach(ci => {
-          clockInMap[ci.worker_id] = ci.projects?.name || 'Unknown Job';
+          clockInMap[ci.worker_id] = ci.projects?.name || ci.service_plans?.name || 'Unknown Job';
         });
 
         // Fetch project assignment counts

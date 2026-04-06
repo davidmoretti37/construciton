@@ -486,7 +486,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               <View style={styles.sessionRow}>
                 <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>{t('history.project')}</Text>
                 <Text style={[styles.sessionValue, { color: Colors.primaryText }]}>
-                  {activeSession.projects?.name || t('history.unknownProject')}
+                  {activeSession.projects?.name || activeSession.service_plans?.name || t('history.unknownProject')}
                 </Text>
               </View>
               <View style={styles.sessionRow}>
@@ -741,7 +741,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                     >
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText, flex: 1 }}>
-                          {session.projects?.name || t('history.unknownProject')}
+                          {session.projects?.name || session.service_plans?.name || t('history.unknownProject')}
                         </Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           {session.hoursWorked != null ? (

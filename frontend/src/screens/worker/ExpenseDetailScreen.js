@@ -107,7 +107,7 @@ export default function ExpenseDetailScreen({ navigation, route }) {
             <View style={styles.projectBadge}>
               <Ionicons name="briefcase" size={16} color={Colors.primaryBlue} />
               <Text style={[styles.projectText, { color: Colors.primaryText }]}>
-                {expense.projects?.name || 'Unknown Project'}
+                {expense.projects?.name || expense.service_plans?.name || 'Unknown Project'}
               </Text>
             </View>
           </View>

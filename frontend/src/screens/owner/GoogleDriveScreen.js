@@ -250,7 +250,14 @@ export default function GoogleDriveScreen() {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (!error) setProjects(data || []);
+      const { data: plans } = await supabase
+        .from('service_plans')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      const planItems = (plans || []).map(p => ({ ...p, isServicePlan: true }));
+      if (!error) setProjects([...(data || []), ...planItems]);
     } catch (err) {
       console.error('Load projects error:', err);
     } finally {

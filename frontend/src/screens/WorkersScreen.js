@@ -758,7 +758,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
       const groupedByProject = {};
       reports.forEach(report => {
         const projectId = report.project_id;
-        const projectName = report.projects?.name || 'Unknown Project';
+        const projectName = report.projects?.name || report.service_plans?.name || 'Unknown Project';
         if (!groupedByProject[projectId]) {
           groupedByProject[projectId] = {
             projectName,

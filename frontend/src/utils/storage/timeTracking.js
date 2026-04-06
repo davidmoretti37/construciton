@@ -92,7 +92,7 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
       const { data: workerInfo } = await supabase.from('workers')
         .select('owner_id, full_name').eq('id', workerId).single();
       if (workerInfo?.owner_id) {
-        const projectName = data?.projects?.name || '';
+        const projectName = data?.projects?.name || data?.service_plans?.name || '';
         supabase.functions.invoke('send-push-notification', {
           body: {
             userId: workerInfo.owner_id,
@@ -259,7 +259,7 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
       const { data: workerInfo } = await supabase.from('workers')
         .select('owner_id, full_name').eq('id', timeEntry.worker_id).single();
       if (workerInfo?.owner_id) {
-        const projectName = timeEntry.projects?.name || '';
+        const projectName = timeEntry.projects?.name || timeEntry.service_plans?.name || '';
         supabase.functions.invoke('send-push-notification', {
           body: {
             userId: workerInfo.owner_id,
@@ -354,6 +354,7 @@ export const getClockedInWorkersToday = async () => {
         id,
         worker_id,
         project_id,
+        service_plan_id,
         clock_in,
         clock_out,
         workers:worker_id (
@@ -365,6 +366,10 @@ export const getClockedInWorkersToday = async () => {
           hourly_rate
         ),
         projects:project_id (
+          id,
+          name
+        ),
+        service_plans:service_plan_id (
           id,
           name
         )
@@ -401,12 +406,17 @@ export const getStaleClockIns = async () => {
         id,
         worker_id,
         project_id,
+        service_plan_id,
         clock_in,
         workers:worker_id (
           id,
           full_name
         ),
         projects:project_id (
+          id,
+          name
+        ),
+        service_plans:service_plan_id (
           id,
           name
         )
@@ -444,6 +454,7 @@ export const getCompletedShiftsToday = async () => {
         id,
         worker_id,
         project_id,
+        service_plan_id,
         clock_in,
         clock_out,
         workers:worker_id (
@@ -455,6 +466,10 @@ export const getCompletedShiftsToday = async () => {
           hourly_rate
         ),
         projects:project_id (
+          id,
+          name
+        ),
+        service_plans:service_plan_id (
           id,
           name
         )
@@ -532,11 +547,15 @@ export const getWorkerTimesheet = async (workerId, dateRange = null) => {
     let query = supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, clock_out, break_start, break_end, notes, created_at,
+        id, worker_id, project_id, service_plan_id, clock_in, clock_out, break_start, break_end, notes, created_at,
         projects:project_id (
           id,
           name,
           location
+        ),
+        service_plans:service_plan_id (
+          id,
+          name
         )
       `)
       .eq('worker_id', workerId)
@@ -661,9 +680,14 @@ export const getTodaysWorkersSchedule = async () => {
         id,
         worker_id,
         project_id,
+        service_plan_id,
         clock_in,
         clock_out,
         projects:project_id (
+          id,
+          name
+        ),
+        service_plans:service_plan_id (
           id,
           name
         )
@@ -703,8 +727,8 @@ export const getTodaysWorkersSchedule = async () => {
             hoursWorked: (new Date() - new Date(latestClockIn.clock_in)) / (1000 * 60 * 60)
           };
 
-          const projectId = latestClockIn.project_id;
-          const projectName = latestClockIn.projects?.name || 'Unknown Project';
+          const projectId = latestClockIn.project_id || latestClockIn.service_plan_id;
+          const projectName = latestClockIn.projects?.name || latestClockIn.service_plans?.name || 'Unknown Project';
 
           if (!projectGroups[projectId]) {
             projectGroups[projectId] = {
@@ -753,9 +777,13 @@ export const getWorkerClockInHistory = async (workerId, limit = 30) => {
     const { data, error } = await supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, clock_out, notes, created_at,
+        id, worker_id, project_id, service_plan_id, clock_in, clock_out, notes, created_at,
         location_lat, location_lng,
         projects:project_id (
+          id,
+          name
+        ),
+        service_plans:service_plan_id (
           id,
           name
         )
@@ -882,8 +910,9 @@ export const calculateWorkerPaymentForPeriod = async (workerId, fromDate, toDate
     const { data: timeEntries, error: timeError } = await supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, clock_out, notes,
-        projects (id, name)
+        id, worker_id, project_id, service_plan_id, clock_in, clock_out, notes,
+        projects (id, name),
+        service_plans:service_plan_id (id, name)
       `)
       .eq('worker_id', workerId)
       .lt('clock_in', endOfRange)
@@ -977,8 +1006,8 @@ export function calculateHourlyPayment(entries, hourlyRate) {
 
   entries.forEach(entry => {
     const amount = entry.hours * (hourlyRate || 0);
-    const projectId = entry.project_id;
-    const projectName = entry.projects?.name || 'Unknown Project';
+    const projectId = entry.project_id || entry.service_plan_id;
+    const projectName = entry.projects?.name || entry.service_plans?.name || 'Unknown Project';
     const date = entry.date;
 
     if (!byProject[projectId]) {
@@ -1043,8 +1072,8 @@ export function calculateDailyPayment(entries, dailyRate) {
     }
 
     dayEntries.forEach(entry => {
-      const projectId = entry.project_id;
-      const projectName = entry.projects?.name || 'Unknown Project';
+      const projectId = entry.project_id || entry.service_plan_id;
+      const projectName = entry.projects?.name || entry.service_plans?.name || 'Unknown Project';
       const proportion = entry.hours / totalHoursForDay;
       const amount = dayAmount * proportion;
 
@@ -1069,7 +1098,7 @@ export function calculateDailyPayment(entries, dailyRate) {
       dayType,
       amount: dayAmount,
       projects: dayEntries.map(e => ({
-        projectName: e.projects?.name || 'Unknown Project',
+        projectName: e.projects?.name || e.service_plans?.name || 'Unknown Project',
         hours: e.hours,
         amount: dayAmount * (e.hours / totalHoursForDay)
       }))
@@ -1102,8 +1131,8 @@ export function calculateWeeklyPayment(entries, weeklySalary, fromDate, toDate) 
 
   const byProject = {};
   entries.forEach(entry => {
-    const projectId = entry.project_id;
-    const projectName = entry.projects?.name || 'Unknown Project';
+    const projectId = entry.project_id || entry.service_plan_id;
+    const projectName = entry.projects?.name || entry.service_plans?.name || 'Unknown Project';
 
     if (!byProject[projectId]) {
       byProject[projectId] = {
@@ -1130,8 +1159,8 @@ export function calculateProjectBasedPayment(entries, projectRate) {
   const byProject = {};
 
   entries.forEach(entry => {
-    const projectId = entry.project_id;
-    const projectName = entry.projects?.name || 'Unknown Project';
+    const projectId = entry.project_id || entry.service_plan_id;
+    const projectName = entry.projects?.name || entry.service_plans?.name || 'Unknown Project';
 
     if (!byProject[projectId]) {
       byProject[projectId] = {
@@ -1495,9 +1524,10 @@ export const checkForgottenClockOuts = async (thresholdHours = 10) => {
     const { data: workerSessions } = await supabase
       .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in, notes,
+        id, worker_id, project_id, service_plan_id, clock_in, notes,
         workers!inner (id, full_name, owner_id),
-        projects!inner (id, name)
+        projects:project_id (id, name),
+        service_plans:service_plan_id (id, name)
       `)
       .is('clock_out', null)
       .lt('clock_in', thresholdISO)
@@ -1545,12 +1575,12 @@ export const checkForgottenClockOuts = async (thresholdHours = 10) => {
       workers: ownedWorkerSessions.map(s => ({
         ...s,
         worker_name: s.workers?.full_name || 'Worker',
-        project_name: s.projects?.name || 'Unknown Project',
+        project_name: s.projects?.name || s.service_plans?.name || 'Unknown Project',
         hoursElapsed: ((new Date() - new Date(s.clock_in)) / (1000 * 60 * 60)).toFixed(1),
       })),
       supervisors: ownedSupSessions.map(s => ({
         ...s,
-        project_name: s.projects?.name || 'Unknown Project',
+        project_name: s.projects?.name || s.service_plans?.name || 'Unknown Project',
         hoursElapsed: ((new Date() - new Date(s.clock_in)) / (1000 * 60 * 60)).toFixed(1),
       })),
     };
@@ -1619,22 +1649,29 @@ export const sendForgottenClockOutNotifications = async (thresholdHours = 10) =>
  * @param {object} location - Optional {latitude, longitude}
  * @returns {Promise<object|null>} Time tracking record
  */
-export const supervisorClockIn = async (supervisorId, projectId, location = null) => {
+export const supervisorClockIn = async (supervisorId, projectId, location = null, servicePlanId = null) => {
   try {
     const localTimestamp = getLocalTimestamp();
 
+    const insertPayload = {
+      supervisor_id: supervisorId,
+      clock_in: localTimestamp,
+      location_lat: location?.latitude,
+      location_lng: location?.longitude,
+    };
+    if (servicePlanId) {
+      insertPayload.service_plan_id = servicePlanId;
+    } else {
+      insertPayload.project_id = projectId;
+    }
+
     const { data, error } = await supabase
       .from('supervisor_time_tracking')
-      .insert({
-        supervisor_id: supervisorId,
-        project_id: projectId,
-        clock_in: localTimestamp,
-        location_lat: location?.latitude,
-        location_lng: location?.longitude,
-      })
+      .insert(insertPayload)
       .select(`
-        id, supervisor_id, project_id, clock_in, clock_out, notes, location_lat, location_lng, created_at,
-        projects:project_id (id, name)
+        id, supervisor_id, project_id, service_plan_id, clock_in, clock_out, notes, location_lat, location_lng, created_at,
+        projects:project_id (id, name),
+        service_plans:service_plan_id (id, name)
       `)
       .single();
 
@@ -1650,7 +1687,7 @@ export const supervisorClockIn = async (supervisorId, projectId, location = null
       const { data: supProfile } = await supabase.from('profiles')
         .select('owner_id, full_name').eq('id', supervisorId).single();
       if (supProfile?.owner_id) {
-        const projectName = data?.projects?.name || '';
+        const projectName = data?.projects?.name || data?.service_plans?.name || '';
         supabase.functions.invoke('send-push-notification', {
           body: {
             userId: supProfile.owner_id,
@@ -1783,8 +1820,9 @@ export const getActiveSupervisorClockIn = async (supervisorId) => {
     const { data, error } = await supabase
       .from('supervisor_time_tracking')
       .select(`
-        id, supervisor_id, project_id, clock_in, clock_out, notes, location_lat, location_lng,
-        projects:project_id (id, name)
+        id, supervisor_id, project_id, service_plan_id, clock_in, clock_out, notes, location_lat, location_lng,
+        projects:project_id (id, name),
+        service_plans:service_plan_id (id, name)
       `)
       .eq('supervisor_id', supervisorId)
       .is('clock_out', null)

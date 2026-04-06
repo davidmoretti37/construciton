@@ -77,7 +77,7 @@ export default function PicturesScreen({ navigation }) {
               id: `${report.id}-${photoUrl}`,
               uri: photoUrl,
               projectId: report.project_id,
-              projectName: report.projects?.name || 'Unknown Project',
+              projectName: report.projects?.name || report.service_plans?.name || 'Unknown Project',
               reportId: report.id,
               date: report.report_date,
               workerName: report.worker_name || 'Unknown',

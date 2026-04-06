@@ -22,6 +22,7 @@ import { useProjects } from '../hooks/useProjects';
 import NotificationBell from '../components/NotificationBell';
 import TrialBanner from '../components/TrialBanner';
 import { fetchDailyReportsWithFilters, getProject } from '../utils/storage';
+import { supabase } from '../lib/supabase';
 import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet, checkForgottenClockOuts, remoteClockOutWorker } from '../utils/storage/timeTracking';
 import TimeEditModal from '../components/TimeEditModal';
 import logger from '../utils/logger';
@@ -39,6 +40,7 @@ export default function HomeScreen({ navigation }) {
 
   // Use custom hook for projects data
   const { projects, loading, hasLoadedOnce, loadProjects } = useProjects();
+  const [servicePlans, setServicePlans] = useState([]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [showProjectsModal, setShowProjectsModal] = useState(false);
@@ -77,9 +79,21 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
-  // Load projects immediately on mount (so data is ready during splash)
+  // Load projects and service plans immediately on mount
+  const loadServicePlans = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('service_plans')
+        .select('id, name, address, status')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+      setServicePlans((data || []).map(p => ({ ...p, isServicePlan: true, location: p.address })));
+    } catch (e) { /* non-critical */ }
+  }, []);
+
   useEffect(() => {
     loadProjects();
+    loadServicePlans();
   }, []);
 
   // Refresh daily reports and time data when screen comes into focus
@@ -126,11 +140,12 @@ export default function HomeScreen({ navigation }) {
   }, [activeSession?.clock_in]);
 
   // Supervisor clock-in handler
-  const handleClockIn = async (projectId) => {
-    console.log('🕐 Supervisor clock-in attempt:', { userId: user?.id, projectId });
+  const handleClockIn = async (project) => {
+    const projectId = project.isServicePlan ? null : project.id;
+    const servicePlanId = project.isServicePlan ? project.id : null;
     setClockLoading(true);
     try {
-      const result = await supervisorClockIn(user.id, projectId);
+      const result = await supervisorClockIn(user.id, projectId, null, servicePlanId);
       console.log('🕐 Clock-in result:', result);
       if (result) {
         setActiveSession(result);
@@ -506,7 +521,7 @@ export default function HomeScreen({ navigation }) {
                       {formatHistoryDate(entry.clock_in)}
                     </Text>
                     <Text style={[styles.timeHistoryProject, { color: Colors.secondaryText }]}>
-                      {entry.projects?.name || 'Unknown Project'}
+                      {entry.projects?.name || entry.service_plans?.name || 'Unknown Project'}
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -834,7 +849,7 @@ export default function HomeScreen({ navigation }) {
             <View style={{ width: 28 }} />
           </View>
           <ScrollView style={{ flex: 1, padding: Spacing.lg }}>
-            {projects.length === 0 ? (
+            {[...projects, ...servicePlans].length === 0 ? (
               <View style={styles.emptyModalState}>
                 <Ionicons name="folder-open-outline" size={64} color={Colors.secondaryText} />
                 <Text style={[styles.emptyModalText, { color: Colors.secondaryText }]}>
@@ -842,17 +857,17 @@ export default function HomeScreen({ navigation }) {
                 </Text>
               </View>
             ) : (
-              projects.map((project) => (
+              [...projects, ...servicePlans].map((project) => (
                 <TouchableOpacity
                   key={project.id}
                   style={[styles.projectPickerItem, { backgroundColor: Colors.cardBackground }]}
-                  onPress={() => handleClockIn(project.id)}
+                  onPress={() => handleClockIn(project)}
                 >
-                  <Ionicons name="briefcase" size={24} color={Colors.primaryBlue} />
+                  <Ionicons name={project.isServicePlan ? "leaf" : "briefcase"} size={24} color={project.isServicePlan ? "#059669" : Colors.primaryBlue} />
                   <View style={{ marginLeft: 12, flex: 1 }}>
                     <Text style={[styles.projectPickerName, { color: Colors.primaryText }]}>{project.name}</Text>
-                    {project.address && (
-                      <Text style={[styles.projectPickerAddress, { color: Colors.secondaryText }]}>{project.address}</Text>
+                    {(project.address || project.location) && (
+                      <Text style={[styles.projectPickerAddress, { color: Colors.secondaryText }]}>{project.address || project.location}</Text>
                     )}
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />

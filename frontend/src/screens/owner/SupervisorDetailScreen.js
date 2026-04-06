@@ -580,7 +580,7 @@ export default function SupervisorDetailScreen() {
                   {t('supervisorDetailScreen.project', { defaultValue: 'Project' })}
                 </Text>
                 <Text style={[styles.sessionValue, { color: Colors.primaryText }]}>
-                  {activeSession.projects?.name || t('supervisorDetailScreen.unknownProject')}
+                  {activeSession.projects?.name || activeSession.service_plans?.name || t('supervisorDetailScreen.unknownProject')}
                 </Text>
               </View>
               <View style={styles.sessionRow}>
@@ -802,7 +802,7 @@ export default function SupervisorDetailScreen() {
                     </View>
                   </View>
                   <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText }} numberOfLines={1}>
-                    {record.projects?.name || t('supervisorDetailScreen.unknownProject')}
+                    {record.projects?.name || record.service_plans?.name || t('supervisorDetailScreen.unknownProject')}
                   </Text>
                   <Text style={{ fontSize: 12, color: Colors.secondaryText }}>
                     {formatTimeLocal(record.clock_in)} {clockOut ? `- ${formatTimeLocal(record.clock_out)}` : `- ${t('supervisorDetailScreen.inProgress')}`}

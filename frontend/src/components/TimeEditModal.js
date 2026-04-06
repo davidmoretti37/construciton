@@ -190,7 +190,7 @@ export default function TimeEditModal({
             <View style={[styles.projectRow, { backgroundColor: Colors.lightGray || '#F3F4F6' }]}>
               <Ionicons name="briefcase-outline" size={16} color="#1E40AF" />
               <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-                {record.projects?.name || record.project_name || 'Unknown Project'}
+                {record.projects?.name || record.service_plans?.name || record.project_name || 'Unknown Project'}
               </Text>
             </View>
           )}

@@ -122,8 +122,17 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
 
       if (projectsError) throw projectsError;
 
+      // Fetch active service plans
+      const { data: plansData } = await supabase
+        .from('service_plans')
+        .select('id, name, service_type, status')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      const planItems = (plansData || []).map(p => ({ ...p, isServicePlan: true }));
+
       setWorkers(workersWithAssignments || []);
-      setProjects(projectsData || []);
+      setProjects([...(projectsData || []), ...planItems]);
 
       // Auto-select first items if available
       if (workersWithAssignments?.length > 0) {
