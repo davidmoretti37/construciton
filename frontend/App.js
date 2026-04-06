@@ -27,6 +27,7 @@ import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import WorkerOnboardingNavigator from './src/navigation/WorkerOnboardingNavigator';
 
 import SupervisorOnboardingNavigator from './src/navigation/SupervisorOnboardingNavigator';
+import ClientMainNavigator from './src/navigation/ClientMainNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
 import RoleSelectionScreen from './src/screens/auth/RoleSelectionScreen';
@@ -289,6 +290,10 @@ function AppContent() {
       } else if (role === 'worker') {
         logger.debug('Showing: WORKER ONBOARDING');
         return <WorkerOnboardingNavigator onComplete={handleOnboardingComplete} onGoBack={handleGoBackToRoleSelection} />;
+      } else if (role === 'client') {
+        // Clients skip onboarding for now — go straight to main app
+        logger.debug('Showing: CLIENT MAIN APP (skip onboarding)');
+        return <ClientMainNavigator />;
       }
     }
 
@@ -309,6 +314,9 @@ function AppContent() {
     } else if (role === 'worker') {
       logger.debug('Showing: WORKER MAIN APP');
       return <WorkerMainNavigator />;
+    } else if (role === 'client') {
+      logger.debug('Showing: CLIENT MAIN APP');
+      return <ClientMainNavigator />;
     }
 
     // Fallback

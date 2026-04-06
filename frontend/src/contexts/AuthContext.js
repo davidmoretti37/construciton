@@ -187,6 +187,21 @@ export const AuthProvider = ({ children }) => {
                   .update({ role: 'worker' })
                   .eq('id', userId);
                 data.role = 'worker';
+              } else {
+                // Check clients table for pending client invite
+                const { data: pendingClient } = await supabase
+                  .from('clients')
+                  .select('id')
+                  .is('user_id', null)
+                  .ilike('email', userEmail)
+                  .limit(1);
+
+                if (pendingClient && pendingClient.length > 0) {
+                  console.log('🔐 AuthContext - Pending client invite found, auto-setting role');
+                  await supabase.from('clients').update({ user_id: userId }).eq('id', pendingClient[0].id);
+                  await supabase.from('profiles').update({ role: 'client' }).eq('id', userId);
+                  data.role = 'client';
+                }
               }
             }
           }
@@ -393,6 +408,7 @@ export const AuthProvider = ({ children }) => {
     isOwner: role === 'owner',
     isSupervisor: role === 'supervisor',
     isWorker: role === 'worker',
+    isClient: role === 'client',
     // Owner/Supervisor hierarchy
     ownerId, // For supervisors - their owner's ID
     ownerHidesContract, // Whether owner hides contract amounts from supervisors

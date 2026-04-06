@@ -151,6 +151,13 @@ export default function RoleSelectionScreen({ onRoleSelected }) {
       description: t('roleSelection.worker.description'),
       color: '#059669', // Green for worker
     },
+    {
+      id: 'client',
+      name: t('roleSelection.client.title', 'Client'),
+      icon: 'person',
+      description: t('roleSelection.client.description', 'View your projects, pay invoices, and message your contractor'),
+      color: '#F59E0B', // Amber for client
+    },
   ];
 
   const [selectedRole, setSelectedRole] = useState(null);

@@ -1,7 +1,8 @@
 /**
  * Portal Authentication Middleware
- * Validates client session tokens from X-Portal-Token header.
- * Portal clients don't use Supabase Auth — they authenticate via magic links.
+ * Supports two auth methods:
+ *   1. Authorization: Bearer <supabase_jwt> — for mobile app clients (Supabase Auth)
+ *   2. X-Portal-Token — for web portal clients (magic link sessions)
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -13,18 +14,50 @@ const supabase = createClient(
 );
 
 /**
- * Authenticates portal clients via session token.
+ * Authenticates portal clients via Supabase JWT or session token.
  * Sets req.client with the client record on success.
  */
 const authenticatePortalClient = async (req, res, next) => {
-  const token = req.headers['x-portal-token'];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Missing portal session token' });
-  }
+  const authHeader = req.headers.authorization;
+  const portalToken = req.headers['x-portal-token'];
 
   try {
-    // Look up session and join to client record
+    // Method 1: Supabase Auth (mobile app clients)
+    if (authHeader?.startsWith('Bearer ')) {
+      const jwt = authHeader.split(' ')[1];
+      const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid auth token' });
+      }
+
+      // Look up client record by user_id
+      const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .select('id, owner_id, full_name, email, phone')
+        .eq('user_id', user.id)
+        .single();
+
+      if (clientError || !client) {
+        return res.status(401).json({ error: 'No client account linked to this user' });
+      }
+
+      req.client = {
+        id: client.id,
+        owner_id: client.owner_id,
+        full_name: client.full_name,
+        email: client.email,
+        phone: client.phone,
+      };
+
+      return next();
+    }
+
+    // Method 2: Portal session token (web portal)
+    if (!portalToken) {
+      return res.status(401).json({ error: 'Missing authentication' });
+    }
+
     const { data: session, error } = await supabase
       .from('client_sessions')
       .select(`
@@ -39,7 +72,7 @@ const authenticatePortalClient = async (req, res, next) => {
           phone
         )
       `)
-      .eq('session_token', token)
+      .eq('session_token', portalToken)
       .gt('expires_at', new Date().toISOString())
       .single();
 

@@ -1,0 +1,96 @@
+import React, { useState, useEffect } from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
+import { LightColors, getColors } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
+
+const items = [
+  { id: 0, icon: 'home', label: 'Dashboard', routeIndex: 0 },
+  { id: 1, icon: 'chatbubbles', label: 'MessagesList', routeIndex: 1 },
+];
+
+const ClientLumaBar = ({ state, navigation }) => {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
+  const styles = createStyles(Colors);
+
+  const getVisualIndex = (routeIndex) => {
+    const item = items.find(item => item.routeIndex === routeIndex);
+    return item ? item.id : 0;
+  };
+
+  const [active, setActive] = useState(getVisualIndex(state.index));
+
+  useEffect(() => {
+    setActive(getVisualIndex(state.index));
+  }, [state.index]);
+
+  const handlePress = (index) => {
+    const route = items[index];
+    navigation.navigate(route.label);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.navBar}>
+        {items.map((item, index) => {
+          const isActive = index === active;
+          return (
+            <NavItem
+              key={item.id}
+              item={item}
+              isActive={isActive}
+              onPress={() => handlePress(index)}
+              Colors={Colors}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
+const NavItem = ({ item, isActive, onPress, Colors }) => {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  useEffect(() => {
+    scale.value = withSpring(isActive ? 1.25 : 1, { damping: 15, stiffness: 300 });
+  }, [isActive]);
+
+  const activeColor = '#F59E0B'; // Amber for client
+
+  return (
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={navItemStyles.navItem}>
+      <Animated.View style={[navItemStyles.iconContainer, animatedStyle]}>
+        <Ionicons name={item.icon} size={22} color={isActive ? activeColor : Colors.secondaryText} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
+const navItemStyles = StyleSheet.create({
+  navItem: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2 },
+  iconContainer: { alignItems: 'center', justifyContent: 'center' },
+});
+
+const createStyles = (Colors) => StyleSheet.create({
+  container: { position: 'absolute', bottom: 20, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
+  navBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.navBarBackground, borderRadius: 25,
+    paddingHorizontal: 16, paddingVertical: 6,
+    shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+});
+
+export default ClientLumaBar;

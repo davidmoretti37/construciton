@@ -45,7 +45,7 @@ export const useNotifications = () => {
 };
 
 export const NotificationProvider = ({ children }) => {
-  const { user, isOwner, isWorker, isSupervisor } = useAuth();
+  const { user, isOwner, isWorker, isSupervisor, isClient } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -160,7 +160,7 @@ export const NotificationProvider = ({ children }) => {
 
   // Initialize on user change
   useEffect(() => {
-    if (user && (isOwner || isWorker || isSupervisor)) {
+    if (user && (isOwner || isWorker || isSupervisor || isClient)) {
       setIsLoading(true);
       loadNotifications();
       loadPreferences();
@@ -193,7 +193,7 @@ export const NotificationProvider = ({ children }) => {
         realtimeSubscription.current.unsubscribe();
       }
     };
-  }, [user, isOwner, isWorker, isSupervisor, loadNotifications, loadPreferences, registerForPushNotifications]);
+  }, [user, isOwner, isWorker, isSupervisor, isClient, loadNotifications, loadPreferences, registerForPushNotifications]);
 
   // Set up notification listeners
   useEffect(() => {
