@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,29 @@ import {
   RefreshControl,
   ActivityIndicator,
   Image,
+  Dimensions,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
-import { useTheme } from '../../contexts/ThemeContext';
 import { fetchProject, fetchProjectPhotos } from '../../services/clientPortalApi';
+
+const { width: SW } = Dimensions.get('window');
+const C = {
+  amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
+  text: '#111827', textSec: '#6B7280', textMuted: '#9CA3AF',
+  surface: '#FFFFFF', bg: '#F9FAFB', border: '#E5E7EB',
+};
 
 export default function ClientProjectDetailScreen({ route, navigation }) {
   const { projectId } = route.params;
-  const { isDark = false } = useTheme() || {};
-  const Colors = getColors(isDark) || LightColors;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [project, setProject] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = useCallback(async () => {
     try {
@@ -35,170 +42,249 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
       setPhotos(photoData || []);
     } catch (e) {
       console.error('Project detail load error:', e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    } finally { setLoading(false); setRefreshing(false); }
   }, [projectId]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
+  // Pulse animation for current phase dot
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
   if (loading && !project) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
-        <ActivityIndicator size="large" color={Colors.primaryBlue} style={{ marginTop: 100 }} />
-      </SafeAreaView>
-    );
+    return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={C.amber} /></View>;
   }
 
   if (!project) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
-        <Text style={{ color: Colors.secondaryText, textAlign: 'center', marginTop: 100 }}>Project not found</Text>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <Text style={{ color: C.textSec }}>Project not found</Text>
+      </View>
     );
   }
 
   const phases = project.phases || [];
-  const completedPhases = phases.filter(p => p.status === 'completed').length;
+  const currentPhaseIdx = phases.findIndex(p => p.status !== 'completed');
+
+  const photoList = photos.flat ? photos.flat().filter(p => p.url || typeof p === 'string') : [];
+  const photoUrls = photoList.map(p => p.url || p).slice(0, 9);
+  const gridW = (SW - 48) / 3;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={28} color={Colors.primaryText} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
-          {project.name}
-        </Text>
-        <View style={{ width: 28 }} />
-      </View>
-
+    <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.primaryBlue} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={C.amber} />}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Status & Location */}
-        <View style={[styles.infoCard, { backgroundColor: Colors.cardBackground }]}>
-          {project.status && (
-            <View style={styles.infoRow}>
-              <Ionicons name="flag" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.infoText, { color: Colors.primaryText }]}>
-                {project.status.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-              </Text>
-            </View>
-          )}
-          {project.location && (
-            <View style={styles.infoRow}>
-              <Ionicons name="location" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.infoText, { color: Colors.secondaryText }]}>{project.location}</Text>
-            </View>
-          )}
-          {project.budget && (
-            <View style={styles.infoRow}>
-              <Ionicons name="wallet" size={16} color={Colors.secondaryText} />
-              <Text style={[styles.infoText, { color: Colors.primaryText }]}>${parseFloat(project.budget).toLocaleString()}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: '#1E40AF' }]}
-            onPress={() => navigation.navigate('ClientInvoices', { projectId })}
-          >
-            <Ionicons name="receipt-outline" size={18} color="#fff" />
-            <Text style={styles.actionBtnText}>Invoices</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: '#059669' }]}
-            onPress={() => navigation.navigate('ClientMessages', { projectId, projectName: project.name })}
-          >
-            <Ionicons name="chatbubbles-outline" size={18} color="#fff" />
-            <Text style={styles.actionBtnText}>Messages</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Phases */}
-        {phases.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-              Phases ({completedPhases}/{phases.length})
-            </Text>
-            {phases.map((phase) => (
-              <View key={phase.id} style={[styles.phaseRow, { backgroundColor: Colors.cardBackground }]}>
-                <Ionicons
-                  name={phase.status === 'completed' ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={20}
-                  color={phase.status === 'completed' ? '#059669' : Colors.secondaryText}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.phaseName, { color: Colors.primaryText }]}>{phase.name}</Text>
-                  {phase.completion_percentage > 0 && phase.status !== 'completed' && (
-                    <View style={styles.progressBar}>
-                      <View style={[styles.progressFill, { width: `${phase.completion_percentage}%` }]} />
-                    </View>
-                  )}
-                </View>
+        {/* Header with gradient (or photo if available) */}
+        <View style={styles.heroContainer}>
+          <LinearGradient colors={[C.amber, C.amberDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.5)']} style={styles.heroOverlay}>
+              <SafeAreaView edges={['top']} style={styles.heroInner}>
+                <TouchableOpacity
+                  onPress={() => navigation.goBack()}
+                  style={styles.backBtn}
+                >
+                  <Ionicons name="chevron-back" size={22} color={C.text} />
+                </TouchableOpacity>
+              </SafeAreaView>
+              <View style={styles.heroBottom}>
+                <Text style={styles.heroTitle} numberOfLines={2}>{project.name}</Text>
+                {project.location && (
+                  <View style={styles.heroLocationRow}>
+                    <Ionicons name="location" size={13} color="rgba(255,255,255,0.7)" />
+                    <Text style={styles.heroLocation}>{project.location}</Text>
+                  </View>
+                )}
               </View>
-            ))}
-          </View>
-        )}
+            </LinearGradient>
+          </LinearGradient>
+        </View>
 
-        {/* Photos */}
-        {photos.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Photos</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
-              {photos.slice(0, 10).map((photo, i) => (
-                <Image
-                  key={i}
-                  source={{ uri: photo.url || photo }}
-                  style={styles.photo}
-                  resizeMode="cover"
-                />
-              ))}
-            </ScrollView>
+        <View style={styles.body}>
+          {/* Info Cards */}
+          <View style={styles.infoRow}>
+            {project.status && (
+              <View style={styles.infoChip}>
+                <Ionicons name="flag" size={14} color={C.amber} />
+                <Text style={styles.infoChipText}>
+                  {project.status.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </Text>
+              </View>
+            )}
+            {project.contract_amount > 0 && (
+              <View style={styles.infoChip}>
+                <Ionicons name="wallet" size={14} color={C.amber} />
+                <Text style={styles.infoChipText}>${parseFloat(project.contract_amount).toLocaleString()}</Text>
+              </View>
+            )}
           </View>
-        )}
 
-        {/* Weekly Summary */}
-        {project.weekly_summary && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Weekly Update</Text>
-            <View style={[styles.summaryCard, { backgroundColor: Colors.cardBackground }]}>
-              <Text style={[styles.summaryText, { color: Colors.primaryText }]}>{project.weekly_summary}</Text>
+          {/* Action Buttons */}
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.actionPrimary}
+              onPress={() => navigation.navigate('ClientInvoices', { projectId })}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="receipt-outline" size={18} color="#fff" />
+              <Text style={styles.actionPrimaryText}>Invoices</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionSecondary}
+              onPress={() => navigation.navigate('ClientMessages', { projectId, projectName: project.name })}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubbles-outline" size={18} color={C.text} />
+              <Text style={styles.actionSecondaryText}>Messages</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Phase Stepper */}
+          {phases.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>PHASES</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stepper}>
+                {phases.map((phase, i) => {
+                  const isCompleted = phase.status === 'completed';
+                  const isCurrent = i === currentPhaseIdx;
+                  return (
+                    <View key={phase.id} style={styles.stepItem}>
+                      {/* Connecting line */}
+                      {i > 0 && <View style={[styles.stepLine, isCompleted && styles.stepLineCompleted]} />}
+                      {/* Circle */}
+                      <View style={[
+                        styles.stepCircle,
+                        isCompleted && styles.stepCircleCompleted,
+                        isCurrent && styles.stepCircleCurrent,
+                      ]}>
+                        {isCompleted ? (
+                          <Ionicons name="checkmark" size={14} color="#fff" />
+                        ) : isCurrent ? (
+                          <Animated.View style={[styles.stepDot, { transform: [{ scale: pulseAnim }] }]} />
+                        ) : null}
+                      </View>
+                      {/* Label */}
+                      <Text style={[
+                        styles.stepLabel,
+                        isCurrent && { color: C.amber, fontWeight: '600' },
+                      ]} numberOfLines={2}>{phase.name}</Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
             </View>
-          </View>
-        )}
+          )}
 
-        <View style={{ height: 40 }} />
+          {/* Photos */}
+          {photoUrls.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>PHOTOS</Text>
+              <View style={styles.photoGrid}>
+                {photoUrls.map((url, i) => (
+                  <Image
+                    key={i}
+                    source={{ uri: url }}
+                    style={[
+                      styles.photo,
+                      i === 0 && styles.photoFeatured,
+                      { width: i === 0 ? gridW * 2 + 4 : gridW, height: i === 0 ? gridW * 1.5 : gridW },
+                    ]}
+                    resizeMode="cover"
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Weekly Summary */}
+          {project.weekly_summary && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>WEEKLY UPDATE</Text>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryText}>{project.weekly_summary}</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={{ height: 100 }} />
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: 12, borderBottomWidth: 1 },
-  headerTitle: { fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center' },
-  scrollContent: { padding: Spacing.md },
-  infoCard: { padding: 16, borderRadius: BorderRadius.lg, gap: 10, marginBottom: Spacing.md },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  infoText: { fontSize: 14, fontWeight: '500' },
-  actions: { flexDirection: 'row', gap: 12, marginBottom: Spacing.lg },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: BorderRadius.lg },
-  actionBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  section: { marginBottom: Spacing.lg },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: Spacing.sm },
-  phaseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: BorderRadius.md, marginBottom: 6 },
-  phaseName: { fontSize: 14, fontWeight: '600' },
-  progressBar: { height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, marginTop: 6 },
-  progressFill: { height: 4, backgroundColor: '#3B82F6', borderRadius: 2 },
-  photoScroll: { marginTop: 4 },
-  photo: { width: 120, height: 120, borderRadius: 12, marginRight: 8 },
-  summaryCard: { padding: 14, borderRadius: BorderRadius.lg },
-  summaryText: { fontSize: 14, lineHeight: 20 },
+  container: { flex: 1, backgroundColor: C.bg },
+  loadingContainer: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { flexGrow: 1 },
+
+  // Hero
+  heroContainer: { height: 220 },
+  hero: { flex: 1 },
+  heroOverlay: { flex: 1, justifyContent: 'space-between' },
+  heroInner: { paddingHorizontal: 16, paddingTop: 8 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.6)', alignItems: 'center', justifyContent: 'center' },
+  heroBottom: { padding: 16 },
+  heroTitle: { fontSize: 24, fontWeight: '700', color: '#fff' },
+  heroLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  heroLocation: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
+
+  body: { padding: 16, marginTop: -12, borderTopLeftRadius: 16, borderTopRightRadius: 16, backgroundColor: C.bg },
+
+  // Info chips
+  infoRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  infoChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.surface, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99,
+    borderWidth: 1, borderColor: C.border,
+  },
+  infoChipText: { fontSize: 13, fontWeight: '600', color: C.text },
+
+  // Actions
+  actions: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  actionPrimary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: C.amber, paddingVertical: 14, borderRadius: 12,
+  },
+  actionPrimaryText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  actionSecondary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: C.surface, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
+  },
+  actionSecondaryText: { color: C.text, fontSize: 14, fontWeight: '600' },
+
+  // Section
+  section: { marginBottom: 24 },
+  sectionLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1.5, color: C.textMuted, marginBottom: 12, paddingLeft: 4 },
+
+  // Phase Stepper
+  stepper: { paddingHorizontal: 4, paddingBottom: 8 },
+  stepItem: { alignItems: 'center', width: 80, position: 'relative' },
+  stepLine: { position: 'absolute', top: 14, right: 54, width: 40, height: 2, backgroundColor: C.border, borderStyle: 'dashed' },
+  stepLineCompleted: { backgroundColor: C.amber, borderStyle: 'solid' },
+  stepCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  stepCircleCompleted: { backgroundColor: C.amber },
+  stepCircleCurrent: { backgroundColor: C.surface, borderWidth: 2.5, borderColor: C.amber },
+  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber },
+  stepLabel: { fontSize: 10, fontWeight: '500', color: C.textSec, textAlign: 'center', marginTop: 6 },
+
+  // Photos
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  photo: { borderRadius: 8 },
+  photoFeatured: {},
+
+  // Summary
+  summaryCard: {
+    backgroundColor: C.surface, padding: 16, borderRadius: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+  },
+  summaryText: { fontSize: 14, lineHeight: 21, color: C.text },
 });
