@@ -143,15 +143,6 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
         service_plans:service_plan_id (id, name)
       `;
 
-    // Debug: check what reports exist
-    const { data: debugReports } = await supabase
-      .from('daily_reports')
-      .select('id, project_id, service_plan_id, report_date, reporter_type, owner_id, worker_id')
-      .order('report_date', { ascending: false })
-      .limit(5);
-    console.log('DEBUG user.id:', user.id);
-    console.log('DEBUG all reports:', JSON.stringify(debugReports));
-
     let query;
     if (filters.workerView) {
       // Worker context: no owner/supervisor filter, RLS handles access
@@ -160,11 +151,30 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
         .select(selectFields)
         .order('report_date', { ascending: false });
     } else {
-      // Owner/supervisor context: filter by project ownership
+      // Owner/supervisor context: get reports they own + worker reports for their projects
+      // First get the user's project IDs
+      const { data: ownedProjects } = await supabase
+        .from('projects')
+        .select('id')
+        .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`);
+      const ownedProjectIds = (ownedProjects || []).map(p => p.id);
+
+      // Get the user's service plan IDs
+      const { data: ownedPlans } = await supabase
+        .from('service_plans')
+        .select('id')
+        .eq('owner_id', user.id);
+      const ownedPlanIds = (ownedPlans || []).map(p => p.id);
+
+      // Build filter: reports owned by user OR reports for their projects/plans
+      const orFilters = [`owner_id.eq.${user.id}`];
+      if (ownedProjectIds.length > 0) orFilters.push(`project_id.in.(${ownedProjectIds.join(',')})`);
+      if (ownedPlanIds.length > 0) orFilters.push(`service_plan_id.in.(${ownedPlanIds.join(',')})`);
+
       query = supabase
         .from('daily_reports')
-        .select(selectFields.replace('projects (', 'projects!inner ('))
-        .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
+        .select(selectFields)
+        .or(orFilters.join(','))
         .order('report_date', { ascending: false });
     }
 
@@ -192,38 +202,8 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
 
     const { data, error } = await query;
 
-    if (error) {
-      console.error('fetchDailyReports query error:', error);
-      throw error;
-    }
-    console.log('fetchDailyReports: got', (data || []).length, 'project reports');
+    if (error) throw error;
     let reports = data || [];
-
-    // Also fetch service plan reports (not caught by projects!inner join)
-    if (!filters.workerView && !projectId) {
-      let spQuery = supabase
-        .from('daily_reports')
-        .select(selectFields)
-        .not('service_plan_id', 'is', null)
-        .is('project_id', null)
-        .order('report_date', { ascending: false });
-
-      if (filters.workerId) spQuery = spQuery.eq('worker_id', filters.workerId);
-      if (filters.startDate) spQuery = spQuery.gte('report_date', filters.startDate);
-      if (filters.endDate) spQuery = spQuery.lte('report_date', filters.endDate);
-      spQuery = spQuery.limit(30);
-
-      const { data: spData, error: spError } = await spQuery;
-      if (spError) console.error('fetchDailyReports SP query error:', spError);
-      console.log('fetchDailyReports: got', (spData || []).length, 'service plan reports');
-      if (spData?.length) {
-        const existingIds = new Set(reports.map(r => r.id));
-        const newReports = spData.filter(r => !existingIds.has(r.id));
-        reports = [...reports, ...newReports].sort((a, b) =>
-          new Date(b.report_date) - new Date(a.report_date)
-        );
-      }
-    }
 
     await resolveReporterProfiles(reports);
     return reports;
