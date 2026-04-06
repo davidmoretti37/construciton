@@ -135,11 +135,12 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
     if (!user) return [];
 
     const selectFields = `
-        id, project_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, created_at,
+        id, project_id, service_plan_id, phase_id, worker_id, owner_id, report_date, photos, notes, tags, completed_steps, custom_tasks, reporter_type, created_at,
         weather, manpower, work_performed, materials, equipment, delays, safety, visitors, photo_captions, next_day_plan,
         workers (id, full_name, trade),
         projects (id, name, user_id, assigned_supervisor_id),
-        project_phases (id, name)
+        project_phases (id, name),
+        service_plans:service_plan_id (id, name)
       `;
 
     let query;
@@ -153,7 +154,7 @@ export const fetchDailyReports = async (projectId, filters = {}) => {
       // Owner/supervisor context: filter by project ownership
       query = supabase
         .from('daily_reports')
-        .select(selectFields.replace('projects (', 'projects!inner (') + ', service_plans:service_plan_id (id, name)')
+        .select(selectFields.replace('projects (', 'projects!inner ('))
         .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`, { foreignTable: 'projects' })
         .order('report_date', { ascending: false });
     }
