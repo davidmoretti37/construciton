@@ -331,7 +331,7 @@ function AppContent() {
           <NavigationContainer
             ref={navigationRef}
             linking={{
-              prefixes: ['sylk://', 'https://construciton-production.up.railway.app'],
+              prefixes: ['sylk://', 'https://sylkapp.ai'],
               config: {
                 screens: {
                   ResetPassword: 'reset-password',

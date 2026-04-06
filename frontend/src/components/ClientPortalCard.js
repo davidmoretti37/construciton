@@ -56,7 +56,7 @@ export default function ClientPortalCard({ project, navigation }) {
           projectClientId: pc.id,
           accessToken: pc.access_token,
           client: pc.clients,
-          portalUrl: `${APP_LINK}/login?email=${encodeURIComponent(pc.clients?.email || '')}`,
+          portalUrl: `https://sylkapp.ai/portal/login?email=${encodeURIComponent(pc.clients?.email || '')}`,
           sharedAt: pc.created_at,
         });
       }

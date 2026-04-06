@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TJ5BDPJ6XC.com.davidmoretti.constructionmanager",
+        "paths": ["/invite*", "/portal/login*"]
+      }
+    ]
+  }
+}

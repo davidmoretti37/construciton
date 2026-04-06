@@ -23,7 +23,7 @@
         "usesNonExemptEncryption": false
       },
       "associatedDomains": [
-        "applinks:construciton-production.up.railway.app"
+        "applinks:sylkapp.ai"
       ],
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
@@ -41,7 +41,7 @@
           "remote-notification"
         ]
       },
-      "buildNumber": "46"
+      "buildNumber": "48"
     },
     "android": {
       "adaptiveIcon": {
@@ -60,7 +60,7 @@
         "android.permission.VIBRATE"
       ],
       "edgeToEdgeEnabled": true,
-      "versionCode": 3
+      "versionCode": 5
     },
     "web": {
       "favicon": "./assets/favicon.png"

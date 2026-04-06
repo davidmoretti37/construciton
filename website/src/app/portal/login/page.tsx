@@ -21,6 +21,13 @@ export default function PortalLoginPage() {
     }
 
     if (!token) {
+      // If email param present (from app deep link fallback), show download prompt
+      const email = searchParams.get("email");
+      if (email) {
+        setStatus("error");
+        setErrorMsg("Download the Sylk app to view your project and message your contractor.");
+        return;
+      }
       setStatus("error");
       setErrorMsg("No access token provided. Please use the link sent to you.");
       return;
