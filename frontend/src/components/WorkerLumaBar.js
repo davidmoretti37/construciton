@@ -53,13 +53,6 @@ const WorkerLumaBar = ({ state, navigation }) => {
             />
           );
         })}
-        {/* Notification Bell - divider + bell */}
-        <View style={navItemStyles.bellDivider} />
-        <NotificationBell
-          size={20}
-          color={Colors.secondaryText}
-          onPress={() => navigation.getParent()?.navigate('Notifications')}
-        />
       </View>
     </View>
   );

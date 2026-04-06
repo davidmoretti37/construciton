@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import * as Sentry from '@sentry/react-native';
 import { supabase } from '../lib/supabase';
 import { memoryService } from '../services/agents/core/MemoryService';
 import {
@@ -88,6 +89,7 @@ export const AuthProvider = ({ children }) => {
         setUser(session?.user || null);
 
         if (session?.user) {
+          Sentry.setUser({ id: session.user.id, email: session.user.email });
           // Skip redundant profile load on token refresh if profile already loaded
           if (event === 'TOKEN_REFRESHED' && profileRef.current) {
             return;
@@ -102,6 +104,7 @@ export const AuthProvider = ({ children }) => {
           setIsLoading(false);
           setLoadError(null);
           setIsUsingCache(false);
+          Sentry.setUser(null);
           // Clear memory service cache on logout
           memoryService.cache?.clear();
           // Clear profile cache on logout

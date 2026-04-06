@@ -662,7 +662,8 @@ export const submitWorkerExpense = async (expense) => {
     const { data, error } = await supabase
       .from('project_transactions')
       .insert({
-        project_id: expense.projectId,
+        project_id: expense.projectId || null,
+        service_plan_id: expense.servicePlanId || null,
         type: 'expense',
         category: expense.category || 'misc',
         subcategory: expense.subcategory || null,

@@ -856,19 +856,36 @@ router.get('/:id/checklist', async (req, res) => {
       .eq('user_id', userId)
       .single();
 
-    let visitQuery = supabase
-      .from('service_visits')
-      .select('id')
-      .eq('id', id);
-
     if (workerRecord) {
-      visitQuery = visitQuery.eq('assigned_worker_id', workerRecord.id);
-    } else {
-      visitQuery = visitQuery.eq('owner_id', userId);
-    }
+      // Check if worker is assigned to this visit OR to the parent service plan
+      const { data: visit } = await supabase
+        .from('service_visits')
+        .select('id, service_plan_id, assigned_worker_id')
+        .eq('id', id)
+        .single();
+      if (!visit) return res.status(404).json({ error: 'Visit not found' });
 
-    const { data: visit } = await visitQuery.single();
-    if (!visit) return res.status(404).json({ error: 'Visit not found' });
+      const isAssignedToVisit = visit.assigned_worker_id === workerRecord.id;
+      let isAssignedToPlan = false;
+      if (!isAssignedToVisit && visit.service_plan_id) {
+        const { data: planAssignment } = await supabase
+          .from('project_assignments')
+          .select('id')
+          .eq('worker_id', workerRecord.id)
+          .eq('service_plan_id', visit.service_plan_id)
+          .maybeSingle();
+        isAssignedToPlan = !!planAssignment;
+      }
+      if (!isAssignedToVisit && !isAssignedToPlan) return res.status(404).json({ error: 'Visit not found' });
+    } else {
+      const { data: visit } = await supabase
+        .from('service_visits')
+        .select('id')
+        .eq('id', id)
+        .eq('owner_id', userId)
+        .single();
+      if (!visit) return res.status(404).json({ error: 'Visit not found' });
+    }
 
     const { data, error } = await supabase
       .from('visit_checklist_items')

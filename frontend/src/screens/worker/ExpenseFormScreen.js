@@ -104,7 +104,8 @@ export default function ExpenseFormScreen({ navigation }) {
         setWorkerId(workerData.id);
         const assignments = await getWorkerAssignments(workerData.id);
         const projects = assignments.projects?.filter(Boolean) || [];
-        setAssignedProjects(projects);
+        const plans = (assignments.servicePlans || []).map(p => ({ ...p, isServicePlan: true }));
+        setAssignedProjects([...projects, ...plans]);
       } else if (isSupervisor) {
         // Supervisor: get assigned projects directly
         const { data: projects, error } = await supabase
@@ -254,7 +255,8 @@ export default function ExpenseFormScreen({ navigation }) {
       // Submit expense - use different method based on role
       if (isWorker && workerId) {
         await submitWorkerExpense({
-          projectId: selectedProject.id,
+          projectId: selectedProject.isServicePlan ? null : selectedProject.id,
+          servicePlanId: selectedProject.isServicePlan ? selectedProject.id : null,
           workerId: workerId,
           amount: parseFloat(amount),
           description: description.trim(),

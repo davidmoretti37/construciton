@@ -211,7 +211,7 @@ export default function TodaysWorkScreen() {
             </View>
           </View>
         </View>
-        <WorkerScheduleScreen embedded />
+        <WorkerScheduleScreen embedded navigation={navigation} />
       </SafeAreaView>
     );
   }

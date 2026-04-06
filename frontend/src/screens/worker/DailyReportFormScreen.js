@@ -344,7 +344,9 @@ export default function DailyReportFormScreen({ navigation, route }) {
       if (!workerData) { setLoading(false); return; }
       setWorkerId(workerData.id);
       const assignments = await getWorkerAssignments(workerData.id);
-      setAssignedProjects(assignments.projects?.filter(Boolean) || []);
+      const projects = assignments.projects?.filter(Boolean) || [];
+      const plans = (assignments.servicePlans || []).map(p => ({ ...p, isServicePlan: true }));
+      setAssignedProjects([...projects, ...plans]);
     } catch (error) {
       Alert.alert(t('alerts.error'), 'Failed to load projects');
     } finally { setLoading(false); }

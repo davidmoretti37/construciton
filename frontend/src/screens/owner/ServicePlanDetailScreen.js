@@ -472,7 +472,7 @@ export default function ServicePlanDetailScreen({ route }) {
               <Text style={styles.actionBtnText}>Billing</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669', flex: isWorker ? 1 : undefined }]} onPress={() => navigation.navigate('MapRoute', { locations: (plan?.locations || []).filter(l => l.latitude && l.longitude) })}>
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669', flex: 1 }]} onPress={() => navigation.navigate('MapRoute', { locations: (plan?.locations || []).filter(l => l.latitude && l.longitude) })}>
             <Ionicons name="navigate-outline" size={18} color="#fff" />
             <Text style={styles.actionBtnText}>Routes</Text>
           </TouchableOpacity>

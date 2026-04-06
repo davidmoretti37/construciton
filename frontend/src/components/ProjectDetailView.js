@@ -38,6 +38,7 @@ import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import DailyChecklistSection from './DailyChecklistSection';
 import EditProjectModal from './EditProjectModal';
+import { formatHoursMinutes } from '../utils/calculations';
 import ClientPortalCard from './ClientPortalCard';
 import { supabase } from '../lib/supabase';
 import { DEMO_PHASES } from '../screens/ProjectsScreen';

@@ -112,9 +112,8 @@ export default function DailyChecklistSection({
       setTemplates([...dailyTemplates, ...visitTaskTemplates]);
       setLaborRoles(rResult.data || []);
 
-      // 4. If report exists and is NOT submitted, load entries
-      const isSubmitted = reportResult.data?.notes === 'submitted';
-      if (reportResult.data?.id && !isSubmitted) {
+      // 4. If report exists, load entries (even if submitted, to show completed state)
+      if (reportResult.data?.id) {
         setReportId(reportResult.data.id);
         const { data: entryData } = await supabase
           .from('daily_report_entries')
