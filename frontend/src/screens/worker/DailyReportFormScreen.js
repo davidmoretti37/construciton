@@ -329,7 +329,15 @@ export default function DailyReportFormScreen({ navigation, route }) {
         .select('*')
         .or(`assigned_supervisor_id.eq.${currentUserId},user_id.eq.${currentUserId}`)
         .order('created_at', { ascending: false });
-      setAssignedProjects(projects || []);
+
+      const { data: plans } = await supabase
+        .from('service_plans')
+        .select('id, name, service_type, status')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      const planItems = (plans || []).map(p => ({ ...p, isServicePlan: true }));
+      setAssignedProjects([...(projects || []), ...planItems]);
     } catch (error) {
       Alert.alert(t('alerts.error'), 'Failed to load projects');
     } finally { setLoading(false); }

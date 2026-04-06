@@ -377,17 +377,16 @@ export default function TimeClockScreen({ navigation }) {
     }
   };
 
-  const handleClockIn = async (projectId) => {
-    console.log('handleClockIn called with projectId:', projectId);
-    console.log('workerId:', workerId);
+  const handleClockIn = async (project) => {
+    const projectId = project.isServicePlan ? null : project.id;
+    const servicePlanId = project.isServicePlan ? project.id : null;
 
     try {
       setActionLoading(true);
       setShowProjectPicker(false);
 
       // Clock in immediately without waiting for location
-      console.log('Calling clockIn with:', { workerId, projectId });
-      const session = await clockIn(workerId, projectId, null);
+      const session = await clockIn(workerId, projectId, null, null, servicePlanId);
       console.log('clockIn returned:', session);
 
       if (session) {
@@ -612,7 +611,7 @@ export default function TimeClockScreen({ navigation }) {
               <TouchableOpacity
                 key={project.id}
                 style={[styles.projectOption, { backgroundColor: Colors.white }]}
-                onPress={() => handleClockIn(project.id)}
+                onPress={() => handleClockIn(project)}
                 disabled={actionLoading}
               >
                 <View style={styles.projectOptionContent}>

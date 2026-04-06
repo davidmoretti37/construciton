@@ -88,7 +88,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
       setLoadingProjects(true);
 
       if (isSupervisor) {
-        // Supervisor: get assigned projects directly from Supabase
+        // Supervisor: get assigned projects + service plans
         const currentUserId = await getCurrentUserId();
         const { data: projectList, error } = await supabase
           .from('projects')
@@ -98,7 +98,15 @@ export default function TransactionEntryScreen({ route, navigation }) {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        setProjects(projectList || []);
+
+        const { data: plans } = await supabase
+          .from('service_plans')
+          .select('id, name, service_type, status')
+          .eq('status', 'active')
+          .order('name', { ascending: true });
+
+        const planItems = (plans || []).map(p => ({ ...p, isServicePlan: true }));
+        setProjects([...(projectList || []), ...planItems]);
       } else {
         // Owner: use fetchProjects
         const projectList = await fetchProjects();

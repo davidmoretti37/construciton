@@ -107,7 +107,7 @@ export default function ExpenseFormScreen({ navigation }) {
         const plans = (assignments.servicePlans || []).map(p => ({ ...p, isServicePlan: true }));
         setAssignedProjects([...projects, ...plans]);
       } else if (isSupervisor) {
-        // Supervisor: get assigned projects directly
+        // Supervisor: get assigned projects + service plans
         const { data: projects, error } = await supabase
           .from('projects')
           .select('*')
@@ -116,10 +116,15 @@ export default function ExpenseFormScreen({ navigation }) {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        console.log('📊 Supervisor projects loaded:', projects);
-        console.log('📊 Project count:', projects?.length);
-        console.log('📊 Supervisor ID:', currentUserId);
-        setAssignedProjects(projects || []);
+
+        const { data: plans } = await supabase
+          .from('service_plans')
+          .select('id, name, service_type, status')
+          .eq('status', 'active')
+          .order('name', { ascending: true });
+
+        const planItems = (plans || []).map(p => ({ ...p, isServicePlan: true }));
+        setAssignedProjects([...(projects || []), ...planItems]);
       } else {
         // Owner: get all their projects + service plans
         const projects = await fetchProjects();

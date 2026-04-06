@@ -16,7 +16,7 @@ import { cacheData, getCachedData } from '../../services/offlineCache';
  * @param {string} customTime - Optional ISO timestamp or time string (e.g., "07:00", "2026-01-29T07:00:00")
  * @returns {Promise<object|null>} Time tracking record
  */
-export const clockIn = async (workerId, projectId, location = null, customTime = null) => {
+export const clockIn = async (workerId, projectId, location = null, customTime = null, servicePlanId = null) => {
   try {
     // Use custom time if provided, otherwise use current local timestamp
     let localTimestamp;
@@ -36,15 +36,20 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
     }
 
     // First, insert the clock-in record
+    const insertPayload = {
+      worker_id: workerId,
+      clock_in: localTimestamp,
+      location_lat: location?.latitude,
+      location_lng: location?.longitude,
+    };
+    if (servicePlanId) {
+      insertPayload.service_plan_id = servicePlanId;
+    } else {
+      insertPayload.project_id = projectId;
+    }
     const { data: insertedData, error: insertError } = await supabase
       .from('time_tracking')
-      .insert({
-        worker_id: workerId,
-        project_id: projectId,
-        clock_in: localTimestamp,
-        location_lat: location?.latitude,
-        location_lng: location?.longitude,
-      })
+      .insert(insertPayload)
       .select('id, worker_id, project_id, clock_in, clock_out, notes, location_lat, location_lng, created_at')
       .single();
 
