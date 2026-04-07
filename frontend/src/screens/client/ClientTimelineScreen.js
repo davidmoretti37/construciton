@@ -12,14 +12,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { fetchDashboard, fetchProject } from '../../services/clientPortalApi';
+import { fetchDashboard, fetchProjectCalendar } from '../../services/clientPortalApi';
 import AppleCalendarMonth from '../../components/AppleCalendarMonth';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7',
   text: '#111827', textSec: '#6B7280', textMuted: '#9CA3AF',
   surface: '#FFFFFF', bg: '#F9FAFB', border: '#E5E7EB',
-  green: '#10B981', red: '#EF4444',
+  green: '#10B981', red: '#EF4444', blue: '#3B82F6',
 };
 
 const PHASE_COLORS = ['#F59E0B', '#3B82F6', '#8B5CF6', '#10B981', '#EF4444', '#EC4899', '#14B8A6', '#F97316'];
@@ -27,28 +27,44 @@ const PHASE_COLORS = ['#F59E0B', '#3B82F6', '#8B5CF6', '#10B981', '#EF4444', '#E
 const formatDateString = (y, m, d) =>
   `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
+const getMonthRange = (date) => {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  const start = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const end = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  return { start, end };
+};
+
 export default function ClientTimelineScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [project, setProject] = useState(null);
+  const [projectId, setProjectId] = useState(null);
+  const [projectName, setProjectName] = useState('');
   const [phases, setPhases] = useState([]);
+  const [events, setEvents] = useState([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
     return formatDateString(now.getFullYear(), now.getMonth(), now.getDate());
   });
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (month) => {
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const detail = await fetchProject(projects[0].id);
-        setProject(detail);
-        setPhases(detail?.phases || []);
+        const pid = projects[0].id;
+        setProjectId(pid);
+        setProjectName(projects[0].name);
+
+        const { start, end } = getMonthRange(month || currentMonth);
+        const calendar = await fetchProjectCalendar(pid, start, end);
+        setPhases(calendar?.phases || []);
+        setEvents(calendar?.events || []);
       }
     } catch (e) {
       console.error('Timeline load error:', e);
@@ -56,35 +72,67 @@ export default function ClientTimelineScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [currentMonth]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  // Convert phases to calendar tasks format
+  const handleMonthChange = useCallback((newMonth) => {
+    setCurrentMonth(newMonth);
+    loadData(newMonth);
+  }, [loadData]);
+
+  // Convert events + phases to calendar task format for AppleCalendarMonth
   const calendarTasks = useMemo(() => {
-    return phases
+    const tasks = [];
+
+    // Add phases as background spans
+    phases
       .filter(p => p.start_date && p.end_date)
-      .map((phase, i) => ({
-        id: phase.id,
-        title: phase.name,
-        start_date: phase.start_date,
-        end_date: phase.end_date,
-        color: PHASE_COLORS[i % PHASE_COLORS.length],
-        project_id: project?.id,
-        projects: { name: project?.name, working_days: [1, 2, 3, 4, 5] },
-      }));
-  }, [phases, project]);
+      .forEach((phase, i) => {
+        tasks.push({
+          id: `phase-${phase.id}`,
+          title: phase.name,
+          start_date: phase.start_date,
+          end_date: phase.end_date,
+          color: PHASE_COLORS[i % PHASE_COLORS.length],
+          project_id: projectId,
+          projects: { name: projectName, working_days: [1, 2, 3, 4, 5] },
+        });
+      });
 
-  // Get phases active on selected date
-  const selectedDayPhases = useMemo(() => {
-    if (!selectedDate) return [];
-    return phases.filter(p => {
-      if (!p.start_date || !p.end_date) return false;
-      return selectedDate >= p.start_date && selectedDate <= p.end_date;
-    });
-  }, [phases, selectedDate]);
+    // Add work events as individual tasks
+    events
+      .filter(e => e.start_date)
+      .forEach((event) => {
+        tasks.push({
+          id: `event-${event.id}`,
+          title: event.title,
+          start_date: event.start_date,
+          end_date: event.end_date || event.start_date,
+          color: event.type === 'visit' ? C.green : C.blue,
+          project_id: projectId,
+          projects: { name: projectName, working_days: [1, 2, 3, 4, 5, 6, 7] },
+        });
+      });
 
-  // Current phase
+    return tasks;
+  }, [phases, events, projectId, projectName]);
+
+  // Get items for selected day
+  const selectedDayItems = useMemo(() => {
+    if (!selectedDate) return { dayPhases: [], dayEvents: [] };
+
+    const dayPhases = phases.filter(p =>
+      p.start_date && p.end_date && selectedDate >= p.start_date && selectedDate <= p.end_date
+    );
+
+    const dayEvents = events.filter(e =>
+      e.start_date && selectedDate >= e.start_date && selectedDate <= (e.end_date || e.start_date)
+    );
+
+    return { dayPhases, dayEvents };
+  }, [phases, events, selectedDate]);
+
   const currentPhase = phases.find(p => p.status === 'in_progress' || p.status === 'active');
 
   if (loading) {
@@ -95,28 +143,15 @@ export default function ClientTimelineScreen() {
     );
   }
 
-  if (!project || phases.length === 0) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Timeline</Text>
-        </View>
-        <View style={styles.emptyState}>
-          <Ionicons name="calendar-outline" size={48} color={C.border} />
-          <Text style={styles.emptyTitle}>No schedule yet</Text>
-          <Text style={styles.emptySub}>Your project timeline will appear here</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   const selectedDateObj = new Date(selectedDate + 'T12:00:00');
+  const { dayPhases, dayEvents } = selectedDayItems;
+  const hasAnything = dayPhases.length > 0 || dayEvents.length > 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Timeline</Text>
-        <Text style={[styles.headerSub, { color: Colors.secondaryText }]}>{project.name}</Text>
+        {projectName ? <Text style={[styles.headerSub, { color: Colors.secondaryText }]}>{projectName}</Text> : null}
       </View>
 
       <ScrollView
@@ -144,7 +179,7 @@ export default function ClientTimelineScreen() {
             currentMonth={currentMonth}
             selectedDate={selectedDate}
             onDateSelect={setSelectedDate}
-            onMonthChange={setCurrentMonth}
+            onMonthChange={handleMonthChange}
             tasks={calendarTasks}
             events={[]}
             theme={{
@@ -165,74 +200,101 @@ export default function ClientTimelineScreen() {
             {selectedDateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </Text>
 
-          {selectedDayPhases.length === 0 ? (
+          {!hasAnything ? (
             <View style={styles.dayEmpty}>
-              <Text style={[styles.dayEmptyText, { color: Colors.secondaryText }]}>No phases scheduled</Text>
+              <Text style={[styles.dayEmptyText, { color: Colors.secondaryText }]}>Nothing scheduled</Text>
             </View>
           ) : (
-            selectedDayPhases.map((phase, i) => (
-              <View key={phase.id} style={styles.phaseCard}>
-                <View style={[styles.phaseAccent, { backgroundColor: PHASE_COLORS[phases.indexOf(phase) % PHASE_COLORS.length] }]} />
-                <View style={styles.phaseContent}>
-                  <Text style={styles.phaseName}>{phase.name}</Text>
-                  <View style={styles.phaseRow}>
-                    <Text style={styles.phaseStatus}>
-                      {phase.status === 'completed' ? 'Completed' : phase.status === 'in_progress' || phase.status === 'active' ? 'In Progress' : 'Upcoming'}
-                    </Text>
-                    <Text style={styles.phaseDates}>
-                      {new Date(phase.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {' – '}
-                      {new Date(phase.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </Text>
-                  </View>
-                  {phase.completion_percentage > 0 && (
-                    <View style={styles.progressBar}>
-                      <View style={[styles.progressFill, { width: `${phase.completion_percentage}%`, backgroundColor: PHASE_COLORS[phases.indexOf(phase) % PHASE_COLORS.length] }]} />
+            <>
+              {/* Work events (crew on site, visits) */}
+              {dayEvents.map((event) => (
+                <View key={event.id} style={styles.eventCard}>
+                  <View style={[styles.eventAccent, { backgroundColor: event.type === 'visit' ? C.green : C.blue }]} />
+                  <View style={styles.eventContent}>
+                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    <View style={styles.eventRow}>
+                      {event.start_time && (
+                        <Text style={styles.eventTime}>
+                          <Ionicons name="time-outline" size={12} color={C.textMuted} />{' '}
+                          {event.start_time}{event.end_time ? ` – ${event.end_time}` : ''}
+                        </Text>
+                      )}
+                      {event.phase && <Text style={styles.eventPhase}>{event.phase}</Text>}
                     </View>
-                  )}
+                    {event.notes ? <Text style={styles.eventNotes} numberOfLines={2}>{event.notes}</Text> : null}
+                  </View>
                 </View>
-              </View>
-            ))
+              ))}
+
+              {/* Phases active on this day */}
+              {dayPhases.map((phase) => (
+                <View key={phase.id} style={styles.phaseCard}>
+                  <View style={[styles.phaseAccent, { backgroundColor: PHASE_COLORS[phases.indexOf(phase) % PHASE_COLORS.length] }]} />
+                  <View style={styles.phaseContent}>
+                    <Text style={styles.phaseName}>{phase.name}</Text>
+                    <View style={styles.phaseRow}>
+                      <Text style={styles.phaseStatus}>
+                        {phase.status === 'completed' ? 'Completed' : phase.status === 'in_progress' || phase.status === 'active' ? 'In Progress' : 'Upcoming'}
+                      </Text>
+                      <Text style={styles.phaseDates}>
+                        {new Date(phase.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {' – '}
+                        {new Date(phase.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Text>
+                    </View>
+                    {(phase.completion_percentage || 0) > 0 && (
+                      <View style={styles.progressBar}>
+                        <View style={[styles.progressFill, { width: `${phase.completion_percentage}%`, backgroundColor: PHASE_COLORS[phases.indexOf(phase) % PHASE_COLORS.length] }]} />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </>
           )}
         </View>
 
         {/* All Phases List */}
-        <View style={styles.allPhasesSection}>
-          <Text style={styles.sectionLabel}>ALL PHASES</Text>
-          {phases.map((phase, i) => {
-            const isActive = phase.status === 'in_progress' || phase.status === 'active';
-            const isComplete = phase.status === 'completed';
-            return (
-              <View key={phase.id} style={styles.phaseListItem}>
-                <View style={[
-                  styles.phaseListDot,
-                  isComplete && { backgroundColor: C.green },
-                  isActive && { backgroundColor: C.amber },
-                  !isComplete && !isActive && { backgroundColor: C.border },
-                ]}>
-                  {isComplete && <Ionicons name="checkmark" size={12} color="#fff" />}
-                </View>
-                {i < phases.length - 1 && (
-                  <View style={[styles.phaseListLine, isComplete && { backgroundColor: C.green }]} />
-                )}
-                <View style={styles.phaseListContent}>
-                  <Text style={[styles.phaseListName, isActive && { color: C.amber, fontWeight: '700' }]}>{phase.name}</Text>
-                  {phase.start_date && (
-                    <Text style={styles.phaseListDate}>
-                      {new Date(phase.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {phase.end_date && ` – ${new Date(phase.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                    </Text>
+        {phases.length > 0 && (
+          <View style={styles.allPhasesSection}>
+            <Text style={styles.sectionLabel}>ALL PHASES</Text>
+            {phases.map((phase, i) => {
+              const isActive = phase.status === 'in_progress' || phase.status === 'active';
+              const isComplete = phase.status === 'completed';
+              return (
+                <View key={phase.id} style={styles.phaseListItem}>
+                  <View style={[
+                    styles.phaseListDot,
+                    isComplete && { backgroundColor: C.green },
+                    isActive && { backgroundColor: C.amber },
+                    !isComplete && !isActive && { backgroundColor: C.border },
+                  ]}>
+                    {isComplete && <Ionicons name="checkmark" size={12} color="#fff" />}
+                  </View>
+                  {i < phases.length - 1 && (
+                    <View style={[styles.phaseListLine, isComplete && { backgroundColor: C.green }]} />
                   )}
+                  <View style={styles.phaseListContent}>
+                    <Text style={[styles.phaseListName, isActive && { color: C.amber, fontWeight: '700' }]}>{phase.name}</Text>
+                    {phase.start_date ? (
+                      <Text style={styles.phaseListDate}>
+                        {new Date(phase.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {phase.end_date && ` – ${new Date(phase.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                      </Text>
+                    ) : (
+                      <Text style={styles.phaseListDate}>Not scheduled</Text>
+                    )}
+                  </View>
+                  <Text style={[
+                    styles.phaseListPercent,
+                    isComplete && { color: C.green },
+                    isActive && { color: C.amber },
+                  ]}>{phase.completion_percentage || 0}%</Text>
                 </View>
-                <Text style={[
-                  styles.phaseListPercent,
-                  isComplete && { color: C.green },
-                  isActive && { color: C.amber },
-                ]}>{phase.completion_percentage || 0}%</Text>
-              </View>
-            );
-          })}
-        </View>
+              );
+            })}
+          </View>
+        )}
 
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -247,7 +309,6 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 13, marginTop: 2 },
   scrollContent: { paddingBottom: 20 },
 
-  // Current phase banner
   currentBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: 16, marginTop: 12, marginBottom: 8,
@@ -258,16 +319,28 @@ const styles = StyleSheet.create({
   currentName: { fontSize: 15, fontWeight: '700', color: C.text, marginTop: 2 },
   currentPercent: { fontSize: 18, fontWeight: '800', color: C.amber },
 
-  // Calendar
   calendarContainer: { marginHorizontal: 16, marginTop: 8, borderRadius: 12, overflow: 'hidden' },
 
-  // Day detail
   daySection: { marginHorizontal: 16, marginTop: 20 },
   dayDate: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
   dayEmpty: { paddingVertical: 20, alignItems: 'center' },
   dayEmptyText: { fontSize: 14 },
 
-  // Phase card
+  // Event cards (work/visits)
+  eventCard: {
+    flexDirection: 'row', backgroundColor: C.surface, borderRadius: 12, marginBottom: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+    overflow: 'hidden',
+  },
+  eventAccent: { width: 4 },
+  eventContent: { flex: 1, padding: 14 },
+  eventTitle: { fontSize: 15, fontWeight: '600', color: C.text },
+  eventRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  eventTime: { fontSize: 12, color: C.textSec },
+  eventPhase: { fontSize: 12, color: C.textMuted, fontStyle: 'italic' },
+  eventNotes: { fontSize: 12, color: C.textMuted, marginTop: 4 },
+
+  // Phase cards
   phaseCard: {
     flexDirection: 'row', backgroundColor: C.surface, borderRadius: 12, marginBottom: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
@@ -282,7 +355,6 @@ const styles = StyleSheet.create({
   progressBar: { height: 4, backgroundColor: C.border, borderRadius: 2, marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2 },
 
-  // All phases list
   allPhasesSection: { marginHorizontal: 16, marginTop: 24 },
   sectionLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1, color: C.textMuted, marginBottom: 16 },
   phaseListItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, position: 'relative' },
@@ -292,9 +364,4 @@ const styles = StyleSheet.create({
   phaseListName: { fontSize: 15, fontWeight: '500', color: C.text },
   phaseListDate: { fontSize: 12, color: C.textMuted, marginTop: 2 },
   phaseListPercent: { fontSize: 14, fontWeight: '700', color: C.textMuted },
-
-  // Empty
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: -60 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#374151', marginTop: 12 },
-  emptySub: { fontSize: 14, color: C.textMuted, marginTop: 4 },
 });

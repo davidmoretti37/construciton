@@ -45,6 +45,7 @@ export const fetchDashboard = () => portalFetch('/dashboard');
 // Projects
 export const fetchProject = (projectId) => portalFetch(`/projects/${projectId}`);
 export const fetchProjectPhotos = (projectId) => portalFetch(`/projects/${projectId}/photos`);
+export const fetchProjectCalendar = (projectId, start, end) => portalFetch(`/projects/${projectId}/calendar?start=${start}&end=${end}`);
 export const fetchProjectActivity = (projectId) => portalFetch(`/projects/${projectId}/activity`);
 export const fetchProjectSummaries = (projectId) => portalFetch(`/projects/${projectId}/summaries`);
 

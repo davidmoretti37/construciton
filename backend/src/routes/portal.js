@@ -1223,4 +1223,91 @@ router.get('/projects/:projectId/approvals', verifyProjectAccess, async (req, re
   }
 });
 
+/**
+ * GET /projects/:projectId/calendar
+ * Returns all calendar events for the client's project:
+ * - Worker schedules (who's working when)
+ * - Project phases (with dates)
+ * - Service visits (if service plan)
+ */
+router.get('/projects/:projectId/calendar', verifyProjectAccess, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { start, end } = req.query; // YYYY-MM-DD
+
+    // Default to current month if not specified
+    const now = new Date();
+    const startDate = start || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const endDate = end || `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`;
+
+    // Fetch worker schedules for this project
+    const { data: schedules } = await supabase
+      .from('worker_schedules')
+      .select(`
+        id, start_date, end_date, start_time, end_time, notes,
+        workers ( full_name, trade ),
+        project_phases ( name )
+      `)
+      .eq('project_id', projectId)
+      .lte('start_date', endDate)
+      .or(`end_date.gte.${startDate},end_date.is.null`);
+
+    // Fetch phases with dates
+    const { data: phases } = await supabase
+      .from('project_phases')
+      .select('id, name, order_index, status, completion_percentage, start_date, end_date')
+      .eq('project_id', projectId)
+      .order('order_index');
+
+    // Check if there are service visits linked to this project
+    let visits = [];
+    try {
+      const { data: visitData } = await supabase
+        .from('service_visits')
+        .select('id, scheduled_date, start_time, end_time, status, notes, visit_type')
+        .eq('project_id', projectId)
+        .gte('scheduled_date', startDate)
+        .lte('scheduled_date', endDate)
+        .order('scheduled_date');
+      visits = visitData || [];
+    } catch {
+      // service_visits may not have project_id column — skip
+    }
+
+    // Format schedules as calendar events
+    const events = (schedules || []).map(s => ({
+      id: s.id,
+      type: 'work',
+      title: s.workers?.full_name ? `${s.workers.full_name}${s.workers.trade ? ` (${s.workers.trade})` : ''}` : 'Crew on site',
+      start_date: s.start_date,
+      end_date: s.end_date || s.start_date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      phase: s.project_phases?.name,
+      notes: s.notes,
+    }));
+
+    // Add visits as events
+    for (const v of visits) {
+      events.push({
+        id: v.id,
+        type: 'visit',
+        title: v.visit_type || 'Service Visit',
+        start_date: v.scheduled_date,
+        end_date: v.scheduled_date,
+        start_time: v.start_time,
+        end_time: v.end_time,
+        status: v.status,
+        notes: v.notes,
+      });
+    }
+
+    res.json({ events, phases: phases || [] });
+  } catch (error) {
+    logger.error('[Portal] Calendar error:', error.message);
+    res.status(500).json({ error: 'Failed to load calendar' });
+  }
+});
+
 module.exports = router;
