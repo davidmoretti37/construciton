@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { fetchDashboard, fetchProjectCalendar } from '../../services/clientPortalApi';
+import { fetchDashboard, fetchProject, fetchProjectCalendar } from '../../services/clientPortalApi';
 import AppleCalendarMonth from '../../components/AppleCalendarMonth';
 
 const C = {
@@ -62,9 +62,16 @@ export default function ClientTimelineScreen() {
         setProjectName(projects[0].name);
 
         const { start, end } = getMonthRange(month || currentMonth);
-        const calendar = await fetchProjectCalendar(pid, start, end);
-        setPhases(calendar?.phases || []);
-        setEvents(calendar?.events || []);
+        try {
+          const calendar = await fetchProjectCalendar(pid, start, end);
+          setPhases(calendar?.phases || []);
+          setEvents([...(calendar?.tasks || []), ...(calendar?.events || [])]);
+        } catch (calErr) {
+          console.log('Calendar endpoint failed, using project phases:', calErr.message);
+          const proj = await fetchProject(pid).catch(() => null);
+          setPhases(proj?.phases || []);
+          setEvents([]);
+        }
       }
     } catch (e) {
       console.error('Timeline load error:', e);
@@ -81,11 +88,30 @@ export default function ClientTimelineScreen() {
     loadData(newMonth);
   }, [loadData]);
 
-  // Convert events + phases to calendar task format for AppleCalendarMonth
+  // Convert events to calendar task format for AppleCalendarMonth
   const calendarTasks = useMemo(() => {
     const tasks = [];
 
-    // Add phases as background spans
+    // Add tasks/events from backend — these are the main calendar items
+    events
+      .filter(e => e.start_date)
+      .forEach((event) => {
+        tasks.push({
+          id: event.id,
+          title: event.title,
+          start_date: event.start_date,
+          end_date: event.end_date || event.start_date,
+          color: event.color || (event.type === 'visit' ? C.green : event.type === 'schedule' ? C.blue : C.amber),
+          project_id: projectId,
+          projects: {
+            name: projectName,
+            working_days: event.working_days || [1, 2, 3, 4, 5],
+            non_working_dates: event.non_working_dates || [],
+          },
+        });
+      });
+
+    // Add phases as background spans (if they have dates)
     phases
       .filter(p => p.start_date && p.end_date)
       .forEach((phase, i) => {
@@ -97,21 +123,6 @@ export default function ClientTimelineScreen() {
           color: PHASE_COLORS[i % PHASE_COLORS.length],
           project_id: projectId,
           projects: { name: projectName, working_days: [1, 2, 3, 4, 5] },
-        });
-      });
-
-    // Add work events as individual tasks
-    events
-      .filter(e => e.start_date)
-      .forEach((event) => {
-        tasks.push({
-          id: `event-${event.id}`,
-          title: event.title,
-          start_date: event.start_date,
-          end_date: event.end_date || event.start_date,
-          color: event.type === 'visit' ? C.green : C.blue,
-          project_id: projectId,
-          projects: { name: projectName, working_days: [1, 2, 3, 4, 5, 6, 7] },
         });
       });
 

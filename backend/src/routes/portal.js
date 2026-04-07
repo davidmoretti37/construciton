@@ -1241,6 +1241,18 @@ router.get('/projects/:projectId/calendar', verifyProjectAccess, async (req, res
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const endDate = end || `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`;
 
+    // Fetch worker tasks for this project (main calendar data — same as owner sees)
+    const { data: tasks } = await supabase
+      .from('worker_tasks')
+      .select(`
+        id, project_id, title, description, start_date, end_date, status, color,
+        projects:project_id (id, name, working_days, non_working_dates)
+      `)
+      .eq('project_id', projectId)
+      .lte('start_date', endDate)
+      .gte('end_date', startDate)
+      .order('created_at', { ascending: true });
+
     // Fetch worker schedules for this project
     const { data: schedules } = await supabase
       .from('worker_schedules')
@@ -1275,10 +1287,23 @@ router.get('/projects/:projectId/calendar', verifyProjectAccess, async (req, res
       // service_visits may not have project_id column — skip
     }
 
-    // Format schedules as calendar events
+    // Format tasks as calendar tasks (same format AppleCalendarMonth expects)
+    const calendarTasks = (tasks || []).map(t => ({
+      id: t.id,
+      title: t.title,
+      start_date: t.start_date,
+      end_date: t.end_date,
+      color: t.color || '#F59E0B',
+      status: t.status,
+      project_id: t.project_id,
+      working_days: t.projects?.working_days || [1, 2, 3, 4, 5],
+      non_working_dates: t.projects?.non_working_dates || [],
+    }));
+
+    // Format schedules as events
     const events = (schedules || []).map(s => ({
       id: s.id,
-      type: 'work',
+      type: 'schedule',
       title: s.workers?.full_name ? `${s.workers.full_name}${s.workers.trade ? ` (${s.workers.trade})` : ''}` : 'Crew on site',
       start_date: s.start_date,
       end_date: s.end_date || s.start_date,
@@ -1303,7 +1328,7 @@ router.get('/projects/:projectId/calendar', verifyProjectAccess, async (req, res
       });
     }
 
-    res.json({ events, phases: phases || [] });
+    res.json({ tasks: calendarTasks, events, phases: phases || [] });
   } catch (error) {
     logger.error('[Portal] Calendar error:', error.message);
     res.status(500).json({ error: 'Failed to load calendar' });

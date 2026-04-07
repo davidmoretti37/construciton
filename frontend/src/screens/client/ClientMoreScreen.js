@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const C = {
   amber: '#F59E0B',
@@ -29,7 +29,14 @@ const MENU_SECTIONS = [
 ];
 
 export default function ClientMoreScreen({ navigation }) {
-  const { signOut } = useAuth();
+  const handleSignOut = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: async () => {
+        await supabase.auth.signOut();
+      }},
+    ]);
+  };
 
   const handlePress = (item) => {
     if (item.screen) {
@@ -71,7 +78,7 @@ export default function ClientMoreScreen({ navigation }) {
           </View>
         ))}
 
-        <TouchableOpacity style={styles.signOutBtn} onPress={signOut} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
