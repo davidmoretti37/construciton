@@ -21,10 +21,12 @@ export default function ClientMessagesListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [projects, setProjects] = useState([]);
+  const [businessName, setBusinessName] = useState('');
 
   const loadData = useCallback(async () => {
     try {
       const data = await fetchDashboard();
+      setBusinessName(data?.branding?.business_name || '');
       setProjects([...(data?.projects || []), ...(data?.service_plans || []).map(p => ({ ...p, isServicePlan: true }))]);
     } catch (e) {
       console.error('Messages list load error:', e);
@@ -72,8 +74,8 @@ export default function ClientMessagesListScreen({ navigation }) {
                 <Ionicons name={project.isServicePlan ? 'leaf' : 'briefcase'} size={20} color={project.isServicePlan ? '#059669' : '#2563EB'} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>{project.name}</Text>
-                <Text style={[styles.tapToChat, { color: Colors.secondaryText }]}>Tap to message your contractor</Text>
+                <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>{businessName || 'Your Contractor'}</Text>
+                <Text style={[styles.tapToChat, { color: Colors.secondaryText }]} numberOfLines={1}>{project.name}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
             </TouchableOpacity>

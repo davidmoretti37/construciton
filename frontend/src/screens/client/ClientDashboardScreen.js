@@ -110,10 +110,10 @@ export default function ClientDashboardScreen({ navigation }) {
                 </Text>
               </View>
               <View style={styles.headerActions}>
-                <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerBtn}>
+                <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Notifications')} style={styles.headerBtn}>
                   <Ionicons name="notifications-outline" size={20} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerBtn}>
+                <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Settings')} style={styles.headerBtn}>
                   <Ionicons name="settings-outline" size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -126,7 +126,7 @@ export default function ClientDashboardScreen({ navigation }) {
           {outstandingInvoices.length > 0 && (
             <TouchableOpacity
               style={styles.invoiceBanner}
-              onPress={() => projects.length > 0 && navigation.navigate('ClientInvoices', { projectId: projects[0].id })}
+              onPress={() => projects.length > 0 && navigation.getParent()?.navigate('ClientInvoices', { projectId: projects[0].id })}
               activeOpacity={0.8}
             >
               <View style={{ flex: 1 }}>
@@ -163,11 +163,11 @@ export default function ClientDashboardScreen({ navigation }) {
 
               {/* Action Buttons */}
               <View style={styles.actions}>
-                <TouchableOpacity style={styles.actionPrimary} onPress={() => navigation.navigate('ClientInvoices', { projectId: projects[0].id })} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.actionPrimary} onPress={() => navigation.getParent()?.navigate('ClientInvoices', { projectId: projects[0].id })} activeOpacity={0.8}>
                   <Ionicons name="receipt-outline" size={18} color="#fff" />
                   <Text style={styles.actionPrimaryText}>Invoices</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.navigate('ClientMessages', { projectId: projects[0].id, projectName: projectDetail.name })} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.getParent()?.navigate('ClientMessages', { projectId: projects[0].id, projectName: projectDetail.name })} activeOpacity={0.8}>
                   <Ionicons name="chatbubbles-outline" size={18} color={C.text} />
                   <Text style={styles.actionSecondaryText}>Messages</Text>
                 </TouchableOpacity>
@@ -244,7 +244,7 @@ export default function ClientDashboardScreen({ navigation }) {
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>PROJECTS</Text>
                   {projects.map((project) => (
-                    <TouchableOpacity key={project.id} style={styles.projectCard} onPress={() => navigation.navigate('ClientProjectDetail', { projectId: project.id })} activeOpacity={0.7}>
+                    <TouchableOpacity key={project.id} style={styles.projectCard} onPress={() => navigation.getParent()?.navigate('ClientProjectDetail', { projectId: project.id })} activeOpacity={0.7}>
                       <View style={styles.cardAccent} />
                       <View style={styles.cardBody}>
                         <View style={styles.cardTop}>

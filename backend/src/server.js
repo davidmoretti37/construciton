@@ -35,7 +35,7 @@ const tellerRoutes = require('./routes/teller');
 const googleDriveRoutes = require('./routes/googleDrive');
 
 // Rate Limiters
-const { aiLimiter, servicesLimiter, chatHistoryLimiter } = require('./middleware/rateLimiter');
+const { aiLimiter, servicesLimiter, chatHistoryLimiter, portalLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -142,11 +142,11 @@ app.use('/api/service-routes', servicesLimiter, serviceRouteRoutes);
 
 // Client portal (public-facing client access)
 const portalRoutes = require('./routes/portal');
-app.use('/api/portal', servicesLimiter, portalRoutes);
+app.use('/api/portal', portalLimiter, portalRoutes);
 
 // Portal admin (owner-facing portal management)
 const portalOwnerRoutes = require('./routes/portalOwner');
-app.use('/api/portal-admin', servicesLimiter, portalOwnerRoutes);
+app.use('/api/portal-admin', portalLimiter, portalOwnerRoutes);
 
 
 // ============================================================

@@ -4,14 +4,21 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
+  withRepeat,
+  Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const items = [
-  { id: 0, icon: 'home', label: 'Dashboard', routeIndex: 0 },
-  { id: 1, icon: 'chatbubbles', label: 'MessagesList', routeIndex: 1 },
+  { id: 0, icon: 'home', label: 'Home', routeName: 'Home', routeIndex: 0 },
+  { id: 1, icon: 'calendar', label: 'Timeline', routeName: 'Timeline', routeIndex: 1 },
+  { id: 2, icon: 'chatbubbles', label: 'Messages', routeName: 'Messages', routeIndex: 2 },
+  { id: 3, icon: 'card', label: 'Money', routeName: 'Money', routeIndex: 3 },
+  { id: 4, icon: 'grid', label: 'More', routeName: 'More', routeIndex: 4 },
 ];
 
 const ClientLumaBar = ({ state, navigation }) => {
@@ -19,8 +26,26 @@ const ClientLumaBar = ({ state, navigation }) => {
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
 
+  const shimmerRotation = useSharedValue(0);
+
+  useEffect(() => {
+    shimmerRotation.value = withRepeat(
+      withTiming(360, { duration: 3000, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, []);
+
+  const animatedShimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${shimmerRotation.value}deg` }],
+  }));
+
+  const shimmerColors = isDark
+    ? [Colors.border, '#D97706', Colors.border, '#D97706', Colors.border]
+    : ['#9CA3AF', '#FBBF24', '#F59E0B', '#FBBF24', '#9CA3AF'];
+
   const getVisualIndex = (routeIndex) => {
-    const item = items.find(item => item.routeIndex === routeIndex);
+    const item = items.find(i => i.routeIndex === routeIndex);
     return item ? item.id : 0;
   };
 
@@ -31,25 +56,32 @@ const ClientLumaBar = ({ state, navigation }) => {
   }, [state.index]);
 
   const handlePress = (index) => {
-    const route = items[index];
-    navigation.navigate(route.label);
+    navigation.navigate(items[index].routeName);
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.navBar}>
-        {items.map((item, index) => {
-          const isActive = index === active;
-          return (
+      <View style={styles.shimmerContainer}>
+        <Animated.View style={[styles.shimmerBorder, animatedShimmerStyle]}>
+          <LinearGradient
+            colors={shimmerColors}
+            locations={[0, 0.25, 0.5, 0.75, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.shimmerGradient}
+          />
+        </Animated.View>
+        <View style={[styles.navBar, { backgroundColor: Colors.navBarBackground }]}>
+          {items.map((item, index) => (
             <NavItem
               key={item.id}
               item={item}
-              isActive={isActive}
+              isActive={index === active}
               onPress={() => handlePress(index)}
               Colors={Colors}
             />
-          );
-        })}
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -66,30 +98,33 @@ const NavItem = ({ item, isActive, onPress, Colors }) => {
     scale.value = withSpring(isActive ? 1.25 : 1, { damping: 15, stiffness: 300 });
   }, [isActive]);
 
-  const activeColor = '#F59E0B'; // Amber for client
-
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={navItemStyles.navItem}>
       <Animated.View style={[navItemStyles.iconContainer, animatedStyle]}>
-        <Ionicons name={item.icon} size={22} color={isActive ? activeColor : Colors.secondaryText} />
+        <Ionicons
+          name={item.icon}
+          size={22}
+          color={isActive ? '#F59E0B' : Colors.secondaryText}
+        />
       </Animated.View>
     </TouchableOpacity>
   );
 };
 
 const navItemStyles = StyleSheet.create({
-  navItem: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2 },
+  navItem: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginHorizontal: 2 },
   iconContainer: { alignItems: 'center', justifyContent: 'center' },
 });
 
 const createStyles = (Colors) => StyleSheet.create({
-  container: { position: 'absolute', bottom: 20, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
+  container: { alignItems: 'center', justifyContent: 'center' },
+  shimmerContainer: { borderRadius: 27, padding: 2, overflow: 'hidden' },
+  shimmerBorder: { position: 'absolute', top: -50, left: -50, right: -50, bottom: -50, alignItems: 'center', justifyContent: 'center' },
+  shimmerGradient: { width: 400, height: 400 },
   navBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.navBarBackground, borderRadius: 25,
-    paddingHorizontal: 16, paddingVertical: 6,
+    borderRadius: 25, paddingHorizontal: 16, paddingVertical: 6,
     shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8,
-    borderWidth: 1, borderColor: Colors.border,
   },
 });
 

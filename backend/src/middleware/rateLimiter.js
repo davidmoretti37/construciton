@@ -85,9 +85,37 @@ const chatHistoryLimiter = rateLimit({
   message: 'Too many chat history requests'
 });
 
+/**
+ * Portal Rate Limiter (Lenient)
+ * For: /api/portal, /api/portal-admin
+ * Client portal is read-heavy with burst loads on app resume
+ * Uses auth token for per-user limiting
+ */
+const portalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 120, // 120 requests per minute per user
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: createRateLimitHandler('portal'),
+  message: 'Too many requests',
+  keyGenerator: (req) => {
+    const auth = req.headers.authorization;
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64').toString());
+        if (payload.sub) return `portal:${payload.sub}`;
+      } catch (_) {}
+    }
+    const portalToken = req.headers['x-portal-token'];
+    if (portalToken) return `portal:${portalToken}`;
+    return ipKeyGenerator(req);
+  },
+});
+
 module.exports = {
   aiLimiter,
   servicesLimiter,
   generalLimiter,
-  chatHistoryLimiter
+  chatHistoryLimiter,
+  portalLimiter
 };

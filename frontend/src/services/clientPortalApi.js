@@ -16,12 +16,20 @@ const getAuthHeaders = async () => {
   };
 };
 
-const portalFetch = async (path, options = {}) => {
+const portalFetch = async (path, options = {}, _retries = 0) => {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_URL}/api/portal${path}`, {
     ...options,
     headers: { ...headers, ...options.headers },
   });
+
+  // Auto-retry on rate limit (429) with backoff
+  if (res.status === 429 && _retries < 3) {
+    const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
+    const delay = Math.max(retryAfter * 1000, (_retries + 1) * 2000);
+    await new Promise(r => setTimeout(r, delay));
+    return portalFetch(path, options, _retries + 1);
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: 'Request failed' }));
