@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { fetchDashboard, fetchMoneySummary, payInvoice } from '../../services/clientPortalApi';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
+import { fetchDashboard, fetchMoneySummary, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -35,6 +36,7 @@ export default function ClientMoneyScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState(null);
   const [paying, setPaying] = useState(null);
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
   const loadData = useCallback(async () => {
     try {
@@ -57,10 +59,49 @@ export default function ClientMoneyScreen({ navigation }) {
   const handlePay = async (invoice) => {
     try {
       setPaying(invoice.id);
-      const result = await payInvoice(invoice.id);
-      if (result?.url) {
-        await Linking.openURL(result.url);
-        setTimeout(() => loadData(), 2000);
+
+      // Try native Payment Sheet first
+      const intentData = await createPaymentIntent(invoice.id).catch(() => null);
+
+      if (intentData?.clientSecret) {
+        // Native in-app payment
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: intentData.clientSecret,
+          customerEphemeralKeySecret: intentData.ephemeralKey,
+          customerId: intentData.customerId,
+          merchantDisplayName: 'Sylk',
+          allowsDelayedPaymentMethods: true, // ACH
+          applePay: { merchantCountryCode: 'US' },
+          googlePay: { merchantCountryCode: 'US', testEnv: true },
+        });
+
+        if (initError) {
+          console.error('Payment sheet init error:', initError);
+          // Fall back to browser
+          const result = await payInvoice(invoice.id);
+          if (result?.url) await Linking.openURL(result.url);
+          return;
+        }
+
+        const { error: presentError } = await presentPaymentSheet();
+
+        if (presentError) {
+          if (presentError.code !== 'Canceled') {
+            Alert.alert('Payment Failed', presentError.message);
+          }
+          return;
+        }
+
+        // Payment succeeded
+        Alert.alert('Payment Successful', 'Your payment has been processed.');
+        loadData();
+      } else {
+        // Fallback to browser checkout
+        const result = await payInvoice(invoice.id);
+        if (result?.url) {
+          await Linking.openURL(result.url);
+          setTimeout(() => loadData(), 2000);
+        }
       }
     } catch (e) {
       Alert.alert('Payment Error', e.message || 'Failed to start payment');

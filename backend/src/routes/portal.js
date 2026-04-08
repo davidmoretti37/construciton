@@ -790,6 +790,102 @@ router.post('/invoices/:invoiceId/pay', async (req, res) => {
   }
 });
 
+/**
+ * POST /invoices/:invoiceId/create-payment-intent
+ * Creates a Stripe PaymentIntent for native in-app payment.
+ * Supports: card, Apple Pay, Google Pay, ACH bank transfer.
+ */
+router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const clientId = req.client.id;
+    const clientEmail = req.client.email;
+
+    // Verify invoice exists and client has access
+    const { data: invoice, error: invError } = await supabase
+      .from('invoices')
+      .select('id, project_id, invoice_number, total, amount_paid, amount_due, status, client_name, client_email')
+      .eq('id', invoiceId)
+      .single();
+
+    if (invError || !invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (invoice.project_id) {
+      const { data: access } = await supabase
+        .from('project_clients')
+        .select('id')
+        .eq('project_id', invoice.project_id)
+        .eq('client_id', clientId)
+        .single();
+      if (!access) return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(400).json({ error: 'Invoice is already paid' });
+    }
+
+    const amountDue = invoice.amount_due || (invoice.total - (invoice.amount_paid || 0));
+    if (amountDue <= 0) {
+      return res.status(400).json({ error: 'No amount due' });
+    }
+
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+    // Create or retrieve Stripe customer
+    const email = invoice.client_email || clientEmail;
+    let customerId;
+
+    const existingCustomers = await stripe.customers.list({ email, limit: 1 });
+    if (existingCustomers.data.length > 0) {
+      customerId = existingCustomers.data[0].id;
+    } else {
+      const customer = await stripe.customers.create({
+        email,
+        name: invoice.client_name || req.client.full_name,
+        metadata: { client_id: clientId },
+      });
+      customerId = customer.id;
+    }
+
+    // Create ephemeral key for the customer
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: '2024-06-20' }
+    );
+
+    // Create PaymentIntent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amountDue * 100),
+      currency: 'usd',
+      customer: customerId,
+      payment_method_types: ['card', 'us_bank_account'],
+      metadata: {
+        invoice_id: invoiceId,
+        client_id: clientId,
+        project_id: invoice.project_id,
+        type: 'portal_invoice_payment',
+      },
+      description: `Invoice ${invoice.invoice_number}`,
+      setup_future_usage: 'off_session', // Save card for future payments
+    });
+
+    // Store payment intent ID on invoice
+    await supabase
+      .from('invoices')
+      .update({ stripe_payment_intent_id: paymentIntent.id, stripe_customer_id: customerId })
+      .eq('id', invoiceId);
+
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+      ephemeralKey: ephemeralKey.secret,
+      customerId,
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+    });
+  }
+});
+
 // ============================================================
 // MESSAGES
 // ============================================================

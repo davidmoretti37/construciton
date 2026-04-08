@@ -28,6 +28,7 @@ import WorkerOnboardingNavigator from './src/navigation/WorkerOnboardingNavigato
 
 import SupervisorOnboardingNavigator from './src/navigation/SupervisorOnboardingNavigator';
 import ClientMainNavigator from './src/navigation/ClientMainNavigator';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import LanguageSelectionScreen from './src/screens/LanguageSelectionScreen';
 import RoleSelectionScreen from './src/screens/auth/RoleSelectionScreen';
@@ -325,6 +326,7 @@ function AppContent() {
   };
 
   return (
+    <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_51StJ1qJdZ7yc6AWCixMhEcvJMWWMOeOh93Pl64nVOp4TZxfmUWMJHZ6WQFT1RfNxr7VRF0gfmOi0QkYjQD5bPz2300AEUZqm3'}>
     <View style={{ flex: 1, backgroundColor: isDark ? '#0A0F1A' : '#F9FAFB' }}>
       {contentReady && (
         <View style={{ flex: 1, opacity: splashGone ? 1 : 0 }}>
@@ -404,6 +406,7 @@ function AppContent() {
         />
       )}
     </View>
+    </StripeProvider>
   );
 }
 

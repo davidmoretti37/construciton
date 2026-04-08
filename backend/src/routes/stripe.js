@@ -267,6 +267,10 @@ router.post('/webhook', async (req, res) => {
         await handleTrialEnding(event.data.object);
         break;
 
+      case 'payment_intent.succeeded':
+        await handlePaymentIntentSucceeded(event.data.object);
+        break;
+
       default:
         logger.debug(`Unhandled event type: ${event.type}`);
     }
@@ -618,5 +622,47 @@ router.post('/link-pending-subscription', authenticateUser, async (req, res) => 
     res.status(500).json({ error: 'Failed to link subscription' });
   }
 });
+
+/**
+ * Handle successful PaymentIntent — auto-update invoice
+ */
+async function handlePaymentIntentSucceeded(paymentIntent) {
+  const { invoice_id, type } = paymentIntent.metadata || {};
+
+  if (type !== 'portal_invoice_payment' || !invoice_id) return;
+
+  const amountPaid = paymentIntent.amount / 100; // Convert cents to dollars
+  const paymentMethod = paymentIntent.payment_method_types?.[0] || 'card';
+
+  const { data: invoice, error: fetchError } = await supabaseAdmin
+    .from('invoices')
+    .select('id, total, amount_paid')
+    .eq('id', invoice_id)
+    .single();
+
+  if (fetchError || !invoice) {
+    logger.error(`Invoice not found for payment intent: ${invoice_id}`);
+    return;
+  }
+
+  const newAmountPaid = parseFloat(invoice.amount_paid || 0) + amountPaid;
+  const newStatus = newAmountPaid >= parseFloat(invoice.total) ? 'paid' : 'partial';
+
+  const { error: updateError } = await supabaseAdmin
+    .from('invoices')
+    .update({
+      amount_paid: newAmountPaid,
+      status: newStatus,
+      payment_method: paymentMethod,
+      paid_date: newStatus === 'paid' ? new Date().toISOString() : null,
+    })
+    .eq('id', invoice_id);
+
+  if (updateError) {
+    logger.error('Error updating invoice after payment:', updateError);
+  } else {
+    logger.info(`Invoice ${invoice_id} updated: ${newStatus}, paid: $${newAmountPaid}`);
+  }
+}
 
 module.exports = router;

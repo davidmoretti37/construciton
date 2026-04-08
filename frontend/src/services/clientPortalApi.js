@@ -56,6 +56,7 @@ export const fetchMoneySummary = (projectId) => portalFetch(`/projects/${project
 export const fetchProjectInvoices = (projectId) => portalFetch(`/projects/${projectId}/invoices`);
 export const fetchProjectMilestones = (projectId) => portalFetch(`/projects/${projectId}/milestones`);
 export const payInvoice = (invoiceId) => portalFetch(`/invoices/${invoiceId}/pay`, { method: 'POST' });
+export const createPaymentIntent = (invoiceId) => portalFetch(`/invoices/${invoiceId}/create-payment-intent`, { method: 'POST' });
 
 // Estimates
 export const fetchProjectEstimates = (projectId) => portalFetch(`/projects/${projectId}/estimates`);
