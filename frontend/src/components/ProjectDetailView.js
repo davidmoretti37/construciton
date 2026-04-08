@@ -1133,72 +1133,53 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   const mainContent = (
     <>
-      <View style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#1E40AF' }} />
-        {/* Header — sits on gradient */}
-        <LinearGradient colors={['#1E40AF', '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { borderBottomWidth: 0 }]}>
-          <TouchableOpacity
-            onPress={() => {
-              if (isEditing) {
-                // Cancel editing - reset values
-                setEditAddress(project?.location || '');
-                setEditPhone(project?.client_phone || project?.clientPhone || '');
-                setEditEmail(project?.client_email || project?.clientEmail || '');
-                setEditStartDate(project?.startDate ? new Date(project.startDate) : null);
-                setEditEndDate(project?.endDate ? new Date(project.endDate) : null);
-                setIsEditing(false);
-              } else {
-                onClose();
-              }
-            }}
-            style={styles.closeButton}
-          >
-            <View style={[styles.closeIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Ionicons name={isEditing ? "close" : (asScreen ? "chevron-back" : "chevron-down")} size={24} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: '#1E3A8A' }]}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#1E3A8A' }} />
 
-          {/* Hide edit button for demo projects */}
-          {!isDemo && (
+        {/* Static Blue Header — stays behind scroll */}
+        <LinearGradient colors={['#1E3A8A', '#1E3A8A']} style={{ paddingBottom: 80 }}>
+          {/* Nav Bar */}
+          <View style={[styles.header, { borderBottomWidth: 0 }]}>
             <TouchableOpacity
-              onPress={() => setShowEditModal(true)}
-              style={styles.editButton}
+              onPress={() => {
+                if (isEditing) {
+                  setEditAddress(project?.location || '');
+                  setEditPhone(project?.client_phone || project?.clientPhone || '');
+                  setEditEmail(project?.client_email || project?.clientEmail || '');
+                  setEditStartDate(project?.startDate ? new Date(project.startDate) : null);
+                  setEditEndDate(project?.endDate ? new Date(project.endDate) : null);
+                  setIsEditing(false);
+                } else {
+                  onClose();
+                }
+              }}
+              style={styles.closeButton}
             >
-              <View style={[styles.editIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+              <View style={[styles.closeIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Ionicons name={isEditing ? "close" : (asScreen ? "chevron-back" : "chevron-down")} size={24} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
-          )}
-        </LinearGradient>
 
-        {/* Demo Banner */}
-        {isDemo && (
-          <View style={styles.demoBanner}>
-            <Ionicons name="information-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.demoBannerText}>
-              {t('messages.demoProjectBanner')}
-            </Text>
-          </View>
-        )}
-
-        {/* Scrollable Content */}
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Gradient Header */}
-          <LinearGradient colors={['#1E40AF', '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroSection}>
-            <View style={styles.heroContent}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>{project.status?.replace(/-/g, ' ') || 'Active'}</Text>
+            {!isDemo && (
+              <TouchableOpacity onPress={() => setShowEditModal(true)} style={styles.editButton}>
+                <View style={[styles.editIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                  <Ionicons name="create-outline" size={20} color="#FFFFFF" />
                 </View>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Project Identity — Static */}
+          <View style={styles.heroContent}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 20 }}>
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>{project.status?.replace(/-/g, ' ') || 'Active'}</Text>
               </View>
-              <Text style={styles.heroTitle} numberOfLines={2}>
-                {project.name}
-              </Text>
+            </View>
+            <Text style={[styles.heroTitle, { paddingHorizontal: 20 }]} numberOfLines={2}>
+              {project.name}
+            </Text>
               {project.client && (
                 <View style={styles.clientRow}>
                   <Ionicons name="person-outline" size={14} color="rgba(255,255,255,0.9)" />
@@ -1296,11 +1277,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 )}
               </View>
             </View>
-          </LinearGradient>
+          </View>
+        </LinearGradient>
 
-          {/* Body — overlaps header with rounded top */}
-          <View style={{ marginTop: -16, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#F8FAFC', paddingTop: 16 }}>
-
+        {/* Scrollable Content — white body scrolls over blue header */}
+        <ScrollView
+          style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: -20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
+          contentContainerStyle={{ paddingTop: 20, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Financial Health Card */}
           <View style={[styles.financialContainer, { backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 16, marginTop: 12, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }]}>
             {/* Contract Value — Big Anchor */}
@@ -2430,7 +2415,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <Ionicons name="trash-outline" size={14} color={'#EF4444' + '80'} />
             <Text style={styles.deleteProjectLinkText}>{t('buttons.deleteProject')}</Text>
           </TouchableOpacity>
-          </View>{/* Close body wrapper */}
         </ScrollView>
       </View>
 
