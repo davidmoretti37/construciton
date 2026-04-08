@@ -5,6 +5,8 @@ import ClientProjectDetailScreen from '../screens/client/ClientProjectDetailScre
 import ClientInvoicesScreen from '../screens/client/ClientInvoicesScreen';
 import ClientMessagesScreen from '../screens/client/ClientMessagesScreen';
 import ClientChangeOrderDetailScreen from '../screens/client/ClientChangeOrderDetailScreen';
+import ClientDocumentsScreen from '../screens/client/ClientDocumentsScreen';
+import ClientSelectionsScreen from '../screens/client/ClientSelectionsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 
@@ -21,6 +23,8 @@ export default function ClientMainNavigator() {
       <Stack.Screen name="ClientInvoices" component={ClientInvoicesScreen} />
       <Stack.Screen name="ClientMessages" component={ClientMessagesScreen} />
       <Stack.Screen name="ClientChangeOrderDetail" component={ClientChangeOrderDetailScreen} />
+      <Stack.Screen name="ClientDocuments" component={ClientDocumentsScreen} />
+      <Stack.Screen name="ClientSelections" component={ClientSelectionsScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>

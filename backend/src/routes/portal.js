@@ -883,6 +883,9 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
       customerId,
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
     });
+  } catch (error) {
+    logger.error('[Portal] Create payment intent error:', error.message);
+    res.status(500).json({ error: 'Failed to create payment' });
   }
 });
 

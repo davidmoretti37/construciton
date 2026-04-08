@@ -41,7 +41,7 @@
           "remote-notification"
         ]
       },
-      "buildNumber": "48"
+      "buildNumber": "49"
     },
     "android": {
       "adaptiveIcon": {
@@ -94,6 +94,13 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#2196F3"
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.davidmoretti.constructionmanager",
+          "enableGooglePay": true
         }
       ]
     ],
