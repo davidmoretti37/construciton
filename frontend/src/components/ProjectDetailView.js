@@ -1185,15 +1185,21 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Hero Section */}
-          <View style={[styles.heroSection, { backgroundColor: statusColor }]}>
+          {/* Hero Section — White card with accent */}
+          <View style={[styles.heroSection, { backgroundColor: '#FFFFFF' }]}>
             <View style={styles.heroContent}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <View style={{ backgroundColor: statusColor + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: statusColor }} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: statusColor, textTransform: 'capitalize' }}>{project.status?.replace(/-/g, ' ') || 'Active'}</Text>
+                </View>
+              </View>
               <Text style={styles.heroTitle} numberOfLines={2}>
                 {project.name}
               </Text>
               {project.client && (
                 <View style={styles.clientRow}>
-                  <Ionicons name="person-outline" size={14} color="rgba(255,255,255,0.9)" />
+                  <Ionicons name="person-outline" size={14} color="#64748B" />
                   <Text style={styles.clientText}>{project.client}</Text>
                 </View>
               )}
@@ -1203,13 +1209,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Address */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="location" size={16} color="#64748B" />
                     <TextInput
                       style={styles.contactInput}
                       value={editAddress}
                       onChangeText={setEditAddress}
                       placeholder={t('placeholders.enterAddress')}
-                      placeholderTextColor="rgba(255,255,255,0.5)"
+                      placeholderTextColor="#94A3B8"
                     />
                   </View>
                 ) : project.location ? (
@@ -1218,12 +1224,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handleAddressPress(project.location)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="location" size={16} color="#64748B" />
                     <Text style={styles.contactText} numberOfLines={2}>{project.location}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.contactRow}>
-                    <Ionicons name="location-outline" size={16} color="rgba(255,255,255,0.6)" />
+                    <Ionicons name="location-outline" size={16} color="#94A3B8" />
                     <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>{t('emptyStates.noAddressAdded')}</Text>
                   </View>
                 )}
@@ -1231,13 +1237,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Phone */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="call" size={16} color="#64748B" />
                     <TextInput
                       style={styles.contactInput}
                       value={editPhone}
                       onChangeText={setEditPhone}
                       placeholder={t('placeholders.enterPhone')}
-                      placeholderTextColor="rgba(255,255,255,0.5)"
+                      placeholderTextColor="#94A3B8"
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -1247,12 +1253,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handlePhonePress(project.client_phone || project.clientPhone)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="call" size={16} color="#64748B" />
                     <Text style={styles.contactText}>{project.client_phone || project.clientPhone}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.contactRow}>
-                    <Ionicons name="call-outline" size={16} color="rgba(255,255,255,0.6)" />
+                    <Ionicons name="call-outline" size={16} color="#94A3B8" />
                     <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>{t('emptyStates.noPhoneAdded')}</Text>
                   </View>
                 )}
@@ -1260,13 +1266,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Email */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="mail" size={16} color="#64748B" />
                     <TextInput
                       style={styles.contactInput}
                       value={editEmail}
                       onChangeText={setEditEmail}
                       placeholder={t('placeholders.enterEmail')}
-                      placeholderTextColor="rgba(255,255,255,0.5)"
+                      placeholderTextColor="#94A3B8"
                       keyboardType="email-address"
                       autoCapitalize="none"
                     />
@@ -1277,12 +1283,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handleEmailPress(project.client_email || project.clientEmail)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="mail" size={16} color="#64748B" />
                     <Text style={styles.contactText}>{project.client_email || project.clientEmail}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.contactRow}>
-                    <Ionicons name="mail-outline" size={16} color="rgba(255,255,255,0.6)" />
+                    <Ionicons name="mail-outline" size={16} color="#94A3B8" />
                     <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>{t('emptyStates.noEmailAdded')}</Text>
                   </View>
                 )}
@@ -1290,126 +1296,107 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           </View>
 
-          {/* Financial Summary — Always Visible */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 }}>
-            <Ionicons name="wallet-outline" size={20} color={Colors.primaryText} />
-            <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.primaryText }}>Financials</Text>
-          </View>
-
-          <View style={styles.financialContainer}>
-            {/* Top Row: Contract & Income */}
-            <View style={styles.financialRow}>
-              {/* Contract Amount */}
-              <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
-                {isOwner && (
-                  <TouchableOpacity
-                    onPress={handleToggleContractVisibility}
-                    style={{ position: 'absolute', top: 10, right: 10, zIndex: 1, padding: 4 }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons
-                      name={localHideContract ? 'eye-off-outline' : 'eye-outline'}
-                      size={16}
-                      color={localHideContract ? '#EF4444' : Colors.secondaryText + '60'}
-                    />
-                  </TouchableOpacity>
-                )}
-                <View style={[styles.iconBadge, { backgroundColor: '#3B82F6' + '15' }]}>
-                  <Ionicons name="document-text" size={18} color="#3B82F6" />
-                </View>
-                <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>{t('labels.contract')}</Text>
+          {/* Financial Health Card */}
+          <View style={[styles.financialContainer, { backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 16, marginTop: 12, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }]}>
+            {/* Contract Value — Big Anchor */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View>
+                <Text style={{ fontSize: 11, fontWeight: '500', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>Contract Value</Text>
                 {isSupervisor && ownerHidesContract ? (
-                  <Text style={[styles.financialValue, { color: Colors.secondaryText }]}>---</Text>
+                  <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>---</Text>
                 ) : (
-                  <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
-                    ${contractAmount.toLocaleString()}
-                  </Text>
+                  <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${contractAmount.toLocaleString()}</Text>
                 )}
               </View>
+              {isOwner && (
+                <TouchableOpacity onPress={handleToggleContractVisibility} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name={localHideContract ? 'eye-off-outline' : 'eye-outline'} size={18} color={localHideContract ? '#EF4444' : '#94A3B8'} />
+                </TouchableOpacity>
+              )}
+            </View>
 
-              {/* Income Collected */}
+            {/* Divider */}
+            <View style={{ height: 1, backgroundColor: '#F1F5F9', marginTop: 16, marginBottom: 16 }} />
+
+            {/* 3-Column Metrics */}
+            <View style={{ flexDirection: 'row' }}>
+              {/* Income */}
               <TouchableOpacity
-                style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}
+                style={{ flex: 1, alignItems: 'center' }}
                 onPress={() => {
                   if (navigation) {
                     wasNavigatingRef.current = true;
                     setModalVisible(false);
-                    navigation.navigate('ProjectTransactions', {
-                      projectId: project.id,
-                      projectName: project.name,
-                      fromProjectDetail: true,
-                      transactionType: 'income',
-                    });
+                    navigation.navigate('ProjectTransactions', { projectId: project.id, projectName: project.name, fromProjectDetail: true, transactionType: 'income' });
                   }
                 }}
                 activeOpacity={0.7}
               >
-                <View style={[styles.iconBadge, { backgroundColor: '#10B981' + '15' }]}>
-                  <Ionicons name="cash" size={18} color="#10B981" />
-                </View>
-                <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>{t('labels.income')}</Text>
-                <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
-                  ${incomeCollected.toLocaleString()}
-                </Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Income</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${incomeCollected.toLocaleString()}</Text>
+                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{contractAmount > 0 ? Math.round((incomeCollected / contractAmount) * 100) : 0}% collected</Text>
               </TouchableOpacity>
-            </View>
 
-            {/* Bottom Row: Expenses & Profit */}
-            <View style={styles.financialRow}>
+              {/* Divider */}
+              <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
+
               {/* Expenses */}
               <TouchableOpacity
-                style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}
+                style={{ flex: 1, alignItems: 'center' }}
                 onPress={() => {
                   if (navigation) {
                     wasNavigatingRef.current = true;
                     setModalVisible(false);
-                    navigation.navigate('ProjectTransactions', {
-                      projectId: project.id,
-                      projectName: project.name,
-                      fromProjectDetail: true,
-                      transactionType: 'expense',
-                    });
+                    navigation.navigate('ProjectTransactions', { projectId: project.id, projectName: project.name, fromProjectDetail: true, transactionType: 'expense' });
                   }
                 }}
                 activeOpacity={0.7}
               >
-                <View style={[styles.iconBadge, { backgroundColor: '#EF4444' + '15' }]}>
-                  <Ionicons name="trending-down" size={18} color="#EF4444" />
-                </View>
-                <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>{t('labels.expenses')}</Text>
-                <Text style={[styles.financialValue, { color: Colors.primaryText }]} numberOfLines={1}>
-                  ${expenses.toLocaleString()}
-                </Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Expenses</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${expenses.toLocaleString()}</Text>
+                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>of contract</Text>
               </TouchableOpacity>
 
+              {/* Divider */}
+              <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
+
               {/* Profit */}
-              <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
-                <View style={[styles.iconBadge, { backgroundColor: profit >= 0 ? '#10B981' + '15' : '#EF4444' + '15' }]}>
-                  <Ionicons name={profit >= 0 ? "trending-up" : "trending-down"} size={18} color={profit >= 0 ? "#10B981" : "#EF4444"} />
-                </View>
-                <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>{t('labels.profit')}</Text>
-                <Text style={[styles.financialValue, { color: profit >= 0 ? '#10B981' : '#EF4444' }]} numberOfLines={1}>
-                  ${profit.toLocaleString()}
-                </Text>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Profit</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>${Math.abs(profit).toLocaleString()}</Text>
+                <Text style={{ fontSize: 11, color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>{profit >= 0 ? 'Healthy ✓' : 'Review ↗'}</Text>
               </View>
             </View>
-
           </View>
 
-          {/* Hours Worked Card */}
-          {totalProjectHours > 0 && (
-            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-              <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground, width: '100%' }]}>
-                <View style={[styles.iconBadge, { backgroundColor: '#8B5CF6' + '15' }]}>
-                  <Ionicons name="time" size={18} color="#8B5CF6" />
+          {/* Hours + Timeline Row */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginTop: 12, gap: 10 }}>
+            {totalProjectHours > 0 && (
+              <View style={[styles.financialCard, { flex: 1, backgroundColor: '#FFFFFF' }]}>
+                <View style={[styles.iconBadge, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="time" size={18} color="#1E40AF" />
                 </View>
-                <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Hours Worked</Text>
-                <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
-                  {formatHoursMinutes(totalProjectHours)}
-                </Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Hours Logged</Text>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>{formatHoursMinutes(totalProjectHours)}</Text>
+                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>This project</Text>
               </View>
-            </View>
-          )}
+            )}
+            {project.start_date && (
+              <View style={[styles.financialCard, { flex: 1, backgroundColor: '#FFFFFF' }]}>
+                <View style={[styles.iconBadge, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="calendar" size={18} color="#1E40AF" />
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Timeline</Text>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>
+                  {calculatedProgress != null ? `${calculatedProgress}%` : `${project.percent_complete || 0}%`}
+                </Text>
+                <View style={{ height: 4, backgroundColor: '#F1F5F9', borderRadius: 4, marginTop: 8 }}>
+                  <View style={{ height: 4, backgroundColor: '#1E40AF', borderRadius: 4, width: `${Math.min(calculatedProgress || project.percent_complete || 0, 100)}%` }} />
+                </View>
+                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>complete</Text>
+              </View>
+            )}
+          </View>
 
           {/* Budget & Trade Budgets — Collapsible */}
           {(contractAmount > 0 || tradeBudgets.length > 0) && (
@@ -2858,7 +2845,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#0F172A',
     marginBottom: 6,
     lineHeight: 28,
     letterSpacing: -0.3,
@@ -2871,7 +2858,7 @@ const styles = StyleSheet.create({
   },
   clientText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.95)',
+    color: '#475569',
     fontWeight: '500',
   },
   contactContainer: {
@@ -2886,7 +2873,7 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    color: '#475569',
     fontWeight: '500',
     flex: 1,
   },
@@ -2899,14 +2886,14 @@ const styles = StyleSheet.create({
   contactInput: {
     flex: 1,
     fontSize: 14,
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontWeight: '500',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: '#E2E8F0',
   },
   editingIndicator: {
     backgroundColor: 'rgba(59, 130, 246, 0.15)',
