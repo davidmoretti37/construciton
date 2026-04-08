@@ -602,6 +602,49 @@ router.get('/projects/:projectId/invoices', verifyProjectAccess, async (req, res
 });
 
 /**
+ * GET /projects/:projectId/money-summary
+ * Returns budget overview + invoices in a single call for the Money tab.
+ */
+router.get('/projects/:projectId/money-summary', verifyProjectAccess, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const [projectResult, invoicesResult] = await Promise.all([
+      supabase
+        .from('projects')
+        .select('id, name, contract_amount, income_collected')
+        .eq('id', projectId)
+        .single(),
+      supabase
+        .from('invoices')
+        .select('id, invoice_number, project_name, items, subtotal, tax_rate, tax_amount, total, amount_paid, amount_due, status, due_date, payment_terms, notes, paid_date, created_at')
+        .eq('project_id', projectId)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: false }),
+    ]);
+
+    const project = projectResult.data;
+    const invoices = invoicesResult.data || [];
+
+    const contractAmount = parseFloat(project?.contract_amount || 0);
+    const totalPaid = invoices.reduce((sum, inv) => sum + parseFloat(inv.amount_paid || 0), 0);
+    const totalInvoiced = invoices.reduce((sum, inv) => sum + parseFloat(inv.total || 0), 0);
+    const remaining = contractAmount - totalPaid;
+
+    res.json({
+      contractAmount,
+      totalPaid,
+      totalInvoiced,
+      remaining,
+      invoices,
+    });
+  } catch (error) {
+    logger.error('[Portal] Money summary error:', error.message);
+    res.status(500).json({ error: 'Failed to load money summary' });
+  }
+});
+
+/**
  * GET /projects/:projectId/milestones
  * Returns phase-based payment milestones.
  */
