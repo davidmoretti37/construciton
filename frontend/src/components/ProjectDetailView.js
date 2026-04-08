@@ -1276,7 +1276,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   </View>
                 )}
               </View>
-            </View>
           </View>
         </LinearGradient>
 
