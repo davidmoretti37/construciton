@@ -1133,9 +1133,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   const mainContent = (
     <>
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: '#1E40AF' }]}>
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
+        <View style={[styles.header, { backgroundColor: '#1E40AF', borderBottomWidth: 0 }]}>
           <TouchableOpacity
             onPress={() => {
               if (isEditing) {
@@ -1152,8 +1152,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             }}
             style={styles.closeButton}
           >
-            <View style={[styles.closeIconContainer, { backgroundColor: Colors.lightGray }]}>
-              <Ionicons name={isEditing ? "close" : (asScreen ? "chevron-back" : "chevron-down")} size={24} color={Colors.primaryText} />
+            <View style={[styles.closeIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Ionicons name={isEditing ? "close" : (asScreen ? "chevron-back" : "chevron-down")} size={24} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
 
@@ -1163,8 +1163,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               onPress={() => setShowEditModal(true)}
               style={styles.editButton}
             >
-              <View style={[styles.editIconContainer, { backgroundColor: Colors.primaryBlue }]}>
-                <Ionicons name="create-outline" size={20} color={Colors.white} />
+              <View style={[styles.editIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Ionicons name="create-outline" size={20} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
           )}
