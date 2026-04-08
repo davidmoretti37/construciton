@@ -1133,7 +1133,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   const mainContent = (
     <>
-      <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
+      <View style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#1E40AF' }} />
         {/* Header — sits on gradient */}
         <LinearGradient colors={['#1E40AF', '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { borderBottomWidth: 0 }]}>
           <TouchableOpacity
@@ -2431,7 +2432,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           </TouchableOpacity>
           </View>{/* Close body wrapper */}
         </ScrollView>
-      </SafeAreaView>
+      </View>
 
       {/* Worker Assignment Modal */}
       <WorkerAssignmentModal
