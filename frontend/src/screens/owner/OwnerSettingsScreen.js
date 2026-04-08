@@ -29,6 +29,7 @@ import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationBell from '../../components/NotificationBell';
 import { getCurrentUserId, getUserProfile, getSelectedLanguage, getAISettings, updateAISettings } from '../../utils/storage';
+import { connectService } from '../../services/subscriptionService';
 
 // Owner color palette - Royal Blue theme
 const OWNER_COLORS = {
@@ -59,6 +60,7 @@ export default function OwnerSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [connectStatus, setConnectStatus] = useState(null);
 
   // User data state
   const [userProfile, setUserProfile] = useState(null);
@@ -120,11 +122,35 @@ export default function OwnerSettingsScreen() {
         setAiExpanded(true);
       }
 
+      // Load Stripe Connect status
+      try {
+        const status = await connectService.getStatus();
+        setConnectStatus(status);
+      } catch {}
+
       setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConnectPayments = async () => {
+    if (connectStatus?.onboardingComplete) {
+      // Already connected — open dashboard
+      await connectService.openDashboard();
+    } else {
+      // Start onboarding
+      const result = await connectService.startOnboarding();
+      if (result.alreadyConnected) {
+        await connectService.openDashboard();
+      }
+      // Refresh status after returning from browser
+      setTimeout(async () => {
+        const status = await connectService.getStatus();
+        setConnectStatus(status);
+      }, 2000);
     }
   };
 
@@ -490,9 +516,16 @@ export default function OwnerSettingsScreen() {
             onPress={() => navigation.navigate('SubscriptionSettings')}
           />
           <MenuItem
+            icon="cash-outline"
+            iconColor="#059669"
+            title="Receive Payments"
+            subtitle={connectStatus?.onboardingComplete ? 'Payments Active ✓' : 'Connect bank to get paid'}
+            onPress={handleConnectPayments}
+          />
+          <MenuItem
             icon="card-outline"
             iconColor={OWNER_COLORS.primary}
-            title="Connected Accounts"
+            title="Track Transactions"
             subtitle="Bank & card integration"
             onPress={() => navigation.navigate('BankConnection')}
             isLast

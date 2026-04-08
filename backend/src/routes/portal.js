@@ -855,8 +855,17 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
       { apiVersion: '2024-06-20' }
     );
 
-    // Create PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
+    // Check if contractor has a Stripe Connect account (for direct payouts)
+    const { data: ownerProfile } = await supabase
+      .from('profiles')
+      .select('stripe_account_id, stripe_onboarding_complete')
+      .eq('id', invoice.user_id)
+      .single();
+
+    const connectAccountId = ownerProfile?.stripe_onboarding_complete ? ownerProfile.stripe_account_id : null;
+
+    // Create PaymentIntent — routes to contractor if connected, otherwise to platform
+    const paymentIntentParams = {
       amount: Math.round(amountDue * 100),
       currency: 'usd',
       customer: customerId,
@@ -868,8 +877,17 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
         type: 'portal_invoice_payment',
       },
       description: `Invoice ${invoice.invoice_number}`,
-      setup_future_usage: 'off_session', // Save card for future payments
-    });
+      setup_future_usage: 'off_session',
+    };
+
+    // Route payment to contractor's connected account
+    if (connectAccountId) {
+      paymentIntentParams.transfer_data = { destination: connectAccountId };
+      // Platform fee: 0% for now (can add application_fee_amount later)
+      // paymentIntentParams.application_fee_amount = Math.round(amountDue * 0.01 * 100); // 1% example
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
     // Store payment intent ID on invoice
     await supabase

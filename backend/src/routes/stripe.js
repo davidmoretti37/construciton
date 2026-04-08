@@ -271,6 +271,10 @@ router.post('/webhook', async (req, res) => {
         await handlePaymentIntentSucceeded(event.data.object);
         break;
 
+      case 'account.updated':
+        await handleAccountUpdated(event.data.object);
+        break;
+
       default:
         logger.debug(`Unhandled event type: ${event.type}`);
     }
@@ -664,5 +668,184 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     logger.info(`Invoice ${invoice_id} updated: ${newStatus}, paid: $${newAmountPaid}`);
   }
 }
+
+/**
+ * Handle Stripe Connect account updates — mark onboarding complete
+ */
+async function handleAccountUpdated(account) {
+  if (!account.metadata?.supabase_user_id) return;
+
+  const userId = account.metadata.supabase_user_id;
+  const isComplete = account.charges_enabled && account.payouts_enabled;
+
+  if (isComplete) {
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({ stripe_onboarding_complete: true })
+      .eq('id', userId);
+
+    if (!error) {
+      logger.info(`[Connect] Onboarding complete for user ${userId}, account ${account.id}`);
+    }
+  }
+}
+
+// ============================================================
+// STRIPE CONNECT — Contractor Onboarding & Payouts
+// ============================================================
+
+/**
+ * POST /connect/create-account
+ * Creates a Stripe Connected Account for the contractor and returns onboarding URL.
+ */
+router.post('/connect/create-account', authenticateUser, async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
+
+    const userId = req.user.id;
+
+    // Check if already has an account
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('stripe_account_id, stripe_onboarding_complete, full_name, business_name')
+      .eq('id', userId)
+      .single();
+
+    if (profile?.stripe_account_id && profile?.stripe_onboarding_complete) {
+      return res.json({ alreadyConnected: true, accountId: profile.stripe_account_id });
+    }
+
+    let accountId = profile?.stripe_account_id;
+
+    // Create account if doesn't exist
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'standard',
+        metadata: { supabase_user_id: userId },
+      });
+      accountId = account.id;
+
+      await supabaseAdmin
+        .from('profiles')
+        .update({ stripe_account_id: accountId })
+        .eq('id', userId);
+    }
+
+    // Create onboarding link
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${process.env.PORTAL_URL || 'https://sylkapp.ai'}/connect/refresh`,
+      return_url: `${process.env.PORTAL_URL || 'https://sylkapp.ai'}/connect/complete`,
+      type: 'account_onboarding',
+    });
+
+    res.json({ url: accountLink.url, accountId });
+  } catch (error) {
+    logger.error('Stripe Connect create error:', error.message);
+    res.status(500).json({ error: 'Failed to create connected account' });
+  }
+});
+
+/**
+ * POST /connect/onboarding-link
+ * Generates a new onboarding link for incomplete accounts.
+ */
+router.post('/connect/onboarding-link', authenticateUser, async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('stripe_account_id')
+      .eq('id', req.user.id)
+      .single();
+
+    if (!profile?.stripe_account_id) {
+      return res.status(400).json({ error: 'No connected account. Create one first.' });
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: profile.stripe_account_id,
+      refresh_url: `${process.env.PORTAL_URL || 'https://sylkapp.ai'}/connect/refresh`,
+      return_url: `${process.env.PORTAL_URL || 'https://sylkapp.ai'}/connect/complete`,
+      type: 'account_onboarding',
+    });
+
+    res.json({ url: accountLink.url });
+  } catch (error) {
+    logger.error('Stripe Connect onboarding link error:', error.message);
+    res.status(500).json({ error: 'Failed to generate onboarding link' });
+  }
+});
+
+/**
+ * GET /connect/status
+ * Checks if contractor's connected account is fully onboarded.
+ */
+router.get('/connect/status', authenticateUser, async (req, res) => {
+  try {
+    if (!stripe) return res.json({ connected: false });
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('stripe_account_id, stripe_onboarding_complete')
+      .eq('id', req.user.id)
+      .single();
+
+    if (!profile?.stripe_account_id) {
+      return res.json({ connected: false, payoutsEnabled: false });
+    }
+
+    const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+
+    // Update onboarding status if changed
+    if (account.charges_enabled && !profile.stripe_onboarding_complete) {
+      await supabaseAdmin
+        .from('profiles')
+        .update({ stripe_onboarding_complete: true })
+        .eq('id', req.user.id);
+    }
+
+    res.json({
+      connected: true,
+      payoutsEnabled: account.payouts_enabled,
+      chargesEnabled: account.charges_enabled,
+      onboardingComplete: account.charges_enabled && account.payouts_enabled,
+      accountId: profile.stripe_account_id,
+      businessName: account.business_profile?.name || account.settings?.dashboard?.display_name,
+      bankLast4: account.external_accounts?.data?.[0]?.last4,
+    });
+  } catch (error) {
+    logger.error('Stripe Connect status error:', error.message);
+    res.json({ connected: false, error: error.message });
+  }
+});
+
+/**
+ * POST /connect/dashboard-link
+ * Generates a link to the Stripe Express Dashboard for the contractor.
+ */
+router.post('/connect/dashboard-link', authenticateUser, async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('stripe_account_id')
+      .eq('id', req.user.id)
+      .single();
+
+    if (!profile?.stripe_account_id) {
+      return res.status(400).json({ error: 'No connected account' });
+    }
+
+    // For Standard accounts, direct to their dashboard
+    const loginLink = await stripe.accounts.createLoginLink(profile.stripe_account_id);
+    res.json({ url: loginLink.url });
+  } catch (error) {
+    logger.error('Stripe Connect dashboard link error:', error.message);
+    res.status(500).json({ error: 'Failed to generate dashboard link' });
+  }
+});
 
 module.exports = router;

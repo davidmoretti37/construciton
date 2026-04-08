@@ -335,4 +335,54 @@ const subscriptionService = {
   },
 };
 
+// ============================================================
+// STRIPE CONNECT — Contractor Payment Setup
+// ============================================================
+
+export const connectService = {
+  async createAccount() {
+    const token = await getAuthToken();
+    const res = await fetch(`${API_URL}/api/stripe/connect/create-account`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    return res.json();
+  },
+
+  async getStatus() {
+    const token = await getAuthToken();
+    const res = await fetch(`${API_URL}/api/stripe/connect/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.json();
+  },
+
+  async getDashboardLink() {
+    const token = await getAuthToken();
+    const res = await fetch(`${API_URL}/api/stripe/connect/dashboard-link`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    return res.json();
+  },
+
+  async startOnboarding() {
+    const result = await this.createAccount();
+    if (result.alreadyConnected) return { alreadyConnected: true };
+    if (result.url) {
+      await WebBrowser.openBrowserAsync(result.url);
+      return { opened: true };
+    }
+    return result;
+  },
+
+  async openDashboard() {
+    const result = await this.getDashboardLink();
+    if (result.url) {
+      await WebBrowser.openBrowserAsync(result.url);
+    }
+    return result;
+  },
+};
+
 export default subscriptionService;
