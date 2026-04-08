@@ -1133,9 +1133,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   const mainContent = (
     <>
-      <SafeAreaView style={[styles.container, { backgroundColor: '#1E40AF' }]}>
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: '#1E40AF', borderBottomWidth: 0 }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
+        {/* Header — sits on gradient */}
+        <LinearGradient colors={['#1E40AF', '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { borderBottomWidth: 0 }]}>
           <TouchableOpacity
             onPress={() => {
               if (isEditing) {
@@ -1168,7 +1168,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             </TouchableOpacity>
           )}
-        </View>
+        </LinearGradient>
 
         {/* Demo Banner */}
         {isDemo && (
@@ -1298,7 +1298,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           </LinearGradient>
 
           {/* Body — overlaps header with rounded top */}
-          <View style={{ marginTop: -16, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#F8FAFC', paddingTop: 4 }}>
+          <View style={{ marginTop: -16, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#F8FAFC', paddingTop: 16 }}>
 
           {/* Financial Health Card */}
           <View style={[styles.financialContainer, { backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 16, marginTop: 12, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }]}>
@@ -2835,10 +2835,10 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#1E40AF',
   },
   scrollContent: {
     paddingBottom: 40,
-    backgroundColor: '#F8FAFC',
   },
   heroSection: {
     padding: 20,
