@@ -37,7 +37,8 @@ export default function ClientDashboardScreen({ navigation }) {
   const [photos, setPhotos] = useState([]);
   const [summaries, setSummaries] = useState([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const [viewerIndex, setViewerIndex] = useState(-1);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [showViewer, setShowViewer] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -204,7 +205,7 @@ export default function ClientDashboardScreen({ navigation }) {
                   <Text style={styles.sectionLabel}>PHOTOS</Text>
                   <View style={styles.photoGrid}>
                     {photoUrls.map((url, i) => (
-                      <TouchableOpacity key={i} onPress={() => setViewerIndex(i)} activeOpacity={0.8}>
+                      <TouchableOpacity key={i} onPress={() => { setViewerIndex(i); setShowViewer(true); }} activeOpacity={0.8}>
                         <Image source={{ uri: url }} style={[styles.photo, { width: i === 0 ? gridW * 2 + 4 : gridW, height: i === 0 ? gridW * 1.5 : gridW }]} resizeMode="cover" />
                       </TouchableOpacity>
                     ))}
@@ -310,15 +311,8 @@ export default function ClientDashboardScreen({ navigation }) {
       </ScrollView>
 
       {/* Photo Viewer */}
-      <Modal visible={viewerIndex >= 0} transparent animationType="fade">
+      <Modal visible={showViewer} transparent={false} animationType="fade" onRequestClose={() => setShowViewer(false)}>
         <View style={styles.viewerBg}>
-          <SafeAreaView edges={['top']} style={styles.viewerHeader}>
-            <TouchableOpacity onPress={() => setViewerIndex(-1)} style={styles.viewerClose}>
-              <Ionicons name="close" size={28} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.viewerCount}>{viewerIndex + 1} / {photoUrls.length}</Text>
-            <View style={{ width: 44 }} />
-          </SafeAreaView>
           <FlatList
             data={photoUrls}
             horizontal
@@ -329,9 +323,20 @@ export default function ClientDashboardScreen({ navigation }) {
             onMomentumScrollEnd={(e) => setViewerIndex(Math.round(e.nativeEvent.contentOffset.x / SW))}
             keyExtractor={(_, i) => String(i)}
             renderItem={({ item }) => (
-              <Image source={{ uri: item }} style={{ width: SW, height: SW }} resizeMode="contain" />
+              <View style={{ width: SW, flex: 1, justifyContent: 'center' }}>
+                <Image source={{ uri: item }} style={{ width: SW, height: '100%' }} resizeMode="contain" />
+              </View>
             )}
           />
+          <View style={styles.viewerOverlay}>
+            <SafeAreaView edges={['top']} style={styles.viewerHeader}>
+              <TouchableOpacity onPress={() => setShowViewer(false)} style={styles.viewerClose}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.viewerCount}>{viewerIndex + 1} / {photoUrls.length}</Text>
+              <View style={{ width: 44 }} />
+            </SafeAreaView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -433,8 +438,9 @@ const styles = StyleSheet.create({
   emptySubtext: { fontSize: 14, color: C.textSec, marginTop: 6, textAlign: 'center' },
 
   // Photo viewer
-  viewerBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' },
-  viewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
-  viewerClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  viewerBg: { flex: 1, backgroundColor: '#000' },
+  viewerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  viewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+  viewerClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 22 },
   viewerCount: { fontSize: 15, fontWeight: '600', color: '#fff' },
 });
