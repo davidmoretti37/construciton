@@ -19,6 +19,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -366,103 +367,71 @@ export default function ServicePlanDetailScreen({ route }) {
   const scheduledDays = normalizeDays(firstSchedule?.scheduled_days);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: statusColor }]} edges={['top']}>
-      {/* Top bar — colored to match hero */}
-      <View style={[styles.topBar, { backgroundColor: statusColor }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        {isOwner && (
-          <TouchableOpacity onPress={() => setShowEditModal(true)} style={styles.backBtn}>
-            <Ionicons name="create-outline" size={22} color="#fff" />
+    <View style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#1E3A8A' }} />
+
+      {/* Static Blue Header */}
+      <LinearGradient colors={['#1E3A8A', '#1E3A8A']} style={{ paddingBottom: 40 }}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
-        )}
-      </View>
-
-      <ScrollView
-        style={{ backgroundColor: statusColor }}
-        contentContainerStyle={[styles.scrollContent, { backgroundColor: Colors.background }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
-      >
-        {/* ═══ A. HERO ═══ */}
-        <View style={[styles.heroSection, { backgroundColor: statusColor }]}>
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle} numberOfLines={2}>
-              {clientName && !plan?.name?.includes(clientName) ? `${clientName} - ` : ''}{plan?.name}
-            </Text>
-            <View style={styles.contactContainer}>
-              {address ? (
-                <TouchableOpacity style={styles.contactRow} onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(address)}`)} activeOpacity={0.7}>
-                  <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.contactText} numberOfLines={2}>{address}</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.contactRow}>
-                  <Ionicons name="location-outline" size={16} color="rgba(255,255,255,0.6)" />
-                  <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>No address added</Text>
-                </View>
-              )}
-              {clientPhone ? (
-                <TouchableOpacity style={styles.contactRow} onPress={() => Linking.openURL(`tel:${clientPhone}`)} activeOpacity={0.7}>
-                  <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.contactText}>{clientPhone}</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.contactRow}>
-                  <Ionicons name="call-outline" size={16} color="rgba(255,255,255,0.6)" />
-                  <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>No phone added</Text>
-                </View>
-              )}
-              {clientEmail ? (
-                <TouchableOpacity style={styles.contactRow} onPress={() => Linking.openURL(`mailto:${clientEmail}`)} activeOpacity={0.7}>
-                  <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.contactText}>{clientEmail}</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.contactRow}>
-                  <Ionicons name="mail-outline" size={16} color="rgba(255,255,255,0.6)" />
-                  <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>No email added</Text>
-                </View>
-              )}
-            </View>
-          </View>
+          {isOwner && (
+            <TouchableOpacity onPress={() => setShowEditModal(true)} style={[styles.backBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Ionicons name="create-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
+        <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>{plan?.status || 'Active'}</Text>
+            </View>
+          </View>
+          <Text style={styles.heroTitle} numberOfLines={2}>
+            {clientName && !plan?.name?.includes(clientName) ? `${clientName} - ` : ''}{plan?.name}
+          </Text>
+          {address ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <Ionicons name="location" size={14} color="rgba(255,255,255,0.7)" />
+              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>{address}</Text>
+            </View>
+          ) : null}
+        </View>
+      </LinearGradient>
 
+      {/* Scrollable white body */}
+      <ScrollView
+        style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: -20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1E3A8A" />}
+      >
         {/* ═══ B. FINANCIAL CARDS (owner only) ═══ */}
-        {isOwner && <View style={styles.financialContainer}>
-          <View style={styles.financialRow}>
-            <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
-              <View style={[styles.iconBadge, { backgroundColor: '#3B82F615' }]}>
-                <Ionicons name="document-text" size={18} color="#3B82F6" />
+        {isOwner && (
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 16, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, marginBottom: 12 }}>
+            <Text style={{ fontSize: 11, fontWeight: '500', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>{rateLabel}</Text>
+            <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${rate.toLocaleString()}</Text>
+            <View style={{ height: 1, backgroundColor: '#F1F5F9', marginTop: 16, marginBottom: 16 }} />
+            <View style={{ flexDirection: 'row' }}>
+              <TouchableOpacity style={{ flex: 1, alignItems: 'center' }} onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'income' })} activeOpacity={0.7}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Income</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${financials.total_income.toLocaleString()}</Text>
+              </TouchableOpacity>
+              <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
+              <TouchableOpacity style={{ flex: 1, alignItems: 'center' }} onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'expense' })} activeOpacity={0.7}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Expenses</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${financials.total_expenses.toLocaleString()}</Text>
+              </TouchableOpacity>
+              <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Profit</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>${Math.abs(profit).toLocaleString()}</Text>
+                <Text style={{ fontSize: 11, color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>{profit >= 0 ? 'Healthy ✓' : 'Review ↗'}</Text>
               </View>
-              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>{rateLabel}</Text>
-              <Text style={[styles.financialValue, { color: Colors.primaryText }]}>${rate.toLocaleString()}</Text>
-            </View>
-            <TouchableOpacity style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]} onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'income' })} activeOpacity={0.7}>
-              <View style={[styles.iconBadge, { backgroundColor: '#10B98115' }]}>
-                <Ionicons name="cash" size={18} color="#10B981" />
-              </View>
-              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Income</Text>
-              <Text style={[styles.financialValue, { color: Colors.primaryText }]}>${financials.total_income.toLocaleString()}</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.financialRow}>
-            <TouchableOpacity style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]} onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'expense' })} activeOpacity={0.7}>
-              <View style={[styles.iconBadge, { backgroundColor: '#EF444415' }]}>
-                <Ionicons name="trending-down" size={18} color="#EF4444" />
-              </View>
-              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Expenses</Text>
-              <Text style={[styles.financialValue, { color: Colors.primaryText }]}>${financials.total_expenses.toLocaleString()}</Text>
-            </TouchableOpacity>
-            <View style={[styles.financialCard, { backgroundColor: Colors.cardBackground }]}>
-              <View style={[styles.iconBadge, { backgroundColor: profit >= 0 ? '#10B98115' : '#EF444415' }]}>
-                <Ionicons name={profit >= 0 ? 'trending-up' : 'trending-down'} size={18} color={profit >= 0 ? '#10B981' : '#EF4444'} />
-              </View>
-              <Text style={[styles.financialLabel, { color: Colors.secondaryText }]}>Profit</Text>
-              <Text style={[styles.financialValue, { color: profit >= 0 ? '#10B981' : '#EF4444' }]}>${profit.toLocaleString()}</Text>
             </View>
           </View>
-        </View>}
+        )}
 
         {/* ═══ ACTION BUTTONS ═══ */}
         <View style={styles.actionRow}>
@@ -1112,7 +1081,7 @@ export default function ServicePlanDetailScreen({ route }) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1122,21 +1091,9 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8 },
   backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 
-  heroSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
-  heroContent: { flex: 1, marginRight: 12 },
-  heroTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 6, lineHeight: 24 },
-  contactContainer: { marginTop: 4, gap: 4 },
-  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },
-  contactText: { fontSize: 14, color: 'rgba(255,255,255,0.9)', fontWeight: '500', flex: 1 },
+  heroTitle: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 4, lineHeight: 28, letterSpacing: -0.3 },
 
-  financialContainer: { padding: 12 },
-  financialRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  financialCard: { flex: 1, padding: 14, borderRadius: 14, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)' },
-  iconBadge: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  financialLabel: { fontSize: 11, fontWeight: '500', marginBottom: 3 },
-  financialValue: { fontSize: 18, fontWeight: '700' },
-
-  section: { marginHorizontal: 14, marginBottom: 12, borderRadius: 12, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  section: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, borderWidth: 0 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   sectionHeaderTitle: { fontSize: 15, fontWeight: '700', marginLeft: 8, flex: 1 },
   sectionTitleStandalone: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
