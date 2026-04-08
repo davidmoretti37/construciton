@@ -10,6 +10,7 @@ import {
   Image,
   Dimensions,
   Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +32,7 @@ export default function ClientPhotosScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [photos, setPhotos] = useState([]);
-  const [viewerPhoto, setViewerPhoto] = useState(null);
+  const [viewerIndex, setViewerIndex] = useState(-1);
 
   const loadData = useCallback(async () => {
     try {
@@ -86,7 +87,7 @@ export default function ClientPhotosScreen({ navigation }) {
         ) : (
           <View style={styles.grid}>
             {photos.map((url, i) => (
-              <TouchableOpacity key={i} onPress={() => setViewerPhoto(url)} activeOpacity={0.8}>
+              <TouchableOpacity key={i} onPress={() => setViewerIndex(i)} activeOpacity={0.8}>
                 <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
               </TouchableOpacity>
             ))}
@@ -95,15 +96,29 @@ export default function ClientPhotosScreen({ navigation }) {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Full Screen Viewer */}
-      <Modal visible={!!viewerPhoto} transparent animationType="fade">
+      {/* Full Screen Viewer with Swipe */}
+      <Modal visible={viewerIndex >= 0} transparent animationType="fade">
         <View style={styles.viewer}>
-          <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerPhoto(null)}>
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-          {viewerPhoto && (
-            <Image source={{ uri: viewerPhoto }} style={styles.viewerImage} resizeMode="contain" />
-          )}
+          <SafeAreaView edges={['top']} style={styles.viewerHeader}>
+            <TouchableOpacity onPress={() => setViewerIndex(-1)} style={styles.viewerCloseBtn}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.viewerCount}>{viewerIndex + 1} / {photos.length}</Text>
+            <View style={{ width: 44 }} />
+          </SafeAreaView>
+          <FlatList
+            data={photos}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={Math.max(viewerIndex, 0)}
+            getItemLayout={(_, index) => ({ length: SW, offset: SW * index, index })}
+            onMomentumScrollEnd={(e) => setViewerIndex(Math.round(e.nativeEvent.contentOffset.x / SW))}
+            keyExtractor={(_, i) => String(i)}
+            renderItem={({ item }) => (
+              <Image source={{ uri: item }} style={{ width: SW, height: SW }} resizeMode="contain" />
+            )}
+          />
         </View>
       </Modal>
     </View>
@@ -123,9 +138,10 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: COL_GAP },
   photo: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 8 },
 
-  viewer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  viewerClose: { position: 'absolute', top: 60, right: 20, zIndex: 10, padding: 8 },
-  viewerImage: { width: SW, height: SW },
+  viewer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' },
+  viewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+  viewerCloseBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  viewerCount: { fontSize: 15, fontWeight: '600', color: '#fff' },
 
   emptyState: { alignItems: 'center', marginTop: 80, paddingHorizontal: 32 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: '#374151', marginTop: 12 },
