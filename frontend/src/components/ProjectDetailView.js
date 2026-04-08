@@ -1137,7 +1137,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#1E3A8A' }} />
 
         {/* Static Blue Header — stays behind scroll */}
-        <LinearGradient colors={['#1E3A8A', '#1E3A8A']} style={{ paddingBottom: 80 }}>
+        <LinearGradient colors={['#1E3A8A', '#1E3A8A']} style={{ paddingBottom: 40 }}>
           {/* Nav Bar */}
           <View style={[styles.header, { borderBottomWidth: 0 }]}>
             <TouchableOpacity
@@ -1180,19 +1180,27 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <Text style={[styles.heroTitle, { paddingHorizontal: 20 }]} numberOfLines={2}>
               {project.name}
             </Text>
-              {project.client && (
-                <View style={styles.clientRow}>
-                  <Ionicons name="person-outline" size={14} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.clientText}>{project.client}</Text>
+              {project.location && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginTop: 4 }}>
+                  <Ionicons name="location" size={14} color="rgba(255,255,255,0.7)" />
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>{project.location}</Text>
                 </View>
               )}
+          </View>
+        </LinearGradient>
 
-              {/* Contact Information */}
+        {/* Scrollable white body — scrolls over the blue header */}
+        <ScrollView
+          style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: -20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
+          contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+        >
+              {/* Contact Information — inside scroll */}
               <View style={styles.contactContainer}>
                 {/* Address */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="location" size={16} color="#64748B" />
                     <TextInput
                       style={styles.contactInput}
                       value={editAddress}
@@ -1207,7 +1215,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handleAddressPress(project.location)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="location" size={16} color="#64748B" />
                     <Text style={styles.contactText} numberOfLines={2}>{project.location}</Text>
                   </TouchableOpacity>
                 ) : (
@@ -1220,7 +1228,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Phone */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="call" size={16} color="#64748B" />
                     <TextInput
                       style={styles.contactInput}
                       value={editPhone}
@@ -1236,7 +1244,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handlePhonePress(project.client_phone || project.clientPhone)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="call" size={16} color="#64748B" />
                     <Text style={styles.contactText}>{project.client_phone || project.clientPhone}</Text>
                   </TouchableOpacity>
                 ) : (
@@ -1249,7 +1257,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Email */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="mail" size={16} color="#64748B" />
                     <TextInput
                       style={styles.contactInput}
                       value={editEmail}
@@ -1266,7 +1274,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handleEmailPress(project.client_email || project.clientEmail)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
+                    <Ionicons name="mail" size={16} color="#64748B" />
                     <Text style={styles.contactText}>{project.client_email || project.clientEmail}</Text>
                   </TouchableOpacity>
                 ) : (
@@ -1276,15 +1284,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   </View>
                 )}
               </View>
-          </View>
-        </LinearGradient>
 
-        {/* Scrollable Content — white body scrolls over blue header */}
-        <ScrollView
-          style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: -20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
-          contentContainerStyle={{ paddingTop: 20, paddingBottom: 40 }}
-          showsVerticalScrollIndicator={false}
-        >
           {/* Financial Health Card */}
           <View style={[styles.financialContainer, { backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 16, marginTop: 12, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }]}>
             {/* Contract Value — Big Anchor */}
@@ -2863,7 +2863,7 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    color: '#475569',
     fontWeight: '500',
     flex: 1,
   },
@@ -2876,14 +2876,14 @@ const styles = StyleSheet.create({
   contactInput: {
     flex: 1,
     fontSize: 14,
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontWeight: '500',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#F1F5F9',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: '#E2E8F0',
   },
   editingIndicator: {
     backgroundColor: 'rgba(59, 130, 246, 0.15)',
