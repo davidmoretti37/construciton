@@ -23,6 +23,7 @@
     "mammoth": "^1.11.0",
     "node-fetch": "^2.7.0",
     "pdf-parse": "^1.1.1",
+    "resend": "^6.10.0",
     "stripe": "^20.2.0"
   },
   "devDependencies": {

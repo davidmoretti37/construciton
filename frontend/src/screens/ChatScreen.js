@@ -2293,6 +2293,9 @@ export default function ChatScreen({ navigation, route }) {
       case 'share-invoice-pdf':
         await invoiceActions.handleShareInvoicePDF(action.data);
         break;
+      case 'send-invoice-to-client':
+        await invoiceActions.handleSendToClient(action.data);
+        break;
       case 'update-invoice':
         await invoiceActions.handleUpdateInvoice(action.data);
         break;

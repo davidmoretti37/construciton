@@ -135,8 +135,9 @@ export default function OwnerSettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (hasLoadedOnce) return; // Don't refetch on every focus
       loadData();
-    }, [])
+    }, [hasLoadedOnce])
   );
 
   const onRefresh = useCallback(async () => {

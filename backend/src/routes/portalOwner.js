@@ -797,4 +797,223 @@ router.get('/ratings/:projectId', async (req, res) => {
   }
 });
 
+// ============================================================
+// SEND INVOICE TO CLIENT (email + portal notification)
+// ============================================================
+
+/**
+ * POST /invoices/:invoiceId/send
+ * Sends invoice to client via email and creates portal notification.
+ */
+router.post('/invoices/:invoiceId/send', authenticateUser, async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const userId = req.user.id;
+
+    // Get invoice
+    const { data: invoice, error: invError } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .eq('user_id', userId)
+      .single();
+
+    if (invError || !invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (!invoice.client_email) {
+      return res.status(400).json({ error: 'No client email on invoice' });
+    }
+
+    // Get business name from profile or branding
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, business_name')
+      .eq('id', userId)
+      .single();
+
+    const { data: branding } = await supabase
+      .from('client_portal_branding')
+      .select('business_name')
+      .eq('owner_id', userId)
+      .single();
+
+    const businessName = branding?.business_name || profile?.business_name || profile?.full_name || '';
+
+    // Send email
+    const { sendInvoiceEmail } = require('../services/emailService');
+    const emailResult = await sendInvoiceEmail({
+      invoice,
+      businessName,
+      pdfUrl: invoice.pdf_url,
+    });
+
+    // Create notification for client (if they have a portal account)
+    try {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('id, user_id')
+        .eq('email', invoice.client_email)
+        .eq('owner_id', userId)
+        .single();
+
+      if (client?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: client.user_id,
+          title: 'New Invoice',
+          body: `Invoice ${invoice.invoice_number} for $${parseFloat(invoice.total).toLocaleString()} is ready for payment.`,
+          type: 'invoice',
+          data: { invoiceId, projectId: invoice.project_id },
+        });
+      }
+    } catch {
+      // Client notification is best-effort
+    }
+
+    // Update invoice status if draft
+    if (invoice.status === 'draft') {
+      await supabase.from('invoices').update({ status: 'unpaid' }).eq('id', invoiceId);
+    }
+
+    res.json({
+      sent: emailResult.sent,
+      email: invoice.client_email,
+      emailId: emailResult.emailId,
+      error: emailResult.error,
+    });
+  } catch (error) {
+    logger.error('[PortalAdmin] Send invoice error:', error.message);
+    res.status(500).json({ error: 'Failed to send invoice' });
+  }
+});
+
+/**
+ * POST /service-plans/generate-recurring
+ * Auto-generates invoices for service plans with auto_invoice enabled.
+ */
+router.post('/service-plans/generate-recurring', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Find service plans with auto_invoice enabled
+    const { data: plans } = await supabase
+      .from('service_plans')
+      .select('id, name, client_id, billing_cycle, price_per_visit, monthly_rate, auto_invoice, last_invoiced_date, invoice_day_of_month')
+      .eq('owner_id', userId)
+      .eq('auto_invoice', true)
+      .eq('status', 'active');
+
+    if (!plans?.length) {
+      return res.json({ generated: 0, message: 'No auto-invoice plans found' });
+    }
+
+    const today = new Date();
+    const results = [];
+
+    for (const plan of plans) {
+      const dayOfMonth = plan.invoice_day_of_month || 1;
+      const lastInvoiced = plan.last_invoiced_date ? new Date(plan.last_invoiced_date) : null;
+
+      // Check if billing is due (past the day of month and not already invoiced this month)
+      const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      const lastInvoicedMonth = lastInvoiced ? `${lastInvoiced.getFullYear()}-${String(lastInvoiced.getMonth() + 1).padStart(2, '0')}` : null;
+
+      if (today.getDate() >= dayOfMonth && currentMonth !== lastInvoicedMonth) {
+        // Generate invoice via existing service plan invoice endpoint
+        try {
+          const fromDate = lastInvoiced
+            ? new Date(lastInvoiced.getTime() + 86400000).toISOString().split('T')[0]
+            : `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+          const toDate = today.toISOString().split('T')[0];
+
+          // Call the existing service plan invoice creation
+          const { data: invoiceResult, error: invError } = await supabase.functions.invoke('create-service-invoice', {
+            body: { planId: plan.id, fromDate, toDate },
+          });
+
+          // If the edge function doesn't exist, create invoice directly
+          if (invError) {
+            // Find billable visits
+            const { data: visits } = await supabase
+              .from('service_visits')
+              .select('id, location_id, scheduled_date')
+              .eq('service_plan_id', plan.id)
+              .eq('status', 'completed')
+              .is('invoice_id', null)
+              .gte('scheduled_date', fromDate)
+              .lte('scheduled_date', toDate);
+
+            if (visits?.length > 0) {
+              const rate = plan.billing_cycle === 'per_visit' ? (plan.price_per_visit || 0) : (plan.monthly_rate || 0);
+              const total = plan.billing_cycle === 'per_visit' ? rate * visits.length : rate;
+
+              // Get client info
+              const { data: client } = await supabase
+                .from('clients')
+                .select('full_name, email')
+                .eq('id', plan.client_id)
+                .single();
+
+              const { data: newInvoice } = await supabase
+                .from('invoices')
+                .insert({
+                  user_id: userId,
+                  client_name: client?.full_name || plan.name,
+                  client_email: client?.email,
+                  project_name: plan.name,
+                  items: JSON.stringify([{
+                    description: `${plan.name} — ${visits.length} visits (${fromDate} to ${toDate})`,
+                    quantity: plan.billing_cycle === 'per_visit' ? visits.length : 1,
+                    rate,
+                    amount: total,
+                  }]),
+                  subtotal: total,
+                  tax_rate: 0,
+                  tax_amount: 0,
+                  total,
+                  due_date: new Date(today.getTime() + 30 * 86400000).toISOString().split('T')[0],
+                  status: 'unpaid',
+                  amount_paid: 0,
+                })
+                .select()
+                .single();
+
+              if (newInvoice) {
+                // Link visits to invoice
+                await supabase
+                  .from('service_visits')
+                  .update({ invoice_id: newInvoice.id })
+                  .in('id', visits.map(v => v.id));
+
+                // Update last_invoiced_date
+                await supabase
+                  .from('service_plans')
+                  .update({ last_invoiced_date: toDate })
+                  .eq('id', plan.id);
+
+                // Send email
+                const { sendInvoiceEmail } = require('../services/emailService');
+                if (client?.email) {
+                  await sendInvoiceEmail({ invoice: newInvoice, businessName: '', pdfUrl: null });
+                }
+
+                results.push({ planId: plan.id, planName: plan.name, invoiceId: newInvoice.id, total, visits: visits.length });
+              }
+            }
+          }
+        } catch (err) {
+          logger.error(`[Recurring] Error for plan ${plan.id}:`, err.message);
+          results.push({ planId: plan.id, planName: plan.name, error: err.message });
+        }
+      }
+    }
+
+    res.json({ generated: results.filter(r => !r.error).length, results });
+  } catch (error) {
+    logger.error('[PortalAdmin] Recurring invoice error:', error.message);
+    res.status(500).json({ error: 'Failed to generate recurring invoices' });
+  }
+});
+
 module.exports = router;

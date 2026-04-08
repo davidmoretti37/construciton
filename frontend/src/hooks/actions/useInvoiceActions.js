@@ -326,6 +326,51 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
     }
   }, [addMessage]);
 
+  const handleSendToClient = useCallback(async (data) => {
+    try {
+      if (!data.id) {
+        Alert.alert('Save First', 'Please save the invoice before sending to client.');
+        return false;
+      }
+
+      const { supabase } = require('../../lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        Alert.alert('Error', 'Not authenticated');
+        return false;
+      }
+
+      const { API_URL } = require('../../config/api');
+      const res = await fetch(`${API_URL}/api/portal-admin/invoices/${data.id}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await res.json();
+
+      if (result.sent) {
+        Alert.alert('Sent!', `Invoice sent to ${result.email} and available in client portal.`);
+        addMessage(`📧 Invoice ${data.invoiceNumber || ''} sent to ${result.email}`);
+        return true;
+      } else if (result.error === 'no_api_key') {
+        // Fall back to native share
+        Alert.alert('Email Not Configured', 'Email service not set up yet. Opening share sheet instead.');
+        await shareInvoicePDF(data);
+        return true;
+      } else {
+        Alert.alert('Send Failed', result.error || 'Could not send invoice. Try sharing instead.');
+        return false;
+      }
+    } catch (error) {
+      logger.error('Error sending invoice to client:', error);
+      Alert.alert('Error', 'Failed to send invoice. Try sharing instead.');
+      return false;
+    }
+  }, [addMessage]);
+
   return {
     // Save new invoice
     handleSaveInvoice,
@@ -347,5 +392,8 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
     // Payments
     handleRecordInvoicePayment,
     handleVoidInvoice,
+
+    // Send to client (email + portal notification)
+    handleSendToClient,
   };
 }

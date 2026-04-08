@@ -110,6 +110,12 @@ export default function InvoicePreview({ data, onAction }) {
     }
   };
 
+  const handleSendToClient = () => {
+    if (onAction) {
+      onAction({ label: 'Send to Client', type: 'send-invoice-to-client', data: { ...data, pdfUrl } });
+    }
+  };
+
   const isUnsaved = !data.id;
 
   return (
@@ -303,6 +309,13 @@ export default function InvoicePreview({ data, onAction }) {
             >
               <Ionicons name="eye-outline" size={18} color="#fff" />
               <Text style={styles.buttonText}>{t('invoice.previewPdf')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#1E40AF' }]}
+              onPress={handleSendToClient}
+            >
+              <Ionicons name="send-outline" size={18} color="#fff" />
+              <Text style={styles.buttonText}>Send to Client</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.successButton, { backgroundColor: '#22C55E' }]}

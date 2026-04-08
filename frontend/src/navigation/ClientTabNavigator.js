@@ -24,7 +24,7 @@ export default function ClientTabNavigator() {
       screenOptions={{
         headerShown: false,
         swipeEnabled: true,
-        lazy: false,
+        lazy: true,
       }}
     >
       <Tab.Screen name="Home" component={ClientDashboardScreen} />
