@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
-import { fetchDashboard, fetchMoneySummary, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
+import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -35,6 +35,7 @@ export default function ClientMoneyScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [changeOrders, setChangeOrders] = useState([]);
   const [paying, setPaying] = useState(null);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
@@ -43,8 +44,12 @@ export default function ClientMoneyScreen({ navigation }) {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const data = await fetchMoneySummary(projects[0].id);
+        const [data, cos] = await Promise.all([
+          fetchMoneySummary(projects[0].id),
+          fetchChangeOrders(projects[0].id).catch(() => []),
+        ]);
         setSummary(data);
+        setChangeOrders(cos || []);
       }
     } catch (e) {
       console.error('Money load error:', e);
@@ -174,6 +179,57 @@ export default function ClientMoneyScreen({ navigation }) {
           </View>
         )}
 
+        {/* Change Orders */}
+        {changeOrders.filter(co => co.status === 'pending_client').length > 0 && (
+          <View style={styles.coBanner}>
+            <Ionicons name="alert-circle" size={20} color={C.amberDark} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.coBannerTitle}>
+                {changeOrders.filter(co => co.status === 'pending_client').length} Change Order{changeOrders.filter(co => co.status === 'pending_client').length !== 1 ? 's' : ''} Pending
+              </Text>
+              <Text style={styles.coBannerSub}>Tap to review and approve</Text>
+            </View>
+          </View>
+        )}
+
+        {changeOrders.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>CHANGE ORDERS</Text>
+            {changeOrders.map((co) => {
+              const isPending = co.status === 'pending_client';
+              const isApproved = co.status === 'approved';
+              return (
+                <TouchableOpacity
+                  key={co.id}
+                  style={[styles.coCard, isPending && styles.coCardPending]}
+                  onPress={() => navigation.getParent()?.navigate('ClientChangeOrderDetail', { changeOrder: co })}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.invoiceRow}>
+                    <Text style={styles.invoiceNum}>CO</Text>
+                    <View style={[styles.statusBadge, {
+                      backgroundColor: isPending ? C.amberLight : isApproved ? C.greenBg : C.redBg,
+                    }]}>
+                      <Text style={[styles.statusText, {
+                        color: isPending ? C.amberText : isApproved ? C.greenText : C.redText,
+                      }]}>
+                        {isPending ? 'PENDING' : isApproved ? 'APPROVED' : 'DECLINED'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.invoiceProject} numberOfLines={1}>{co.title}</Text>
+                  <View style={[styles.invoiceRow, { marginTop: 8 }]}>
+                    <Text style={[styles.invoiceAmount, { fontSize: 20 }]}>
+                      {parseFloat(co.total_amount || 0) >= 0 ? '+' : ''}${Math.abs(parseFloat(co.total_amount || 0)).toLocaleString()}
+                    </Text>
+                    <Text style={styles.invoiceDate}>{new Date(co.created_at).toLocaleDateString()}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {/* Unpaid Invoices */}
         {unpaidInvoices.length > 0 && (
           <View style={styles.section}>
@@ -282,6 +338,19 @@ const styles = StyleSheet.create({
   budgetItemCenter: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: C.border, paddingHorizontal: 12 },
   budgetItemLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.5, color: C.textMuted, textTransform: 'uppercase' },
   budgetItemValue: { fontSize: 17, fontWeight: '700', color: C.text, marginTop: 4, fontVariant: ['tabular-nums'] },
+
+  // CO Banner
+  coBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.amberLight, borderRadius: 12, padding: 14, marginBottom: 16,
+  },
+  coBannerTitle: { fontSize: 15, fontWeight: '600', color: C.amberDark },
+  coBannerSub: { fontSize: 12, color: C.amberText, marginTop: 2 },
+  coCard: {
+    backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+  },
+  coCardPending: { borderLeftWidth: 4, borderLeftColor: C.amber },
 
   // Section
   section: { marginBottom: 20 },

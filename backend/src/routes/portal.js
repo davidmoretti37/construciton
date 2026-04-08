@@ -1362,6 +1362,125 @@ router.get('/projects/:projectId/approvals', verifyProjectAccess, async (req, re
   }
 });
 
+// ============================================================
+// CHANGE ORDERS
+// ============================================================
+
+/**
+ * GET /projects/:projectId/change-orders
+ * Returns all change orders for this project.
+ */
+router.get('/projects/:projectId/change-orders', verifyProjectAccess, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const { data, error } = await supabase
+      .from('change_orders')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Mark as viewed by client
+    const unviewed = (data || []).filter(co => !co.client_viewed_at && co.status === 'pending_client');
+    if (unviewed.length > 0) {
+      await Promise.all(unviewed.map(co =>
+        supabase.from('change_orders').update({ client_viewed_at: new Date().toISOString() }).eq('id', co.id)
+      ));
+    }
+
+    res.json(data || []);
+  } catch (error) {
+    logger.error('[Portal] Change orders error:', error.message);
+    res.status(500).json({ error: 'Failed to load change orders' });
+  }
+});
+
+/**
+ * POST /change-orders/:coId/respond
+ * Client approves or rejects a change order.
+ * Body: { action: 'approve' | 'reject', name?: string, reason?: string }
+ */
+router.post('/change-orders/:coId/respond', async (req, res) => {
+  try {
+    const { coId } = req.params;
+    const { action, name, reason } = req.body;
+    const clientId = req.client.id;
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be approve or reject' });
+    }
+
+    // Fetch the CO
+    const { data: co, error: coError } = await supabase
+      .from('change_orders')
+      .select('id, project_id, status, total_amount')
+      .eq('id', coId)
+      .single();
+
+    if (coError || !co) {
+      return res.status(404).json({ error: 'Change order not found' });
+    }
+
+    // Verify client has access to this project
+    const { data: access } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('project_id', co.project_id)
+      .eq('client_id', clientId)
+      .single();
+
+    if (!access) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Must be in pending_client state
+    if (co.status !== 'pending_client') {
+      return res.status(400).json({ error: `Cannot respond — status is ${co.status}` });
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const now = new Date().toISOString();
+
+    // Update the change order
+    const updateData = {
+      status: newStatus,
+      client_responded_at: now,
+    };
+
+    if (action === 'approve') {
+      updateData.approved_by_name = name || req.client.full_name;
+      updateData.approved_at = now;
+    } else {
+      updateData.client_response_reason = reason || '';
+    }
+
+    const { error: updateError } = await supabase
+      .from('change_orders')
+      .update(updateData)
+      .eq('id', coId);
+
+    if (updateError) throw updateError;
+
+    // Write to approval_events audit trail
+    await supabase.from('approval_events').insert({
+      project_id: co.project_id,
+      entity_type: 'change_order',
+      entity_id: coId,
+      action: newStatus,
+      actor_type: 'client',
+      actor_id: clientId,
+      notes: action === 'approve' ? `Approved by ${name || req.client.full_name}` : `Rejected: ${reason || 'No reason given'}`,
+    });
+
+    res.json({ success: true, status: newStatus });
+  } catch (error) {
+    logger.error('[Portal] Change order respond error:', error.message);
+    res.status(500).json({ error: 'Failed to respond to change order' });
+  }
+});
+
 /**
  * GET /projects/:projectId/calendar
  * Returns all calendar events for the client's project:

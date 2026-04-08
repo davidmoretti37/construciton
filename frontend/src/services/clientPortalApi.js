@@ -52,6 +52,14 @@ export const fetchProjectSummaries = (projectId) => portalFetch(`/projects/${pro
 // Money
 export const fetchMoneySummary = (projectId) => portalFetch(`/projects/${projectId}/money-summary`);
 
+// Change Orders
+export const fetchChangeOrders = (projectId) => portalFetch(`/projects/${projectId}/change-orders`);
+export const respondToChangeOrder = (coId, action, name, reason) =>
+  portalFetch(`/change-orders/${coId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action, name, reason }),
+  });
+
 // Invoices
 export const fetchProjectInvoices = (projectId) => portalFetch(`/projects/${projectId}/invoices`);
 export const fetchProjectMilestones = (projectId) => portalFetch(`/projects/${projectId}/milestones`);
