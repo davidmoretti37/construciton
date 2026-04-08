@@ -76,8 +76,7 @@ export default function ClientMoneyScreen({ navigation }) {
           customerId: intentData.customerId,
           merchantDisplayName: 'Sylk',
           allowsDelayedPaymentMethods: true, // ACH
-          applePay: { merchantCountryCode: 'US' },
-          googlePay: { merchantCountryCode: 'US', testEnv: true },
+          returnURL: 'sylk://payment-complete',
         });
 
         if (initError) {

@@ -15,6 +15,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard } from '../../services/clientPortalApi';
 import { supabase } from '../../lib/supabase';
+import { API_URL } from '../../config/api';
+
+const portalFetchSelections = async (projectId) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return [];
+  const res = await fetch(`${API_URL}/api/portal/projects/${projectId}/materials`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
+};
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -44,11 +55,7 @@ export default function ClientSelectionsScreen({ navigation }) {
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
         setProjectId(projects[0].id);
-        const { data } = await supabase
-          .from('material_selections')
-          .select('*')
-          .eq('project_id', projects[0].id)
-          .order('created_at', { ascending: false });
+        const data = await portalFetchSelections(projects[0].id);
         setSelections(data || []);
       }
     } catch (e) {

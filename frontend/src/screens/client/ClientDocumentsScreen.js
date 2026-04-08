@@ -15,6 +15,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard } from '../../services/clientPortalApi';
 import { supabase } from '../../lib/supabase';
 
+const portalFetchDocs = async (projectId) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return [];
+  const { API_URL } = require('../../config/api');
+  const res = await fetch(`${API_URL}/api/portal/projects/${projectId}/documents`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
+};
+
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7',
   text: '#111827', textSec: '#6B7280', textMuted: '#9CA3AF',
@@ -58,12 +69,8 @@ export default function ClientDocumentsScreen({ navigation }) {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const { data } = await supabase
-          .from('project_documents')
-          .select('id, title, description, category, file_name, file_size, mime_type, storage_path, created_at')
-          .eq('project_id', projects[0].id)
-          .order('created_at', { ascending: false });
-        setDocuments(data || []);
+        const docs = await portalFetchDocs(projects[0].id);
+        setDocuments(docs || []);
       }
     } catch (e) {
       console.error('Documents load error:', e);

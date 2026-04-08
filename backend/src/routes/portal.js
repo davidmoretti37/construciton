@@ -1366,6 +1366,32 @@ router.get('/projects/:projectId/approvals', verifyProjectAccess, async (req, re
 });
 
 // ============================================================
+// DOCUMENTS
+// ============================================================
+
+/**
+ * GET /projects/:projectId/documents
+ * Returns all client-visible documents for this project.
+ */
+router.get('/projects/:projectId/documents', verifyProjectAccess, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const { data, error } = await supabase
+      .from('project_documents')
+      .select('id, title, description, category, file_name, file_size, mime_type, storage_path, created_at')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    logger.error('[Portal] Documents error:', error.message);
+    res.status(500).json({ error: 'Failed to load documents' });
+  }
+});
+
+// ============================================================
 // CHANGE ORDERS
 // ============================================================
 
