@@ -137,20 +137,29 @@ export default function OwnerSettingsScreen() {
   };
 
   const handleConnectPayments = async () => {
-    if (connectStatus?.onboardingComplete) {
-      // Already connected — open dashboard
-      await connectService.openDashboard();
-    } else {
-      // Start onboarding
-      const result = await connectService.startOnboarding();
-      if (result.alreadyConnected) {
+    try {
+      if (connectStatus?.onboardingComplete) {
         await connectService.openDashboard();
+      } else {
+        const result = await connectService.startOnboarding();
+        if (result.error) {
+          Alert.alert('Error', result.error);
+          return;
+        }
+        if (result.alreadyConnected) {
+          await connectService.openDashboard();
+        }
+        // Refresh status after returning from browser
+        setTimeout(async () => {
+          try {
+            const status = await connectService.getStatus();
+            setConnectStatus(status);
+          } catch {}
+        }, 2000);
       }
-      // Refresh status after returning from browser
-      setTimeout(async () => {
-        const status = await connectService.getStatus();
-        setConnectStatus(status);
-      }, 2000);
+    } catch (err) {
+      console.error('Connect payments error:', err);
+      Alert.alert('Error', 'Failed to connect payments. Please try again.');
     }
   };
 
