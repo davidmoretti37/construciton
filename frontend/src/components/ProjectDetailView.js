@@ -1277,6 +1277,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 )}
               </View>
             </View>
+          </View>
         </LinearGradient>
 
         {/* Scrollable Content — white body scrolls over blue header */}
