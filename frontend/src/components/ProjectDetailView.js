@@ -18,6 +18,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -1185,13 +1186,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Hero Section — White card with accent */}
-          <View style={[styles.heroSection, { backgroundColor: '#FFFFFF' }]}>
+          {/* Gradient Header */}
+          <LinearGradient colors={['#1E40AF', '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroSection}>
             <View style={styles.heroContent}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                <View style={{ backgroundColor: statusColor + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: statusColor }} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: statusColor, textTransform: 'capitalize' }}>{project.status?.replace(/-/g, ' ') || 'Active'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>{project.status?.replace(/-/g, ' ') || 'Active'}</Text>
                 </View>
               </View>
               <Text style={styles.heroTitle} numberOfLines={2}>
@@ -1199,7 +1200,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </Text>
               {project.client && (
                 <View style={styles.clientRow}>
-                  <Ionicons name="person-outline" size={14} color="#64748B" />
+                  <Ionicons name="person-outline" size={14} color="rgba(255,255,255,0.9)" />
                   <Text style={styles.clientText}>{project.client}</Text>
                 </View>
               )}
@@ -1209,7 +1210,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Address */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="location" size={16} color="#64748B" />
+                    <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
                     <TextInput
                       style={styles.contactInput}
                       value={editAddress}
@@ -1224,12 +1225,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handleAddressPress(project.location)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="location" size={16} color="#64748B" />
+                    <Ionicons name="location" size={16} color="rgba(255,255,255,0.9)" />
                     <Text style={styles.contactText} numberOfLines={2}>{project.location}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.contactRow}>
-                    <Ionicons name="location-outline" size={16} color="#94A3B8" />
+                    <Ionicons name="location-outline" size={16} color="rgba(255,255,255,0.6)" />
                     <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>{t('emptyStates.noAddressAdded')}</Text>
                   </View>
                 )}
@@ -1237,7 +1238,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Phone */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="call" size={16} color="#64748B" />
+                    <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
                     <TextInput
                       style={styles.contactInput}
                       value={editPhone}
@@ -1253,12 +1254,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handlePhonePress(project.client_phone || project.clientPhone)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="call" size={16} color="#64748B" />
+                    <Ionicons name="call" size={16} color="rgba(255,255,255,0.9)" />
                     <Text style={styles.contactText}>{project.client_phone || project.clientPhone}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.contactRow}>
-                    <Ionicons name="call-outline" size={16} color="#94A3B8" />
+                    <Ionicons name="call-outline" size={16} color="rgba(255,255,255,0.6)" />
                     <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>{t('emptyStates.noPhoneAdded')}</Text>
                   </View>
                 )}
@@ -1266,7 +1267,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {/* Email */}
                 {isEditing ? (
                   <View style={styles.contactEditRow}>
-                    <Ionicons name="mail" size={16} color="#64748B" />
+                    <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
                     <TextInput
                       style={styles.contactInput}
                       value={editEmail}
@@ -1283,18 +1284,21 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     onPress={() => handleEmailPress(project.client_email || project.clientEmail)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="mail" size={16} color="#64748B" />
+                    <Ionicons name="mail" size={16} color="rgba(255,255,255,0.9)" />
                     <Text style={styles.contactText}>{project.client_email || project.clientEmail}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.contactRow}>
-                    <Ionicons name="mail-outline" size={16} color="#94A3B8" />
+                    <Ionicons name="mail-outline" size={16} color="rgba(255,255,255,0.6)" />
                     <Text style={[styles.contactText, { fontStyle: 'italic', opacity: 0.6 }]}>{t('emptyStates.noEmailAdded')}</Text>
                   </View>
                 )}
               </View>
             </View>
-          </View>
+          </LinearGradient>
+
+          {/* Body — overlaps header with rounded top */}
+          <View style={{ marginTop: -16, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#F8FAFC', paddingTop: 4 }}>
 
           {/* Financial Health Card */}
           <View style={[styles.financialContainer, { backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 16, marginTop: 12, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }]}>
@@ -2425,6 +2429,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <Ionicons name="trash-outline" size={14} color={'#EF4444' + '80'} />
             <Text style={styles.deleteProjectLinkText}>{t('buttons.deleteProject')}</Text>
           </TouchableOpacity>
+          </View>{/* Close body wrapper */}
         </ScrollView>
       </SafeAreaView>
 
@@ -2845,7 +2850,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#FFFFFF',
     marginBottom: 6,
     lineHeight: 28,
     letterSpacing: -0.3,
@@ -2858,7 +2863,7 @@ const styles = StyleSheet.create({
   },
   clientText: {
     fontSize: 13,
-    color: '#475569',
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
   },
   contactContainer: {
@@ -2873,7 +2878,7 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 14,
-    color: '#475569',
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
     flex: 1,
   },
@@ -2886,14 +2891,14 @@ const styles = StyleSheet.create({
   contactInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#FFFFFF',
     fontWeight: '500',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   editingIndicator: {
     backgroundColor: 'rgba(59, 130, 246, 0.15)',
