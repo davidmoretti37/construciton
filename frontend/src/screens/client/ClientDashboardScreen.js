@@ -241,7 +241,7 @@ export default function ClientDashboardScreen({ navigation }) {
                           </View>
                         ));
                       })()}
-                      <Text style={styles.summaryText} numberOfLines={4}>
+                      <Text style={styles.summaryText}>
                         {summaries[0].summary_text || summaries[0].summary || summaries[0].content}
                       </Text>
                     </View>
