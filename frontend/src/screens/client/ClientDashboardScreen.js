@@ -213,23 +213,52 @@ export default function ClientDashboardScreen({ navigation }) {
                 </View>
               )}
 
-              {/* Weekly Summaries */}
+              {/* Weekly Update — latest only */}
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>WEEKLY UPDATES</Text>
+                <Text style={styles.sectionLabel}>WEEKLY UPDATE</Text>
                 {summaries.length > 0 ? (
-                  summaries.slice(0, 3).map((s, i) => (
-                    <View key={s.id || i} style={[styles.summaryCard, i > 0 && { marginTop: 10 }]}>
+                  <>
+                    <View style={styles.summaryCard}>
                       <View style={styles.summaryHeader}>
-                        <Ionicons name="sparkles" size={14} color={C.amber} />
-                        <Text style={styles.summaryDate}>{s.week_label || (s.created_at ? new Date(s.created_at).toLocaleDateString() : 'This week')}</Text>
+                        <View style={styles.sparkleCircle}>
+                          <Ionicons name="sparkles" size={14} color="#fff" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.summaryDate}>
+                            {summaries[0].week_start && summaries[0].week_end
+                              ? `${new Date(summaries[0].week_start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(summaries[0].week_end + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                              : 'This week'}
+                          </Text>
+                        </View>
                       </View>
-                      <Text style={styles.summaryText}>{s.summary || s.content}</Text>
+                      {(() => {
+                        let highlights = [];
+                        try { highlights = typeof summaries[0].highlights === 'string' ? JSON.parse(summaries[0].highlights) : (summaries[0].highlights || []); } catch {}
+                        return highlights.slice(0, 4).map((h, i) => (
+                          <View key={i} style={[styles.highlightRow, { backgroundColor: h.type === 'completed' ? '#D1FAE5' : h.type === 'milestone' ? C.amberLight : h.type === 'pending' ? '#DBEAFE' : '#F3E8FF' }]}>
+                            <Ionicons name={h.icon || 'checkmark-circle'} size={14} color={h.type === 'completed' ? '#065F46' : h.type === 'milestone' ? C.amberText : h.type === 'pending' ? '#3B82F6' : '#8B5CF6'} />
+                            <Text style={[styles.highlightText, { color: h.type === 'completed' ? '#065F46' : h.type === 'milestone' ? C.amberText : h.type === 'pending' ? '#3B82F6' : '#8B5CF6' }]} numberOfLines={2}>{h.text}</Text>
+                          </View>
+                        ));
+                      })()}
+                      <Text style={styles.summaryText} numberOfLines={4}>
+                        {summaries[0].summary_text || summaries[0].summary || summaries[0].content}
+                      </Text>
                     </View>
-                  ))
-                ) : projectDetail.weekly_summary ? (
+                    {summaries.length > 1 && (
+                      <TouchableOpacity style={styles.viewPrevious} onPress={() => navigation.getParent()?.navigate('ClientAISummaries')} activeOpacity={0.7}>
+                        <Ionicons name="time-outline" size={16} color={C.amber} />
+                        <Text style={styles.viewPreviousText}>View Previous Weeks</Text>
+                        <Ionicons name="chevron-forward" size={16} color={C.amber} />
+                      </TouchableOpacity>
+                    )}
+                  </>
+                ) : projectDetail?.weekly_summary ? (
                   <View style={styles.summaryCard}>
                     <View style={styles.summaryHeader}>
-                      <Ionicons name="sparkles" size={14} color={C.amber} />
+                      <View style={styles.sparkleCircle}>
+                        <Ionicons name="sparkles" size={14} color="#fff" />
+                      </View>
                       <Text style={styles.summaryDate}>This week</Text>
                     </View>
                     <Text style={styles.summaryText}>{projectDetail.weekly_summary}</Text>
@@ -436,6 +465,16 @@ const styles = StyleSheet.create({
   emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: C.text },
   emptySubtext: { fontSize: 14, color: C.textSec, marginTop: 6, textAlign: 'center' },
+
+  sparkleCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
+  highlightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 8, padding: 10, marginTop: 8 },
+  highlightText: { fontSize: 13, fontWeight: '500', flex: 1, lineHeight: 18 },
+  viewPrevious: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 12, paddingVertical: 12, backgroundColor: C.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: C.amberLight,
+  },
+  viewPreviousText: { fontSize: 14, fontWeight: '600', color: C.amber },
 
   // Photo viewer
   viewerBg: { flex: 1, backgroundColor: '#000' },
