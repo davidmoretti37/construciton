@@ -76,7 +76,7 @@ export default function ClientMoreScreen({ navigation }) {
         { key: 'Documents', icon: 'document-text', iconBg: '#EFF6FF', iconColor: '#3B82F6', screen: 'ClientDocuments' },
         { key: 'Selections', icon: 'color-palette', iconBg: '#FDF2F8', iconColor: '#EC4899', screen: 'ClientSelections' },
         { key: 'Photos', icon: 'images', iconBg: '#F5F3FF', iconColor: '#8B5CF6', screen: 'ClientPhotos' },
-        { key: 'AI Summaries', icon: 'sparkles', iconBg: '#FFFBEB', iconColor: '#F59E0B', screen: 'ClientProjectDetail', needsProjectId: true, params: { scrollToSummaries: true } },
+        { key: 'AI Summaries', icon: 'sparkles', iconBg: '#FFFBEB', iconColor: '#F59E0B', screen: 'ClientAISummaries' },
       ],
     },
     {
