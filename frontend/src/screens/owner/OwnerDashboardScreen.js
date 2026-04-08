@@ -3,7 +3,7 @@
  * Widget-based customizable dashboard with drag-to-reorder editing
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -94,6 +94,7 @@ export default function OwnerDashboardScreen() {
   const [overdueInvoices, setOverdueInvoices] = useState({ count: 0, amount: 0 });
   const [cashFlowData, setCashFlowData] = useState([]);
   const [forgottenClockOuts, setForgottenClockOuts] = useState({ workers: [], supervisors: [] });
+  const notifSentRef = useRef(false);
 
   // Heavy widget data
   const [agingData, setAgingData] = useState({ totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } });
@@ -209,8 +210,9 @@ export default function OwnerDashboardScreen() {
       try {
         const forgotten = await checkForgottenClockOuts(10);
         setForgottenClockOuts(forgotten);
-        // Send push notifications for forgotten clock-outs (fire and forget)
-        if (forgotten.workers.length > 0 || forgotten.supervisors.length > 0) {
+        // Send push notifications ONCE per session (dedup also checks 24h in the function)
+        if (!notifSentRef.current && (forgotten.workers.length > 0 || forgotten.supervisors.length > 0)) {
+          notifSentRef.current = true;
           sendForgottenClockOutNotifications(10);
         }
       } catch (e) { setForgottenClockOuts({ workers: [], supervisors: [] }); }

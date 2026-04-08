@@ -1604,12 +1604,26 @@ export const sendForgottenClockOutNotifications = async (thresholdHours = 10) =>
     const forgotten = await checkForgottenClockOuts(thresholdHours);
     let notifCount = 0;
 
+    // Dedup: check which workers already got a notification in the last 24h
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentNotifs } = await supabase
+      .from('notifications')
+      .select('body')
+      .eq('user_id', user.id)
+      .eq('title', 'Forgotten Clock-Out')
+      .gte('created_at', oneDayAgo);
+    const alreadyNotified = new Set((recentNotifs || []).map(n => n.body));
+
     for (const worker of forgotten.workers) {
+      const body = `${worker.worker_name} has been clocked in for ${worker.hoursElapsed}h on ${worker.project_name}. Did they forget to clock out?`;
+      // Skip if a similar notification was already sent (check worker name match)
+      if (alreadyNotified.size > 0 && [...alreadyNotified].some(b => b?.includes(worker.worker_name))) continue;
+
       await supabase.functions.invoke('send-push-notification', {
         body: {
           userId: user.id,
           title: 'Forgotten Clock-Out',
-          body: `${worker.worker_name} has been clocked in for ${worker.hoursElapsed}h on ${worker.project_name}. Did they forget to clock out?`,
+          body,
           type: 'worker_update',
           data: { screen: 'Workers' },
           workerId: worker.worker_id,
@@ -1619,11 +1633,14 @@ export const sendForgottenClockOutNotifications = async (thresholdHours = 10) =>
     }
 
     for (const sup of forgotten.supervisors) {
+      const body = `${sup.supervisor_name} has been clocked in for ${sup.hoursElapsed}h on ${sup.project_name}. Did they forget to clock out?`;
+      if (alreadyNotified.size > 0 && [...alreadyNotified].some(b => b?.includes(sup.supervisor_name))) continue;
+
       await supabase.functions.invoke('send-push-notification', {
         body: {
           userId: user.id,
           title: 'Forgotten Clock-Out',
-          body: `${sup.supervisor_name} has been clocked in for ${sup.hoursElapsed}h on ${sup.project_name}. Did they forget to clock out?`,
+          body,
           type: 'worker_update',
           data: { screen: 'Workers' },
         },
