@@ -327,7 +327,7 @@ function AppContent() {
 
   return (
     <StripeProvider
-      publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_51StJ1qJdZ7yc6AWCixMhEcvJMWWMOeOh93Pl64nVOp4TZxfmUWMJHZ6WQFT1RfNxr7VRF0gfmOi0QkYjQD5bPz2300AEUZqm3'}
+      publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_51StJ20J4gs8XcXWe6Y5bbt6ZPnZdfLVug8MLSB0KPHtI7hDzwFi1jOoeNUlHImzRXJ3bpD00GXik9AuZVS3eGbRR00X8yX9N18'}
       merchantIdentifier="merchant.com.davidmoretti.constructionmanager"
       urlScheme="sylk"
     >
