@@ -2829,7 +2829,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   heroContent: {
-    flex: 1,
+    paddingHorizontal: 0,
   },
   heroTitle: {
     fontSize: 22,
@@ -2853,6 +2853,7 @@ const styles = StyleSheet.create({
   contactContainer: {
     marginTop: 4,
     gap: 4,
+    paddingHorizontal: 20,
   },
   contactRow: {
     flexDirection: 'row',
