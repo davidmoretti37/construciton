@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, View, Alert } from 'react-native';
+import { View, Alert } from 'react-native';
+import { SkeletonBox, SkeletonCard } from '../components/SkeletonLoader';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import ProjectDetailView from '../components/ProjectDetailView';
@@ -134,20 +135,20 @@ export default function ProjectDetailScreen({ route, navigation }) {
     }
   };
 
-  // Show loading indicator while fetching project
-  if (loading) {
+  // Show skeleton while fetching project
+  if (loading || !currentProject) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  // Don't render if no project data
-  if (!currentProject) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, padding: 16 }}>
+        {/* Title bar */}
+        <SkeletonBox width="70%" height={24} borderRadius={6} style={{ marginBottom: 12 }} />
+        <SkeletonBox width="40%" height={14} borderRadius={4} style={{ marginBottom: 24 }} />
+        {/* Detail cards */}
+        <SkeletonCard lines={2} style={{ marginBottom: 12 }} />
+        <SkeletonCard lines={3} style={{ marginBottom: 12 }} />
+        {/* Timeline placeholders */}
+        <SkeletonBox width="50%" height={16} borderRadius={4} style={{ marginBottom: 12 }} />
+        <SkeletonBox width="100%" height={60} borderRadius={10} style={{ marginBottom: 8 }} />
+        <SkeletonBox width="100%" height={60} borderRadius={10} />
       </View>
     );
   }

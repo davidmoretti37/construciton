@@ -18,10 +18,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ProjectCard } from '../components/ChatVisuals';
 import ProjectDetailView from '../components/ProjectDetailView';
-import { useProjects } from '../hooks/useProjects';
+import { useCachedFetch } from '../hooks/useCachedFetch';
 import NotificationBell from '../components/NotificationBell';
 import TrialBanner from '../components/TrialBanner';
-import { fetchDailyReportsWithFilters, getProject } from '../utils/storage';
+import { fetchProjects as fetchProjectsFromStorage, fetchDailyReportsWithFilters, getProject } from '../utils/storage';
 import { supabase } from '../lib/supabase';
 import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet, checkForgottenClockOuts, remoteClockOutWorker } from '../utils/storage/timeTracking';
 import TimeEditModal from '../components/TimeEditModal';
@@ -38,8 +38,35 @@ export default function HomeScreen({ navigation }) {
   const { t } = useTranslation('home');
   const { user, profile, ownerHidesContract } = useAuth();
 
-  // Use custom hook for projects data
-  const { projects, loading, hasLoadedOnce, loadProjects } = useProjects();
+  // Cache-first loading for projects
+  const fetchProjectsFn = useCallback(() => fetchProjectsFromStorage(), []);
+  const {
+    data: rawProjects,
+    loading,
+    refreshing: projectsRefreshing,
+    refresh: refreshProjects,
+    reload: reloadProjects,
+  } = useCachedFetch('home:projects', fetchProjectsFn);
+  const projects = rawProjects || [];
+
+  // Cache-first loading for today's daily reports
+  const fetchTodayReportsFn = useCallback(async () => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const reports = await fetchDailyReportsWithFilters({
+      startDate: todayStr,
+      endDate: todayStr,
+      limit: 10
+    });
+    return reports || [];
+  }, []);
+  const {
+    data: rawDailyReports,
+    reload: reloadDailyReports,
+    refresh: refreshDailyReports,
+  } = useCachedFetch('home:dailyReports', fetchTodayReportsFn, { staleTTL: 15000, maxAge: 3 * 60 * 1000 });
+  const todaysDailyReports = rawDailyReports || [];
+
   const [servicePlans, setServicePlans] = useState([]);
 
   const [refreshing, setRefreshing] = useState(false);
@@ -48,7 +75,6 @@ export default function HomeScreen({ navigation }) {
   const [modalTitle, setModalTitle] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);
   const [showProjectDetail, setShowProjectDetail] = useState(false);
-  const [todaysDailyReports, setTodaysDailyReports] = useState([]);
 
   // Supervisor clock-in state
   const [activeSession, setActiveSession] = useState(null);
@@ -63,22 +89,6 @@ export default function HomeScreen({ navigation }) {
   const [forgottenClockOuts, setForgottenClockOuts] = useState({ workers: [], supervisors: [] });
   const [loadError, setLoadError] = useState(false);
 
-  // Load today's daily reports
-  const loadTodaysDailyReports = useCallback(async () => {
-    try {
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
-      const reports = await fetchDailyReportsWithFilters({
-        startDate: todayStr,
-        endDate: todayStr,
-        limit: 10
-      });
-      setTodaysDailyReports(reports || []);
-    } catch (error) {
-      logger.error('Error loading daily reports:', error);
-    }
-  }, []);
-
   // Load projects and service plans immediately on mount
   const loadServicePlans = useCallback(async () => {
     try {
@@ -92,19 +102,15 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    loadProjects();
     loadServicePlans();
   }, []);
 
-  // Refresh daily reports and time data when screen comes into focus
+  // On focus: show cached data instantly, refresh stale data in background
   useFocusEffect(
     useCallback(() => {
-      const loads = [loadTodaysDailyReports(), loadSupervisorTimeData()];
-      if (!hasLoadedOnce) {
-        loads.push(loadProjects());
-      }
+      const loads = [reloadProjects(), reloadDailyReports(), loadSupervisorTimeData()];
       Promise.all(loads).then(() => setLoadError(false)).catch(() => setLoadError(true));
-    }, [hasLoadedOnce, loadProjects, loadTodaysDailyReports, loadSupervisorTimeData])
+    }, [reloadProjects, reloadDailyReports, loadSupervisorTimeData])
   );
 
   // Check for active supervisor clock-in session
@@ -188,7 +194,11 @@ export default function HomeScreen({ navigation }) {
   const loadSupervisorTimeData = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const timesheet = await getSupervisorTimesheet(user.id);
+      // Fetch timesheet and forgotten clock-outs in parallel (independent queries)
+      const [timesheet, forgotten] = await Promise.all([
+        getSupervisorTimesheet(user.id),
+        checkForgottenClockOuts(10).catch(() => ({ workers: [], supervisors: [] })),
+      ]);
 
       // Calculate today's hours
       const today = new Date();
@@ -204,11 +214,7 @@ export default function HomeScreen({ navigation }) {
       const completedEntries = timesheet.filter(e => e.clock_out).slice(0, 10);
       setSupervisorTimeHistory(completedEntries);
 
-      // Check for forgotten clock-outs (supervisor's workers)
-      try {
-        const forgotten = await checkForgottenClockOuts(10);
-        setForgottenClockOuts(forgotten);
-      } catch (e) { /* ignore */ }
+      setForgottenClockOuts(forgotten);
     } catch (error) {
       console.error('Error loading supervisor time data:', error);
     }
@@ -228,9 +234,9 @@ export default function HomeScreen({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadProjects(), loadTodaysDailyReports()]);
+    await Promise.all([refreshProjects(), refreshDailyReports()]);
     setRefreshing(false);
-  }, [loadProjects, loadTodaysDailyReports]);
+  }, [refreshProjects, refreshDailyReports]);
 
   // Refresh project data when modal opens to get latest progress
   useEffect(() => {
@@ -414,7 +420,7 @@ export default function HomeScreen({ navigation }) {
       {loadError && !loading && (
         <TouchableOpacity
           style={{ backgroundColor: '#FF3B30', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' }}
-          onPress={() => { setLoadError(false); loadProjects(); loadTodaysDailyReports(); }}
+          onPress={() => { setLoadError(false); refreshProjects(); refreshDailyReports(); }}
         >
           <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Failed to load data. Tap to retry.</Text>
         </TouchableOpacity>
@@ -884,7 +890,7 @@ export default function HomeScreen({ navigation }) {
         onEdit={handleProjectEdit}
         onAction={handleProjectAction}
         navigation={navigation}
-        onRefreshNeeded={loadProjects}
+        onRefreshNeeded={refreshProjects}
       />
 
       {/* Time Edit Modal (for supervisor self-edit) */}

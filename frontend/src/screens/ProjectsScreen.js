@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
-  ActivityIndicator,
   Modal,
   TextInput as RNTextInput,
   KeyboardAvoidingView,
@@ -20,12 +19,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { SkeletonCard } from '../components/SkeletonLoader';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { saveProject, saveProjectPhases, fetchProjectPhases, deleteProject } from '../utils/storage';
+import { fetchProjects as fetchProjectsFromStorage, saveProject, saveProjectPhases, fetchProjectPhases, deleteProject } from '../utils/storage';
 import { getUserProfile } from '../utils/storage/userProfile';
 import { ProjectCard } from '../components/ChatVisuals';
-import { useProjects } from '../hooks/useProjects';
+import { useCachedFetch } from '../hooks/useCachedFetch';
 import TimelinePickerModal from '../components/TimelinePickerModal';
 import ConversationsSection from '../components/ConversationsSection';
 import PhasePickerModal from '../components/PhasePickerModal';
@@ -99,8 +99,15 @@ export default function ProjectsScreen({ navigation, route }) {
   const Colors = getColors(isDark) || LightColors;
   const { hasActiveSubscription, checkCanCreateProject } = useSubscription();
 
-  // Use custom hook for projects data
-  const { projects, loading, hasLoadedOnce, loadProjects, addProject, updateProject, removeProject } = useProjects();
+  // Cache-first loading for projects
+  const fetchProjectsFn = useCallback(() => fetchProjectsFromStorage(), []);
+  const {
+    data: rawProjects,
+    loading,
+    refresh: refreshProjects,
+    reload: reloadProjects,
+  } = useCachedFetch('projects:list', fetchProjectsFn);
+  const projects = rawProjects || [];
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -249,7 +256,7 @@ export default function ProjectsScreen({ navigation, route }) {
         }
 
         // Reload projects list
-        await loadProjects();
+        await refreshProjects();
         closeNewProject();
       } else {
         alert(t('errors.saveFailed'));
@@ -295,7 +302,7 @@ export default function ProjectsScreen({ navigation, route }) {
         }
 
         // Reload projects list
-        await loadProjects();
+        await refreshProjects();
         closeEdit();
       } else {
         alert(t('errors.saveFailed'));
@@ -308,16 +315,11 @@ export default function ProjectsScreen({ navigation, route }) {
     }
   };
 
-  // Load projects immediately on mount (so data is ready during splash)
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  // Reload projects whenever screen comes into focus (refreshes after returning from detail)
+  // On focus: show cached projects instantly, refresh stale data in background
   useFocusEffect(
     useCallback(() => {
-      loadProjects();
-    }, [loadProjects])
+      reloadProjects();
+    }, [reloadProjects])
   );
 
   // Load user profile for phases template
@@ -361,9 +363,9 @@ export default function ProjectsScreen({ navigation, route }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadProjects();
+    await refreshProjects();
     setRefreshing(false);
-  }, [loadProjects]);
+  }, [refreshProjects]);
 
   const handleDeleteProject = async (projectId) => {
     try {
@@ -371,7 +373,7 @@ export default function ProjectsScreen({ navigation, route }) {
       if (success) {
         setSelectedProject(null);
         // Reload projects list
-        await loadProjects();
+        await refreshProjects();
         Alert.alert(t('success'), t('projectDeletedSuccessfully'));
       } else {
         Alert.alert(t('error'), t('errors.deleteFailed'));
@@ -483,7 +485,7 @@ export default function ProjectsScreen({ navigation, route }) {
     if (editing?.id) {
       const phases = await fetchProjectPhases(editing.id);
       setEditingPhases(phases || []);
-      await loadProjects(); // Reload projects to update card display
+      await refreshProjects(); // Reload projects to update card display
     }
     setShowPhaseDetail(false);
   };
@@ -519,11 +521,33 @@ export default function ProjectsScreen({ navigation, route }) {
   ), [searchQuery, selectedFilter, Colors, t]);
 
   const renderLoadingComponent = useCallback(() => (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color={Colors.primaryBlue} />
-      <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('loadingProjects')}</Text>
+    <View style={{ padding: Spacing.lg }}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <SkeletonCard lines={2} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <SkeletonCard lines={2} />
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <SkeletonCard lines={2} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <SkeletonCard lines={2} />
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <SkeletonCard lines={2} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <SkeletonCard lines={2} />
+        </View>
+      </View>
     </View>
-  ), [Colors, t]);
+  ), []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.white }]}>

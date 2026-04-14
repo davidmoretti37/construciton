@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Dimensions,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -85,7 +86,7 @@ export default function ServicePlansScreen({ showFilter = false }) {
   );
 
   const renderEmpty = () => {
-    if (loading) return null;
+    if (loading) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><ActivityIndicator size="large" color="#3B82F6" /></View>;
     return (
       <View style={styles.emptyState}>
         <Ionicons name="clipboard-outline" size={48} color={Colors.secondaryText} />

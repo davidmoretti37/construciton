@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { SkeletonBox, SkeletonCard } from '../components/SkeletonLoader';
 import NotificationItem from '../components/NotificationItem';
 import AppointmentPopup from '../components/AppointmentPopup';
 import { updateScheduleEvent, deleteScheduleEvent } from '../utils/storage/schedules';
@@ -331,8 +331,13 @@ export default function NotificationsScreen({ navigation }) {
 
       {/* Content */}
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primaryBlue} />
+        <View style={{ padding: 16 }}>
+          <SkeletonBox width="30%" height={12} borderRadius={4} style={{ marginBottom: 12 }} />
+          <SkeletonCard lines={2} showAvatar style={{ marginBottom: 8 }} />
+          <SkeletonCard lines={2} showAvatar style={{ marginBottom: 8 }} />
+          <SkeletonBox width="30%" height={12} borderRadius={4} style={{ marginTop: 8, marginBottom: 12 }} />
+          <SkeletonCard lines={2} showAvatar style={{ marginBottom: 8 }} />
+          <SkeletonCard lines={2} showAvatar />
         </View>
       ) : (
         <FlatList

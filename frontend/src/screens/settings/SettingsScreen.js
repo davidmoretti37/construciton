@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
+import { SkeletonBox } from '../../components/SkeletonLoader';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getUserProfile, getSelectedLanguage, getAutoTranslateEstimates, updateAutoTranslateEstimates } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
@@ -115,8 +116,19 @@ export default function SettingsScreen({ navigation }) {
   if (!userProfile) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{t('common:status.loading')}</Text>
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <SkeletonBox width="40%" height={24} borderRadius={6} />
+        </View>
+        <View style={{ padding: Spacing.lg }}>
+          {/* Profile header skeleton */}
+          <SkeletonBox width="60%" height={18} borderRadius={4} style={{ marginBottom: 12 }} />
+          <SkeletonBox width="35%" height={12} borderRadius={4} style={{ marginBottom: 24 }} />
+          {/* Settings rows */}
+          <SkeletonBox width="100%" height={48} borderRadius={10} style={{ marginBottom: 10 }} />
+          <SkeletonBox width="100%" height={48} borderRadius={10} style={{ marginBottom: 10 }} />
+          <SkeletonBox width="100%" height={48} borderRadius={10} style={{ marginBottom: 24 }} />
+          <SkeletonBox width="100%" height={48} borderRadius={10} style={{ marginBottom: 10 }} />
+          <SkeletonBox width="100%" height={48} borderRadius={10} />
         </View>
       </SafeAreaView>
     );

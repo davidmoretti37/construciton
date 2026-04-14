@@ -33,7 +33,6 @@ import {
   createWorker,
   updateWorker,
   deleteWorker,
-  getActiveClockIn,
   getProjectWorkers,
   assignWorkerToProject,
   removeWorkerFromProject,
@@ -268,12 +267,34 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         getWorkerAssignmentCounts()
       ]);
 
-      // Load active clock-in status for each worker
+      // Load active clock-in status for all workers in a single batch query
       const clockIns = {};
-      for (const worker of workersData) {
-        const activeSession = await getActiveClockIn(worker.id);
-        if (activeSession) {
-          clockIns[worker.id] = activeSession;
+      if (workersData.length > 0) {
+        const workerIds = workersData.map(w => w.id);
+        const { data: activeSessions, error: clockInError } = await supabase
+          .from('time_tracking')
+          .select(`
+            id, worker_id, project_id, service_plan_id, clock_in, clock_out, break_start, break_end, breaks, notes, location_lat, location_lng,
+            projects:project_id (
+              id,
+              name
+            ),
+            service_plans:service_plan_id (
+              id,
+              name
+            )
+          `)
+          .in('worker_id', workerIds)
+          .is('clock_out', null)
+          .order('clock_in', { ascending: false });
+
+        if (!clockInError && activeSessions) {
+          // Keep only the most recent active session per worker
+          for (const session of activeSessions) {
+            if (!clockIns[session.worker_id]) {
+              clockIns[session.worker_id] = session;
+            }
+          }
         }
       }
 
@@ -294,11 +315,30 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
     try {
       if (workers.length === 0) return;
 
+      const workerIds = workers.map(w => w.id);
+      const { data: activeSessions, error: clockInError } = await supabase
+        .from('time_tracking')
+        .select(`
+          id, worker_id, project_id, service_plan_id, clock_in, clock_out, break_start, break_end, breaks, notes, location_lat, location_lng,
+          projects:project_id (
+            id,
+            name
+          ),
+          service_plans:service_plan_id (
+            id,
+            name
+          )
+        `)
+        .in('worker_id', workerIds)
+        .is('clock_out', null)
+        .order('clock_in', { ascending: false });
+
       const clockIns = {};
-      for (const worker of workers) {
-        const activeSession = await getActiveClockIn(worker.id);
-        if (activeSession) {
-          clockIns[worker.id] = activeSession;
+      if (!clockInError && activeSessions) {
+        for (const session of activeSessions) {
+          if (!clockIns[session.worker_id]) {
+            clockIns[session.worker_id] = session;
+          }
         }
       }
       setActiveClockIns(clockIns);
