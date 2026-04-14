@@ -368,7 +368,7 @@ export default function OwnerWorkersScreen() {
 
       setPendingInvites(inviteData || []);
     } catch (error) {
-      console.log('Supervisor fetch error:', error);
+      // Supervisor fetch error handled silently
     } finally {
       setSupervisorsLoading(false);
       setRefreshing(false);
@@ -422,7 +422,7 @@ export default function OwnerWorkersScreen() {
         setWorkers([]);
       }
     } catch (error) {
-      console.log('Worker fetch error:', error);
+      // Worker fetch error handled silently
     } finally {
       setWorkersLoading(false);
     }
@@ -628,7 +628,6 @@ export default function OwnerWorkersScreen() {
         Alert.alert(t('success.title'), t('success.workerAdded'));
       }
     } catch (error) {
-      console.log('Add worker error:', error);
       Alert.alert(t('errors.error'), t('errors.saveFailed'));
     } finally {
       setAddingWorker(false);
@@ -692,7 +691,6 @@ export default function OwnerWorkersScreen() {
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => {
-              console.log('[OwnerWorkersScreen] Add Team Member pressed');
               setShowRolePicker(true);
             }}
             activeOpacity={0.8}

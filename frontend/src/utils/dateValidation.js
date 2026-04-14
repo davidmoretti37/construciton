@@ -136,8 +136,6 @@ export const correctEventDates = (eventData) => {
   // Check and correct start_datetime
   const startVerification = verifyWeekdayDate(eventData.start_datetime, eventData.date_reference);
   if (!startVerification.matches && startVerification.correctedDate) {
-    console.log(`📅 [dateValidation] Correcting start date: ${eventData.start_datetime} → ${startVerification.correctedDate}`);
-    console.log(`   Expected: ${startVerification.dayMismatch?.expected}, Got: ${startVerification.dayMismatch?.actual}`);
     corrected.start_datetime = startVerification.correctedDate;
   }
 
@@ -145,7 +143,6 @@ export const correctEventDates = (eventData) => {
   if (eventData.end_datetime) {
     const endVerification = verifyWeekdayDate(eventData.end_datetime, eventData.date_reference);
     if (!endVerification.matches && endVerification.correctedDate) {
-      console.log(`📅 [dateValidation] Correcting end date: ${eventData.end_datetime} → ${endVerification.correctedDate}`);
       corrected.end_datetime = endVerification.correctedDate;
     }
   }

@@ -432,7 +432,7 @@ export const assignWorkerToServicePlan = async (workerId, servicePlanId) => {
         .gte('scheduled_date', today)
         .neq('status', 'completed')
         .neq('status', 'cancelled')
-        .then(() => console.log('[Workers] Auto-assigned sole worker to all visits'))
+        .then(() => {})
         .catch(() => {});
     }
     // If multiple workers: owner must set per-location via "Set Default Worker"
@@ -1096,7 +1096,6 @@ export const updateSupervisorProfile = async (supervisorId, updates) => {
         }
       }
     } catch (e) {
-      console.log('Backend API unavailable for supervisor update:', e.message);
     }
 
     // Fallback: direct Supabase update (only works if user owns the row)
@@ -1150,7 +1149,6 @@ export const removeSupervisor = async (supervisorId) => {
         }
       }
     } catch (e) {
-      console.log('Backend API unavailable for supervisor removal:', e.message);
     }
 
     // Fallback: direct Supabase

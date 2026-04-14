@@ -60,7 +60,6 @@ export function queueAction(action) {
     queuedAt: new Date().toISOString(),
   });
   saveQueue(queue);
-  console.log(`[OfflineQueue] Queued: ${action.type} (${queue.length} pending)`);
 }
 
 /**
@@ -100,8 +99,6 @@ export async function processQueue() {
   const queue = getQueue();
   if (queue.length === 0) return { processed: 0, failed: 0 };
 
-  console.log(`[OfflineQueue] Processing ${queue.length} queued actions...`);
-
   let processed = 0;
   let failed = 0;
   const remaining = [];
@@ -123,7 +120,6 @@ export async function processQueue() {
   }
 
   saveQueue(remaining);
-  console.log(`[OfflineQueue] Done: ${processed} processed, ${failed} failed, ${remaining.length} remaining`);
   return { processed, failed };
 }
 

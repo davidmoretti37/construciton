@@ -22,7 +22,6 @@ export const getProjectTypeTemplate = async (projectType) => {
       .single();
 
     if (error) {
-      console.log('[ConstructionKnowledge] No template found for:', projectType);
       return null;
     }
 

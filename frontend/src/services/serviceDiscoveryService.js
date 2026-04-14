@@ -42,19 +42,15 @@ export const discoverServices = async (query, userId = null) => {
 
     // 2. Return results if found
     if (results.length > 0) {
-      console.log(`✓ Found ${results.length} matches in database for "${query}"`);
       return results;
     }
 
     // 3. No results found - check if query looks like a valid service
     if (!isValidServiceQuery(query)) {
-      console.log(`✗ Query "${query}" doesn't look like a valid service`);
       return [];
     }
 
     // 4. Generate with AI (will be saved to DB for future users)
-    console.log(`🤖 No results found, generating template for "${query}"`);
-
     const generatedService = await generateAndSaveTemplate(query);
 
     // Log successful generation

@@ -183,8 +183,6 @@ export const saveProject = async (projectData) => {
       non_working_dates: projectData.nonWorkingDates || [],
     };
 
-    console.log('💾 [saveProject] Working days:', dbProject.working_days);
-
     let result;
     const isNewProject = !projectData.id || projectData.id.startsWith('temp-');
 
@@ -195,7 +193,6 @@ export const saveProject = async (projectData) => {
       try {
         const limitCheck = await subscriptionService.canCreateProject();
         if (!limitCheck.can_create) {
-          console.log('⚠️ [saveProject] Project limit reached:', limitCheck);
           return {
             error: 'limit_reached',
             reason: limitCheck.reason,
@@ -221,7 +218,6 @@ export const saveProject = async (projectData) => {
 
       if (error) throw error;
       result = data;
-      console.log('✅ [saveProject] Updated project:', result.id, 'location:', result.location);
     } else {
       const { data, error } = await supabase
         .from('projects')
@@ -231,7 +227,6 @@ export const saveProject = async (projectData) => {
 
       if (error) throw error;
       result = data;
-      console.log('✅ [saveProject] Created project:', result.id, 'location:', result.location);
     }
 
     // Save phases if provided (this also creates worker_tasks distributed across working days)
@@ -380,7 +375,6 @@ export const fetchProjects = async () => {
       // Offline fallback: return cached data
       const cached = getCachedData('projects', true);
       if (cached) {
-        console.log('📦 [fetchProjects] Returning cached data');
         return cached;
       }
       return [];
@@ -448,8 +442,6 @@ export const fetchProjectsForOwner = async () => {
 
     // Include owner's own projects too
     const allIds = [context.userId, ...supervisorIds];
-
-    console.log('🟢🟢🟢 PATCHED fetchProjectsForOwner running - NO client column');
 
     const { data, error } = await supabase
       .from('projects')

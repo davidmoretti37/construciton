@@ -89,7 +89,6 @@ export default function TimeEditModal({
           // Non-JSON response (HTML 404) = endpoint not deployed yet, fall through
         }
       } catch (e) {
-        console.log('Backend API unavailable, using direct update:', e.message);
       }
 
       // Fallback: try Supabase RPC (bypasses RLS with server-side auth)
@@ -106,7 +105,6 @@ export default function TimeEditModal({
             rpcSuccess = true;
           }
         } catch (e) {
-          console.log('RPC not available, using direct update:', e.message);
         }
 
         // Last resort: direct Supabase update (only works when user owns the row)

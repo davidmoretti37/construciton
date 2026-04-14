@@ -164,7 +164,6 @@ export default function EstimatePreview({ data, onAction }) {
             sourceId: data.id || data.estimateId,
             projectName: projectName,
           });
-          console.log(`📊 Recorded price correction: ${newItem.description} ($${originalItem.price} → $${newItem.price})`);
         }
       }
     } catch (correctionErr) {

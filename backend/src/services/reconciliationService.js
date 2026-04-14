@@ -29,17 +29,33 @@ async function reconcileTransactions(userId, bankAccountId, supabase) {
     return { autoMatched: 0, suggestedMatch: 0, unmatched: 0 };
   }
 
-  // Get date range from bank transactions (with buffer)
-  const dates = bankTxs.map(tx => new Date(tx.date));
+  // Get date range from bank transactions (with buffer), filtering out null/invalid dates
+  const dates = bankTxs.map(tx => tx.date ? new Date(tx.date) : null).filter(d => d && !isNaN(d));
+  if (dates.length === 0) {
+    return { autoMatched: 0, suggestedMatch: 0, unmatched: bankTxs.length };
+  }
   const minDate = new Date(Math.min(...dates));
   const maxDate = new Date(Math.max(...dates));
   minDate.setDate(minDate.getDate() - 3);
   maxDate.setDate(maxDate.getDate() + 3);
 
-  // Get all platform project_transactions in the date range for this user
+  // Get user's project IDs first, then query only their transactions
+  const { data: userProjects } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('user_id', userId);
+
+  const userProjectIds = (userProjects || []).map(p => p.id);
+
+  if (userProjectIds.length === 0) {
+    return { autoMatched: 0, suggestedMatch: 0, unmatched: bankTxs.length };
+  }
+
+  // Get platform project_transactions scoped to this user's projects
   const { data: platformTxs, error: platformError } = await supabase
     .from('project_transactions')
     .select('id, project_id, type, category, description, amount, date, payment_method, bank_transaction_id')
+    .in('project_id', userProjectIds)
     .gte('date', minDate.toISOString().split('T')[0])
     .lte('date', maxDate.toISOString().split('T')[0])
     .is('bank_transaction_id', null); // Only unlinked platform transactions
@@ -49,14 +65,7 @@ async function reconcileTransactions(userId, bankAccountId, supabase) {
     return { autoMatched: 0, suggestedMatch: 0, unmatched: bankTxs.length };
   }
 
-  // Also need to filter platform transactions by user's projects
-  const { data: userProjects } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('user_id', userId);
-
-  const userProjectIds = new Set((userProjects || []).map(p => p.id));
-  const filteredPlatformTxs = (platformTxs || []).filter(tx => userProjectIds.has(tx.project_id));
+  const filteredPlatformTxs = platformTxs || [];
 
   // Get active overhead items for overhead matching
   const { data: overheadItems } = await supabase

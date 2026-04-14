@@ -27,7 +27,6 @@ export function useDashboard() {
         return;
       }
 
-      console.log("[Dashboard] Fetching for:", session.user.id);
       const result = await fetchDashboardData(supabase, session.user.id);
       setData(result);
     } catch (e) {

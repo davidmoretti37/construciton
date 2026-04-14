@@ -51,7 +51,6 @@ export default function LoginScreen({ navigation }) {
       });
 
       if (error) throw error;
-      console.log('Login successful:', data);
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert(t('login.errors.loginFailed'), error.message || t('login.errors.invalidCredentials'));

@@ -67,7 +67,6 @@ export default function ClientTimelineScreen() {
           setPhases(calendar?.phases || []);
           setEvents([...(calendar?.tasks || []), ...(calendar?.events || [])]);
         } catch (calErr) {
-          console.log('Calendar endpoint failed, using project phases:', calErr.message);
           const proj = await fetchProject(pid).catch(() => null);
           setPhases(proj?.phases || []);
           setEvents([]);

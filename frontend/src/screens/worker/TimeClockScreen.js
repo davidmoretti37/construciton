@@ -116,8 +116,6 @@ export default function TimeClockScreen({ navigation }) {
         return;
       }
 
-      console.log('Worker data:', workerData);
-
       setWorkerId(workerData.id);
       setOwnerId(workerData.owner_id);
 
@@ -349,7 +347,6 @@ export default function TimeClockScreen({ navigation }) {
         // Try to request permission
         const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
         if (newStatus !== 'granted') {
-          console.log('Location permission not granted');
           return;
         }
       }
@@ -369,11 +366,9 @@ export default function TimeClockScreen({ navigation }) {
 
       if (error) {
         console.error('Failed to update location:', error);
-      } else {
-        console.log('Location updated successfully:', currentLocation.coords);
       }
     } catch (error) {
-      console.log('Background location error (non-critical):', error.message);
+      // Background location error (non-critical)
     }
   };
 
@@ -387,17 +382,14 @@ export default function TimeClockScreen({ navigation }) {
 
       // Clock in immediately without waiting for location
       const session = await clockIn(workerId, projectId, null, null, servicePlanId);
-      console.log('clockIn returned:', session);
 
       if (session) {
-        console.log('Setting activeSession:', session);
         setActiveSession(session);
         Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock in' }));
 
         // Get location in background and update the record
         getLocationAndUpdate(session.id);
       } else {
-        console.log('clockIn returned null/undefined');
         Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'clock in' }));
       }
     } catch (error) {

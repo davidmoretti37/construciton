@@ -15,23 +15,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Auth middleware (standard owner auth)
-const authenticateUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization' });
-  }
-  const token = authHeader.substring(7);
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-    req.user = user;
-    next();
-  } catch (error) {
-    logger.error('[PortalAdmin] Auth error:', error.message);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+const { authenticateUser } = require('../middleware/authenticate');
 
 router.use(authenticateUser);
 
@@ -191,6 +175,12 @@ router.post('/share', async (req, res) => {
       .single();
 
     if (existing) {
+      // Refresh token expiration on re-share so owner can resend the link
+      await supabase
+        .from('project_clients')
+        .update({ token_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() })
+        .eq('id', existing.id);
+
       return res.json({
         message: 'Project already shared with this client',
         accessToken: existing.access_token,
@@ -779,6 +769,20 @@ router.patch('/summaries/:id/approve', async (req, res) => {
  */
 router.get('/ratings/:projectId', async (req, res) => {
   try {
+    const { projectId } = req.params;
+
+    // Verify the project belongs to the authenticated user
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (projectError || !project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
     const { data, error } = await supabase
       .from('satisfaction_ratings')
       .select(`
@@ -786,7 +790,7 @@ router.get('/ratings/:projectId', async (req, res) => {
         clients:client_id (full_name),
         project_phases:phase_id (name)
       `)
-      .eq('project_id', req.params.projectId)
+      .eq('project_id', projectId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;

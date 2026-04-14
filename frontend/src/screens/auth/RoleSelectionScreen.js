@@ -178,13 +178,10 @@ export default function RoleSelectionScreen({ onRoleSelected }) {
     setLoading(true);
 
     try {
-      console.log('🎭 Role Selection - User selected:', roleId);
-
       // Save role to database
       const success = await setRole(roleId);
 
       if (success) {
-        console.log('🎭 Role Selection - Role saved successfully');
         // Call callback to continue to next screen
         if (onRoleSelected) {
           onRoleSelected(roleId);

@@ -3,9 +3,17 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const { fetchDeepgram, fetchGroq } = require('../utils/fetchWithRetry');
 const FormData = require('form-data');
+const { createClient } = require('@supabase/supabase-js');
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const { authenticateUser } = require('../middleware/authenticate');
 
 // Transcribe audio - Groq Whisper (fast) with Deepgram fallback
-router.post('/transcribe', async (req, res) => {
+router.post('/transcribe', authenticateUser, async (req, res) => {
   try {
     const { audio, contentType = 'audio/m4a', language = 'en' } = req.body;
 

@@ -30,7 +30,6 @@ const normalizeProjectData = (projectData) => {
         const calculatedDays = Math.max(1, daysDiff);
 
         if (calculatedDays !== phase.plannedDays) {
-          console.log(`📅 [normalize] Fixed "${phase.name}": ${phase.plannedDays} -> ${calculatedDays} days (from phaseSchedule)`);
           return { ...phase, plannedDays: calculatedDays };
         }
       }
@@ -48,7 +47,6 @@ const normalizeProjectData = (projectData) => {
       return { ...projectData, phases: normalizedPhases };
     }
 
-    console.log(`📅 [normalize] phaseSchedule misaligned (${firstPhaseStart}→${lastPhaseEnd} vs ${projectStart}→${projectEnd}). Regenerating...`);
     // Fall through to Case 2 to regenerate phaseSchedule with correct dates
   }
 
@@ -69,7 +67,6 @@ const normalizeProjectData = (projectData) => {
       return projectData;
     }
 
-    console.log(`📅 [normalize] Timeline ${totalDays} days != phases ${totalPhaseDays} days. Redistributing...`);
 
     // Distribute proportionally using floor for all but last phase
     const scaleFactor = totalDays / totalPhaseDays;
@@ -86,7 +83,6 @@ const normalizeProjectData = (projectData) => {
         remainingDays -= scaledDays;
       }
 
-      console.log(`📅 [normalize] "${phase.name}": ${originalDays} -> ${scaledDays} days`);
       return { ...phase, plannedDays: scaledDays };
     });
 
@@ -264,7 +260,6 @@ export default function ProjectPreview({ data, onAction }) {
       // New end date is last phase's end date
       const newEndDate = newPhaseSchedule[newPhaseSchedule.length - 1]?.endDate;
 
-      console.log('📅 [handlePhaseDaysChange] Updated:', updatedPhases.map(p => `${p.name}: ${p.plannedDays}`), 'End:', newEndDate);
 
       setEditedData({
         ...editedData,
@@ -468,7 +463,6 @@ export default function ProjectPreview({ data, onAction }) {
 
   // Handle date picker change - just store pending value, don't apply yet
   const handleDatePickerChange = (event, selectedDate) => {
-    console.log('📅 [handleDatePickerChange] event type:', event?.type, 'selectedDate:', selectedDate?.toISOString());
 
     if (Platform.OS === 'android') {
       // On Android, apply immediately and close
@@ -478,7 +472,6 @@ export default function ProjectPreview({ data, onAction }) {
       }
     } else if (selectedDate) {
       // On iOS, just update pending date (apply on Done)
-      console.log('📅 [handleDatePickerChange] iOS - setting pendingDate to:', selectedDate.toISOString().split('T')[0]);
       setPendingDate(selectedDate);
     }
   };
@@ -490,7 +483,6 @@ export default function ProjectPreview({ data, onAction }) {
     const currentStartDate = currentSchedule.startDate || date;
     const currentEndDate = currentSchedule.estimatedEndDate || currentSchedule.projectdEndDate;
 
-    console.log('📅 [applyDateChange] Applying date:', dateStr, 'mode:', datePickerMode);
 
     if (datePickerMode === 'start') {
       handleTimelineChange(dateStr, currentEndDate);
@@ -509,7 +501,6 @@ export default function ProjectPreview({ data, onAction }) {
 
   // Handle timeline change - scales phases to fit user's selected dates
   const handleTimelineChange = (newStartDate, newEndDate) => {
-    console.log('📅 [handleTimelineChange] Called with start:', newStartDate, 'end:', newEndDate);
     const currentPhases = editedData.phases || phases;
     const currentSchedule = editedData.schedule || schedule;
 
@@ -580,10 +571,8 @@ export default function ProjectPreview({ data, onAction }) {
       });
     });
 
-    console.log('📅 [handleTimelineChange] Scaled phases:', updatedPhases.map(p => `${p.name}: ${p.plannedDays} days`));
 
     // FIX: Use the user's selected end date, not calculated from phases
-    console.log('📅 [handleTimelineChange] Setting schedule with startDate:', newStartDate, 'endDate:', newEndDate);
     setEditedData({
       ...editedData,
       date: newStartDate,
@@ -596,7 +585,6 @@ export default function ProjectPreview({ data, onAction }) {
         phaseSchedule: newPhaseSchedule
       }
     });
-    console.log('📅 [handleTimelineChange] Ref should now have:', editedDataRef.current?.schedule);
   };
 
   // Working days update handler

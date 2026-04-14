@@ -95,15 +95,12 @@ const AIInputWithSearch = ({
   useEffect(() => {
     if (onPopulateInput) {
       const populateFunction = (text) => {
-        console.log('populateFunction called with text:', text);
         setValue(text);
         // Focus the input after populating
         setTimeout(() => {
-          console.log('Attempting to focus input');
           inputRef.current?.focus();
         }, 100);
       };
-      console.log('Setting up populateFunction in parent');
       onPopulateInput(populateFunction);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,7 +273,6 @@ const AIInputWithSearch = ({
         );
       }, 600);
 
-      console.log('🎙️ Recording started (voice mode enabled for fast AI)');
 
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -303,7 +299,6 @@ const AIInputWithSearch = ({
     if (!recording) return;
 
     try {
-      console.log('🛑 Stopping recording...');
       setIsRecording(false);
 
       // Stop pulse animations (but keep circle visible for transcribing)
@@ -319,7 +314,6 @@ const AIInputWithSearch = ({
       const uri = recording.getURI();
       setRecording(null);
 
-      console.log('📁 Recording stopped, URI:', uri);
 
       if (uri) {
         // Start transcription immediately
@@ -339,14 +333,12 @@ const AIInputWithSearch = ({
       const savedLanguage = await getSelectedLanguage();
       const language = savedLanguage || 'en';
 
-      console.log('Starting transcription for:', audioUri, 'language:', language);
 
       // Read audio file as base64
       const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      console.log('Sending to backend for transcription...');
 
       // Create abort controller for timeout
       const controller = new AbortController();
@@ -371,7 +363,6 @@ const AIInputWithSearch = ({
 
       clearTimeout(timeoutId);
 
-      console.log('Transcription API response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -382,11 +373,9 @@ const AIInputWithSearch = ({
       const data = await response.json();
       const text = data.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
 
-      console.log('Transcribed text:', text);
 
       if (text.trim()) {
         // Auto-send the transcribed text
-        console.log('Auto-sending transcribed text:', text);
         setIsTranscribing(false);
         animateBackToInput();
         onSubmit?.(text, false);

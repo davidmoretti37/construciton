@@ -99,9 +99,6 @@ export default function EditInvoiceSetupScreen({ navigation }) {
     try {
       const profile = await getUserProfile();
 
-      console.log('📥 Loading invoice data...');
-      console.log('Profile exists:', !!profile);
-      console.log('BusinessInfo exists:', !!profile?.businessInfo);
 
       if (profile && profile.businessInfo) {
         const { businessInfo } = profile;
@@ -118,11 +115,8 @@ export default function EditInvoiceSetupScreen({ navigation }) {
         // Parse payment info
         if (businessInfo.paymentInfo) {
           const paymentInfo = businessInfo.paymentInfo;
-          console.log('💳 Payment info found:', paymentInfo);
-          console.log('💳 Payment info length:', paymentInfo.length);
 
           if (paymentInfo.includes('Zelle:')) {
-            console.log('✅ Found Zelle in payment info');
             setEnabledPayments(prev => ({ ...prev, zelle: true }));
 
             // Try multiple regex patterns to match different formats
@@ -139,19 +133,15 @@ export default function EditInvoiceSetupScreen({ navigation }) {
                 const firstLine = afterZelle.split('\n')[0].trim();
                 if (firstLine) {
                   setZelleInfo(firstLine);
-                  console.log('✅ Zelle info extracted (manual):', firstLine);
                 }
               }
             } else {
-              console.log('✅ Zelle info extracted (regex):', match[1]);
               setZelleInfo(match[1].trim());
             }
           } else {
-            console.log('⚠️ Zelle not found in payment info');
           }
 
           if (paymentInfo.includes('Bank Transfer')) {
-            console.log('✅ Found Bank Transfer in payment info');
             setEnabledPayments(prev => ({ ...prev, bank: true }));
 
             const bankMatch = paymentInfo.match(/Bank Transfer.*?\n\s*(.+?)(?:\n|$)/);
@@ -161,56 +151,44 @@ export default function EditInvoiceSetupScreen({ navigation }) {
 
             if (bankMatch) {
               setBankName(bankMatch[1].trim());
-              console.log('✅ Bank name extracted:', bankMatch[1].trim());
             }
             if (accountMatch) {
               setAccountNumber(accountMatch[1].trim());
-              console.log('✅ Account number extracted:', accountMatch[1].trim());
             }
             if (achMatch) {
               setAchRouting(achMatch[1].trim());
-              console.log('✅ ACH routing extracted:', achMatch[1].trim());
             }
             if (wireMatch) {
               setWireRouting(wireMatch[1].trim());
-              console.log('✅ Wire routing extracted:', wireMatch[1].trim());
             }
           }
 
           if (paymentInfo.includes('PayPal:')) {
-            console.log('✅ Found PayPal in payment info');
             setEnabledPayments(prev => ({ ...prev, paypal: true }));
             const match = paymentInfo.match(/PayPal:\s*(.+?)(?:\n|$)/);
             if (match) {
               setPaypalInfo(match[1].trim());
-              console.log('✅ PayPal info extracted:', match[1].trim());
             }
           }
 
           if (paymentInfo.includes('Venmo:')) {
-            console.log('✅ Found Venmo in payment info');
             setEnabledPayments(prev => ({ ...prev, venmo: true }));
             const match = paymentInfo.match(/Venmo:\s*(.+?)(?:\n|$)/);
             if (match) {
               setVenmoInfo(match[1].trim());
-              console.log('✅ Venmo info extracted:', match[1].trim());
             }
           }
 
           if (paymentInfo.includes('Cash App:')) {
-            console.log('✅ Found Cash App in payment info');
             setEnabledPayments(prev => ({ ...prev, cashapp: true }));
             const match = paymentInfo.match(/Cash App:\s*(.+?)(?:\n|$)/);
             if (match) {
               setCashAppInfo(match[1].trim());
-              console.log('✅ Cash App info extracted:', match[1].trim());
             }
           }
         } else {
-          console.log('⚠️ No payment info in businessInfo');
         }
       } else {
-        console.log('⚠️ No profile or businessInfo found');
       }
     } catch (error) {
       console.error('Error loading invoice data:', error);

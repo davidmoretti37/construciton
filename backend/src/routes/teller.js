@@ -66,15 +66,21 @@ async function tellerFetch(accessToken, path, method = 'GET') {
     options.agent = tellerAgent;
   }
 
-  const response = await fetch(url, options);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
 
-  if (!response.ok) {
-    const errorBody = await response.text().catch(() => '');
-    throw new Error(`Teller API ${method} ${path} failed: ${response.status} ${errorBody}`);
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new Error(`Teller API ${method} ${path} failed: ${response.status} ${errorBody}`);
+    }
+
+    if (response.status === 204) return null;
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
   }
-
-  if (response.status === 204) return null;
-  return response.json();
 }
 
 // Initialize Supabase Admin Client
@@ -393,9 +399,17 @@ async function autoSplitWorkerPayment(userId, bankTxId, workerId, workerName, am
   const projectNames = {};
   (projects || []).forEach(p => { projectNames[p.id] = p.name; });
 
-  for (const projectId of projectIds) {
+  const absAmountCents = Math.round(absAmount * 100);
+  let allocatedCents = 0;
+  for (let idx = 0; idx < projectIds.length; idx++) {
+    const projectId = projectIds[idx];
     const proportion = projectHours[projectId] / totalHours;
-    const splitAmount = Math.round(absAmount * proportion * 100) / 100;
+    // Last item gets the remainder to ensure cents add up exactly
+    const splitCents = idx === projectIds.length - 1
+      ? absAmountCents - allocatedCents
+      : Math.round(absAmountCents * proportion);
+    allocatedCents += splitCents;
+    const splitAmount = splitCents / 100;
 
     const { data: ptx } = await supabaseAdmin
       .from('project_transactions')
@@ -421,33 +435,7 @@ async function autoSplitWorkerPayment(userId, bankTxId, workerId, workerName, am
   return createdTxs;
 }
 
-// ============================================================
-// AUTHENTICATION MIDDLEWARE
-// ============================================================
-const authenticateUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid authorization header' });
-  }
-
-  const token = authHeader.substring(7);
-
-  try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      logger.warn('Auth failed:', error?.message || 'No user found');
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    logger.error('Authentication error:', error);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+const { authenticateUser } = require('../middleware/authenticate');
 
 // Owner-only middleware
 const requireOwnerRole = async (req, res, next) => {
@@ -1723,7 +1711,7 @@ async function syncAccountTransactions(userId, account, overrideFromDate = null)
         return txDate >= cutoff;
       });
       if (allTransactions.length < beforeFilter) {
-        console.log(`📅 Filtered ${beforeFilter - allTransactions.length} transactions before ${startDate}`);
+        logger.debug(`Filtered ${beforeFilter - allTransactions.length} transactions before ${startDate}`);
       }
     }
 

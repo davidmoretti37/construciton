@@ -8,6 +8,12 @@ const router = express.Router();
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
+const { sendPushToUser } = require('../services/pushNotificationService');
+
+// Fail fast if BACKEND_URL is missing in production — Stripe redirects would go nowhere
+if (process.env.NODE_ENV === 'production' && !process.env.BACKEND_URL) {
+  throw new Error('BACKEND_URL must be set in production — Stripe checkout redirects depend on it');
+}
 
 // Initialize Stripe (only if key is configured)
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -42,34 +48,7 @@ const requireStripe = (req, res, next) => {
 };
 router.use(requireStripe);
 
-// ============================================================
-// AUTHENTICATION MIDDLEWARE
-// Verifies Supabase JWT token from Authorization header
-// ============================================================
-const authenticateUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid authorization header' });
-  }
-
-  const token = authHeader.substring(7);
-
-  try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      logger.warn('Auth failed:', error?.message || 'No user found');
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    logger.error('Authentication error:', error);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+const { authenticateUser } = require('../middleware/authenticate');
 
 // ============================================================
 // POST /create-guest-checkout
@@ -108,8 +87,8 @@ router.post('/create-guest-checkout', async (req, res) => {
       },
       // Let Stripe collect customer email
       customer_email: undefined,
-      success_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/success?session_id={CHECKOUT_SESSION_ID}&guest=true`,
-      cancel_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/cancel`,
+      success_url: `${process.env.BACKEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}&guest=true`,
+      cancel_url: `${process.env.BACKEND_URL}/subscription/cancel`,
       metadata: {
         guest_checkout: 'true',
         selected_tier: tier,
@@ -200,8 +179,8 @@ router.post('/create-checkout-session', authenticateUser, async (req, res) => {
           supabase_user_id: userId
         },
       },
-      success_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.BACKEND_URL || 'https://construciton-production.up.railway.app'}/subscription/cancel`,
+      success_url: `${process.env.BACKEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.BACKEND_URL}/subscription/cancel`,
       metadata: {
         supabase_user_id: userId
       },
@@ -230,6 +209,11 @@ router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
+  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
+    logger.error('Webhook rejected: missing signature header or STRIPE_WEBHOOK_SECRET env var');
+    return res.status(400).send('Webhook Error: missing signature or secret');
+  }
+
   // Verify webhook signature
   try {
     event = stripe.webhooks.constructEvent(
@@ -243,6 +227,33 @@ router.post('/webhook', async (req, res) => {
   }
 
   logger.info(`Webhook received: ${event.type}`);
+
+  // Idempotency check — Stripe guarantees at-least-once delivery, so we must deduplicate
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from('stripe_webhook_events')
+      .select('id')
+      .eq('event_id', event.id)
+      .single();
+
+    if (existing) {
+      logger.info(`Webhook already processed: ${event.id}, skipping`);
+      return res.json({ received: true, deduplicated: true });
+    }
+
+    // Record that we're processing this event
+    await supabaseAdmin
+      .from('stripe_webhook_events')
+      .insert({ event_id: event.id, event_type: event.type });
+  } catch (idempotencyError) {
+    // If the insert fails with a unique constraint violation, another process already handled it
+    if (idempotencyError?.code === '23505') {
+      logger.info(`Webhook already processed (concurrent): ${event.id}`);
+      return res.json({ received: true, deduplicated: true });
+    }
+    // For other errors (e.g. table doesn't exist yet), log but continue processing
+    logger.warn('Webhook idempotency check failed, proceeding:', idempotencyError?.message);
+  }
 
   try {
     switch (event.type) {
@@ -428,12 +439,35 @@ async function handlePaymentFailed(invoice) {
 }
 
 async function handleTrialEnding(subscription) {
-  // Could send notification to user here
   logger.info(`Trial ending soon for subscription: ${subscription.id}`);
 
-  // Optional: Get user email and send reminder
-  // const userId = subscription.metadata?.supabase_user_id;
-  // if (userId) { ... send email notification ... }
+  const userId = subscription.metadata?.supabase_user_id;
+  if (!userId) {
+    logger.warn('Trial ending but no supabase_user_id in subscription metadata');
+    return;
+  }
+
+  // Calculate days remaining
+  const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
+  const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - Date.now()) / (1000 * 60 * 60 * 24))) : 3;
+
+  // Create in-app notification
+  await supabaseAdmin.from('notifications').insert({
+    user_id: userId,
+    type: 'trial_ending',
+    title: 'Trial Ending Soon',
+    message: `Your free trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Subscribe to keep using all features.`,
+    data: { screen: 'Billing', daysLeft },
+  });
+
+  // Send push notification
+  await sendPushToUser(userId, {
+    title: 'Trial Ending Soon',
+    body: `Your free trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Subscribe to keep all your projects and data.`,
+    data: { type: 'trial_ending', screen: 'Billing' },
+  });
+
+  logger.info(`Trial ending notification sent to user ${userId} (${daysLeft} days left)`);
 }
 
 // ============================================================
@@ -506,10 +540,7 @@ router.post('/create-portal-session', authenticateUser, async (req, res) => {
       return res.status(400).json({ error: 'No subscription found' });
     }
 
-    // Use backend URL for return_url (Stripe requires https://)
-    const baseUrl = process.env.NODE_ENV === 'production'
-      ? 'https://construciton-production.up.railway.app'
-      : `http://localhost:${process.env.PORT || 3000}`;
+    const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
 
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
@@ -635,12 +666,14 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
 
   if (type !== 'portal_invoice_payment' || !invoice_id) return;
 
-  const amountPaid = paymentIntent.amount / 100; // Convert cents to dollars
+  const amountPaidCents = paymentIntent.amount; // Keep in cents for precision
+  const amountPaidDollars = amountPaidCents / 100;
   const paymentMethod = paymentIntent.payment_method_types?.[0] || 'card';
 
+  // Fetch current invoice state
   const { data: invoice, error: fetchError } = await supabaseAdmin
     .from('invoices')
-    .select('id, total, amount_paid')
+    .select('id, total, amount_paid, user_id, project_id, invoice_number')
     .eq('id', invoice_id)
     .single();
 
@@ -649,24 +682,85 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     return;
   }
 
-  const newAmountPaid = parseFloat(invoice.amount_paid || 0) + amountPaid;
-  const newStatus = newAmountPaid >= parseFloat(invoice.total) ? 'paid' : 'partial';
+  // Atomic update with optimistic lock + retry on conflict
+  // All math in integer cents to avoid floating-point drift
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Re-read invoice on retry to get current amount_paid
+    const currentInvoice = attempt === 0 ? invoice : (
+      await supabaseAdmin.from('invoices').select('amount_paid, total').eq('id', invoice_id).single()
+    ).data;
 
-  const { error: updateError } = await supabaseAdmin
-    .from('invoices')
-    .update({
-      amount_paid: newAmountPaid,
-      status: newStatus,
-      payment_method: paymentMethod,
-      paid_date: newStatus === 'paid' ? new Date().toISOString() : null,
-    })
-    .eq('id', invoice_id);
+    if (!currentInvoice) {
+      logger.error(`Invoice ${invoice_id} disappeared during payment update`);
+      return;
+    }
 
-  if (updateError) {
-    logger.error('Error updating invoice after payment:', updateError);
-  } else {
-    logger.info(`Invoice ${invoice_id} updated: ${newStatus}, paid: $${newAmountPaid}`);
+    const existingPaidCents = Math.round(parseFloat(currentInvoice.amount_paid || 0) * 100);
+    const totalCents = Math.round(parseFloat(currentInvoice.total) * 100);
+    const newAmountPaidCents = existingPaidCents + amountPaidCents;
+    const newAmountPaid = newAmountPaidCents / 100;
+    const newStatus = newAmountPaidCents >= totalCents ? 'paid' : 'partial';
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('invoices')
+      .update({
+        amount_paid: newAmountPaid,
+        status: newStatus,
+        payment_method: paymentMethod,
+        paid_date: newStatus === 'paid' ? new Date().toISOString() : null,
+      })
+      .eq('id', invoice_id)
+      // Optimistic lock: only update if amount_paid hasn't changed since we read it
+      .eq('amount_paid', currentInvoice.amount_paid || 0)
+      .select('id');
+
+    if (updateError) {
+      logger.error(`Payment update error (attempt ${attempt + 1}):`, updateError);
+      if (attempt === MAX_RETRIES - 1) return;
+      continue;
+    }
+
+    if (!updated || updated.length === 0) {
+      // Lock conflict — another payment was processed concurrently
+      logger.warn(`Payment optimistic lock conflict for invoice ${invoice_id}, retrying (attempt ${attempt + 1})`);
+      if (attempt === MAX_RETRIES - 1) {
+        logger.error(`CRITICAL: Payment of ${amountPaidCents} cents for invoice ${invoice_id} could not be recorded after ${MAX_RETRIES} attempts`);
+        return;
+      }
+      continue;
+    }
+
+    // Success
+    break;
   }
+
+  // Record immutable payment event for audit trail
+  try {
+    await supabaseAdmin
+      .from('payment_events')
+      .insert({
+        invoice_id: invoice_id,
+        stripe_event_id: paymentIntent.id,
+        amount: amountPaidDollars,
+        currency: paymentIntent.currency || 'usd',
+        payment_method: paymentMethod,
+        status: 'succeeded',
+        user_id: invoice.user_id,
+        project_id: invoice.project_id,
+        metadata: {
+          invoice_number: invoice.invoice_number,
+          stripe_payment_intent: paymentIntent.id,
+          new_amount_paid: newAmountPaid,
+          new_status: newStatus,
+        },
+      });
+  } catch (auditError) {
+    // Don't fail the payment flow if audit logging fails — log and continue
+    logger.error('Failed to record payment event:', auditError?.message);
+  }
+
+  logger.info(`Invoice ${invoice_id} updated: ${newStatus}, paid: $${newAmountPaid}`);
 }
 
 /**
@@ -679,6 +773,15 @@ async function handleAccountUpdated(account) {
   const isComplete = account.charges_enabled && account.payouts_enabled;
 
   if (isComplete) {
+    // Check if already marked complete (avoid duplicate notifications)
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('stripe_onboarding_complete')
+      .eq('id', userId)
+      .single();
+
+    if (profile?.stripe_onboarding_complete) return;
+
     const { error } = await supabaseAdmin
       .from('profiles')
       .update({ stripe_onboarding_complete: true })
@@ -686,6 +789,22 @@ async function handleAccountUpdated(account) {
 
     if (!error) {
       logger.info(`[Connect] Onboarding complete for user ${userId}, account ${account.id}`);
+
+      // Create in-app notification
+      await supabaseAdmin.from('notifications').insert({
+        user_id: userId,
+        type: 'payment_setup_complete',
+        title: 'Payments Active',
+        message: 'Your bank account is connected. You can now receive payments from clients.',
+        data: { accountId: account.id },
+      });
+
+      // Send push notification
+      await sendPushToUser(userId, {
+        title: '💰 Payments Active',
+        body: 'Your bank account is connected! You can now receive payments from clients.',
+        data: { type: 'payment_setup_complete', screen: 'Settings' },
+      });
     }
   }
 }
@@ -717,7 +836,7 @@ router.post('/connect/create-account', authenticateUser, async (req, res) => {
 
     let accountId = profile?.stripe_account_id;
 
-    // Create account if doesn't exist
+    // Create account if doesn't exist — use optimistic lock to prevent duplicate creation
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: 'standard',
@@ -725,10 +844,26 @@ router.post('/connect/create-account', authenticateUser, async (req, res) => {
       });
       accountId = account.id;
 
-      await supabaseAdmin
+      // Only set if still null (prevents race condition with concurrent requests)
+      const { error: updateErr } = await supabaseAdmin
         .from('profiles')
         .update({ stripe_account_id: accountId })
-        .eq('id', userId);
+        .eq('id', userId)
+        .is('stripe_account_id', null);
+
+      if (updateErr) {
+        // Another request won the race — use their account, clean up ours
+        const { data: updated } = await supabaseAdmin
+          .from('profiles')
+          .select('stripe_account_id')
+          .eq('id', userId)
+          .single();
+        if (updated?.stripe_account_id && updated.stripe_account_id !== accountId) {
+          // Delete the orphaned Stripe account we just created
+          try { await stripe.accounts.del(accountId); } catch (_) {}
+          accountId = updated.stripe_account_id;
+        }
+      }
     }
 
     // Create onboarding link

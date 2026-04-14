@@ -150,6 +150,8 @@ export default function ChatScreen({ navigation, route }) {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [showHistorySidebar, setShowHistorySidebar] = useState(false);
   const lastSavedMessageCount = useRef(0); // Track saved messages to avoid duplicates
+  const currentSessionIdRef = useRef(currentSessionId);
+  useEffect(() => { currentSessionIdRef.current = currentSessionId; }, [currentSessionId]);
 
   // Create new chat session (ONLY when explicitly needed)
   const createNewSession = useCallback(async () => {
@@ -167,7 +169,6 @@ export default function ChatScreen({ navigation, route }) {
 
       if (currentSessionId && !hasMessages) {
         // Current session is empty, just clear it and reuse
-        console.log('Clearing and reusing empty session:', currentSessionId);
         setMessages([]);
         setConversationHistory([]);
         lastSavedMessageCount.current = 0;
@@ -185,7 +186,6 @@ export default function ChatScreen({ navigation, route }) {
       // Create a new session only if:
       // 1. No current session exists, OR
       // 2. Current session has messages
-      console.log('Creating new session (current has messages or none exists)');
       const session = await chatHistoryService.createSession();
       setCurrentSessionId(session.id);
       setMessages([]);
@@ -282,7 +282,6 @@ export default function ChatScreen({ navigation, route }) {
           !m.isUser && m.text === result.accumulatedText
         );
         if (!alreadyExists) {
-          console.log('📥 Merging background job response into session');
           // Save to local DB
           await chatHistoryService.saveMessage(sessionId, {
             role: 'assistant',
@@ -307,7 +306,6 @@ export default function ChatScreen({ navigation, route }) {
         AsyncStorage.removeItem('activeAgentSessionId');
       }
     } catch (e) {
-      console.log('Background job check skipped:', e.message);
     }
     return loadedMessages;
   }, []);
@@ -316,30 +314,24 @@ export default function ChatScreen({ navigation, route }) {
   const initializeSession = useCallback(async () => {
     setIsLoadingChat(true);
     try {
-      console.log('🔄 Initializing chat session...');
       // First, try to get existing sessions (now includes message_count)
       const sessions = await chatHistoryService.getSessions();
-      console.log('📋 Found', sessions?.length || 0, 'existing sessions');
 
       if (sessions && sessions.length > 0) {
         // Find empty session using message_count from backend (no extra API calls)
         const emptySession = sessions.find(s => s.message_count === 0);
         if (emptySession) {
-          console.log('✅ Reusing empty session:', emptySession.id);
           setCurrentSessionId(emptySession.id);
           setMessages([]);
           setConversationHistory([]);
           lastSavedMessageCount.current = 0;
         } else {
           // All sessions have messages, load the most recent one
-          console.log('📥 Loading most recent session:', sessions[0].id);
           await loadSession(sessions[0].id);
         }
       } else {
         // No sessions exist, create a new one
-        console.log('🆕 Creating first session');
         const session = await chatHistoryService.createSession();
-        console.log('✅ Created session:', session.id);
         setCurrentSessionId(session.id);
         setMessages([]);
         setConversationHistory([]);
@@ -367,24 +359,20 @@ export default function ChatScreen({ navigation, route }) {
   // Auto-save current message
   const saveCurrentMessage = useCallback(async () => {
     if (!currentSessionId) {
-      console.log('⏭️ Skipping save: No session ID');
       return;
     }
 
     if (messages.length === 0) {
-      console.log('⏭️ Skipping save: No messages');
       return;
     }
 
     if (messages.length <= lastSavedMessageCount.current) {
-      console.log('⏭️ Skipping save: Already saved', messages.length, 'messages');
       return;
     }
 
     try {
       // Save only new messages
       const newMessages = messages.slice(lastSavedMessageCount.current);
-      console.log('💾 Saving', newMessages.length, 'new message(s) to session', currentSessionId.substring(0, 8));
 
       for (const message of newMessages) {
         await chatHistoryService.saveMessage(currentSessionId, {
@@ -393,16 +381,13 @@ export default function ChatScreen({ navigation, route }) {
           visualElements: message.visualElements || [],
           actions: message.actions || []
         });
-        console.log('✅ Saved message:', message.text.substring(0, 50));
       }
 
       // Auto-generate AI-powered title from first user message (before updating lastSavedMessageCount)
       // This should run when we're saving for the first time (empty session)
       if (lastSavedMessageCount.current === 0 && messages.length >= 1 && messages[0].isUser) {
-        console.log('📝 Generating AI title from first message:', messages[0].text.substring(0, 50));
         const title = await chatHistoryService.generateAITitle(messages[0].text);
         await chatHistoryService.updateSessionTitle(currentSessionId, title);
-        console.log('✅ Updated session title to:', title);
       }
 
       lastSavedMessageCount.current = messages.length;
@@ -469,7 +454,6 @@ export default function ChatScreen({ navigation, route }) {
     if (!isStreaming && currentSessionId && messages.length > lastSavedMessageCount.current) {
       // Add a small delay to ensure message is fully rendered
       const saveTimer = setTimeout(() => {
-        console.log('💾 Auto-save triggered (streaming complete)');
         saveCurrentMessage();
       }, 500);
       return () => clearTimeout(saveTimer);
@@ -523,8 +507,8 @@ export default function ChatScreen({ navigation, route }) {
             });
           }
           // Save to local DB immediately so it's there on next launch
-          if (currentSessionId && responseText) {
-            chatHistoryService.saveMessage(currentSessionId, {
+          if (currentSessionIdRef.current && responseText) {
+            chatHistoryService.saveMessage(currentSessionIdRef.current, {
               role: 'assistant',
               content: responseText,
               visualElements: responseVisuals,
@@ -582,7 +566,6 @@ export default function ChatScreen({ navigation, route }) {
         }
         // Save current state immediately
         if (currentSessionId && messages.length > lastSavedMessageCount.current) {
-          console.log('📱 App backgrounding, saving messages immediately');
           saveCurrentMessage();
         }
       }
@@ -809,14 +792,6 @@ export default function ChatScreen({ navigation, route }) {
               projectForEstimate: enrichedProject
             });
 
-            console.log('📋 [ChatScreen] Enriched project context for estimate:', {
-              name: enrichedProject.projectName,
-              startDate: projectStartDate,
-              endDate: projectEndDate,
-              duration: projectDuration,
-              workers: workers?.length || 0,
-              laborCost: enrichedProject.calculatedLaborCost
-            });
           }
         } catch (error) {
           console.error('Error enriching project context:', error);
@@ -889,8 +864,8 @@ export default function ChatScreen({ navigation, route }) {
     let messageCreated = true;
 
     // Save messageId and session to AsyncStorage immediately (before any async work)
-    AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
-    AsyncStorage.setItem('activeAgentSessionId', currentSessionId);
+    await AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
+    await AsyncStorage.setItem('activeAgentSessionId', currentSessionId);
 
     // Show thinking state immediately
     setIsAIThinking(true);
@@ -962,7 +937,6 @@ export default function ChatScreen({ navigation, route }) {
 
     // Timeout handler — fires if no events received for 50s
     const handleTimeout = () => {
-      console.log('⏱️ AI response timeout - 50 seconds since last event');
       setIsAIThinking(false);
       setStatusMessage(null);
       setShowCardSkeleton(false);
@@ -1044,7 +1018,6 @@ export default function ChatScreen({ navigation, route }) {
         },
         // onComplete callback - Add visual elements
         onComplete: (parsedResponse) => {
-          console.log('🏁 AI streaming complete:', parsedResponse.text?.substring(0, 50) + '...');
           setIsAIThinking(false);
           setIsStreaming(false); // CRITICAL: Set to false ONLY when streaming actually completes
           setStatusMessage(null); // Clear status on complete
@@ -1064,11 +1037,6 @@ export default function ChatScreen({ navigation, route }) {
 
           // Debug logging
           if (__DEV__) {
-            console.log('📊 onComplete received:', {
-              hasVisualElements: parsedResponse.visualElements?.length > 0,
-              visualCount: parsedResponse.visualElements?.length || 0,
-              types: parsedResponse.visualElements?.map(v => v.type) || []
-            });
           }
 
           // Auto-correct: if AI returned project-preview for what is clearly a service plan,
@@ -1112,7 +1080,6 @@ export default function ChatScreen({ navigation, route }) {
             // Verify the update worked
             if (__DEV__) {
               const updatedMsg = updated.find(m => m.id === targetId);
-              console.log('✅ Message updated with visualElements:', updatedMsg?.visualElements?.length || 0);
             }
 
             return updated;
@@ -1144,14 +1111,12 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE financial update actions (deposit/expense)
           const updateAction = parsedResponse.actions?.find(action => action.type === 'update-project-finances');
           if (updateAction) {
-            console.log('🔄 Auto-executing financial update:', updateAction.data);
             projectActions.handleUpdateProjectFinances(updateAction.data);
           }
 
           // AUTO-EXECUTE worker payment queries
           const workerPaymentAction = parsedResponse.actions?.find(action => action.type === 'get-worker-payment');
           if (workerPaymentAction) {
-            console.log('🔄 Auto-executing worker payment query:', workerPaymentAction.data);
             workerActions.handleGetWorkerPayment(workerPaymentAction);
 
             // Clear actions and suggestions from the message since we auto-executed
@@ -1167,14 +1132,12 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE worker creation/update actions
           const createWorkerAction = parsedResponse.actions?.find(action => action.type === 'create-worker');
           if (createWorkerAction) {
-            console.log('🔄 Auto-executing worker creation:', createWorkerAction.data);
             workerActions.handleCreateWorker(createWorkerAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const updateWorkerAction = parsedResponse.actions?.find(action => action.type === 'update-worker');
           if (updateWorkerAction) {
-            console.log('🔄 Auto-executing worker update:', updateWorkerAction.data);
             workerActions.handleUpdateWorker(updateWorkerAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1182,7 +1145,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE delete worker actions (handles multiple deletions)
           const deleteWorkerActions = parsedResponse.actions?.filter(action => action.type === 'delete-worker');
           if (deleteWorkerActions && deleteWorkerActions.length > 0) {
-            console.log('🔄 Auto-executing worker deletions:', deleteWorkerActions.length);
             deleteWorkerActions.forEach(deleteAction => {
               workerActions.handleDeleteWorker(deleteAction.data);
             });
@@ -1194,28 +1156,24 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE clock in/out actions
           const clockInAction = parsedResponse.actions?.find(action => action.type === 'clock-in-worker');
           if (clockInAction) {
-            console.log('🔄 Auto-executing clock in:', clockInAction.data);
             workerActions.handleClockInWorker(clockInAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const clockOutAction = parsedResponse.actions?.find(action => action.type === 'clock-out-worker');
           if (clockOutAction) {
-            console.log('🔄 Auto-executing clock out:', clockOutAction.data);
             workerActions.handleClockOutWorker(clockOutAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const bulkClockInAction = parsedResponse.actions?.find(action => action.type === 'bulk-clock-in');
           if (bulkClockInAction) {
-            console.log('🔄 Auto-executing bulk clock in:', bulkClockInAction.data);
             workerActions.handleBulkClockIn(bulkClockInAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const bulkClockOutAction = parsedResponse.actions?.find(action => action.type === 'bulk-clock-out');
           if (bulkClockOutAction) {
-            console.log('🔄 Auto-executing bulk clock out:', bulkClockOutAction.data);
             workerActions.handleBulkClockOut(bulkClockOutAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1223,21 +1181,18 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE time entry actions
           const editTimeAction = parsedResponse.actions?.find(action => action.type === 'edit-time-entry');
           if (editTimeAction) {
-            console.log('🔄 Auto-executing edit time entry:', editTimeAction.data);
             workerActions.handleEditTimeEntry(editTimeAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const createTimeAction = parsedResponse.actions?.find(action => action.type === 'create-time-entry');
           if (createTimeAction) {
-            console.log('🔄 Auto-executing create time entry:', createTimeAction.data);
             workerActions.handleCreateTimeEntry(createTimeAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const deleteTimeAction = parsedResponse.actions?.find(action => action.type === 'delete-time-entry');
           if (deleteTimeAction) {
-            console.log('🔄 Auto-executing delete time entry:', deleteTimeAction.data);
             workerActions.handleDeleteTimeEntry(deleteTimeAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1245,21 +1200,18 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE availability actions
           const setAvailabilityAction = parsedResponse.actions?.find(action => action.type === 'set-worker-availability');
           if (setAvailabilityAction) {
-            console.log('🔄 Auto-executing set availability:', setAvailabilityAction.data);
             workerActions.handleSetWorkerAvailability(setAvailabilityAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const setPTOAction = parsedResponse.actions?.find(action => action.type === 'set-worker-pto');
           if (setPTOAction) {
-            console.log('🔄 Auto-executing set PTO:', setPTOAction.data);
             workerActions.handleSetWorkerPTO(setPTOAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const removeAvailabilityAction = parsedResponse.actions?.find(action => action.type === 'remove-worker-availability');
           if (removeAvailabilityAction) {
-            console.log('🔄 Auto-executing remove availability:', removeAvailabilityAction.data);
             workerActions.handleRemoveWorkerAvailability(removeAvailabilityAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1267,21 +1219,18 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE crew actions
           const createCrewAction = parsedResponse.actions?.find(action => action.type === 'create-crew');
           if (createCrewAction) {
-            console.log('🔄 Auto-executing create crew:', createCrewAction.data);
             workerActions.handleCreateCrew(createCrewAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const updateCrewAction = parsedResponse.actions?.find(action => action.type === 'update-crew');
           if (updateCrewAction) {
-            console.log('🔄 Auto-executing update crew:', updateCrewAction.data);
             workerActions.handleUpdateCrew(updateCrewAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const deleteCrewAction = parsedResponse.actions?.find(action => action.type === 'delete-crew');
           if (deleteCrewAction) {
-            console.log('🔄 Auto-executing delete crew:', deleteCrewAction.data);
             workerActions.handleDeleteCrew(deleteCrewAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1289,21 +1238,18 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE shift template actions
           const createShiftAction = parsedResponse.actions?.find(action => action.type === 'create-shift-template');
           if (createShiftAction) {
-            console.log('🔄 Auto-executing create shift template:', createShiftAction.data);
             workerActions.handleCreateShiftTemplate(createShiftAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const applyShiftAction = parsedResponse.actions?.find(action => action.type === 'apply-shift-template');
           if (applyShiftAction) {
-            console.log('🔄 Auto-executing apply shift template:', applyShiftAction.data);
             workerActions.handleApplyShiftTemplate(applyShiftAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const deleteShiftAction = parsedResponse.actions?.find(action => action.type === 'delete-shift-template');
           if (deleteShiftAction) {
-            console.log('🔄 Auto-executing delete shift template:', deleteShiftAction.data);
             workerActions.handleDeleteShiftTemplate(deleteShiftAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1311,14 +1257,12 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE break actions
           const startBreakAction = parsedResponse.actions?.find(action => action.type === 'start-break');
           if (startBreakAction) {
-            console.log('🔄 Auto-executing start break:', startBreakAction.data);
             workerActions.handleStartBreak(startBreakAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
 
           const endBreakAction = parsedResponse.actions?.find(action => action.type === 'end-break');
           if (endBreakAction) {
-            console.log('🔄 Auto-executing end break:', endBreakAction.data);
             workerActions.handleEndBreak(endBreakAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1326,7 +1270,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE swap shifts action
           const swapShiftsAction = parsedResponse.actions?.find(action => action.type === 'swap-shifts');
           if (swapShiftsAction) {
-            console.log('🔄 Auto-executing swap shifts:', swapShiftsAction.data);
             workerActions.handleSwapShifts(swapShiftsAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1337,7 +1280,6 @@ export default function ChatScreen({ navigation, route }) {
           const deleteScheduleAction = parsedResponse.actions?.find(action => action.type === 'delete-schedule-event');
 
           if (createScheduleAction) {
-            console.log('🔄 Auto-executing schedule event creation:', createScheduleAction.data);
             scheduleActions.handleCreateScheduleEvent(createScheduleAction.data);
 
             // Clear actions and suggestions from the message since we auto-executed
@@ -1349,7 +1291,6 @@ export default function ChatScreen({ navigation, route }) {
               )
             );
           } else if (updateScheduleAction) {
-            console.log('🔄 Auto-executing schedule event update:', updateScheduleAction.data);
             scheduleActions.handleUpdateScheduleEvent(updateScheduleAction.data);
 
             // Clear actions and suggestions
@@ -1361,7 +1302,6 @@ export default function ChatScreen({ navigation, route }) {
               )
             );
           } else if (deleteScheduleAction) {
-            console.log('🔄 Auto-executing schedule event deletion:', deleteScheduleAction.data);
             scheduleActions.handleDeleteScheduleEvent(deleteScheduleAction.data);
 
             // Remove the AI message entirely - the handler adds its own confirmation
@@ -1371,7 +1311,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE delete-project action (has confirmation dialog built in)
           const deleteProjectAction = parsedResponse.actions?.find(action => action.type === 'delete-project');
           if (deleteProjectAction) {
-            console.log('🔄 Auto-executing project deletion:', deleteProjectAction.data);
             projectActions.handleDeleteProject(deleteProjectAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1382,7 +1321,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE sync tasks to calendar action
           const syncTasksAction = parsedResponse.actions?.find(action => action.type === 'sync-tasks-to-calendar');
           if (syncTasksAction) {
-            console.log('🔄 Auto-executing sync tasks to calendar:', syncTasksAction.data);
             projectActions.handleSyncProjectTasksToCalendar(syncTasksAction.data);
 
             // Remove the AI message entirely - the handler adds its own confirmation
@@ -1392,7 +1330,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE update project action
           const updateProjectAction = parsedResponse.actions?.find(action => action.type === 'update-project');
           if (updateProjectAction) {
-            console.log('🔄 Auto-executing project update:', updateProjectAction.data);
             projectActions.handleUpdateProject(updateProjectAction.data, { skipConfirmation: true });
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1400,7 +1337,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE add estimate to project choice
           const addEstimateAction = parsedResponse.actions?.find(action => action.type === 'add-estimate-to-project-choice');
           if (addEstimateAction) {
-            console.log('🔄 Auto-executing add estimate to project:', addEstimateAction.data);
             projectActions.handleAddEstimateToProjectChoice(addEstimateAction.data);
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1408,7 +1344,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE update estimate action
           const updateEstimateAction = parsedResponse.actions?.find(action => action.type === 'update-estimate');
           if (updateEstimateAction) {
-            console.log('🔄 Auto-executing estimate update:', updateEstimateAction.data);
             estimateActions.handleUpdateEstimate(updateEstimateAction.data, { skipConfirmation: true });
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1416,7 +1351,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE record invoice payment
           const recordPaymentAction = parsedResponse.actions?.find(action => action.type === 'record-invoice-payment');
           if (recordPaymentAction) {
-            console.log('🔄 Auto-executing invoice payment:', recordPaymentAction.data);
             invoiceActions.handleRecordInvoicePayment(recordPaymentAction.data, { skipConfirmation: true });
             setMessages((prev) => prev.map((msg) => msg.id === aiMessageId ? { ...msg, actions: [] } : msg));
           }
@@ -1424,7 +1358,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE retrieve daily reports action
           const retrieveReportsAction = parsedResponse.actions?.find(action => action.type === 'retrieve-daily-reports');
           if (retrieveReportsAction) {
-            console.log('🔄 Auto-executing retrieve daily reports:', retrieveReportsAction.data);
             reportActions.handleRetrieveDailyReports(retrieveReportsAction.data);
 
             // Clear actions and suggestions from the message since we auto-executed
@@ -1440,7 +1373,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE retrieve photos action
           const retrievePhotosAction = parsedResponse.actions?.find(action => action.type === 'retrieve-photos');
           if (retrievePhotosAction) {
-            console.log('🔄 Auto-executing retrieve photos:', retrievePhotosAction.data);
             reportActions.handleRetrievePhotos(retrievePhotosAction.data);
 
             // Clear actions and suggestions from the message since we auto-executed
@@ -1456,7 +1388,6 @@ export default function ChatScreen({ navigation, route }) {
           // AUTO-EXECUTE retrieve schedule events action
           const retrieveScheduleAction = parsedResponse.actions?.find(action => action.type === 'retrieve-schedule-events');
           if (retrieveScheduleAction) {
-            console.log('🔄 Auto-executing retrieve schedule events:', retrieveScheduleAction.data);
             scheduleActions.handleRetrieveScheduleEvents(retrieveScheduleAction.data);
 
             // Clear actions and suggestions from the message since we auto-executed
@@ -1530,7 +1461,6 @@ export default function ChatScreen({ navigation, route }) {
           // The backend may still be processing — start polling immediately for the result.
           const isNetworkError = error.message === 'Network error' || error.message === 'Network request failed';
           if (isNetworkError) {
-            console.log('📱 Network error (likely backgrounded) — will recover on resume');
             // Keep tracking keys intact — handleAppStateChange will poll immediately on resume
             return;
           }
@@ -1732,7 +1662,6 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   const handleAction = async (action) => {
-    console.log('Action pressed:', action);
 
     // Supervisor restrictions - block certain actions
     const SUPERVISOR_RESTRICTED_ACTIONS = [
@@ -1755,7 +1684,6 @@ export default function ChatScreen({ navigation, route }) {
       switch (action.type) {
       // Navigation & View Actions
       case 'view-project':
-        console.log('View project:', action.data?.projectId || action.data?.id);
         if (action.data?.projectId || action.data?.id) {
           // Navigate to nested screen: Projects tab -> ProjectDetail screen
           navigation.navigate('Projects', {
@@ -1765,10 +1693,8 @@ export default function ChatScreen({ navigation, route }) {
         }
         break;
       case 'view-photos':
-        console.log('View photos for:', action.data.projectId);
         break;
       case 'add-worker':
-        console.log('Add worker');
         break;
       case 'navigate-to-projects':
         navigation.navigate('Projects');
@@ -1784,10 +1710,8 @@ export default function ChatScreen({ navigation, route }) {
         navigation.navigate('Projects');
         break;
       case 'view-estimate':
-        console.log('View estimate:', action.data);
         // Store estimate for invoice creation (Plan A/Plan B pattern)
         CoreAgent.updateConversationState({ lastEstimatePreview: action.data });
-        console.log('📦 Stored estimate in lastEstimatePreview for invoice creation');
         break;
 
       // UI Modal Actions (stay in ChatScreen)
@@ -2621,11 +2545,9 @@ export default function ChatScreen({ navigation, route }) {
 
       // Resolve partial project UUID to full UUID (AI sometimes uses truncated IDs from display)
       if (completeEstimateData.projectId && completeEstimateData.projectId.length < 36) {
-        console.log('⚠️ Partial project ID detected, resolving...', completeEstimateData.projectId);
         const projects = await fetchProjects();
         const fullProjectId = resolveProjectId(projects, completeEstimateData.projectId);
         if (fullProjectId) {
-          console.log('✅ Resolved to full UUID:', fullProjectId);
           completeEstimateData.projectId = fullProjectId;
         } else {
           console.warn('❌ Could not resolve partial project ID, removing link');
@@ -2637,7 +2559,6 @@ export default function ChatScreen({ navigation, route }) {
       const actionHasTasks = estimateData.phases?.some(p => p.tasks?.length > 0);
 
       if (!actionHasTasks) {
-        console.log('⚠️ Action data missing tasks, searching for complete data in preview...');
 
         // Find the most recent message with estimate preview
         for (let i = messages.length - 1; i >= 0; i--) {
@@ -2648,7 +2569,6 @@ export default function ChatScreen({ navigation, route }) {
               const previewHasTasks = estimatePreview.data.phases?.some(p => p.tasks?.length > 0);
 
               if (previewHasTasks) {
-                console.log('✅ Found complete data in preview, merging with action data');
                 // Keep already-resolved projectId (don't overwrite null with bad preview data)
                 const resolvedProjectId = completeEstimateData.projectId;
                 completeEstimateData = {
@@ -2664,14 +2584,6 @@ export default function ChatScreen({ navigation, route }) {
                   // Keep the already-resolved projectId
                   projectId: resolvedProjectId,
                 };
-                console.log('📊 Merged data:', {
-                  phasesCount: completeEstimateData.phases?.length,
-                  tasksInPhases: completeEstimateData.phases?.map(p => p.tasks?.length || 0),
-                  hasSchedule: !!completeEstimateData.schedule,
-                  hasScope: !!completeEstimateData.scope,
-                  lineItemsCount: completeEstimateData.lineItems?.length,
-                  projectId: completeEstimateData.projectId
-                });
                 break;
               }
             }
@@ -2683,7 +2595,6 @@ export default function ChatScreen({ navigation, route }) {
       if (!completeEstimateData.projectId) {
         const savedProjectId = CoreAgent.conversationState?.lastProjectPreview?.id;
         if (savedProjectId && savedProjectId.length === 36) {
-          console.log('✅ Found project ID from saved project in conversation state:', savedProjectId);
           completeEstimateData.projectId = savedProjectId;
         }
       }
@@ -2749,12 +2660,6 @@ export default function ChatScreen({ navigation, route }) {
 
   const handleSaveProject = async (projectData) => {
     try {
-      console.log('💾 [handleSaveProject] Saving project with data:', {
-        hasPhases: !!projectData.phases,
-        phasesCount: projectData.phases?.length,
-        hasSchedule: !!projectData.schedule,
-        hasScope: !!projectData.scope
-      });
 
       // Extract complete data from visualElement if action data is incomplete
       let completeProjectData = projectData;
@@ -2763,7 +2668,6 @@ export default function ChatScreen({ navigation, route }) {
       const actionHasTasks = projectData.phases?.some(p => p.tasks?.length > 0);
 
       if (!actionHasTasks) {
-        console.log('⚠️ Action data missing tasks, searching for complete data in preview...');
 
         // Find the most recent message with project preview
         for (let i = messages.length - 1; i >= 0; i--) {
@@ -2774,7 +2678,6 @@ export default function ChatScreen({ navigation, route }) {
               const previewHasTasks = projectPreview.data.phases?.some(p => p.tasks?.length > 0);
 
               if (previewHasTasks) {
-                console.log('✅ Found complete data in preview, merging with action data');
                 completeProjectData = {
                   ...projectData,
                   // Use preview phases (has tasks)
@@ -2790,14 +2693,6 @@ export default function ChatScreen({ navigation, route }) {
                   workingDays: projectData.workingDays || projectPreview.data.workingDays || [1, 2, 3, 4, 5],
                   nonWorkingDates: projectData.nonWorkingDates || projectPreview.data.nonWorkingDates || [],
                 };
-                console.log('📊 Merged project data:', {
-                  phasesCount: completeProjectData.phases?.length,
-                  tasksInPhases: completeProjectData.phases?.map(p => p.tasks?.length || 0),
-                  workingDays: completeProjectData.workingDays,
-                  hasSchedule: !!completeProjectData.schedule,
-                  hasScope: !!completeProjectData.scope,
-                  lineItemsCount: completeProjectData.lineItems?.length
-                });
                 break;
               }
             }
@@ -2819,7 +2714,6 @@ export default function ChatScreen({ navigation, route }) {
       const savedProject = await saveProject(cleanProjectData);
 
       if (savedProject) {
-        console.log('✅ Project saved successfully:', savedProject.id);
 
         // Update CoreAgent with the saved project data (includes the real ID)
         // This is critical for estimate creation to link to the project
@@ -2836,7 +2730,6 @@ export default function ChatScreen({ navigation, route }) {
           scope: savedProject.scope || cleanProjectData.scope,
         };
         CoreAgent.updateConversationState({ lastProjectPreview: savedProjectPreview });
-        console.log('📦 [ChatScreen] Updated lastProjectPreview with saved project ID:', savedProject.id);
 
         Alert.alert(
           t('common:alerts.success'),
@@ -3022,7 +2915,6 @@ export default function ChatScreen({ navigation, route }) {
 
         // Also update CoreAgent's lastProjectPreview so "Create Estimate" uses the edited data
         CoreAgent.updateConversationState({ lastProjectPreview: updatedProject });
-        console.log('📦 [ChatScreen] Updated lastProjectPreview with edited project data');
       }
     } catch (error) {
       console.error('Error updating project:', error);
@@ -3036,7 +2928,6 @@ export default function ChatScreen({ navigation, route }) {
 
       // If no ID, this is a new unsaved estimate - just update the preview in chat
       if (!estimateId) {
-        console.log('📝 Updating unsaved estimate preview in chat');
         // Update the message in the chat with the edited data (but don't save to DB yet)
         setMessages((prevMessages) => {
           return prevMessages.map((msg) => {
@@ -3638,10 +3529,6 @@ export default function ChatScreen({ navigation, route }) {
           element.data.projectName = mostRecent.data.projectName || mostRecent.data.name;
 
           if (__DEV__) {
-            console.log('✅ Injected project_id into estimate:', {
-              project_id: element.data.project_id,
-              projectName: element.data.projectName
-            });
           }
         }
       }

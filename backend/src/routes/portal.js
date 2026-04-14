@@ -9,6 +9,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { authenticatePortalClient, verifyProjectAccess } = require('../middleware/portalAuth');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -39,6 +40,7 @@ router.post('/auth/verify', async (req, res) => {
         id,
         project_id,
         client_id,
+        token_expires_at,
         clients (
           id,
           owner_id,
@@ -53,6 +55,12 @@ router.post('/auth/verify', async (req, res) => {
     if (pcError || !projectClient || !projectClient.clients) {
       logger.warn('[Portal] Invalid magic link token');
       return res.status(401).json({ error: 'Invalid or expired link' });
+    }
+
+    // Check token expiration
+    if (projectClient.token_expires_at && new Date(projectClient.token_expires_at) < new Date()) {
+      logger.warn('[Portal] Expired magic link token');
+      return res.status(401).json({ error: 'This link has expired. Please ask your contractor to send a new one.' });
     }
 
     const client = projectClient.clients;
@@ -139,6 +147,14 @@ router.post('/auth/logout', authenticatePortalClient, async (req, res) => {
       .from('client_sessions')
       .delete()
       .eq('id', req.client.sessionId);
+
+    // Clear the httpOnly session cookie
+    res.clearCookie('portal_session', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/api/portal',
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -788,9 +804,9 @@ router.post('/invoices/:invoiceId/pay', async (req, res) => {
     if (amountDue <= 0) {
       return res.status(400).json({ error: 'No amount due' });
     }
+    const amountDueCents = Math.round(amountDue * 100);
 
     // Create Stripe checkout session
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
     const portalUrl = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
 
     const session = await stripe.checkout.sessions.create({
@@ -802,7 +818,7 @@ router.post('/invoices/:invoiceId/pay', async (req, res) => {
             name: `Invoice ${invoice.invoice_number}`,
             description: `Payment for ${invoice.client_name || 'project'}`,
           },
-          unit_amount: Math.round(amountDue * 100),
+          unit_amount: amountDueCents,
         },
         quantity: 1,
       }],
@@ -814,6 +830,8 @@ router.post('/invoices/:invoiceId/pay', async (req, res) => {
       },
       success_url: `${portalUrl}/projects/${invoice.project_id}?payment=success`,
       cancel_url: `${portalUrl}/projects/${invoice.project_id}?payment=cancelled`,
+    }, {
+      idempotencyKey: `checkout_${invoiceId}_${amountDueCents}`,
     });
 
     // Log view event
@@ -875,8 +893,7 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
     if (amountDue <= 0) {
       return res.status(400).json({ error: 'No amount due' });
     }
-
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    const amountDueCents = Math.round(amountDue * 100);
 
     // Create or retrieve Stripe customer
     const email = invoice.client_email || clientEmail;
@@ -911,7 +928,7 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
 
     // Create PaymentIntent — routes to contractor if connected, otherwise to platform
     const paymentIntentParams = {
-      amount: Math.round(amountDue * 100),
+      amount: amountDueCents,
       currency: 'usd',
       customer: customerId,
       payment_method_types: ['card', 'us_bank_account'],
@@ -932,7 +949,9 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
       // paymentIntentParams.application_fee_amount = Math.round(amountDue * 0.01 * 100); // 1% example
     }
 
-    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams, {
+      idempotencyKey: `pi_${invoiceId}_${amountDueCents}`,
+    });
 
     // Store payment intent ID on invoice
     await supabase

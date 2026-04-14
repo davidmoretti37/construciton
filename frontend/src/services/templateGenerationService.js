@@ -51,7 +51,6 @@ export const generateAndSaveTemplate = async (serviceName) => {
     // Check if service already exists
     const exists = await serviceExists(serviceName);
     if (exists) {
-      console.log(`✓ Service "${serviceName}" already exists in database`);
       return await getServiceByName(serviceName);
     }
 
@@ -59,8 +58,6 @@ export const generateAndSaveTemplate = async (serviceName) => {
     const template = await generateServiceTemplate(serviceName);
 
     // Save to database
-    console.log(`💾 Saving template for: ${serviceName}`);
-
     // 1. Create service category
     const category = await createServiceCategory({
       name: template.name,
@@ -77,8 +74,6 @@ export const generateAndSaveTemplate = async (serviceName) => {
     if (template.phases && template.phases.length > 0) {
       await addPhaseTemplates(category.id, template.phases);
     }
-
-    console.log(`✅ Template saved to database with ID: ${category.id}`);
 
     return {
       ...category,

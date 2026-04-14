@@ -181,7 +181,6 @@ export default function PhaseTemplateSetupScreen({ navigation, route, onComplete
         profile.phasesTemplate = phasesTemplate;
         await saveUserProfile(profile);
         await markFeatureUpdateComplete();
-        console.log('✅ Phases template saved for existing user');
 
         if (onComplete) {
           onComplete();

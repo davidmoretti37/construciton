@@ -132,7 +132,6 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
           setSelectedPlan(savedPlan);
         }
       } catch (error) {
-        console.log('No saved plan found');
       }
     };
     loadSavedPlan();
@@ -146,7 +145,6 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
   // Auto-close when subscription becomes active
   useEffect(() => {
     if (hasActiveSubscription && !subLoading) {
-      console.log('Subscription is active, closing paywall');
       if (onSubscribed) onSubscribed();
       handleClose();
     }
@@ -178,7 +176,6 @@ export default function PaywallScreen({ navigation, onSubscribed, onClose, route
       await subscriptionService.startCheckout(selectedPlan);
 
       // User returned from browser - refresh subscription in case they subscribed
-      console.log('Returned from Stripe checkout, refreshing subscription...');
       await refreshSubscription();
 
     } catch (error) {

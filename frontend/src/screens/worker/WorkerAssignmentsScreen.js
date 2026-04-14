@@ -96,8 +96,6 @@ export default function WorkerAssignmentsScreen({ navigation }) {
         return;
       }
 
-      console.log('Full project data:', JSON.stringify(fullProject, null, 2));
-
       navigation.navigate('WorkerProjectDetail', { project: fullProject });
     } catch (error) {
       console.error('Error navigating to project:', error);

@@ -7,17 +7,12 @@ import { supabase } from '../lib/supabase';
  */
 export const resetApp = async () => {
   try {
-    console.log('Resetting app...');
-
     // Sign out from Supabase
     await supabase.auth.signOut();
-    console.log('Signed out from Supabase');
 
     // Clear all AsyncStorage data
     await AsyncStorage.clear();
-    console.log('Cleared AsyncStorage');
 
-    console.log('App reset complete! Please reload the app.');
     return true;
   } catch (error) {
     console.error('Error resetting app:', error);

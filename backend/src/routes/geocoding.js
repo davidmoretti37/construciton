@@ -2,6 +2,17 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { fetchGoogleMaps } = require('../utils/fetchWithRetry');
+const { createClient } = require('@supabase/supabase-js');
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const { authenticateUser } = require('../middleware/authenticate');
+
+// Apply auth to all geocoding routes
+router.use(authenticateUser);
 
 // Geocode an address
 router.get('/geocode', async (req, res) => {

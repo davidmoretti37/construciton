@@ -111,8 +111,6 @@ export const NotificationProvider = ({ children }) => {
       if (isTransientError && retryAttempt < maxPushTokenRetries) {
         // Retry with exponential backoff (2s, 4s, 8s)
         const delay = Math.pow(2, retryAttempt + 1) * 1000;
-        console.log(`Push token registration failed (attempt ${retryAttempt + 1}), retrying in ${delay/1000}s...`);
-
         setTimeout(() => {
           registerForPushNotifications(retryAttempt + 1);
         }, delay);
@@ -122,7 +120,6 @@ export const NotificationProvider = ({ children }) => {
       // Only log error on first attempt or final failure
       if (retryAttempt === 0 || retryAttempt >= maxPushTokenRetries) {
         // Log a simpler message instead of the full error
-        console.log('Push notifications temporarily unavailable - Expo servers may be busy');
       }
       return null;
     }

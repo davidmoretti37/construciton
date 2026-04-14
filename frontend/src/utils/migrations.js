@@ -23,7 +23,6 @@ const migrations = [
     description: 'Add phases_template field to existing owner profiles',
     run: async (userId, userEmail) => {
       try {
-        console.log(`🔄 [Migration v1] Adding phases_template for ${userEmail}`);
 
         // Get current profile
         const { data: profile, error: fetchError } = await supabase
@@ -39,7 +38,6 @@ const migrations = [
 
         // Skip if already has phases_template
         if (profile.phases_template) {
-          console.log('✅ [Migration v1] Profile already has phases_template');
           return true;
         }
 
@@ -87,12 +85,10 @@ const migrations = [
             return false;
           }
 
-          console.log('✅ [Migration v1] Successfully added default phases_template');
           return true;
         }
 
         // Non-owner accounts don't need phases_template
-        console.log('✅ [Migration v1] Skipped (not owner account)');
         return true;
       } catch (error) {
         console.error('❌ [Migration v1] Unexpected error:', error);
@@ -164,26 +160,20 @@ async function setUserMigrationVersion(userId, version) {
  */
 export async function runMigrations(userId, userEmail) {
   try {
-    console.log('🔄 Checking for feature migrations...');
 
     // Get current migration version
     const currentVersion = await getUserMigrationVersion(userId);
-    console.log(`📊 User migration version: ${currentVersion}/${CURRENT_MIGRATION_VERSION}`);
 
     // Find migrations that need to run
     const pendingMigrations = migrations.filter(m => m.version > currentVersion);
 
     if (pendingMigrations.length === 0) {
-      console.log('✅ All migrations up to date');
       return true;
     }
 
-    console.log(`🚀 Running ${pendingMigrations.length} pending migrations...`);
 
     // Run each pending migration in order
     for (const migration of pendingMigrations) {
-      console.log(`📦 Running migration v${migration.version}: ${migration.name}`);
-      console.log(`   ${migration.description}`);
 
       const success = await migration.run(userId, userEmail);
 
@@ -194,10 +184,8 @@ export async function runMigrations(userId, userEmail) {
 
       // Update migration version after successful migration
       await setUserMigrationVersion(userId, migration.version);
-      console.log(`✅ Migration v${migration.version} completed`);
     }
 
-    console.log('✅ All migrations completed successfully');
     return true;
   } catch (error) {
     console.error('❌ Error running migrations:', error);
@@ -216,7 +204,6 @@ export async function runSpecificMigration(userId, userEmail, version) {
     return false;
   }
 
-  console.log(`🔄 Force running migration v${version}: ${migration.name}`);
   return await migration.run(userId, userEmail);
 }
 

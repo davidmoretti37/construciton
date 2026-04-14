@@ -93,12 +93,8 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
   };
 
   const handleDateSelect = (dateString) => {
-    console.log('📅 Date selected:', dateString);
-    console.log('📅 Current temp state:', { tempFromDate, tempToDate });
-
     if (!tempFromDate || (tempFromDate && tempToDate)) {
       // Start new selection
-      console.log('📅 Starting new selection');
       setTempFromDate(dateString);
       setTempToDate(null);
     } else {
@@ -108,24 +104,18 @@ export default function DateRangePicker({ fromDate, toDate, onRangeChange }) {
 
       if (to < from) {
         // If end date is before start, swap them
-        console.log('📅 Swapping dates (end before start)');
         setTempFromDate(dateString);
         setTempToDate(tempFromDate);
       } else {
-        console.log('📅 Setting end date');
         setTempToDate(dateString);
       }
     }
   };
 
   const handleApplyCustomRange = () => {
-    console.log('📅 Apply clicked, temp state:', { tempFromDate, tempToDate });
     if (tempFromDate && tempToDate) {
-      console.log('📅 Applying custom range:', tempFromDate, 'to', tempToDate);
       onRangeChange(tempFromDate, tempToDate);
       setShowCalendar(false);
-    } else {
-      console.log('📅 Cannot apply - missing dates');
     }
   };
 

@@ -13,23 +13,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Auth middleware
-const authenticateUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization' });
-  }
-  const token = authHeader.substring(7);
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-    req.user = user;
-    next();
-  } catch (error) {
-    logger.error('[ServiceVisits] Auth error:', error.message);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+const { authenticateUser } = require('../middleware/authenticate');
 
 router.use(authenticateUser);
 
@@ -906,8 +890,45 @@ router.get('/:id/checklist', async (req, res) => {
 router.patch('/:id/checklist/:itemId', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { itemId } = req.params;
+    const { id: visitId, itemId } = req.params;
     const { completed, quantity, photo_url, notes } = req.body;
+
+    // Verify the visit belongs to one of the user's service plans
+    const { data: visit, error: visitError } = await supabase
+      .from('service_visits')
+      .select('id, plan_id, service_plans!inner(owner_id)')
+      .eq('id', visitId)
+      .single();
+
+    if (visitError || !visit) {
+      return res.status(404).json({ error: 'Visit not found' });
+    }
+
+    // Allow access if user is the plan owner OR a worker assigned to the visit
+    const isOwner = visit.service_plans?.owner_id === userId;
+    if (!isOwner) {
+      const { data: worker } = await supabase
+        .from('workers')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      if (!worker) {
+        return res.status(403).json({ error: 'Not authorized to update this checklist item' });
+      }
+
+      // Verify the checklist item belongs to this visit
+      const { data: item } = await supabase
+        .from('visit_checklist_items')
+        .select('id')
+        .eq('id', itemId)
+        .eq('visit_id', visitId)
+        .single();
+
+      if (!item) {
+        return res.status(403).json({ error: 'Not authorized to update this checklist item' });
+      }
+    }
 
     const updates = {};
     if (completed !== undefined) updates.completed = completed;
@@ -982,12 +1003,28 @@ router.post('/generate/:planId', async (req, res) => {
   }
 });
 
-// POST /regenerate-all — Regenerate visits for all active plans (admin/owner)
+// POST /regenerate-all — Regenerate visits for all active plans owned by the requesting user
 router.post('/regenerate-all', async (req, res) => {
   try {
-    const { regenerateAllPlans } = require('../services/visitGenerator');
-    const result = await regenerateAllPlans();
-    res.json(result);
+    const ownerId = req.user.id;
+
+    // Only fetch plans belonging to the authenticated user
+    const { data: plans, error: plansError } = await supabase
+      .from('service_plans')
+      .select('id')
+      .eq('status', 'active')
+      .eq('owner_id', ownerId);
+
+    if (plansError) throw plansError;
+
+    const { checkAndRegenerateVisits } = require('../services/visitGenerator');
+    let totalGenerated = 0;
+    for (const plan of (plans || [])) {
+      const result = await checkAndRegenerateVisits(plan.id);
+      totalGenerated += result.generated;
+    }
+
+    res.json({ plans: (plans || []).length, totalGenerated });
   } catch (error) {
     logger.error('[ServiceVisits] Regenerate all error:', error.message);
     res.status(500).json({ error: 'Failed to regenerate visits' });

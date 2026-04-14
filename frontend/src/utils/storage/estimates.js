@@ -51,7 +51,6 @@ export const saveEstimate = async (estimateData) => {
     if (error) {
       // Handle duplicate estimate number — retry once
       if (error.code === '23505' && error.message?.includes('estimate_number')) {
-        console.log('Duplicate estimate number, retrying...');
         const { data: retryData, error: retryError } = await supabase
           .from('estimates')
           .insert({

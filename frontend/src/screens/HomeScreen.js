@@ -146,7 +146,6 @@ export default function HomeScreen({ navigation }) {
     setClockLoading(true);
     try {
       const result = await supervisorClockIn(user.id, projectId, null, servicePlanId);
-      console.log('🕐 Clock-in result:', result);
       if (result) {
         setActiveSession(result);
         setShowProjectPicker(false);
@@ -166,11 +165,9 @@ export default function HomeScreen({ navigation }) {
   const handleClockOut = async () => {
     if (!activeSession) return;
 
-    console.log('🕐 Supervisor clock-out attempt:', { sessionId: activeSession.id });
     setClockLoading(true);
     try {
       const result = await supervisorClockOut(activeSession.id);
-      console.log('🕐 Clock-out result:', result);
       if (result.success) {
         Alert.alert('Clocked Out', `You worked ${formatHoursMinutes(result.hours)}`);
         setActiveSession(null);
@@ -271,7 +268,7 @@ export default function HomeScreen({ navigation }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return projects.filter(p => {
+    return projects.map(p => {
       const isBehindSchedule = p.status === 'behind' || (p.daysRemaining !== null && p.daysRemaining < 7);
       const isOverBudget = (p.expenses || 0) > (p.contractAmount || 0);
       const hasLowCashFlow = (p.expenses || 0) > (p.incomeCollected || 0);
@@ -285,31 +282,31 @@ export default function HomeScreen({ navigation }) {
 
       const needsAttention = isBehindSchedule || isOverBudget || hasLowCashFlow || isOverdue;
 
-      // Store attention reasons on the project object for display
-      if (needsAttention) {
-        p.attentionReasons = [];
-        if (isBehindSchedule) {
-          if (p.status === 'behind') {
-            p.attentionReasons.push(t('attention.behindSchedule'));
-          } else if (p.daysRemaining !== null && p.daysRemaining < 7) {
-            p.attentionReasons.push(t('attention.daysRemaining', { count: p.daysRemaining }));
-          }
-        }
-        if (isOverBudget) {
-          const over = (p.expenses || 0) - (p.contractAmount || 0);
-          p.attentionReasons.push(t('attention.overBudget', { amount: over.toLocaleString() }));
-        }
-        if (hasLowCashFlow) {
-          const unpaid = (p.expenses || 0) - (p.incomeCollected || 0);
-          p.attentionReasons.push(t('attention.unpaidExpenses', { amount: unpaid.toLocaleString() }));
-        }
-        if (isOverdue) {
-          p.attentionReasons.push(t('attention.projectOverdue'));
+      if (!needsAttention) return null;
+
+      // Build attention reasons without mutating the original project object
+      const reasons = [];
+      if (isBehindSchedule) {
+        if (p.status === 'behind') {
+          reasons.push(t('attention.behindSchedule'));
+        } else if (p.daysRemaining !== null && p.daysRemaining < 7) {
+          reasons.push(t('attention.daysRemaining', { count: p.daysRemaining }));
         }
       }
+      if (isOverBudget) {
+        const over = (p.expenses || 0) - (p.contractAmount || 0);
+        reasons.push(t('attention.overBudget', { amount: over.toLocaleString() }));
+      }
+      if (hasLowCashFlow) {
+        const unpaid = (p.expenses || 0) - (p.incomeCollected || 0);
+        reasons.push(t('attention.unpaidExpenses', { amount: unpaid.toLocaleString() }));
+      }
+      if (isOverdue) {
+        reasons.push(t('attention.projectOverdue'));
+      }
 
-      return needsAttention;
-    });
+      return { ...p, attentionReasons: reasons };
+    }).filter(Boolean);
   }, [projects, t]);
 
   // Memoized: Monthly stats

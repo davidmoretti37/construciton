@@ -117,15 +117,9 @@ export default function SignupScreen({ navigation, route }) {
       if (error) throw error;
 
       if (data.user) {
-        console.log('✅ Signup successful:', data.user.email);
-
         try {
           const linkResult = await subscriptionService.linkPendingSubscription();
-          if (linkResult.linked) {
-            console.log('✅ Subscription linked:', linkResult.planTier);
-          }
         } catch (linkError) {
-          console.log('No pending subscription to link');
         }
       }
     } catch (error) {

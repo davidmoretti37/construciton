@@ -21,7 +21,6 @@ const PREP_KEYWORDS = ['prep', 'preparation', 'site assessment', 'layout', 'remo
  */
 export const redistributeAllTasksWithAI = async (projectId, ownerId, phases, timeline) => {
   try {
-    console.log('🤖 [AI-DISTRIBUTE] Starting AI task distribution for project:', projectId);
 
     // 1. Fetch ALL existing tasks for this project (including manually added ones)
     const { data: existingTasks } = await supabase
@@ -55,7 +54,6 @@ export const redistributeAllTasksWithAI = async (projectId, ownerId, phases, tim
     const allTasks = [...phaseTasks, ...manualTasks];
 
     if (allTasks.length === 0) {
-      console.log('🤖 [AI-DISTRIBUTE] No tasks to distribute');
       return [];
     }
 
@@ -89,7 +87,6 @@ RULES:
 Return ONLY a valid JSON array with date for each task (by index):
 [{"taskIndex":0,"date":"YYYY-MM-DD"},{"taskIndex":1,"date":"YYYY-MM-DD"}]`;
 
-    console.log('🤖 [AI-DISTRIBUTE] Calling AI to distribute', allTasks.length, 'tasks...');
 
     // 6. Call AI
     const response = await sendPlanningRequest(prompt, 'You are a construction scheduler. Return ONLY valid JSON array, no explanation.');
@@ -125,7 +122,6 @@ Return ONLY a valid JSON array with date for each task (by index):
       return createSimpleDistribution(projectId, ownerId, phases, timeline);
     }
 
-    console.log('🤖 [AI-DISTRIBUTE] AI distribution result:', distribution.length, 'tasks assigned');
 
     // 8. Delete ALL existing tasks for this project
     await supabase
@@ -170,7 +166,6 @@ Return ONLY a valid JSON array with date for each task (by index):
         // Only extend if there's a gap (don't shrink if tasks overlap)
         if (new Date(newEndDate) > new Date(currentTask.end_date)) {
           currentTask.end_date = newEndDate;
-          console.log(`🤖 [AI-DISTRIBUTE] Extended "${currentTask.title}" to ${newEndDate}`);
         }
       }
 
@@ -178,7 +173,6 @@ Return ONLY a valid JSON array with date for each task (by index):
       const lastTask = tasksToCreate[tasksToCreate.length - 1];
       if (timeline.endDate && new Date(timeline.endDate) > new Date(lastTask.end_date)) {
         lastTask.end_date = timeline.endDate;
-        console.log(`🤖 [AI-DISTRIBUTE] Extended last task to project end: ${timeline.endDate}`);
       }
     }
 
@@ -193,7 +187,6 @@ Return ONLY a valid JSON array with date for each task (by index):
       }
     }
 
-    console.log('🤖 [AI-DISTRIBUTE] Successfully created', tasksToCreate.length, 'tasks');
     return tasksToCreate;
 
   } catch (error) {
@@ -208,7 +201,6 @@ Return ONLY a valid JSON array with date for each task (by index):
  * Preserves manually-added tasks and redistributes them
  */
 const createSimpleDistribution = async (projectId, ownerId, phases, timeline) => {
-  console.log('🔄 [FALLBACK] Using simple distribution');
 
   // 1. Fetch manual tasks BEFORE deleting (phase_task_id is NULL for manual tasks)
   const { data: existingTasks } = await supabase
@@ -218,7 +210,6 @@ const createSimpleDistribution = async (projectId, ownerId, phases, timeline) =>
     .is('phase_task_id', null);
 
   const manualTasks = existingTasks || [];
-  console.log(`🔄 [FALLBACK] Found ${manualTasks.length} manual tasks to preserve`);
 
   // 2. Delete ONLY phase-generated tasks (preserve manual ones)
   await supabase
@@ -247,7 +238,6 @@ const createSimpleDistribution = async (projectId, ownerId, phases, timeline) =>
         .update({ start_date: dateStr, end_date: dateStr })
         .eq('id', manualTasks[i].id);
     }
-    console.log(`🔄 [FALLBACK] Redistributed ${manualTasks.length} manual tasks`);
   }
 };
 
@@ -292,7 +282,6 @@ export const createWorkerTasksFromPhases = async (projectId, ownerId, phases) =>
     }
 
     if (allTasks.length === 0) {
-      console.log('No tasks found in phases, skipping task creation');
       return;
     }
 
@@ -319,7 +308,6 @@ export const createWorkerTasksFromPhases = async (projectId, ownerId, phases) =>
       return a.taskIndex - b.taskIndex;
     });
 
-    console.log('📋 Task order after sorting:', allTasks.map(t => t.description || t.name));
 
     // 3. Separate cleanup tasks from regular tasks
     const cleanupTasks = allTasks.filter(t => {
@@ -361,7 +349,6 @@ export const createWorkerTasksFromPhases = async (projectId, ownerId, phases) =>
 
     if (regularTasks.length > 0 && daysForRegular.length > 0) {
       const tasksPerDay = Math.ceil(regularTasks.length / daysForRegular.length);
-      console.log(`📅 Distributing ${regularTasks.length} regular tasks across ${daysForRegular.length} days (${tasksPerDay} tasks/day)`);
 
       let dayIndex = 0;
       let tasksOnCurrentDay = 0;
@@ -396,7 +383,6 @@ export const createWorkerTasksFromPhases = async (projectId, ownerId, phases) =>
     // 7. Put ALL cleanup tasks on the LAST day
     if (cleanupTasks.length > 0) {
       const lastDayString = lastDay.toISOString().split('T')[0];
-      console.log(`📅 Scheduling ${cleanupTasks.length} cleanup tasks on last day (${lastDayString})`);
 
       for (const task of cleanupTasks) {
         tasksToCreate.push({
@@ -450,7 +436,6 @@ export const createWorkerTasksFromPhases = async (projectId, ownerId, phases) =>
       if (error) {
         console.error('Error creating worker tasks from phases:', error);
       } else {
-        console.log(`✅ Created ${tasksToCreate.length} worker tasks from phases (gaps filled)`);
       }
     }
   } catch (error) {
@@ -502,7 +487,6 @@ export const saveProjectPhases = async (projectId, phases, schedule = null) => {
         const end = new Date(phaseEndDate + 'T00:00:00');
         const daysDiff = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
         calculatedDays = Math.max(1, daysDiff);
-        console.log(`📅 [saveProjectPhases] Phase "${phase.name}": ${phaseStartDate} to ${phaseEndDate} = ${calculatedDays} days`);
       }
 
       return {
@@ -536,7 +520,6 @@ export const saveProjectPhases = async (projectId, phases, schedule = null) => {
       .eq('id', projectId);
 
     // Delete existing auto-generated worker tasks for this project
-    console.log(`🗑️ Deleting old tasks for project ${projectId}...`);
     const { error: deleteTasksError, count: deletedCount } = await supabase
       .from('worker_tasks')
       .delete()
@@ -546,7 +529,6 @@ export const saveProjectPhases = async (projectId, phases, schedule = null) => {
     if (deleteTasksError) {
       console.error('Error deleting old tasks:', deleteTasksError);
     } else {
-      console.log(`🗑️ Deleted ${deletedCount || 'unknown number of'} old tasks`);
     }
 
     // Small delay to ensure delete completes before insert

@@ -19,7 +19,6 @@ const supabase = createClient(
  */
 const authenticatePortalClient = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  const portalToken = req.headers['x-portal-token'];
 
   try {
     // Method 1: Supabase Auth (mobile app clients)
@@ -53,8 +52,9 @@ const authenticatePortalClient = async (req, res, next) => {
       return next();
     }
 
-    // Method 2: Portal session token (web portal)
-    if (!portalToken) {
+    // Method 2: Portal session token via httpOnly cookie only (no localStorage fallback)
+    const sessionToken = req.cookies?.portal_session;
+    if (!sessionToken) {
       return res.status(401).json({ error: 'Missing authentication' });
     }
 
@@ -72,7 +72,7 @@ const authenticatePortalClient = async (req, res, next) => {
           phone
         )
       `)
-      .eq('session_token', portalToken)
+      .eq('session_token', sessionToken)
       .gt('expires_at', new Date().toISOString())
       .single();
 

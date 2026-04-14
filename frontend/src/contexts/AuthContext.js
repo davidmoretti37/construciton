@@ -55,7 +55,6 @@ export const AuthProvider = ({ children }) => {
       try {
         const { profile: cachedProfile, isStale } = await loadProfileFromCache();
         if (cachedProfile) {
-          console.log('🔐 AuthContext - Loaded cached profile:', { isStale });
           setProfile(cachedProfile);
           profileRef.current = cachedProfile;
           setRoleState(cachedProfile?.role || null);
@@ -84,7 +83,6 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔐 AuthContext - Auth state change:', event);
         setSession(session);
         setUser(session?.user || null);
 
@@ -121,7 +119,6 @@ export const AuthProvider = ({ children }) => {
     const TIMEOUT_MS = 5000; // 5s per attempt
 
     try {
-      console.log('🔐 AuthContext - Loading profile for user:', userId, retryCount > 0 ? `(retry ${retryCount})` : '');
       setLoadError(null);
 
       // Create a timeout promise
@@ -146,7 +143,6 @@ export const AuthProvider = ({ children }) => {
           setLoadError('Failed to load profile');
         }
       } else if (!data) {
-        console.log('🔐 AuthContext - No profile found for user (new account)');
         // New user - clear cache since there's no profile yet
         await clearProfileCache();
         setProfile(null);
@@ -164,7 +160,6 @@ export const AuthProvider = ({ children }) => {
               .limit(1);
 
             if (pendingInvites && pendingInvites.length > 0) {
-              console.log('🔐 AuthContext - Pending supervisor invite found, auto-setting role');
               await supabase
                 .from('profiles')
                 .update({ role: 'supervisor' })
@@ -181,7 +176,6 @@ export const AuthProvider = ({ children }) => {
                 .limit(1);
 
               if (pendingWorkerInvites && pendingWorkerInvites.length > 0) {
-                console.log('🔐 AuthContext - Pending worker invite found, auto-setting role');
                 await supabase
                   .from('profiles')
                   .update({ role: 'worker' })
@@ -197,7 +191,6 @@ export const AuthProvider = ({ children }) => {
                   .limit(1);
 
                 if (pendingClient && pendingClient.length > 0) {
-                  console.log('🔐 AuthContext - Pending client invite found, auto-setting role');
                   await supabase.from('clients').update({ user_id: userId }).eq('id', pendingClient[0].id);
                   await supabase.from('profiles').update({ role: 'client' }).eq('id', userId);
                   data.role = 'client';
@@ -222,19 +215,12 @@ export const AuthProvider = ({ children }) => {
                 .limit(1);
               if (unlinkedClient?.length > 0) {
                 await supabase.from('clients').update({ user_id: userId }).eq('id', unlinkedClient[0].id);
-                console.log('🔐 AuthContext - Linked client record to auth user');
               }
             }
           } catch (e) { /* non-critical */ }
         }
 
         // Continue with normal profile loading below
-        console.log('🔐 AuthContext - Profile loaded:', {
-          role: data?.role,
-          owner_id: data?.owner_id,
-          is_onboarded: data?.is_onboarded,
-          has_language: !!data?.language
-        });
         setRoleState(data?.role || null);
         setOwnerIdState(data?.owner_id || null);
         setProfile(data);
@@ -267,12 +253,6 @@ export const AuthProvider = ({ children }) => {
           console.warn('🧠 AuthContext - Memory service init warning:', err);
         });
       } else {
-        console.log('🔐 AuthContext - Profile loaded:', {
-          role: data?.role,
-          owner_id: data?.owner_id,
-          is_onboarded: data?.is_onboarded,
-          has_language: !!data?.language
-        });
         setRoleState(data?.role || null);
         setOwnerIdState(data?.owner_id || null); // Track owner_id for supervisors
         setProfile(data);
@@ -313,7 +293,6 @@ export const AuthProvider = ({ children }) => {
       if (error.message === 'TIMEOUT') {
         // If we have a cached profile, don't retry - just use cache silently
         if (profileRef.current) {
-          console.log('🔐 AuthContext - Timeout but using cached profile');
           setIsLoading(false);
           return;
         }
@@ -340,7 +319,6 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      console.log('🔐 AuthContext - Setting role to:', newRole);
 
       const { error } = await supabase
         .from('profiles')
@@ -361,7 +339,6 @@ export const AuthProvider = ({ children }) => {
       // Reload profile to get updated data
       await loadUserProfile(user.id);
 
-      console.log('🔐 AuthContext - Role set successfully');
       return true;
     } catch (error) {
       console.error('🔐 AuthContext - Error setting role:', error);
@@ -390,7 +367,6 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      console.log('🔐 AuthContext - Clearing role');
 
       const { error } = await supabase
         .from('profiles')
@@ -407,7 +383,6 @@ export const AuthProvider = ({ children }) => {
       // Reload profile to get updated data
       await loadUserProfile(user.id);
 
-      console.log('🔐 AuthContext - Role cleared successfully');
       return true;
     } catch (error) {
       console.error('🔐 AuthContext - Error clearing role:', error);

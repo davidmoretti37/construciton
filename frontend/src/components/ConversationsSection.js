@@ -47,7 +47,6 @@ export default function ConversationsSection({ projectId, clientPhone }) {
         table: 'conversations',
         filter: `project_id=eq.${projectId}`
       }, (payload) => {
-        console.log('New conversation received:', payload.new);
         setConversations(prev => [...prev, payload.new]);
         // Auto-scroll to bottom
         setTimeout(() => {

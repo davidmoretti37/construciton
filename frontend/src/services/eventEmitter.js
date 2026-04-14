@@ -25,7 +25,6 @@ class SimpleEventEmitter {
 const appEvents = new SimpleEventEmitter();
 
 export const emitProjectUpdated = (projectId) => {
-  console.log('🔄 Emitting project-updated event for:', projectId);
   appEvents.emit('project-updated', projectId);
 };
 

@@ -203,15 +203,9 @@ export default function InvoiceSetupScreen({ navigation, route }) {
     // Build payment info string - only include enabled payment methods
     let paymentInfo = '';
 
-    console.log('💳 Building payment info...');
-    console.log('Enabled payments:', enabledPayments);
-    console.log('Zelle info:', zelleInfo);
-    console.log('Bank name:', bankName);
-    console.log('Account number:', accountNumber);
 
     if (enabledPayments.zelle && zelleInfo) {
       paymentInfo += `Zelle:\n${zelleInfo}\n\n`;
-      console.log('✅ Added Zelle to payment info');
     }
 
     if (enabledPayments.bank && bankName && accountNumber) {
@@ -221,26 +215,20 @@ export default function InvoiceSetupScreen({ navigation, route }) {
       if (achRouting) paymentInfo += `ACH Routing: ${achRouting}\n`;
       if (wireRouting) paymentInfo += `Wire Routing: ${wireRouting}\n`;
       paymentInfo += `\n`;
-      console.log('✅ Added Bank info to payment info');
     }
 
     if (enabledPayments.paypal && paypalInfo) {
       paymentInfo += `PayPal: ${paypalInfo}\n`;
-      console.log('✅ Added PayPal to payment info');
     }
 
     if (enabledPayments.venmo && venmoInfo) {
       paymentInfo += `Venmo: ${venmoInfo}\n`;
-      console.log('✅ Added Venmo to payment info');
     }
 
     if (enabledPayments.cashapp && cashAppInfo) {
       paymentInfo += `Cash App: ${cashAppInfo}\n`;
-      console.log('✅ Added Cash App to payment info');
     }
 
-    console.log('💳 Final payment info string:', paymentInfo);
-    console.log('💳 Payment info length:', paymentInfo.length);
 
     // Build updated business info with invoice settings
     const updatedBusinessInfo = {
@@ -255,10 +243,6 @@ export default function InvoiceSetupScreen({ navigation, route }) {
       footerText: footerText.trim(),
     };
 
-    console.log('📦 Navigating with business info:', {
-      hasPaymentInfo: !!updatedBusinessInfo.paymentInfo,
-      paymentInfoLength: updatedBusinessInfo.paymentInfo?.length || 0
-    });
 
     navigation.navigate('TypicalContracts', {
       selectedTrades,

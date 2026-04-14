@@ -13,23 +13,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Auth middleware
-const authenticateUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization' });
-  }
-  const token = authHeader.substring(7);
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-    req.user = user;
-    next();
-  } catch (error) {
-    logger.error('[ServicePlans] Auth error:', error.message);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+const { authenticateUser } = require('../middleware/authenticate');
 
 router.use(authenticateUser);
 
@@ -133,7 +117,7 @@ router.get('/:id/detail', async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    console.log(`[ServicePlan Detail] userId=${userId}, planId=${id}`);
+    logger.debug(`[ServicePlan Detail] userId=${userId}, planId=${id}`);
 
     // 1. Plan info — allow owner, assigned supervisor, or assigned worker
     let plan;
@@ -145,10 +129,10 @@ router.get('/:id/detail', async (req, res) => {
       .single();
 
     if (directPlan) {
-      console.log(`[ServicePlan Detail] Direct access granted (owner/supervisor)`);
+      logger.debug(`[ServicePlan Detail] Direct access granted (owner/supervisor)`);
       plan = directPlan;
     } else {
-      console.log(`[ServicePlan Detail] Direct access denied, checking worker assignment...`);
+      logger.debug(`[ServicePlan Detail] Direct access denied, checking worker assignment...`);
       // Check if user is a worker assigned to this plan
       const { data: workerRecord } = await supabase
         .from('workers')
@@ -174,10 +158,10 @@ router.get('/:id/detail', async (req, res) => {
     }
 
     if (!plan) {
-      console.log(`[ServicePlan Detail] Plan NOT found for userId=${userId}, planId=${id}`);
+      logger.debug(`[ServicePlan Detail] Plan NOT found for userId=${userId}, planId=${id}`);
       return res.status(404).json({ error: 'Service plan not found' });
     }
-    console.log(`[ServicePlan Detail] Plan loaded: ${plan.name}`);
+    logger.debug(`[ServicePlan Detail] Plan loaded: ${plan.name}`);
 
     // Run all secondary queries in parallel
     const today = new Date().toISOString().split('T')[0];
@@ -1004,8 +988,8 @@ router.get('/:id/billing-preview', async (req, res) => {
 
     const totalVisits = (visits || []).length;
 
-    // Calculate per-location with override support
-    let totalAmount = 0;
+    // Calculate per-location with override support (accumulate in cents to avoid float drift)
+    let totalCents = 0;
     const locationBreakdown = locationIds.map(locId => {
       const count = locationVisits[locId].length;
       const loc = locationMap[locId] || {};
@@ -1017,11 +1001,12 @@ router.get('/:id/billing-preview', async (req, res) => {
         ? parseFloat(sched.price_per_visit || plan.price_per_visit || 0)
         : parseFloat(sched.monthly_rate || plan.monthly_rate || 0);
 
-      const locTotal = locBillingCycle === 'per_visit'
-        ? Math.round(count * locRate * 100) / 100
-        : Math.round(locRate * 100) / 100;
+      const locRateCents = Math.round(locRate * 100);
+      const locTotalCents = locBillingCycle === 'per_visit'
+        ? count * locRateCents
+        : locRateCents;
 
-      totalAmount += locTotal;
+      totalCents += locTotalCents;
 
       return {
         location_id: locId,
@@ -1029,11 +1014,11 @@ router.get('/:id/billing-preview', async (req, res) => {
         visit_count: count,
         billing_cycle: locBillingCycle,
         rate: locRate,
-        total: locTotal,
+        total: locTotalCents / 100,
       };
     });
 
-    totalAmount = Math.round(totalAmount * 100) / 100;
+    const totalAmount = totalCents / 100;
 
     res.json({
       period: { from, to },
@@ -1132,7 +1117,7 @@ router.post('/:id/invoice', async (req, res) => {
 
     // Build invoice line items with per-location pricing support
     let items = [];
-    let subtotal = 0;
+    let subtotalCents = 0;
 
     locationIds.forEach((locId, i) => {
       const count = locationVisits[locId].length;
@@ -1145,17 +1130,18 @@ router.post('/:id/invoice', async (req, res) => {
         ? parseFloat(sched.price_per_visit || plan.price_per_visit || 0)
         : parseFloat(sched.monthly_rate || plan.monthly_rate || 0);
 
+      const locRateCents = Math.round(locRate * 100);
       if (locBillingCycle === 'per_visit') {
-        const lineTotal = Math.round(count * locRate * 100) / 100;
+        const lineTotalCents = count * locRateCents;
         items.push({
           index: i,
           description: `${loc.name || 'Location'} — ${count} visit${count > 1 ? 's' : ''}`,
           quantity: count,
           unit: 'visit',
           price: locRate,
-          total: lineTotal,
+          total: lineTotalCents / 100,
         });
-        subtotal += lineTotal;
+        subtotalCents += lineTotalCents;
       } else {
         items.push({
           index: i,
@@ -1163,13 +1149,13 @@ router.post('/:id/invoice', async (req, res) => {
           quantity: 1,
           unit: locBillingCycle,
           price: locRate,
-          total: locRate,
+          total: locRateCents / 100,
         });
-        subtotal += locRate;
+        subtotalCents += locRateCents;
       }
     });
 
-    const total = Math.round(subtotal * 100) / 100;
+    const total = subtotalCents / 100;
 
     // Calculate due date (30 days from now)
     const dueDate = new Date();

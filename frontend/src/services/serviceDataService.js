@@ -294,7 +294,6 @@ export const logServiceSearch = async (searchTerm, categoryId = null, userId = n
       });
   } catch (error) {
     // Silent fail - analytics shouldn't break the app
-    console.log('Analytics log failed:', error.message);
   }
 };
 

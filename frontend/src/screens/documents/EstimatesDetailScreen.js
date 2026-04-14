@@ -322,7 +322,6 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                   status: selectedEstimate.status,
                 }}
                 onAction={async (action) => {
-                  console.log('Estimate action:', action.type);
                   if (action.type === 'update-estimate') {
                     try {
                       const updated = await updateEstimate(action.data);

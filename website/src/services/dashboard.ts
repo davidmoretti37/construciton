@@ -50,7 +50,6 @@ async function safe<T>(label: string, promise: PromiseLike<{ data: any; error: a
       console.warn(`[Dashboard] ${label}:`, error.message || error);
       return fallback;
     }
-    console.log(`[Dashboard] ${label}: OK`);
     return (data as T) ?? fallback;
   } catch (e) {
     console.warn(`[Dashboard] ${label} threw:`, e);
@@ -62,8 +61,6 @@ export async function fetchDashboardData(
   supabase: SupabaseClient,
   userId: string
 ): Promise<DashboardData> {
-  console.log("[Dashboard] Fetching for:", userId);
-
   // Ensure the client has the current session loaded before making queries
   await supabase.auth.getSession();
 
@@ -74,8 +71,6 @@ export async function fetchDashboardData(
       [] as { id: string }[]
     )
   ).map((s) => s.id);
-
-  console.log("[Dashboard] Supervisors:", supervisorIds.length);
 
   // Fetch all in parallel — each is independently safe
   const [projects, workers, profileData, overdueInvoices, allInvoices, estimates, recurring, invites] =
@@ -113,8 +108,6 @@ export async function fetchDashboardData(
         [] as { id: string }[]
       ),
     ]);
-
-  console.log("[Dashboard] Done:", { projects: projects.length, workers: workers.length });
 
   // Compute
   const totalProjects = projects.length;

@@ -29,13 +29,10 @@ export const geocodeAddress = async (address) => {
   const cacheKey = `geocode:${address.toLowerCase()}`;
   const cached = geocodeCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log('✅ Geocoding cache hit:', address);
     return cached.data;
   }
 
   try {
-    console.log('🌍 Geocoding address:', address);
-
     const url = `${BACKEND_URL}/api/geocode?address=${encodeURIComponent(address)}`;
 
     const response = await fetch(url, {
@@ -62,7 +59,6 @@ export const geocodeAddress = async (address) => {
         timestamp: Date.now()
       });
 
-      console.log('✅ Geocoded successfully:', result.formatted_address);
       return geocodedData;
     } else if (data.status === 'ZERO_RESULTS') {
       console.warn('⚠️ Geocoding found no results for:', address);
@@ -93,13 +89,10 @@ export const reverseGeocode = async (latitude, longitude) => {
   const cacheKey = `reverse:${latitude},${longitude}`;
   const cached = geocodeCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log('✅ Reverse geocoding cache hit');
     return cached.data;
   }
 
   try {
-    console.log('🌍 Reverse geocoding:', latitude, longitude);
-
     const url = `${BACKEND_URL}/api/reverse?lat=${latitude}&lng=${longitude}`;
 
     const response = await fetch(url, {
@@ -124,7 +117,6 @@ export const reverseGeocode = async (latitude, longitude) => {
         timestamp: Date.now()
       });
 
-      console.log('✅ Reverse geocoded successfully:', result.formatted_address);
       return geocodedData;
     } else {
       console.error('❌ Reverse geocoding API error:', data.status);
@@ -153,8 +145,6 @@ export const calculateTravelTime = async (origin, destination, departureTime = n
     // Format origin and destination
     const originStr = typeof origin === 'string' ? origin : `${origin.latitude},${origin.longitude}`;
     const destStr = typeof destination === 'string' ? destination : `${destination.latitude},${destination.longitude}`;
-
-    console.log('🚗 Calculating travel time:', originStr, '→', destStr);
 
     let url = `${BACKEND_URL}/api/distance?origins=${encodeURIComponent(originStr)}&destinations=${encodeURIComponent(destStr)}&mode=driving`;
 
@@ -186,7 +176,6 @@ export const calculateTravelTime = async (origin, destination, departureTime = n
           duration_in_traffic_text: element.duration_in_traffic ? element.duration_in_traffic.text : null,
         };
 
-        console.log('✅ Travel time calculated:', travelData.duration_text, '(', travelData.distance_text, ')');
         return travelData;
       } else {
         console.error('❌ Distance Matrix element error:', element.status);
@@ -310,7 +299,5 @@ export const parseFormattedAddress = (formattedAddress) => {
  * Clear geocoding cache (useful for testing or memory management)
  */
 export const clearGeocodeCache = () => {
-  const size = geocodeCache.size;
   geocodeCache.clear();
-  console.log(`🧹 Cleared ${size} geocoding cache entries`);
 };

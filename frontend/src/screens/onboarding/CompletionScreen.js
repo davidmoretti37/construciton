@@ -68,14 +68,11 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
 
         // Save to user_services table (new system)
         if (selectedServices && selectedServices.length > 0) {
-          console.log('💾 Saving selected services to database:', selectedServices.length, 'services');
           const { data: { user } } = await supabase.auth.getUser();
 
           if (user) {
-            console.log('✅ User found:', user.id);
             // Save each selected service to user_services table
             for (const service of selectedServices) {
-              console.log(`📝 Saving service: ${service.name || service.id}`);
 
               // Extract custom phases from the service
               const customPhases = service.phases?.map(phase => ({
@@ -85,7 +82,6 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
                 tasks: phase.tasks || [],
               })) || [];
 
-              console.log(`  📊 Found ${customPhases.length} custom phases for ${service.name}`);
 
               const userService = {
                 user_id: user.id,
@@ -105,14 +101,11 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
               if (error) {
                 console.error(`❌ Error saving service ${service.name}:`, error);
               } else {
-                console.log(`✅ Service saved: ${service.name || service.id} with ${customPhases.length} phases`);
               }
             }
-            console.log('✅ All services saved to database');
 
             // Seed pricing to pricing_history for AI learning
             if (pricing && Object.keys(pricing).length > 0) {
-              console.log('📊 Seeding onboarding pricing to history for AI learning...');
               for (const [serviceId, items] of Object.entries(pricing)) {
                 const service = selectedServices.find(s => s.id === serviceId);
                 const serviceName = service?.name || 'general';
@@ -129,32 +122,25 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
                         sourceType: 'onboarding',
                         isCorrection: false,
                       });
-                      console.log(`  ✅ Saved pricing: ${itemData.name} - $${itemData.price}/${itemData.unit}`);
                     } catch (pricingError) {
                       console.warn(`  ⚠️ Failed to save pricing for ${itemData.name}:`, pricingError);
                     }
                   }
                 }
               }
-              console.log('✅ Onboarding pricing seeded to history');
             }
           } else {
             console.error('❌ No user found - cannot save services');
           }
         } else {
-          console.log('⚠️ No selectedServices found in route params');
-          console.log('Route params:', route?.params);
         }
 
         // Save typical contracts to database
         if (typicalContracts && typicalContracts.length > 0) {
-          console.log('💾 Saving typical contracts to database:', typicalContracts.length, 'contracts');
           const { data: { user } } = await supabase.auth.getUser();
 
           if (user) {
-            console.log('✅ User found:', user.id);
             for (const contract of typicalContracts) {
-              console.log(`📝 Saving contract: ${contract.name}`);
 
               let fileUrl = null;
               let publicUrl = null;
@@ -162,8 +148,6 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
               // Upload file to Supabase storage if fileUri exists
               if (contract.fileUri) {
                 try {
-                  console.log(`  📤 Uploading file for contract: ${contract.name}`);
-                  console.log(`  📁 File URI: ${contract.fileUri}`);
 
                   // Create a file path with user ID and timestamp
                   const timestamp = Date.now();
@@ -175,7 +159,6 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
                     encoding: FileSystem.EncodingType.Base64,
                   });
 
-                  console.log(`  📊 File read as base64, length: ${base64.length}`);
 
                   // Decode base64 to binary string
                   const binaryString = global.atob ? global.atob(base64) :
@@ -187,7 +170,6 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
                     bytes[i] = binaryString.charCodeAt(i);
                   }
 
-                  console.log(`  🔢 Converted to bytes, length: ${bytes.length}`);
 
                   // Upload to Supabase storage
                   const { data: uploadData, error: uploadError } = await supabase.storage
@@ -201,7 +183,6 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
                     console.error(`  ❌ Error uploading file for ${contract.name}:`, uploadError);
                     console.error(`  ❌ Upload error details:`, JSON.stringify(uploadError));
                   } else {
-                    console.log(`  ✅ File uploaded successfully: ${fileName}`);
                     fileUrl = fileName;
 
                     // Get public URL
@@ -209,14 +190,12 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
                       .from('contracts')
                       .getPublicUrl(fileName);
                     publicUrl = url;
-                    console.log(`  🔗 Public URL: ${publicUrl}`);
                   }
                 } catch (uploadError) {
                   console.error(`  ❌ Exception uploading file for ${contract.name}:`, uploadError);
                   console.error(`  ❌ Error stack:`, uploadError.stack);
                 }
               } else {
-                console.log(`  ⚠️ No fileUri for contract: ${contract.name}`);
               }
 
               const typicalContract = {
@@ -238,24 +217,16 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
               if (error) {
                 console.error(`❌ Error saving contract ${contract.name}:`, error);
               } else {
-                console.log(`✅ Contract saved: ${contract.name}${fileUrl ? ' (with file)' : ''}`);
               }
             }
-            console.log('✅ All contracts saved to database');
           } else {
             console.error('❌ No user found - cannot save contracts');
           }
         } else {
-          console.log('⚠️ No typical contracts to save');
         }
 
         if (businessInfo || selectedTrades || pricing || phasesTemplate || profitMargin) {
           // Save complete profile with all business info
-          console.log('💾 Saving business info with payment details:', {
-            hasPaymentInfo: !!businessInfo?.paymentInfo,
-            paymentInfoLength: businessInfo?.paymentInfo?.length || 0,
-            paymentInfoPreview: businessInfo?.paymentInfo?.substring(0, 50) || 'none'
-          });
 
           await saveUserProfile({
             isOnboarded: true,
@@ -266,7 +237,6 @@ export default function CompletionScreen({ navigation, route, onComplete }) {
             profit_margin: profitMargin || 0.25,
           });
 
-          console.log('✅ Business info saved successfully');
         } else {
           // Just mark as onboarded if no data was passed
           await completeOnboarding();

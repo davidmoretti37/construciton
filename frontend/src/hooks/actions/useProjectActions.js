@@ -718,11 +718,6 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
 
       const scheduleChanged = newStart !== existingStart || newEnd !== existingEnd;
 
-      // Debug: log schedule change detection
-      console.log('📅 [handleUpdateProject] Schedule changed:', scheduleChanged);
-      console.log('📅 [handleUpdateProject] New dates:', newStart, '->', newEnd);
-      console.log('📅 [handleUpdateProject] Existing dates:', existingStart, '->', existingEnd);
-
       // Merge new data with existing (new data takes precedence)
       const mergedProject = {
         ...existingProject,
@@ -745,8 +740,6 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
               endDate: newEnd,
               workingDays: projectData.workingDays || existingProject.workingDays || [1, 2, 3, 4, 5],
             };
-
-            console.log('🤖 [handleUpdateProject] Calling AI to redistribute tasks...');
 
             // AI-powered redistribution (handles deletion and intelligent distribution)
             await redistributeAllTasksWithAI(projectId, userId, phases, timeline);
@@ -788,7 +781,6 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
 
         // Emit event to notify all screens that project data changed
         emitProjectUpdated(updatedProject.id);
-        console.log('✅ Project updated, event emitted for project:', updatedProject.id);
 
         return updatedProject;
       }

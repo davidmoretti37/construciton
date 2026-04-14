@@ -7,11 +7,20 @@ const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 
 // Template rendering
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderTemplate(name, vars = {}) {
   const filePath = path.join(__dirname, 'templates', `${name}.html`);
   let html = fs.readFileSync(filePath, 'utf-8');
   for (const [key, value] of Object.entries(vars)) {
-    html = html.replaceAll(`{{${key}}}`, value);
+    html = html.replaceAll(`{{${key}}}`, escapeHtml(value));
   }
   return html;
 }
@@ -58,7 +67,14 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-app.use(cors());
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+app.use(cors({
+  origin: process.env.PORTAL_URL
+    ? [process.env.PORTAL_URL.replace(/\/portal$/, '')]
+    : ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true,
+}));
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -87,34 +103,8 @@ app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/documents', express.json({ limit: '50mb' }));
 app.use(express.json({ limit: '10mb' }));
 
-// ============================================================
-// AUTHENTICATION MIDDLEWARE
-// Verifies Supabase JWT token from Authorization header
-// ============================================================
-const authenticateUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid authorization header' });
-  }
-
-  const token = authHeader.substring(7);
-
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      logger.warn('Auth failed:', error?.message || 'No user found');
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    logger.error('Authentication error:', error);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+// Shared authentication middleware
+const { authenticateUser } = require('./middleware/authenticate');
 
 // Mount routes with rate limiting
 app.use('/api', servicesLimiter, geocodingRoutes);
@@ -1253,7 +1243,7 @@ if (require.main === module) {
   cleanupAgentJobs();
   setInterval(cleanupAgentJobs, 6 * 60 * 60 * 1000); // Every 6 hours
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     logger.info(`Backend server running on port ${PORT}`);
     logger.info(`   Health check: http://localhost:${PORT}/health`);
@@ -1275,4 +1265,19 @@ if (require.main === module) {
       logger.info(`   Teller bank integration enabled (${process.env.TELLER_ENV || 'sandbox'})`);
     }
   });
+
+  function gracefulShutdown(signal) {
+    logger.info(`${signal} received, shutting down gracefully...`);
+    server.close(() => {
+      logger.info('HTTP server closed');
+      process.exit(0);
+    });
+    // Force exit after 10 seconds if connections don't close
+    setTimeout(() => {
+      logger.error('Forced shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+  }
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }

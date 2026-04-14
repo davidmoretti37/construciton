@@ -217,11 +217,6 @@ export const recordPricingCorrection = async (correctionData) => {
       isCorrection: true, // This gets 1.5x weight
     });
 
-    console.log('Recorded pricing correction:', {
-      original: correctionData.originalSuggestion,
-      final: correctionData.finalPrice,
-      description: correctionData.workDescription,
-    });
   } catch (error) {
     console.error('Error recording pricing correction:', error);
   }

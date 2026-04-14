@@ -3,6 +3,16 @@ const logger = require('../utils/logger');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+/** Escape user-supplied values before embedding in HTML emails */
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const FROM_EMAIL = process.env.EMAIL_FROM || 'Sylk <noreply@sylkapp.ai>';
 const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
 
@@ -53,14 +63,14 @@ async function sendInvoiceEmail({ invoice, businessName, pdfUrl }) {
   <div class="container">
     <div class="card">
       <div class="header">
-        <div class="business-name">${businessName || 'Your Contractor'}</div>
+        <div class="business-name">${esc(businessName || 'Your Contractor')}</div>
         <div class="invoice-title">Invoice</div>
-        <div class="invoice-num">${invoice.invoice_number || ''}</div>
+        <div class="invoice-num">${esc(invoice.invoice_number || '')}</div>
       </div>
 
       <div class="divider"></div>
 
-      ${invoice.project_name ? `<div class="amount-row"><span class="amount-label">Project</span><span class="amount-value">${invoice.project_name}</span></div>` : ''}
+      ${invoice.project_name ? `<div class="amount-row"><span class="amount-label">Project</span><span class="amount-value">${esc(invoice.project_name)}</span></div>` : ''}
       <div class="amount-row"><span class="amount-label">Subtotal</span><span class="amount-value">$${parseFloat(invoice.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
       ${invoice.tax_amount > 0 ? `<div class="amount-row"><span class="amount-label">Tax (${invoice.tax_rate || 0}%)</span><span class="amount-value">$${parseFloat(invoice.tax_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>` : ''}
 
@@ -79,7 +89,7 @@ async function sendInvoiceEmail({ invoice, businessName, pdfUrl }) {
 
     <div class="footer">
       Sent via <strong>Sylk</strong> — the modern way to manage projects<br>
-      ${businessName || ''}
+      ${esc(businessName || '')}
     </div>
   </div>
 </body>
@@ -124,9 +134,9 @@ async function sendEstimateEmail({ estimate, businessName, pdfUrl }) {
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:40px 20px;">
           <div style="background:#fff;border-radius:16px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-            <h2 style="margin:0;color:#0F172A;">${businessName || 'Your Contractor'}</h2>
+            <h2 style="margin:0;color:#0F172A;">${esc(businessName || 'Your Contractor')}</h2>
             <p style="color:#64748B;">You have a new estimate for $${amount}</p>
-            <p style="font-size:13px;color:#94A3B8;">${estimate.estimate_number || ''} • ${estimate.project_name || ''}</p>
+            <p style="font-size:13px;color:#94A3B8;">${esc(estimate.estimate_number || '')} • ${esc(estimate.project_name || '')}</p>
             <a href="${PORTAL_URL}" style="display:block;background:#1E40AF;color:#fff;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:600;margin-top:24px;">View Estimate</a>
             ${pdfUrl ? `<p style="text-align:center;margin-top:12px;"><a href="${pdfUrl}" style="color:#1E40AF;font-size:13px;">Download PDF</a></p>` : ''}
           </div>

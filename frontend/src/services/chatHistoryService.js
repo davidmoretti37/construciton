@@ -113,8 +113,6 @@ export const chatHistoryService = {
     if (!firstMessage) return 'New Chat';
 
     try {
-      console.log('🤖 Generating AI title for:', firstMessage.substring(0, 100));
-
       // Call AI to generate a concise title
       const systemPrompt = `You are a title generator. Generate a concise, descriptive 3-6 word title that summarizes the user's message.
 Rules:
@@ -143,7 +141,6 @@ Respond with ONLY the title, nothing else.`;
         title = title.substring(0, 57) + '...';
       }
 
-      console.log('✅ AI-generated title:', title);
       return title;
 
     } catch (error) {

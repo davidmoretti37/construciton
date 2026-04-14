@@ -77,23 +77,13 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
         return;
       }
 
-      // Debug: Check user context
-      const userContext = await getCurrentUserContext();
-      console.log('📊 User Context:', userContext);
-      console.log('📊 Current User ID:', currentUserId);
-      console.log('📊 Is Supervisor:', isSupervisor);
-
       // Fetch workers using shared utility (includes all parent owner's workers)
-      console.log('📊 Fetching workers...');
       const workersData = await fetchWorkers();
-      console.log('📊 Workers fetched:', workersData?.length || 0, workersData);
 
       // Fetch assignment counts for all workers (with error handling)
-      console.log('📊 Fetching assignment counts...');
       let assignmentCounts = {};
       try {
         const countsData = await getWorkerAssignmentCounts();
-        console.log('📊 Assignment counts:', countsData);
         assignmentCounts = countsData || {};
       } catch (error) {
         console.error('Error fetching assignment counts:', error);
@@ -109,8 +99,6 @@ export default function AssignWorkerModal({ visible, onClose, onSuccess }) {
           ...worker,
           assignmentCount: assignmentCounts[worker.id] || 0
         }));
-      console.log('📊 Workers with assignments:', workersWithAssignments?.length || 0);
-      console.log('📊 Filtered out supervisors');
 
       // Fetch supervisor's assigned projects
       const { data: projectsData, error: projectsError } = await supabase

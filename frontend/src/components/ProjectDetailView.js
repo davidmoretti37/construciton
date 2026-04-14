@@ -763,7 +763,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       endDate: newEndDate,
                       workingDays: editWorkingDays,
                     };
-                    console.log('🤖 [ProjectDetailView] Calling AI to redistribute tasks...');
                     await redistributeAllTasksWithAI(project.id, userId, phases, timeline);
                     Alert.alert(t('alerts.success'), t('messages.tasksRedistributed'));
                     if (onRefreshNeeded) {
@@ -2569,7 +2568,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   status: selectedEstimate.status,
                 }}
                 onAction={(action) => {
-                  console.log('Estimate action:', action);
                   setShowEstimateModal(false);
                 }}
               />

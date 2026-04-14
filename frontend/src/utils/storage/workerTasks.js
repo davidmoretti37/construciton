@@ -361,7 +361,6 @@ export const fetchTasksForSupervisor = async (date) => {
  */
 export const regenerateProjectSchedule = async (projectId, ownerId) => {
   try {
-    console.log('🔄 [REGEN] Regenerating schedule for project:', projectId);
 
     // 1. Fetch project settings
     const { data: project, error: projErr } = await supabase
@@ -405,7 +404,6 @@ export const regenerateProjectSchedule = async (projectId, ownerId) => {
     }
 
     if (allTasks.length === 0) {
-      console.log('🔄 [REGEN] No tasks in phases');
       return { success: false, count: 0 };
     }
 
@@ -534,7 +532,6 @@ export const regenerateProjectSchedule = async (projectId, ownerId) => {
       return { success: false, count: 0 };
     }
 
-    console.log('🔄 [REGEN] Regenerated', data, 'tasks for project', projectId);
     return { success: true, count: data || tasksToCreate.length };
   } catch (error) {
     console.error('🔄 [REGEN] Error:', error);
@@ -598,7 +595,6 @@ export const calculateProjectProgressFromTasks = async (projectId) => {
     const completed = tasks.filter(t => t.status === 'completed').length;
     const progress = Math.round((completed / total) * 100);
 
-    console.log(`📊 [Progress] Project ${projectId}: ${completed}/${total} tasks = ${progress}%`);
 
     return { progress, completed, total };
   } catch (error) {
@@ -629,7 +625,6 @@ export const updateProjectProgressFromTasks = async (projectId) => {
       return false;
     }
 
-    console.log(`📊 [Progress] Updated project ${projectId} to ${progress}%`);
     return true;
   } catch (error) {
     console.error('Error in updateProjectProgressFromTasks:', error);
@@ -1406,7 +1401,6 @@ export const redistributeTasksFromDayWithAI = async (projectId, disabledDay, new
   try {
     const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const disabledDayName = dayNames[disabledDay];
-    console.log('🤖 [AI-WORKDAY] Starting AI redistribution for disabled day:', disabledDayName);
 
     const userId = await getCurrentUserId();
     if (!userId) return { success: false, updatedCount: 0, errors: ['Not authenticated'] };
@@ -1452,11 +1446,9 @@ export const redistributeTasksFromDayWithAI = async (projectId, disabledDay, new
     });
 
     if (tasksOnDisabledDay.length === 0) {
-      console.log('🤖 [AI-WORKDAY] No tasks on disabled day, nothing to redistribute');
       return { success: true, updatedCount: 0, errors: [] };
     }
 
-    console.log('🤖 [AI-WORKDAY] Found', tasksOnDisabledDay.length, 'tasks on', disabledDayName);
 
     // 4. Get tasks on adjacent days for context (for AI prompt)
     const getAdjacentDayTasks = (targetIsoDay) => {
@@ -1520,7 +1512,6 @@ Consider:
 Return ONLY a valid JSON array:
 [{"taskId":"<actual-task-id>","direction":"backward"},{"taskId":"<actual-task-id>","direction":"forward"}]`;
 
-    console.log('🤖 [AI-WORKDAY] Calling AI to decide task movement...');
 
     // 6. Call AI
     const response = await sendPlanningRequest(prompt, 'You are a construction scheduler. Return ONLY valid JSON array, no explanation.');
@@ -1547,7 +1538,6 @@ Return ONLY a valid JSON array:
       directions = tasksOnDisabledDay.map(t => ({ taskId: t.id, direction: 'forward' }));
     }
 
-    console.log('🤖 [AI-WORKDAY] AI directions:', directions);
 
     // 8. Calculate new dates and update tasks (store original_date!)
     let updatedCount = 0;
@@ -1607,11 +1597,9 @@ Return ONLY a valid JSON array:
         errors.push(`Task "${task.title}": ${updateError.message}`);
       } else {
         updatedCount++;
-        console.log(`🤖 [AI-WORKDAY] Moved "${task.title}" ${direction} from ${originalDate} to ${newDateStr}`);
       }
     }
 
-    console.log('🤖 [AI-WORKDAY] Completed. Updated', updatedCount, 'tasks');
 
     return {
       success: errors.length === 0,
@@ -1633,7 +1621,6 @@ Return ONLY a valid JSON array:
 export const restoreTasksToOriginalDay = async (projectId, reEnabledDay) => {
   try {
     const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    console.log('🔄 [RESTORE] Restoring tasks to', dayNames[reEnabledDay]);
 
     const userId = await getCurrentUserId();
     if (!userId) return { success: false, updatedCount: 0, errors: ['Not authenticated'] };
@@ -1651,7 +1638,6 @@ export const restoreTasksToOriginalDay = async (projectId, reEnabledDay) => {
     }
 
     if (!tasks || tasks.length === 0) {
-      console.log('🔄 [RESTORE] No tasks with original_date found');
       return { success: true, updatedCount: 0, errors: [] };
     }
 
@@ -1665,11 +1651,9 @@ export const restoreTasksToOriginalDay = async (projectId, reEnabledDay) => {
     });
 
     if (tasksToRestore.length === 0) {
-      console.log('🔄 [RESTORE] No tasks to restore for', dayNames[reEnabledDay]);
       return { success: true, updatedCount: 0, errors: [] };
     }
 
-    console.log('🔄 [RESTORE] Found', tasksToRestore.length, 'tasks to restore');
 
     let updatedCount = 0;
     const errors = [];
@@ -1689,11 +1673,9 @@ export const restoreTasksToOriginalDay = async (projectId, reEnabledDay) => {
         errors.push(`Task "${task.title}": ${updateError.message}`);
       } else {
         updatedCount++;
-        console.log(`🔄 [RESTORE] Restored "${task.title}" to ${task.original_date}`);
       }
     }
 
-    console.log('🔄 [RESTORE] Completed. Restored', updatedCount, 'tasks');
 
     return {
       success: errors.length === 0,
@@ -1716,7 +1698,6 @@ export const restoreTasksToOriginalDay = async (projectId, reEnabledDay) => {
  */
 export const moveTasksFromSpecificDate = async (projectId, dateToMove, workingDays, nonWorkingDates) => {
   try {
-    console.log('📅 [MOVE-DATE] Moving tasks from specific date:', dateToMove);
 
     const userId = await getCurrentUserId();
     if (!userId) return { success: false, updatedCount: 0, errors: ['Not authenticated'] };
@@ -1735,11 +1716,9 @@ export const moveTasksFromSpecificDate = async (projectId, dateToMove, workingDa
     }
 
     if (!tasks || tasks.length === 0) {
-      console.log('📅 [MOVE-DATE] No tasks on', dateToMove);
       return { success: true, updatedCount: 0, errors: [] };
     }
 
-    console.log('📅 [MOVE-DATE] Found', tasks.length, 'tasks to move');
 
     let updatedCount = 0;
     const errors = [];
@@ -1800,11 +1779,9 @@ export const moveTasksFromSpecificDate = async (projectId, dateToMove, workingDa
         errors.push(`Task "${task.title}": ${updateError.message}`);
       } else {
         updatedCount++;
-        console.log(`📅 [MOVE-DATE] Moved "${task.title}" from ${originalDate} to ${newDateStr}`);
       }
     }
 
-    console.log('📅 [MOVE-DATE] Completed. Moved', updatedCount, 'tasks');
 
     return {
       success: errors.length === 0,
@@ -1825,7 +1802,6 @@ export const moveTasksFromSpecificDate = async (projectId, dateToMove, workingDa
  */
 export const restoreTasksToSpecificDate = async (projectId, dateToRestore) => {
   try {
-    console.log('📅 [RESTORE-DATE] Restoring tasks to:', dateToRestore);
 
     const userId = await getCurrentUserId();
     if (!userId) return { success: false, updatedCount: 0, errors: ['Not authenticated'] };
@@ -1843,11 +1819,9 @@ export const restoreTasksToSpecificDate = async (projectId, dateToRestore) => {
     }
 
     if (!tasks || tasks.length === 0) {
-      console.log('📅 [RESTORE-DATE] No tasks to restore for', dateToRestore);
       return { success: true, updatedCount: 0, errors: [] };
     }
 
-    console.log('📅 [RESTORE-DATE] Found', tasks.length, 'tasks to restore');
 
     let updatedCount = 0;
     const errors = [];
@@ -1867,11 +1841,9 @@ export const restoreTasksToSpecificDate = async (projectId, dateToRestore) => {
         errors.push(`Task "${task.title}": ${updateError.message}`);
       } else {
         updatedCount++;
-        console.log(`📅 [RESTORE-DATE] Restored "${task.title}" to ${task.original_date}`);
       }
     }
 
-    console.log('📅 [RESTORE-DATE] Completed. Restored', updatedCount, 'tasks');
 
     return {
       success: errors.length === 0,

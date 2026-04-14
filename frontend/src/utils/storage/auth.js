@@ -39,7 +39,6 @@ export const getCurrentUserContext = async () => {
     .single();
 
   if (profileError) {
-    console.log('Error fetching profile for context:', profileError);
     return {
       userId: user.id,
       role: 'contractor',

@@ -85,8 +85,6 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
 
     // Invalidate cache since worker status changed
     responseCache.invalidateAgent('WorkersSchedulingAgent');
-    console.log('Clock-in successful:', data);
-
     // Notify owner (and supervisor) about clock-in
     try {
       const { data: workerInfo } = await supabase.from('workers')
@@ -1697,8 +1695,6 @@ export const supervisorClockIn = async (supervisorId, projectId, location = null
       return null;
     }
 
-    console.log('Supervisor clock-in successful:', data);
-
     // Notify owner about supervisor clock-in
     try {
       const { data: supProfile } = await supabase.from('profiles')
@@ -1799,8 +1795,6 @@ export const supervisorClockOut = async (timeTrackingId, notes = null) => {
         });
       }
     }
-
-    console.log('Supervisor clock-out successful:', { hours: hoursWorked, laborCost });
 
     // Notify owner about supervisor clock-out
     try {

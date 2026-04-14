@@ -314,7 +314,6 @@ export default function SupervisorsScreen() {
       });
 
       if (rpcError) {
-        console.log('RPC failed, using fallback query:', rpcError);
         try {
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
@@ -323,7 +322,6 @@ export default function SupervisorsScreen() {
             .eq('role', 'supervisor');
 
           if (profileError) {
-            console.log('Fallback query also failed:', profileError);
             // Just set empty supervisors if both queries fail
             setSupervisors([]);
           } else {
@@ -335,7 +333,6 @@ export default function SupervisorsScreen() {
             })) || []);
           }
         } catch (fallbackError) {
-          console.log('Fallback error:', fallbackError);
           setSupervisors([]);
         }
       } else {
@@ -353,8 +350,7 @@ export default function SupervisorsScreen() {
       setPendingInvites(inviteData || []);
 
     } catch (error) {
-      // Log as warning since fallback handling is in place
-      console.log('Supervisor fetch warning (fallback used):', error?.message || error);
+      // Supervisor fetch warning handled silently (fallback used)
     } finally {
       setLoading(false);
       setRefreshing(false);

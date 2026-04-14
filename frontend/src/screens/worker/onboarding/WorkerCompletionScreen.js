@@ -58,8 +58,6 @@ export default function WorkerCompletionScreen({ route, navigation }) {
 
     setSaving(true);
     try {
-      console.log('💾 Saving worker profile...');
-
       // Save to workers table
       const { data, error } = await supabase
         .from('workers')
@@ -76,8 +74,6 @@ export default function WorkerCompletionScreen({ route, navigation }) {
 
       if (error) throw error;
 
-      console.log('✅ Worker profile saved:', data);
-
       // Mark onboarding as complete in profiles table
       const { error: profileError } = await supabase
         .from('profiles')
@@ -86,7 +82,6 @@ export default function WorkerCompletionScreen({ route, navigation }) {
 
       if (profileError) throw profileError;
 
-      console.log('✅ Onboarding completed');
       setCompleted(true);
 
       // Start animations after short delay

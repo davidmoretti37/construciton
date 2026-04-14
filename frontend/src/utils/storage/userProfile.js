@@ -623,7 +623,6 @@ export const saveLanguage = async (languageId) => {
       return false;
     }
 
-    console.log('saveLanguage: Language saved successfully:', languageId);
     return true;
   } catch (error) {
     console.error('saveLanguage exception:', error);
@@ -639,7 +638,6 @@ export const getSelectedLanguage = async () => {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
-      console.log('getSelectedLanguage: No user ID');
       return null;
     }
 
@@ -655,7 +653,6 @@ export const getSelectedLanguage = async () => {
     }
 
     const language = data?.language || null;
-    console.log('getSelectedLanguage:', language);
     return language;
   } catch (error) {
     console.error('getSelectedLanguage exception:', error);
@@ -685,7 +682,6 @@ export const getAutoTranslateEstimates = async () => {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
-      console.log('getAutoTranslateEstimates: No user ID');
       return false;
     }
 

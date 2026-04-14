@@ -134,7 +134,6 @@ export const fetchSupervisors = async () => {
   });
 
   if (error) {
-    console.log('RPC failed, using fallback:', error);
     // Fallback to direct query
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
@@ -202,7 +201,6 @@ export const getOwnerDashboardStats = async () => {
   });
 
   if (error) {
-    console.log('Dashboard stats RPC failed:', error);
     // Return empty stats
     return {
       total_supervisors: 0,

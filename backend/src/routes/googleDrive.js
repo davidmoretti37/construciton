@@ -50,6 +50,26 @@ function decrypt(data) {
 }
 
 // ============================================================
+// HMAC-SIGNED OAUTH STATE HELPERS
+// ============================================================
+
+function signState(payload) {
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+    .update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
+
+function verifyState(state) {
+  const [data, sig] = state.split('.');
+  if (!data || !sig) return null;
+  const expected = crypto.createHmac('sha256', process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+    .update(data).digest('base64url');
+  if (sig !== expected) return null;
+  return JSON.parse(Buffer.from(data, 'base64url').toString());
+}
+
+// ============================================================
 // OAUTH2 CLIENT FACTORY
 // ============================================================
 
@@ -118,29 +138,7 @@ async function getGoogleDriveClient(userId) {
   return google.drive({ version: 'v3', auth: oauth2Client });
 }
 
-// ============================================================
-// AUTH MIDDLEWARE (reused from server.js pattern)
-// ============================================================
-
-const authenticateUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid authorization header' });
-  }
-  const token = authHeader.substring(7);
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) {
-      logger.warn('Auth failed:', error?.message || 'No user found');
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  } catch (error) {
-    logger.error('Authentication error:', error);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+const { authenticateUser } = require('../middleware/authenticate');
 
 // Guard: check if Google Drive env vars are configured
 const requireGoogleDrive = (req, res, next) => {
@@ -160,7 +158,7 @@ router.get('/auth', requireGoogleDrive, authenticateUser, async (req, res) => {
     const userId = req.user.id;
     const oauth2Client = createOAuth2Client();
 
-    const state = Buffer.from(JSON.stringify({ userId })).toString('base64');
+    const state = signState({ userId });
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -197,14 +195,12 @@ router.get('/callback', requireGoogleDrive, async (req, res) => {
       return res.status(400).send('Missing authorization code or state');
     }
 
-    // Decode state to get userId
-    let userId;
-    try {
-      const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
-      userId = decoded.userId;
-    } catch {
-      return res.status(400).send('Invalid state parameter');
+    // Verify HMAC-signed state to get userId
+    const statePayload = verifyState(state);
+    if (!statePayload) {
+      return res.status(401).send('Invalid or tampered state parameter');
     }
+    const userId = statePayload.userId;
 
     // Exchange code for tokens
     const oauth2Client = createOAuth2Client();

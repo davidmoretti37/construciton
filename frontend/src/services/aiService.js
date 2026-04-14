@@ -1412,10 +1412,6 @@ If any field is not found in the document, use null. Be accurate and only extrac
 export const describeAttachments = async (attachments) => {
   if (!attachments || attachments.length === 0) return '';
 
-  console.log('[describeAttachments] Processing attachments:',
-    attachments.map(a => ({ name: a.filename, mimeType: a.mimeType, sizeBytes: a.size ?? a.data?.length ?? 'unknown' }))
-  );
-
   const descriptions = [];
   const MAX_DOC_CHARS = 40000; // ~10k tokens — fits large SOWs and contracts
   const token = await getAuthToken();

@@ -19,7 +19,6 @@ export const sendEstimateViaSMS = async (phoneNumber, estimateText) => {
 
     const { result } = await SMS.sendSMSAsync([phoneNumber], estimateText);
 
-    console.log('SMS result:', result);
   } catch (error) {
     console.error('Error sending SMS:', error);
     Alert.alert('Error', 'Failed to send SMS. Please try again.');

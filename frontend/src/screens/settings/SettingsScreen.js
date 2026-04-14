@@ -45,16 +45,24 @@ export default function SettingsScreen({ navigation }) {
   }, [navigation]);
 
   const loadProfile = async () => {
-    const profile = await getUserProfile();
-    setUserProfile(profile);
+    try {
+      const profile = await getUserProfile();
+      setUserProfile(profile);
 
-    // Load current language
-    const language = await getSelectedLanguage();
-    setCurrentLanguage(language || 'en');
+      // Load current language
+      const language = await getSelectedLanguage();
+      setCurrentLanguage(language || 'en');
 
-    // Load auto-translate setting
-    const autoTranslate = await getAutoTranslateEstimates();
-    setAutoTranslateEstimates(autoTranslate);
+      // Load auto-translate setting
+      const autoTranslate = await getAutoTranslateEstimates();
+      setAutoTranslateEstimates(autoTranslate);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+      // Set defaults so screen doesn't hang
+      setUserProfile({});
+      setCurrentLanguage('en');
+      setAutoTranslateEstimates(false);
+    }
   };
 
   const handleChangeLanguage = () => {
@@ -83,25 +91,16 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('🚪 LOGOUT: Starting logout process...');
-
               // Sign out from Supabase
-              console.log('🚪 LOGOUT: Calling supabase.auth.signOut()...');
               const { error } = await supabase.auth.signOut();
               if (error) {
                 console.error('🚪 LOGOUT ERROR:', error);
                 throw error;
               }
-              console.log('🚪 LOGOUT: Supabase signOut successful');
-
               // Clear all AsyncStorage data for complete reset (preserve onboarding flag)
-              console.log('🚪 LOGOUT: Clearing AsyncStorage...');
               const hasSeenOnboarding = await AsyncStorage.getItem('@hasSeenOnboarding');
               await AsyncStorage.clear();
               if (hasSeenOnboarding) await AsyncStorage.setItem('@hasSeenOnboarding', hasSeenOnboarding);
-              console.log('🚪 LOGOUT: AsyncStorage cleared');
-
-              console.log('✅ LOGOUT COMPLETE - App should now show LOGIN screen');
               // App.js will handle navigation to login screen via auth state listener
             } catch (error) {
               console.error('❌ LOGOUT FAILED:', error);
