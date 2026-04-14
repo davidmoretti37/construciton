@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import Slider from '@react-native-community/slider';
-import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
+import { getColors, LightColors, Spacing, FontSizes, BorderRadius, TASK_STATUSES, getTaskStatus } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function PhaseTimeline({
@@ -105,6 +105,8 @@ export default function PhaseTimeline({
 
   const renderTask = useCallback(({ item: task, drag, isActive, phase }) => {
     const hasMultipleSections = phases.length > 1;
+    const status = getTaskStatus(task);
+    const statusDef = TASK_STATUSES[status];
     return (
       <ScaleDecorator>
         <TouchableOpacity
@@ -125,25 +127,30 @@ export default function PhaseTimeline({
             style={[
               styles.taskCheckbox,
               {
-                borderColor: task.completed ? '#10B981' : Colors.border,
-                backgroundColor: task.completed ? '#10B981' : 'transparent',
+                borderColor: status === 'done' ? '#10B981' : Colors.border,
+                backgroundColor: status === 'done' ? '#10B981' : 'transparent',
               }
             ]}
           >
-            {task.completed && <Ionicons name="checkmark" size={14} color="#fff" />}
+            {status === 'done' && <Ionicons name="checkmark" size={14} color="#fff" />}
           </View>
           <Text
             style={[
               styles.taskText,
               {
-                color: task.completed ? Colors.secondaryText : Colors.primaryText,
-                textDecorationLine: task.completed ? 'line-through' : 'none',
+                color: status === 'done' ? Colors.secondaryText : Colors.primaryText,
+                textDecorationLine: status === 'done' ? 'line-through' : 'none',
+                flex: 1,
               }
             ]}
             numberOfLines={2}
           >
             {task.description || task.name}
           </Text>
+          <View style={[styles.taskStatusBadge, { backgroundColor: statusDef.color + '18' }]}>
+            <View style={[styles.taskStatusDot, { backgroundColor: statusDef.color }]} />
+            <Text style={[styles.taskStatusText, { color: statusDef.color }]}>{statusDef.label}</Text>
+          </View>
           {hasMultipleSections && onTaskMove && (
             <TouchableOpacity
               style={styles.taskMoveBtn}
@@ -445,6 +452,24 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     flex: 1,
     lineHeight: 20,
+  },
+  taskStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 4,
+    gap: 3,
+  },
+  taskStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  taskStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   taskMoveBtn: {
     padding: Spacing.xs,

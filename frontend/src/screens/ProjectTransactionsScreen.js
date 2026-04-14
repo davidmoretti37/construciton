@@ -41,6 +41,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
   const [transactions, setTransactions] = useState([]);
   const [typeFilter, setTypeFilter] = useState(transactionType || filterType || 'all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [tradeFilter, setTradeFilter] = useState(subcategoryFilter || 'all');
 
   // Support both projects and service plans
   const entityId = projectId || servicePlanId;
@@ -137,11 +138,11 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(tx => tx.category === categoryFilter);
     }
-    if (subcategoryFilter) {
-      filtered = filtered.filter(tx => (tx.subcategory || '').toLowerCase() === subcategoryFilter.toLowerCase());
+    if (tradeFilter !== 'all') {
+      filtered = filtered.filter(tx => (tx.subcategory || '').toLowerCase() === tradeFilter.toLowerCase());
     }
     return filtered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [transactions, typeFilter, categoryFilter, subcategoryFilter]);
+  }, [transactions, typeFilter, categoryFilter, tradeFilter]);
 
   // ── Available category filters (only show categories with data) ──
   const availableCategories = useMemo(() => {
@@ -151,6 +152,23 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     const cats = new Set(typeFiltered.map(tx => tx.category).filter(Boolean));
     return CATEGORIES.filter(c => cats.has(c));
   }, [transactions, typeFilter]);
+
+  // ── Available trade/subcategory filters ─────────────────
+  const availableTrades = useMemo(() => {
+    let base = transactions;
+    if (typeFilter !== 'all') base = base.filter(tx => tx.type === typeFilter);
+    if (categoryFilter !== 'all') base = base.filter(tx => tx.category === categoryFilter);
+    const trades = new Map();
+    base.forEach(tx => {
+      const sub = tx.subcategory;
+      if (sub) {
+        const key = sub.toLowerCase();
+        if (!trades.has(key)) trades.set(key, { name: sub, count: 0 });
+        trades.get(key).count++;
+      }
+    });
+    return Array.from(trades.values()).sort((a, b) => b.count - a.count);
+  }, [transactions, typeFilter, categoryFilter]);
 
   // ── Totals ───────────────────────────────────────────────
   const totals = useMemo(() => {
@@ -255,7 +273,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
                   { borderColor: Colors.border },
                   typeFilter === f.key && styles.filterPillActive,
                 ]}
-                onPress={() => { setTypeFilter(f.key); setCategoryFilter('all'); }}
+                onPress={() => { setTypeFilter(f.key); setCategoryFilter('all'); setTradeFilter('all'); }}
                 activeOpacity={0.7}
               >
                 <Text style={[
@@ -307,6 +325,51 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
                 ]}>{CATEGORY_LABELS[cat]}</Text>
               </TouchableOpacity>
             ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Trade / Service Filter */}
+      {availableTrades.length > 1 && (
+        <View style={styles.filtersSection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            <TouchableOpacity
+              style={[
+                styles.categoryPill,
+                { borderColor: Colors.border },
+                tradeFilter === 'all' && styles.filterPillActive,
+              ]}
+              onPress={() => setTradeFilter('all')}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.categoryPillText,
+                { color: Colors.secondaryText },
+                tradeFilter === 'all' && styles.filterPillTextActive,
+              ]}>All Trades</Text>
+            </TouchableOpacity>
+            {availableTrades.map(trade => {
+              const isActive = tradeFilter.toLowerCase() === trade.name.toLowerCase();
+              return (
+                <TouchableOpacity
+                  key={trade.name}
+                  style={[
+                    styles.categoryPill,
+                    { borderColor: Colors.border },
+                    isActive && styles.filterPillActive,
+                  ]}
+                  onPress={() => setTradeFilter(isActive ? 'all' : trade.name)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="construct-outline" size={12} color={isActive ? '#fff' : Colors.secondaryText} />
+                  <Text style={[
+                    styles.categoryPillText,
+                    { color: Colors.secondaryText },
+                    isActive && styles.filterPillTextActive,
+                  ]}>{trade.name} ({trade.count})</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       )}
@@ -390,6 +453,14 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
                       <Ionicons name="flash" size={12} color="#9CA3AF" />
                     </>
                   )}
+                  {transaction.date && (
+                    <>
+                      <View style={styles.metaDot} />
+                      <Text style={[styles.transactionMetaText, { color: Colors.secondaryText }]}>
+                        {formatShortDate(transaction.date)}
+                      </Text>
+                    </>
+                  )}
                 </View>
               </View>
             </View>
@@ -427,6 +498,16 @@ function formatSectionDate(dateStr) {
     if (target.getTime() === yesterday.getTime()) return 'Yesterday';
 
     return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatShortDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr + 'T12:00:00');
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   } catch {
     return dateStr;
   }

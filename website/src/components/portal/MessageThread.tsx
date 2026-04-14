@@ -22,6 +22,24 @@ export default function MessageThread({ projectId }: Props) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
+  // Poll for new messages every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchMessages(projectId)
+        .then((newMsgs) => {
+          setMessages((prev) => {
+            if (newMsgs.length !== prev.length) return newMsgs;
+            const lastNew = newMsgs[newMsgs.length - 1];
+            const lastPrev = prev[prev.length - 1];
+            if (lastNew?.id !== lastPrev?.id) return newMsgs;
+            return prev;
+          });
+        })
+        .catch(() => {});
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [projectId]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

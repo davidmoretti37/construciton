@@ -68,6 +68,13 @@ router.post('/auth/verify', async (req, res) => {
       .single();
 
     if (existingSession) {
+      res.cookie('portal_session', existingSession.session_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        path: '/api/portal',
+      });
       return res.json({
         sessionToken: existingSession.session_token,
         client: {
@@ -92,6 +99,13 @@ router.post('/auth/verify', async (req, res) => {
 
     logger.info(`[Portal] Session created for client ${client.full_name}`);
 
+    res.cookie('portal_session', session.session_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      path: '/api/portal',
+    });
     res.json({
       sessionToken: session.session_token,
       client: {
@@ -176,20 +190,51 @@ router.get('/dashboard', async (req, res) => {
         .neq('status', 'cancelled'),
 
       // Outstanding invoices across all owner's projects for this client
-      supabase
-        .from('invoices')
-        .select('id, invoice_number, project_name, total, amount_paid, amount_due, status, due_date')
-        .eq('user_id', ownerId)
-        .in('status', ['unpaid', 'partial', 'overdue'])
-        .or(`client_email.eq.${req.client.email},client_name.eq.${req.client.full_name}`),
+      // Use separate .eq() filters via two queries to avoid PostgREST .or() injection
+      (async () => {
+        const { data: byEmail } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, project_name, total, amount_paid, amount_due, status, due_date')
+          .eq('user_id', ownerId)
+          .in('status', ['unpaid', 'partial', 'overdue'])
+          .eq('client_email', req.client.email);
+        const { data: byName } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, project_name, total, amount_paid, amount_due, status, due_date')
+          .eq('user_id', ownerId)
+          .in('status', ['unpaid', 'partial', 'overdue'])
+          .eq('client_name', req.client.full_name);
+        const seen = new Set();
+        const merged = [...(byEmail || []), ...(byName || [])].filter(i => {
+          if (seen.has(i.id)) return false;
+          seen.add(i.id);
+          return true;
+        });
+        return { data: merged, error: null };
+      })(),
 
       // Pending estimates
-      supabase
-        .from('estimates')
-        .select('id, estimate_number, project_name, total, status, created_at')
-        .eq('user_id', ownerId)
-        .in('status', ['sent', 'viewed'])
-        .or(`client_email.eq.${req.client.email},client_name.eq.${req.client.full_name}`),
+      (async () => {
+        const { data: byEmail } = await supabase
+          .from('estimates')
+          .select('id, estimate_number, project_name, total, status, created_at')
+          .eq('user_id', ownerId)
+          .in('status', ['sent', 'viewed'])
+          .eq('client_email', req.client.email);
+        const { data: byName } = await supabase
+          .from('estimates')
+          .select('id, estimate_number, project_name, total, status, created_at')
+          .eq('user_id', ownerId)
+          .in('status', ['sent', 'viewed'])
+          .eq('client_name', req.client.full_name);
+        const seen = new Set();
+        const merged = [...(byEmail || []), ...(byName || [])].filter(e => {
+          if (seen.has(e.id)) return false;
+          seen.add(e.id);
+          return true;
+        });
+        return { data: merged, error: null };
+      })(),
 
       // Owner branding
       supabase
@@ -1402,7 +1447,20 @@ router.get('/projects/:projectId/documents', verifyProjectAccess, async (req, re
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    res.json(data || []);
+
+    // Generate signed download URLs for each document
+    const docs = await Promise.all((data || []).map(async (doc) => {
+      let download_url = null;
+      if (doc.storage_path) {
+        const { data: signedData } = await supabase.storage
+          .from('project-documents')
+          .createSignedUrl(doc.storage_path, 3600); // 1 hour expiry
+        download_url = signedData?.signedUrl || null;
+      }
+      return { ...doc, download_url };
+    }));
+
+    res.json(docs);
   } catch (error) {
     logger.error('[Portal] Documents error:', error.message);
     res.status(500).json({ error: 'Failed to load documents' });

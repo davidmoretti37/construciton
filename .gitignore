@@ -44,3 +44,4 @@ backend/.env
 # generated native folders
 /ios
 /android
+google-service-account.json

@@ -17,6 +17,7 @@ import {
   fetchMaterials,
   fetchSummaries,
   fetchRequests,
+  fetchDocuments,
   respondToEstimate,
   payInvoice,
   type PortalProject,
@@ -26,6 +27,7 @@ import {
   type PortalMaterialSelection,
   type PortalWeeklySummary,
   type PortalRequest,
+  type PortalDocument,
 } from "@/services/portal";
 
 function formatCurrency(amount: number) {
@@ -48,8 +50,10 @@ export default function PortalProjectDetailPage() {
   const [materials, setMaterials] = useState<PortalMaterialSelection[]>([]);
   const [summaries, setSummaries] = useState<PortalWeeklySummary[]>([]);
   const [requests, setRequests] = useState<PortalRequest[]>([]);
+  const [documents, setDocuments] = useState<PortalDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [paymentVerified, setPaymentVerified] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -65,6 +69,7 @@ export default function PortalProjectDetailPage() {
         fetchMaterials(id),
         fetchSummaries(id),
         fetchRequests(id),
+        fetchDocuments(id),
       ]);
 
       if (results[0].status === "fulfilled") setEstimates(results[0].value);
@@ -73,6 +78,7 @@ export default function PortalProjectDetailPage() {
       if (results[3].status === "fulfilled") setMaterials(results[3].value);
       if (results[4].status === "fulfilled") setSummaries(results[4].value);
       if (results[5].status === "fulfilled") setRequests(results[5].value);
+      if (results[6].status === "fulfilled") setDocuments(results[6].value);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project");
     } finally {
@@ -83,6 +89,28 @@ export default function PortalProjectDetailPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Verify payment after Stripe redirect — poll until invoice status changes or timeout
+  useEffect(() => {
+    if (paymentStatus !== "success" || !id) return;
+    let attempts = 0;
+    const maxAttempts = 6;
+    const checkPayment = () => {
+      fetchInvoices(id)
+        .then((updated) => {
+          setInvoices(updated);
+          const hasPaid = updated.some((inv) => inv.status === "paid" || inv.amount_paid > 0);
+          if (hasPaid || attempts >= maxAttempts) {
+            setPaymentVerified(true);
+          } else {
+            attempts++;
+            setTimeout(checkPayment, 3000); // Retry every 3s
+          }
+        })
+        .catch(() => setPaymentVerified(true));
+    };
+    checkPayment();
+  }, [paymentStatus, id]);
 
   const handleEstimateRespond = async (estimateId: string, action: string) => {
     try {
@@ -142,13 +170,23 @@ export default function PortalProjectDetailPage() {
 
         {/* Payment success banner */}
         {paymentStatus === "success" && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+          <div className={`rounded-xl p-4 flex items-center gap-3 ${
+            paymentVerified ? "bg-green-50 border border-green-200" : "bg-blue-50 border border-blue-200"
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+              paymentVerified ? "bg-green-100" : "bg-blue-100"
+            }`}>
+              {paymentVerified ? (
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              )}
             </div>
-            <p className="text-sm text-green-800 font-medium">Payment received! Thank you.</p>
+            <p className={`text-sm font-medium ${paymentVerified ? "text-green-800" : "text-blue-800"}`}>
+              {paymentVerified ? "Payment received! Thank you." : "Verifying payment..."}
+            </p>
           </div>
         )}
 
@@ -420,6 +458,42 @@ export default function PortalProjectDetailPage() {
         {/* Photos */}
         {settings.show_photos && project.photos && project.photos.length > 0 && (
           <PhotoTimeline photos={project.photos} projectId={id} />
+        )}
+
+        {/* Documents */}
+        {documents.length > 0 && (
+          <section className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Documents</h2>
+            <div className="space-y-2">
+              {documents.map((doc) => (
+                <a
+                  key={doc.id}
+                  href={doc.download_url || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors ${
+                    doc.download_url ? "" : "pointer-events-none opacity-50"
+                  }`}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{doc.title || doc.file_name}</p>
+                    <p className="text-xs text-gray-500">
+                      {doc.category && <span className="capitalize">{doc.category} · </span>}
+                      {doc.file_size ? `${(doc.file_size / 1024).toFixed(0)} KB` : ""}
+                    </p>
+                  </div>
+                  <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                </a>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Messages */}

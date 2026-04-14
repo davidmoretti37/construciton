@@ -84,6 +84,9 @@ import GoogleDriveScreen from '../screens/owner/GoogleDriveScreen';
 import ClientVisibilityScreen from '../screens/owner/ClientVisibilityScreen';
 import ClientsScreen from '../screens/owner/ClientsScreen';
 
+// Import manual project creation
+import ManualProjectCreateScreen from '../screens/owner/ManualProjectCreateScreen';
+
 // Import service plan screens
 import ServicePlanDetailScreen from '../screens/owner/ServicePlanDetailScreen';
 import DailyRouteScreen from '../screens/owner/DailyRouteScreen';
@@ -103,6 +106,10 @@ export default function OwnerMainNavigator() {
       <Stack.Screen name="MainTabs" component={OwnerBottomTabNavigator} />
 
       {/* Project Screens */}
+      <Stack.Screen
+        name="ManualProjectCreate"
+        component={ManualProjectCreateScreen}
+      />
       <Stack.Screen
         name="ProjectDetail"
         component={ProjectDetailScreen}

@@ -84,7 +84,18 @@ export default function WorkScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Work</Text>
-        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        <View style={styles.headerRight}>
+          {activeSegment === 0 && (
+            <TouchableOpacity
+              style={styles.addProjectBtn}
+              onPress={() => navigation.navigate('ManualProjectCreate')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle" size={28} color="#1E40AF" />
+            </TouchableOpacity>
+          )}
+          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        </View>
       </View>
 
       {/* Toggle row with filter */}
@@ -161,6 +172,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addProjectBtn: {
+    padding: 4,
   },
   headerTitle: {
     fontSize: 28,

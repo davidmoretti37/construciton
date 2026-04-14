@@ -15,7 +15,18 @@ export default function SiteActivityBadge({ projectId, enabled }: Props) {
     if (!enabled) return;
     fetchSiteActivity(projectId)
       .then(setActivity)
-      .catch(() => {});
+      .catch(() => null);
+  }, [projectId, enabled]);
+
+  // Poll every 60 seconds for updated site activity
+  useEffect(() => {
+    if (!enabled) return;
+    const interval = setInterval(() => {
+      fetchSiteActivity(projectId)
+        .then(setActivity)
+        .catch(() => null);
+    }, 60000);
+    return () => clearInterval(interval);
   }, [projectId, enabled]);
 
   if (!enabled || !activity || activity.workers_on_site === 0) return null;

@@ -133,3 +133,20 @@ export const BorderRadius = {
   xl: 20,
   pill: 22,
 };
+
+// Task status definitions — used across PhaseDetailScreen, PhaseTimeline, ProjectDetailView
+export const TASK_STATUSES = {
+  not_started: { label: 'To Do', color: '#6B7280', icon: 'ellipse-outline' },
+  in_progress: { label: 'Working', color: '#3B82F6', icon: 'sync-circle' },
+  done:        { label: 'Done', color: '#10B981', icon: 'checkmark-circle' },
+  stuck:       { label: 'Stuck', color: '#EF4444', icon: 'alert-circle' },
+};
+
+// Derive task status from legacy data (backward compat for tasks without status field)
+export const getTaskStatus = (task) => {
+  if (task.status && TASK_STATUSES[task.status]) return task.status;
+  return task.completed ? 'done' : 'not_started';
+};
+
+// Status cycle order for tap-to-cycle
+export const TASK_STATUS_ORDER = ['not_started', 'in_progress', 'done', 'stuck'];

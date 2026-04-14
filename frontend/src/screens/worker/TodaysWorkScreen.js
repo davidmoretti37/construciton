@@ -27,7 +27,7 @@ import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../utils/storage/auth';
 import { fetchTasksForWorker, completeTask, uncompleteTask } from '../../utils/storage';
 import DailyChecklistSection from '../../components/DailyChecklistSection';
-import WorkerScheduleScreen from './WorkerScheduleScreen';
+import ScheduleView from '../../components/ScheduleView';
 
 export default function TodaysWorkScreen() {
   const { isDark = false } = useTheme() || {};
@@ -155,6 +155,7 @@ export default function TodaysWorkScreen() {
 
     } catch (e) {
       console.error('[TodaysWork] Load error:', e);
+      Alert.alert('Error', 'Failed to load today\'s work. Pull down to refresh.');
     } finally {
       setLoading(false);
     }
@@ -221,7 +222,7 @@ export default function TodaysWorkScreen() {
             </View>
           </View>
         </View>
-        <WorkerScheduleScreen embedded navigation={navigation} />
+        <ScheduleView navigation={navigation} role="worker" />
       </SafeAreaView>
     );
   }

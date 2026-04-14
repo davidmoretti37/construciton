@@ -218,6 +218,19 @@ export interface SiteActivity {
   activity: { worker_name?: string; trade?: string; clock_in: string; clock_out?: string; is_active: boolean }[];
 }
 
+export interface PortalDocument {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  storage_path: string;
+  download_url: string | null;
+  created_at: string;
+}
+
 // ============================================================
 // API Functions
 // ============================================================
@@ -302,3 +315,6 @@ export const fetchServicePlan = (id: string) =>
 
 export const fetchApprovals = (projectId: string) =>
   portalFetch<PortalApprovalEvent[]>(`/projects/${projectId}/approvals`);
+
+export const fetchDocuments = (projectId: string) =>
+  portalFetch<PortalDocument[]>(`/projects/${projectId}/documents`);

@@ -15,11 +15,12 @@ function formatDate(date: string) {
 export default function PortalInvoicesPage() {
   const [invoices, setInvoices] = useState<PortalInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetchDashboard()
       .then((data) => setInvoices(data.outstandingInvoices))
-      .catch(() => {})
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load invoices"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -36,7 +37,12 @@ export default function PortalInvoicesPage() {
     <PortalShell>
       <h1 className="text-lg font-bold text-gray-900 mb-4">Invoices</h1>
 
-      {loading ? (
+      {error ? (
+        <div className="text-center py-20">
+          <p className="text-sm text-red-500">{error}</p>
+          <button onClick={() => { setError(""); setLoading(true); fetchDashboard().then((data) => setInvoices(data.outstandingInvoices)).catch((err) => setError(err instanceof Error ? err.message : "Failed to load")).finally(() => setLoading(false)); }} className="text-sm text-blue-600 mt-2">Retry</button>
+        </div>
+      ) : loading ? (
         <div className="flex justify-center py-20">
           <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
         </div>

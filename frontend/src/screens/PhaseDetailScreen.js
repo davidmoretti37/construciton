@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { getColors, Spacing, FontSizes, BorderRadius, LightColors } from '../constants/theme';
+import { getColors, Spacing, FontSizes, BorderRadius, LightColors, TASK_STATUSES, TASK_STATUS_ORDER, getTaskStatus } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getPhaseWorkers } from '../utils/storage';
@@ -40,6 +40,11 @@ export default function PhaseDetailScreen({ navigation, route }) {
 
   // Worker assignment state
   const [showWorkerAssignment, setShowWorkerAssignment] = useState(false);
+
+  // Budget editing state
+  const [showBudgetEdit, setShowBudgetEdit] = useState(false);
+  const [budgetInput, setBudgetInput] = useState('');
+  const [paymentAmountInput, setPaymentAmountInput] = useState('');
 
   useEffect(() => {
     loadPhaseDetails();
@@ -95,8 +100,10 @@ export default function PhaseDetailScreen({ navigation, route }) {
       task.completed = !task.completed;
       if (task.completed) {
         task.completed_date = new Date().toISOString();
+        task.status = 'done';
       } else {
         task.completed_date = null;
+        task.status = 'not_started';
       }
 
       // Update in database
@@ -117,6 +124,38 @@ export default function PhaseDetailScreen({ navigation, route }) {
     }
   };
 
+  const handleCycleTaskStatus = async (taskIndex) => {
+    try {
+      const updatedTasks = [...tasks];
+      const task = updatedTasks[taskIndex];
+      const currentStatus = getTaskStatus(task);
+      const currentIdx = TASK_STATUS_ORDER.indexOf(currentStatus);
+      const nextStatus = TASK_STATUS_ORDER[(currentIdx + 1) % TASK_STATUS_ORDER.length];
+
+      task.status = nextStatus;
+      if (nextStatus === 'done') {
+        task.completed = true;
+        task.completed_date = new Date().toISOString();
+      } else {
+        task.completed = false;
+        task.completed_date = null;
+      }
+
+      const { error } = await supabase
+        .from('project_phases')
+        .update({ tasks: updatedTasks })
+        .eq('id', phaseId);
+
+      if (error) throw error;
+
+      setTasks(updatedTasks);
+      loadPhaseDetails();
+    } catch (error) {
+      console.error('Error cycling task status:', error);
+      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+    }
+  };
+
   const handleAddTask = async () => {
     if (!taskInput.trim()) {
       Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
@@ -130,6 +169,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
         order: updatedTasks.length + 1,
         description: taskInput.trim(),
         completed: false,
+        status: 'not_started',
       };
 
       updatedTasks.push(newTask);
@@ -226,6 +266,40 @@ export default function PhaseDetailScreen({ navigation, route }) {
     setEditingTaskIndex(taskIndex);
     setTaskInput(tasks[taskIndex].description);
     setShowEditTask(true);
+  };
+
+  const openBudgetEdit = () => {
+    setBudgetInput(phase?.budget?.toString() || '');
+    setPaymentAmountInput(phase?.payment_amount?.toString() || '');
+    setShowBudgetEdit(true);
+  };
+
+  const handleSaveBudget = async () => {
+    try {
+      const newBudget = budgetInput ? parseFloat(budgetInput) : null;
+      const newPaymentAmount = paymentAmountInput ? parseFloat(paymentAmountInput) : null;
+
+      if (budgetInput && isNaN(newBudget)) {
+        Alert.alert(t('alerts.error'), 'Please enter a valid budget amount');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('project_phases')
+        .update({
+          budget: newBudget,
+          payment_amount: newPaymentAmount,
+        })
+        .eq('id', phaseId);
+
+      if (error) throw error;
+
+      setShowBudgetEdit(false);
+      loadPhaseDetails();
+    } catch (error) {
+      console.error('Error saving budget:', error);
+      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'budget' }));
+    }
   };
 
   const getStatusIcon = (status) => {
@@ -384,55 +458,52 @@ export default function PhaseDetailScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Budget Info */}
-        {(phase.budget || phase.spent) && (
-          <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Budget</Text>
+        {/* Budget Info — tappable to edit */}
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+          onPress={openBudgetEdit}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText, marginBottom: 0 }]}>Budget</Text>
+            </View>
+            <View style={[styles.editBudgetHint, { backgroundColor: Colors.primaryBlue + '15' }]}>
+              <Ionicons name="pencil" size={14} color={Colors.primaryBlue} />
+              <Text style={{ fontSize: 12, color: Colors.primaryBlue, fontWeight: '500', marginLeft: 4 }}>Edit</Text>
+            </View>
+          </View>
 
-            {phase.budget && (
+          {phase.budget ? (
+            <>
               <View style={styles.infoRow}>
                 <Ionicons name="wallet-outline" size={18} color={Colors.infoBlue} />
                 <View style={styles.infoContent}>
                   <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Allocated</Text>
                   <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
-                    ${phase.budget.toLocaleString()}
+                    ${Number(phase.budget).toLocaleString()}
                   </Text>
                 </View>
               </View>
-            )}
 
-            {phase.spent && (
-              <View style={styles.infoRow}>
-                <Ionicons name="trending-down-outline" size={18} color={Colors.errorRed} />
-                <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Spent</Text>
-                  <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
-                    ${phase.spent.toLocaleString()}
-                  </Text>
+              {phase.payment_amount != null && Number(phase.payment_amount) > 0 && (
+                <View style={styles.infoRow}>
+                  <Ionicons name="cash-outline" size={18} color={Colors.successGreen} />
+                  <View style={styles.infoContent}>
+                    <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Payment Amount</Text>
+                    <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
+                      ${Number(phase.payment_amount).toLocaleString()}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            )}
-
-            {phase.budget && phase.spent && (
-              <View style={styles.infoRow}>
-                <Ionicons
-                  name={phase.spent <= phase.budget ? 'checkmark-circle-outline' : 'alert-circle-outline'}
-                  size={18}
-                  color={phase.spent <= phase.budget ? Colors.successGreen : Colors.errorRed}
-                />
-                <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Remaining</Text>
-                  <Text style={[
-                    styles.infoValue,
-                    { color: phase.spent <= phase.budget ? Colors.successGreen : Colors.errorRed }
-                  ]}>
-                    ${(phase.budget - phase.spent).toLocaleString()}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
+              )}
+            </>
+          ) : (
+            <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+              <Text style={{ fontSize: 13, color: Colors.secondaryText }}>Tap to set phase budget</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         {/* Assigned Workers */}
         <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
@@ -520,7 +591,10 @@ export default function PhaseDetailScreen({ navigation, route }) {
           ) : (
             tasks
               .sort((a, b) => (a.order || 0) - (b.order || 0))
-              .map((task, index) => (
+              .map((task, index) => {
+                const status = getTaskStatus(task);
+                const statusDef = TASK_STATUSES[status];
+                return (
                 <View
                   key={task.id || index}
                   style={[
@@ -538,12 +612,12 @@ export default function PhaseDetailScreen({ navigation, route }) {
                       style={[
                         styles.taskCheckbox,
                         {
-                          borderColor: task.completed ? Colors.successGreen : Colors.border,
-                          backgroundColor: task.completed ? Colors.successGreen : 'transparent',
+                          borderColor: status === 'done' ? Colors.successGreen : Colors.border,
+                          backgroundColor: status === 'done' ? Colors.successGreen : 'transparent',
                         }
                       ]}
                     >
-                      {task.completed && (
+                      {status === 'done' && (
                         <Ionicons name="checkmark" size={16} color="#fff" />
                       )}
                     </View>
@@ -552,8 +626,8 @@ export default function PhaseDetailScreen({ navigation, route }) {
                         style={[
                           styles.taskDescription,
                           {
-                            color: task.completed ? Colors.secondaryText : Colors.primaryText,
-                            textDecorationLine: task.completed ? 'line-through' : 'none',
+                            color: status === 'done' ? Colors.secondaryText : Colors.primaryText,
+                            textDecorationLine: status === 'done' ? 'line-through' : 'none',
                           }
                         ]}
                       >
@@ -565,6 +639,18 @@ export default function PhaseDetailScreen({ navigation, route }) {
                         </Text>
                       )}
                     </View>
+                  </TouchableOpacity>
+
+                  {/* Status Badge — tap to cycle */}
+                  <TouchableOpacity
+                    style={[styles.statusBadge, { backgroundColor: statusDef.color + '18' }]}
+                    onPress={() => handleCycleTaskStatus(index)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.statusDot, { backgroundColor: statusDef.color }]} />
+                    <Text style={[styles.statusBadgeText, { color: statusDef.color }]}>
+                      {statusDef.label}
+                    </Text>
                   </TouchableOpacity>
 
                   <View style={styles.taskActions}>
@@ -582,7 +668,8 @@ export default function PhaseDetailScreen({ navigation, route }) {
                     </TouchableOpacity>
                   </View>
                 </View>
-              ))
+                );
+              })
           )}
         </View>
 
@@ -662,6 +749,60 @@ export default function PhaseDetailScreen({ navigation, route }) {
                 numberOfLines={3}
                 autoFocus
               />
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Budget Edit Modal */}
+      <Modal
+        visible={showBudgetEdit}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowBudgetEdit(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[styles.modalContainer, { backgroundColor: Colors.background }]}
+        >
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
+              <TouchableOpacity onPress={() => setShowBudgetEdit(false)}>
+                <Text style={[styles.modalCancelText, { color: Colors.primaryBlue }]}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Edit Budget</Text>
+              <TouchableOpacity onPress={handleSaveBudget}>
+                <Text style={[styles.modalSaveText, { color: Colors.primaryBlue }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>Budget / Allocated ($)</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText, minHeight: 48 }]}
+                value={budgetInput}
+                onChangeText={setBudgetInput}
+                placeholder="0.00"
+                placeholderTextColor={Colors.secondaryText}
+                keyboardType="decimal-pad"
+                autoFocus
+              />
+
+              <View style={{ height: 16 }} />
+
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>Payment Amount ($)</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText, minHeight: 48 }]}
+                value={paymentAmountInput}
+                onChangeText={setPaymentAmountInput}
+                placeholder="0.00"
+                placeholderTextColor={Colors.secondaryText}
+                keyboardType="decimal-pad"
+              />
+
+              <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 16 }}>
+                Budget is the total allocated for this phase. Payment amount is the milestone payment due on completion.
+              </Text>
             </View>
           </SafeAreaView>
         </KeyboardAvoidingView>
@@ -889,6 +1030,31 @@ const styles = StyleSheet.create({
   taskDate: {
     fontSize: 11,
     marginTop: 2,
+  },
+  editBudgetHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+    gap: 4,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   taskActions: {
     flexDirection: 'row',

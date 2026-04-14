@@ -61,6 +61,7 @@ import {
 import WorkerCard from '../components/WorkerCard';
 import WorkerScheduleCard from '../components/WorkerScheduleCard';
 import AppleCalendarMonth from '../components/AppleCalendarMonth';
+import ScheduleView from '../components/ScheduleView';
 import AppleCalendarYear from '../components/AppleCalendarYear';
 import CustomCalendar from '../components/CustomCalendar';
 import AddPersonalEventModal from '../components/AddPersonalEventModal';
@@ -369,56 +370,61 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
   // Load day-specific detail for the selected date (filters from month data + fetches work schedules)
   const loadDayDetail = async (date, mTasks, mEvents) => {
-    const yr = date.getFullYear();
-    const mo = String(date.getMonth() + 1).padStart(2, '0');
-    const dy = String(date.getDate()).padStart(2, '0');
-    const dateString = `${yr}-${mo}-${dy}`;
+    try {
+      const yr = date.getFullYear();
+      const mo = String(date.getMonth() + 1).padStart(2, '0');
+      const dy = String(date.getDate()).padStart(2, '0');
+      const dateString = `${yr}-${mo}-${dy}`;
 
-    // Filter month tasks to this day
-    const dayTasks = (mTasks || monthTasks).filter(task => {
-      if (task.start_date > dateString || task.end_date < dateString) return false;
-      const project = task.projects;
-      if (!project) return true;
-      const workingDays = project.working_days || [1, 2, 3, 4, 5];
-      const nonWorkingDates = project.non_working_dates || [];
-      if (nonWorkingDates.includes(dateString)) return false;
-      const dateObj = new Date(dateString + 'T00:00:00');
-      const jsDay = dateObj.getDay();
-      const isoDay = jsDay === 0 ? 7 : jsDay;
-      return workingDays.includes(isoDay);
-    });
+      // Filter month tasks to this day
+      const dayTasks = (mTasks || monthTasks).filter(task => {
+        if (task.start_date > dateString || task.end_date < dateString) return false;
+        const project = task.projects;
+        if (!project) return true;
+        const workingDays = project.working_days || [1, 2, 3, 4, 5];
+        const nonWorkingDates = project.non_working_dates || [];
+        if (nonWorkingDates.includes(dateString)) return false;
+        const dateObj = new Date(dateString + 'T00:00:00');
+        const jsDay = dateObj.getDay();
+        const isoDay = jsDay === 0 ? 7 : jsDay;
+        return workingDays.includes(isoDay);
+      });
 
-    // Filter month events to this day
-    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
-    const dayEvents = (mEvents || monthEvents).filter(event => {
-      const eventStart = new Date(event.start_datetime);
-      const eventEnd = event.end_datetime ? new Date(event.end_datetime) : eventStart;
-      return eventStart <= dayEnd && eventEnd >= dayStart;
-    });
+      // Filter month events to this day
+      const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+      const dayEvents = (mEvents || monthEvents).filter(event => {
+        const eventStart = new Date(event.start_datetime);
+        const eventEnd = event.end_datetime ? new Date(event.end_datetime) : eventStart;
+        return eventStart <= dayEnd && eventEnd >= dayStart;
+      });
 
-    // Fetch day-specific data
-    const [workScheduleData, projectsData] = await Promise.all([
-      fetchWorkSchedules(dateString, dateString),
-      fetchActiveProjectsForDate(dateString),
-    ]);
+      // Fetch day-specific data
+      const [workScheduleData, projectsData] = await Promise.all([
+        fetchWorkSchedules(dateString, dateString),
+        fetchActiveProjectsForDate(dateString),
+      ]);
 
-    setScheduleTasks(dayTasks);
-    setScheduleEvents(dayEvents);
-    setWorkSchedules(workScheduleData);
-    setActiveProjects(projectsData);
+      setScheduleTasks(dayTasks);
+      setScheduleEvents(dayEvents);
+      setWorkSchedules(workScheduleData);
+      setActiveProjects(projectsData);
 
-    // Auto-sync: regenerate stale tasks if none found but projects exist
-    if (dayTasks.length === 0 && projectsData.length > 0) {
-      try {
-        for (const proj of projectsData) {
-          await regenerateProjectSchedule(proj.id, proj.user_id);
+      // Auto-sync: regenerate stale tasks if none found but projects exist
+      if (dayTasks.length === 0 && projectsData.length > 0) {
+        try {
+          for (const proj of projectsData) {
+            await regenerateProjectSchedule(proj.id, proj.user_id);
+          }
+          // Re-fetch month data after regeneration
+          await loadMonthData(currentMonth);
+        } catch (syncErr) {
+          console.error('🔄 [AUTO-SYNC] Error:', syncErr);
         }
-        // Re-fetch month data after regeneration
-        await loadMonthData(currentMonth);
-      } catch (syncErr) {
-        console.error('🔄 [AUTO-SYNC] Error:', syncErr);
       }
+    } catch (error) {
+      console.error('Error loading day detail:', error);
+      Alert.alert('Error', 'Failed to load schedule details. Pull down to refresh.');
     }
   };
 
@@ -1316,69 +1322,23 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         </View>
       )}
 
+      {/* SCHEDULE TAB — rendered outside ScrollView to avoid nested VirtualizedList */}
+      {activeTab === 'schedule' && (
+        <ScheduleView navigation={navigation} role="owner" />
+      )}
+
       <ScrollView
-        style={styles.content}
+        style={[styles.content, activeTab === 'schedule' && { display: 'none' }]}
         contentContainerStyle={styles.contentContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryBlue} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* SCHEDULE TAB */}
+        {/* SCHEDULE TAB — legacy day detail (disabled) */}
         {activeTab === 'schedule' && (
           <>
-            {/* Calendar View: Year or Month */}
-            <View style={[styles.calendarContainer, { backgroundColor: Colors.white }]}>
-              {calendarView === 'year' ? (
-                <AppleCalendarYear
-                  currentYear={currentMonth.getFullYear()}
-                  onYearChange={(yr) => setCurrentMonth(new Date(yr, currentMonth.getMonth(), 1))}
-                  onMonthSelect={(monthIdx) => {
-                    setCurrentMonth(new Date(currentMonth.getFullYear(), monthIdx, 1));
-                    setCalendarView('month');
-                  }}
-                  tasks={monthTasks}
-                  events={monthEvents}
-                  theme={{
-                    primaryBlue: Colors.primaryBlue,
-                    primaryText: Colors.primaryText,
-                    secondaryText: Colors.secondaryText,
-                    white: Colors.white,
-                    border: Colors.border,
-                    lightGray: Colors.lightGray,
-                    errorRed: Colors.errorRed,
-                  }}
-                />
-              ) : (
-                <AppleCalendarMonth
-                  currentMonth={currentMonth}
-                  selectedDate={(() => {
-                    const y = selectedDate.getFullYear();
-                    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-                    const d = String(selectedDate.getDate()).padStart(2, '0');
-                    return `${y}-${m}-${d}`;
-                  })()}
-                  onDateSelect={(dateString) => {
-                    const [year, month, day] = dateString.split('-').map(Number);
-                    setSelectedDate(new Date(year, month - 1, day));
-                  }}
-                  onMonthChange={(newMonth) => setCurrentMonth(newMonth)}
-                  onTitlePress={() => setCalendarView('year')}
-                  tasks={monthTasks}
-                  events={monthEvents}
-                  theme={{
-                    primaryBlue: Colors.primaryBlue,
-                    primaryText: Colors.primaryText,
-                    secondaryText: Colors.secondaryText,
-                    white: Colors.white,
-                    border: Colors.border,
-                    lightGray: Colors.lightGray,
-                    errorRed: Colors.errorRed,
-                  }}
-                />
-              )}
-            </View>
 
-            {/* Day Detail Section (only visible in month view) */}
-            {calendarView === 'month' && <View style={styles.scheduleSection}>
+            {/* Legacy Day Detail Section (only visible in month view) */}
+            {false && calendarView === 'month' && <View style={styles.scheduleSection}>
               {/* Date header row with inline action links */}
               <View style={styles.dayDetailHeader}>
                 <Text style={[styles.dayDetailDate, { color: Colors.primaryText }]}>

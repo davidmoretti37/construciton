@@ -15,11 +15,13 @@ export default function PortalServiceDetailPage() {
   const [plan, setPlan] = useState<PortalServicePlan | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState("");
+
   useEffect(() => {
     if (id) {
       fetchServicePlan(id)
         .then(setPlan)
-        .catch(() => {})
+        .catch((err) => setError(err instanceof Error ? err.message : "Service plan not found"))
         .finally(() => setLoading(false));
     }
   }, [id]);
@@ -38,7 +40,7 @@ export default function PortalServiceDetailPage() {
     return (
       <PortalShell>
         <div className="text-center py-20">
-          <p className="text-sm text-gray-500">Service plan not found.</p>
+          <p className="text-sm text-gray-500">{error || "Service plan not found."}</p>
           <Link href="/portal/services" className="text-sm text-blue-600 mt-2 inline-block">Back</Link>
         </div>
       </PortalShell>
