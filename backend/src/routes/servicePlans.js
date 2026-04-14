@@ -31,7 +31,8 @@ router.get('/', async (req, res) => {
       .from('service_plans')
       .select('*')
       .or(`owner_id.eq.${ownerId},assigned_supervisor_id.eq.${ownerId}`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(200);
 
     if (status) {
       query = query.eq('status', status);

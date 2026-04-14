@@ -25,6 +25,11 @@ function renderTemplate(name, vars = {}) {
   return html;
 }
 
+// Startup safety checks
+if (!process.env.NODE_ENV) {
+  console.warn('⚠️  NODE_ENV is not set — cookies will be insecure. Set NODE_ENV=production in deployment.');
+}
+
 // Utilities
 const logger = require('./utils/logger');
 const { fetchOpenRouter, fetchOpenRouterVision, fetchOpenRouterStream, fetchGroq } = require('./utils/fetchWithRetry');

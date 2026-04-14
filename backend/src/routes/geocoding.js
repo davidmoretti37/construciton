@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { fetchGoogleMaps } = require('../utils/fetchWithRetry');
+const { geocodingCache } = require('../utils/geocodingCache');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseAdmin = createClient(
@@ -27,6 +28,13 @@ router.get('/geocode', async (req, res) => {
       return res.status(500).json({ error: 'Google Maps API key not configured' });
     }
 
+    // Check cache first
+    const cacheKey = `geocode:${address}`;
+    const cached = geocodingCache.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const response = await fetchGoogleMaps(
       `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
@@ -37,6 +45,7 @@ router.get('/geocode', async (req, res) => {
     }
 
     const data = await response.json();
+    geocodingCache.set(cacheKey, data);
     res.json(data);
   } catch (error) {
     logger.error('Geocoding error:', error);
@@ -59,6 +68,15 @@ router.get('/distance', async (req, res) => {
       return res.status(500).json({ error: 'Google Maps API key not configured' });
     }
 
+    // Check cache first (exclude departure_time from cache key as it changes)
+    const cacheKey = `distance:${origins}|${destinations}|${mode}`;
+    if (!departure_time) {
+      const cached = geocodingCache.get(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+    }
+
     let url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origins)}&destinations=${encodeURIComponent(destinations)}&mode=${mode}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
     if (departure_time) {
@@ -73,6 +91,9 @@ router.get('/distance', async (req, res) => {
     }
 
     const data = await response.json();
+    if (!departure_time) {
+      geocodingCache.set(cacheKey, data);
+    }
     res.json(data);
   } catch (error) {
     logger.error('Distance matrix error:', error);
@@ -95,6 +116,13 @@ router.get('/reverse', async (req, res) => {
       return res.status(500).json({ error: 'Google Maps API key not configured' });
     }
 
+    // Check cache first
+    const cacheKey = `reverse:${lat},${lng}`;
+    const cached = geocodingCache.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const response = await fetchGoogleMaps(
       `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
@@ -110,7 +138,9 @@ router.get('/reverse', async (req, res) => {
     if (data.status === 'OK' && data.results && data.results.length > 0) {
       const address = data.results[0].formatted_address;
       logger.info(`✅ Reverse geocoded ${lat},${lng} → ${address}`);
-      return res.json({ address });
+      const result = { address };
+      geocodingCache.set(cacheKey, result);
+      return res.json(result);
     } else {
       logger.warn(`⚠️ No address found for ${lat},${lng} (status: ${data.status})`);
       return res.status(404).json({ error: 'No address found for coordinates' });

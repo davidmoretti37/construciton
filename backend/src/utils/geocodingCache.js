@@ -99,6 +99,36 @@ class GeocodingCache {
   }
 
   /**
+   * Generic cache get by key (returns value if not expired, else null)
+   * @param {string} key - Cache key
+   * @returns {*} Cached value or null
+   */
+  get(key) {
+    const cached = this.cache.get(key);
+    if (cached && (Date.now() - cached.timestamp) < this.TTL) {
+      logger.info(`🎯 Geocoding cache hit: ${key}`);
+      return cached.value;
+    }
+    return null;
+  }
+
+  /**
+   * Generic cache set by key
+   * @param {string} key - Cache key
+   * @param {*} value - Value to cache
+   */
+  set(key, value) {
+    this.cache.set(key, { value, timestamp: Date.now() });
+
+    // LRU eviction if cache exceeds max size
+    if (this.cache.size > this.MAX_SIZE) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+      logger.info(`♻️ Geocoding cache evicted oldest entry (size: ${this.cache.size})`);
+    }
+  }
+
+  /**
    * Get cache statistics
    * @returns {Object} Cache stats
    */

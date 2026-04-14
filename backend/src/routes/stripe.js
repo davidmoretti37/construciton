@@ -16,8 +16,9 @@ if (process.env.NODE_ENV === 'production' && !process.env.BACKEND_URL) {
 }
 
 // Initialize Stripe (only if key is configured)
+// Pin API version to prevent breaking changes on Stripe upgrades
 const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' })
   : null;
 
 // Initialize Supabase Admin Client (uses service role key for backend operations)

@@ -325,7 +325,8 @@ router.get('/', async (req, res) => {
       .from('service_visits')
       .select('*')
       .order('scheduled_date', { ascending: true })
-      .order('scheduled_time', { ascending: true, nullsFirst: false });
+      .order('scheduled_time', { ascending: true, nullsFirst: false })
+      .limit(500);
 
     if (workerRecord) {
       query = query.eq('assigned_worker_id', workerRecord.id);

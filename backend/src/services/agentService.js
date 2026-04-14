@@ -43,6 +43,7 @@ const supabase = createClient(
 // Configuration
 const MAX_TOOL_ROUNDS = 8;
 const STREAM_TIMEOUT = 90000; // 90s per streaming call
+const MAX_TOTAL_MS = 5 * 60 * 1000; // 5 minutes total request timeout
 const DB_FLUSH_INTERVAL = 500; // Debounce DB writes to every 500ms
 
 /**
@@ -614,8 +615,21 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
 
   let toolRound = 0;
   const toolCallCache = new Map(); // Prevent redundant tool calls within a request
+  const requestStart = Date.now();
 
   while (toolRound < MAX_TOOL_ROUNDS) {
+    // Check total elapsed time before starting a new round
+    if (Date.now() - requestStart > MAX_TOTAL_MS) {
+      logger.warn(`Agent hit total timeout (${MAX_TOTAL_MS / 1000}s) after ${toolRound} rounds`);
+      writer.emit({
+        type: 'delta',
+        content: "I'm sorry, this request is taking too long. Here's what I've found so far — could you try a more specific question?",
+      });
+      writer.emit({ type: 'done' });
+      await writer.complete();
+      return;
+    }
+
     toolRound++;
     const roundStart = Date.now();
     logger.info(`🔄 Agent round ${toolRound}/${MAX_TOOL_ROUNDS}`);

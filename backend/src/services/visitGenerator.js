@@ -77,7 +77,7 @@ async function generateVisitsForPlan(planId, options = {}) {
     }
 
     // Calculate end date
-    const start = new Date(startFrom + 'T12:00:00');
+    const start = new Date(startFrom + 'T12:00:00Z');
     const endDate = new Date(start);
     endDate.setDate(endDate.getDate() + (weeksAhead * 7));
     const endDateStr = endDate.toISOString().split('T')[0];
@@ -120,10 +120,11 @@ async function generateVisitsForPlan(planId, options = {}) {
         const dayOfWeek = date.getDay();
         if (!dayNums.includes(dayOfWeek)) continue;
 
-        // Biweekly: skip every other week
+        // Biweekly: skip every other week (relative to plan start date)
         if (sched.frequency === 'biweekly') {
-          const weekNum = Math.floor(dayOffset / 7);
-          if (weekNum % 2 !== 0) continue;
+          const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+          const weeksSinceStart = Math.floor((date.getTime() - start.getTime()) / msPerWeek);
+          if (weeksSinceStart % 2 !== 0) continue;
         }
 
         // Monthly: only on the specific day_of_month or first occurrence

@@ -33,7 +33,8 @@ router.get('/', async (req, res) => {
       .from('service_routes')
       .select('*')
       .eq('owner_id', ownerId)
-      .order('route_date', { ascending: false });
+      .order('route_date', { ascending: false })
+      .limit(200);
 
     if (date) query = query.eq('route_date', date);
     if (worker_id) query = query.eq('assigned_worker_id', worker_id);
@@ -145,7 +146,8 @@ router.get('/locations', async (req, res) => {
       .select('id, name, address, formatted_address, latitude, longitude, contact_name, contact_phone, access_notes, service_plan_id')
       .eq('owner_id', ownerId)
       .eq('is_active', true)
-      .order('name', { ascending: true });
+      .order('name', { ascending: true })
+      .limit(500);
 
     if (error) throw error;
 

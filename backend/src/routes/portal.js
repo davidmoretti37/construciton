@@ -9,7 +9,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { authenticatePortalClient, verifyProjectAccess } = require('../middleware/portalAuth');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
