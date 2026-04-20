@@ -40,8 +40,8 @@ const mockSupabaseFrom = jest.fn().mockReturnValue({
 });
 
 const mockGetUser = jest.fn().mockResolvedValue({
-  data: { user: null },
-  error: { message: 'Invalid token' },
+  data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+  error: null,
 });
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -117,7 +117,7 @@ describe('POST /api/stripe/create-guest-checkout', () => {
 
   test('invalid tier returns 400', async () => {
     const res = await request(app)
-      .post('/api/stripe/create-guest-checkout')
+      .post('/api/stripe/create-guest-checkout').set("Authorization", "Bearer test-token")
       .send({ tier: 'nonexistent' });
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error', 'Invalid subscription tier');
@@ -126,7 +126,7 @@ describe('POST /api/stripe/create-guest-checkout', () => {
 
   test('valid tier creates checkout session', async () => {
     const res = await request(app)
-      .post('/api/stripe/create-guest-checkout')
+      .post('/api/stripe/create-guest-checkout').set("Authorization", "Bearer test-token")
       .send({ tier: 'starter' });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('sessionId', 'cs_test_123');
@@ -136,7 +136,7 @@ describe('POST /api/stripe/create-guest-checkout', () => {
 
   test('pro tier creates checkout session', async () => {
     const res = await request(app)
-      .post('/api/stripe/create-guest-checkout')
+      .post('/api/stripe/create-guest-checkout').set("Authorization", "Bearer test-token")
       .send({ tier: 'pro' });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('sessionId');
@@ -173,7 +173,7 @@ describe('POST /api/stripe/create-checkout-session', () => {
     });
 
     const res = await request(app)
-      .post('/api/stripe/create-checkout-session')
+      .post('/api/stripe/create-checkout-session').set("Authorization", "Bearer test-token")
       .set('Authorization', 'Bearer invalid-token')
       .send({ tier: 'starter' });
     expect(res.status).toBe(401);
@@ -202,7 +202,7 @@ describe('POST /api/stripe/create-portal-session', () => {
     });
 
     const res = await request(app)
-      .post('/api/stripe/create-portal-session')
+      .post('/api/stripe/create-portal-session').set("Authorization", "Bearer test-token")
       .set('Authorization', 'Bearer invalid-token');
     expect(res.status).toBe(401);
   });
@@ -246,7 +246,7 @@ describe('POST /api/stripe/webhook', () => {
     });
 
     const res = await request(app)
-      .post('/api/stripe/webhook')
+      .post('/api/stripe/webhook').set("Authorization", "Bearer test-token")
       .set('stripe-signature', 'test-sig')
       .set('Content-Type', 'application/json')
       .send(JSON.stringify(mockEvent));
@@ -262,7 +262,7 @@ describe('POST /api/stripe/webhook', () => {
     });
 
     const res = await request(app)
-      .post('/api/stripe/webhook')
+      .post('/api/stripe/webhook').set("Authorization", "Bearer test-token")
       .set('stripe-signature', 'bad-sig')
       .set('Content-Type', 'application/json')
       .send(JSON.stringify({ type: 'test' }));

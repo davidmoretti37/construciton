@@ -15,8 +15,8 @@ jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     auth: {
       getUser: jest.fn().mockResolvedValue({
-        data: { user: null },
-        error: { message: 'Invalid token' },
+        data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+        error: null,
       }),
     },
     from: jest.fn().mockReturnValue({
@@ -97,7 +97,7 @@ describe('POST /api/transcribe', () => {
 
   test('missing audio returns 400', async () => {
     const res = await request(app)
-      .post('/api/transcribe')
+      .post('/api/transcribe').set("Authorization", "Bearer test-token")
       .send({});
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error', 'Audio data is required');
@@ -106,7 +106,7 @@ describe('POST /api/transcribe', () => {
   test('no API keys configured returns 500', async () => {
     // Neither GROQ_API_KEY nor DEEPGRAM_API_KEY is set
     const res = await request(app)
-      .post('/api/transcribe')
+      .post('/api/transcribe').set("Authorization", "Bearer test-token")
       .send({ audio: testAudioBase64 });
     expect(res.status).toBe(500);
     expect(res.body).toHaveProperty('error', 'No transcription API configured');
@@ -121,7 +121,7 @@ describe('POST /api/transcribe', () => {
     });
 
     const res = await request(app)
-      .post('/api/transcribe')
+      .post('/api/transcribe').set("Authorization", "Bearer test-token")
       .send({ audio: testAudioBase64 });
 
     expect(res.status).toBe(200);
@@ -166,7 +166,7 @@ describe('POST /api/transcribe', () => {
     });
 
     const res = await request(app)
-      .post('/api/transcribe')
+      .post('/api/transcribe').set("Authorization", "Bearer test-token")
       .send({ audio: testAudioBase64 });
 
     expect(res.status).toBe(200);
@@ -184,7 +184,7 @@ describe('POST /api/transcribe', () => {
     });
 
     const res = await request(app)
-      .post('/api/transcribe')
+      .post('/api/transcribe').set("Authorization", "Bearer test-token")
       .send({ audio: testAudioBase64, contentType: 'audio/m4a', language: 'en' });
 
     expect(res.status).toBe(200);
@@ -218,7 +218,7 @@ describe('POST /api/transcribe', () => {
     });
 
     const res = await request(app)
-      .post('/api/transcribe')
+      .post('/api/transcribe').set("Authorization", "Bearer test-token")
       .send({ audio: testAudioBase64 });
 
     expect(res.status).toBe(200);
