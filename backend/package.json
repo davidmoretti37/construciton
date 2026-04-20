@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",
+    "abort-controller": "^3.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -24,6 +25,7 @@
     "mammoth": "^1.11.0",
     "node-fetch": "^2.7.0",
     "pdf-parse": "^1.1.1",
+    "plaid": "^42.1.0",
     "resend": "^6.10.0",
     "stripe": "^20.4.0"
   },

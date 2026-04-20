@@ -531,7 +531,8 @@ You CAN:
 - View financials
 ` : ''}
 
-${learnedFacts ? `## WHAT I KNOW ABOUT THIS BUSINESS\n${learnedFacts}\n\nUse this knowledge to inform every response. This is how this specific business operates — adapt to their workflow, not a generic template.\n` : ''}
+${userName ? `## KNOWN FACTS ABOUT THIS USER\nThe user's name is ${userName}. Address them by name when appropriate.\n` : ''}
+${learnedFacts ? `## KNOWN FACTS ABOUT THIS USER / BUSINESS\n${learnedFacts}\n\nUse this knowledge to inform every response. This is how this specific business operates — adapt to their workflow, not a generic template.\n` : ''}
 ${aboutYou ? `## OWNER CONTEXT\n${aboutYou}\n` : ''}
 ${responseStyle ? `## PREFERRED RESPONSE STYLE\n${responseStyle}\n` : ''}
 ${projectInstructions ? `## PROJECT INSTRUCTIONS & TEMPLATES\nThe user has defined these default instructions. ALWAYS follow these when creating new projects, adding phases, or building checklists:\n${projectInstructions}\n` : ''}
