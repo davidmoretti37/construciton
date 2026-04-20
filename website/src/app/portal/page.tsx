@@ -24,7 +24,7 @@ function statusColor(status: string) {
 }
 
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(amount);
 }
 
 export default function PortalDashboardPage() {
@@ -33,22 +33,58 @@ export default function PortalDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const loadDashboard = () => {
+    setError("");
+    setLoading(true);
     fetchDashboard()
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadDashboard();
   }, []);
 
   return (
     <PortalShell>
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="space-y-6 animate-pulse">
+          <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 space-y-2">
+            <div className="h-4 bg-amber-100 rounded w-40" />
+            <div className="h-6 bg-amber-100 rounded w-24" />
+          </div>
+          <div className="space-y-3">
+            <div className="h-5 bg-gray-200 rounded w-28" />
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5">
+                    <div className="h-4 bg-gray-200 rounded w-36" />
+                    <div className="h-3 bg-gray-100 rounded w-24" />
+                  </div>
+                  <div className="h-5 bg-gray-100 rounded-full w-14" />
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full" />
+                <div className="h-3 bg-gray-100 rounded w-20" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : error ? (
         <div className="text-center py-20">
-          <p className="text-red-500 text-sm">{error}</p>
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-3">
+            <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <p className="text-red-500 text-sm mb-2">{error}</p>
+          <button
+            onClick={loadDashboard}
+            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          >
+            Try again
+          </button>
         </div>
       ) : data ? (
         <div className="space-y-6">
@@ -86,8 +122,9 @@ export default function PortalDashboardPage() {
                     key={est.id}
                     className="bg-white rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
                     onClick={() => {
-                      // Navigate to the project that has this estimate
-                      // For now, show in a flat list
+                      if (est.project_id) {
+                        router.push(`/portal/projects/${est.project_id}?tab=estimates`);
+                      }
                     }}
                   >
                     <div>
@@ -133,11 +170,11 @@ export default function PortalDashboardPage() {
                     </div>
                     <p className="text-[10px] text-gray-400">{project.percent_complete || 0}% complete</p>
 
-                    {/* Book Again for completed projects */}
+                    {/* Completed badge for finished projects */}
                     {project.status === "completed" && (
                       <div className="mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-xs text-blue-600 font-medium">
-                          Book again →
+                        <span className="text-xs text-green-600 font-medium">
+                          Project complete ✓
                         </span>
                       </div>
                     )}

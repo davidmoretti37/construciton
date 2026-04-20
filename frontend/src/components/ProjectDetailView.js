@@ -28,6 +28,7 @@ import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
+import { SkeletonBox, SkeletonCard } from './SkeletonLoader';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
 import SupervisorAssignmentModal from './SupervisorAssignmentModal';
@@ -50,6 +51,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const Colors = getColors(isDark) || LightColors;
   const [modalVisible, setModalVisible] = useState(visible);
   const wasNavigatingRef = useRef(false);
+  const [initialLoading, setInitialLoading] = useState(!isDemo);
   const [phases, setPhases] = useState([]);
   const [loadingPhases, setLoadingPhases] = useState(false);
 
@@ -147,200 +149,152 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   const screenWidth = Dimensions.get('window').width;
 
-  // Load phases and workers when project changes
+  // Load ALL project data in parallel — everything appears at once, no gradual loading
   // Skip all database fetches for demo projects
   useEffect(() => {
     const loadData = async () => {
       // Skip all database operations for demo projects - use mock data
       if (isDemo) {
-        setPhases(DEMO_PHASES); // Show demo phases
+        setPhases(DEMO_PHASES);
         setWorkers([
           { id: 'demo-worker-1', name: 'John Smith', trade: 'Plumber' },
           { id: 'demo-worker-2', name: 'Maria Garcia', trade: 'Electrician' },
         ]);
         setManualTasks([]);
-        setCalculatedProgress(50); // Demo progress
+        setCalculatedProgress(50);
         setProjectReports([]);
         setProjectEstimates([]);
-        setCalculatedExpenses(8000); // Demo expenses
-        setCalculatedIncome(12500); // Demo income
+        setCalculatedExpenses(8000);
+        setCalculatedIncome(12500);
         setProjectDocuments([]);
+        setInitialLoading(false);
         return;
       }
 
       if (project?.id) {
-        // Load phases if project has them
-        let loadedPhases = [];
-        if (project?.hasPhases) {
-          setLoadingPhases(true);
-          try {
-            const projectPhases = await fetchProjectPhases(project.id);
-            loadedPhases = projectPhases || [];
-            setPhases(loadedPhases);
-          } catch (error) {
-            console.error('Error loading phases:', error);
-            setPhases([]);
-          } finally {
-            setLoadingPhases(false);
-          }
+        setInitialLoading(true);
+
+        // Fire ALL fetches in parallel
+        const [
+          phasesResult,
+          workersResult,
+          supervisorResult,
+          tasksResult,
+          progressResult,
+          reportsResult,
+          estimatesResult,
+          transactionResult,
+          tradeBudgetsResult,
+          tradeExpensesResult,
+          hoursResult,
+          docsResult,
+        ] = await Promise.allSettled([
+          // 0: phases
+          project?.hasPhases ? fetchProjectPhases(project.id) : Promise.resolve([]),
+          // 1: workers
+          getProjectWorkers(project.id),
+          // 2: supervisor
+          (project?.assignedTo || project?.assigned_supervisor_id)
+            ? supabase.from('profiles').select('business_name').eq('id', project?.assignedTo || project?.assigned_supervisor_id).single()
+            : Promise.resolve({ data: null }),
+          // 3: manual tasks
+          supabase.from('worker_tasks').select('*').eq('project_id', project.id).is('phase_task_id', null).order('start_date', { ascending: true }),
+          // 4: progress
+          calculateProjectProgressFromTasks(project.id),
+          // 5: daily reports
+          fetchDailyReports(project.id),
+          // 6: estimates
+          fetchEstimatesByProjectId(project.id),
+          // 7: transaction summary
+          getProjectTransactionSummary(project.id),
+          // 8: trade budgets
+          supabase.from('project_trade_budgets').select('*').eq('project_id', project.id).order('created_at', { ascending: true }),
+          // 9: trade expenses (for paid amounts)
+          supabase.from('project_transactions').select('subcategory, amount').eq('project_id', project.id).eq('type', 'expense'),
+          // 10: hours
+          supabase.from('time_tracking').select('clock_in, clock_out, break_start, break_end').eq('project_id', project.id).not('clock_out', 'is', null),
+          // 11: documents
+          fetchProjectDocuments(project.id),
+        ]);
+
+        // Batch ALL state updates at once — single render pass
+        // Phases
+        setPhases(phasesResult.status === 'fulfilled' ? (phasesResult.value || []) : []);
+
+        // Workers
+        setWorkers(workersResult.status === 'fulfilled' ? (workersResult.value || []) : []);
+
+        // Supervisor
+        setSupervisorName(supervisorResult.status === 'fulfilled' ? (supervisorResult.value?.data?.business_name || null) : null);
+
+        // Manual tasks — sort completed to bottom
+        const rawTasks = tasksResult.status === 'fulfilled' ? (tasksResult.value?.data || []) : [];
+        const sortedTasks = rawTasks.sort((a, b) => {
+          if (a.status === 'completed' && b.status !== 'completed') return 1;
+          if (a.status !== 'completed' && b.status === 'completed') return -1;
+          return 0;
+        });
+        setManualTasks(sortedTasks);
+
+        // Progress
+        setCalculatedProgress(progressResult.status === 'fulfilled' ? (progressResult.value?.progress ?? null) : null);
+
+        // Reports
+        setProjectReports(reportsResult.status === 'fulfilled' ? (reportsResult.value || []) : []);
+
+        // Estimates
+        setProjectEstimates(estimatesResult.status === 'fulfilled' ? (estimatesResult.value || []) : []);
+
+        // Financials
+        if (transactionResult.status === 'fulfilled') {
+          setCalculatedExpenses(transactionResult.value?.totalExpenses || 0);
+          setCalculatedIncome(transactionResult.value?.totalIncome || 0);
         } else {
-          setPhases([]);
-        }
-
-        // Load assigned workers
-        try {
-          const projectWorkers = await getProjectWorkers(project.id);
-          setWorkers(projectWorkers || []);
-        } catch (error) {
-          console.error('Error loading workers:', error);
-          setWorkers([]);
-        }
-
-        // Load assigned supervisor name
-        const supervisorId = project?.assignedTo || project?.assigned_supervisor_id;
-        if (supervisorId) {
-          try {
-            const { data: supProfile } = await supabase
-              .from('profiles')
-              .select('business_name')
-              .eq('id', supervisorId)
-              .single();
-            setSupervisorName(supProfile?.business_name || null);
-          } catch (error) {
-            console.error('Error loading supervisor:', error);
-            setSupervisorName(null);
-          }
-        } else {
-          setSupervisorName(null);
-        }
-
-        // Load manual tasks (tasks added outside of phases)
-        setLoadingManualTasks(true);
-        try {
-          const { data: tasks } = await supabase
-            .from('worker_tasks')
-            .select('*')
-            .eq('project_id', project.id)
-            .is('phase_task_id', null)
-            .order('start_date', { ascending: true });
-          // Sort completed tasks to the bottom
-          const sorted = (tasks || []).sort((a, b) => {
-            if (a.status === 'completed' && b.status !== 'completed') return 1;
-            if (a.status !== 'completed' && b.status === 'completed') return -1;
-            return 0;
-          });
-          setManualTasks(sorted);
-
-          // Calculate progress from all individual tasks (phase + additional)
-          const { progress } = await calculateProjectProgressFromTasks(project.id);
-          setCalculatedProgress(progress);
-        } catch (error) {
-          console.error('Error loading manual tasks:', error);
-          setManualTasks([]);
-        } finally {
-          setLoadingManualTasks(false);
-        }
-
-        // Load daily reports
-        setLoadingReports(true);
-        try {
-          const reports = await fetchDailyReports(project.id);
-          setProjectReports(reports || []);
-        } catch (error) {
-          console.error('Error loading daily reports:', error);
-          setProjectReports([]);
-        } finally {
-          setLoadingReports(false);
-        }
-
-        // Load estimates linked to this project
-        setLoadingEstimates(true);
-        try {
-          const estimates = await fetchEstimatesByProjectId(project.id);
-          setProjectEstimates(estimates || []);
-        } catch (error) {
-          console.error('Error loading estimates:', error);
-          setProjectEstimates([]);
-        } finally {
-          setLoadingEstimates(false);
-        }
-
-        // Load transaction totals (expenses and income)
-        try {
-          const summary = await getProjectTransactionSummary(project.id);
-          setCalculatedExpenses(summary.totalExpenses || 0);
-          setCalculatedIncome(summary.totalIncome || 0);
-        } catch (error) {
-          console.error('Error loading transaction summary:', error);
-          // Fall back to project values
           setCalculatedExpenses(null);
           setCalculatedIncome(null);
         }
 
-        // Load trade budgets
-        try {
-          const { data: budgets } = await supabase
-            .from('project_trade_budgets')
-            .select('*')
-            .eq('project_id', project.id)
-            .order('created_at', { ascending: true });
-
-          if (budgets && budgets.length > 0) {
-            // Get paid amounts per trade from transactions
-            const { data: txns } = await supabase
-              .from('project_transactions')
-              .select('subcategory, amount')
-              .eq('project_id', project.id)
-              .eq('type', 'expense');
-
-            const paidByTrade = {};
-            (txns || []).forEach(tx => {
-              const key = (tx.subcategory || '').toLowerCase();
-              paidByTrade[key] = (paidByTrade[key] || 0) + (parseFloat(tx.amount) || 0);
-            });
-
-            setTradeBudgets(budgets.map(b => ({
-              ...b,
-              paid: paidByTrade[b.trade_name.toLowerCase()] || 0,
-              remaining: (parseFloat(b.budget_amount) || 0) - (paidByTrade[b.trade_name.toLowerCase()] || 0),
-            })));
-          } else {
-            setTradeBudgets([]);
-          }
-        } catch (e) {
-          // Table may not exist yet
+        // Trade budgets with paid amounts
+        const budgets = tradeBudgetsResult.status === 'fulfilled' ? (tradeBudgetsResult.value?.data || []) : [];
+        const txns = tradeExpensesResult.status === 'fulfilled' ? (tradeExpensesResult.value?.data || []) : [];
+        if (budgets.length > 0) {
+          const paidByTrade = {};
+          txns.forEach(tx => {
+            const key = (tx.subcategory || '').toLowerCase();
+            paidByTrade[key] = (paidByTrade[key] || 0) + (parseFloat(tx.amount) || 0);
+          });
+          setTradeBudgets(budgets.map(b => ({
+            ...b,
+            paid: paidByTrade[b.trade_name.toLowerCase()] || 0,
+            remaining: (parseFloat(b.budget_amount) || 0) - (paidByTrade[b.trade_name.toLowerCase()] || 0),
+          })));
+        } else {
           setTradeBudgets([]);
         }
 
-        // Load total hours worked on project
-        try {
-          const { data: timeEntries } = await supabase
-            .from('time_tracking')
-            .select('clock_in, clock_out, break_start, break_end')
-            .eq('project_id', project.id)
-            .not('clock_out', 'is', null);
+        // Hours
+        if (hoursResult.status === 'fulfilled') {
           let hours = 0;
-          (timeEntries || []).forEach(e => {
+          (hoursResult.value?.data || []).forEach(e => {
             let h = (new Date(e.clock_out) - new Date(e.clock_in)) / 3600000;
             if (e.break_start && e.break_end) h -= (new Date(e.break_end) - new Date(e.break_start)) / 3600000;
             hours += h;
           });
           setTotalProjectHours(parseFloat(hours.toFixed(1)));
-        } catch (e) {
-          console.error('Error loading project hours:', e);
         }
 
-        // Load project documents
-        setLoadingDocuments(true);
-        try {
-          const docs = await fetchProjectDocuments(project.id);
-          setProjectDocuments(docs || []);
-        } catch (error) {
-          console.error('Error loading project documents:', error);
-          setProjectDocuments([]);
-        } finally {
-          setLoadingDocuments(false);
-        }
+        // Documents
+        setProjectDocuments(docsResult.status === 'fulfilled' ? (docsResult.value || []) : []);
+
+        // Clear all individual loading states
+        setLoadingPhases(false);
+        setLoadingManualTasks(false);
+        setLoadingReports(false);
+        setLoadingEstimates(false);
+        setLoadingDocuments(false);
+
+        // Everything loaded — reveal the entire view at once
+        setInitialLoading(false);
       }
     };
 
@@ -1130,6 +1084,51 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const expenses = calculatedExpenses ?? project.expenses ?? project.spent ?? 0;
   const profit = incomeCollected - expenses;
 
+  // Show a polished loading skeleton until ALL data is ready — prevents piecemeal appearance
+  if (initialLoading) {
+    const loadingSkeleton = (
+      <View style={[styles.container, { backgroundColor: '#1E3A8A' }]}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: '#1E3A8A' }} />
+        <LinearGradient colors={['#1E3A8A', '#1E3A8A']} style={{ paddingBottom: 40 }}>
+          <View style={[styles.header, { borderBottomWidth: 0 }]}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <View style={[styles.closeIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Ionicons name={asScreen ? "chevron-back" : "chevron-down"} size={24} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          </View>
+          <View style={{ paddingHorizontal: 20 }}>
+            {project?.name ? (
+              <>
+                <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '700', marginBottom: 4 }}>{project.name}</Text>
+                {project?.client ? <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>{project.client}</Text> : null}
+              </>
+            ) : (
+              <>
+                <SkeletonBox width="60%" height={26} borderRadius={6} style={{ marginBottom: 8, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                <SkeletonBox width="40%" height={16} borderRadius={4} style={{ marginBottom: 4, backgroundColor: 'rgba(255,255,255,0.10)' }} />
+              </>
+            )}
+          </View>
+        </LinearGradient>
+        <View style={{ flex: 1, backgroundColor: Colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -24, padding: 20 }}>
+          <SkeletonCard lines={2} style={{ marginBottom: 14 }} />
+          <SkeletonCard lines={3} style={{ marginBottom: 14 }} />
+          <SkeletonBox width="50%" height={16} borderRadius={4} style={{ marginBottom: 14 }} />
+          <SkeletonBox width="100%" height={60} borderRadius={10} style={{ marginBottom: 8 }} />
+          <SkeletonBox width="100%" height={60} borderRadius={10} />
+        </View>
+      </View>
+    );
+
+    if (asScreen) return loadingSkeleton;
+    return (
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+        {loadingSkeleton}
+      </Modal>
+    );
+  }
+
   const mainContent = (
     <>
       <View style={[styles.container, { backgroundColor: '#1E3A8A' }]}>
@@ -1180,10 +1179,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               {project.name}
             </Text>
               {project.location && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginTop: 4 }}>
-                  <Ionicons name="location" size={14} color="rgba(255,255,255,0.7)" />
-                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>{project.location}</Text>
-                </View>
+                <TouchableOpacity
+                  onPress={() => handleAddressPress(project.location)}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginTop: 4 }}
+                >
+                  <Ionicons name="location" size={14} color="rgba(255,255,255,0.85)" />
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', textDecorationLine: 'underline' }} numberOfLines={1}>{project.location}</Text>
+                  <Ionicons name="open-outline" size={12} color="rgba(255,255,255,0.5)" />
+                </TouchableOpacity>
               )}
           </View>
         </LinearGradient>
@@ -1296,175 +1300,201 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             )}
           </View>
 
-          {/* Budget & Trade Budgets — Collapsible */}
+          {/* Budget & Trade Budgets — Collapsible Card */}
           {(contractAmount > 0 || tradeBudgets.length > 0) && (
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 }}
-              onPress={() => setFinancialsExpanded(!financialsExpanded)}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.secondaryText }}>Budget Breakdown</Text>
-              <Ionicons name={financialsExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
-            </TouchableOpacity>
-          )}
-
-          {financialsExpanded && (
-            <>
-              {/* Budget Progress Bar */}
-              {contractAmount > 0 && (
-                <View style={[styles.section, { backgroundColor: Colors.cardBackground, paddingVertical: 14 }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.secondaryText }}>Budget Used</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : Colors.primaryText }}>
-                      ${expenses.toLocaleString()} / ${contractAmount.toLocaleString()} ({Math.round((expenses / contractAmount) * 100)}%)
-                    </Text>
+            <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3, overflow: 'hidden' }}>
+              {/* Section Header */}
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: financialsExpanded ? 1 : 0, borderBottomColor: '#F1F5F9' }}
+                onPress={() => setFinancialsExpanded(!financialsExpanded)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="pie-chart" size={16} color="#3B82F6" />
                   </View>
-                  <View style={{ height: 8, backgroundColor: Colors.lightGray, borderRadius: 4, overflow: 'hidden' }}>
-                    <View style={{
-                      height: 8,
-                      borderRadius: 4,
-                      width: `${Math.min(100, (expenses / contractAmount) * 100)}%`,
-                      backgroundColor: expenses > contractAmount ? '#EF4444' : expenses > contractAmount * 0.8 ? '#F59E0B' : '#10B981',
-                    }} />
-                  </View>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>Budget Breakdown</Text>
                 </View>
-              )}
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name={financialsExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#94A3B8" />
+                </View>
+              </TouchableOpacity>
 
-              {/* Trade Budgets */}
-              {tradeBudgets.length > 0 && (
-                <View style={{ paddingHorizontal: 14, marginTop: 4, marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.secondaryText, marginBottom: 8 }}>TRADE BUDGETS</Text>
-                  {tradeBudgets.map(tb => {
-                    const pct = tb.budget_amount > 0 ? Math.round((tb.paid / tb.budget_amount) * 100) : 0;
-                    const isOver = tb.paid > tb.budget_amount;
-                    return (
-                      <TouchableOpacity
-                        key={tb.id}
-                        style={{ marginBottom: 10 }}
-                        activeOpacity={0.7}
-                        onPress={() => {
-                          if (navigation) {
-                            wasNavigatingRef.current = true;
-                            setModalVisible(false);
-                            navigation.navigate('ProjectTransactions', {
-                              projectId: project.id,
-                              projectName: project.name,
-                              fromProjectDetail: true,
-                              transactionType: 'expense',
-                              subcategoryFilter: tb.trade_name,
-                            });
-                          }
-                        }}
-                      >
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText }}>{tb.trade_name}</Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Text style={{ fontSize: 13, color: isOver ? '#EF4444' : Colors.secondaryText }}>
-                              ${tb.paid.toLocaleString()} / ${parseFloat(tb.budget_amount).toLocaleString()}
-                            </Text>
-                            <Ionicons name="chevron-forward" size={14} color={Colors.secondaryText} />
-                          </View>
-                        </View>
-                        <View style={{ height: 6, backgroundColor: Colors.lightGray, borderRadius: 3, overflow: 'hidden' }}>
-                          <View style={{
-                            height: 6, borderRadius: 3,
-                            width: `${Math.min(100, pct)}%`,
-                            backgroundColor: isOver ? '#EF4444' : pct > 80 ? '#F59E0B' : '#10B981',
-                          }} />
-                        </View>
-                        <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
-                          {isOver ? `Over budget by $${(tb.paid - tb.budget_amount).toLocaleString()}` : `$${tb.remaining.toLocaleString()} remaining`} · {pct}%
+              {financialsExpanded && (
+                <View style={{ paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16 }}>
+                  {/* Overall Budget Progress */}
+                  {contractAmount > 0 && (
+                    <View style={{ marginBottom: tradeBudgets.length > 0 ? 18 : 0 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748B' }}>Overall Budget</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : '#0F172A' }}>
+                          ${expenses.toLocaleString()} / ${contractAmount.toLocaleString()}
                         </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
+                      </View>
+                      <View style={{ height: 8, backgroundColor: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
+                        <View style={{
+                          height: 8,
+                          borderRadius: 4,
+                          width: `${Math.min(100, (expenses / contractAmount) * 100)}%`,
+                          backgroundColor: expenses > contractAmount ? '#EF4444' : expenses > contractAmount * 0.8 ? '#F59E0B' : '#10B981',
+                        }} />
+                      </View>
+                      <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+                        {Math.round((expenses / contractAmount) * 100)}% used · ${(contractAmount - expenses).toLocaleString()} remaining
+                      </Text>
+                    </View>
+                  )}
 
-              {/* Add Trade Budget */}
-              {isOwner && !isDemo && (
-                <View style={{ paddingHorizontal: 14, marginTop: tradeBudgets.length > 0 ? 0 : 4, marginBottom: 8 }}>
-                  {!showAddTrade ? (
-                    <TouchableOpacity
-                      onPress={() => setShowAddTrade(true)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                    >
-                      <Ionicons name="add-circle-outline" size={16} color="#3B82F6" />
-                      <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Add Trade Budget</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={{ backgroundColor: Colors.cardBackground, borderRadius: 10, padding: 12, gap: 8 }}>
-                      <TextInput
-                        style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
-                        placeholder="Trade name (e.g. Electrical)"
-                        placeholderTextColor={Colors.secondaryText}
-                        value={newTradeName}
-                        onChangeText={setNewTradeName}
-                      />
-                      <TextInput
-                        style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
-                        placeholder="Budget amount"
-                        placeholderTextColor={Colors.secondaryText}
-                        value={newTradeAmount}
-                        onChangeText={setNewTradeAmount}
-                        keyboardType="decimal-pad"
-                      />
-                      <TextInput
-                        style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: Colors.primaryText, fontSize: 14 }}
-                        placeholder="Amount already paid (optional)"
-                        placeholderTextColor={Colors.secondaryText}
-                        value={newTradePaid}
-                        onChangeText={setNewTradePaid}
-                        keyboardType="decimal-pad"
-                      />
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: Colors.lightGray, paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                          onPress={() => { setShowAddTrade(false); setNewTradeName(''); setNewTradeAmount(''); setNewTradePaid(''); }}
-                        >
-                          <Text style={{ color: Colors.secondaryText, fontWeight: '600' }}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                          onPress={async () => {
-                            if (!newTradeName.trim() || !newTradeAmount) return;
-                            try {
-                              const budgetAmount = parseFloat(newTradeAmount) || 0;
-                              const paidAmount = parseFloat(newTradePaid) || 0;
-                              await supabase.from('project_trade_budgets').insert({
-                                project_id: project.id,
-                                trade_name: newTradeName.trim(),
-                                budget_amount: budgetAmount,
-                              });
-                              if (paidAmount > 0) {
-                                await supabase.from('project_transactions').insert({
-                                  project_id: project.id,
-                                  type: 'expense',
-                                  category: 'subcontractor',
-                                  subcategory: newTradeName.trim().toLowerCase(),
-                                  description: `${newTradeName.trim()} - initial payment`,
-                                  amount: paidAmount,
-                                  date: new Date().toISOString().split('T')[0],
+                  {/* Trade Budget Items */}
+                  {tradeBudgets.length > 0 && (
+                    <>
+                      {contractAmount > 0 && <View style={{ height: 1, backgroundColor: '#F1F5F9', marginBottom: 14 }} />}
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>By Trade</Text>
+                      {tradeBudgets.map((tb, idx) => {
+                        const pct = tb.budget_amount > 0 ? Math.round((tb.paid / tb.budget_amount) * 100) : 0;
+                        const isOver = tb.paid > tb.budget_amount;
+                        const barColor = isOver ? '#EF4444' : pct > 80 ? '#F59E0B' : '#3B82F6';
+                        return (
+                          <TouchableOpacity
+                            key={tb.id}
+                            style={{
+                              backgroundColor: '#F8FAFC',
+                              borderRadius: 12,
+                              padding: 14,
+                              marginBottom: idx < tradeBudgets.length - 1 ? 8 : 0,
+                            }}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              if (navigation) {
+                                wasNavigatingRef.current = true;
+                                setModalVisible(false);
+                                navigation.navigate('ProjectTransactions', {
+                                  projectId: project.id,
+                                  projectName: project.name,
+                                  fromProjectDetail: true,
+                                  transactionType: 'expense',
+                                  subcategoryFilter: tb.trade_name,
                                 });
                               }
-                              setShowAddTrade(false);
-                              setNewTradeName('');
-                              setNewTradeAmount('');
-                              setNewTradePaid('');
-                              onRefreshNeeded && onRefreshNeeded();
-                            } catch (e) {
-                              Alert.alert('Error', 'Failed to add trade budget.');
-                            }
-                          }}
+                            }}
+                          >
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: barColor }} />
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{tb.trade_name}</Text>
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={{ fontSize: 13, fontWeight: '600', color: isOver ? '#EF4444' : '#64748B' }}>
+                                  ${tb.paid.toLocaleString()} / ${parseFloat(tb.budget_amount).toLocaleString()}
+                                </Text>
+                                <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
+                              </View>
+                            </View>
+                            <View style={{ height: 5, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
+                              <View style={{
+                                height: 5, borderRadius: 3,
+                                width: `${Math.min(100, pct)}%`,
+                                backgroundColor: barColor,
+                              }} />
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                              <Text style={{ fontSize: 11, color: '#94A3B8' }}>
+                                {isOver ? `Over by $${(tb.paid - tb.budget_amount).toLocaleString()}` : `$${tb.remaining.toLocaleString()} left`}
+                              </Text>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: isOver ? '#EF4444' : barColor }}>{pct}%</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Add Trade Budget */}
+                  {isOwner && !isDemo && (
+                    <View style={{ marginTop: tradeBudgets.length > 0 ? 12 : 0 }}>
+                      {!showAddTrade ? (
+                        <TouchableOpacity
+                          onPress={() => setShowAddTrade(true)}
+                          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed' }}
                         >
-                          <Text style={{ color: '#fff', fontWeight: '600' }}>Add</Text>
+                          <Ionicons name="add" size={16} color="#3B82F6" />
+                          <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Add Trade Budget</Text>
                         </TouchableOpacity>
-                      </View>
+                      ) : (
+                        <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, gap: 10 }}>
+                          <TextInput
+                            style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: '#0F172A', fontSize: 14, backgroundColor: '#FFFFFF' }}
+                            placeholder="Trade name (e.g. Electrical)"
+                            placeholderTextColor="#94A3B8"
+                            value={newTradeName}
+                            onChangeText={setNewTradeName}
+                          />
+                          <TextInput
+                            style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: '#0F172A', fontSize: 14, backgroundColor: '#FFFFFF' }}
+                            placeholder="Budget amount"
+                            placeholderTextColor="#94A3B8"
+                            value={newTradeAmount}
+                            onChangeText={setNewTradeAmount}
+                            keyboardType="decimal-pad"
+                          />
+                          <TextInput
+                            style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: '#0F172A', fontSize: 14, backgroundColor: '#FFFFFF' }}
+                            placeholder="Amount already paid (optional)"
+                            placeholderTextColor="#94A3B8"
+                            value={newTradePaid}
+                            onChangeText={setNewTradePaid}
+                            keyboardType="decimal-pad"
+                          />
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#F1F5F9', paddingVertical: 11, borderRadius: 10, alignItems: 'center' }}
+                              onPress={() => { setShowAddTrade(false); setNewTradeName(''); setNewTradeAmount(''); setNewTradePaid(''); }}
+                            >
+                              <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 11, borderRadius: 10, alignItems: 'center' }}
+                              onPress={async () => {
+                                if (!newTradeName.trim() || !newTradeAmount) return;
+                                try {
+                                  const budgetAmount = parseFloat(newTradeAmount) || 0;
+                                  const paidAmount = parseFloat(newTradePaid) || 0;
+                                  await supabase.from('project_trade_budgets').insert({
+                                    project_id: project.id,
+                                    trade_name: newTradeName.trim(),
+                                    budget_amount: budgetAmount,
+                                  });
+                                  if (paidAmount > 0) {
+                                    await supabase.from('project_transactions').insert({
+                                      project_id: project.id,
+                                      type: 'expense',
+                                      category: 'subcontractor',
+                                      subcategory: newTradeName.trim().toLowerCase(),
+                                      description: `${newTradeName.trim()} - initial payment`,
+                                      amount: paidAmount,
+                                      date: new Date().toISOString().split('T')[0],
+                                    });
+                                  }
+                                  setShowAddTrade(false);
+                                  setNewTradeName('');
+                                  setNewTradeAmount('');
+                                  setNewTradePaid('');
+                                  onRefreshNeeded && onRefreshNeeded();
+                                } catch (e) {
+                                  Alert.alert('Error', 'Failed to add trade budget.');
+                                }
+                              }}
+                            >
+                              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Add</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
                     </View>
                   )}
                 </View>
               )}
-            </>
+            </View>
           )}
 
           {/* Project Status Actions */}
@@ -1520,9 +1550,21 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           )}
 
           {/* Project Details Section */}
-          {(project.taskDescription || project.location || project.clientPhone) && (
+          {(project.taskDescription || project.location || project.client || project.clientPhone || project.clientEmail) && (
             <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
               <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('labels.projectDetails')}</Text>
+
+              {project.client && (
+                <View style={styles.detailRow}>
+                  <View style={[styles.detailIconBadge, { backgroundColor: Colors.lightGray }]}>
+                    <Ionicons name="person-outline" size={18} color={Colors.primaryBlue} />
+                  </View>
+                  <View style={styles.detailContent}>
+                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('labels.client', 'Client')}</Text>
+                    <Text style={[styles.detailValue, { color: Colors.primaryText }]}>{project.client}</Text>
+                  </View>
+                </View>
+              )}
 
               {project.taskDescription && (
                 <View style={styles.detailRow}>
@@ -1567,6 +1609,46 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   </View>
                 </TouchableOpacity>
               )}
+
+              {project.clientEmail && (
+                <TouchableOpacity
+                  style={styles.detailRow}
+                  onPress={() => Linking.openURL(`mailto:${project.clientEmail}`)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.detailIconBadge, { backgroundColor: Colors.lightGray }]}>
+                    <Ionicons name="mail-outline" size={18} color={Colors.primaryBlue} />
+                  </View>
+                  <View style={styles.detailContent}>
+                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>{t('labels.clientEmail', 'Client Email')}</Text>
+                    <Text style={[styles.detailValue, { color: Colors.primaryBlue }]}>{project.clientEmail}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Services / Line Items */}
+          {project.services && project.services.length > 0 && (
+            <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="list-outline" size={20} color={Colors.primaryBlue} />
+                <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
+                  {t('labels.services', 'Services & Line Items')}
+                </Text>
+              </View>
+              {project.services.map((service, index) => (
+                <View key={index} style={[styles.detailRow, { paddingVertical: 8 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.detailValue, { color: Colors.primaryText }]}>{service.description}</Text>
+                  </View>
+                  {service.amount > 0 && (
+                    <Text style={[styles.detailValue, { color: Colors.primaryBlue, fontWeight: '600' }]}>
+                      ${parseFloat(service.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </Text>
+                  )}
+                </View>
+              ))}
             </View>
           )}
 
@@ -2313,6 +2395,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             </View>
           )}
+
+          {/* Client Portal Settings */}
+          <TouchableOpacity
+            style={styles.deleteProjectLink}
+            onPress={() => navigation?.navigate('ClientVisibility', { projectId: project?.id, projectName: project?.name })}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="eye-outline" size={14} color={'#6366F1' + '80'} />
+            <Text style={[styles.deleteProjectLinkText, { color: '#6366F180' }]}>
+              {t('buttons.clientPortalSettings', 'Client Portal Settings')}
+            </Text>
+          </TouchableOpacity>
 
           {/* Delete Project - subtle link */}
           <TouchableOpacity

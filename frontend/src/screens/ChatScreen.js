@@ -59,7 +59,6 @@ import NotificationBell from '../components/NotificationBell';
 import OwnerHeader from '../components/OwnerHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { emitProjectUpdated } from '../services/eventEmitter';
 import logger from '../utils/logger';
 
 // Action hooks
@@ -1400,30 +1399,8 @@ export default function ChatScreen({ navigation, route }) {
             );
           }
 
-          // REFRESH PROJECT DATA when agent modifies tasks/phases/finances
-          // This ensures ProjectDetailScreen picks up changes made by the agent
-          const responseText = (parsedResponse.text || '').toLowerCase();
-          const projectModified = responseText.includes('task added') ||
-            responseText.includes('checklist') ||
-            responseText.includes('phase') ||
-            responseText.includes('updated') ||
-            updateAction ||
-            updateProjectAction;
-          if (projectModified) {
-            // Emit for all projects mentioned in visual elements
-            const projectVisuals = parsedResponse.visualElements?.filter(v =>
-              v.data?.project_id || v.data?.projectId
-            ) || [];
-            if (projectVisuals.length > 0) {
-              projectVisuals.forEach(v => {
-                const pid = v.data?.project_id || v.data?.projectId;
-                if (pid) emitProjectUpdated(pid);
-              });
-            } else {
-              // No specific project ID found — emit wildcard to refresh any open project
-              emitProjectUpdated('*');
-            }
-          }
+          // Action hooks now emit project/estimate/invoice/worker events directly
+          // at the point of mutation, so this heuristic is no longer needed.
 
           // Update conversation history — store text + tool context (no base64 images)
           const historyContent = imageAttachments.length > 0

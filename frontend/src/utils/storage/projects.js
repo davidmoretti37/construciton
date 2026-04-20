@@ -91,9 +91,10 @@ export const transformProjectFromDB = (dbProject) => {
   return {
     id: dbProject.id,
     name: dbProject.name,
-    client: dbProject.client || null,
+    client: dbProject.client_name || dbProject.client || null,
     clientPhone: dbProject.client_phone,
     clientEmail: dbProject.client_email,
+    services: dbProject.services || [],
     aiResponsesEnabled: dbProject.ai_responses_enabled !== false,
     baseContract: baseContract,
     contractAmount: contractAmount,
@@ -141,7 +142,9 @@ export const saveProject = async (projectData) => {
     const endDate = projectData.endDate || projectData.schedule?.estimatedEndDate || null;
     const autoPercentComplete = calculateTimeBasedCompletion(startDate, endDate);
 
-    let calculatedBudget = projectData.budget || projectData.baseContract || projectData.contractAmount || projectData.contract_amount || projectData.base_contract || 0;
+    let calculatedBudget = projectData.budget ?? projectData.baseContract ?? projectData.contractAmount ?? projectData.contract_amount ?? projectData.base_contract ?? 0;
+    // Ensure we have a number (not a falsy non-zero value)
+    calculatedBudget = parseFloat(calculatedBudget) || 0;
 
     // Only recalculate from phases/lineItems if no explicit budget/contract amount was provided
     if (calculatedBudget === 0 && projectData.phases && projectData.phases.length > 0) {
@@ -159,11 +162,15 @@ export const saveProject = async (projectData) => {
     const dbProject = {
       user_id: userId,
       name: projectData.projectName || projectData.name || `${projectData.client || 'New'} - Project`,
+      client_name: projectData.client || projectData.clientName || null,
       client_phone: projectData.phone || projectData.clientPhone || null,
       client_email: projectData.email || projectData.clientEmail || null,
       location: projectData.location || null,
+      services: projectData.services || [],
       ai_responses_enabled: projectData.aiResponsesEnabled !== false,
       base_contract: calculatedBudget,
+      contract_amount: calculatedBudget,
+      client_address: projectData.clientAddress || projectData.location || null,
       extras: projectData.extras || [],
       income_collected: projectData.incomeCollected || 0,
       expenses: projectData.expenses || 0,
@@ -181,6 +188,7 @@ export const saveProject = async (projectData) => {
       has_phases: !!(projectData.phases && projectData.phases.length > 0),
       working_days: validateWorkingDays(projectData.workingDays),
       non_working_dates: projectData.nonWorkingDates || [],
+      assigned_supervisor_id: projectData.assignedSupervisorId || null,
     };
 
     let result;
@@ -213,7 +221,7 @@ export const saveProject = async (projectData) => {
         .update(dbProject)
         .eq('id', projectData.id)
         .eq('user_id', userId)
-        .select('id, name, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
+        .select('id, name, client_name, client_phone, client_email, services, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
         .single();
 
       if (error) throw error;
@@ -222,7 +230,7 @@ export const saveProject = async (projectData) => {
       const { data, error } = await supabase
         .from('projects')
         .insert(dbProject)
-        .select('id, name, client_phone, client_email, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
+        .select('id, name, client_name, client_phone, client_email, services, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
         .single();
 
       if (error) throw error;
@@ -243,7 +251,7 @@ export const saveProject = async (projectData) => {
         const existingNames = new Set((existingBudgets || []).map(b => b.trade_name.toLowerCase()));
         const newBudgets = projectData.phases
           .filter(p => p.name && !existingNames.has(p.name.toLowerCase()))
-          .map(p => ({ project_id: result.id, trade_name: p.name, budget_amount: 0 }));
+          .map(p => ({ project_id: result.id, trade_name: p.name, budget_amount: parseFloat(p.budget) || 0 }));
         if (newBudgets.length > 0) {
           await supabase.from('project_trade_budgets').insert(newBudgets);
         }
@@ -355,7 +363,7 @@ export const fetchProjects = async () => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        id, name, client_phone, client_email, ai_responses_enabled,
+        id, name, client_name, client_phone, client_email, services, ai_responses_enabled,
         base_contract, contract_amount, extras, income_collected, expenses, spent,
         actual_progress, status, workers, days_remaining, last_activity, location,
         start_date, end_date, task_description, estimated_duration, has_phases,
@@ -446,7 +454,7 @@ export const fetchProjectsForOwner = async () => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        id, name, client_phone, client_email, ai_responses_enabled,
+        id, name, client_name, client_phone, client_email, services, ai_responses_enabled,
         base_contract, contract_amount, extras, income_collected, expenses, spent,
         actual_progress, status, workers, days_remaining, last_activity, location,
         start_date, end_date, task_description, estimated_duration, has_phases,
@@ -531,7 +539,7 @@ export const getProject = async (projectId) => {
     const { data, error } = await supabase
       .from('projects')
       .select(`
-        id, name, client_phone, client_email, ai_responses_enabled,
+        id, name, client_name, client_phone, client_email, services, ai_responses_enabled,
         base_contract, contract_amount, extras, income_collected, expenses, spent,
         actual_progress, status, workers, days_remaining, last_activity, location,
         start_date, end_date, task_description, estimated_duration, has_phases,

@@ -41,6 +41,7 @@ import PicturesScreen from '../screens/media/PicturesScreen';
 import ContractsScreen from '../screens/documents/ContractsScreen';
 import EstimatesDetailScreen from '../screens/documents/EstimatesDetailScreen';
 import InvoicesDetailScreen from '../screens/documents/InvoicesDetailScreen';
+import InvoiceTemplateScreen from '../screens/documents/InvoiceTemplateScreen';
 
 // Import services screens
 import EditServiceScreen from '../screens/settings/EditServiceScreen';
@@ -113,6 +114,7 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="ProjectDetail"
         component={ProjectDetailScreen}
+        options={{ contentStyle: { backgroundColor: '#1E3A8A' } }}
       />
       <Stack.Screen
         name="ServicePlanDetail"
@@ -234,6 +236,10 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="InvoicesDetail"
         component={InvoicesDetailScreen}
+      />
+      <Stack.Screen
+        name="InvoiceTemplate"
+        component={InvoiceTemplateScreen}
       />
 
       {/* Services Screens */}

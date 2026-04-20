@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PortalShell from "@/components/portal/PortalShell";
+import { useToast } from "@/components/portal/Toast";
 import { fetchRequests, createRequest, type PortalRequest } from "@/services/portal";
 
 const requestTypes = [
@@ -22,6 +23,7 @@ export default function PortalRequestsPage() {
   const [formTitle, setFormTitle] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (projectId) {
@@ -46,7 +48,7 @@ export default function PortalRequestsPage() {
       setFormTitle("");
       setFormDesc("");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to submit");
+      toast(err instanceof Error ? err.message : "Failed to submit", "error");
     } finally {
       setSubmitting(false);
     }
@@ -136,8 +138,19 @@ export default function PortalRequestsPage() {
 
         {/* Request List */}
         {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="space-y-3 animate-pulse">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5">
+                    <div className="h-4 bg-gray-200 rounded w-40" />
+                    <div className="h-3 bg-gray-100 rounded w-20" />
+                  </div>
+                  <div className="h-5 bg-gray-100 rounded-full w-16" />
+                </div>
+                <div className="h-3 bg-gray-50 rounded w-full" />
+              </div>
+            ))}
           </div>
         ) : requests.length === 0 && !showForm ? (
           <div className="text-center py-10">

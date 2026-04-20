@@ -1414,6 +1414,160 @@ const toolDefinitions = [
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'update_service_plan',
+      description: 'Update fields on an existing service plan: name, status (active/paused/cancelled), billing_cycle (per_visit/monthly), price_per_visit, monthly_rate, service_type, or notes. Only provide the fields you want to change.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Service plan name or UUID.' },
+          name: { type: 'string', description: 'New plan name.' },
+          status: { type: 'string', enum: ['active', 'paused', 'cancelled'], description: 'New status.' },
+          billing_cycle: { type: 'string', enum: ['per_visit', 'monthly'], description: 'How the plan bills.' },
+          price_per_visit: { type: 'number', description: 'Per-visit price (for per_visit plans).' },
+          monthly_rate: { type: 'number', description: 'Monthly rate (for monthly plans).' },
+          service_type: { type: 'string', description: 'pest control, cleaning, landscaping, pool, hvac, lawn care, other.' },
+          notes: { type: 'string', description: 'Free-form notes.' }
+        },
+        required: ['plan_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_service_location',
+      description: 'Add a new service location (recurring service stop) to an existing service plan. Each location is a place the crew visits — house, office, building.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Service plan name or UUID.' },
+          name: { type: 'string', description: 'Location name, e.g. "Smith Residence" or "Main Office".' },
+          address: { type: 'string', description: 'Full street address.' },
+          access_notes: { type: 'string', description: 'Optional access instructions: gate codes, parking, key location, etc.' }
+        },
+        required: ['plan_id', 'name', 'address']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'assign_worker_to_plan',
+      description: 'Assign a worker to all upcoming visits on a service plan. Updates every scheduled (non-cancelled, non-completed) future visit.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Service plan name or UUID.' },
+          worker_id: { type: 'string', description: 'Worker name or UUID.' }
+        },
+        required: ['plan_id', 'worker_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_service_plan_details',
+      description: 'Get full detail for a service plan: locations, recent + upcoming visits (with worker names), and financial summary (income, expenses, profit by category).',
+      parameters: {
+        type: 'object',
+        properties: { plan_id: { type: 'string', description: 'Service plan name or UUID.' } },
+        required: ['plan_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_service_plan_summary',
+      description: 'Quick health summary for a service plan: active location count, this-month visit stats (total/completed), and lifetime revenue/expenses/profit.',
+      parameters: {
+        type: 'object',
+        properties: { plan_id: { type: 'string', description: 'Service plan name or UUID.' } },
+        required: ['plan_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_service_plan',
+      description: 'Permanently delete a service plan and cascade-delete its locations and visits. Owners only — supervisors are blocked. ALWAYS confirm with the user before calling.',
+      parameters: {
+        type: 'object',
+        properties: { plan_id: { type: 'string', description: 'Service plan name or UUID.' } },
+        required: ['plan_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_service_plan_documents',
+      description: 'List documents/files attached to a service plan. Optionally filter by category.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Service plan name or UUID.' },
+          category: { type: 'string', description: 'Optional category filter (e.g. "contract", "photo", "report").' }
+        },
+        required: ['plan_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'upload_service_plan_document',
+      description: 'Upload a file (image, PDF, etc.) to a service plan. Use when the user attaches files and asks to save them to a service plan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Service plan name or UUID.' },
+          category: { type: 'string', description: 'Category label (default: "general").' },
+          visible_to_workers: { type: 'boolean', description: 'Whether workers can see this document. Default: false.' },
+          file_name: { type: 'string', description: 'Override the attached filename.' }
+        },
+        required: ['plan_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_service_location',
+      description: 'Update an existing service location: rename, change address, update access notes, or toggle active/inactive.',
+      parameters: {
+        type: 'object',
+        properties: {
+          location_id: { type: 'string', description: 'Location UUID.' },
+          name: { type: 'string', description: 'New location name.' },
+          address: { type: 'string', description: 'New address.' },
+          access_notes: { type: 'string', description: 'Access instructions.' },
+          is_active: { type: 'boolean', description: 'Whether the location is active.' }
+        },
+        required: ['location_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'calculate_service_plan_revenue',
+      description: 'Calculate projected, realized, and unbilled revenue for a service plan (or all active plans) over a date range. Returns per-plan breakdown plus totals. Default range = current month.',
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', description: 'Optional: name or UUID of a single plan. Omit to calculate across all active plans.' },
+          start_date: { type: 'string', description: 'Range start, YYYY-MM-DD (default: first day of current month).' },
+          end_date: { type: 'string', description: 'Range end, YYYY-MM-DD (default: first day of next month).' }
+        }
+      }
+    }
+  },
   // ==================== DAILY CHECKLIST TOOLS ====================
   {
     type: 'function',
@@ -1558,6 +1712,16 @@ const TOOL_STATUS_MESSAGES = {
   complete_visit: 'Completing visit...',
   get_billing_summary: 'Calculating billing...',
   create_service_visit: 'Creating visit...',
+  update_service_plan: 'Updating service plan...',
+  add_service_location: 'Adding service location...',
+  update_service_location: 'Updating service location...',
+  assign_worker_to_plan: 'Assigning worker to plan...',
+  calculate_service_plan_revenue: 'Calculating service plan revenue...',
+  get_service_plan_details: 'Loading service plan details...',
+  get_service_plan_summary: 'Loading service plan summary...',
+  delete_service_plan: 'Deleting service plan...',
+  get_service_plan_documents: 'Loading service plan documents...',
+  upload_service_plan_document: 'Uploading service plan document...',
   // Daily checklist tools
   setup_daily_checklist: 'Setting up daily checklist...',
   get_daily_checklist_report: 'Pulling daily reports...',

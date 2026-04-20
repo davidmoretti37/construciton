@@ -16,6 +16,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const { client, isLoading, isAuthenticated, logout } = usePortalAuth();
   const pathname = usePathname();
   const [branding, setBranding] = useState<PortalBranding | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -77,7 +78,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               {client?.full_name}
             </span>
             <button
-              onClick={logout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
               Sign out
@@ -90,6 +91,32 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       <main className="max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
         {children}
       </main>
+
+      {/* Logout confirmation modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Sign out?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              You&apos;ll need a new link from your contractor to sign back in.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { logout(); setShowLogoutConfirm(false); }}
+                className="flex-1 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg py-2.5 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom nav (mobile) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 pb-[env(safe-area-inset-bottom)]">

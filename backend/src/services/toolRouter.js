@@ -78,9 +78,13 @@ const TOOL_GROUPS = {
     'delete_project_document', 'search_projects', 'get_project_details'
   ],
   service_plan: [
-    'get_service_plans', 'get_daily_route', 'complete_visit',
-    'get_billing_summary', 'create_service_visit', 'search_projects',
-    'record_expense',
+    'get_service_plans', 'get_service_plan_details', 'get_service_plan_summary',
+    'get_daily_route', 'complete_visit', 'get_billing_summary', 'create_service_visit',
+    'update_service_plan', 'delete_service_plan',
+    'add_service_location', 'update_service_location',
+    'assign_worker_to_plan', 'calculate_service_plan_revenue',
+    'get_service_plan_documents', 'upload_service_plan_document',
+    'record_expense', 'get_workers',
     'setup_daily_checklist', 'get_daily_checklist_report', 'get_daily_checklist_summary'
   ],
   general: [
@@ -95,7 +99,12 @@ const TOOL_GROUPS = {
     'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses',
     'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
     'clock_in_worker', 'clock_out_worker',
-    'get_service_plans', 'get_daily_route', 'complete_visit', 'get_billing_summary', 'create_service_visit',
+    'get_service_plans', 'get_service_plan_details', 'get_service_plan_summary',
+    'get_daily_route', 'complete_visit', 'get_billing_summary', 'create_service_visit',
+    'update_service_plan', 'delete_service_plan',
+    'add_service_location', 'update_service_location',
+    'assign_worker_to_plan', 'calculate_service_plan_revenue',
+    'get_service_plan_documents', 'upload_service_plan_document',
     'setup_daily_checklist', 'get_daily_checklist_report', 'get_daily_checklist_summary'
   ]
 };
@@ -158,13 +167,30 @@ function selectTools(intent, allTools) {
 }
 
 /**
- * Main routing function - analyzes query and returns relevant tools
+ * Main routing function - analyzes query and returns relevant tools.
+ * Conversation-state hints take precedence over keyword detection so that
+ * follow-up turns (e.g. "update the rate to $200") stay in the right bucket.
+ *
  * @param {string} userMessage - User's message
  * @param {Array} allTools - All available tool definitions
+ * @param {Object} [hints] - Optional conversation state hints
+ * @param {boolean} [hints.hasDraftProject] - True if there's an active project draft
+ * @param {boolean} [hints.hasDraftServicePlan] - True if there's an active service plan draft
  * @returns {Object} { intent, tools, toolCount }
  */
-function routeTools(userMessage, allTools) {
-  const intent = categorizeIntent(userMessage);
+function routeTools(userMessage, allTools, hints = {}) {
+  let intent = categorizeIntent(userMessage);
+
+  // State-aware override: if a draft is active and the user message is ambiguous
+  // (general intent), force the bucket that matches the active draft.
+  if (intent === 'general') {
+    if (hints.hasDraftServicePlan && !hints.hasDraftProject) {
+      intent = 'service_plan';
+    } else if (hints.hasDraftProject && !hints.hasDraftServicePlan) {
+      intent = 'project';
+    }
+  }
+
   const relevantTools = selectTools(intent, allTools);
 
   const intentLabel = typeof intent === 'object'

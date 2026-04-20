@@ -1,4 +1,5 @@
 import { PortalAuthProvider } from "@/contexts/PortalAuthContext";
+import { ToastProvider } from "@/components/portal/Toast";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,11 @@ export const metadata = {
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
     <PortalAuthProvider>
-      <div className="min-h-screen bg-gray-50">
-        {children}
-      </div>
+      <ToastProvider>
+        <div className="min-h-screen bg-gray-50">
+          {children}
+        </div>
+      </ToastProvider>
     </PortalAuthProvider>
   );
 }

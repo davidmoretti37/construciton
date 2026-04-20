@@ -43,9 +43,10 @@ export const saveEstimate = async (estimateData) => {
         valid_until: estimateData.validUntil || null,
         payment_terms: estimateData.paymentTerms || 'Net 30',
         notes: estimateData.notes || '',
+        labor_estimate: estimateData.laborEstimate || estimateData.labor_estimate || {},
         status: 'draft'
       })
-      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
       .single();
 
     if (error) {
@@ -72,9 +73,10 @@ export const saveEstimate = async (estimateData) => {
             valid_until: estimateData.validUntil || null,
             payment_terms: estimateData.paymentTerms || 'Net 30',
             notes: estimateData.notes || '',
+            labor_estimate: estimateData.laborEstimate || estimateData.labor_estimate || {},
             status: 'draft'
           })
-          .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+          .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
           .single();
 
         if (retryError) {
@@ -298,7 +300,7 @@ export const updateEstimate = async (estimateData) => {
         updated_by: userId,
       })
       .eq('id', estimateId)
-      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
       .single();
 
     if (error) {
@@ -367,7 +369,7 @@ export const fetchEstimates = async (filters = {}) => {
 
     let query = supabase
       .from('estimates')
-      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -422,7 +424,7 @@ export const fetchEstimatesForOwner = async (filters = {}) => {
 
     let query = supabase
       .from('estimates')
-      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
       .in('user_id', allIds)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -465,7 +467,7 @@ export const getEstimate = async (estimateId) => {
   try {
     const { data, error } = await supabase
       .from('estimates')
-      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
       .eq('id', estimateId)
       .single();
 
@@ -496,7 +498,7 @@ export const getEstimateByProjectName = async (projectName) => {
 
     const { data, error } = await supabase
       .from('estimates')
-      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, created_at, updated_at, user_id')
+      .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
       .eq('user_id', userId)
       .ilike('project_name', `%${projectName}%`)
       .order('created_at', { ascending: false })
@@ -627,7 +629,7 @@ export const createInvoiceFromEstimate = async (estimateId) => {
 
     const { data: estimate, error: fetchError } = await supabase
       .from('estimates')
-      .select('id, client_name, client_phone, client_email, client_address, project_name, items, subtotal, tax_rate, tax_amount, total, payment_terms, notes')
+      .select('id, project_id, client_name, client_phone, client_email, client_address, project_name, items, subtotal, tax_rate, tax_amount, total, payment_terms, notes')
       .eq('id', estimateId)
       .eq('user_id', userId)
       .single();
@@ -645,6 +647,7 @@ export const createInvoiceFromEstimate = async (estimateId) => {
       .insert({
         user_id: userId,
         estimate_id: estimateId,
+        project_id: estimate.project_id || null,
         client_name: estimate.client_name,
         client_phone: estimate.client_phone,
         client_email: estimate.client_email,

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PortalShell from "@/components/portal/PortalShell";
+import { useToast } from "@/components/portal/Toast";
 import { fetchMaterials, selectMaterial, type PortalMaterialSelection } from "@/services/portal";
 
 function formatDate(date: string) {
@@ -16,6 +17,7 @@ export default function PortalMaterialsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selecting, setSelecting] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (projectId) {
@@ -38,7 +40,7 @@ export default function PortalMaterialsPage() {
         )
       );
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to select");
+      toast(err instanceof Error ? err.message : "Failed to select", "error");
     } finally {
       setSelecting(null);
     }
@@ -61,8 +63,17 @@ export default function PortalMaterialsPage() {
             <p className="text-sm text-red-500">{error}</p>
           </div>
         ) : loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="space-y-6 animate-pulse">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+                <div className="h-4 bg-gray-200 rounded w-36" />
+                <div className="h-3 bg-gray-100 rounded w-48" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-40 bg-gray-50 rounded-lg" />
+                  <div className="h-40 bg-gray-50 rounded-lg" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : materials.length === 0 ? (
           <div className="text-center py-20">

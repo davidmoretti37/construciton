@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,17 +20,34 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getPhaseWorkers } from '../utils/storage';
 import WorkerAssignmentModal from '../components/WorkerAssignmentModal';
+import { useCachedFetch } from '../hooks/useCachedFetch';
 
 export default function PhaseDetailScreen({ navigation, route }) {
   const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { phaseId, phaseName } = route.params;
+  const { phaseId, phaseName, phase: initialPhase } = route.params;
 
-  const [loading, setLoading] = useState(true);
-  const [phase, setPhase] = useState(null);
-  const [tasks, setTasks] = useState([]);
+  // Cache-first loading for phase details
+  const fetchPhase = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('project_phases')
+      .select('*')
+      .eq('id', phaseId)
+      .single();
+    if (error) throw error;
+    return data;
+  }, [phaseId]);
+
+  const { data: phase, loading: phaseLoading, reload: reloadPhase } = useCachedFetch(
+    `phase:${phaseId}`,
+    fetchPhase,
+    { initialData: initialPhase || null, staleTTL: 10000, maxAge: 2 * 60 * 1000 }
+  );
+
+  const [tasks, setTasks] = useState(initialPhase?.tasks || []);
   const [workers, setWorkers] = useState([]);
+  const loading = phaseLoading;
 
   // Task editing states
   const [showAddTask, setShowAddTask] = useState(false);
@@ -46,37 +63,28 @@ export default function PhaseDetailScreen({ navigation, route }) {
   const [budgetInput, setBudgetInput] = useState('');
   const [paymentAmountInput, setPaymentAmountInput] = useState('');
 
+  // Sync tasks when phase data updates from cache/fetch
   useEffect(() => {
-    loadPhaseDetails();
+    if (phase) {
+      setTasks(phase.tasks || []);
+    }
+  }, [phase]);
+
+  // Load workers on mount
+  useEffect(() => {
+    const loadWorkers = async () => {
+      try {
+        const phaseWorkers = await getPhaseWorkers(phaseId);
+        setWorkers(phaseWorkers || []);
+      } catch (error) {
+        console.error('Error loading workers:', error);
+      }
+    };
+    loadWorkers();
   }, [phaseId]);
 
-  const loadPhaseDetails = async () => {
-    try {
-      setLoading(true);
-
-      const { data, error } = await supabase
-        .from('project_phases')
-        .select('*')
-        .eq('id', phaseId)
-        .single();
-
-      if (error) throw error;
-
-      setPhase(data);
-
-      // Parse tasks from JSONB
-      const phaseTasks = data.tasks || [];
-      setTasks(phaseTasks);
-
-      // Load assigned workers
-      const phaseWorkers = await getPhaseWorkers(phaseId);
-      setWorkers(phaseWorkers || []);
-    } catch (error) {
-      console.error('Error loading phase details:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'phase details' }));
-    } finally {
-      setLoading(false);
-    }
+  const loadPhaseDetails = () => {
+    reloadPhase(true);
   };
 
   const handleWorkersUpdated = () => {
@@ -92,134 +100,143 @@ export default function PhaseDetailScreen({ navigation, route }) {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const handleToggleTask = async (taskIndex) => {
-    try {
-      const updatedTasks = [...tasks];
-      const task = updatedTasks[taskIndex];
+  const handleToggleTask = (taskIndex) => {
+    const previousTasks = [...tasks];
+    const updatedTasks = [...tasks];
+    const task = { ...updatedTasks[taskIndex] };
 
-      task.completed = !task.completed;
-      if (task.completed) {
-        task.completed_date = new Date().toISOString();
-        task.status = 'done';
-      } else {
-        task.completed_date = null;
-        task.status = 'not_started';
-      }
-
-      // Update in database
-      const { error } = await supabase
-        .from('project_phases')
-        .update({ tasks: updatedTasks })
-        .eq('id', phaseId);
-
-      if (error) throw error;
-
-      setTasks(updatedTasks);
-
-      // Reload to get updated completion percentage from trigger
-      loadPhaseDetails();
-    } catch (error) {
-      console.error('Error updating task:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+    task.completed = !task.completed;
+    if (task.completed) {
+      task.completed_date = new Date().toISOString();
+      task.status = 'done';
+    } else {
+      task.completed_date = null;
+      task.status = 'not_started';
     }
+    updatedTasks[taskIndex] = task;
+
+    // Optimistic: update UI instantly
+    setTasks(updatedTasks);
+
+    // Server sync in background
+    supabase
+      .from('project_phases')
+      .update({ tasks: updatedTasks })
+      .eq('id', phaseId)
+      .then(({ error }) => {
+        if (error) throw error;
+        loadPhaseDetails(); // Refresh completion percentage from trigger
+      })
+      .catch((error) => {
+        console.error('Error updating task:', error);
+        setTasks(previousTasks); // Rollback
+        Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+      });
   };
 
-  const handleCycleTaskStatus = async (taskIndex) => {
-    try {
-      const updatedTasks = [...tasks];
-      const task = updatedTasks[taskIndex];
-      const currentStatus = getTaskStatus(task);
-      const currentIdx = TASK_STATUS_ORDER.indexOf(currentStatus);
-      const nextStatus = TASK_STATUS_ORDER[(currentIdx + 1) % TASK_STATUS_ORDER.length];
+  const handleCycleTaskStatus = (taskIndex) => {
+    const previousTasks = [...tasks];
+    const updatedTasks = [...tasks];
+    const task = { ...updatedTasks[taskIndex] };
+    const currentStatus = getTaskStatus(task);
+    const currentIdx = TASK_STATUS_ORDER.indexOf(currentStatus);
+    const nextStatus = TASK_STATUS_ORDER[(currentIdx + 1) % TASK_STATUS_ORDER.length];
 
-      task.status = nextStatus;
-      if (nextStatus === 'done') {
-        task.completed = true;
-        task.completed_date = new Date().toISOString();
-      } else {
-        task.completed = false;
-        task.completed_date = null;
-      }
-
-      const { error } = await supabase
-        .from('project_phases')
-        .update({ tasks: updatedTasks })
-        .eq('id', phaseId);
-
-      if (error) throw error;
-
-      setTasks(updatedTasks);
-      loadPhaseDetails();
-    } catch (error) {
-      console.error('Error cycling task status:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+    task.status = nextStatus;
+    if (nextStatus === 'done') {
+      task.completed = true;
+      task.completed_date = new Date().toISOString();
+    } else {
+      task.completed = false;
+      task.completed_date = null;
     }
+    updatedTasks[taskIndex] = task;
+
+    // Optimistic: update UI instantly
+    setTasks(updatedTasks);
+
+    // Server sync in background
+    supabase
+      .from('project_phases')
+      .update({ tasks: updatedTasks })
+      .eq('id', phaseId)
+      .then(({ error }) => {
+        if (error) throw error;
+        loadPhaseDetails();
+      })
+      .catch((error) => {
+        console.error('Error cycling task status:', error);
+        setTasks(previousTasks);
+        Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+      });
   };
 
-  const handleAddTask = async () => {
+  const handleAddTask = () => {
     if (!taskInput.trim()) {
       Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
       return;
     }
 
-    try {
-      const updatedTasks = [...tasks];
-      const newTask = {
-        id: `task-${Date.now()}`,
-        order: updatedTasks.length + 1,
-        description: taskInput.trim(),
-        completed: false,
-        status: 'not_started',
-      };
+    const previousTasks = [...tasks];
+    const newTask = {
+      id: `task-${Date.now()}`,
+      order: tasks.length + 1,
+      description: taskInput.trim(),
+      completed: false,
+      status: 'not_started',
+    };
+    const updatedTasks = [...tasks, newTask];
 
-      updatedTasks.push(newTask);
+    // Optimistic: show new task instantly, close modal
+    setTasks(updatedTasks);
+    setTaskInput('');
+    setShowAddTask(false);
 
-      // Update in database
-      const { error } = await supabase
-        .from('project_phases')
-        .update({ tasks: updatedTasks })
-        .eq('id', phaseId);
-
-      if (error) throw error;
-
-      setTasks(updatedTasks);
-      setTaskInput('');
-      setShowAddTask(false);
-
-      // Reload to get updated completion percentage
-      loadPhaseDetails();
-    } catch (error) {
-      console.error('Error adding task:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'task' }));
-    }
+    // Server sync in background
+    supabase
+      .from('project_phases')
+      .update({ tasks: updatedTasks })
+      .eq('id', phaseId)
+      .then(({ error }) => {
+        if (error) throw error;
+        loadPhaseDetails();
+      })
+      .catch((error) => {
+        console.error('Error adding task:', error);
+        setTasks(previousTasks);
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'task' }));
+      });
   };
 
-  const handleEditTask = async () => {
+  const handleEditTask = () => {
     if (!taskInput.trim()) {
       Alert.alert(t('alerts.error'), t('messages.enterTaskDescription'));
       return;
     }
 
-    try {
-      const updatedTasks = [...tasks];
-      updatedTasks[editingTaskIndex].description = taskInput.trim();
+    const previousTasks = [...tasks];
+    const updatedTasks = [...tasks];
+    updatedTasks[editingTaskIndex] = { ...updatedTasks[editingTaskIndex], description: taskInput.trim() };
 
-      // Update in database
-      const { error } = await supabase
-        .from('project_phases')
-        .update({ tasks: updatedTasks })
-        .eq('id', phaseId);
+    // Optimistic: update UI instantly, close modal
+    setTasks(updatedTasks);
+    setTaskInput('');
+    setShowEditTask(false);
+    setEditingTaskIndex(null);
 
-      if (error) throw error;
-
-      setTasks(updatedTasks);
-      setTaskInput('');
-      setShowEditTask(false);
-      setEditingTaskIndex(null);
-    } catch (error) {
-      console.error('Error editing task:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
-    }
+    // Server sync in background
+    supabase
+      .from('project_phases')
+      .update({ tasks: updatedTasks })
+      .eq('id', phaseId)
+      .then(({ error }) => {
+        if (error) throw error;
+      })
+      .catch((error) => {
+        console.error('Error editing task:', error);
+        setTasks(previousTasks);
+        Alert.alert(t('alerts.error'), t('messages.failedToUpdate', { item: 'task' }));
+      });
   };
 
   const handleDeleteTask = async (taskIndex) => {
@@ -231,31 +248,28 @@ export default function PhaseDetailScreen({ navigation, route }) {
         {
           text: t('buttons.delete'),
           style: 'destructive',
-          onPress: async () => {
-            try {
-              const updatedTasks = tasks.filter((_, index) => index !== taskIndex);
+          onPress: () => {
+            const previousTasks = [...tasks];
+            const updatedTasks = tasks.filter((_, index) => index !== taskIndex);
+            updatedTasks.forEach((task, index) => { task.order = index + 1; });
 
-              // Reorder remaining tasks
-              updatedTasks.forEach((task, index) => {
-                task.order = index + 1;
+            // Optimistic: remove instantly
+            setTasks(updatedTasks);
+
+            // Server sync in background
+            supabase
+              .from('project_phases')
+              .update({ tasks: updatedTasks })
+              .eq('id', phaseId)
+              .then(({ error }) => {
+                if (error) throw error;
+                loadPhaseDetails();
+              })
+              .catch((error) => {
+                console.error('Error deleting task:', error);
+                setTasks(previousTasks);
+                Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'task' }));
               });
-
-              // Update in database
-              const { error } = await supabase
-                .from('project_phases')
-                .update({ tasks: updatedTasks })
-                .eq('id', phaseId);
-
-              if (error) throw error;
-
-              setTasks(updatedTasks);
-
-              // Reload to get updated completion percentage
-              loadPhaseDetails();
-            } catch (error) {
-              console.error('Error deleting task:', error);
-              Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'task' }));
-            }
           }
         }
       ]
@@ -274,32 +288,31 @@ export default function PhaseDetailScreen({ navigation, route }) {
     setShowBudgetEdit(true);
   };
 
-  const handleSaveBudget = async () => {
-    try {
-      const newBudget = budgetInput ? parseFloat(budgetInput) : null;
-      const newPaymentAmount = paymentAmountInput ? parseFloat(paymentAmountInput) : null;
+  const handleSaveBudget = () => {
+    const newBudget = budgetInput ? parseFloat(budgetInput) : null;
+    const newPaymentAmount = paymentAmountInput ? parseFloat(paymentAmountInput) : null;
 
-      if (budgetInput && isNaN(newBudget)) {
-        Alert.alert(t('alerts.error'), 'Please enter a valid budget amount');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('project_phases')
-        .update({
-          budget: newBudget,
-          payment_amount: newPaymentAmount,
-        })
-        .eq('id', phaseId);
-
-      if (error) throw error;
-
-      setShowBudgetEdit(false);
-      loadPhaseDetails();
-    } catch (error) {
-      console.error('Error saving budget:', error);
-      Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'budget' }));
+    if (budgetInput && isNaN(newBudget)) {
+      Alert.alert(t('alerts.error'), 'Please enter a valid budget amount');
+      return;
     }
+
+    // Optimistic: close modal instantly
+    setShowBudgetEdit(false);
+
+    // Server sync in background
+    supabase
+      .from('project_phases')
+      .update({ budget: newBudget, payment_amount: newPaymentAmount })
+      .eq('id', phaseId)
+      .then(({ error }) => {
+        if (error) throw error;
+        loadPhaseDetails();
+      })
+      .catch((error) => {
+        console.error('Error saving budget:', error);
+        Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'budget' }));
+      });
   };
 
   const getStatusIcon = (status) => {

@@ -147,15 +147,47 @@ export const calculateOvertimePay = (
 };
 
 /**
- * Format currency for display
+ * Get the locale string for Intl formatting based on the current app language.
+ * @returns {string} Locale code (e.g. 'en-US', 'es', 'pt-BR')
+ */
+export const getAppLocale = () => {
+  try {
+    const i18n = require('../i18n').default;
+    const lang = i18n.language || 'en';
+    if (lang === 'pt-BR') return 'pt-BR';
+    if (lang.startsWith('es')) return 'es';
+    return 'en-US';
+  } catch {
+    return 'en-US';
+  }
+};
+
+/**
+ * Get the currency code from i18n settings (USD, BRL, etc.)
+ * @returns {string} Currency code
+ */
+const getAppCurrency = () => {
+  try {
+    const i18n = require('../i18n').default;
+    return i18n.t('currency.code', { ns: 'common', defaultValue: 'USD' });
+  } catch {
+    return 'USD';
+  }
+};
+
+/**
+ * Format currency for display — locale and currency-aware.
+ * Uses the app's current language to determine locale and currency.
  * @param {number} amount - Amount to format
- * @param {string} currency - Currency code (default 'USD')
+ * @param {string} [currency] - Currency code override (defaults to i18n currency)
  * @returns {string} Formatted currency string
  */
-export const formatCurrency = (amount, currency = 'USD') => {
-  return new Intl.NumberFormat('en-US', {
+export const formatCurrency = (amount, currency) => {
+  const currencyCode = currency || getAppCurrency();
+  const locale = getAppLocale();
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency,
+    currency: currencyCode,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount || 0);

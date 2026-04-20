@@ -204,26 +204,30 @@ export default function WorkerScheduleScreen({ navigation, embedded = false }) {
     setSelectedDate(new Date(year, month - 1, day));
   };
 
-  const handleToggleTask = async (task) => {
-    try {
-      if (task.status === 'completed') {
-        const result = await uncompleteTask(task.id);
-        if (result) {
-          const update = t => ({ ...t, status: 'pending', completed_at: null, completed_by: null });
-          setDayTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
-          setMonthTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
-        }
-      } else {
-        const result = await completeTask(task.id, workerId);
-        if (result) {
-          const update = t => ({ ...t, status: 'completed', completed_at: new Date().toISOString(), completed_by: workerId });
-          setDayTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
-          setMonthTasks(prev => prev.map(t => t.id === task.id ? update(t) : t));
-        }
+  const handleToggleTask = (task) => {
+    const isCompleting = task.status !== 'completed';
+    const optimisticUpdate = isCompleting
+      ? (t) => ({ ...t, status: 'completed', completed_at: new Date().toISOString(), completed_by: workerId })
+      : (t) => ({ ...t, status: 'pending', completed_at: null, completed_by: null });
+    const revert = (t) => ({ ...t, status: task.status, completed_at: task.completed_at, completed_by: task.completed_by });
+
+    // Optimistic: update UI instantly
+    setDayTasks(prev => prev.map(t => t.id === task.id ? optimisticUpdate(t) : t));
+    setMonthTasks(prev => prev.map(t => t.id === task.id ? optimisticUpdate(t) : t));
+
+    // Server sync in background
+    const serverFn = isCompleting ? completeTask(task.id, workerId) : uncompleteTask(task.id);
+    serverFn.then((result) => {
+      if (!result) {
+        // Rollback on failure
+        setDayTasks(prev => prev.map(t => t.id === task.id ? revert(t) : t));
+        setMonthTasks(prev => prev.map(t => t.id === task.id ? revert(t) : t));
       }
-    } catch (error) {
+    }).catch((error) => {
       console.error('Error toggling task:', error);
-    }
+      setDayTasks(prev => prev.map(t => t.id === task.id ? revert(t) : t));
+      setMonthTasks(prev => prev.map(t => t.id === task.id ? revert(t) : t));
+    });
   };
 
   const handleMoveTask = (task) => {

@@ -129,15 +129,23 @@ export default function CompanyOverheadScreen() {
     }
   };
 
-  const handleToggle = async (item) => {
-    await updateRecurringExpense(item.id, { is_active: !item.is_active });
-    loadData();
+  const handleToggle = (item) => {
+    // Optimistic: toggle instantly
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_active: !i.is_active } : i));
+    updateRecurringExpense(item.id, { is_active: !item.is_active }).catch(() => {
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_active: item.is_active } : i));
+    });
   };
 
   const handleDelete = (item) => {
     Alert.alert('Delete', `Remove "${item.description}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteRecurringExpense(item.id); loadData(); } },
+      { text: 'Delete', style: 'destructive', onPress: () => {
+        setItems(prev => prev.filter(i => i.id !== item.id));
+        deleteRecurringExpense(item.id).catch(() => {
+          setItems(prev => [...prev, item]);
+        });
+      }},
     ]);
   };
 

@@ -45,3 +45,12 @@ backend/.env
 /ios
 /android
 google-service-account.json
+
+# Local agent + tooling state
+.core/
+.forge/
+supabase/.temp/
+uploads/
+
+# Vim swap
+*.swp

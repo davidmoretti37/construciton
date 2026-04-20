@@ -248,7 +248,7 @@ export const getUserProfile = async () => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, is_onboarded, business_name, business_phone, business_email, business_logo, business_address, payment_info, payment_terms, footer_text, accent_color, font_style, phases_template, profit_margin')
+      .select('id, is_onboarded, business_name, business_phone, business_email, business_logo, business_address, payment_info, payment_terms, footer_text, accent_color, font_style, phases_template, profit_margin, default_tax_rate')
       .eq('id', userId)
       .maybeSingle();
 
@@ -279,6 +279,7 @@ export const getUserProfile = async () => {
       },
       phasesTemplate: data.phases_template || null,
       profit_margin: data.profit_margin || 0.25,
+      default_tax_rate: parseFloat(data.default_tax_rate) || 0,
     };
   } catch (error) {
     logger.error('Error loading user profile:', error);

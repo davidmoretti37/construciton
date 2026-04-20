@@ -19,8 +19,12 @@
       "ios": {
         "simulator": false
       },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://construciton-production.up.railway.app"
+        "EXPO_PUBLIC_BACKEND_URL": "https://construciton-production.up.railway.app",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
@@ -41,8 +45,8 @@
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
-        "track": "internal",
-        "releaseStatus": "draft"
+        "track": "alpha",
+        "releaseStatus": "completed"
       }
     }
   }

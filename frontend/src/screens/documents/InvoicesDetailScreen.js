@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -34,11 +34,15 @@ export default function InvoicesDetailScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      if (!hasLoadedOnce) {
-        loadInvoices();
-      }
-    }, [hasLoadedOnce])
+      loadInvoices();
+    }, [])
   );
+
+  // Auto-refresh when invoices change from chat
+  useEffect(() => {
+    const { onInvoiceChanged } = require('../../services/eventEmitter');
+    return onInvoiceChanged(() => loadInvoices());
+  }, []);
 
   const loadInvoices = async () => {
     try {

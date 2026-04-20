@@ -103,9 +103,12 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+    const { getAppLocale } = require('./calculations');
+    const locale = getAppLocale();
+    const currency = locale === 'pt-BR' ? 'BRL' : 'USD';
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
-      currency: 'USD',
+      currency,
     }).format(amount || 0);
   };
 

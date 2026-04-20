@@ -72,6 +72,7 @@ export interface PortalSettings {
 export interface PortalEstimate {
   id: string;
   estimate_number: string;
+  project_id?: string;
   project_name?: string;
   items: { description: string; quantity: number; unit: string; pricePerUnit: number; total: number }[];
   subtotal: number;
@@ -231,6 +232,64 @@ export interface PortalDocument {
   created_at: string;
 }
 
+export interface PortalChangeOrder {
+  id: string;
+  project_id: string;
+  title: string;
+  description?: string;
+  items?: { description: string; amount: number }[];
+  total_amount: number;
+  status: string;
+  client_viewed_at?: string;
+  client_responded_at?: string;
+  approved_by_name?: string;
+  approved_at?: string;
+  client_response_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortalCalendarTask {
+  id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  color: string;
+  status: string;
+  project_id: string;
+  working_days: number[];
+  non_working_dates: string[];
+}
+
+export interface PortalCalendarEvent {
+  id: string;
+  type: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  start_time?: string;
+  end_time?: string;
+  phase?: string;
+  status?: string;
+  notes?: string;
+}
+
+export interface PortalCalendarPhase {
+  id: string;
+  name: string;
+  order_index: number;
+  status: string;
+  completion_percentage: number;
+  start_date?: string;
+  end_date?: string;
+}
+
+export interface PortalCalendarData {
+  tasks: PortalCalendarTask[];
+  events: PortalCalendarEvent[];
+  phases: PortalCalendarPhase[];
+}
+
 // ============================================================
 // API Functions
 // ============================================================
@@ -261,6 +320,9 @@ export const respondToEstimate = (estimateId: string, action: string, notes?: st
 
 export const fetchInvoices = (projectId: string) =>
   portalFetch<PortalInvoice[]>(`/projects/${projectId}/invoices`);
+
+export const fetchAllInvoices = () =>
+  portalFetch<PortalInvoice[]>("/invoices");
 
 export const fetchMilestones = (projectId: string) =>
   portalFetch<PortalMilestonesData>(`/projects/${projectId}/milestones`);
@@ -318,3 +380,15 @@ export const fetchApprovals = (projectId: string) =>
 
 export const fetchDocuments = (projectId: string) =>
   portalFetch<PortalDocument[]>(`/projects/${projectId}/documents`);
+
+export const fetchChangeOrders = (projectId: string) =>
+  portalFetch<PortalChangeOrder[]>(`/projects/${projectId}/change-orders`);
+
+export const respondToChangeOrder = (coId: string, action: "approve" | "reject", reason?: string) =>
+  portalFetch<{ success: boolean; status: string }>(`/change-orders/${coId}/respond`, {
+    method: "POST",
+    body: JSON.stringify({ action, reason }),
+  });
+
+export const fetchCalendar = (projectId: string, start: string, end: string) =>
+  portalFetch<PortalCalendarData>(`/projects/${projectId}/calendar?start=${start}&end=${end}`);

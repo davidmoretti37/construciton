@@ -18,6 +18,7 @@ import {
   previewInvoicePDF,
   shareInvoicePDF,
 } from '../../utils/pdfGenerator';
+import { emitInvoiceChanged } from '../../services/eventEmitter';
 
 /**
  * Hook for all invoice-related actions
@@ -55,6 +56,7 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
             }
           ]
         );
+        emitInvoiceChanged(invoice.id);
         return invoice;
       }
       return null;
@@ -100,6 +102,7 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
             }
           ]
         );
+        emitInvoiceChanged(savedInvoice.id);
         return savedInvoice;
       }
       Alert.alert('Error', 'Failed to save invoice. Please try again.');
@@ -155,6 +158,7 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
           }
         ]
       );
+      emitInvoiceChanged(updatedInvoice?.id);
       return updatedInvoice;
     } catch (error) {
       logger.error('Error generating PDF:', error);
@@ -273,6 +277,7 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
 
       if (success) {
         addMessage(`✅ Deleted invoice ${invoiceNumber || ''}`);
+        emitInvoiceChanged(invoiceId);
         return true;
       } else {
         Alert.alert('Error', 'Failed to delete invoice.');
@@ -295,6 +300,7 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
           ? `Remaining balance: $${result.newBalance.toFixed(2)}`
           : 'Invoice paid in full';
         addMessage(`✅ Recorded $${paymentAmount} payment${clientName ? ' from ' + clientName : ''}. ${balanceMsg}`);
+        emitInvoiceChanged(invoiceId);
         return result;
       } else {
         Alert.alert('Error', 'Failed to record payment.');
@@ -314,6 +320,7 @@ export default function useInvoiceActions({ addMessage, setMessages }) {
 
       if (success) {
         addMessage(`✅ Voided invoice ${invoiceNumber || ''}`);
+        emitInvoiceChanged(invoiceId);
         return true;
       } else {
         Alert.alert('Error', 'Failed to void invoice.');

@@ -103,24 +103,31 @@ export async function processQueue() {
   let failed = 0;
   const remaining = [];
 
+  const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+  let dropped = 0;
+
   for (const action of queue) {
+    const age = Date.now() - new Date(action.queuedAt).getTime();
+    if (age > MAX_AGE_MS) {
+      dropped++;
+      continue; // Skip actions older than 7 days
+    }
     try {
       await executeAction(action);
       processed++;
     } catch (e) {
       console.warn(`[OfflineQueue] Failed: ${action.type}`, e.message);
-      // Keep failed actions that are less than 48 hours old
-      const age = Date.now() - new Date(action.queuedAt).getTime();
-      if (age < 48 * 60 * 60 * 1000) {
-        remaining.push(action);
-        failed++;
-      }
-      // Older than 48h — drop it
+      remaining.push(action);
+      failed++;
     }
   }
 
+  if (dropped > 0) {
+    console.warn(`[OfflineQueue] Dropped ${dropped} actions older than 7 days`);
+  }
+
   saveQueue(remaining);
-  return { processed, failed };
+  return { processed, failed, dropped };
 }
 
 /**
@@ -131,7 +138,7 @@ async function executeAction(action) {
 
   switch (type) {
     case 'complete_visit': {
-      await supabase
+      const { error } = await supabase
         .from('service_visits')
         .update({
           status: 'completed',
@@ -139,29 +146,32 @@ async function executeAction(action) {
           started_at: payload.started_at || payload.completed_at,
         })
         .eq('id', payload.visit_id);
+      if (error) throw new Error(`complete_visit: ${error.message}`);
       break;
     }
 
     case 'uncomplete_visit': {
-      await supabase
+      const { error } = await supabase
         .from('service_visits')
         .update({
           status: 'scheduled',
           completed_at: null,
         })
         .eq('id', payload.visit_id);
+      if (error) throw new Error(`uncomplete_visit: ${error.message}`);
       break;
     }
 
     case 'toggle_checklist': {
       if (payload.entry_id) {
-        await supabase
+        const { error } = await supabase
           .from('daily_report_entries')
           .update({ completed: payload.completed })
           .eq('id', payload.entry_id);
+        if (error) throw new Error(`toggle_checklist update: ${error.message}`);
       } else {
         if (payload.report_id) {
-          await supabase
+          const { error } = await supabase
             .from('daily_report_entries')
             .insert({
               report_id: payload.report_id,
@@ -172,6 +182,7 @@ async function executeAction(action) {
               quantity_unit: payload.quantity_unit,
               sort_order: payload.sort_order,
             });
+          if (error) throw new Error(`toggle_checklist insert: ${error.message}`);
         }
       }
       break;
@@ -179,10 +190,11 @@ async function executeAction(action) {
 
     case 'update_quantity': {
       if (payload.entry_id) {
-        await supabase
+        const { error } = await supabase
           .from('daily_report_entries')
           .update({ quantity: payload.quantity })
           .eq('id', payload.entry_id);
+        if (error) throw new Error(`update_quantity: ${error.message}`);
       }
       break;
     }

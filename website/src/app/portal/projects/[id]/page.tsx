@@ -9,6 +9,9 @@ import PhotoTimeline from "@/components/portal/PhotoTimeline";
 import MessageThread from "@/components/portal/MessageThread";
 import ApprovalTimeline from "@/components/portal/ApprovalTimeline";
 import SiteActivityBadge from "@/components/portal/SiteActivityBadge";
+import ChangeOrders from "@/components/portal/ChangeOrders";
+import ProjectCalendar from "@/components/portal/ProjectCalendar";
+import { useToast } from "@/components/portal/Toast";
 import {
   fetchProject,
   fetchEstimates,
@@ -31,7 +34,7 @@ import {
 } from "@/services/portal";
 
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(amount);
 }
 
 function formatDate(date: string) {
@@ -54,6 +57,7 @@ export default function PortalProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paymentVerified, setPaymentVerified] = useState(false);
+  const { toast } = useToast();
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -119,7 +123,7 @@ export default function PortalProjectDetailPage() {
         prev.map((e) => (e.id === estimateId ? { ...e, status: action === "changes_requested" ? "sent" : action } : e))
       );
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to respond");
+      toast(err instanceof Error ? err.message : "Failed to respond", "error");
     }
   };
 
@@ -128,15 +132,38 @@ export default function PortalProjectDetailPage() {
       const { url } = await payInvoice(invoiceId);
       window.location.href = url;
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to start payment");
+      toast(err instanceof Error ? err.message : "Failed to start payment", "error");
     }
   };
 
   if (loading) {
     return (
       <PortalShell>
-        <div className="flex justify-center py-20">
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="space-y-6 animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-20" />
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="space-y-2">
+                <div className="h-5 bg-gray-200 rounded w-48" />
+                <div className="h-3 bg-gray-100 rounded w-32" />
+              </div>
+              <div className="h-6 w-6 bg-gray-100 rounded-full" />
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full w-full" />
+            <div className="flex gap-4">
+              <div className="h-3 bg-gray-100 rounded w-24" />
+              <div className="h-3 bg-gray-100 rounded w-24" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="h-4 bg-gray-200 rounded w-24" />
+            <div className="h-16 bg-gray-50 rounded-lg" />
+            <div className="h-16 bg-gray-50 rounded-lg" />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="h-4 bg-gray-200 rounded w-20" />
+            <div className="h-12 bg-gray-50 rounded-lg" />
+          </div>
         </div>
       </PortalShell>
     );
@@ -426,6 +453,12 @@ export default function PortalProjectDetailPage() {
             </div>
           </section>
         )}
+
+        {/* Change Orders */}
+        <ChangeOrders projectId={id} />
+
+        {/* Project Calendar */}
+        <ProjectCalendar projectId={id} enabled={!!settings.show_phases} />
 
         {/* Material Selections */}
         {materials.length > 0 && (

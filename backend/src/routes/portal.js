@@ -65,6 +65,12 @@ router.post('/auth/verify', async (req, res) => {
 
     const client = projectClient.clients;
 
+    // Invalidate the magic link token after use (single-use tokens)
+    await supabase
+      .from('project_clients')
+      .update({ token_expires_at: new Date().toISOString() })
+      .eq('id', projectClient.id);
+
     // Check if there's already a valid session for this client
     const { data: existingSession } = await supabase
       .from('client_sessions')
@@ -84,7 +90,6 @@ router.post('/auth/verify', async (req, res) => {
         path: '/api/portal',
       });
       return res.json({
-        sessionToken: existingSession.session_token,
         client: {
           id: client.id,
           full_name: client.full_name,
@@ -115,7 +120,6 @@ router.post('/auth/verify', async (req, res) => {
       path: '/api/portal',
     });
     res.json({
-      sessionToken: session.session_token,
       client: {
         id: client.id,
         full_name: client.full_name,
@@ -233,13 +237,13 @@ router.get('/dashboard', async (req, res) => {
       (async () => {
         const { data: byEmail } = await supabase
           .from('estimates')
-          .select('id, estimate_number, project_name, total, status, created_at')
+          .select('id, estimate_number, project_id, project_name, total, status, created_at')
           .eq('user_id', ownerId)
           .in('status', ['sent', 'viewed'])
           .eq('client_email', req.client.email);
         const { data: byName } = await supabase
           .from('estimates')
-          .select('id, estimate_number, project_name, total, status, created_at')
+          .select('id, estimate_number, project_id, project_name, total, status, created_at')
           .eq('user_id', ownerId)
           .in('status', ['sent', 'viewed'])
           .eq('client_name', req.client.full_name);
@@ -581,17 +585,19 @@ router.patch('/estimates/:estimateId/respond', async (req, res) => {
       return res.status(404).json({ error: 'Estimate not found' });
     }
 
-    if (estimate.project_id) {
-      const { data: access } = await supabase
-        .from('project_clients')
-        .select('id')
-        .eq('project_id', estimate.project_id)
-        .eq('client_id', clientId)
-        .single();
+    if (!estimate.project_id) {
+      return res.status(403).json({ error: 'Access denied — estimate has no associated project' });
+    }
 
-      if (!access) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
+    const { data: estAccess } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('project_id', estimate.project_id)
+      .eq('client_id', clientId)
+      .single();
+
+    if (!estAccess) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     // Update estimate status
@@ -638,6 +644,50 @@ router.patch('/estimates/:estimateId/respond', async (req, res) => {
 // ============================================================
 // INVOICES
 // ============================================================
+
+/**
+ * GET /invoices
+ * Returns ALL non-cancelled invoices for the authenticated client (across all projects).
+ * Used by the invoices page to show both outstanding and paid.
+ */
+router.get('/invoices', async (req, res) => {
+  try {
+    const clientId = req.client.id;
+    const ownerId = req.client.owner_id;
+
+    const { data: byEmail } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, project_id, project_name, total, amount_paid, amount_due, status, due_date, paid_date, created_at')
+      .eq('user_id', ownerId)
+      .neq('status', 'cancelled')
+      .eq('client_email', req.client.email)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    const { data: byName } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, project_id, project_name, total, amount_paid, amount_due, status, due_date, paid_date, created_at')
+      .eq('user_id', ownerId)
+      .neq('status', 'cancelled')
+      .eq('client_name', req.client.full_name)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    const seen = new Set();
+    const all = [...(byEmail || []), ...(byName || [])].filter(i => {
+      if (seen.has(i.id)) return false;
+      seen.add(i.id);
+      return true;
+    });
+
+    // Sort by created_at descending
+    all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    res.json(all);
+  } catch (error) {
+    logger.error('[Portal] All invoices error:', error.message);
+    res.status(500).json({ error: 'Failed to load invoices' });
+  }
+});
 
 /**
  * GET /projects/:projectId/invoices
@@ -783,17 +833,19 @@ router.post('/invoices/:invoiceId/pay', async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    if (invoice.project_id) {
-      const { data: access } = await supabase
-        .from('project_clients')
-        .select('id')
-        .eq('project_id', invoice.project_id)
-        .eq('client_id', clientId)
-        .single();
+    if (!invoice.project_id) {
+      return res.status(403).json({ error: 'Access denied — invoice has no associated project' });
+    }
 
-      if (!access) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
+    const { data: payAccess } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('project_id', invoice.project_id)
+      .eq('client_id', clientId)
+      .single();
+
+    if (!payAccess) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     if (invoice.status === 'paid') {
@@ -867,7 +919,7 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
     // Verify invoice exists and client has access
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, project_id, invoice_number, total, amount_paid, amount_due, status, client_name, client_email')
+      .select('id, project_id, user_id, invoice_number, total, amount_paid, amount_due, status, client_name, client_email')
       .eq('id', invoiceId)
       .single();
 
@@ -875,14 +927,19 @@ router.post('/invoices/:invoiceId/create-payment-intent', async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    if (invoice.project_id) {
-      const { data: access } = await supabase
-        .from('project_clients')
-        .select('id')
-        .eq('project_id', invoice.project_id)
-        .eq('client_id', clientId)
-        .single();
-      if (!access) return res.status(403).json({ error: 'Access denied' });
+    if (!invoice.project_id) {
+      return res.status(403).json({ error: 'Access denied — invoice has no associated project' });
+    }
+
+    const { data: piAccess } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('project_id', invoice.project_id)
+      .eq('client_id', clientId)
+      .single();
+
+    if (!piAccess) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     if (invoice.status === 'paid') {

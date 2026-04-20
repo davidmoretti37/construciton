@@ -29,6 +29,7 @@ import {
   swapWorkerShifts,
   calculateWorkerPaymentForPeriod,
 } from '../../utils/storage';
+import { emitWorkerChanged } from '../../services/eventEmitter';
 
 // Helper: Find worker by name (case-insensitive, partial match)
 const findWorkerByName = (workers, searchName) => {
@@ -115,7 +116,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
     try {
       const worker = await createWorker(data);
       if (worker) {
-        // Don't add message - agent response already confirms
+        emitWorkerChanged(worker.id);
         return worker;
       } else {
         Alert.alert('Error', 'Failed to create worker.');
@@ -146,7 +147,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
       if (updates.status === 'deleted') {
         const success = await deleteWorker(workerIdToUpdate);
         if (success) {
-          // Don't add message - agent response already confirms
+          emitWorkerChanged(workerIdToUpdate);
           return true;
         } else {
           Alert.alert('Error', 'Failed to delete worker.');
@@ -156,7 +157,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
 
       const success = await updateWorker(workerIdToUpdate, updates);
       if (success) {
-        // Don't add message - agent response already confirms
+        emitWorkerChanged(workerIdToUpdate);
         return true;
       } else {
         Alert.alert('Error', 'Failed to update worker.');
@@ -186,7 +187,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
 
       const success = await deleteWorker(fullWorkerId);
       if (success) {
-        // Don't add message - agent response already confirms
+        emitWorkerChanged(fullWorkerId);
         return true;
       } else {
         Alert.alert('Error', 'Failed to delete worker.');
@@ -230,6 +231,7 @@ export default function useWorkerActions({ addMessage, setMessages }) {
           actions: [],
         };
         setMessages(prev => [...prev, confirmationMessage]);
+        emitWorkerChanged('*');
         return { success: true, count: deletedCount };
       }
 

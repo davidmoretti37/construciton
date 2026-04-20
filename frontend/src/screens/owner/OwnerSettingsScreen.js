@@ -149,13 +149,19 @@ export default function OwnerSettingsScreen() {
         if (result.alreadyConnected) {
           await connectService.openDashboard();
         }
-        // Refresh status after returning from browser
-        setTimeout(async () => {
-          try {
-            const status = await connectService.getStatus();
-            setConnectStatus(status);
-          } catch {}
-        }, 2000);
+        // Browser promise resolves when user returns — refresh immediately
+        try {
+          const status = await connectService.getStatus();
+          setConnectStatus(status);
+          if (status.onboardingComplete) {
+            Alert.alert('Payments Active ✓', 'Your bank account is connected. You can now receive payments from clients.');
+          } else if (status.accountId) {
+            Alert.alert(
+              'Verification In Progress',
+              'Stripe is reviewing your information. This usually takes 1–2 business days. We\'ll send you a notification as soon as your account is approved.'
+            );
+          }
+        } catch {}
       }
     } catch (err) {
       console.error('Connect payments error:', err);
@@ -170,9 +176,15 @@ export default function OwnerSettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (hasLoadedOnce) return; // Don't refetch on every focus
-      loadData();
-    }, [hasLoadedOnce])
+      if (!hasLoadedOnce) {
+        loadData();
+        return;
+      }
+      // Re-check Connect status on focus if account exists but not yet approved
+      if (connectStatus?.accountId && !connectStatus?.onboardingComplete) {
+        connectService.getStatus().then(setConnectStatus).catch(() => {});
+      }
+    }, [hasLoadedOnce, connectStatus?.accountId, connectStatus?.onboardingComplete])
   );
 
   const onRefresh = useCallback(async () => {
@@ -468,6 +480,13 @@ export default function OwnerSettingsScreen() {
             iconColor={OWNER_COLORS.warning}
             title={t('items.invoices', 'Invoices')}
             onPress={() => navigation.navigate('InvoicesDetail')}
+          />
+          <MenuItem
+            icon="color-palette-outline"
+            iconColor="#8B5CF6"
+            title={t('items.invoiceTemplate', 'Invoice Template')}
+            subtitle="Customize logo, info & terms"
+            onPress={() => navigation.navigate('InvoiceTemplate')}
             isLast
           />
         </View>
@@ -512,6 +531,21 @@ export default function OwnerSettingsScreen() {
           </Text>
         </TouchableOpacity>
 
+        {/* Clients */}
+        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+          {t('sections.clients', 'CLIENTS')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+          <MenuItem
+            icon="people-outline"
+            iconColor={OWNER_COLORS.primary}
+            title={t('items.manageClients', 'Manage Clients')}
+            subtitle="View all clients, stats & quick actions"
+            onPress={() => navigation.navigate('Clients')}
+            isLast
+          />
+        </View>
+
         {/* Account */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
           {t('sections.account', 'ACCOUNT')}
@@ -528,7 +562,7 @@ export default function OwnerSettingsScreen() {
             icon="cash-outline"
             iconColor="#059669"
             title="Receive Payments"
-            subtitle={connectStatus?.onboardingComplete ? 'Payments Active ✓' : 'Connect bank to get paid'}
+            subtitle={connectStatus?.onboardingComplete ? `Payments Active ✓${connectStatus?.bankLast4 ? ` · ••${connectStatus.bankLast4}` : ''}` : connectStatus?.accountId ? 'Verification in progress...' : 'Connect bank to get paid'}
             onPress={handleConnectPayments}
           />
           <MenuItem

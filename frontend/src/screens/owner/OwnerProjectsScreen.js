@@ -90,14 +90,18 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
     loadProjects();
   }, []);
 
-  // Load on focus
+  // Reload on focus (always — data may have changed from chat)
   useFocusEffect(
     useCallback(() => {
-      if (!hasLoadedOnce) {
-        loadProjects();
-      }
-    }, [hasLoadedOnce, loadProjects])
+      loadProjects();
+    }, [loadProjects])
   );
+
+  // Auto-refresh when projects change from chat
+  useEffect(() => {
+    const { onProjectUpdated } = require('../../services/eventEmitter');
+    return onProjectUpdated(() => loadProjects());
+  }, [loadProjects]);
 
   // Refresh handler
   const onRefresh = useCallback(async () => {

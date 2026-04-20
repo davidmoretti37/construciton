@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { getProjectTransactions, deleteTransaction } from '../utils/storage';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCachedFetch } from '../hooks/useCachedFetch';
 import {
   CATEGORIES,
   CATEGORY_LABELS,
@@ -36,9 +37,6 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
   const { projectId, projectName, transactionType, servicePlanId, servicePlanName, filterType, subcategoryFilter } = route.params || {};
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [transactions, setTransactions] = useState([]);
   const [typeFilter, setTypeFilter] = useState(transactionType || filterType || 'all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [tradeFilter, setTradeFilter] = useState(subcategoryFilter || 'all');
@@ -48,46 +46,38 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
   const entityName = projectName || servicePlanName || 'Transactions';
   const isServicePlan = !!servicePlanId;
 
-  useEffect(() => {
-    loadTransactions();
-  }, []);
-
-  const loadTransactions = async () => {
-    try {
-      setLoading(true);
-      if (isServicePlan) {
-        // Query transactions by service_plan_id
-        const { supabase } = require('../lib/supabase');
-        const { data, error } = await supabase
-          .from('project_transactions')
-          .select(`
-            id, project_id, service_plan_id, type, category, subcategory, description, amount, date, worker_id,
-            payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at,
-            workers (id, full_name)
-          `)
-          .eq('service_plan_id', servicePlanId)
-          .order('date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(100);
-        if (error) throw error;
-        setTransactions(data || []);
-      } else {
-        const data = await getProjectTransactions(projectId, null);
-        setTransactions(data || []);
-      }
-    } catch (error) {
-      console.error('Error loading transactions:', error);
-      Alert.alert(t('common:alerts.error'), t('common:messages.failedToLoad', { item: t('owner:transactions.transactionHistory') }));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const fetchTransactions = useCallback(async () => {
+    if (isServicePlan) {
+      const { supabase } = require('../lib/supabase');
+      const { data, error } = await supabase
+        .from('project_transactions')
+        .select(`
+          id, project_id, service_plan_id, type, category, subcategory, description, amount, date, worker_id,
+          payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at,
+          workers (id, full_name)
+        `)
+        .eq('service_plan_id', servicePlanId)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data || [];
+    } else {
+      const data = await getProjectTransactions(projectId, null);
+      return data || [];
     }
-  };
+  }, [projectId, servicePlanId, isServicePlan]);
+
+  const { data: rawTransactions, loading, refreshing, refresh, optimisticUpdate } = useCachedFetch(
+    `transactions:${entityId}`,
+    fetchTransactions,
+    { staleTTL: 15000, maxAge: 3 * 60 * 1000 }
+  );
+  const transactions = rawTransactions || [];
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadTransactions();
-  }, []);
+    refresh();
+  }, [refresh]);
 
   const handleDeleteTransaction = (transaction) => {
     Alert.alert(
@@ -98,13 +88,16 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
         {
           text: t('common:buttons.delete'),
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteTransaction(transaction.id);
-              await loadTransactions();
-            } catch (error) {
+          onPress: () => {
+            // Optimistic: remove from UI immediately
+            const rollback = optimisticUpdate((prev) =>
+              (prev || []).filter(tx => tx.id !== transaction.id)
+            );
+            // Server delete in background
+            deleteTransaction(transaction.id).catch(() => {
+              rollback();
               Alert.alert(t('common:alerts.error'), t('common:messages.failedToDelete', { item: t('owner:transactions.transaction') }));
-            }
+            });
           },
         },
       ]

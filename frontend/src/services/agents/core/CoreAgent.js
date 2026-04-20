@@ -397,6 +397,7 @@ class CoreAgent {
         fullContext.conversation = this.conversationState;
         fullContext.lastProjectPreview = this.conversationState.lastProjectPreview || null;
         fullContext.lastEstimatePreview = this.conversationState.lastEstimatePreview || null;
+        fullContext.lastServicePlanPreview = this.conversationState.lastServicePlanPreview || null;
 
         // ⚡⚡ DETERMINISTIC PATH: Only for single-intent queries (compound queries need full execution)
         if (!isCompoundQuery) {
@@ -466,6 +467,7 @@ class CoreAgent {
         fullContext.conversation = this.conversationState;
         fullContext.lastProjectPreview = this.conversationState.lastProjectPreview || null;
         fullContext.lastEstimatePreview = this.conversationState.lastEstimatePreview || null;
+        fullContext.lastServicePlanPreview = this.conversationState.lastServicePlanPreview || null;
 
         plan = {
           reasoning: "Continuing conversation with active agent who asked a question",
@@ -510,10 +512,11 @@ class CoreAgent {
         const indicatesCompletion = responseIndicatesCompletion(response);
         const taskComplete = hasVisualElements || (indicatesCompletion && !hasQuestion);
 
-        // Store preview data for cross-agent copying (Project↔Estimate)
+        // Store preview data for cross-agent copying (Project↔Estimate↔ServicePlan)
         if (hasVisualElements) {
           const projectPreview = response.visualElements.find(v => v.type === 'project-preview')?.data;
           const estimatePreview = response.visualElements.find(v => v.type === 'estimate-preview')?.data;
+          const servicePlanPreview = response.visualElements.find(v => v.type === 'service-plan-preview')?.data;
 
           if (projectPreview) {
             this.updateConversationState({ lastProjectPreview: projectPreview });
@@ -522,6 +525,10 @@ class CoreAgent {
           if (estimatePreview) {
             this.updateConversationState({ lastEstimatePreview: estimatePreview });
             logger.debug('📦 [CoreAgent] Stored estimate preview for cross-agent copying');
+          }
+          if (servicePlanPreview) {
+            this.updateConversationState({ lastServicePlanPreview: servicePlanPreview });
+            logger.debug('📦 [CoreAgent] Stored service plan preview for cross-agent copying');
           }
         }
 
@@ -692,6 +699,7 @@ class CoreAgent {
       conversation: this.conversationState,
       lastProjectPreview: this.conversationState.lastProjectPreview || null,
       lastEstimatePreview: this.conversationState.lastEstimatePreview || null,
+      lastServicePlanPreview: this.conversationState.lastServicePlanPreview || null,
     };
   }
 
@@ -717,6 +725,9 @@ class CoreAgent {
       // Draft project awareness for routing
       hasDraftProject: !!this.conversationState.lastProjectPreview,
       draftProjectName: this.conversationState.lastProjectPreview?.projectName || null,
+      // Draft service plan awareness for routing
+      hasDraftServicePlan: !!this.conversationState.lastServicePlanPreview,
+      draftServicePlanName: this.conversationState.lastServicePlanPreview?.name || this.conversationState.lastServicePlanPreview?.planName || null,
     };
   }
 

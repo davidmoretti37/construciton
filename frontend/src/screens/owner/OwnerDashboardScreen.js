@@ -269,6 +269,18 @@ export default function OwnerDashboardScreen() {
   // Also refresh when tab gains focus
   useFocusEffect(useCallback(() => { fetchDashboardData(); }, []));
 
+  // Auto-refresh when any data changes from chat or other screens
+  useEffect(() => {
+    const { onProjectUpdated, onEstimateChanged, onInvoiceChanged, onWorkerChanged } = require('../../services/eventEmitter');
+    const unsubs = [
+      onProjectUpdated(() => fetchDashboardData()),
+      onEstimateChanged(() => fetchDashboardData()),
+      onInvoiceChanged(() => fetchDashboardData()),
+      onWorkerChanged(() => fetchDashboardData()),
+    ];
+    return () => unsubs.forEach(fn => fn());
+  }, [fetchDashboardData]);
+
   // Load persisted layout on mount
   useEffect(() => {
     loadLayout().then(setLayout);

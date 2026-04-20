@@ -166,7 +166,12 @@ export default function SubscriptionOverheadScreen({ navigation, route }) {
   const handleDelete = (item) => {
     Alert.alert('Delete', `Remove "${item.description}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteRecurringExpense(item.id); loadOverhead(); } },
+      { text: 'Delete', style: 'destructive', onPress: () => {
+        setItems(prev => prev.filter(i => i.id !== item.id));
+        deleteRecurringExpense(item.id).catch(() => {
+          setItems(prev => [...prev, item]);
+        });
+      }},
     ]);
   };
 

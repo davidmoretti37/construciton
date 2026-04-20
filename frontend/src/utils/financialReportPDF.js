@@ -22,9 +22,12 @@ const SUCCESS = '#10B981';
 const ERROR = '#EF4444';
 
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
+  const { getAppLocale } = require('./calculations');
+  const locale = getAppLocale();
+  const currency = locale === 'pt-BR' ? 'BRL' : locale === 'es' ? 'USD' : 'USD';
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'USD',
+    currency,
   }).format(Math.abs(amount));
 };
 

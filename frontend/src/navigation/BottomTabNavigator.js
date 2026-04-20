@@ -48,7 +48,7 @@ function ProjectsStack() {
       }}
     >
       <Stack.Screen name="ProjectsMain" component={ProjectsScreen} />
-      <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
+      <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} options={{ contentStyle: { backgroundColor: '#1E3A8A' } }} />
       <Stack.Screen name="PhaseDetail" component={PhaseDetailScreen} />
       <Stack.Screen name="ProjectTransactions" component={ProjectTransactionsScreen} />
       <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} />

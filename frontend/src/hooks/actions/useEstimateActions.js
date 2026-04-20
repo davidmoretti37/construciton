@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import logger from '../../utils/logger';
+import { emitEstimateChanged } from '../../services/eventEmitter';
 import {
   fetchProjects,
   saveEstimate,
@@ -144,6 +145,7 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
           `Estimate #${savedEstimate.estimate_number} has been saved!`
         );
 
+        emitEstimateChanged(savedEstimate.id);
         return savedEstimate;
       }
       return null;
@@ -224,6 +226,7 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
           });
         });
 
+        emitEstimateChanged(updatedEstimate.id);
         return updatedEstimate;
       }
       return null;
@@ -300,6 +303,7 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
           actions: [],
         };
         setMessages(prev => [...prev, confirmationMessage]);
+        emitEstimateChanged('*');
         return { success: true, count: deletedCount };
       }
 

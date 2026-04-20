@@ -23,6 +23,7 @@ import { getCurrentUserId } from '../../utils/storage/auth';
 import { addProjectTransaction } from '../../utils/storage/transactions';
 import CoreAgent from '../../services/agents/core/CoreAgent';
 import { emitProjectUpdated } from '../../services/eventEmitter';
+import { invalidateCacheKey } from '../useCachedFetch';
 
 // Helper: Resolve partial project UUID to full UUID
 const resolveProjectId = (projects, id) => {
@@ -68,6 +69,9 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
           ],
         };
         setMessages((prev) => [...prev, confirmationMessage]);
+        emitProjectUpdated(savedProject.id);
+        invalidateCacheKey('projects:list');
+        invalidateCacheKey('home:projects');
         return savedProject;
       } else {
         Alert.alert('Error', 'Failed to create project. Please try again.');
@@ -125,6 +129,9 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
         return messages;
       });
 
+      emitProjectUpdated(updatedProject?.id);
+      invalidateCacheKey('projects:list');
+      invalidateCacheKey('home:projects');
       return updatedProject;
     } catch (error) {
       logger.error('Error selecting project:', error);
@@ -198,6 +205,9 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
         return messages;
       });
 
+      emitProjectUpdated(projectId);
+      invalidateCacheKey(`transactions:${projectId}`);
+      invalidateCacheKey('home:projects');
       return updatedProject;
     } catch (error) {
       logger.error('Error updating project finances:', error);
@@ -432,11 +442,11 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
         // Daily Checklist Setup — create templates if AI included them
         const checklistItems = cleanProjectData.checklist_items || cleanProjectData.checklistItems || [];
         const laborRoles = cleanProjectData.labor_roles || cleanProjectData.laborRoles || [];
-        if (checklistItems.length > 0) {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            const ownerId = user?.id;
-            if (ownerId) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const ownerId = user?.id;
+          if (ownerId) {
+            if (checklistItems.length > 0) {
               const checklistInserts = checklistItems.map((item, i) => ({
                 project_id: savedProject.id,
                 service_plan_id: null,
@@ -449,29 +459,29 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
               }));
               await supabase.from('daily_checklist_templates').insert(checklistInserts);
               logger.debug(`✅ Created ${checklistInserts.length} daily checklist templates`);
-
-              if (laborRoles.length > 0) {
-                const laborInserts = laborRoles.map((role, i) => ({
-                  project_id: savedProject.id,
-                  service_plan_id: null,
-                  owner_id: ownerId,
-                  role_name: role.role_name,
-                  default_quantity: role.default_quantity || 1,
-                  sort_order: i,
-                }));
-                await supabase.from('labor_role_templates').insert(laborInserts);
-                logger.debug(`✅ Created ${laborInserts.length} labor role templates`);
-              }
             }
-          } catch (e) {
-            logger.error('⚠️ Daily checklist setup error:', e.message);
-            Alert.alert('Note', 'Daily checklist items could not be saved. You can add them manually from the project detail screen.');
+            if (laborRoles.length > 0) {
+              const laborInserts = laborRoles.map((role, i) => ({
+                project_id: savedProject.id,
+                service_plan_id: null,
+                owner_id: ownerId,
+                role_name: role.role_name,
+                default_quantity: role.default_quantity || 1,
+                sort_order: i,
+              }));
+              await supabase.from('labor_role_templates').insert(laborInserts);
+              logger.debug(`✅ Created ${laborInserts.length} labor role templates`);
+            }
           }
+        } catch (e) {
+          logger.error('⚠️ Checklist/labor setup error:', e.message);
+          Alert.alert('Note', 'Some setup items could not be saved. You can add them manually from the project detail screen.');
         }
 
-        // AI Task Distribution - distribute tasks intelligently across the timeline
+        // AI Task Distribution - distribute tasks intelligently across the timeline (requires dates)
         const phases = cleanProjectData.phases || [];
-        if (phases.length > 0 && phases.some(p => p.tasks?.length > 0)) {
+        const hasTimeline = !!(savedProject.startDate || cleanProjectData.startDate) && !!(savedProject.endDate || cleanProjectData.endDate);
+        if (hasTimeline && phases.length > 0 && phases.some(p => p.tasks?.length > 0)) {
           const userId = await getCurrentUserId();
           if (userId) {
             const timeline = {
@@ -482,6 +492,49 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
             logger.debug('🤖 [handleSaveProject] Calling AI to distribute tasks...');
             await redistributeAllTasksWithAI(savedProject.id, userId, phases, timeline);
             logger.debug('🤖 [handleSaveProject] AI distribution complete');
+          }
+        }
+
+        // Auto-create schedule events for calendar visibility
+        const projStartDate = savedProject.startDate || cleanProjectData.startDate;
+        const projEndDate = savedProject.endDate || cleanProjectData.endDate;
+        if (projStartDate || projEndDate) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) {
+              const events = [];
+              if (projStartDate) {
+                events.push({
+                  owner_id: user.id,
+                  project_id: savedProject.id,
+                  title: `${savedProject.name} — Start`,
+                  description: `Project start: ${savedProject.name}`,
+                  start_datetime: `${projStartDate}T08:00:00`,
+                  end_datetime: `${projStartDate}T09:00:00`,
+                  all_day: true,
+                  event_type: 'milestone',
+                  color: '#2563EB',
+                });
+              }
+              if (projEndDate) {
+                events.push({
+                  owner_id: user.id,
+                  project_id: savedProject.id,
+                  title: `${savedProject.name} — Deadline`,
+                  description: `Project deadline: ${savedProject.name}`,
+                  start_datetime: `${projEndDate}T08:00:00`,
+                  end_datetime: `${projEndDate}T09:00:00`,
+                  all_day: true,
+                  event_type: 'milestone',
+                  color: '#DC2626',
+                });
+              }
+              if (events.length > 0) {
+                await supabase.from('schedule_events').insert(events);
+              }
+            }
+          } catch (e) {
+            logger.error('Schedule events error:', e.message);
           }
         }
 
@@ -503,6 +556,10 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
           'Success',
           `Project "${savedProject.name}" has been saved!`
         );
+
+        emitProjectUpdated(savedProject.id);
+        invalidateCacheKey('projects:list');
+        invalidateCacheKey('home:projects');
 
         return savedProject;
       }
@@ -537,6 +594,9 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
             actions: [],
           };
           setMessages(prev => [...prev, confirmationMessage]);
+          emitProjectUpdated('*');
+          invalidateCacheKey('projects:list');
+          invalidateCacheKey('home:projects');
           return true;
         } else {
           Alert.alert('Error', 'Failed to delete project');
@@ -781,6 +841,8 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
 
         // Emit event to notify all screens that project data changed
         emitProjectUpdated(updatedProject.id);
+        invalidateCacheKey('projects:list');
+        invalidateCacheKey('home:projects');
 
         return updatedProject;
       }

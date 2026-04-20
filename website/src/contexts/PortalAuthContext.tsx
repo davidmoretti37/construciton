@@ -8,7 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { portalFetch, getPortalToken, clearPortalToken } from "@/lib/portal-api";
+import { portalFetch } from "@/lib/portal-api";
 
 interface PortalClient {
   id: string;
@@ -47,18 +47,11 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const checkSession = useCallback(async () => {
-    const token = getPortalToken();
-    if (!token) {
-      setClient(null);
-      setIsLoading(false);
-      return;
-    }
-
     try {
+      // Cookie is sent automatically via credentials: 'include'
       const data = await portalFetch<{ client: PortalClient }>("/auth/check");
       setClient(data.client);
     } catch {
-      clearPortalToken();
       setClient(null);
     } finally {
       setIsLoading(false);
@@ -75,7 +68,6 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore errors — clear local state regardless
     }
-    clearPortalToken();
     setClient(null);
   }, []);
 

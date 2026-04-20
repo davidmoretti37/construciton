@@ -584,7 +584,13 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   const routingMsg = lastUserMsg.replace(/\[The user attached[\s\S]*?\]\s*/g, '').replace(/\[User attached[\s\S]*?\]\s*/g, '').trim();
 
   // PHASE 1: Route tools based on intent (34 → 8-12 tools)
-  const { intent, tools: filteredTools, toolCount } = routeTools(routingMsg || lastUserMsg, toolDefinitions);
+  // Pass conversation-state hints so an active draft project/service plan
+  // overrides keyword-based routing (e.g. user says "update it" with no other context).
+  const conversationHints = {
+    hasDraftProject: !!userContext?.hasDraftProject || !!userContext?.lastProjectPreview,
+    hasDraftServicePlan: !!userContext?.hasDraftServicePlan || !!userContext?.lastServicePlanPreview,
+  };
+  const { intent, tools: filteredTools, toolCount } = routeTools(routingMsg || lastUserMsg, toolDefinitions, conversationHints);
 
   // PHASE 2: Select model based on tool count (10+ = Sonnet)
   const { model, reason } = selectModel(toolCount, userMessages);

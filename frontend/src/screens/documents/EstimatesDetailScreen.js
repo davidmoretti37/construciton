@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -42,11 +42,15 @@ export default function EstimatesDetailScreen({ navigation, route }) {
 
   useFocusEffect(
     useCallback(() => {
-      if (!hasLoadedOnce) {
-        loadEstimates();
-      }
-    }, [hasLoadedOnce])
+      loadEstimates();
+    }, [])
   );
+
+  // Auto-refresh when estimates change from chat
+  useEffect(() => {
+    const { onEstimateChanged } = require('../../services/eventEmitter');
+    return onEstimateChanged(() => loadEstimates());
+  }, []);
 
   const loadEstimates = async () => {
     try {

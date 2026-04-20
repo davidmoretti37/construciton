@@ -170,7 +170,18 @@ function recalculatePhaseProgress(phases, workerTasks) {
  */
 async function resolveProjectId(userId, idOrName) {
   if (!idOrName) return { error: 'No project specified' };
-  if (idOrName.match(/^[0-9a-f]{8}-/i)) return { id: idOrName };
+
+  // UUID provided — validate ownership before returning
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) {
+    const { data } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', idOrName)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+      .single();
+    if (!data) return { error: 'Project not found or access denied' };
+    return { id: idOrName };
+  }
 
   const trimmed = idOrName.trim();
   if (!trimmed) return { error: 'No project specified' };
@@ -241,12 +252,23 @@ async function resolveProjectId(userId, idOrName) {
  */
 async function resolveServicePlanId(userId, idOrName) {
   if (!idOrName) return { error: 'No service plan specified' };
-  if (idOrName.match(/^[0-9a-f]{8}-/i)) return { id: idOrName };
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // UUID provided — validate ownership before returning
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) {
+    const { data } = await supabase
+      .from('service_plans')
+      .select('id')
+      .eq('id', idOrName)
+      .eq('owner_id', ownerId)
+      .single();
+    if (!data) return { error: 'Service plan not found or access denied' };
+    return { id: idOrName };
+  }
 
   const trimmed = idOrName.trim();
   if (!trimmed) return { error: 'No service plan specified' };
-
-  const ownerId = await resolveOwnerId(userId);
 
   // Step 1: Exact name match (case-insensitive)
   const { data: exact } = await supabase
@@ -311,13 +333,24 @@ async function resolveServicePlanId(userId, idOrName) {
  */
 async function resolveWorkerId(userId, idOrName) {
   if (!idOrName) return { error: 'No worker specified' };
-  if (idOrName.match(/^[0-9a-f]{8}-/i)) return { id: idOrName };
-
-  const filter = buildWordSearch(idOrName, ['full_name', 'trade']);
-  if (!filter) return { error: 'No worker specified' };
 
   // Supervisors' workers are owned by their parent owner
   const ownerId = await resolveOwnerId(userId);
+
+  // UUID provided — validate ownership before returning
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) {
+    const { data } = await supabase
+      .from('workers')
+      .select('id')
+      .eq('id', idOrName)
+      .eq('owner_id', ownerId)
+      .single();
+    if (!data) return { error: 'Worker not found or access denied' };
+    return { id: idOrName };
+  }
+
+  const filter = buildWordSearch(idOrName, ['full_name', 'trade']);
+  if (!filter) return { error: 'No worker specified' };
 
   const { data } = await supabase
     .from('workers')
@@ -344,7 +377,18 @@ async function resolveWorkerId(userId, idOrName) {
  */
 async function resolveEstimateId(userId, idOrName) {
   if (!idOrName) return { error: 'No estimate specified' };
-  if (idOrName.match(/^[0-9a-f]{8}-/i)) return { id: idOrName };
+
+  // UUID provided — validate ownership before returning
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) {
+    const { data } = await supabase
+      .from('estimates')
+      .select('id')
+      .eq('id', idOrName)
+      .eq('user_id', userId)
+      .single();
+    if (!data) return { error: 'Estimate not found or access denied' };
+    return { id: idOrName };
+  }
 
   const filter = buildWordSearch(idOrName, ['client_name', 'project_name', 'estimate_number']);
   if (!filter) return { error: 'No estimate specified' };
@@ -374,7 +418,18 @@ async function resolveEstimateId(userId, idOrName) {
  */
 async function resolveInvoiceId(userId, idOrName) {
   if (!idOrName) return { error: 'No invoice specified' };
-  if (idOrName.match(/^[0-9a-f]{8}-/i)) return { id: idOrName };
+
+  // UUID provided — validate ownership before returning
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) {
+    const { data } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('id', idOrName)
+      .eq('user_id', userId)
+      .single();
+    if (!data) return { error: 'Invoice not found or access denied' };
+    return { id: idOrName };
+  }
 
   const filter = buildWordSearch(idOrName, ['client_name', 'project_name', 'invoice_number']);
   if (!filter) return { error: 'No invoice specified' };
@@ -545,7 +600,8 @@ async function delete_project(userId, { project_id }) {
   const { error } = await supabase
     .from('projects')
     .delete()
-    .eq('id', resolved.id);
+    .eq('id', resolved.id)
+    .eq('user_id', userId);
 
   if (error) return { error: `Failed to delete: ${error.message}` };
   return { success: true, deletedProject: project.name };
@@ -588,6 +644,7 @@ async function update_project(userId, args = {}) {
     .from('projects')
     .update(updates)
     .eq('id', project_id)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
     .select('id, name, base_contract, contract_amount, status, budget, start_date, end_date')
     .single();
 
@@ -691,6 +748,7 @@ async function update_estimate(userId, args = {}) {
     .from('estimates')
     .update(updates)
     .eq('id', estimate_id)
+    .eq('user_id', userId)
     .select('*, projects(id, name)')
     .single();
 
@@ -2807,6 +2865,7 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
     .from('invoices')
     .update(updates)
     .eq('id', resolved.id)
+    .eq('user_id', userId)
     .select('invoice_number, status, amount_paid, total, due_date')
     .single();
 
@@ -2851,6 +2910,7 @@ async function void_invoice(userId, { invoice_id }) {
     .from('invoices')
     .update({ status: 'cancelled' })
     .eq('id', resolved.id)
+    .eq('user_id', userId)
     .select('invoice_number')
     .single();
 
@@ -4552,6 +4612,547 @@ async function create_service_visit(userId, { plan_id, location_id, date, worker
   };
 }
 
+// ──────────────── Service plan CRUD additions ────────────────
+
+async function update_service_plan(userId, args = {}) {
+  let { plan_id, name, status, billing_cycle, price_per_visit, monthly_rate, service_type, notes } = args;
+  if (!plan_id) return { error: 'plan_id is required' };
+
+  const ownerId = await resolveOwnerId(userId);
+  const resolved = await resolveServicePlanId(userId, plan_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+  plan_id = resolved.id;
+
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (status !== undefined) updates.status = status;
+  if (billing_cycle !== undefined) updates.billing_cycle = billing_cycle;
+  if (price_per_visit !== undefined) updates.price_per_visit = price_per_visit;
+  if (monthly_rate !== undefined) updates.monthly_rate = monthly_rate;
+  if (service_type !== undefined) updates.service_type = service_type;
+  if (notes !== undefined) updates.notes = notes;
+
+  if (Object.keys(updates).length === 0) return { error: 'No fields to update' };
+
+  const { data, error } = await supabase
+    .from('service_plans')
+    .update(updates)
+    .eq('id', plan_id)
+    .eq('owner_id', ownerId)
+    .select('id, name, status, billing_cycle, price_per_visit, monthly_rate, service_type')
+    .single();
+
+  if (error) return { error: error.message };
+  if (!data) return { error: 'Service plan not found' };
+
+  logger.info(`✅ Updated service plan ${plan_id}`);
+  return { success: true, plan: data };
+}
+
+async function add_service_location(userId, args = {}) {
+  let { plan_id, name, address, access_notes } = args;
+  if (!plan_id || !name || !address) return { error: 'plan_id, name, and address are required' };
+
+  const ownerId = await resolveOwnerId(userId);
+  const resolved = await resolveServicePlanId(userId, plan_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+  plan_id = resolved.id;
+
+  const { data, error } = await supabase
+    .from('service_locations')
+    .insert({
+      service_plan_id: plan_id,
+      owner_id: ownerId,
+      name,
+      address,
+      access_notes: access_notes || null,
+      is_active: true,
+    })
+    .select('id, name, address')
+    .single();
+
+  if (error) return { error: error.message };
+  return { success: true, location: data };
+}
+
+async function assign_worker_to_plan(userId, args = {}) {
+  let { plan_id, worker_id } = args;
+  if (!plan_id || !worker_id) return { error: 'plan_id and worker_id are required' };
+
+  const ownerId = await resolveOwnerId(userId);
+
+  const planResolved = await resolveServicePlanId(userId, plan_id);
+  if (planResolved.error) return { error: planResolved.error };
+  if (planResolved.suggestions) return planResolved;
+  plan_id = planResolved.id;
+
+  const workerResolved = await resolveWorkerId(userId, worker_id);
+  if (workerResolved.error) return { error: workerResolved.error };
+  if (workerResolved.suggestions) return workerResolved;
+  worker_id = workerResolved.id;
+
+  // Assign worker to all upcoming (non-cancelled, non-completed) visits in this plan
+  const today = new Date().toISOString().split('T')[0];
+  const { data: visits, error } = await supabase
+    .from('service_visits')
+    .update({ assigned_worker_id: worker_id })
+    .eq('service_plan_id', plan_id)
+    .eq('owner_id', ownerId)
+    .gte('scheduled_date', today)
+    .in('status', ['scheduled', 'in_progress'])
+    .select('id');
+
+  if (error) return { error: error.message };
+
+  return {
+    success: true,
+    plan_id,
+    worker_id,
+    visits_assigned: visits?.length || 0,
+  };
+}
+
+async function calculate_service_plan_revenue(userId, args = {}) {
+  let { plan_id, start_date, end_date } = args;
+  const ownerId = await resolveOwnerId(userId);
+
+  // Default to current month if no range
+  const now = new Date();
+  if (!start_date) {
+    start_date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+  if (!end_date) {
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    end_date = next.toISOString().split('T')[0];
+  }
+
+  // Fetch plans (one or all)
+  let plansQuery = supabase
+    .from('service_plans')
+    .select('id, name, service_type, billing_cycle, price_per_visit, monthly_rate, status')
+    .eq('owner_id', ownerId);
+
+  if (plan_id) {
+    const resolved = await resolveServicePlanId(userId, plan_id);
+    if (resolved.error) return { error: resolved.error };
+    if (resolved.suggestions) return resolved;
+    plansQuery = plansQuery.eq('id', resolved.id);
+  } else {
+    plansQuery = plansQuery.eq('status', 'active');
+  }
+
+  const { data: plans, error: planErr } = await plansQuery;
+  if (planErr) return { error: planErr.message };
+  if (!plans || plans.length === 0) return { error: 'No service plans found' };
+
+  const planIds = plans.map(p => p.id);
+
+  // Visits in range
+  const { data: visits } = await supabase
+    .from('service_visits')
+    .select('service_plan_id, status, billable, invoice_id')
+    .in('service_plan_id', planIds)
+    .gte('scheduled_date', start_date)
+    .lt('scheduled_date', end_date)
+    .neq('status', 'cancelled');
+
+  // Months covered for monthly billing
+  const startD = new Date(start_date);
+  const endD = new Date(end_date);
+  const monthsCovered = Math.max(
+    1,
+    (endD.getFullYear() - startD.getFullYear()) * 12 + (endD.getMonth() - startD.getMonth())
+  );
+
+  const breakdown = plans.map(plan => {
+    const planVisits = (visits || []).filter(v => v.service_plan_id === plan.id);
+    const completed = planVisits.filter(v => v.status === 'completed');
+    const billableCompleted = completed.filter(v => v.billable !== false);
+    const invoiced = billableCompleted.filter(v => v.invoice_id);
+    const unbilled = billableCompleted.filter(v => !v.invoice_id);
+
+    const rate = plan.billing_cycle === 'per_visit'
+      ? parseFloat(plan.price_per_visit || 0)
+      : parseFloat(plan.monthly_rate || 0);
+
+    let projectedRevenue, realizedRevenue, unbilledRevenue;
+    if (plan.billing_cycle === 'per_visit') {
+      projectedRevenue = planVisits.length * rate;
+      realizedRevenue = invoiced.length * rate;
+      unbilledRevenue = unbilled.length * rate;
+    } else {
+      projectedRevenue = rate * monthsCovered;
+      realizedRevenue = invoiced.length > 0 ? rate * monthsCovered : 0;
+      unbilledRevenue = unbilled.length > 0 ? rate * monthsCovered : 0;
+    }
+
+    return {
+      plan_id: plan.id,
+      plan_name: plan.name,
+      service_type: plan.service_type,
+      billing_cycle: plan.billing_cycle,
+      rate,
+      visit_count: planVisits.length,
+      completed: completed.length,
+      invoiced: invoiced.length,
+      unbilled: unbilled.length,
+      projected_revenue: Math.round(projectedRevenue * 100) / 100,
+      realized_revenue: Math.round(realizedRevenue * 100) / 100,
+      unbilled_revenue: Math.round(unbilledRevenue * 100) / 100,
+    };
+  });
+
+  const totals = breakdown.reduce((acc, b) => ({
+    projected: acc.projected + b.projected_revenue,
+    realized: acc.realized + b.realized_revenue,
+    unbilled: acc.unbilled + b.unbilled_revenue,
+  }), { projected: 0, realized: 0, unbilled: 0 });
+
+  return {
+    period: { start_date, end_date },
+    plans: breakdown,
+    totals: {
+      projected_revenue: Math.round(totals.projected * 100) / 100,
+      realized_revenue: Math.round(totals.realized * 100) / 100,
+      unbilled_revenue: Math.round(totals.unbilled * 100) / 100,
+    },
+  };
+}
+
+async function get_service_plan_details(userId, args = {}) {
+  let { plan_id } = args;
+  if (!plan_id) return { error: 'plan_id is required' };
+
+  const ownerId = await resolveOwnerId(userId);
+  const resolved = await resolveServicePlanId(userId, plan_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+  plan_id = resolved.id;
+
+  // Plan
+  const { data: plan, error } = await supabase
+    .from('service_plans')
+    .select('*')
+    .eq('id', plan_id)
+    .eq('owner_id', ownerId)
+    .single();
+
+  if (error || !plan) return { error: 'Service plan not found' };
+
+  // Locations + checklists
+  const { data: locations } = await supabase
+    .from('service_locations')
+    .select('id, name, address, access_notes, is_active')
+    .eq('service_plan_id', plan_id)
+    .order('created_at', { ascending: true });
+
+  // Recent visits (last 30 days + upcoming 30 days)
+  const today = new Date();
+  const past = new Date(today.getTime() - 30 * 86400000).toISOString().split('T')[0];
+  const future = new Date(today.getTime() + 30 * 86400000).toISOString().split('T')[0];
+
+  const { data: visits } = await supabase
+    .from('service_visits')
+    .select('id, scheduled_date, status, billable, invoice_id, assigned_worker_id, service_location_id')
+    .eq('service_plan_id', plan_id)
+    .gte('scheduled_date', past)
+    .lte('scheduled_date', future)
+    .order('scheduled_date', { ascending: true });
+
+  // Worker names for assigned visits
+  const workerIds = [...new Set((visits || []).map(v => v.assigned_worker_id).filter(Boolean))];
+  let workerMap = {};
+  if (workerIds.length > 0) {
+    const { data: workers } = await supabase
+      .from('workers')
+      .select('id, full_name, name')
+      .in('id', workerIds);
+    (workers || []).forEach(w => { workerMap[w.id] = w.full_name || w.name; });
+  }
+
+  // Financials from project_transactions
+  const { data: transactions } = await supabase
+    .from('project_transactions')
+    .select('type, category, amount')
+    .eq('service_plan_id', plan_id);
+
+  const financials = { income: 0, expenses: 0, byCategory: {} };
+  (transactions || []).forEach(t => {
+    const amount = parseFloat(t.amount) || 0;
+    if (t.type === 'income') financials.income += amount;
+    else if (t.type === 'expense') {
+      financials.expenses += amount;
+      financials.byCategory[t.category] = (financials.byCategory[t.category] || 0) + amount;
+    }
+  });
+  financials.profit = financials.income - financials.expenses;
+
+  return {
+    id: plan.id,
+    name: plan.name,
+    service_type: plan.service_type,
+    status: plan.status,
+    billing_cycle: plan.billing_cycle,
+    price_per_visit: plan.price_per_visit ? parseFloat(plan.price_per_visit) : null,
+    monthly_rate: plan.monthly_rate ? parseFloat(plan.monthly_rate) : null,
+    notes: plan.notes,
+    created_at: plan.created_at,
+    locations: locations || [],
+    location_count: (locations || []).length,
+    visits: (visits || []).map(v => ({
+      ...v,
+      worker_name: v.assigned_worker_id ? workerMap[v.assigned_worker_id] : null,
+    })),
+    visit_count: (visits || []).length,
+    financials,
+  };
+}
+
+async function get_service_plan_summary(userId, args = {}) {
+  let { plan_id } = args;
+  if (!plan_id) return { error: 'plan_id is required' };
+
+  const ownerId = await resolveOwnerId(userId);
+  const resolved = await resolveServicePlanId(userId, plan_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+  plan_id = resolved.id;
+
+  const { data: plan } = await supabase
+    .from('service_plans')
+    .select('id, name, service_type, status, billing_cycle, price_per_visit, monthly_rate')
+    .eq('id', plan_id)
+    .eq('owner_id', ownerId)
+    .single();
+
+  if (!plan) return { error: 'Service plan not found' };
+
+  // Parallel: location count, current month visits, lifetime revenue
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split('T')[0];
+
+  const [locCount, monthVisits, allTxns] = await Promise.all([
+    supabase.from('service_locations').select('id', { count: 'exact', head: true }).eq('service_plan_id', plan_id).eq('is_active', true),
+    supabase.from('service_visits').select('status').eq('service_plan_id', plan_id).gte('scheduled_date', monthStart).lt('scheduled_date', nextMonth).neq('status', 'cancelled'),
+    supabase.from('project_transactions').select('type, amount').eq('service_plan_id', plan_id),
+  ]);
+
+  const visitTotals = (monthVisits.data || []).reduce((acc, v) => {
+    acc.total++;
+    if (v.status === 'completed') acc.completed++;
+    return acc;
+  }, { total: 0, completed: 0 });
+
+  const lifetimeFin = (allTxns.data || []).reduce((acc, t) => {
+    const a = parseFloat(t.amount) || 0;
+    if (t.type === 'income') acc.income += a;
+    else if (t.type === 'expense') acc.expenses += a;
+    return acc;
+  }, { income: 0, expenses: 0 });
+
+  return {
+    plan: {
+      id: plan.id,
+      name: plan.name,
+      service_type: plan.service_type,
+      status: plan.status,
+      billing_cycle: plan.billing_cycle,
+      rate: plan.billing_cycle === 'per_visit' ? plan.price_per_visit : plan.monthly_rate,
+    },
+    active_locations: locCount.count || 0,
+    visits_this_month: visitTotals,
+    lifetime_revenue: Math.round(lifetimeFin.income * 100) / 100,
+    lifetime_expenses: Math.round(lifetimeFin.expenses * 100) / 100,
+    lifetime_profit: Math.round((lifetimeFin.income - lifetimeFin.expenses) * 100) / 100,
+  };
+}
+
+async function delete_service_plan(userId, args = {}) {
+  let { plan_id } = args;
+  if (!plan_id) return { error: 'plan_id is required' };
+
+  // Owners only
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+  if (profile?.role === 'supervisor') {
+    return { error: 'Supervisors cannot delete service plans. Please ask the owner.' };
+  }
+
+  const ownerId = await resolveOwnerId(userId);
+  const resolved = await resolveServicePlanId(userId, plan_id);
+  if (resolved.error) return resolved;
+  if (resolved.suggestions) return resolved;
+
+  const { data: plan } = await supabase
+    .from('service_plans')
+    .select('name')
+    .eq('id', resolved.id)
+    .eq('owner_id', ownerId)
+    .single();
+
+  if (!plan) return { error: 'Service plan not found or access denied' };
+
+  const { error } = await supabase
+    .from('service_plans')
+    .delete()
+    .eq('id', resolved.id)
+    .eq('owner_id', ownerId);
+
+  if (error) return { error: `Failed to delete: ${error.message}` };
+  return { success: true, deletedPlan: plan.name };
+}
+
+async function get_service_plan_documents(userId, args = {}) {
+  let { plan_id, category } = args;
+  if (!plan_id) return { error: 'plan_id is required' };
+
+  const ownerId = await resolveOwnerId(userId);
+  const resolved = await resolveServicePlanId(userId, plan_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+
+  let query = supabase
+    .from('project_documents')
+    .select('id, file_name, file_type, category, notes, visible_to_workers, created_at')
+    .eq('service_plan_id', resolved.id)
+    .order('created_at', { ascending: false });
+
+  if (category) query = query.eq('category', category);
+
+  const { data, error } = await query;
+  if (error) {
+    logger.error('get_service_plan_documents error:', error);
+    return { error: 'Failed to fetch documents' };
+  }
+
+  return {
+    documents: (data || []).map(d => ({
+      id: d.id,
+      fileName: d.file_name,
+      fileType: d.file_type,
+      category: d.category,
+      notes: d.notes,
+      visibleToWorkers: d.visible_to_workers,
+      createdAt: d.created_at,
+    })),
+    count: (data || []).length,
+  };
+}
+
+async function upload_service_plan_document(userId, args = {}) {
+  const { plan_id, category = 'general', visible_to_workers = false } = args;
+  const attachments = args._attachments;
+
+  if (!attachments || attachments.length === 0) {
+    return { error: 'No files attached. Please attach files to your message and try again.' };
+  }
+  if (!plan_id) return { error: 'plan_id is required' };
+
+  const ownerId = await resolveOwnerId(userId);
+  const resolved = await resolveServicePlanId(userId, plan_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+
+  const uploaded = [];
+  const failed = [];
+
+  for (const att of attachments) {
+    try {
+      const fileName = att.name || `Document_${Date.now()}`;
+      const fileExt = fileName.split('.').pop()?.toLowerCase() || 'bin';
+      const timestamp = Date.now();
+      const filePath = `${userId}/service-plans/${resolved.id}/${timestamp}.${fileExt}`;
+
+      const mimeType = att.mimeType || 'application/octet-stream';
+      let fileType = 'document';
+      if (mimeType.startsWith('image/')) fileType = 'image';
+      else if (mimeType === 'application/pdf' || fileExt === 'pdf') fileType = 'pdf';
+
+      const binaryString = Buffer.from(att.base64, 'base64');
+
+      const { error: uploadError } = await supabase.storage
+        .from('project-documents')
+        .upload(filePath, binaryString, { contentType: mimeType, upsert: false });
+
+      if (uploadError) {
+        failed.push({ fileName, error: uploadError.message });
+        continue;
+      }
+
+      const { data: doc, error: dbError } = await supabase
+        .from('project_documents')
+        .insert({
+          service_plan_id: resolved.id,
+          file_name: args.file_name || fileName,
+          file_url: filePath,
+          file_type: fileType,
+          category,
+          uploaded_by: userId,
+          visible_to_workers,
+        })
+        .select('id, file_name, file_type, category')
+        .single();
+
+      if (dbError) {
+        failed.push({ fileName, error: dbError.message });
+        continue;
+      }
+
+      uploaded.push(doc);
+    } catch (err) {
+      failed.push({ fileName: att.name, error: err.message });
+    }
+  }
+
+  return {
+    uploaded: uploaded.map(d => ({ id: d.id, fileName: d.file_name, fileType: d.file_type, category: d.category })),
+    uploadedCount: uploaded.length,
+    failedCount: failed.length,
+    failed: failed.length > 0 ? failed : undefined,
+  };
+}
+
+async function update_service_location(userId, args = {}) {
+  let { location_id, name, address, access_notes, is_active } = args;
+  if (!location_id) return { error: 'location_id is required' };
+
+  const ownerId = await resolveOwnerId(userId);
+
+  // Ownership check via plan join
+  const { data: existing } = await supabase
+    .from('service_locations')
+    .select('id, service_plan_id, service_plans!inner(owner_id)')
+    .eq('id', location_id)
+    .eq('service_plans.owner_id', ownerId)
+    .single();
+
+  if (!existing) return { error: 'Service location not found or access denied' };
+
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (address !== undefined) updates.address = address;
+  if (access_notes !== undefined) updates.access_notes = access_notes;
+  if (is_active !== undefined) updates.is_active = is_active;
+
+  if (Object.keys(updates).length === 0) return { error: 'No fields to update' };
+
+  const { data, error } = await supabase
+    .from('service_locations')
+    .update(updates)
+    .eq('id', location_id)
+    .select('id, name, address, access_notes, is_active')
+    .single();
+
+  if (error) return { error: error.message };
+  return { success: true, location: data };
+}
+
 // ==================== DAILY CHECKLIST TOOLS ====================
 
 async function setup_daily_checklist(userId, { project_id, service_plan_id, checklist_items, labor_roles } = {}) {
@@ -4918,6 +5519,16 @@ const TOOL_HANDLERS = {
   complete_visit,
   get_billing_summary,
   create_service_visit,
+  update_service_plan,
+  add_service_location,
+  update_service_location,
+  assign_worker_to_plan,
+  calculate_service_plan_revenue,
+  get_service_plan_details,
+  get_service_plan_summary,
+  delete_service_plan,
+  get_service_plan_documents,
+  upload_service_plan_document,
   // Daily checklist tools
   setup_daily_checklist,
   get_daily_checklist_report,

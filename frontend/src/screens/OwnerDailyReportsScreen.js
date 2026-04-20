@@ -10,63 +10,43 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCurrentUserId } from '../utils/storage';
 import { supabase } from '../lib/supabase';
+import { useCachedFetch } from '../hooks/useCachedFetch';
 
 export default function OwnerDailyReportsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('workers');
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [reports, setReports] = useState([]);
+  const fetchReports = useCallback(async () => {
+    const currentUserId = await getCurrentUserId();
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .select(`
+        *,
+        projects!inner (id, name, user_id),
+        project_phases (id, name),
+        workers (id, full_name, trade)
+      `)
+      .eq('projects.user_id', currentUserId)
+      .order('report_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadReports();
-    }, [])
+  const { data: reports, loading, refreshing, refresh } = useCachedFetch(
+    'owner:dailyReports',
+    fetchReports,
+    { staleTTL: 15000, maxAge: 3 * 60 * 1000 }
   );
 
-  const loadReports = async () => {
-    try {
-      if (!refreshing) setLoading(true);
-
-      const currentUserId = await getCurrentUserId();
-
-      // Fetch all reports for projects owned by this user (including worker reports)
-      const { data, error } = await supabase
-        .from('daily_reports')
-        .select(`
-          *,
-          projects!inner (id, name, user_id),
-          project_phases (id, name),
-          workers (id, full_name, trade)
-        `)
-        .eq('projects.user_id', currentUserId)
-        .order('report_date', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching reports:', error);
-      } else {
-        setReports(data || []);
-      }
-    } catch (error) {
-      console.error('Error loading reports:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
   const onRefresh = () => {
-    setRefreshing(true);
-    loadReports();
+    refresh();
   };
 
   const formatDate = (dateString) => {
@@ -235,12 +215,12 @@ export default function OwnerDailyReportsScreen({ navigation }) {
       </View>
 
       <FlatList
-        data={reports}
+        data={reports || []}
         renderItem={renderReportItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.listContent,
-          reports.length === 0 && styles.emptyListContent
+          (!reports || reports.length === 0) && styles.emptyListContent
         ]}
         refreshControl={
           <RefreshControl

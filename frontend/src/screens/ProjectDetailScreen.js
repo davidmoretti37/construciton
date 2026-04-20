@@ -93,7 +93,7 @@ export default function ProjectDetailScreen({ route, navigation }) {
     navigation.goBack();
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     // Demo projects can't be deleted
     if (isDemo) {
       Alert.alert(t('alerts.info'), t('messages.featureComingSoon', { feature: 'Demo project editing' }));
@@ -101,18 +101,12 @@ export default function ProjectDetailScreen({ route, navigation }) {
     }
     const id = currentProject?.id || projectId;
     if (id) {
-      try {
-        const success = await deleteProject(id);
-        if (success) {
-          Alert.alert(t('alerts.success'), t('messages.deletedSuccessfully', { item: 'Project' }));
-          navigation.goBack();
-        } else {
-          Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'project' }));
-        }
-      } catch (error) {
+      // Optimistic: navigate back immediately, delete in background
+      navigation.goBack();
+      deleteProject(id).catch((error) => {
         console.error('Error deleting project:', error);
         Alert.alert(t('alerts.error'), t('messages.failedToDelete', { item: 'project' }));
-      }
+      });
     }
   };
 
@@ -138,17 +132,18 @@ export default function ProjectDetailScreen({ route, navigation }) {
   // Show skeleton while fetching project
   if (loading || !currentProject) {
     return (
-      <View style={{ flex: 1, padding: 16 }}>
+      <View style={{ flex: 1, padding: 16, backgroundColor: '#1E3A8A' }}>
         {/* Title bar */}
-        <SkeletonBox width="70%" height={24} borderRadius={6} style={{ marginBottom: 12 }} />
-        <SkeletonBox width="40%" height={14} borderRadius={4} style={{ marginBottom: 24 }} />
+        <SkeletonBox width="70%" height={24} borderRadius={6} style={{ marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+        <SkeletonBox width="40%" height={14} borderRadius={4} style={{ marginBottom: 24, backgroundColor: 'rgba(255,255,255,0.10)' }} />
         {/* Detail cards */}
-        <SkeletonCard lines={2} style={{ marginBottom: 12 }} />
-        <SkeletonCard lines={3} style={{ marginBottom: 12 }} />
-        {/* Timeline placeholders */}
-        <SkeletonBox width="50%" height={16} borderRadius={4} style={{ marginBottom: 12 }} />
-        <SkeletonBox width="100%" height={60} borderRadius={10} style={{ marginBottom: 8 }} />
-        <SkeletonBox width="100%" height={60} borderRadius={10} />
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, marginHorizontal: -16 }}>
+          <SkeletonCard lines={2} style={{ marginBottom: 12 }} />
+          <SkeletonCard lines={3} style={{ marginBottom: 12 }} />
+          <SkeletonBox width="50%" height={16} borderRadius={4} style={{ marginBottom: 12 }} />
+          <SkeletonBox width="100%" height={60} borderRadius={10} style={{ marginBottom: 8 }} />
+          <SkeletonBox width="100%" height={60} borderRadius={10} />
+        </View>
       </View>
     );
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { saveProject, getCurrentUserId, redistributeAllTasksWithAI } from '../../utils/storage';
+import { saveProject, getCurrentUserId, redistributeAllTasksWithAI, fetchWorkers, getSupervisorsForOwner } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
 import WorkingDaysSelector from '../../components/WorkingDaysSelector';
 
@@ -56,6 +56,16 @@ export default function ManualProjectCreateScreen({ navigation }) {
   // --- Labor Roles ---
   const [laborRoles, setLaborRoles] = useState([]);
 
+  // --- Supervisor & Workers ---
+  const [supervisors, setSupervisors] = useState([]);
+  const [selectedSupervisor, setSelectedSupervisor] = useState(null);
+  const [availableWorkers, setAvailableWorkers] = useState([]);
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState([]);
+
+  // --- Settings ---
+  const [aiResponsesEnabled, setAiResponsesEnabled] = useState(true);
+  const [projectStatus, setProjectStatus] = useState('active');
+
   // --- Collapsed sections ---
   const [expandedSections, setExpandedSections] = useState({
     client: true,
@@ -64,9 +74,30 @@ export default function ManualProjectCreateScreen({ navigation }) {
     phases: true,
     checklist: false,
     labor: false,
+    team: false,
+    settings: false,
   });
 
   const [saving, setSaving] = useState(false);
+
+  // Load supervisors and workers on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const userId = await getCurrentUserId();
+        if (userId) {
+          const [sups, workers] = await Promise.all([
+            getSupervisorsForOwner(userId),
+            fetchWorkers(),
+          ]);
+          setSupervisors(sups || []);
+          setAvailableWorkers(workers || []);
+        }
+      } catch (e) {
+        console.error('Error loading team data:', e);
+      }
+    })();
+  }, []);
 
   const toggleSection = (key) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -136,6 +167,13 @@ export default function ManualProjectCreateScreen({ navigation }) {
   };
   const handleRemoveChecklistItem = (index) => setChecklistItems(checklistItems.filter((_, i) => i !== index));
 
+  // --- Worker toggle ---
+  const toggleWorker = (workerId) => {
+    setSelectedWorkerIds(prev =>
+      prev.includes(workerId) ? prev.filter(id => id !== workerId) : [...prev, workerId]
+    );
+  };
+
   // --- Labor role handlers ---
   const handleAddLaborRole = () => {
     setLaborRoles([...laborRoles, { role_name: '', default_quantity: 1 }]);
@@ -180,7 +218,10 @@ export default function ManualProjectCreateScreen({ navigation }) {
         incomeCollected: 0,
         expenses: 0,
         spent: 0,
-        status: 'active',
+        status: projectStatus,
+        aiResponsesEnabled,
+        assignedSupervisorId: selectedSupervisor || null,
+        workers: selectedWorkerIds,
         startDate: toISODate(startDate),
         endDate: toISODate(endDate),
         workingDays,
@@ -213,13 +254,13 @@ export default function ManualProjectCreateScreen({ navigation }) {
       }
 
       if (saved && saved.id) {
-        // Save daily checklist templates
+        // Save daily checklist templates and labor roles (independently)
         const validChecklist = projectData.checklist_items || [];
         const validLabor = projectData.labor_roles || [];
-        if (validChecklist.length > 0) {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user?.id) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.id) {
+            if (validChecklist.length > 0) {
               await supabase.from('daily_checklist_templates').insert(
                 validChecklist.map((item, i) => ({
                   project_id: saved.id,
@@ -231,25 +272,25 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   sort_order: i,
                 }))
               );
-              if (validLabor.length > 0) {
-                await supabase.from('labor_role_templates').insert(
-                  validLabor.map((role, i) => ({
-                    project_id: saved.id,
-                    owner_id: user.id,
-                    role_name: role.role_name,
-                    default_quantity: role.default_quantity || 1,
-                    sort_order: i,
-                  }))
-                );
-              }
             }
-          } catch (e) {
-            console.error('Checklist/labor save error:', e);
+            if (validLabor.length > 0) {
+              await supabase.from('labor_role_templates').insert(
+                validLabor.map((role, i) => ({
+                  project_id: saved.id,
+                  owner_id: user.id,
+                  role_name: role.role_name,
+                  default_quantity: role.default_quantity || 1,
+                  sort_order: i,
+                }))
+              );
+            }
           }
+        } catch (e) {
+          console.error('Checklist/labor save error:', e);
         }
 
-        // AI task distribution if phases have tasks
-        if (projectData.phases?.some(p => p.tasks?.length > 0)) {
+        // AI task distribution if phases have tasks AND we have dates
+        if (projectData.startDate && projectData.endDate && projectData.phases?.some(p => p.tasks?.length > 0)) {
           try {
             const userId = await getCurrentUserId();
             if (userId) {
@@ -261,6 +302,64 @@ export default function ManualProjectCreateScreen({ navigation }) {
             }
           } catch (e) {
             console.error('AI task distribution error:', e);
+          }
+        }
+
+        // Create project_assignments so workers can actually see the project
+        if (selectedWorkerIds.length > 0) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) {
+              await supabase.from('project_assignments').insert(
+                selectedWorkerIds.map(wId => ({
+                  project_id: saved.id,
+                  worker_id: wId,
+                }))
+              );
+            }
+          } catch (e) {
+            console.error('Project assignments error:', e);
+          }
+        }
+
+        // Auto-create schedule events for calendar visibility
+        if (projectData.startDate || projectData.endDate) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) {
+              const events = [];
+              if (projectData.startDate) {
+                events.push({
+                  owner_id: user.id,
+                  project_id: saved.id,
+                  title: `${projectData.name} — Start`,
+                  description: `Project start: ${projectData.name}`,
+                  start_datetime: `${projectData.startDate}T08:00:00`,
+                  end_datetime: `${projectData.startDate}T09:00:00`,
+                  all_day: true,
+                  event_type: 'milestone',
+                  color: '#2563EB',
+                });
+              }
+              if (projectData.endDate) {
+                events.push({
+                  owner_id: user.id,
+                  project_id: saved.id,
+                  title: `${projectData.name} — Deadline`,
+                  description: `Project deadline: ${projectData.name}`,
+                  start_datetime: `${projectData.endDate}T08:00:00`,
+                  end_datetime: `${projectData.endDate}T09:00:00`,
+                  all_day: true,
+                  event_type: 'milestone',
+                  color: '#DC2626',
+                });
+              }
+              if (events.length > 0) {
+                await supabase.from('schedule_events').insert(events);
+              }
+            }
+          } catch (e) {
+            console.error('Schedule events error:', e);
           }
         }
 
@@ -674,6 +773,149 @@ export default function ManualProjectCreateScreen({ navigation }) {
             )}
           </View>
 
+          {/* ============ TEAM ASSIGNMENT ============ */}
+          <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+            <SectionHeader title="Team" icon="people-outline" sectionKey="team" count={selectedWorkerIds.length + (selectedSupervisor ? 1 : 0)} />
+            {expandedSections.team && (
+              <View style={styles.sectionBody}>
+                {/* Supervisor Picker */}
+                {supervisors.length > 0 && (
+                  <>
+                    <Text style={[styles.label, { color: Colors.secondaryText }]}>Assign Supervisor</Text>
+                    <View style={{ gap: 6 }}>
+                      {supervisors.map((sup) => (
+                        <TouchableOpacity
+                          key={sup.id}
+                          style={[styles.teamOption, {
+                            borderColor: selectedSupervisor === sup.id ? Colors.primaryBlue : Colors.border,
+                            backgroundColor: selectedSupervisor === sup.id ? Colors.primaryBlue + '10' : Colors.lightGray,
+                          }]}
+                          onPress={() => setSelectedSupervisor(prev => prev === sup.id ? null : sup.id)}
+                        >
+                          <Ionicons
+                            name={selectedSupervisor === sup.id ? 'shield-checkmark' : 'shield-outline'}
+                            size={18}
+                            color={selectedSupervisor === sup.id ? Colors.primaryBlue : Colors.secondaryText}
+                          />
+                          <Text style={[styles.teamOptionText, { color: selectedSupervisor === sup.id ? Colors.primaryBlue : Colors.primaryText }]}>
+                            {sup.business_name || 'Supervisor'}
+                          </Text>
+                          {selectedSupervisor === sup.id && (
+                            <Ionicons name="checkmark-circle" size={18} color={Colors.primaryBlue} style={{ marginLeft: 'auto' }} />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* Workers Picker */}
+                {availableWorkers.length > 0 && (
+                  <>
+                    <Text style={[styles.label, { color: Colors.secondaryText, marginTop: supervisors.length > 0 ? 16 : 0 }]}>Assign Workers</Text>
+                    <Text style={{ fontSize: 12, color: Colors.secondaryText, marginBottom: 8 }}>
+                      Select workers for this project. {selectedWorkerIds.length > 0 ? `${selectedWorkerIds.length} selected` : 'None selected'}
+                    </Text>
+                    <View style={{ gap: 6 }}>
+                      {availableWorkers.map((worker) => {
+                        const isSelected = selectedWorkerIds.includes(worker.id);
+                        return (
+                          <TouchableOpacity
+                            key={worker.id}
+                            style={[styles.teamOption, {
+                              borderColor: isSelected ? Colors.primaryBlue : Colors.border,
+                              backgroundColor: isSelected ? Colors.primaryBlue + '10' : Colors.lightGray,
+                            }]}
+                            onPress={() => toggleWorker(worker.id)}
+                          >
+                            <Ionicons
+                              name={isSelected ? 'person-circle' : 'person-circle-outline'}
+                              size={20}
+                              color={isSelected ? Colors.primaryBlue : Colors.secondaryText}
+                            />
+                            <View style={{ flex: 1, marginLeft: 4 }}>
+                              <Text style={[styles.teamOptionText, { color: isSelected ? Colors.primaryBlue : Colors.primaryText }]}>
+                                {worker.full_name}
+                              </Text>
+                              {worker.trade && (
+                                <Text style={{ fontSize: 11, color: Colors.secondaryText }}>{worker.trade}</Text>
+                              )}
+                            </View>
+                            {isSelected && (
+                              <Ionicons name="checkmark-circle" size={18} color={Colors.primaryBlue} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                {supervisors.length === 0 && availableWorkers.length === 0 && (
+                  <Text style={{ fontSize: 13, color: Colors.secondaryText, fontStyle: 'italic' }}>
+                    No supervisors or workers added yet. You can assign team members after creating the project.
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* ============ SETTINGS ============ */}
+          <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+            <SectionHeader title="Settings" icon="settings-outline" sectionKey="settings" />
+            {expandedSections.settings && (
+              <View style={styles.sectionBody}>
+                {/* Status Picker */}
+                <Text style={[styles.label, { color: Colors.secondaryText }]}>Project Status</Text>
+                <View style={styles.statusRow}>
+                  {['active', 'draft'].map((status) => (
+                    <TouchableOpacity
+                      key={status}
+                      style={[styles.statusOption, {
+                        borderColor: projectStatus === status ? Colors.primaryBlue : Colors.border,
+                        backgroundColor: projectStatus === status ? Colors.primaryBlue + '10' : Colors.lightGray,
+                      }]}
+                      onPress={() => setProjectStatus(status)}
+                    >
+                      <Ionicons
+                        name={status === 'active' ? 'play-circle' : 'document-outline'}
+                        size={16}
+                        color={projectStatus === status ? Colors.primaryBlue : Colors.secondaryText}
+                      />
+                      <Text style={{
+                        fontSize: 14, fontWeight: '600', marginLeft: 6,
+                        color: projectStatus === status ? Colors.primaryBlue : Colors.secondaryText,
+                      }}>
+                        {status === 'active' ? 'Active' : 'Draft'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* AI Auto-Responses Toggle */}
+                {clientPhone.trim() !== '' && (
+                  <>
+                    <Text style={[styles.label, { color: Colors.secondaryText }]}>AI Auto-Responses</Text>
+                    <View style={styles.toggleRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, color: Colors.primaryText }}>Enable AI text responses</Text>
+                        <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 2 }}>
+                          AI will auto-reply to client texts about this project
+                        </Text>
+                      </View>
+                      <Switch
+                        value={aiResponsesEnabled}
+                        onValueChange={setAiResponsesEnabled}
+                        trackColor={{ false: Colors.border, true: Colors.primaryBlue + '50' }}
+                        thumbColor={aiResponsesEnabled ? Colors.primaryBlue : Colors.secondaryText}
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+          </View>
+
           {/* ============ DESCRIPTION / SCOPE ============ */}
           <Text style={[styles.label, { color: Colors.secondaryText, marginHorizontal: 20 }]}>Project Description / Scope</Text>
           <TextInput
@@ -931,6 +1173,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   addItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  teamOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  teamOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  statusOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,

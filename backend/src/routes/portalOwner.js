@@ -236,7 +236,7 @@ router.delete('/share/:projectClientId', async (req, res) => {
     // Verify ownership through project
     const { data: pc, error: pcError } = await supabase
       .from('project_clients')
-      .select('id, project_id, projects(user_id)')
+      .select('id, client_id, project_id, projects(user_id)')
       .eq('id', projectClientId)
       .single();
 
@@ -244,11 +244,28 @@ router.delete('/share/:projectClientId', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
     }
 
-    // Delete the link (also invalidates any sessions via cascade? No — sessions are on client_id, not project_clients)
+    // Check if this client has any OTHER project_clients links (besides this one)
+    const { data: otherLinks } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('client_id', pc.client_id)
+      .neq('id', projectClientId)
+      .limit(1);
+
+    // Delete the project_clients link
     await supabase
       .from('project_clients')
       .delete()
       .eq('id', projectClientId);
+
+    // If no other project links remain, kill all sessions for this client
+    if (!otherLinks || otherLinks.length === 0) {
+      await supabase
+        .from('client_sessions')
+        .delete()
+        .eq('client_id', pc.client_id);
+      logger.info(`[PortalAdmin] Revoked all sessions for client ${pc.client_id}`);
+    }
 
     logger.info(`[PortalAdmin] Revoked portal access ${projectClientId}`);
     res.json({ success: true });

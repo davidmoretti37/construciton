@@ -161,6 +161,8 @@ export default function ProjectPreview({ data, onAction }) {
     workingDays = [1, 2, 3, 4, 5],
     checklist_items: checklistItems = [],
     labor_roles: laborRoles = [],
+    contractAmount,
+    location,
   } = editedData;  // Always use editedData - it's initialized from data and persists after save
 
   // Extract client name - handle both string and object formats
@@ -787,6 +789,38 @@ export default function ProjectPreview({ data, onAction }) {
             <Text style={[styles.value, { color: Colors.primaryText }]}>{projectName}</Text>
           </View>
         )}
+        {location && (
+          <View style={styles.infoRow}>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>Location:</Text>
+            {isEditing ? (
+              <TextInput
+                style={[styles.editInput, styles.value, { color: Colors.primaryText, borderColor: Colors.border, flex: 1 }]}
+                value={location}
+                onChangeText={(value) => setEditedData(prev => ({ ...prev, location: value }))}
+                placeholder="Address"
+                placeholderTextColor={Colors.secondaryText}
+              />
+            ) : (
+              <Text style={[styles.value, { color: Colors.primaryText }]}>{location}</Text>
+            )}
+          </View>
+        )}
+        {contractAmount > 0 && (
+          <View style={styles.infoRow}>
+            <Text style={[styles.label, { color: Colors.secondaryText }]}>Contract:</Text>
+            {isEditing ? (
+              <TextInput
+                style={[styles.editInput, styles.value, { color: '#16A34A', fontWeight: '700', borderColor: Colors.border }]}
+                value={String(contractAmount)}
+                onChangeText={(value) => setEditedData(prev => ({ ...prev, contractAmount: parseFloat(value) || 0 }))}
+                keyboardType="decimal-pad"
+                placeholder="0"
+              />
+            ) : (
+              <Text style={[styles.value, { color: '#16A34A', fontWeight: '700' }]}>${Number(contractAmount).toLocaleString()}</Text>
+            )}
+          </View>
+        )}
         <View style={styles.infoRow}>
           <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('labels.start')}:</Text>
           {isEditing ? (
@@ -904,6 +938,26 @@ export default function ProjectPreview({ data, onAction }) {
                       </Text>
                     )}
                   </View>
+                  {phase.budget > 0 && (
+                    <View style={[styles.phaseBadge, { backgroundColor: '#16A34A15' }]}>
+                      <Ionicons name="cash-outline" size={14} color="#16A34A" />
+                      {isEditing ? (
+                        <TextInput
+                          style={[styles.editInputTiny, { color: '#16A34A', borderColor: '#16A34A' }]}
+                          value={String(phase.budget)}
+                          onChangeText={(value) => {
+                            const updatedPhases = [...editedData.phases];
+                            updatedPhases[phaseIndex] = { ...updatedPhases[phaseIndex], budget: parseFloat(value) || 0 };
+                            setEditedData(prev => ({ ...prev, phases: updatedPhases }));
+                          }}
+                          keyboardType="decimal-pad"
+                          selectTextOnFocus={true}
+                        />
+                      ) : (
+                        <Text style={[styles.phaseDays, { color: '#16A34A' }]}>${Number(phase.budget).toLocaleString()}</Text>
+                      )}
+                    </View>
+                  )}
                   {isEditing && (
                     <TouchableOpacity onPress={() => handleRemoveSection(phaseIndex)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Ionicons name="close-circle" size={20} color="#EF4444" />

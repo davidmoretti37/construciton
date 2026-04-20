@@ -48,6 +48,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1f3a"
       },
+      "googleServicesFile": "./google-services.json",
       "package": "com.davidmoretti.constructionmanager",
       "permissions": [
         "android.permission.RECORD_AUDIO",
@@ -60,7 +61,7 @@
         "android.permission.VIBRATE"
       ],
       "edgeToEdgeEnabled": true,
-      "versionCode": 5
+      "versionCode": 8
     },
     "web": {
       "favicon": "./assets/favicon.png"

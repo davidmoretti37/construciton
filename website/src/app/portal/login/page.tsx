@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { portalFetch, setPortalToken, getPortalToken } from "@/lib/portal-api";
+import { portalFetch } from "@/lib/portal-api";
 
 export default function PortalLoginPage() {
   const router = useRouter();
@@ -13,13 +13,6 @@ export default function PortalLoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    // If already authenticated, go to dashboard
-    const existing = getPortalToken();
-    if (existing && !token) {
-      router.replace("/portal");
-      return;
-    }
-
     if (!token) {
       // If email param present (from app deep link fallback), show download prompt
       const email = searchParams.get("email");
@@ -28,24 +21,28 @@ export default function PortalLoginPage() {
         setErrorMsg("Download the Sylk app to view your project and message your contractor.");
         return;
       }
-      setStatus("error");
-      setErrorMsg("No access token provided. Please use the link sent to you.");
+
+      // No token — try checking if already authenticated via cookie
+      portalFetch<{ client: { full_name: string } }>("/auth/check")
+        .then(() => router.replace("/portal"))
+        .catch(() => {
+          setStatus("error");
+          setErrorMsg("No access token provided. Please use the link sent to you.");
+        });
       return;
     }
 
     async function verify() {
       try {
-        const data = await portalFetch<{ sessionToken: string; client: { full_name: string } }>(
+        await portalFetch<{ client: { full_name: string } }>(
           "/auth/verify",
           {
             method: "POST",
             body: JSON.stringify({ token }),
-            // Don't send X-Portal-Token for this request
             headers: { "Content-Type": "application/json" },
           }
         );
 
-        setPortalToken(data.sessionToken);
         setStatus("success");
 
         // Brief pause to show success state, then redirect

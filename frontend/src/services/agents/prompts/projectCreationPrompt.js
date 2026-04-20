@@ -549,7 +549,7 @@ If user already mentioned logging in their message → extract items directly, d
 - ROOFING: Old Roof Tear-Off, Decking Inspection & Repair, Ice and Water Shield, Underlayment, Shingle Installation, Ridge Vent, Flashing, Gutter Installation, Debris Removal
 - PAINTING: Surface Preparation, Primer Application, Wall Paint First Coat, Wall Paint Second Coat, Trim and Baseboard, Ceiling Paint, Door/Window Frames, Touch-ups
 
-**IMPORTANT: Projects do NOT include pricing/amounts - that's handled by EstimateInvoiceAgent**
+**IMPORTANT:** If the user provides a total contract amount, include it as "contractAmount" in the data. If they provide per-phase budgets (e.g. "Demo $50K, Framing $120K"), include "budget" (number) in each phase object. Detailed line-item pricing is handled by EstimateInvoiceAgent.
 
 ## Step 4: Present Project
 
@@ -575,6 +575,7 @@ Do NOT include a save-project action - the preview card has a built-in Save butt
           {
             "name": "Rough",
             "plannedDays": 12,
+            "budget": 20000,
             "tasks": [
               {"id": "1", "order": 1, "description": "Demo existing kitchen", "completed": false},
               {"id": "2", "order": 2, "description": "Rough plumbing", "completed": false},
@@ -585,6 +586,7 @@ Do NOT include a save-project action - the preview card has a built-in Save butt
           {
             "name": "Finish",
             "plannedDays": 14,
+            "budget": 25000,
             "tasks": [
               {"id": "5", "order": 1, "description": "Drywall and paint", "completed": false},
               {"id": "6", "order": 2, "description": "Cabinet installation", "completed": false},

@@ -9,9 +9,9 @@
     "workers": "Trabajadores",
     "totalRevenue": "Valor Total de Contratos",
     "pendingInvites": "{{count}} invitaciones de supervisor pendientes",
-    "quickStart": "Inicio Rpido",
+    "quickStart": "Inicio Rápido",
     "tip1": "Agrega supervisores para gestionar proyectos",
-    "tip2": "Ve el rendimiento de supervisores en la pestaa Supervisores",
+    "tip2": "Ve el rendimiento de supervisores en la pestaña Supervisores",
     "tip3": "Toca \"Ir al Trabajo\" para ver los detalles completos"
   },
   "supervisors": {
@@ -19,28 +19,28 @@
     "addNew": "Agregar Supervisor",
     "pendingInvites": "INVITACIONES PENDIENTES",
     "active": "SUPERVISORES ACTIVOS",
-    "emptyTitle": "An no hay supervisores",
+    "emptyTitle": "Aún no hay supervisores",
     "emptyText": "Agrega supervisores para ayudar a gestionar tus proyectos y trabajadores",
     "addFirst": "Agrega Tu Primer Supervisor",
-    "email": "Correo Electrnico",
+    "email": "Correo Electrónico",
     "fullName": "Nombre Completo",
-    "phone": "Nmero de Telfono",
-    "inviteInfo": "El supervisor recibir una invitacin cuando se registre con este correo.",
+    "phone": "Número de Teléfono",
+    "inviteInfo": "El supervisor recibirá una invitación cuando se registre con este correo.",
     "jobs": "trabajos",
     "workers": "trabajadores"
   },
   "supervisorDetail": {
     "jobs": "TRABAJOS",
-    "noJobs": "An no hay trabajos",
+    "noJobs": "Aún no hay trabajos",
     "goToJob": "Ir al Trabajo",
     "progress": "Progreso",
     "totalValue": "Valor Total de Contratos"
   },
   "chat": {
     "title": "Mensajes",
-    "emptyTitle": "An no hay conversaciones",
+    "emptyTitle": "Aún no hay conversaciones",
     "emptyText": "Agrega supervisores para comenzar a enviar mensajes",
-    "comingSoon": "Funcin de mensajera completa prximamente!"
+    "comingSoon": "¡Función de mensajería completa próximamente!"
   },
   "supervisorView": {
     "exit": "Salir",
@@ -51,16 +51,16 @@
     "label": "Modo Campo"
   },
   "supervisorOnboarding": {
-    "title": "Bienvenido, Supervisor!",
-    "hasInvites": "Tienes una invitacin pendiente para unirte a una empresa!",
-    "noInvites": "Necesitas una invitacin del dueo del negocio para comenzar.",
-    "feature1": "Gestionar mltiples proyectos",
+    "title": "¡Bienvenido, Supervisor!",
+    "hasInvites": "¡Tienes una invitación pendiente para unirte a una empresa!",
+    "noInvites": "Necesitas una invitación del dueño del negocio para comenzar.",
+    "feature1": "Gestionar múltiples proyectos",
     "feature2": "Seguir a tus trabajadores y horarios",
-    "feature3": "Manejar finanzas y facturacin",
+    "feature3": "Manejar finanzas y facturación",
     "feature4": "Asistente de IA para ayudarte",
-    "viewInvite": "Ver Invitacin",
+    "viewInvite": "Ver Invitación",
     "refresh": "Buscar Invitaciones",
-    "waitingInfo": "Pide al dueo del negocio que te enve una invitacin usando tu correo electrnico.",
+    "waitingInfo": "Pide al dueño del negocio que te envíe una invitación usando tu correo electrónico.",
     "checking": "Buscando invitaciones..."
   },
   "teamPicker": {
@@ -89,12 +89,12 @@
     "pendingInvitation": "Invitación pendiente"
   },
   "supervisorInvite": {
-    "title": "Invitacin de Supervisor",
-    "from": "DEL DUEO DEL NEGOCIO",
-    "details": "DETALLES DE LA INVITACIN",
+    "title": "Invitación de Supervisor",
+    "from": "DEL DUEÑO DEL NEGOCIO",
+    "details": "DETALLES DE LA INVITACIÓN",
     "invitedAs": "Invitado como:",
     "name": "Nombre:",
-    "message": "Al aceptar, te unirs a esta empresa como supervisor. Podrs gestionar proyectos, trabajadores y seguimiento financiero.",
+    "message": "Al aceptar, te unirás a esta empresa como supervisor. Podrás gestionar proyectos, trabajadores y seguimiento financiero.",
     "reject": "Rechazar",
     "accept": "Aceptar"
   },

@@ -81,6 +81,20 @@ const authenticatePortalClient = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
+    // Verify client still has at least one active project share (revoked clients get blocked)
+    const { data: activeShares } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('client_id', session.clients.id)
+      .limit(1);
+
+    if (!activeShares || activeShares.length === 0) {
+      logger.warn(`[Portal] Client ${session.clients.id} has no active project shares — session revoked`);
+      // Clean up orphaned session
+      await supabase.from('client_sessions').delete().eq('id', session.id);
+      return res.status(401).json({ error: 'Access has been revoked' });
+    }
+
     req.client = {
       id: session.clients.id,
       sessionId: session.id,

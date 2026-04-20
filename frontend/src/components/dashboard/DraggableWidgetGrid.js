@@ -1,10 +1,10 @@
 /**
  * DraggableWidgetGrid — iOS-style draggable grid for dashboard widgets.
  * Small widgets sit side-by-side (2 per row), medium/large take full width.
- * Long-press to drag, drop snaps to nearest valid grid position.
+ * Long-press to drag, drop snaps to nearest valid grid position (X + Y aware).
  */
 
-import React, { useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -26,7 +26,7 @@ const LONG_PRESS_MS = 250;
 
 /**
  * Calculate grid slot positions for a given item order.
- * Returns { slots: [{id, x, y, w, h}], totalHeight }
+ * Returns { slots: [{id, x, y, w, h, index}], totalHeight }
  */
 function calculateSlots(items) {
   const slots = [];
@@ -57,21 +57,51 @@ function calculateSlots(items) {
 }
 
 /**
- * Find the insertion index based on drop y-position.
+ * Find the insertion index based on drop X + Y position (2D-aware).
  */
-function findInsertIndex(items, dropY, draggedId) {
-  const { slots } = calculateSlots(items.filter(it => it.id !== draggedId));
+function findInsertIndex(items, dropX, dropY, draggedId) {
+  const remaining = items.filter(it => it.id !== draggedId);
+  const { slots } = calculateSlots(remaining);
+  if (slots.length === 0) return 0;
 
-  // Find the slot whose center y is closest to dropY
-  let bestIndex = items.length - 1;
-  for (let s = 0; s < slots.length; s++) {
-    const slotCenterY = slots[s].y + slots[s].h / 2;
-    if (dropY < slotCenterY) {
-      bestIndex = slots[s].index;
+  // Group slots by row (same Y origin = same row)
+  const rows = [];
+  for (const s of slots) {
+    const existingRow = rows.find(r => Math.abs(r.y - s.y) < 4);
+    if (existingRow) {
+      existingRow.slots.push(s);
+    } else {
+      rows.push({ y: s.y, h: s.h, slots: [s] });
+    }
+  }
+  rows.sort((a, b) => a.y - b.y);
+
+  // Find the target row by Y
+  let targetRow = rows[rows.length - 1];
+  for (let r = 0; r < rows.length; r++) {
+    if (dropY < rows[r].y + rows[r].h) {
+      targetRow = rows[r];
       break;
     }
   }
-  return Math.min(bestIndex, items.length - 1);
+
+  // Within the target row, pick the slot closest to dropX
+  let bestSlot = targetRow.slots[0];
+  let bestDist = Infinity;
+  for (const s of targetRow.slots) {
+    const dist = Math.abs(dropX - (s.x + s.w / 2));
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestSlot = s;
+    }
+  }
+
+  // If dropping after the last slot in the row, insert after it
+  if (targetRow.slots.length > 1 && dropX > bestSlot.x + bestSlot.w) {
+    return Math.min(bestSlot.index + 1, remaining.length);
+  }
+
+  return Math.min(bestSlot.index, remaining.length);
 }
 
 function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDragMove, onDragEnd }) {
@@ -85,8 +115,20 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
   const longPressTimer = useRef(null);
   const dragActivated = useRef(false);
 
-  // Animate to new slot when layout changes
-  React.useEffect(() => {
+  // Refs that stay current on every render — fixes stale closure in PanResponder
+  const slotRef = useRef(slot);
+  const onDragStartRef = useRef(onDragStart);
+  const onDragMoveRef = useRef(onDragMove);
+  const onDragEndRef = useRef(onDragEnd);
+  useEffect(() => {
+    slotRef.current = slot;
+    onDragStartRef.current = onDragStart;
+    onDragMoveRef.current = onDragMove;
+    onDragEndRef.current = onDragEnd;
+  });
+
+  // Animate to new slot when layout changes (only when not dragging)
+  useEffect(() => {
     if (!isDragging.current) {
       Animated.parallel([
         Animated.spring(animX, { toValue: slot.x, useNativeDriver: false, tension: 180, friction: 20 }),
@@ -111,7 +153,7 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
           offsetY.current = animY._value;
           setIsLifted(true);
           Animated.spring(scale, { toValue: 1.06, useNativeDriver: false, tension: 300 }).start();
-          onDragStart(item.id);
+          onDragStartRef.current(item.id);
         }, LONG_PRESS_MS);
       },
       onPanResponderMove: (_, gs) => {
@@ -123,16 +165,21 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
         }
         animX.setValue(offsetX.current + gs.dx);
         animY.setValue(offsetY.current + gs.dy);
-        onDragMove(item.id, offsetY.current + gs.dy + slot.h / 2);
+        const s = slotRef.current;
+        onDragMoveRef.current(
+          item.id,
+          offsetX.current + gs.dx + s.w / 2,
+          offsetY.current + gs.dy + s.h / 2
+        );
       },
-      onPanResponderRelease: (_, gs) => {
+      onPanResponderRelease: () => {
         clearTimeout(longPressTimer.current);
         if (dragActivated.current) {
           isDragging.current = false;
           dragActivated.current = false;
           setIsLifted(false);
           Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
-          onDragEnd(item.id);
+          onDragEndRef.current(item.id);
         }
       },
       onPanResponderTerminate: () => {
@@ -142,7 +189,7 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
           dragActivated.current = false;
           setIsLifted(false);
           Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
-          onDragEnd(item.id);
+          onDragEndRef.current(item.id);
         }
       },
     })
@@ -189,12 +236,12 @@ export default function DraggableWidgetGrid({
 }) {
   const [order, setOrder] = useState(items.map(it => it.id));
   const draggingRef = useRef(null);
+  const dropXRef = useRef(0);
   const dropYRef = useRef(0);
-  const scrollEnabled = useRef(true);
-  const [, forceRender] = useState(0);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   // Keep order in sync with items when they change externally
-  React.useEffect(() => {
+  useEffect(() => {
     setOrder(items.map(it => it.id));
   }, [items]);
 
@@ -209,15 +256,15 @@ export default function DraggableWidgetGrid({
 
   const handleDragStart = useCallback((id) => {
     draggingRef.current = id;
-    scrollEnabled.current = false;
-    forceRender(n => n + 1);
+    setScrollEnabled(false);
   }, []);
 
-  const handleDragMove = useCallback((id, centerY) => {
+  const handleDragMove = useCallback((id, centerX, centerY) => {
+    dropXRef.current = centerX;
     dropYRef.current = centerY;
-    // Live reorder preview
+    // Live reorder preview — X + Y aware
     const currentIndex = order.indexOf(id);
-    const newIndex = findInsertIndex(orderedItems, centerY, id);
+    const newIndex = findInsertIndex(orderedItems, centerX, centerY, id);
     if (newIndex !== currentIndex && newIndex >= 0) {
       setOrder(prev => {
         const next = prev.filter(oid => oid !== id);
@@ -229,8 +276,7 @@ export default function DraggableWidgetGrid({
 
   const handleDragEnd = useCallback((id) => {
     draggingRef.current = null;
-    scrollEnabled.current = true;
-    forceRender(n => n + 1);
+    setScrollEnabled(true);
     // Persist the new order
     const itemMap = new Map(items.map(it => [it.id, it]));
     const reordered = order.map(oid => itemMap.get(oid)).filter(Boolean);
@@ -242,7 +288,7 @@ export default function DraggableWidgetGrid({
       style={{ flex: 1 }}
       contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
       showsVerticalScrollIndicator={false}
-      scrollEnabled={scrollEnabled.current}
+      scrollEnabled={scrollEnabled}
     >
       <View style={[styles.gridContainer, { height: totalHeight + 80 }]}>
         {orderedItems.map((item) => {
