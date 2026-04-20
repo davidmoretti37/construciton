@@ -5124,15 +5124,23 @@ async function update_service_location(userId, args = {}) {
 
   const ownerId = await resolveOwnerId(userId);
 
-  // Ownership check via plan join
-  const { data: existing } = await supabase
+  // Ownership check: fetch location then verify its plan belongs to owner
+  const { data: location } = await supabase
     .from('service_locations')
-    .select('id, service_plan_id, service_plans!inner(owner_id)')
+    .select('id, service_plan_id')
     .eq('id', location_id)
-    .eq('service_plans.owner_id', ownerId)
     .single();
 
-  if (!existing) return { error: 'Service location not found or access denied' };
+  if (!location) return { error: 'Service location not found' };
+
+  const { data: plan } = await supabase
+    .from('service_plans')
+    .select('id')
+    .eq('id', location.service_plan_id)
+    .eq('owner_id', ownerId)
+    .single();
+
+  if (!plan) return { error: 'Service location not found or access denied' };
 
   const updates = {};
   if (name !== undefined) updates.name = name;

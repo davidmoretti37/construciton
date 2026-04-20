@@ -293,6 +293,16 @@ These operations execute directly on the backend when you call the tool. ALWAYS 
 - Create a one-off service visit → call \`create_service_visit\`
 - Get daily route/visit schedule → call \`get_daily_route\`
 - Get service plan billing summary → call \`get_billing_summary\`
+- Delete service plan → call \`delete_service_plan\` (owners only, confirm first)
+- Update service plan (name, status, billing cycle, rate, type) → call \`update_service_plan\`
+- Service plan full detail (locations + visits + financials) → call \`get_service_plan_details\`
+- Service plan quick health summary → call \`get_service_plan_summary\`
+- Calculate service plan revenue (projected/realized/unbilled) → call \`calculate_service_plan_revenue\`
+- Add a new location (recurring service stop) to a plan → call \`add_service_location\`
+- Update a service location → call \`update_service_location\`
+- Assign worker to all upcoming visits on a plan → call \`assign_worker_to_plan\`
+- List service plan documents → call \`get_service_plan_documents\`
+- Upload a document/file to a service plan → call \`upload_service_plan_document\`
 - IMPORTANT: After user saves an estimate that has a projectName but no project_id, immediately call \`search_projects\` to find the project, then call \`update_estimate\` to link them.
 - Set up daily checklist + labor roles → call \`setup_daily_checklist\` with project_id or service_plan_id, checklist_items, and labor_roles
 - Daily checklist reports (what crew logged) → call \`get_daily_checklist_report\` with project_id or service_plan_id and date/range
