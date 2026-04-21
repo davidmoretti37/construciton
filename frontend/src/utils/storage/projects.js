@@ -10,6 +10,19 @@ import { cacheData, getCachedData, clearCache } from '../../services/offlineCach
 // ============================================================
 
 /**
+ * Apply a filter that excludes draft-status projects from a PostgREST query.
+ * Used by selectors/pickers so drafts can't be linked to estimates, tasks, etc.
+ * Keep this as a single-use helper so the exclusion rule lives in one place.
+ * @param {object} query - Supabase query builder
+ * @returns {object} Query with draft-exclusion applied
+ */
+const applyActiveFilter = (query) => {
+  // neq('status', 'draft') covers the new draft workflow without affecting
+  // 'active', 'scheduled', 'completed', 'archived', 'on_hold', etc.
+  return query.neq('status', 'draft');
+};
+
+/**
  * Calculate time-based completion percentage
  * @param {string} startDate - Project start date (YYYY-MM-DD)
  * @param {string} endDate - Project end date (YYYY-MM-DD)
@@ -106,6 +119,7 @@ export const transformProjectFromDB = (dbProject) => {
     spent: expenses,
     percentComplete: percentComplete,
     status: calculateDisplayStatus(),
+    isDraft: (dbProject.status || '') === 'draft',
     workers: dbProject.workers || [],
     daysRemaining: daysRemaining,
     lastActivity: dbProject.last_activity || 'No activity',
@@ -328,11 +342,15 @@ export const fetchProjectsBasic = async () => {
       return [];
     }
 
-    const { data, error } = await supabase
+    // Exclude drafts — this function feeds estimate pickers, task pickers, etc.
+    // Drafts must never be offered as link targets.
+    let query = supabase
       .from('projects')
       .select('id, name')
       .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .order('name', { ascending: true });
+    query = applyActiveFilter(query);
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching projects basic:', error);

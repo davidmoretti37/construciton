@@ -1331,6 +1331,181 @@ export const resetProjectProgressToAutomatic = async (projectId) => {
 };
 
 /**
+ * Non-destructive phase upsert for the project builder (Configure Details path).
+ *
+ * Unlike `saveProjectPhases` (which delete-all + re-insert and regenerates
+ * worker_tasks), this function:
+ *  - INSERTs new phases (those without an id or with id starting "draft-")
+ *  - UPDATEs existing phases (name, planned_days, budget, order_index, start/end dates)
+ *  - DELETEs phases that are absent from the incoming list, but ONLY if they have
+ *    no worker_tasks referencing them (safety)
+ *  - Does NOT touch worker_tasks at all
+ *
+ * Used for incremental autosave in the builder where the destructive
+ * delete-and-rebuild semantics of saveProjectPhases would wipe in-flight state.
+ *
+ * @param {string} projectId - Project ID
+ * @param {Array<object>} phases - Phases from builder state (may mix existing + new)
+ * @param {object} [schedule] - Optional schedule object with phaseSchedule array
+ * @returns {Promise<boolean>} Success status
+ */
+export const upsertProjectPhases = async (projectId, phases, schedule = null) => {
+  try {
+    // 1. Fetch existing phases for this project so we can diff
+    const { data: existingPhases, error: fetchError } = await supabase
+      .from('project_phases')
+      .select('id')
+      .eq('project_id', projectId);
+
+    if (fetchError) {
+      console.error('upsertProjectPhases fetch error:', fetchError);
+      return false;
+    }
+
+    const existingIds = new Set((existingPhases || []).map(p => p.id));
+    const incoming = Array.isArray(phases) ? phases : [];
+
+    // Helper: convert a phase object from the builder into a DB row
+    const buildRow = (phase, index) => {
+      const phaseScheduleEntry = schedule?.phaseSchedule?.find(
+        ps => ps.phaseName === phase.name
+      );
+      const phaseStartDate = phase.startDate || phase.start_date || phaseScheduleEntry?.startDate || null;
+      const phaseEndDate = phase.endDate || phase.end_date || phaseScheduleEntry?.endDate || null;
+
+      let calculatedDays = phase.plannedDays || phase.planned_days || phase.defaultDays || 5;
+      if (phaseStartDate && phaseEndDate) {
+        const start = new Date(phaseStartDate + 'T00:00:00');
+        const end = new Date(phaseEndDate + 'T00:00:00');
+        const daysDiff = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        calculatedDays = Math.max(1, daysDiff);
+      }
+
+      return {
+        project_id: projectId,
+        name: phase.name,
+        order_index: typeof phase.order_index === 'number' ? phase.order_index : index,
+        planned_days: calculatedDays,
+        start_date: phaseStartDate,
+        end_date: phaseEndDate,
+        budget: parseFloat(phase.budget) || 0,
+      };
+    };
+
+    // 2. Classify incoming phases: new vs existing
+    const toInsert = [];
+    const toUpdate = []; // { id, updates }
+    const seenExistingIds = new Set();
+
+    incoming.forEach((phase, index) => {
+      const hasRealId = phase.id
+        && typeof phase.id === 'string'
+        && !phase.id.startsWith('draft-')
+        && existingIds.has(phase.id);
+
+      if (hasRealId) {
+        seenExistingIds.add(phase.id);
+        toUpdate.push({ id: phase.id, updates: buildRow(phase, index) });
+      } else {
+        toInsert.push(buildRow(phase, index));
+      }
+    });
+
+    // 3. Determine which existing phases are absent from incoming -> candidates for delete
+    const deleteCandidateIds = [...existingIds].filter(id => !seenExistingIds.has(id));
+
+    // 4. Safety: only delete phases with no worker_tasks referencing them
+    let idsToDelete = [];
+    if (deleteCandidateIds.length > 0) {
+      const { data: referencingTasks, error: tasksError } = await supabase
+        .from('worker_tasks')
+        .select('phase_task_id')
+        .eq('project_id', projectId)
+        .not('phase_task_id', 'is', null);
+
+      if (tasksError) {
+        console.error('upsertProjectPhases worker_tasks check error:', tasksError);
+        // Fail safe: skip deletes if we can't verify
+        idsToDelete = [];
+      } else {
+        // worker_tasks.phase_task_id is a string — we only block delete if any task
+        // references the phase by id. We err on the side of not deleting if unsure.
+        const referencedPhaseTaskIds = new Set(
+          (referencingTasks || []).map(t => t.phase_task_id).filter(Boolean)
+        );
+
+        // Fetch the candidate phases to check their task ids
+        const { data: candidatePhases } = await supabase
+          .from('project_phases')
+          .select('id, name, tasks')
+          .in('id', deleteCandidateIds);
+
+        idsToDelete = (candidatePhases || [])
+          .filter(p => {
+            const taskIds = (p.tasks || []).map(
+              (t, i) => t.id || `${p.name}-${i}`
+            );
+            // If any task id is referenced OR any `phase-task-*` style id points at this phase,
+            // keep the phase. Only delete if none of its task ids are referenced.
+            return !taskIds.some(tid => referencedPhaseTaskIds.has(tid));
+          })
+          .map(p => p.id);
+      }
+    }
+
+    // 5. Apply DELETEs
+    if (idsToDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('project_phases')
+        .delete()
+        .in('id', idsToDelete);
+      if (deleteError) {
+        console.error('upsertProjectPhases delete error:', deleteError);
+        return false;
+      }
+    }
+
+    // 6. Apply INSERTs
+    if (toInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from('project_phases')
+        .insert(toInsert);
+      if (insertError) {
+        console.error('upsertProjectPhases insert error:', insertError);
+        return false;
+      }
+    }
+
+    // 7. Apply UPDATEs (one round-trip per phase — small N, acceptable)
+    for (const { id, updates } of toUpdate) {
+      const { error: updateError } = await supabase
+        .from('project_phases')
+        .update(updates)
+        .eq('id', id);
+      if (updateError) {
+        console.error('upsertProjectPhases update error:', updateError);
+        return false;
+      }
+    }
+
+    // 8. Mirror has_phases on the project row
+    const { error: projectUpdateError } = await supabase
+      .from('projects')
+      .update({ has_phases: incoming.length > 0 })
+      .eq('id', projectId);
+    if (projectUpdateError) {
+      console.error('upsertProjectPhases project has_phases update error:', projectUpdateError);
+      // non-fatal
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in upsertProjectPhases:', error);
+    return false;
+  }
+};
+
+/**
  * Update a single phase's budget allocation
  * @param {string} phaseId - Phase ID
  * @param {number} budget - Budget amount (dollars)

@@ -219,6 +219,8 @@ export { uploadPhoto } from './fileStorage';
 // Project Phases & Progress
 export {
   saveProjectPhases,
+  upsertProjectPhases,
+  updatePhaseBudget,
   fetchProjectPhases,
   updatePhaseProgress,
   extendPhaseTimeline,
