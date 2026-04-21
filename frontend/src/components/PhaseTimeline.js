@@ -206,6 +206,11 @@ export default function PhaseTimeline({
                     <Text style={[styles.sectionTaskCount, { color: Colors.secondaryText }]}>
                       {completedCount}/{phaseTasks.length} tasks
                     </Text>
+                    {(parseFloat(phase.budget) || 0) > 0 && (
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A', marginLeft: 8 }}>
+                        ${Number(phase.budget).toLocaleString()}
+                      </Text>
+                    )}
                   </View>
                 </View>
               </View>

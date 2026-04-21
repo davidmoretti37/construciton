@@ -18,6 +18,7 @@ import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../con
 import { useTheme } from '../contexts/ThemeContext';
 import { saveProject } from '../utils/storage';
 import { supabase } from '../lib/supabase';
+import { updatePhaseBudget } from '../utils/storage/projectPhases';
 
 export default function EditProjectModal({ visible, onClose, projectData, onSave }) {
   const { t } = useTranslation('common');
@@ -40,6 +41,7 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [trades, setTrades] = useState([]);
+  const [phases, setPhases] = useState([]);
 
   // Load existing trade budgets when editing
   useEffect(() => {
@@ -61,6 +63,26 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
       setTrades([]);
     }
   }, [projectData?.id]);
+
+  // Load existing project phases so owners can allocate per-phase budgets.
+  // For new/draft projects (no DB row yet) fall back to any phases embedded
+  // in projectData so the editor still works in draft mode.
+  useEffect(() => {
+    if (!projectData?.id || String(projectData.id).startsWith('temp-') || !projectData.hasPhases) {
+      if (projectData?.phases) {
+        setPhases(projectData.phases.map((p, i) => ({ ...p, id: p.id || `draft-${i}` })));
+      } else {
+        setPhases([]);
+      }
+      return;
+    }
+    supabase
+      .from('project_phases')
+      .select('id, name, budget, order_index')
+      .eq('project_id', projectData.id)
+      .order('order_index', { ascending: true })
+      .then(({ data }) => setPhases(data || []));
+  }, [projectData?.id, projectData?.hasPhases]);
 
   useEffect(() => {
     if (projectData) {
@@ -157,11 +179,38 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
         name: t.name.trim(),
         amount: parseFloat(t.amount) || 0,
       })),
+      // Embed the edited phases (with coerced budgets) so that draft/new
+      // projects — which won't exist in project_phases yet — still capture
+      // the allocations. For existing projects the DB write below is what
+      // actually persists; this is a best-effort payload on the saved object.
+      phases: phases.length > 0
+        ? phases.map(p => ({ ...p, budget: parseFloat(p.budget) || 0 }))
+        : (projectData.phases || []),
     };
 
     try {
       const saved = await saveProject(updatedProject);
       if (saved) {
+        // Persist per-phase budgets for already-saved phases. Draft phases
+        // (id starts with "draft-") don't exist in the DB yet, so we skip
+        // them — their budget lives on the embedded projectData.phases.
+        if (phases.length > 0) {
+          for (const phase of phases) {
+            if (phase.id && !String(phase.id).startsWith('draft-')) {
+              await updatePhaseBudget(phase.id, parseFloat(phase.budget) || 0);
+            }
+          }
+          // Reflect the updated budgets on the object we return to the
+          // parent so it can render immediately without a re-fetch.
+          if (saved.phases) {
+            saved.phases = saved.phases.map(p => {
+              const match = phases.find(ph => ph.id === p.id);
+              return match ? { ...p, budget: parseFloat(match.budget) || 0 } : p;
+            });
+          } else {
+            saved.phases = phases.map(p => ({ ...p, budget: parseFloat(p.budget) || 0 }));
+          }
+        }
         onSave && onSave(saved);
         onClose();
       }
@@ -406,6 +455,38 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Phase Budgets */}
+            {phases.length > 0 && (
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: Colors.primaryText }]}>Phase Budgets</Text>
+                <Text style={[styles.helperText, { color: Colors.secondaryText, marginBottom: 8 }]}>
+                  Allocate the contract amount across phases
+                </Text>
+                {phases.map((phase, index) => (
+                  <View key={phase.id} style={styles.tradeRow}>
+                    <Text style={[styles.tradeNameInput, { color: Colors.primaryText, paddingVertical: 10 }]}>{phase.name}</Text>
+                    <TextInput
+                      style={[styles.tradeAmountInput, { backgroundColor: Colors.lightGray, color: Colors.primaryText }]}
+                      placeholder="$0"
+                      placeholderTextColor={Colors.placeholderText}
+                      value={String(phase.budget || '')}
+                      onChangeText={(text) => {
+                        const cleaned = text.replace(/[^0-9.]/g, '');
+                        const updated = [...phases];
+                        updated[index] = { ...updated[index], budget: cleaned };
+                        setPhases(updated);
+                      }}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                ))}
+                <Text style={[styles.helperText, { color: Colors.secondaryText, marginTop: 4 }]}>
+                  Sum: ${phases.reduce((s, p) => s + (parseFloat(p.budget) || 0), 0).toLocaleString()}
+                  {' '}/{' '}Contract: ${(parseFloat(contractAmount) || 0).toLocaleString()}
+                </Text>
+              </View>
+            )}
 
             {/* Start Date */}
             <View style={styles.inputGroup}>

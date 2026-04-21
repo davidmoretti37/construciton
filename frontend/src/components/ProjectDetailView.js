@@ -1301,7 +1301,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           </View>
 
           {/* Budget & Trade Budgets — Collapsible Card */}
-          {(contractAmount > 0 || tradeBudgets.length > 0) && (
+          {(contractAmount > 0 || tradeBudgets.length > 0 || phases.some(p => (parseFloat(p.budget) || 0) > 0)) && (
             <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3, overflow: 'hidden' }}>
               {/* Section Header */}
               <TouchableOpacity
@@ -1407,6 +1407,29 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         );
                       })}
                     </>
+                  )}
+
+                  {/* Phase Budgets */}
+                  {phases.filter(p => (parseFloat(p.budget) || 0) > 0).length > 0 && (
+                    <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
+                        Phase Budgets
+                      </Text>
+                      {phases.filter(p => (parseFloat(p.budget) || 0) > 0).map(phase => (
+                        <View key={phase.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
+                          <Text style={{ fontSize: 13, color: '#0F172A' }}>{phase.name}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#16A34A' }}>
+                            ${Number(phase.budget).toLocaleString()}
+                          </Text>
+                        </View>
+                      ))}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>Total Phase Budgets</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#16A34A' }}>
+                          ${phases.reduce((s, p) => s + (parseFloat(p.budget) || 0), 0).toLocaleString()}
+                        </Text>
+                      </View>
+                    </View>
                   )}
 
                   {/* Add Trade Budget */}
@@ -2734,8 +2757,25 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         visible={showEditModal}
         onClose={() => setShowEditModal(false)}
         projectData={project}
-        onSave={() => {
+        onSave={(savedProject) => {
           setShowEditModal(false);
+          // Optimistically hydrate phase budgets into local phases state so the
+          // Budget Breakdown card reflects edits immediately — the full project
+          // object still lives on the parent (ProjectDetailScreen) which will
+          // re-fetch via onRefreshNeeded below.
+          if (savedProject?.phases && Array.isArray(savedProject.phases)) {
+            setPhases((prev) => {
+              if (!prev || prev.length === 0) return prev;
+              return prev.map((p) => {
+                const match = savedProject.phases.find(
+                  (sp) => sp.id === p.id || sp.name === p.name
+                );
+                return match && match.budget != null
+                  ? { ...p, budget: parseFloat(match.budget) || 0 }
+                  : p;
+              });
+            });
+          }
           onRefreshNeeded?.();
         }}
       />

@@ -447,6 +447,12 @@ export default function DailyChecklistSection({
         )}
       </View>
 
+      {!isEditingTemplates && (
+        <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8, fontStyle: 'italic' }}>
+          Edit checklist items here directly — changes save independently from the project Edit button.
+        </Text>
+      )}
+
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="small" color={Colors.primaryBlue} />

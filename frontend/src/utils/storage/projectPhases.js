@@ -1329,3 +1329,21 @@ export const resetProjectProgressToAutomatic = async (projectId) => {
     return false;
   }
 };
+
+/**
+ * Update a single phase's budget allocation
+ * @param {string} phaseId - Phase ID
+ * @param {number} budget - Budget amount (dollars)
+ * @returns {Promise<boolean>} Success status
+ */
+export const updatePhaseBudget = async (phaseId, budget) => {
+  const { error } = await supabase
+    .from('project_phases')
+    .update({ budget: parseFloat(budget) || 0 })
+    .eq('id', phaseId);
+  if (error) {
+    console.error('updatePhaseBudget error:', error);
+    return false;
+  }
+  return true;
+};
