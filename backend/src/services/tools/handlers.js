@@ -2651,7 +2651,7 @@ async function add_project_checklist(userId, { project_id, items }) {
   };
 }
 
-async function create_project_phase(userId, { project_id, phase_name, planned_days, tasks }) {
+async function create_project_phase(userId, { project_id, phase_name, planned_days, tasks, budget }) {
   const resolved = await resolveProjectId(userId, project_id);
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
@@ -2695,8 +2695,9 @@ async function create_project_phase(userId, { project_id, phase_name, planned_da
       tasks: phaseTasks,
       completion_percentage: 0,
       status: 'not_started',
+      budget: parseFloat(budget) || 0,
     })
-    .select('id, name, order_index, planned_days')
+    .select('id, name, order_index, planned_days, budget')
     .single();
 
   if (insertErr) return { error: `Failed to create phase: ${insertErr.message}` };
@@ -2744,8 +2745,46 @@ async function create_project_phase(userId, { project_id, phase_name, planned_da
       name: newPhase.name,
       planned_days: newPhase.planned_days,
       task_count: phaseTasks.length,
+      budget: newPhase.budget,
     },
   };
+}
+
+async function update_phase_budget(userId, { project_id, phase_name, budget }) {
+  if (!project_id || !phase_name || budget === undefined) {
+    return { error: 'project_id, phase_name, and budget are required' };
+  }
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved.error) return { error: resolved.error };
+  if (resolved.suggestions) return resolved;
+
+  // Find phase by fuzzy name match within the project
+  const { data: phases } = await supabase
+    .from('project_phases')
+    .select('id, name, budget')
+    .eq('project_id', resolved.id)
+    .ilike('name', `%${phase_name}%`);
+
+  if (!phases || phases.length === 0) {
+    return { error: `No phase matching "${phase_name}" found in project` };
+  }
+  if (phases.length > 1) {
+    return {
+      error: 'Multiple phases matched',
+      suggestions: phases.map(p => ({ id: p.id, name: p.name, budget: p.budget })),
+    };
+  }
+
+  const phase = phases[0];
+  const newBudget = parseFloat(budget) || 0;
+  const { error } = await supabase
+    .from('project_phases')
+    .update({ budget: newBudget })
+    .eq('id', phase.id);
+  if (error) return { error: error.message };
+
+  logger.info(`✅ Updated phase budget: ${phase.name} → $${newBudget}`);
+  return { success: true, phase: { id: phase.id, name: phase.name, budget: newBudget } };
 }
 
 // ==================== INVOICE MUTATIONS ====================
@@ -5506,6 +5545,7 @@ const TOOL_HANDLERS = {
   // New mutation tools
   add_project_checklist,
   create_project_phase,
+  update_phase_budget,
   update_phase_progress,
   convert_estimate_to_invoice,
   update_invoice,

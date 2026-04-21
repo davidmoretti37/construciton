@@ -411,9 +411,26 @@ const toolDefinitions = [
             type: 'array',
             items: { type: 'string' },
             description: 'Optional array of checklist task descriptions for this phase'
-          }
+          },
+          budget: { type: 'number', description: 'Dollar budget allocated to this phase (optional, default 0).' }
         },
         required: ['project_id', 'phase_name']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_phase_budget',
+      description: "Update the budget allocated to a specific phase of a project. Use when the owner says 'set the demo phase to $3000' or 'demo phase should be $5k'.",
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'Project name or UUID.' },
+          phase_name: { type: 'string', description: 'Phase name (fuzzy match).' },
+          budget: { type: 'number', description: 'New budget amount in dollars.' }
+        },
+        required: ['project_id', 'phase_name', 'budget']
       }
     }
   },
@@ -1686,6 +1703,7 @@ const TOOL_STATUS_MESSAGES = {
   create_worker_task: 'Creating task...',
   add_project_checklist: 'Adding tasks...',
   create_project_phase: 'Creating project phase...',
+  update_phase_budget: 'Updating phase budget...',
   update_service_pricing: 'Updating pricing...',
   // Bank reconciliation tools
   get_bank_transactions: 'Checking bank transactions...',
