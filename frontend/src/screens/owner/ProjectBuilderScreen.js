@@ -442,6 +442,14 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   }, [initialProjectId]);
 
   // ---- Create draft on mount if no projectId ----
+  // Resumes an existing in-progress draft for the same name+client when one
+  // exists (within the last 24h). Without this, every "Configure Details" tap
+  // from the chat preview created a brand-new draft row, leaving Projects
+  // littered with duplicate drafts (4 of "John Smith Bathroom Remodel" in one
+  // night). The resume window is wide enough to catch a same-day relaunch
+  // but tight enough that a long-abandoned draft from last week doesn't get
+  // hijacked by an unrelated new chat about a different project of the same
+  // name.
   useEffect(() => {
     if (initialProjectId) return;
     if (projectIdRef.current) return;
@@ -451,6 +459,42 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
     (async () => {
       try {
+        // 1. Look for an existing in-progress draft for this user that
+        //    matches the chat-extracted name + client. Use the most recently
+        //    updated one so resuming feels predictable.
+        const userId = await getCurrentUserId();
+        if (userId) {
+          try {
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const nameKey = (initial.name || '').trim();
+            const clientKey = (initial.client || '').trim();
+            let q = supabase
+              .from('projects')
+              .select('id, name, client_name, updated_at')
+              .eq('user_id', userId)
+              .eq('status', 'draft')
+              .gte('updated_at', since)
+              .order('updated_at', { ascending: false })
+              .limit(5);
+            if (nameKey) q = q.ilike('name', nameKey);
+            if (clientKey) q = q.ilike('client_name', clientKey);
+            const { data: existingDrafts } = await q;
+            const match = (existingDrafts || []).find(d =>
+              (d.name || '').trim().toLowerCase() === nameKey.toLowerCase() &&
+              (d.client_name || '').trim().toLowerCase() === clientKey.toLowerCase()
+            );
+            if (match?.id) {
+              setProjectId(match.id);
+              projectIdRef.current = match.id;
+              return;
+            }
+          } catch (lookupErr) {
+            // Lookup failure shouldn't block draft creation
+            console.warn('[ProjectBuilder] draft lookup failed', lookupErr?.message);
+          }
+        }
+
+        // 2. No existing draft → insert one.
         const draft = await saveProject({
           ...chatExtractedData,
           projectName: initial.name,
