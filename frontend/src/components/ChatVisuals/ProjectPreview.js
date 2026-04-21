@@ -1362,43 +1362,70 @@ export default function ProjectPreview({ data, onAction }) {
             <Text style={styles.buttonText}>{t('actions.viewProject')}</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={[styles.sendButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }, isSaving && { opacity: 0.7 }]}
-            disabled={isSaving}
-            onPress={async () => {
-              if (onAction) {
-                setIsSaving(true);
-                try {
-                  // Always use editedData which contains latest values (original or edited)
-                  const currentSchedule = editedData.schedule || data.schedule;
-                  const saveData = {
-                    ...data,
-                    ...editedData,
-                    phases: editedData.phases || data.phases,
-                    services: editedData.services || data.services,
-                    // FIX: Extract schedule dates to top-level so they take precedence
-                    startDate: currentSchedule?.startDate || data.startDate || data.date,
-                    endDate: currentSchedule?.estimatedEndDate || currentSchedule?.projectdEndDate || data.endDate,
-                  };
-                  const result = await onAction({ type: 'save-project', data: saveData });
-                  if (result?.projectId) {
-                    setSavedProjectId(result.projectId);
+          <View style={{ flexDirection: 'column', gap: 8, width: '100%' }}>
+            <Text style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>
+              70% pre-filled — tap Configure to add budgets, supervisor, checklist
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, opacity: isSaving ? 0.7 : 1 }}
+                disabled={isSaving}
+                onPress={async () => {
+                  if (onAction) {
+                    setIsSaving(true);
+                    try {
+                      // Always use editedData which contains latest values (original or edited)
+                      const currentSchedule = editedData.schedule || data.schedule;
+                      const saveData = {
+                        ...data,
+                        ...editedData,
+                        phases: editedData.phases || data.phases,
+                        services: editedData.services || data.services,
+                        // FIX: Extract schedule dates to top-level so they take precedence
+                        startDate: currentSchedule?.startDate || data.startDate || data.date,
+                        endDate: currentSchedule?.estimatedEndDate || currentSchedule?.projectdEndDate || data.endDate,
+                      };
+                      const result = await onAction({ type: 'save-project', data: saveData });
+                      if (result?.projectId) {
+                        setSavedProjectId(result.projectId);
+                      }
+                    } catch (error) {
+                      console.error('Error saving project:', error);
+                    } finally {
+                      setIsSaving(false);
+                    }
                   }
-                } catch (error) {
-                  console.error('Error saving project:', error);
-                } finally {
-                  setIsSaving(false);
-                }
-              }
-            }}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="save-outline" size={18} color="#fff" />
-            )}
-            <Text style={styles.buttonText}>{isSaving ? t('actions.saving') : t('actions.saveProject')}</Text>
-          </TouchableOpacity>
+                }}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#0F172A" />
+                ) : (
+                  <Ionicons name="flash-outline" size={16} color="#0F172A" />
+                )}
+                <Text style={{ fontWeight: '600', color: '#0F172A' }}>{isSaving ? t('actions.saving') : 'Save Now'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#3B82F6', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                onPress={() => {
+                  if (onAction) {
+                    const currentSchedule = editedData.schedule || data.schedule;
+                    const saveData = {
+                      ...data,
+                      ...editedData,
+                      phases: editedData.phases || data.phases,
+                      services: editedData.services || data.services,
+                      startDate: currentSchedule?.startDate || data.startDate || data.date,
+                      endDate: currentSchedule?.estimatedEndDate || currentSchedule?.projectdEndDate || data.endDate,
+                    };
+                    onAction({ type: 'configure-project-details', data: saveData });
+                  }
+                }}
+              >
+                <Ionicons name="options-outline" size={16} color="#FFFFFF" />
+                <Text style={{ fontWeight: '600', color: '#FFFFFF' }}>Configure Details</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
       </View>
 

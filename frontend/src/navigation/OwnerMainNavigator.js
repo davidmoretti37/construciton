@@ -88,6 +88,9 @@ import ClientsScreen from '../screens/owner/ClientsScreen';
 // Import manual project creation
 import ManualProjectCreateScreen from '../screens/owner/ManualProjectCreateScreen';
 
+// Import configure details project builder
+import ProjectBuilderScreen from '../screens/owner/ProjectBuilderScreen';
+
 // Import service plan screens
 import ServicePlanDetailScreen from '../screens/owner/ServicePlanDetailScreen';
 import DailyRouteScreen from '../screens/owner/DailyRouteScreen';
@@ -110,6 +113,11 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="ManualProjectCreate"
         component={ManualProjectCreateScreen}
+      />
+      <Stack.Screen
+        name="ProjectBuilder"
+        component={ProjectBuilderScreen}
+        options={{ contentStyle: { backgroundColor: '#1E3A8A' } }}
       />
       <Stack.Screen
         name="ProjectDetail"

@@ -27,6 +27,7 @@ import ProjectDetailScreen from '../screens/ProjectDetailScreen';
 import ProjectTransactionsScreen from '../screens/ProjectTransactionsScreen';
 import TransactionEntryScreen from '../screens/TransactionEntryScreen';
 import TransactionDetailScreen from '../screens/TransactionDetailScreen';
+import ProjectBuilderScreen from '../screens/owner/ProjectBuilderScreen';
 
 // Import navigators
 import SettingsNavigator from './SettingsNavigator';
@@ -49,6 +50,7 @@ function ProjectsStack() {
     >
       <Stack.Screen name="ProjectsMain" component={ProjectsScreen} />
       <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} options={{ contentStyle: { backgroundColor: '#1E3A8A' } }} />
+      <Stack.Screen name="ProjectBuilder" component={ProjectBuilderScreen} options={{ contentStyle: { backgroundColor: '#1E3A8A' } }} />
       <Stack.Screen name="PhaseDetail" component={PhaseDetailScreen} />
       <Stack.Screen name="ProjectTransactions" component={ProjectTransactionsScreen} />
       <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} />

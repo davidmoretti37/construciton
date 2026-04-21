@@ -1644,7 +1644,7 @@ export default function ChatScreen({ navigation, route }) {
     const SUPERVISOR_RESTRICTED_ACTIONS = [
       'save-estimate', 'create-estimate', 'confirm-estimate', 'generate-estimate',
       'convert-estimate-to-invoice', 'create-invoice', 'save-invoice',
-      'create-project', 'save-project', 'confirm-project',
+      'create-project', 'save-project', 'confirm-project', 'configure-project-details',
       'create-project-from-screenshot', 'create-project-from-estimate',
       'get-worker-payment'
     ];
@@ -1714,6 +1714,9 @@ export default function ChatScreen({ navigation, route }) {
         break;
       case 'edit-project-details':
         handleSend('I want to edit the project details', false);
+        break;
+      case 'configure-project-details':
+        navigation.navigate('ProjectBuilder', { chatExtractedData: action.data });
         break;
       case 'create-estimate':
         const pName = action.projectName || action.data?.projectName;
