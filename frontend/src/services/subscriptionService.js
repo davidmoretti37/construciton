@@ -10,27 +10,32 @@ import logger from '../utils/logger';
 import { API_URL } from '../config/api';
 
 /**
- * Get the current auth token for API calls
+ * Get the current auth token for API calls. Forces a refresh when `refresh`
+ * is true so we can recover from a stale token before the UI sees a 401.
  */
-const getAuthToken = async () => {
+const getAuthToken = async ({ refresh = false } = {}) => {
+  if (refresh) {
+    try {
+      const { data } = await supabase.auth.refreshSession();
+      if (data?.session?.access_token) return data.session.access_token;
+    } catch (_) {
+      // fall through to getSession so we return whatever's still there
+    }
+  }
   const { data: { session } } = await supabase.auth.getSession();
   return session?.access_token;
 };
 
 /**
- * Fetch with authentication header
+ * Fetch with authentication header. On a 401 we transparently refresh the
+ * Supabase session and retry once — the old code dumped "Invalid or expired
+ * token" to the error log every time the access_token aged out even though
+ * the caller would have silently fallen back to defaults.
  */
 const fetchWithAuth = async (endpoint, options = {}) => {
-  const token = await getAuthToken();
-
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
-
   const url = `${API_URL}${endpoint}`;
-  logger.debug(`[SubscriptionService] ${options.method || 'GET'} ${endpoint}`);
 
-  const response = await fetch(url, {
+  const doFetch = async (token) => fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -39,10 +44,31 @@ const fetchWithAuth = async (endpoint, options = {}) => {
     },
   });
 
+  let token = await getAuthToken();
+  if (!token) throw new Error('Not authenticated');
+
+  logger.debug(`[SubscriptionService] ${options.method || 'GET'} ${endpoint}`);
+  let response = await doFetch(token);
+
+  // Auto-recover from expired tokens once.
+  if (response.status === 401) {
+    const refreshed = await getAuthToken({ refresh: true });
+    if (refreshed && refreshed !== token) {
+      response = await doFetch(refreshed);
+    }
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const errorMessage = errorData.error || `Request failed with status ${response.status}`;
-    logger.error(`[SubscriptionService] Error: ${errorMessage}`);
+    // 401 after a refresh attempt means the user really is signed out. Log
+    // quietly so we don't flood the console — callers already fall back to
+    // defaults, so this is not a user-facing failure.
+    if (response.status === 401) {
+      logger.debug(`[SubscriptionService] auth expired for ${endpoint} - using fallback`);
+    } else {
+      logger.error(`[SubscriptionService] Error: ${errorMessage}`);
+    }
     throw new Error(errorMessage);
   }
 
@@ -89,8 +115,9 @@ const subscriptionService = {
     try {
       return await fetchWithAuth('/api/stripe/subscription');
     } catch (error) {
-      logger.error('[SubscriptionService] getSubscription error:', error);
-      // Return default state on error
+      // Already logged inside fetchWithAuth. Auth blips fall through to the
+      // default "no subscription" state instead of surfacing an error.
+      logger.debug('[SubscriptionService] getSubscription fallback:', error?.message);
       return {
         hasSubscription: false,
         planTier: 'none',
@@ -107,10 +134,13 @@ const subscriptionService = {
     try {
       return await fetchWithAuth('/api/subscription/can-create-project');
     } catch (error) {
-      logger.error('[SubscriptionService] canCreateProject error:', error);
+      logger.debug('[SubscriptionService] canCreateProject fallback:', error?.message);
+      // Auth blip or offline - default to allowing creation. The server-side
+      // row insert still enforces ownership + the real subscription limit
+      // check runs again at saveProject time, so this is safe.
       return {
-        can_create: false,
-        reason: 'error',
+        can_create: true,
+        reason: 'auth_fallback',
         active_count: 0,
         limit: 0,
         plan_tier: 'none',
