@@ -2759,11 +2759,12 @@ async function update_phase_budget(userId, { project_id, phase_name, budget }) {
   if (resolved.suggestions) return resolved;
 
   // Find phase by fuzzy name match within the project
+  const safeName = String(phase_name).replace(/[%_]/g, '\\$&');
   const { data: phases } = await supabase
     .from('project_phases')
     .select('id, name, budget')
     .eq('project_id', resolved.id)
-    .ilike('name', `%${phase_name}%`);
+    .ilike('name', `%${safeName}%`);
 
   if (!phases || phases.length === 0) {
     return { error: `No phase matching "${phase_name}" found in project` };

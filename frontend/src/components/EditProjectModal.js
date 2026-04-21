@@ -195,9 +195,11 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
         // (id starts with "draft-") don't exist in the DB yet, so we skip
         // them — their budget lives on the embedded projectData.phases.
         if (phases.length > 0) {
+          const failedPhases = [];
           for (const phase of phases) {
             if (phase.id && !String(phase.id).startsWith('draft-')) {
-              await updatePhaseBudget(phase.id, parseFloat(phase.budget) || 0);
+              const ok = await updatePhaseBudget(phase.id, parseFloat(phase.budget) || 0);
+              if (!ok) failedPhases.push(phase.name || 'phase');
             }
           }
           // Reflect the updated budgets on the object we return to the
@@ -209,6 +211,13 @@ export default function EditProjectModal({ visible, onClose, projectData, onSave
             });
           } else {
             saved.phases = phases.map(p => ({ ...p, budget: parseFloat(p.budget) || 0 }));
+          }
+          if (failedPhases.length > 0) {
+            Alert.alert(
+              'Partial save',
+              `Project saved, but these phase budgets failed to update: ${failedPhases.join(', ')}. Please try again.`
+            );
+            return; // keep modal open so user can retry
           }
         }
         onSave && onSave(saved);
