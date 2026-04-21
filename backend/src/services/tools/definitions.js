@@ -1694,7 +1694,10 @@ const TOOL_STATUS_MESSAGES = {
   share_document: 'Preparing document to share...',
   // Mutation tools
   delete_project: 'Deleting project...',
+  update_project: 'Updating project...',
   record_expense: 'Recording transaction...',
+  delete_expense: 'Deleting expense...',
+  update_expense: 'Updating expense...',
   update_phase_progress: 'Updating phase progress...',
   convert_estimate_to_invoice: 'Creating invoice from estimate...',
   update_invoice: 'Updating invoice...',
