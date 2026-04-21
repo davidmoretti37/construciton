@@ -504,6 +504,22 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       assignedSupervisorId: selectedSupervisor || null,
       workers: selectedWorkerIds,
       linkedEstimateId: linkedEstimateId || null,
+      // Include checklist + labor in every draft save so users don't lose
+      // typed items when they background the app mid-build.
+      checklist_items: checklistItems
+        .filter((c) => (c.title || '').trim())
+        .map((c) => ({
+          title: c.title.trim(),
+          item_type: c.item_type || 'checkbox',
+          quantity_unit: c.quantity_unit || null,
+          requires_photo: !!c.requires_photo,
+        })),
+      labor_roles: laborRoles
+        .filter((r) => (r.role_name || '').trim())
+        .map((r) => ({
+          role_name: r.role_name.trim(),
+          default_quantity: Math.max(1, parseInt(r.default_quantity, 10) || 1),
+        })),
     };
   }, [
     name,
@@ -521,6 +537,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     selectedSupervisor,
     selectedWorkerIds,
     linkedEstimateId,
+    checklistItems,
+    laborRoles,
   ]);
 
   const buildPhasesPayload = useCallback(() => {
@@ -530,6 +548,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       plannedDays: parseInt(p.plannedDays, 10) || 0,
       budget: parseFloat(p.budget) || 0,
       order: i,
+      order_index: typeof p.order_index === 'number' ? p.order_index : i,
+      assignedWorkerId: p.assignedWorkerId || null,
+      services: Array.isArray(p.services) ? p.services : [],
       tasks: (p.tasks || [])
         .filter((t) => (t.description || '').trim())
         .map((t, j) => ({
@@ -549,29 +570,37 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     // another pass once we're free.
     if (savingRef.current) return;
     savingRef.current = true;
+    let hadError = false;
     try {
       setAutoSaveStatus('saving');
       const payload = buildSavePayload('draft');
+      // Attach phases to the main save so saveProject's upsertProjectPhases
+      // path runs. Using the non-destructive upsert there means a failed phase
+      // save won't wipe previously-persisted phases.
+      payload.phases = buildPhasesPayload();
       const saved = await saveProject(payload);
-      if (saved?.id && mountedRef.current) {
-        setProjectId(saved.id);
-        projectIdRef.current = saved.id;
+      if (saved === null) {
+        hadError = true;
+      } else if (saved?.id) {
+        if (mountedRef.current) {
+          setProjectId(saved.id);
+          projectIdRef.current = saved.id;
+        }
+        if (saved.phaseSaveOk === false) hadError = true;
       }
-      // Persist phases separately (upsert)
+      // After saveProject persists phases (via upsert), re-pull the real UUIDs
+      // so subsequent autosaves don't re-insert draft rows. We ask upsert
+      // directly here with an empty phase set — it just returns the live
+      // project_phases snapshot used for syncing.
       const phasePayload = buildPhasesPayload();
-      if (phasePayload.length > 0 && projectIdRef.current) {
+      if (phasePayload.length > 0 && projectIdRef.current && mountedRef.current) {
         try {
           const result = await upsertProjectPhases(projectIdRef.current, phasePayload, {
             startDate: toISODate(startDate),
             endDate: toISODate(endDate),
             workingDays,
           });
-          // Sync inserted phase UUIDs back into local state so the next
-          // autosave doesn't treat them as brand-new rows and duplicate them.
-          // Match by order_index (falling back to array position) — at this
-          // point phases without ids were just inserted, so their order is
-          // stable.
-          if (result && Array.isArray(result.phases) && mountedRef.current) {
+          if (result && Array.isArray(result.phases)) {
             const returned = result.phases;
             setPhases((prev) =>
               prev.map((p, i) => {
@@ -584,13 +613,19 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               })
             );
           }
+          if (result === false || (result && result.ok === false)) hadError = true;
         } catch (phaseErr) {
           console.warn('[ProjectBuilder] upsertProjectPhases failed', phaseErr);
+          hadError = true;
         }
       }
       if (mountedRef.current) {
-        setAutoSaveStatus('saved');
-        setLastSavedAt(new Date());
+        if (hadError) {
+          setAutoSaveStatus('error');
+        } else {
+          setAutoSaveStatus('saved');
+          setLastSavedAt(new Date());
+        }
       }
     } catch (e) {
       console.warn('[ProjectBuilder] auto-save failed', e);
@@ -636,6 +671,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     selectedSupervisor,
     selectedWorkerIds,
     linkedEstimateId,
+    checklistItems,
+    laborRoles,
   ]);
 
   // Force-flush on unmount or app background.
@@ -986,54 +1023,26 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     const doSave = async () => {
       setFinalSaving(true);
       try {
+        // Flush any pending debounce first so nothing stale races the final save.
+        await flushSaveRef.current?.();
+
         const payload = buildSavePayload('active');
-        // Embed phases + checklist + labor into the payload so downstream
-        // handling (saveProject → auto-seed trade budgets) sees them.
         payload.phases = buildPhasesPayload();
-        payload.checklist_items = checklistItems.filter((c) => (c.title || '').trim());
-        payload.labor_roles = laborRoles.filter((r) => (r.role_name || '').trim());
+        // saveProject now handles checklist_items + labor_roles directly.
         const saved = await saveProject(payload);
         if (saved?.error === 'limit_reached') {
           Alert.alert('Project Limit Reached', saved.reason || 'Upgrade your plan to create more projects.');
           return;
         }
         if (!saved?.id) {
-          Alert.alert('Error', 'Failed to create project. Please try again.');
+          Alert.alert(
+            'Save failed',
+            "Couldn't save the project — check your connection and try again. Your draft is still here.",
+          );
           return;
         }
 
-        // Persist checklist/labor templates if new
-        try {
-          const userId = await getCurrentUserId();
-          if (userId && payload.checklist_items.length > 0) {
-            await supabase.from('daily_checklist_templates').insert(
-              payload.checklist_items.map((item, i) => ({
-                project_id: saved.id,
-                owner_id: userId,
-                title: item.title,
-                item_type: item.item_type || 'checkbox',
-                quantity_unit: item.quantity_unit || null,
-                requires_photo: !!item.requires_photo,
-                sort_order: i,
-              }))
-            );
-          }
-          if (userId && payload.labor_roles.length > 0) {
-            await supabase.from('labor_role_templates').insert(
-              payload.labor_roles.map((role, i) => ({
-                project_id: saved.id,
-                owner_id: userId,
-                role_name: role.role_name,
-                default_quantity: role.default_quantity || 1,
-                sort_order: i,
-              }))
-            );
-          }
-        } catch (e) {
-          console.warn('[ProjectBuilder] checklist/labor insert failed', e);
-        }
-
-        // Worker assignments
+        // Worker assignments (best-effort; duplicates are expected if autosave already wrote them)
         if (selectedWorkerIds.length > 0) {
           try {
             await supabase.from('project_assignments').insert(
@@ -1044,10 +1053,30 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           }
         }
 
+        // Graceful partial success: if phases didn't all save, still navigate
+        // but tell the user so they can retry from Edit Project.
+        if (saved.phaseSaveOk === false) {
+          Alert.alert(
+            'Project created',
+            'Some phases didn\'t save. Open the project and retry from Edit Project.',
+            [
+              {
+                text: 'OK',
+                onPress: () =>
+                  navigation.replace('ProjectDetail', { project: saved, projectId: saved.id, isDemo: false }),
+              },
+            ]
+          );
+          return;
+        }
+
         navigation.replace('ProjectDetail', { project: saved, projectId: saved.id, isDemo: false });
       } catch (e) {
         console.error('[ProjectBuilder] final save error', e);
-        Alert.alert('Error', 'Something went wrong. Please try again.');
+        Alert.alert(
+          'Save failed',
+          "Something went wrong saving the project. Your draft is still here — try again in a moment.",
+        );
       } finally {
         setFinalSaving(false);
       }
@@ -1102,9 +1131,31 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
             <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Configure Project</Text>
-            <Text style={{ fontSize: 11, color: Colors.secondaryText }}>
-              {autoSaveStatus === 'saving' ? 'Saving…' : autoSaveStatus === 'saved' && lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : autoSaveStatus === 'error' ? 'Save failed' : 'Draft'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {autoSaveStatus === 'error' && (
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#DC2626', marginRight: 5 }} />
+              )}
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: autoSaveStatus === 'error' ? '#DC2626' : Colors.secondaryText,
+                  fontWeight: autoSaveStatus === 'error' ? '700' : '400',
+                }}
+              >
+                {autoSaveStatus === 'saving'
+                  ? 'Saving…'
+                  : autoSaveStatus === 'saved' && lastSavedAt
+                  ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : autoSaveStatus === 'error'
+                  ? 'Save failed · retrying…'
+                  : 'Draft'}
+              </Text>
+              {autoSaveStatus === 'error' && (
+                <TouchableOpacity onPress={() => flushSaveRef.current?.()} style={{ marginLeft: 6 }}>
+                  <Text style={{ color: Colors.primaryBlue, fontSize: 11, fontWeight: '700' }}>Retry</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           <View style={{ width: 40 }} />
         </View>

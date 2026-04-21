@@ -1353,13 +1353,41 @@ export const resetProjectProgressToAutomatic = async (projectId) => {
  *   sync newly-minted UUIDs back into local state). Returns `false` on a
  *   hard failure so existing truthy checks keep working.
  */
+// Retry helper for transient network failures (RN on cellular is flaky).
+// Retries up to `retries` times with exponential backoff. Throws only if every
+// attempt fails.
+const withRetry = async (fn, { retries = 2, baseDelay = 500, label = 'op' } = {}) => {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = err?.message || String(err);
+      const isNetwork = /Network request failed|fetch|timeout|aborted/i.test(msg);
+      if (attempt === retries || !isNetwork) break;
+      const delay = baseDelay * Math.pow(2, attempt); // 500, 1000, 2000…
+      console.warn(`[${label}] retry ${attempt + 1}/${retries} after ${delay}ms:`, msg);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+};
+
 export const upsertProjectPhases = async (projectId, phases, schedule = null) => {
   try {
     // 1. Fetch existing phases for this project so we can diff
-    const { data: existingPhases, error: fetchError } = await supabase
-      .from('project_phases')
-      .select('id')
-      .eq('project_id', projectId);
+    const { data: existingPhases, error: fetchError } = await withRetry(
+      async () => {
+        const r = await supabase
+          .from('project_phases')
+          .select('id')
+          .eq('project_id', projectId);
+        if (r.error) throw r.error;
+        return r;
+      },
+      { label: 'upsertProjectPhases.fetch' }
+    ).catch((e) => ({ data: null, error: e }));
 
     if (fetchError) {
       console.error('upsertProjectPhases fetch error:', fetchError);
@@ -1385,7 +1413,7 @@ export const upsertProjectPhases = async (projectId, phases, schedule = null) =>
         calculatedDays = Math.max(1, daysDiff);
       }
 
-      return {
+      const row = {
         project_id: projectId,
         name: phase.name,
         order_index: typeof phase.order_index === 'number' ? phase.order_index : index,
@@ -1394,6 +1422,11 @@ export const upsertProjectPhases = async (projectId, phases, schedule = null) =>
         end_date: phaseEndDate,
         budget: parseFloat(phase.budget) || 0,
       };
+      // Persist tasks + services when provided (draft autosave sends them)
+      if (Array.isArray(phase.tasks)) row.tasks = phase.tasks;
+      if (Array.isArray(phase.services)) row.services = phase.services;
+      if (phase.assignedWorkerId !== undefined) row.assigned_worker_id = phase.assignedWorkerId;
+      return row;
     };
 
     // 2. Classify incoming phases: new vs existing
@@ -1421,105 +1454,128 @@ export const upsertProjectPhases = async (projectId, phases, schedule = null) =>
     // 4. Safety: only delete phases with no worker_tasks referencing them
     let idsToDelete = [];
     if (deleteCandidateIds.length > 0) {
-      const { data: referencingTasks, error: tasksError } = await supabase
-        .from('worker_tasks')
-        .select('phase_task_id')
-        .eq('project_id', projectId)
-        .not('phase_task_id', 'is', null);
+      try {
+        const { data: referencingTasks } = await withRetry(
+          async () => {
+            const r = await supabase
+              .from('worker_tasks')
+              .select('phase_task_id')
+              .eq('project_id', projectId)
+              .not('phase_task_id', 'is', null);
+            if (r.error) throw r.error;
+            return r;
+          },
+          { label: 'upsertProjectPhases.worker_tasks' }
+        );
 
-      if (tasksError) {
-        console.error('upsertProjectPhases worker_tasks check error:', tasksError);
-        // Fail safe: skip deletes if we can't verify
-        idsToDelete = [];
-      } else {
-        // worker_tasks.phase_task_id is a string — we only block delete if any task
-        // references the phase by id. We err on the side of not deleting if unsure.
         const referencedPhaseTaskIds = new Set(
           (referencingTasks || []).map(t => t.phase_task_id).filter(Boolean)
         );
-
-        // Fetch the candidate phases to check their task ids
-        const { data: candidatePhases } = await supabase
-          .from('project_phases')
-          .select('id, name, tasks')
-          .in('id', deleteCandidateIds);
-
+        const { data: candidatePhases } = await withRetry(
+          async () => {
+            const r = await supabase
+              .from('project_phases')
+              .select('id, name, tasks')
+              .in('id', deleteCandidateIds);
+            if (r.error) throw r.error;
+            return r;
+          },
+          { label: 'upsertProjectPhases.candidates' }
+        );
         idsToDelete = (candidatePhases || [])
           .filter(p => {
-            const taskIds = (p.tasks || []).map(
-              (t, i) => t.id || `${p.name}-${i}`
-            );
-            // If any task id is referenced OR any `phase-task-*` style id points at this phase,
-            // keep the phase. Only delete if none of its task ids are referenced.
+            const taskIds = (p.tasks || []).map((t, i) => t.id || `${p.name}-${i}`);
             return !taskIds.some(tid => referencedPhaseTaskIds.has(tid));
           })
           .map(p => p.id);
+      } catch (e) {
+        // Fail safe: skip deletes if we can't verify
+        console.warn('upsertProjectPhases delete safety check failed, skipping deletes:', e?.message);
+        idsToDelete = [];
       }
     }
 
-    // 5. Apply DELETEs
+    // 5. Apply DELETEs (retry once on network failure)
     if (idsToDelete.length > 0) {
-      const { error: deleteError } = await supabase
-        .from('project_phases')
-        .delete()
-        .in('id', idsToDelete);
-      if (deleteError) {
-        console.error('upsertProjectPhases delete error:', deleteError);
+      try {
+        await withRetry(
+          async () => {
+            const r = await supabase.from('project_phases').delete().in('id', idsToDelete);
+            if (r.error) throw r.error;
+            return r;
+          },
+          { label: 'upsertProjectPhases.delete' }
+        );
+      } catch (e) {
+        console.error('upsertProjectPhases delete error:', e?.message);
         return false;
       }
     }
 
-    // 6. Apply INSERTs — select() so callers get real UUIDs back for
-    //    newly-inserted phases (used to sync local state and avoid re-
-    //    inserting the same phase on subsequent autosaves).
-    let insertedRows = [];
-    if (toInsert.length > 0) {
-      const { data: insertedData, error: insertError } = await supabase
-        .from('project_phases')
-        .insert(toInsert)
-        .select();
-      if (insertError) {
-        console.error('upsertProjectPhases insert error:', insertError);
-        return false;
-      }
-      insertedRows = insertedData || [];
-    }
-
-    // 7. Apply UPDATEs (one round-trip per phase — small N, acceptable)
-    for (const { id, updates } of toUpdate) {
-      const { error: updateError } = await supabase
-        .from('project_phases')
-        .update(updates)
-        .eq('id', id);
-      if (updateError) {
-        console.error('upsertProjectPhases update error:', updateError);
-        return false;
-      }
-    }
-
-    // 8. Mirror has_phases on the project row
-    const { error: projectUpdateError } = await supabase
-      .from('projects')
-      .update({ has_phases: incoming.length > 0 })
-      .eq('id', projectId);
-    if (projectUpdateError) {
-      console.error('upsertProjectPhases project has_phases update error:', projectUpdateError);
-      // non-fatal
-    }
-
-    // 9. Build the return set: inserted rows (with real UUIDs) + updated
-    //    rows (we already know their ids). The caller uses this to sync
-    //    local phase state so the next autosave doesn't re-insert them.
-    const returnedPhases = [
-      ...insertedRows.map((r) => ({ id: r.id, order_index: r.order_index, name: r.name })),
-      ...toUpdate.map(({ id, updates }) => ({
-        id,
-        order_index: updates.order_index,
-        name: updates.name,
-      })),
+    // 6+7. Batched upsert — single round trip instead of 1 insert + N updates.
+    // Rows with an `id` get updated; rows without one get inserted (Postgres
+    // generates the UUID server-side). `ignoreDuplicates: false` means
+    // conflicts on (id) UPDATE rather than skip.
+    let returnedRows = [];
+    const allRows = [
+      ...toInsert.map((r) => ({ ...r })),
+      ...toUpdate.map(({ id, updates }) => ({ id, ...updates })),
     ];
+    const failedPhaseIds = [];
+    if (allRows.length > 0) {
+      try {
+        const { data } = await withRetry(
+          async () => {
+            const r = await supabase
+              .from('project_phases')
+              .upsert(allRows, { onConflict: 'id', ignoreDuplicates: false })
+              .select('id, order_index, name');
+            if (r.error) throw r.error;
+            return r;
+          },
+          { label: 'upsertProjectPhases.upsert' }
+        );
+        returnedRows = data || [];
+      } catch (e) {
+        console.error('upsertProjectPhases upsert error:', e?.message);
+        // Record which phases didn't make it so the caller can report partial success.
+        toUpdate.forEach(({ id }) => failedPhaseIds.push(id));
+        // Keep going — we'd rather report partial success than nuke unrelated
+        // already-saved phases by returning false to the caller.
+      }
+    }
 
-    return { ok: true, phases: returnedPhases };
+    // 8. Mirror has_phases on the project row (non-fatal, single retry)
+    try {
+      await withRetry(
+        async () => {
+          const r = await supabase
+            .from('projects')
+            .update({ has_phases: incoming.length > 0 })
+            .eq('id', projectId);
+          if (r.error) throw r.error;
+          return r;
+        },
+        { label: 'upsertProjectPhases.project_has_phases' }
+      );
+    } catch (e) {
+      // non-fatal
+      console.warn('upsertProjectPhases project has_phases update failed:', e?.message);
+    }
+
+    // 9. Build the return set from the single upsert result so callers sync
+    //    newly-minted UUIDs for any previously-draft phases.
+    const returnedPhases = returnedRows.map((r) => ({
+      id: r.id,
+      order_index: r.order_index,
+      name: r.name,
+    }));
+
+    return {
+      ok: failedPhaseIds.length === 0,
+      phases: returnedPhases,
+      failedPhaseIds,
+    };
   } catch (error) {
     console.error('Error in upsertProjectPhases:', error);
     return false;

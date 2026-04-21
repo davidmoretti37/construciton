@@ -255,10 +255,25 @@ export const saveProject = async (projectData) => {
       result = data;
     }
 
-    // Save phases if provided (this also creates worker_tasks distributed across working days)
+    // Save phases if provided. Use the NON-destructive upsert so a network
+    // blip mid-save can't wipe pre-existing phases (the old destructive path
+    // deleted everything first, then re-inserted — a failed insert left the
+    // project with zero phases).
+    let phaseSaveOk = true;
+    let failedPhaseIds = [];
     if (projectData.phases && projectData.phases.length > 0) {
-      const { saveProjectPhases } = await import('./projectPhases');
-      await saveProjectPhases(result.id, projectData.phases, projectData.schedule);
+      const { upsertProjectPhases } = await import('./projectPhases');
+      const phaseResult = await upsertProjectPhases(
+        result.id,
+        projectData.phases,
+        projectData.schedule
+      );
+      if (phaseResult === false) {
+        phaseSaveOk = false;
+      } else if (phaseResult && phaseResult.ok === false) {
+        phaseSaveOk = false;
+        failedPhaseIds = phaseResult.failedPhaseIds || [];
+      }
 
       // Auto-create trade budgets from phase names (seed with $0 — owner sets amounts later)
       try {
@@ -327,8 +342,58 @@ export const saveProject = async (projectData) => {
       }
     }
 
+    // Persist daily checklist + labor role templates if provided (draft
+    // autosave sends them every 2s; we idempotently reconcile).
+    if (Array.isArray(projectData.checklist_items)) {
+      try {
+        const clean = projectData.checklist_items
+          .filter(c => c && (c.title || '').trim())
+          .map((c, i) => ({
+            project_id: result.id,
+            owner_id: userId,
+            title: String(c.title).trim(),
+            item_type: c.item_type === 'quantity' ? 'quantity' : 'checkbox',
+            quantity_unit: c.quantity_unit || null,
+            requires_photo: !!c.requires_photo,
+            sort_order: i,
+          }));
+        // Simple strategy: delete-then-insert, scoped to this project. The
+        // templates table has no child references, so this is safe.
+        await supabase.from('daily_checklist_templates').delete().eq('project_id', result.id);
+        if (clean.length > 0) {
+          await supabase.from('daily_checklist_templates').insert(clean);
+        }
+      } catch (e) {
+        console.warn('[saveProject] checklist_items persist failed:', e?.message);
+      }
+    }
+    if (Array.isArray(projectData.labor_roles)) {
+      try {
+        const clean = projectData.labor_roles
+          .filter(r => r && (r.role_name || '').trim())
+          .map((r, i) => ({
+            project_id: result.id,
+            owner_id: userId,
+            role_name: String(r.role_name).trim(),
+            default_quantity: Math.max(1, parseInt(r.default_quantity, 10) || 1),
+            sort_order: i,
+          }));
+        await supabase.from('labor_role_templates').delete().eq('project_id', result.id);
+        if (clean.length > 0) {
+          await supabase.from('labor_role_templates').insert(clean);
+        }
+      } catch (e) {
+        console.warn('[saveProject] labor_roles persist failed:', e?.message);
+      }
+    }
+
     clearCache('projects');
-    return transformProjectFromDB(result);
+    const transformed = transformProjectFromDB(result);
+    // Surface partial-phase-save information so UI can warn instead of silently
+    // navigating to a project with missing phases.
+    transformed.phaseSaveOk = phaseSaveOk;
+    transformed.failedPhaseIds = failedPhaseIds;
+    return transformed;
   } catch (error) {
     console.error('❌ [saveProject] Error:', error);
     return null;
