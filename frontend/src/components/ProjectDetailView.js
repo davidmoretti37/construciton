@@ -137,6 +137,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // Financials collapsible + trade budgets
   const [financialsExpanded, setFinancialsExpanded] = useState(true);
   const [tradeBudgets, setTradeBudgets] = useState([]);
+  // Map of lowercased name → total spent. Keyed by both phase name and trade
+  // name so the merged Budget Breakdown card can show "Spent X of Y" per phase
+  // and per orphan trade. Computed from project_transactions.subcategory.
+  const [spentBySubcategory, setSpentBySubcategory] = useState({});
   const [showAddTrade, setShowAddTrade] = useState(false);
   const [newTradeName, setNewTradeName] = useState('');
   const [newTradeAmount, setNewTradeAmount] = useState('');
@@ -257,16 +261,21 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         // Trade budgets with paid amounts
         const budgets = tradeBudgetsResult.status === 'fulfilled' ? (tradeBudgetsResult.value?.data || []) : [];
         const txns = tradeExpensesResult.status === 'fulfilled' ? (tradeExpensesResult.value?.data || []) : [];
+        // Aggregate spend by subcategory (case-insensitive). Used by both the
+        // trade-budget list and the per-phase "Spent" overlay in Budget
+        // Breakdown — phases match by phase name == subcategory.
+        const paidByKey = {};
+        txns.forEach(tx => {
+          const key = (tx.subcategory || '').toLowerCase().trim();
+          if (!key) return;
+          paidByKey[key] = (paidByKey[key] || 0) + (parseFloat(tx.amount) || 0);
+        });
+        setSpentBySubcategory(paidByKey);
         if (budgets.length > 0) {
-          const paidByTrade = {};
-          txns.forEach(tx => {
-            const key = (tx.subcategory || '').toLowerCase();
-            paidByTrade[key] = (paidByTrade[key] || 0) + (parseFloat(tx.amount) || 0);
-          });
           setTradeBudgets(budgets.map(b => ({
             ...b,
-            paid: paidByTrade[b.trade_name.toLowerCase()] || 0,
-            remaining: (parseFloat(b.budget_amount) || 0) - (paidByTrade[b.trade_name.toLowerCase()] || 0),
+            paid: paidByKey[b.trade_name.toLowerCase()] || 0,
+            remaining: (parseFloat(b.budget_amount) || 0) - (paidByKey[b.trade_name.toLowerCase()] || 0),
           })));
         } else {
           setTradeBudgets([]);
@@ -493,6 +502,35 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         next.add(phase.id);
       }
       return next;
+    });
+  };
+
+  // Navigate to per-phase transactions list (filtered by subcategory == phase name).
+  const handleViewPhaseTransactions = (phase) => {
+    if (!navigation || !phase) return;
+    wasNavigatingRef.current = true;
+    setModalVisible(false);
+    navigation.navigate('ProjectTransactions', {
+      projectId: project.id,
+      projectName: project.name,
+      fromProjectDetail: true,
+      transactionType: 'expense',
+      subcategoryFilter: phase.name,
+    });
+  };
+
+  // Open Add Transaction prefilled with this phase as the subcategory.
+  const handleAddPhaseTransaction = (phase) => {
+    if (!navigation || !phase) return;
+    wasNavigatingRef.current = true;
+    setModalVisible(false);
+    navigation.navigate('TransactionEntry', {
+      projectId: project.id,
+      projectName: project.name,
+      type: 'expense',
+      category: 'subcontractor',
+      subcategory: phase.name,
+      phaseId: phase.id,
     });
   };
 
@@ -1345,92 +1383,103 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     </View>
                   )}
 
-                  {/* Trade Budget Items */}
-                  {tradeBudgets.length > 0 && (
-                    <>
+                  {/* Phases — merged from the old Work Sections card. Each phase
+                      shows budget + spent + tasks (when expanded) + per-phase
+                      transactions CTAs. Tap a phase to see its tasks. */}
+                  {project.hasPhases && phases.length > 0 && (
+                    <View style={{ marginTop: contractAmount > 0 ? 18 : 0 }}>
                       {contractAmount > 0 && <View style={{ height: 1, backgroundColor: '#F1F5F9', marginBottom: 14 }} />}
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>By Trade</Text>
-                      {tradeBudgets.map((tb, idx) => {
-                        const pct = tb.budget_amount > 0 ? Math.round((tb.paid / tb.budget_amount) * 100) : 0;
-                        const isOver = tb.paid > tb.budget_amount;
-                        const barColor = isOver ? '#EF4444' : pct > 80 ? '#F59E0B' : '#3B82F6';
-                        return (
-                          <TouchableOpacity
-                            key={tb.id}
-                            style={{
-                              backgroundColor: '#F8FAFC',
-                              borderRadius: 12,
-                              padding: 14,
-                              marginBottom: idx < tradeBudgets.length - 1 ? 8 : 0,
-                            }}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              if (navigation) {
-                                wasNavigatingRef.current = true;
-                                setModalVisible(false);
-                                navigation.navigate('ProjectTransactions', {
-                                  projectId: project.id,
-                                  projectName: project.name,
-                                  fromProjectDetail: true,
-                                  transactionType: 'expense',
-                                  subcategoryFilter: tb.trade_name,
-                                });
-                              }
-                            }}
-                          >
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: barColor }} />
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{tb.trade_name}</Text>
-                              </View>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={{ fontSize: 13, fontWeight: '600', color: isOver ? '#EF4444' : '#64748B' }}>
-                                  ${tb.paid.toLocaleString()} / ${parseFloat(tb.budget_amount).toLocaleString()}
-                                </Text>
-                                <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
-                              </View>
-                            </View>
-                            <View style={{ height: 5, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
-                              <View style={{
-                                height: 5, borderRadius: 3,
-                                width: `${Math.min(100, pct)}%`,
-                                backgroundColor: barColor,
-                              }} />
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-                              <Text style={{ fontSize: 11, color: '#94A3B8' }}>
-                                {isOver ? `Over by $${(tb.paid - tb.budget_amount).toLocaleString()}` : `$${tb.remaining.toLocaleString()} left`}
-                              </Text>
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: isOver ? '#EF4444' : barColor }}>{pct}%</Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </>
-                  )}
-
-                  {/* Phase Budgets */}
-                  {phases.filter(p => (parseFloat(p.budget) || 0) > 0).length > 0 && (
-                    <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
-                        Phase Budgets
-                      </Text>
-                      {phases.filter(p => (parseFloat(p.budget) || 0) > 0).map(phase => (
-                        <View key={phase.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
-                          <Text style={{ fontSize: 13, color: '#0F172A' }}>{phase.name}</Text>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#16A34A' }}>
-                            ${Number(phase.budget).toLocaleString()}
-                          </Text>
-                        </View>
-                      ))}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>Total Phase Budgets</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#16A34A' }}>
-                          ${phases.reduce((s, p) => s + (parseFloat(p.budget) || 0), 0).toLocaleString()}
-                        </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>Phases</Text>
+                        <TouchableOpacity onPress={() => setShowBulkShiftModal(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.primaryBlue + '15' }}>
+                          <Ionicons name="calendar-outline" size={12} color={Colors.primaryBlue} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.primaryBlue }}>{t('buttons.shiftTasks')}</Text>
+                        </TouchableOpacity>
                       </View>
+                      <PhaseTimeline
+                        phases={phases}
+                        projectProgress={calculatedProgress}
+                        onPhasePress={handlePhasePress}
+                        onTaskToggle={handleTaskToggle}
+                        onTaskReorder={handleTaskReorder}
+                        onTaskMove={handleTaskMove}
+                        compact={false}
+                        expandedPhaseIds={expandedPhaseIds}
+                        isEditing={isEditingPhases}
+                        progressValues={phaseProgressValues}
+                        onProgressChange={(phaseId, value) => {
+                          setPhaseProgressValues(prev => ({ ...prev, [phaseId]: value }));
+                        }}
+                        onProgressSave={async (phaseId, value) => {
+                          const success = await updatePhaseProgress(phaseId, value);
+                          if (success) {
+                            const updated = await fetchProjectPhases(project.id);
+                            setPhases(updated);
+                          }
+                        }}
+                        phaseSpentByName={spentBySubcategory}
+                        onViewTransactions={handleViewPhaseTransactions}
+                        onAddTransaction={handleAddPhaseTransaction}
+                      />
                     </View>
                   )}
+
+                  {/* Other Trades — only orphan trade-budget rows that don't
+                      match any phase by name. Phase-named trades are already
+                      represented inline above with their per-phase spend. */}
+                  {(() => {
+                    const phaseNames = new Set((phases || []).map(p => String(p.name || '').toLowerCase()));
+                    const orphans = (tradeBudgets || []).filter(tb => !phaseNames.has(String(tb.trade_name || '').toLowerCase()));
+                    if (orphans.length === 0) return null;
+                    return (
+                      <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>
+                          Other Trades
+                        </Text>
+                        {orphans.map((tb, idx) => {
+                          const pct = tb.budget_amount > 0 ? Math.round((tb.paid / tb.budget_amount) * 100) : 0;
+                          const isOver = tb.paid > tb.budget_amount;
+                          const barColor = isOver ? '#EF4444' : pct > 80 ? '#F59E0B' : '#3B82F6';
+                          return (
+                            <TouchableOpacity
+                              key={tb.id}
+                              style={{ paddingVertical: 8, marginBottom: idx < orphans.length - 1 ? 4 : 0 }}
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                if (navigation) {
+                                  wasNavigatingRef.current = true;
+                                  setModalVisible(false);
+                                  navigation.navigate('ProjectTransactions', {
+                                    projectId: project.id,
+                                    projectName: project.name,
+                                    fromProjectDetail: true,
+                                    transactionType: 'expense',
+                                    subcategoryFilter: tb.trade_name,
+                                  });
+                                }
+                              }}
+                            >
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: barColor }} />
+                                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A' }}>{tb.trade_name}</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '600', color: isOver ? '#EF4444' : '#64748B' }}>
+                                    ${tb.paid.toLocaleString()} / ${parseFloat(tb.budget_amount).toLocaleString()}
+                                  </Text>
+                                  <Ionicons name="chevron-forward" size={12} color="#CBD5E1" />
+                                </View>
+                              </View>
+                              <View style={{ height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, overflow: 'hidden' }}>
+                                <View style={{ height: 4, borderRadius: 2, width: `${Math.min(100, pct)}%`, backgroundColor: barColor }} />
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    );
+                  })()}
 
                   {/* Add Trade Budget */}
                   {isOwner && !isDemo && (
@@ -1675,50 +1724,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           )}
 
-          {/* Work Sections */}
-          {project.hasPhases && phases.length > 0 && (
-            <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="layers-outline" size={20} color={Colors.primaryBlue} />
-                <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>{t('labels.projectPhases')}</Text>
-                {isEditing && (
-                  <View style={styles.editingIndicator}>
-                    <Text style={[styles.editingIndicatorText, { color: Colors.primaryBlue }]}>{t('labels.editing')}</Text>
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={[styles.shiftTasksButton, { backgroundColor: Colors.primaryBlue + '15' }]}
-                  onPress={() => setShowBulkShiftModal(true)}
-                >
-                  <Ionicons name="calendar-outline" size={16} color={Colors.primaryBlue} />
-                  <Text style={[styles.shiftTasksButtonText, { color: Colors.primaryBlue }]}>{t('buttons.shiftTasks')}</Text>
-                </TouchableOpacity>
-              </View>
-              <PhaseTimeline
-                phases={phases}
-                projectProgress={calculatedProgress}
-                onPhasePress={handlePhasePress}
-                onTaskToggle={handleTaskToggle}
-                onTaskReorder={handleTaskReorder}
-                onTaskMove={handleTaskMove}
-                compact={false}
-                expandedPhaseIds={expandedPhaseIds}
-                isEditing={isEditingPhases}
-                progressValues={phaseProgressValues}
-                onProgressChange={(phaseId, value) => {
-                  setPhaseProgressValues(prev => ({ ...prev, [phaseId]: value }));
-                }}
-                onProgressSave={async (phaseId, value) => {
-                  const success = await updatePhaseProgress(phaseId, value);
-                  if (success) {
-                    // Refresh phases
-                    const updated = await fetchProjectPhases(project.id);
-                    setPhases(updated);
-                  }
-                }}
-              />
-            </View>
-          )}
+          {/* Work Sections card removed — phases now live inside Budget Breakdown
+              with budget + spent + tasks + per-phase Transactions CTA. */}
 
           {/* Additional Tasks Section - Shows manually added tasks */}
           {manualTasks.length > 0 && (

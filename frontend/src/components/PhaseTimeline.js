@@ -19,6 +19,14 @@ export default function PhaseTimeline({
   progressValues = {},
   onProgressChange,
   onProgressSave,
+  // Optional per-phase financial overlay used by the merged Budget Breakdown
+  // card on ProjectDetailView. When `phaseSpentByName` is provided, each phase
+  // header gets a "Spent $X of $Y" line; when `onViewTransactions` is provided
+  // each expanded phase gets a "View Transactions" CTA that scopes to the
+  // phase name as a transaction subcategory filter.
+  phaseSpentByName = null,
+  onViewTransactions,
+  onAddTransaction,
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -185,6 +193,18 @@ export default function PhaseTimeline({
         // Derive status color from actual completion, not stored status
         const dotColor = completion >= 100 ? '#22C55E' : completion > 0 ? '#3B82F6' : Colors.lightGray;
 
+        // Optional financial overlay (Budget Breakdown context)
+        const phaseBudget = parseFloat(phase.budget) || 0;
+        const phaseSpent = phaseSpentByName
+          ? (phaseSpentByName[String(phase.name || '').toLowerCase()] || 0)
+          : null;
+        const showSpentLine = phaseSpent !== null && (phaseBudget > 0 || phaseSpent > 0);
+        const isOverBudget = showSpentLine && phaseBudget > 0 && phaseSpent > phaseBudget;
+        const spentPct = showSpentLine && phaseBudget > 0
+          ? Math.min(100, Math.round((phaseSpent / phaseBudget) * 100))
+          : 0;
+        const spentBarColor = isOverBudget ? '#EF4444' : spentPct > 80 ? '#F59E0B' : '#3B82F6';
+
         return (
           <View key={phase.id || index} style={[styles.sectionCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
             {/* Section Header */}
@@ -257,6 +277,30 @@ export default function PhaseTimeline({
               </View>
             )}
 
+            {/* Spend overlay (Budget Breakdown context only) */}
+            {showSpentLine && (
+              <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Spent</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: isOverBudget ? '#EF4444' : Colors.primaryText }}>
+                    ${phaseSpent.toLocaleString()}{phaseBudget > 0 ? ` of $${phaseBudget.toLocaleString()}` : ''}
+                  </Text>
+                </View>
+                {phaseBudget > 0 && (
+                  <View style={{ height: 5, backgroundColor: '#E5E7EB', borderRadius: 3, overflow: 'hidden' }}>
+                    <View style={{ height: 5, borderRadius: 3, width: `${spentPct}%`, backgroundColor: spentBarColor }} />
+                  </View>
+                )}
+                {phaseBudget > 0 && (
+                  <Text style={{ fontSize: 11, color: isOverBudget ? '#EF4444' : '#94A3B8', marginTop: 4 }}>
+                    {isOverBudget
+                      ? `Over by $${(phaseSpent - phaseBudget).toLocaleString()}`
+                      : `$${(phaseBudget - phaseSpent).toLocaleString()} left · ${spentPct}%`}
+                  </Text>
+                )}
+              </View>
+            )}
+
             {/* Expanded Tasks */}
             {isExpanded && phaseTasks.length > 0 && (
               <View style={[styles.tasksContainer, { borderTopColor: Colors.border }]}>
@@ -274,6 +318,30 @@ export default function PhaseTimeline({
             {isExpanded && phaseTasks.length === 0 && (
               <View style={[styles.emptyTasks, { borderTopColor: Colors.border }]}>
                 <Text style={[styles.emptyTasksText, { color: Colors.secondaryText }]}>No tasks yet</Text>
+              </View>
+            )}
+
+            {/* Per-phase Transactions CTAs (only when expanded + parent supplied handlers) */}
+            {isExpanded && (onViewTransactions || onAddTransaction) && (
+              <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12, borderTopWidth: 1, borderTopColor: Colors.border }}>
+                {onViewTransactions && (
+                  <TouchableOpacity
+                    onPress={() => onViewTransactions(phase)}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#EFF6FF', paddingVertical: 10, borderRadius: 10 }}
+                  >
+                    <Ionicons name="receipt-outline" size={14} color="#3B82F6" />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>View Transactions</Text>
+                  </TouchableOpacity>
+                )}
+                {onAddTransaction && (
+                  <TouchableOpacity
+                    onPress={() => onAddTransaction(phase)}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F0FDF4', paddingVertical: 10, borderRadius: 10 }}
+                  >
+                    <Ionicons name="add-circle-outline" size={14} color="#16A34A" />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#16A34A' }}>Add Transaction</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
