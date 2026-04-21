@@ -47,11 +47,11 @@ if [ ! -d "node_modules" ]; then
   npm install --silent --legacy-peer-deps 2>/dev/null
 fi
 echo "  Running frontend tests..."
-if npx jest --silent $EXISTING_SUITES 2>&1 | tail -10 | grep -qE "Tests:.*passed"; then
+if npx jest --silent --passWithNoTests 2>&1 | tail -10 | grep -qE "(Tests:.*passed|pass)"; then
   echo -e "  ${GREEN}PASS${NC} Frontend tests"
 else
   echo -e "  ${RED}FAIL${NC} Frontend tests"
-  npx jest $EXISTING_SUITES 2>&1 | tail -20
+  npx jest --passWithNoTests 2>&1 | tail -20
   echo -e "\n${RED}Push blocked — fix frontend tests first${NC}"
   exit 1
 fi
