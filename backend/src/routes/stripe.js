@@ -10,9 +10,20 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { sendPushToUser } = require('../services/pushNotificationService');
 
-// Fail fast if BACKEND_URL is missing in production — Stripe redirects would go nowhere
+// Warn (do not crash) if BACKEND_URL is missing — affects only Stripe redirect URLs.
+// Individual Stripe endpoints below return a 500 with a clear message if they need it and it's absent.
 if (process.env.NODE_ENV === 'production' && !process.env.BACKEND_URL) {
-  throw new Error('BACKEND_URL must be set in production — Stripe checkout redirects depend on it');
+  logger.warn('⚠️  BACKEND_URL is not set. Stripe checkout redirect URLs will fail until it is configured.');
+}
+
+function requireBackendUrl(res) {
+  if (!process.env.BACKEND_URL) {
+    res.status(500).json({
+      error: 'Server misconfiguration: BACKEND_URL not set. Stripe redirects cannot be constructed.',
+    });
+    return false;
+  }
+  return true;
 }
 
 // Initialize Stripe (only if key is configured)
@@ -68,6 +79,8 @@ router.post('/create-guest-checkout', async (req, res) => {
         validTiers: Object.keys(PRICE_IDS)
       });
     }
+
+    if (!requireBackendUrl(res)) return;
 
     logger.info(`Creating GUEST checkout session for tier: ${tier}`);
 
@@ -164,6 +177,8 @@ router.post('/create-checkout-session', authenticateUser, async (req, res) => {
           status: 'inactive',
         }, { onConflict: 'user_id' });
     }
+
+    if (!requireBackendUrl(res)) return;
 
     // Create Checkout Session with 7-day trial
     const session = await stripe.checkout.sessions.create({

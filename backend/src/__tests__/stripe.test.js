@@ -17,6 +17,7 @@ process.env.STRIPE_STARTER_PRICE_ID = 'price_starter_test';
 process.env.STRIPE_PRO_PRICE_ID = 'price_pro_test';
 process.env.STRIPE_BUSINESS_PRICE_ID = 'price_business_test';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_secret';
+process.env.BACKEND_URL = 'https://test-backend.example.com';
 
 // Mock Supabase
 const mockSupabaseFrom = jest.fn().mockReturnValue({
