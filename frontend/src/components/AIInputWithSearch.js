@@ -31,6 +31,7 @@ import { LightColors, getColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSelectedLanguage } from '../utils/storage';
 import { API_URL as BACKEND_URL } from '../config/api';
+import { supabase } from '../lib/supabase';
 import OrbitalLoader from './OrbitalLoader';
 import { setVoiceMode } from '../services/aiService';
 
@@ -344,6 +345,10 @@ const AIInputWithSearch = ({
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
 
+      // Attach Supabase JWT — backend /api/transcribe is auth-protected
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
       // Call backend transcription proxy
       const response = await fetch(
         `${BACKEND_URL}/api/transcribe`,
@@ -351,6 +356,7 @@ const AIInputWithSearch = ({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
           body: JSON.stringify({
             audio: base64Audio,
@@ -366,7 +372,7 @@ const AIInputWithSearch = ({
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Deepgram API error:', errorText);
+        console.error('Transcription API error:', response.status, errorText);
         throw new Error(`Transcription failed: ${response.status}`);
       }
 

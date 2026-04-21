@@ -29,6 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getSelectedLanguage } from '../utils/storage';
+import { supabase } from '../lib/supabase';
 import OrbitalLoader from './OrbitalLoader';
 
 const OWNER_PRIMARY = '#1E40AF';
@@ -200,11 +201,18 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
+      // Attach Supabase JWT — backend /api/transcribe requires auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
       const response = await fetch(
         `${EXPO_PUBLIC_BACKEND_URL}/api/transcribe`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
           body: JSON.stringify({
             audio: base64Audio,
             contentType: 'audio/m4a',
