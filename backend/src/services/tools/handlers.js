@@ -4998,6 +4998,17 @@ async function delete_service_plan(userId, args = {}) {
 
   if (!plan) return { error: 'Service plan not found or access denied' };
 
+  // Detach time_tracking rows first — the FK in Postgres is NO ACTION (blocks delete).
+  // We preserve the clock-in/clock-out history but unlink it from the deleted plan.
+  // (A migration fixing the FK to ON DELETE SET NULL is also shipped — this is a belt-and-braces.)
+  const { error: detachErr } = await supabase
+    .from('time_tracking')
+    .update({ service_plan_id: null })
+    .eq('service_plan_id', resolved.id);
+  if (detachErr) {
+    logger.warn(`delete_service_plan: time_tracking detach warning: ${detachErr.message}`);
+  }
+
   const { error } = await supabase
     .from('service_plans')
     .delete()
