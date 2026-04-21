@@ -137,6 +137,7 @@ export const transformProjectFromDB = (dbProject) => {
     createdBy: dbProject.user_id,
     assignedTo: dbProject.assigned_supervisor_id || null,
     isAssigned: !!dbProject.assigned_supervisor_id,
+    linkedEstimateId: dbProject.linked_estimate_id || null,
   };
 };
 
@@ -203,6 +204,9 @@ export const saveProject = async (projectData) => {
       working_days: validateWorkingDays(projectData.workingDays),
       non_working_dates: projectData.nonWorkingDates || [],
       assigned_supervisor_id: projectData.assignedSupervisorId || null,
+      linked_estimate_id: projectData.linkedEstimateId !== undefined
+        ? projectData.linkedEstimateId
+        : (projectData.linked_estimate_id !== undefined ? projectData.linked_estimate_id : null),
     };
 
     let result;
@@ -235,7 +239,7 @@ export const saveProject = async (projectData) => {
         .update(dbProject)
         .eq('id', projectData.id)
         .eq('user_id', userId)
-        .select('id, name, client_name, client_phone, client_email, services, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
+        .select('id, name, client_name, client_phone, client_email, services, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget, linked_estimate_id')
         .single();
 
       if (error) throw error;
@@ -244,7 +248,7 @@ export const saveProject = async (projectData) => {
       const { data, error } = await supabase
         .from('projects')
         .insert(dbProject)
-        .select('id, name, client_name, client_phone, client_email, services, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget')
+        .select('id, name, client_name, client_phone, client_email, services, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget, linked_estimate_id')
         .single();
 
       if (error) throw error;

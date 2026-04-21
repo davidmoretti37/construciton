@@ -37,6 +37,8 @@ import {
   ActivityIndicator,
   Modal,
   AppState,
+  Linking,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +54,14 @@ import {
   fetchProjectPhases,
   upsertProjectPhases,
 } from '../../utils/storage';
+import { fetchEstimates, getEstimate } from '../../utils/storage/estimates';
+import {
+  pickAndUploadProjectDocument,
+  fetchProjectBuilderDocuments,
+  getProjectBuilderDocumentUrl,
+  deleteProjectBuilderDocument,
+} from '../../utils/storage/projectBuilderDocuments';
+import { suggestChecklistAndLabor } from '../../utils/ai/suggestChecklistLabor';
 import { supabase } from '../../lib/supabase';
 import WorkingDaysSelector from '../../components/WorkingDaysSelector';
 import NonWorkingDatesManager from '../../components/NonWorkingDatesManager';
@@ -297,6 +307,25 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const [selectedWorkerIds, setSelectedWorkerIds] = useState(initial.workers || []);
   const [aiConfidence] = useState(initial.aiConfidence || {});
 
+  // Linked estimate
+  const [linkedEstimateId, setLinkedEstimateId] = useState(null);
+  const [linkedEstimate, setLinkedEstimate] = useState(null);
+  const [estimatePickerVisible, setEstimatePickerVisible] = useState(false);
+  const [estimatesList, setEstimatesList] = useState([]);
+  const [estimatesLoading, setEstimatesLoading] = useState(false);
+  const [estimateSearch, setEstimateSearch] = useState('');
+
+  // Documents
+  const [documents, setDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // AI Suggest
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+  const [aiSuggestError, setAiSuggestError] = useState(null);
+  const [aiSuggestMode, setAiSuggestMode] = useState('append'); // 'append' | 'replace'
+  const [aiHighlightUntil, setAiHighlightUntil] = useState({ checklist: 0, labor: 0 });
+
   // Team rosters
   const [supervisors, setSupervisors] = useState([]);
   const [availableWorkers, setAvailableWorkers] = useState([]);
@@ -385,6 +414,14 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         setSelectedSupervisor(proj.assignedSupervisorId || null);
         setSelectedWorkerIds(Array.isArray(proj.workers) ? proj.workers : []);
 
+        if (proj.linkedEstimateId) {
+          setLinkedEstimateId(proj.linkedEstimateId);
+          try {
+            const est = await getEstimate(proj.linkedEstimateId);
+            if (est) setLinkedEstimate(est);
+          } catch (_) {}
+        }
+
         const phaseRows = await fetchProjectPhases(initialProjectId);
         if (Array.isArray(phaseRows) && phaseRows.length > 0) {
           setPhases(
@@ -466,6 +503,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         .map((t) => ({ dbId: t.dbId || null, name: t.name.trim(), amount: parseFloat(t.amount) || 0 })),
       assignedSupervisorId: selectedSupervisor || null,
       workers: selectedWorkerIds,
+      linkedEstimateId: linkedEstimateId || null,
     };
   }, [
     name,
@@ -482,6 +520,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     trades,
     selectedSupervisor,
     selectedWorkerIds,
+    linkedEstimateId,
   ]);
 
   const buildPhasesPayload = useCallback(() => {
@@ -596,6 +635,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     trades,
     selectedSupervisor,
     selectedWorkerIds,
+    linkedEstimateId,
   ]);
 
   // Force-flush on unmount or app background.
@@ -652,7 +692,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         return { kind: 'green', label: '✓' };
       }
       case 'documents':
+        if (documents.length > 0) return { kind: 'green', label: `${documents.length}` };
+        return { kind: 'grey', label: '○' };
       case 'estimate':
+        if (linkedEstimateId) return { kind: 'green', label: '✓' };
         return { kind: 'grey', label: '○' };
       case 'review': {
         const amt = parseFloat(contractAmount) || 0;
@@ -663,7 +706,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       default:
         return { kind: 'grey', label: '○' };
     }
-  }, [name, client, startDate, endDate, phases, contractAmount, selectedSupervisor, selectedWorkerIds, checklistItems, laborRoles]);
+  }, [name, client, startDate, endDate, phases, contractAmount, selectedSupervisor, selectedWorkerIds, checklistItems, laborRoles, documents.length, linkedEstimateId]);
 
   const toggleSection = useCallback(
     (k) => setExpandedSections((s) => ({ ...s, [k]: !s[k] })),
@@ -732,11 +775,185 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     setNonWorkingDates((prev) => prev.filter((d) => d !== iso));
   };
 
-  // ---- AI Suggest (deferred to v2) ----
-  const handleAISuggestChecklist = () => {
-    console.log('AI suggest deferred to v2');
-    Alert.alert('Coming soon', 'AI suggestions for checklist & labor roles will be available in a future update.');
-  };
+  // ---- AI Suggest ----
+  const handleAISuggestChecklist = useCallback(async () => {
+    if (!name.trim()) {
+      Alert.alert('Project name needed', 'Add a project name first so the AI knows what to suggest for.');
+      return;
+    }
+    setAiSuggestError(null);
+    setAiSuggestLoading(true);
+    try {
+      const result = await suggestChecklistAndLabor({
+        projectName: name.trim(),
+        services: services.filter(s => (s.description || '').trim()),
+        phases: phases.map(p => ({ name: p.name, tasks: p.tasks || [] })),
+      });
+      if (result.error) {
+        setAiSuggestError(result.error);
+        return;
+      }
+
+      const newChecklist = (result.checklist_items || []).map(c => ({
+        title: c.title || '',
+        item_type: c.item_type === 'quantity' ? 'quantity' : 'checkbox',
+        quantity_unit: c.quantity_unit || '',
+        requires_photo: !!c.requires_photo,
+      }));
+      const newLabor = (result.labor_roles || []).map(r => ({
+        role_name: r.role_name || '',
+        default_quantity: r.default_quantity || 1,
+      }));
+
+      const dedupe = (existing, incoming, key) => {
+        const seen = new Set(existing.map(x => String(x[key] || '').trim().toLowerCase()));
+        return incoming.filter(x => {
+          const k = String(x[key] || '').trim().toLowerCase();
+          if (!k || seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+      };
+
+      if (aiSuggestMode === 'replace') {
+        setChecklistItems(newChecklist);
+        setLaborRoles(newLabor);
+      } else {
+        const cl = dedupe(checklistItems, newChecklist, 'title');
+        const lr = dedupe(laborRoles, newLabor, 'role_name');
+        setChecklistItems(prev => [...prev, ...cl]);
+        setLaborRoles(prev => [...prev, ...lr]);
+      }
+      const expiry = Date.now() + 3000;
+      setAiHighlightUntil({ checklist: expiry, labor: expiry });
+      setTimeout(() => setAiHighlightUntil({ checklist: 0, labor: 0 }), 3100);
+    } catch (e) {
+      setAiSuggestError(e.message || 'Failed to fetch suggestions.');
+    } finally {
+      setAiSuggestLoading(false);
+    }
+  }, [name, services, phases, checklistItems, laborRoles, aiSuggestMode]);
+
+  // ---- Documents ----
+  const reloadDocuments = useCallback(async () => {
+    if (!projectIdRef.current) return;
+    setDocumentsLoading(true);
+    try {
+      const docs = await fetchProjectBuilderDocuments(projectIdRef.current);
+      if (mountedRef.current) setDocuments(docs);
+    } finally {
+      if (mountedRef.current) setDocumentsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (projectId && expandedSections.documents) {
+      reloadDocuments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, expandedSections.documents]);
+
+  const handleUploadDocument = useCallback(async () => {
+    if (!projectIdRef.current) {
+      Alert.alert('Save first', 'Add a project name and client first so the document has somewhere to attach.');
+      return;
+    }
+    setUploadingDoc(true);
+    try {
+      const result = await pickAndUploadProjectDocument(projectIdRef.current);
+      if (result?.canceled) return;
+      if (result?.error) {
+        Alert.alert('Upload failed', result.error);
+        return;
+      }
+      if (result?.success) {
+        await reloadDocuments();
+      }
+    } finally {
+      if (mountedRef.current) setUploadingDoc(false);
+    }
+  }, [reloadDocuments]);
+
+  const handleOpenDocument = useCallback(async (doc) => {
+    if (!doc?.file_url) return;
+    const url = await getProjectBuilderDocumentUrl(doc.file_url);
+    if (!url) {
+      Alert.alert('Could not open', 'Failed to generate a viewing link.');
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert('Could not open', 'No app available to view this file.');
+    }
+  }, []);
+
+  const handleDeleteDocument = useCallback((doc) => {
+    Alert.alert('Delete document?', doc.file_name, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const result = await deleteProjectBuilderDocument(doc.id);
+          if (result?.error) {
+            Alert.alert('Delete failed', result.error);
+            return;
+          }
+          await reloadDocuments();
+        },
+      },
+    ]);
+  }, [reloadDocuments]);
+
+  // ---- Linked Estimate ----
+  const openEstimatePicker = useCallback(async () => {
+    setEstimatePickerVisible(true);
+    setEstimatesLoading(true);
+    try {
+      const list = await fetchEstimates();
+      const statusOrder = { accepted: 0, sent: 1, draft: 2, rejected: 3 };
+      const sorted = (list || []).slice().sort((a, b) => {
+        const sa = statusOrder[a.status] ?? 9;
+        const sb = statusOrder[b.status] ?? 9;
+        if (sa !== sb) return sa - sb;
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+      setEstimatesList(sorted);
+    } finally {
+      setEstimatesLoading(false);
+    }
+  }, []);
+
+  const handlePickEstimate = useCallback(async (est) => {
+    setLinkedEstimateId(est.id);
+    setLinkedEstimate(est);
+    setEstimatePickerVisible(false);
+  }, []);
+
+  const handleUnlinkEstimate = useCallback(() => {
+    Alert.alert('Unlink estimate?', 'This project will no longer be linked to that estimate.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Unlink',
+        style: 'destructive',
+        onPress: () => {
+          setLinkedEstimateId(null);
+          setLinkedEstimate(null);
+        },
+      },
+    ]);
+  }, []);
+
+  const filteredEstimates = useMemo(() => {
+    const q = estimateSearch.trim().toLowerCase();
+    if (!q) return estimatesList;
+    return estimatesList.filter(e =>
+      String(e.client_name || '').toLowerCase().includes(q) ||
+      String(e.project_name || '').toLowerCase().includes(q) ||
+      String(e.estimate_number || '').toLowerCase().includes(q)
+    );
+  }, [estimatesList, estimateSearch]);
 
   // ---- Final save ----
   const runFinalSave = useCallback(async () => {
@@ -1346,56 +1563,123 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.checklist && (
               <View style={styles.sectionBody}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                   <Text style={[styles.label, { color: Colors.secondaryText, marginBottom: 0 }]}>Checklist Items</Text>
-                  <TouchableOpacity onPress={handleAISuggestChecklist} style={styles.aiSuggestBtn}>
-                    <Ionicons name="sparkles-outline" size={14} color="#7C3AED" />
-                    <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: '700', marginLeft: 4 }}>Suggest with AI</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {checklistItems.map((c, i) => (
-                  <View key={`cl-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <TextInput
-                      style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
-                      value={c.title}
-                      onChangeText={(v) => updateChecklistItem(i, 'title', v)}
-                      placeholder="e.g. Site clean at end of day"
-                      placeholderTextColor={Colors.placeholderText}
-                    />
-                    <TouchableOpacity onPress={() => removeChecklistItem(i)}>
-                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {(checklistItems.length > 0 || laborRoles.length > 0) && (
+                      <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: Colors.border, borderRadius: 12, overflow: 'hidden' }}>
+                        {['append', 'replace'].map((mode) => {
+                          const active = aiSuggestMode === mode;
+                          return (
+                            <TouchableOpacity
+                              key={mode}
+                              onPress={() => setAiSuggestMode(mode)}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                backgroundColor: active ? '#F5F3FF' : 'transparent',
+                              }}
+                            >
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#7C3AED' : Colors.secondaryText, textTransform: 'capitalize' }}>{mode}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      onPress={handleAISuggestChecklist}
+                      style={[styles.aiSuggestBtn, { opacity: aiSuggestLoading ? 0.6 : 1 }]}
+                      disabled={aiSuggestLoading}
+                    >
+                      {aiSuggestLoading ? (
+                        <ActivityIndicator size="small" color="#7C3AED" />
+                      ) : (
+                        <Ionicons name="sparkles-outline" size={14} color="#7C3AED" />
+                      )}
+                      <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: '700', marginLeft: 4 }}>
+                        {aiSuggestLoading ? 'Thinking…' : 'Suggest with AI'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
-                ))}
+                </View>
+
+                {aiSuggestError && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Ionicons name="warning-outline" size={12} color="#DC2626" />
+                    <Text style={{ color: '#DC2626', fontSize: 12, marginLeft: 4 }}>{aiSuggestError}</Text>
+                  </View>
+                )}
+
+                {checklistItems.map((c, i) => {
+                  const highlight = aiHighlightUntil.checklist > Date.now();
+                  return (
+                    <View
+                      key={`cl-${i}`}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginBottom: 6,
+                        borderLeftWidth: highlight ? 3 : 0,
+                        borderLeftColor: highlight ? '#7C3AED' : 'transparent',
+                        paddingLeft: highlight ? 8 : 0,
+                      }}
+                    >
+                      <TextInput
+                        style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
+                        value={c.title}
+                        onChangeText={(v) => updateChecklistItem(i, 'title', v)}
+                        placeholder="e.g. Site clean at end of day"
+                        placeholderTextColor={Colors.placeholderText}
+                      />
+                      <TouchableOpacity onPress={() => removeChecklistItem(i)}>
+                        <Ionicons name="close-circle" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
                 <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addChecklistItem}>
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
                   <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Checklist Item</Text>
                 </TouchableOpacity>
 
                 <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 16 }]}>Labor Roles</Text>
-                {laborRoles.map((r, i) => (
-                  <View key={`lr-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <TextInput
-                      style={[styles.input, { flex: 2, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
-                      value={r.role_name}
-                      onChangeText={(v) => updateLaborRole(i, 'role_name', v)}
-                      placeholder="Role (e.g. Carpenter)"
-                      placeholderTextColor={Colors.placeholderText}
-                    />
-                    <TextInput
-                      style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
-                      value={String(r.default_quantity || '')}
-                      onChangeText={(v) => updateLaborRole(i, 'default_quantity', parseInt(v, 10) || 1)}
-                      placeholder="Qty"
-                      placeholderTextColor={Colors.placeholderText}
-                      keyboardType="number-pad"
-                    />
-                    <TouchableOpacity onPress={() => removeLaborRole(i)}>
-                      <Ionicons name="close-circle" size={20} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {laborRoles.map((r, i) => {
+                  const highlight = aiHighlightUntil.labor > Date.now();
+                  return (
+                    <View
+                      key={`lr-${i}`}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginBottom: 6,
+                        borderLeftWidth: highlight ? 3 : 0,
+                        borderLeftColor: highlight ? '#7C3AED' : 'transparent',
+                        paddingLeft: highlight ? 8 : 0,
+                      }}
+                    >
+                      <TextInput
+                        style={[styles.input, { flex: 2, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
+                        value={r.role_name}
+                        onChangeText={(v) => updateLaborRole(i, 'role_name', v)}
+                        placeholder="Role (e.g. Carpenter)"
+                        placeholderTextColor={Colors.placeholderText}
+                      />
+                      <TextInput
+                        style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
+                        value={String(r.default_quantity || '')}
+                        onChangeText={(v) => updateLaborRole(i, 'default_quantity', parseInt(v, 10) || 1)}
+                        placeholder="Qty"
+                        placeholderTextColor={Colors.placeholderText}
+                        keyboardType="number-pad"
+                      />
+                      <TouchableOpacity onPress={() => removeLaborRole(i)}>
+                        <Ionicons name="close-circle" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
                 <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addLaborRole}>
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
                   <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Labor Role</Text>
@@ -1417,13 +1701,94 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.documents && (
               <View style={styles.sectionBody}>
-                <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray }]}>
-                  <Ionicons name="cloud-upload-outline" size={32} color={Colors.secondaryText} />
-                  <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>Coming soon</Text>
-                  <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
-                    File uploads will be available in a future update.
+                <TouchableOpacity
+                  style={[styles.addRowButton, { borderColor: Colors.primaryBlue, opacity: uploadingDoc ? 0.6 : 1 }]}
+                  onPress={handleUploadDocument}
+                  disabled={uploadingDoc}
+                >
+                  {uploadingDoc ? (
+                    <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                  ) : (
+                    <Ionicons name="cloud-upload-outline" size={18} color={Colors.primaryBlue} />
+                  )}
+                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>
+                    {uploadingDoc ? 'Uploading…' : 'Upload Document'}
                   </Text>
-                </View>
+                </TouchableOpacity>
+
+                {documentsLoading && documents.length === 0 ? (
+                  <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color={Colors.secondaryText} />
+                  </View>
+                ) : documents.length === 0 ? (
+                  <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray, marginTop: 8 }]}>
+                    <Ionicons name="cloud-upload-outline" size={28} color={Colors.secondaryText} />
+                    <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>No documents yet</Text>
+                    <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                      Upload contracts, plans, permits, or photos.
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ marginTop: 8, gap: 8 }}>
+                    {documents.map((doc) => {
+                      const isPdf = doc.file_type === 'pdf';
+                      const isImage = doc.file_type === 'image';
+                      const iconName = isPdf ? 'document-text' : isImage ? 'image' : 'document';
+                      const tileBg = isPdf ? '#FEE2E2' : isImage ? '#DBEAFE' : '#F3F4F6';
+                      const tileFg = isPdf ? '#DC2626' : isImage ? '#2563EB' : Colors.secondaryText;
+                      const kindColors = {
+                        contract: { bg: '#F5F3FF', fg: '#7C3AED' },
+                        plan: { bg: '#DBEAFE', fg: '#2563EB' },
+                        photo: { bg: '#D1FAE5', fg: '#059669' },
+                        permit: { bg: '#FEF3C7', fg: '#D97706' },
+                      };
+                      const kc = kindColors[doc.category] || { bg: Colors.lightGray, fg: Colors.secondaryText };
+                      const dateStr = doc.created_at
+                        ? new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : '';
+                      return (
+                        <TouchableOpacity
+                          key={doc.id}
+                          activeOpacity={0.7}
+                          onPress={() => handleOpenDocument(doc)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            borderWidth: 1,
+                            borderColor: Colors.border,
+                            borderRadius: BorderRadius.sm,
+                            padding: 12,
+                            backgroundColor: Colors.white,
+                          }}
+                        >
+                          <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: tileBg, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name={iconName} size={20} color={tileFg} />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryText }} numberOfLines={1}>
+                              {doc.file_name}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                              <View style={{ backgroundColor: kc.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 9 }}>
+                                <Text style={{ color: kc.fg, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>
+                                  {doc.category || 'other'}
+                                </Text>
+                              </View>
+                              <Text style={{ color: Colors.secondaryText, fontSize: 11 }}>{dateStr}</Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteDocument(doc)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            style={{ padding: 4 }}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                          </TouchableOpacity>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -1441,13 +1806,74 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.estimate && (
               <View style={styles.sectionBody}>
-                <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray }]}>
-                  <Ionicons name="document-text-outline" size={32} color={Colors.secondaryText} />
-                  <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>Coming soon</Text>
-                  <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
-                    Estimate linking will be available in a future update.
-                  </Text>
-                </View>
+                {linkedEstimate ? (
+                  <View
+                    style={{
+                      borderRadius: BorderRadius.md,
+                      padding: Spacing.md,
+                      borderWidth: 1,
+                      borderColor: '#7C3AED',
+                      backgroundColor: '#FAF5FF',
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <Ionicons name="link" size={14} color="#7C3AED" />
+                      <Text style={{ color: '#7C3AED', fontSize: 11, fontWeight: '700', marginLeft: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Linked Estimate
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primaryText }}>
+                        #{linkedEstimate.estimate_number || '—'}
+                      </Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }}>
+                        ${(parseFloat(linkedEstimate.total) || 0).toLocaleString()}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: Colors.secondaryText, marginBottom: 4 }}>
+                      {linkedEstimate.client_name || '—'}
+                      {linkedEstimate.project_name ? ` · ${linkedEstimate.project_name}` : ''}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                      <View
+                        style={{
+                          backgroundColor:
+                            linkedEstimate.status === 'accepted' ? '#D1FAE5'
+                            : linkedEstimate.status === 'sent' ? '#DBEAFE'
+                            : Colors.lightGray,
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 9,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              linkedEstimate.status === 'accepted' ? '#059669'
+                              : linkedEstimate.status === 'sent' ? '#2563EB'
+                              : Colors.secondaryText,
+                            fontSize: 10,
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {linkedEstimate.status || 'draft'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={handleUnlinkEstimate}>
+                        <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '600' }}>Unlink</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.addRowButton, { borderColor: Colors.primaryBlue, paddingVertical: 18 }]}
+                    onPress={openEstimatePicker}
+                  >
+                    <Ionicons name="link-outline" size={20} color={Colors.primaryBlue} />
+                    <Text style={{ color: Colors.primaryBlue, fontWeight: '700', fontSize: 14 }}>Link an Estimate</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -1530,6 +1956,99 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   onChange={(_e, d) => d && setStartDate(toISODate(d))}
                   accentColor="#3B82F6"
                 />
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {estimatePickerVisible && (
+          <Modal
+            transparent
+            animationType="slide"
+            visible={estimatePickerVisible}
+            onRequestClose={() => setEstimatePickerVisible(false)}
+          >
+            <View style={styles.pickerOverlay}>
+              <TouchableOpacity style={{ flex: 1 }} onPress={() => setEstimatePickerVisible(false)} activeOpacity={1} />
+              <View style={[styles.pickerSheet, { backgroundColor: Colors.white, maxHeight: '80%' }]}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={() => setEstimatePickerVisible(false)}>
+                    <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontWeight: '700', color: Colors.primaryText }}>Select Estimate</Text>
+                  <View style={{ width: 50 }} />
+                </View>
+                <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText, marginBottom: 0 }]}
+                    value={estimateSearch}
+                    onChangeText={setEstimateSearch}
+                    placeholder="Search by client, project, or #"
+                    placeholderTextColor={Colors.placeholderText}
+                    autoCapitalize="none"
+                  />
+                </View>
+                {estimatesLoading ? (
+                  <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                  </View>
+                ) : filteredEstimates.length === 0 ? (
+                  <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                    <Text style={{ color: Colors.secondaryText, fontSize: 13 }}>
+                      {estimateSearch ? 'No matching estimates.' : 'No estimates yet.'}
+                    </Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={filteredEstimates}
+                    keyExtractor={(item) => item.id}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={({ item }) => {
+                      const dateStr = item.created_at
+                        ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : '';
+                      const sc = item.status === 'accepted'
+                        ? { bg: '#D1FAE5', fg: '#059669' }
+                        : item.status === 'sent'
+                        ? { bg: '#DBEAFE', fg: '#2563EB' }
+                        : { bg: Colors.lightGray, fg: Colors.secondaryText };
+                      return (
+                        <TouchableOpacity
+                          onPress={() => handlePickEstimate(item)}
+                          style={{
+                            flexDirection: 'row',
+                            paddingHorizontal: 12,
+                            paddingVertical: 12,
+                            borderBottomWidth: 1,
+                            borderBottomColor: Colors.border,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: Colors.primaryText, fontWeight: '700', fontSize: 13 }}>
+                              #{item.estimate_number || '—'}
+                            </Text>
+                            <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                              {item.client_name || 'No client'}
+                              {item.project_name ? ` · ${item.project_name}` : ''}
+                            </Text>
+                            <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>{dateStr}</Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                            <Text style={{ color: Colors.primaryText, fontWeight: '700', fontSize: 14 }}>
+                              ${(parseFloat(item.total) || 0).toLocaleString()}
+                            </Text>
+                            <View style={{ backgroundColor: sc.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 9, marginTop: 4 }}>
+                              <Text style={{ color: sc.fg, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>
+                                {item.status || 'draft'}
+                              </Text>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                )}
               </View>
             </View>
           </Modal>

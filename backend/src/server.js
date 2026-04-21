@@ -123,6 +123,10 @@ app.use('/api/integrations/google-drive', servicesLimiter, googleDriveRoutes);
 const projectSectionsRoutes = require('./routes/projectSections');
 app.use('/api/project-sections', servicesLimiter, projectSectionsRoutes);
 
+// AI helpers (suggest checklist/labor for ProjectBuilder)
+const aiRoutes = require('./routes/ai');
+app.use('/api/ai', aiLimiter, aiRoutes);
+
 // Service plans (recurring service management)
 const servicePlanRoutes = require('./routes/servicePlans');
 app.use('/api/service-plans', servicesLimiter, servicePlanRoutes);
