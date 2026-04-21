@@ -1405,7 +1405,11 @@ export default function ProjectPreview({ data, onAction }) {
                 <Text style={{ fontWeight: '600', color: '#0F172A' }}>{isSaving ? t('actions.saving') : 'Save Now'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#3B82F6', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                style={[
+                  { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#3B82F6', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 },
+                  isSaving && { opacity: 0.5 },
+                ]}
+                disabled={isSaving}
                 onPress={() => {
                   if (onAction) {
                     const currentSchedule = editedData.schedule || data.schedule;

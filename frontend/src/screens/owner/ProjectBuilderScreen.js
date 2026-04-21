@@ -165,6 +165,104 @@ const getFieldVisualProps = (value, { required = false, confidence = null } = {}
 };
 
 // -------------------------------------------------------------------------
+// Hoisted shared UI pieces
+// -------------------------------------------------------------------------
+//
+// These components are intentionally defined at the module level (not inline
+// inside ProjectBuilderScreen) so their component identity is stable across
+// re-renders. When they were declared inside the parent function body every
+// state update created a brand-new component type — which caused React to
+// unmount and remount any TextInput they rendered, dismissing the keyboard
+// on every keystroke. Any values that used to come from closure (Colors,
+// style helpers, section status) are now passed in as props.
+
+const chipColorFor = (kind) => {
+  if (kind === 'green') return { bg: '#D1FAE5', fg: '#059669' };
+  if (kind === 'red') return { bg: '#FEE2E2', fg: '#DC2626' };
+  if (kind === 'amber') return { bg: '#FEF3C7', fg: '#D97706' };
+  return { bg: '#E5E7EB', fg: '#6B7280' };
+};
+
+const Chip = ({ chip }) => {
+  const { bg, fg } = chipColorFor(chip.kind);
+  return (
+    <View style={{ backgroundColor: bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginLeft: 8 }}>
+      <Text style={{ color: fg, fontSize: 12, fontWeight: '700' }}>{chip.label}</Text>
+    </View>
+  );
+};
+
+const SectionHeader = ({ title, icon, sectionKey, expanded, chip, onToggle, Colors }) => {
+  return (
+    <TouchableOpacity
+      style={[styles.sectionHeader, { borderBottomColor: expanded ? Colors.border : 'transparent' }]}
+      onPress={() => onToggle(sectionKey)}
+      activeOpacity={0.7}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+        <Ionicons name={icon} size={18} color={Colors.primaryBlue} />
+        <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{title}</Text>
+        <Chip chip={chip} />
+      </View>
+      <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
+    </TouchableOpacity>
+  );
+};
+
+const LabelRow = ({ label, required, confidence, Colors }) => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+    <Text style={[styles.label, { color: Colors.secondaryText }]}>
+      {label}
+      {required ? <Text style={{ color: '#DC2626' }}> *</Text> : null}
+    </Text>
+    {confidence === 'high' && (
+      <Ionicons name="sparkles-outline" size={14} color="#7C3AED" style={{ marginLeft: 6 }} />
+    )}
+    {confidence === 'low' && (
+      <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, marginLeft: 6 }}>
+        <Text style={{ color: '#D97706', fontSize: 10, fontWeight: '700' }}>Review</Text>
+      </View>
+    )}
+  </View>
+);
+
+const ThemedInput = ({
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  confidence,
+  required,
+  multiline,
+  autoCapitalize,
+  Colors,
+}) => {
+  const vp = getFieldVisualProps(value, { required, confidence });
+  return (
+    <TextInput
+      style={[
+        styles.input,
+        {
+          backgroundColor: Colors.lightGray,
+          color: Colors.primaryText,
+          borderColor: Colors.border,
+          borderLeftColor: vp.borderLeftColor,
+          borderLeftWidth: vp.borderLeftWidth,
+        },
+        multiline && { minHeight: 80, textAlignVertical: 'top' },
+      ]}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={Colors.placeholderText}
+      keyboardType={keyboardType}
+      multiline={multiline}
+      autoCapitalize={autoCapitalize}
+    />
+  );
+};
+
+// -------------------------------------------------------------------------
 // Component
 // -------------------------------------------------------------------------
 
@@ -226,6 +324,13 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const projectIdRef = useRef(projectId);
   const mountedRef = useRef(true);
   const appStateRef = useRef(AppState.currentState);
+  // In-flight guard so overlapping autosaves can't race each other
+  const savingRef = useRef(false);
+  // Ref-mirror for flushSave: the AppState/unmount effect below has [] deps
+  // and would otherwise capture the very first flushSave closure (which
+  // references initial-render state). We keep this ref pointed at the
+  // latest flushSave so background/unmount always flushes current values.
+  const flushSaveRef = useRef(null);
   useEffect(() => {
     projectIdRef.current = projectId;
   }, [projectId]);
@@ -399,6 +504,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
   const flushSave = useCallback(async () => {
     if (!projectIdRef.current) return;
+    // In-flight guard: if an earlier flushSave is still awaiting Supabase,
+    // don't kick off a second concurrent save — they'd race, and the slower
+    // one would overwrite the fresher one. The debounce timer will schedule
+    // another pass once we're free.
+    if (savingRef.current) return;
+    savingRef.current = true;
     try {
       setAutoSaveStatus('saving');
       const payload = buildSavePayload('draft');
@@ -411,11 +522,29 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       const phasePayload = buildPhasesPayload();
       if (phasePayload.length > 0 && projectIdRef.current) {
         try {
-          await upsertProjectPhases(projectIdRef.current, phasePayload, {
+          const result = await upsertProjectPhases(projectIdRef.current, phasePayload, {
             startDate: toISODate(startDate),
             endDate: toISODate(endDate),
             workingDays,
           });
+          // Sync inserted phase UUIDs back into local state so the next
+          // autosave doesn't treat them as brand-new rows and duplicate them.
+          // Match by order_index (falling back to array position) — at this
+          // point phases without ids were just inserted, so their order is
+          // stable.
+          if (result && Array.isArray(result.phases) && mountedRef.current) {
+            const returned = result.phases;
+            setPhases((prev) =>
+              prev.map((p, i) => {
+                if (p.id && typeof p.id === 'string' && !p.id.startsWith('draft-')) {
+                  return p;
+                }
+                const idx = typeof p.order_index === 'number' ? p.order_index : i;
+                const matched = returned.find((rp) => rp.order_index === idx);
+                return matched ? { ...p, id: matched.id } : p;
+              })
+            );
+          }
         } catch (phaseErr) {
           console.warn('[ProjectBuilder] upsertProjectPhases failed', phaseErr);
         }
@@ -427,8 +556,18 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     } catch (e) {
       console.warn('[ProjectBuilder] auto-save failed', e);
       if (mountedRef.current) setAutoSaveStatus('error');
+    } finally {
+      savingRef.current = false;
     }
   }, [buildSavePayload, buildPhasesPayload, startDate, endDate, workingDays]);
+
+  // Keep the mirror ref pointed at the latest flushSave. The AppState/unmount
+  // effect below runs with [] deps so without this it would call the very
+  // first flushSave — which closes over initial state, overwriting newer
+  // edits with stale data on background.
+  useEffect(() => {
+    flushSaveRef.current = flushSave;
+  }, [flushSave]);
 
   // Schedule a debounced save on every state change
   useEffect(() => {
@@ -459,19 +598,23 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     selectedWorkerIds,
   ]);
 
-  // Force-flush on unmount or app background
+  // Force-flush on unmount or app background.
+  // NOTE: This effect deliberately has empty deps so it subscribes once. We
+  // therefore call flushSaveRef.current() rather than flushSave directly —
+  // otherwise the handler would keep firing the stale first-render closure
+  // and overwrite newer edits with initial state values.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
       if (appStateRef.current === 'active' && next !== 'active') {
-        flushSave();
+        flushSaveRef.current?.();
       }
       appStateRef.current = next;
     });
     return () => {
       mountedRef.current = false;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      // Best-effort flush on unmount
-      flushSave();
+      // Best-effort flush on unmount using the latest flushSave
+      flushSaveRef.current?.();
       sub?.remove?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -522,14 +665,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     }
   }, [name, client, startDate, endDate, phases, contractAmount, selectedSupervisor, selectedWorkerIds, checklistItems, laborRoles]);
 
-  const chipColor = (kind) => {
-    if (kind === 'green') return { bg: '#D1FAE5', fg: '#059669' };
-    if (kind === 'red') return { bg: '#FEE2E2', fg: '#DC2626' };
-    if (kind === 'amber') return { bg: '#FEF3C7', fg: '#D97706' };
-    return { bg: '#E5E7EB', fg: '#6B7280' };
-  };
-
-  const toggleSection = (k) => setExpandedSections((s) => ({ ...s, [k]: !s[k] }));
+  const toggleSection = useCallback(
+    (k) => setExpandedSections((s) => ({ ...s, [k]: !s[k] })),
+    []
+  );
 
   // ---- Phase handlers ----
   const handleAddPhase = () => {
@@ -728,79 +867,6 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     navigation,
   ]);
 
-  // ---- Shared components ----
-  const Chip = ({ chip }) => {
-    const { bg, fg } = chipColor(chip.kind);
-    return (
-      <View style={{ backgroundColor: bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginLeft: 8 }}>
-        <Text style={{ color: fg, fontSize: 12, fontWeight: '700' }}>{chip.label}</Text>
-      </View>
-    );
-  };
-
-  const SectionHeader = ({ title, icon, sectionKey }) => {
-    const chip = sectionChip(sectionKey);
-    return (
-      <TouchableOpacity
-        style={[styles.sectionHeader, { borderBottomColor: expandedSections[sectionKey] ? Colors.border : 'transparent' }]}
-        onPress={() => toggleSection(sectionKey)}
-        activeOpacity={0.7}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-          <Ionicons name={icon} size={18} color={Colors.primaryBlue} />
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{title}</Text>
-          <Chip chip={chip} />
-        </View>
-        <Ionicons name={expandedSections[sectionKey] ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.secondaryText} />
-      </TouchableOpacity>
-    );
-  };
-
-  // Label row with AI badge
-  const LabelRow = ({ label, required, confidence }) => (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-      <Text style={[styles.label, { color: Colors.secondaryText }]}>
-        {label}
-        {required ? <Text style={{ color: '#DC2626' }}> *</Text> : null}
-      </Text>
-      {confidence === 'high' && (
-        <Ionicons name="sparkles-outline" size={14} color="#7C3AED" style={{ marginLeft: 6 }} />
-      )}
-      {confidence === 'low' && (
-        <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, marginLeft: 6 }}>
-          <Text style={{ color: '#D97706', fontSize: 10, fontWeight: '700' }}>Review</Text>
-        </View>
-      )}
-    </View>
-  );
-
-  // Themed input with AI visual-state border
-  const ThemedInput = ({ value, onChangeText, placeholder, keyboardType, confidence, required, multiline, autoCapitalize }) => {
-    const vp = getFieldVisualProps(value, { required, confidence });
-    return (
-      <TextInput
-        style={[
-          styles.input,
-          {
-            backgroundColor: Colors.lightGray,
-            color: Colors.primaryText,
-            borderColor: Colors.border,
-            borderLeftColor: vp.borderLeftColor,
-            borderLeftWidth: vp.borderLeftWidth,
-          },
-          multiline && { minHeight: 80, textAlignVertical: 'top' },
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={Colors.placeholderText}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        autoCapitalize={autoCapitalize}
-      />
-    );
-  };
-
   // ---- Derived: phase budget allocation ----
   const allocatedTotal = phases.reduce((s, p) => s + (parseFloat(p.budget) || 0), 0);
   const contractTotal = parseFloat(contractAmount) || 0;
@@ -834,37 +900,48 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         >
           {/* ============ 1. PROJECT BASICS ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Project Basics" icon="briefcase-outline" sectionKey="basics" />
+            <SectionHeader
+              title="Project Basics"
+              icon="briefcase-outline"
+              sectionKey="basics"
+              expanded={expandedSections.basics}
+              chip={sectionChip('basics')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.basics && (
               <View style={styles.sectionBody}>
-                <LabelRow label="Project Name" required confidence={aiConfidence.name} />
+                <LabelRow label="Project Name" required confidence={aiConfidence.name} Colors={Colors} />
                 <ThemedInput
                   value={name}
                   onChangeText={setName}
                   placeholder="e.g. Kitchen Renovation"
                   required
                   confidence={aiConfidence.name}
+                  Colors={Colors}
                 />
 
-                <LabelRow label="Client Name" required confidence={aiConfidence.client} />
+                <LabelRow label="Client Name" required confidence={aiConfidence.client} Colors={Colors} />
                 <ThemedInput
                   value={client}
                   onChangeText={setClient}
                   placeholder="e.g. John Smith"
                   required
                   confidence={aiConfidence.client}
+                  Colors={Colors}
                 />
 
-                <LabelRow label="Client Phone" confidence={aiConfidence.clientPhone} />
+                <LabelRow label="Client Phone" confidence={aiConfidence.clientPhone} Colors={Colors} />
                 <ThemedInput
                   value={clientPhone}
                   onChangeText={setClientPhone}
                   placeholder="+1 555 123 4567"
                   keyboardType="phone-pad"
                   confidence={aiConfidence.clientPhone}
+                  Colors={Colors}
                 />
 
-                <LabelRow label="Client Email" confidence={aiConfidence.clientEmail} />
+                <LabelRow label="Client Email" confidence={aiConfidence.clientEmail} Colors={Colors} />
                 <ThemedInput
                   value={clientEmail}
                   onChangeText={setClientEmail}
@@ -872,14 +949,16 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   confidence={aiConfidence.clientEmail}
+                  Colors={Colors}
                 />
 
-                <LabelRow label="Location" confidence={aiConfidence.location} />
+                <LabelRow label="Location" confidence={aiConfidence.location} Colors={Colors} />
                 <ThemedInput
                   value={location}
                   onChangeText={setLocation}
                   placeholder="Project site address"
                   confidence={aiConfidence.location}
+                  Colors={Colors}
                 />
               </View>
             )}
@@ -887,12 +966,20 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 2. TIMELINE & WORKING DAYS ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Timeline & Working Days" icon="calendar-outline" sectionKey="timeline" />
+            <SectionHeader
+              title="Timeline & Working Days"
+              icon="calendar-outline"
+              sectionKey="timeline"
+              expanded={expandedSections.timeline}
+              chip={sectionChip('timeline')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.timeline && (
               <View style={styles.sectionBody}>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <View style={{ flex: 1 }}>
-                    <LabelRow label="Start Date" confidence={aiConfidence.startDate} />
+                    <LabelRow label="Start Date" confidence={aiConfidence.startDate} Colors={Colors} />
                     <TouchableOpacity
                       style={[styles.input, { justifyContent: 'center', backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowStartPicker(true)}
@@ -903,7 +990,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     </TouchableOpacity>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <LabelRow label="End Date" confidence={aiConfidence.endDate} />
+                    <LabelRow label="End Date" confidence={aiConfidence.endDate} Colors={Colors} />
                     <TouchableOpacity
                       style={[styles.input, { justifyContent: 'center', backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowEndPicker(true)}
@@ -936,7 +1023,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 3. PHASES ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Phases" icon="layers-outline" sectionKey="phases" />
+            <SectionHeader
+              title="Phases"
+              icon="layers-outline"
+              sectionKey="phases"
+              expanded={expandedSections.phases}
+              chip={sectionChip('phases')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.phases && (
               <View style={styles.sectionBody}>
                 {/* Allocation bar */}
@@ -1072,10 +1167,18 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 4. FINANCIAL ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Financial" icon="cash-outline" sectionKey="financial" />
+            <SectionHeader
+              title="Financial"
+              icon="cash-outline"
+              sectionKey="financial"
+              expanded={expandedSections.financial}
+              chip={sectionChip('financial')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.financial && (
               <View style={styles.sectionBody}>
-                <LabelRow label="Contract Amount ($)" required confidence={aiConfidence.contractAmount} />
+                <LabelRow label="Contract Amount ($)" required confidence={aiConfidence.contractAmount} Colors={Colors} />
                 <ThemedInput
                   value={contractAmount}
                   onChangeText={(v) => setContractAmount(sanitizeNumeric(v))}
@@ -1083,6 +1186,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   keyboardType="decimal-pad"
                   required
                   confidence={aiConfidence.contractAmount}
+                  Colors={Colors}
                 />
 
                 <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 12 }]}>Services</Text>
@@ -1146,7 +1250,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 5. TEAM ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Team" icon="people-outline" sectionKey="team" />
+            <SectionHeader
+              title="Team"
+              icon="people-outline"
+              sectionKey="team"
+              expanded={expandedSections.team}
+              chip={sectionChip('team')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.team && (
               <View style={styles.sectionBody}>
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Supervisor</Text>
@@ -1223,7 +1335,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 6. DAILY CHECKLIST & LABOR ROLES ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Daily Checklist & Labor Roles" icon="checkbox-outline" sectionKey="checklist" />
+            <SectionHeader
+              title="Daily Checklist & Labor Roles"
+              icon="checkbox-outline"
+              sectionKey="checklist"
+              expanded={expandedSections.checklist}
+              chip={sectionChip('checklist')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.checklist && (
               <View style={styles.sectionBody}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -1286,7 +1406,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 7. DOCUMENTS (STUB) ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Documents" icon="document-attach-outline" sectionKey="documents" />
+            <SectionHeader
+              title="Documents"
+              icon="document-attach-outline"
+              sectionKey="documents"
+              expanded={expandedSections.documents}
+              chip={sectionChip('documents')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.documents && (
               <View style={styles.sectionBody}>
                 <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray }]}>
@@ -1302,7 +1430,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 8. LINKED ESTIMATE (STUB) ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Linked Estimate" icon="link-outline" sectionKey="estimate" />
+            <SectionHeader
+              title="Linked Estimate"
+              icon="link-outline"
+              sectionKey="estimate"
+              expanded={expandedSections.estimate}
+              chip={sectionChip('estimate')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.estimate && (
               <View style={styles.sectionBody}>
                 <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray }]}>
@@ -1318,7 +1454,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
           {/* ============ 9. REVIEW & SAVE ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader title="Review & Save" icon="checkmark-done-outline" sectionKey="review" />
+            <SectionHeader
+              title="Review & Save"
+              icon="checkmark-done-outline"
+              sectionKey="review"
+              expanded={expandedSections.review}
+              chip={sectionChip('review')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
             {expandedSections.review && (
               <View style={styles.sectionBody}>
                 <Text style={{ color: Colors.primaryText, fontWeight: '600', marginBottom: 8 }}>Summary</Text>

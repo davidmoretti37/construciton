@@ -1347,7 +1347,11 @@ export const resetProjectProgressToAutomatic = async (projectId) => {
  * @param {string} projectId - Project ID
  * @param {Array<object>} phases - Phases from builder state (may mix existing + new)
  * @param {object} [schedule] - Optional schedule object with phaseSchedule array
- * @returns {Promise<boolean>} Success status
+ * @returns {Promise<{ ok: boolean, phases: Array<object> } | false>}
+ *   On success, returns `{ ok: true, phases }` where `phases` is the set of
+ *   project_phases rows currently persisted for this project (so callers can
+ *   sync newly-minted UUIDs back into local state). Returns `false` on a
+ *   hard failure so existing truthy checks keep working.
  */
 export const upsertProjectPhases = async (projectId, phases, schedule = null) => {
   try {
@@ -1465,15 +1469,20 @@ export const upsertProjectPhases = async (projectId, phases, schedule = null) =>
       }
     }
 
-    // 6. Apply INSERTs
+    // 6. Apply INSERTs — select() so callers get real UUIDs back for
+    //    newly-inserted phases (used to sync local state and avoid re-
+    //    inserting the same phase on subsequent autosaves).
+    let insertedRows = [];
     if (toInsert.length > 0) {
-      const { error: insertError } = await supabase
+      const { data: insertedData, error: insertError } = await supabase
         .from('project_phases')
-        .insert(toInsert);
+        .insert(toInsert)
+        .select();
       if (insertError) {
         console.error('upsertProjectPhases insert error:', insertError);
         return false;
       }
+      insertedRows = insertedData || [];
     }
 
     // 7. Apply UPDATEs (one round-trip per phase — small N, acceptable)
@@ -1498,7 +1507,19 @@ export const upsertProjectPhases = async (projectId, phases, schedule = null) =>
       // non-fatal
     }
 
-    return true;
+    // 9. Build the return set: inserted rows (with real UUIDs) + updated
+    //    rows (we already know their ids). The caller uses this to sync
+    //    local phase state so the next autosave doesn't re-insert them.
+    const returnedPhases = [
+      ...insertedRows.map((r) => ({ id: r.id, order_index: r.order_index, name: r.name })),
+      ...toUpdate.map(({ id, updates }) => ({
+        id,
+        order_index: updates.order_index,
+        name: updates.name,
+      })),
+    ];
+
+    return { ok: true, phases: returnedPhases };
   } catch (error) {
     console.error('Error in upsertProjectPhases:', error);
     return false;
