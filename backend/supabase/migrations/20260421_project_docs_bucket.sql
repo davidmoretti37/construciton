@@ -31,7 +31,7 @@ CREATE POLICY project_documents_owner ON public.project_documents
     )
     OR EXISTS (
       SELECT 1 FROM public.service_plans sp
-      WHERE sp.id = project_documents.service_plan_id AND sp.user_id = auth.uid()
+      WHERE sp.id = project_documents.service_plan_id AND sp.owner_id = auth.uid()
     )
     OR uploaded_by = auth.uid()
   );

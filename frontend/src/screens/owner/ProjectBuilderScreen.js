@@ -876,7 +876,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
   const handleOpenDocument = useCallback(async (doc) => {
     if (!doc?.file_url) return;
-    const url = await getProjectBuilderDocumentUrl(doc.file_url);
+    const url = await getProjectBuilderDocumentUrl(doc.id);
     if (!url) {
       Alert.alert('Could not open', 'Failed to generate a viewing link.');
       return;

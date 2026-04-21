@@ -127,6 +127,10 @@ app.use('/api/project-sections', servicesLimiter, projectSectionsRoutes);
 const aiRoutes = require('./routes/ai');
 app.use('/api/ai', aiLimiter, aiRoutes);
 
+// Project documents proxy (upload/download via backend since storage.objects RLS needs storage_admin)
+const projectDocsRoutes = require('./routes/projectDocs');
+app.use('/api/project-docs', express.json({ limit: '30mb' }), servicesLimiter, projectDocsRoutes);
+
 // Service plans (recurring service management)
 const servicePlanRoutes = require('./routes/servicePlans');
 app.use('/api/service-plans', servicesLimiter, servicePlanRoutes);
