@@ -1575,6 +1575,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         onViewTransactions={handleViewPhaseTransactions}
                         onAddTransaction={handleAddPhaseTransaction}
                         onAddTask={isEditing ? handleAddTaskToPhase : undefined}
+                        onPhaseBudgetChange={isEditing ? (phaseId, newBudget) => {
+                          setPhases(prev => prev.map(p =>
+                            p.id === phaseId ? { ...p, budget: newBudget } : p
+                          ));
+                        } : undefined}
                       />
                     </View>
                   )}

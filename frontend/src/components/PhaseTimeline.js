@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import Slider from '@react-native-community/slider';
@@ -34,6 +34,11 @@ export default function PhaseTimeline({
   onAddTask,
   onTaskDelete,
   onTaskDescriptionChange,
+  // Per-phase budget editing. When `onPhaseBudgetChange` is wired and
+  // `isEditing` is true, the green "$X" chip becomes a TextInput so the
+  // budget can be edited in place. Parent should mutate local phases state
+  // so the next save round persists the new value via upsertProjectPhases.
+  onPhaseBudgetChange,
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -233,11 +238,25 @@ export default function PhaseTimeline({
                     <Text style={[styles.sectionTaskCount, { color: Colors.secondaryText }]}>
                       {completedCount}/{phaseTasks.length} tasks
                     </Text>
-                    {(parseFloat(phase.budget) || 0) > 0 && (
+                    {isEditing && onPhaseBudgetChange ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>$</Text>
+                        <TextInput
+                          style={{ fontSize: 12, fontWeight: '600', color: '#16A34A', minWidth: 60, paddingVertical: 0, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#16A34A' }}
+                          value={String(phase.budget || '')}
+                          onChangeText={(v) => onPhaseBudgetChange(phase.id, String(v).replace(/[^0-9.]/g, ''))}
+                          keyboardType="decimal-pad"
+                          placeholder="0"
+                          placeholderTextColor="#CBD5E1"
+                          onStartShouldSetResponder={() => true}
+                          onTouchStart={(e) => e.stopPropagation()}
+                        />
+                      </View>
+                    ) : ((parseFloat(phase.budget) || 0) > 0 && (
                       <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A', marginLeft: 8 }}>
                         ${Number(phase.budget).toLocaleString()}
                       </Text>
-                    )}
+                    ))}
                   </View>
                 </View>
               </View>
