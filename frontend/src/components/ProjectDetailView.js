@@ -39,7 +39,6 @@ import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import DailyChecklistSection from './DailyChecklistSection';
-import EditProjectModal from './EditProjectModal';
 import { formatHoursMinutes } from '../utils/calculations';
 import ClientPortalCard from './ClientPortalCard';
 import { supabase } from '../lib/supabase';
@@ -71,7 +70,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
   // Main editing mode (controls all editing)
   const [isEditing, setIsEditing] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  // Hero / financial drafts — bind to TextInput while isEditing.
+  const [editedName, setEditedName] = useState('');
+  const [editedContractAmount, setEditedContractAmount] = useState('');
 
   // Contact info editing
   const [editAddress, setEditAddress] = useState('');
@@ -725,16 +726,27 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     try {
       setSavingChanges(true);
 
-      // Save contact info and timeline to project
+      // Save name + contract + contact info + timeline to project
+      const trimmedName = (editedName || '').trim();
+      const parsedContract = parseFloat(editedContractAmount);
+      const updatePayload = {
+        location: editAddress || null,
+        client_phone: editPhone || null,
+        client_email: editEmail || null,
+        start_date: editStartDate ? editStartDate.toISOString().split('T')[0] : null,
+        end_date: editEndDate ? editEndDate.toISOString().split('T')[0] : null,
+      };
+      if (trimmedName && trimmedName !== project?.name) {
+        updatePayload.name = trimmedName;
+      }
+      if (!isNaN(parsedContract) && parsedContract >= 0) {
+        updatePayload.contract_amount = parsedContract;
+        updatePayload.base_contract = parsedContract;
+        updatePayload.budget = parsedContract;
+      }
       const { error } = await supabase
         .from('projects')
-        .update({
-          location: editAddress || null,
-          client_phone: editPhone || null,
-          client_email: editEmail || null,
-          start_date: editStartDate ? editStartDate.toISOString().split('T')[0] : null,
-          end_date: editEndDate ? editEndDate.toISOString().split('T')[0] : null,
-        })
+        .update(updatePayload)
         .eq('id', project.id);
 
       if (error) throw error;
@@ -753,6 +765,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         project.client_email = editEmail;
         project.startDate = safeParseDateToString(editStartDate);
         project.endDate = safeParseDateToString(editEndDate);
+        if (updatePayload.name) project.name = updatePayload.name;
+        if (updatePayload.contract_amount != null) {
+          project.contractAmount = updatePayload.contract_amount;
+          project.contract_amount = updatePayload.contract_amount;
+          project.budget = updatePayload.contract_amount;
+        }
       }
 
       // Save phase progress values
@@ -1284,6 +1302,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   setEditStartDate(project?.startDate ? safeParseDateToObject(project.startDate) : null);
                   setEditEndDate(project?.endDate ? safeParseDateToObject(project.endDate) : null);
                   setEditWorkingDays(project?.workingDays || [1, 2, 3, 4, 5]);
+                  setEditedName(project?.name || '');
+                  setEditedContractAmount(String(contractAmount || ''));
                   setIsEditing(true);
                 }}
                 style={styles.editButton}
@@ -1318,9 +1338,26 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>{project.status?.replace(/-/g, ' ') || 'Active'}</Text>
               </View>
             </View>
-            <Text style={[styles.heroTitle, { paddingHorizontal: 20 }]} numberOfLines={2}>
-              {project.name}
-            </Text>
+            {isEditing ? (
+              <View style={{ paddingHorizontal: 20 }}>
+                <TextInput
+                  style={[styles.heroTitle, { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#FFFFFF' }]}
+                  value={editedName}
+                  onChangeText={setEditedName}
+                  placeholder="Project name"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                    <Text style={{ color: '#B45309', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 }}>Editing…</Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <Text style={[styles.heroTitle, { paddingHorizontal: 20 }]} numberOfLines={2}>
+                {project.name}
+              </Text>
+            )}
               {project.location && (
                 <TouchableOpacity
                   onPress={() => handleAddressPress(project.location)}
@@ -1349,6 +1386,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <Text style={{ fontSize: 11, fontWeight: '500', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>Contract Value</Text>
                 {isSupervisor && ownerHidesContract ? (
                   <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>---</Text>
+                ) : isEditing ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8 }}>$</Text>
+                    <TextInput
+                      style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, minWidth: 120, paddingVertical: 0, paddingHorizontal: 4, borderBottomWidth: 2, borderBottomColor: '#3B82F6' }}
+                      value={editedContractAmount}
+                      onChangeText={(v) => setEditedContractAmount(String(v).replace(/[^0-9.]/g, ''))}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor="#CBD5E1"
+                    />
+                  </View>
                 ) : (
                   <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${contractAmount.toLocaleString()}</Text>
                 )}
@@ -1809,7 +1858,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           {/* Services / Line Items card removed — invoice generation flows
               through chat, Phases already shows the work scope, and the
               auto-extracted unpriced list was visual clutter. project.services
-              still persists in the DB and can be edited from EditProjectModal
+              still persists in the DB
               if needed for future itemized invoicing. */}
 
           {/* Work Sections card removed — phases now live inside Budget Breakdown
@@ -2853,33 +2902,35 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         </View>
       </Modal>
 
-      {/* Edit Project Modal — all fields */}
-      <EditProjectModal
-        visible={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        projectData={project}
-        onSave={(savedProject) => {
-          setShowEditModal(false);
-          // Optimistically hydrate phase budgets into local phases state so the
-          // Budget Breakdown card reflects edits immediately — the full project
-          // object still lives on the parent (ProjectDetailScreen) which will
-          // re-fetch via onRefreshNeeded below.
-          if (savedProject?.phases && Array.isArray(savedProject.phases)) {
-            setPhases((prev) => {
-              if (!prev || prev.length === 0) return prev;
-              return prev.map((p) => {
-                const match = savedProject.phases.find(
-                  (sp) => sp.id === p.id || sp.name === p.name
-                );
-                return match && match.budget != null
-                  ? { ...p, budget: parseFloat(match.budget) || 0 }
-                  : p;
-              });
-            });
-          }
-          onRefreshNeeded?.();
-        }}
-      />
+      {/* Sticky bottom save bar — only visible while in-place editing. */}
+      {isEditing && !isDemo && (
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 24, flexDirection: 'row', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 8 }}>
+          <TouchableOpacity
+            onPress={() => {
+              setEditAddress(project?.location || '');
+              setEditPhone(project?.client_phone || project?.clientPhone || '');
+              setEditEmail(project?.client_email || project?.clientEmail || '');
+              setEditStartDate(project?.startDate ? safeParseDateToObject(project.startDate) : null);
+              setEditEndDate(project?.endDate ? safeParseDateToObject(project.endDate) : null);
+              setEditedName(project?.name || '');
+              setEditedContractAmount(String(contractAmount || ''));
+              setIsEditing(false);
+            }}
+            disabled={savingChanges}
+            style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', opacity: savingChanges ? 0.5 : 1 }}
+          >
+            <Text style={{ color: '#64748B', fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleSaveAllChanges}
+            disabled={savingChanges}
+            style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, opacity: savingChanges ? 0.6 : 1 }}
+          >
+            {savingChanges && <ActivityIndicator size="small" color="#FFFFFF" />}
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>{savingChanges ? 'Saving…' : 'Save Changes'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 

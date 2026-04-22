@@ -293,7 +293,7 @@ export const saveProject = async (projectData) => {
       }
     }
 
-    // Save trade budgets if provided (from EditProjectModal)
+    // Save trade budgets if provided
     if (projectData.trades && projectData.trades.length > 0) {
       try {
         const { data: existingBudgets } = await supabase
