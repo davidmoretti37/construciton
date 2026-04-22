@@ -1084,20 +1084,11 @@ export default function ChatScreen({ navigation, route }) {
             return updated;
           });
 
-          // Force a secondary re-render — ensures React picks up the visual elements
-          // Creates new object reference for the target message so React detects the change
-          setTimeout(() => {
-            setMessages((prev) => prev.map(m =>
-              m.id === targetId ? { ...m, _renderKey: Date.now() } : m
-            ));
-          }, 150);
-
-          // Third attempt with longer delay as safety net
-          setTimeout(() => {
-            setMessages((prev) => prev.map(m =>
-              m.id === targetId ? { ...m, _renderKey: Date.now() } : m
-            ));
-          }, 500);
+          // (Removed: 150ms + 500ms _renderKey setTimeout hacks. The real
+          // fix was adding extraData={messages} to the FlatList and using
+          // stable, type-scoped keys on visual elements — both done in the
+          // same commit. lastUpdated above is enough to give VirtualizedList
+          // a per-message diff signal.)
 
           // Show loading state if creating estimate (Part 1 of estimate fix)
           const hasEstimatePreview = parsedResponse.visualElements?.some(v => v.type === 'estimate-preview');
@@ -3479,49 +3470,52 @@ export default function ChatScreen({ navigation, route }) {
       }
     }
 
+    // Stable, type-scoped key so React reconciliation always treats a freshly
+    // attached visual element as a new mount instead of a same-index reuse.
+    const k = `${element.type}-${index}`;
     switch (element.type) {
       case 'project-card':
-        return <ProjectCard key={index} data={element.data} onAction={handleAction} />;
+        return <ProjectCard key={k} data={element.data} onAction={handleAction} />;
       case 'project-selector':
-        return <ProjectSelector key={index} data={element.data} onAction={handleAction} />;
+        return <ProjectSelector key={k} data={element.data} onAction={handleAction} />;
       case 'worker-list':
-        return <WorkerList key={index} data={element.data} />;
+        return <WorkerList key={k} data={element.data} />;
       case 'worker-payment-card':
-        return <WorkerPaymentCard key={index} data={element.data} />;
+        return <WorkerPaymentCard key={k} data={element.data} />;
       case 'budget-chart':
-        return <BudgetChart key={index} data={element.data} />;
+        return <BudgetChart key={k} data={element.data} />;
       case 'photo-gallery':
-        return <PhotoGallery key={index} data={element.data} onAction={handleAction} />;
+        return <PhotoGallery key={k} data={element.data} onAction={handleAction} />;
       case 'project-preview':
-        return <ProjectPreview key={index} data={element.data} onAction={handleAction} />;
+        return <ProjectPreview key={k} data={element.data} onAction={handleAction} />;
       case 'service-plan-preview':
-        return <ServicePlanPreview key={index} data={element.data} onAction={handleAction} />;
+        return <ServicePlanPreview key={k} data={element.data} onAction={handleAction} />;
       case 'estimate-preview':
-        return <EstimatePreview key={index} data={element.data} onAction={handleAction} />;
+        return <EstimatePreview key={k} data={element.data} onAction={handleAction} />;
       case 'estimate-list':
-        return <EstimateList key={index} data={element.data} onAction={handleAction} />;
+        return <EstimateList key={k} data={element.data} onAction={handleAction} />;
       case 'invoice-preview':
-        return <InvoicePreview key={index} data={element.data} onAction={handleAction} />;
+        return <InvoicePreview key={k} data={element.data} onAction={handleAction} />;
       case 'invoice-list':
-        return <InvoiceList key={index} data={element.data} onAction={handleAction} />;
+        return <InvoiceList key={k} data={element.data} onAction={handleAction} />;
       case 'contract-preview':
-        return <ContractPreview key={index} data={element.data} onAction={handleAction} />;
+        return <ContractPreview key={k} data={element.data} onAction={handleAction} />;
       case 'contract-list':
-        return <ContractList key={index} data={element.data} onAction={handleAction} />;
+        return <ContractList key={k} data={element.data} onAction={handleAction} />;
       case 'document-picker':
-        return <ChatDocumentPicker key={index} data={element.data} onAction={handleAction} />;
+        return <ChatDocumentPicker key={k} data={element.data} onAction={handleAction} />;
       case 'expense-card':
-        return <ExpenseCard key={index} data={element.data} />;
+        return <ExpenseCard key={k} data={element.data} />;
       case 'project-overview':
-        return <ProjectOverview key={index} data={element.data} onAction={handleAction} />;
+        return <ProjectOverview key={k} data={element.data} onAction={handleAction} />;
       case 'phase-overview':
-        return <PhaseOverview key={index} data={element.data} onAction={handleAction} />;
+        return <PhaseOverview key={k} data={element.data} onAction={handleAction} />;
       case 'daily-report-list':
-        return <DailyReportList key={index} data={element.data} onAction={handleAction} />;
+        return <DailyReportList key={k} data={element.data} onAction={handleAction} />;
       case 'appointment-card':
-        return <AppointmentCard key={index} data={element.data} onAction={handleAction} />;
+        return <AppointmentCard key={k} data={element.data} onAction={handleAction} />;
       case 'time-tracking-map':
-        return <TimeTrackingMap key={index} data={element.data} />;
+        return <TimeTrackingMap key={k} data={element.data} />;
       default:
         return null;
     }
@@ -3553,6 +3547,7 @@ export default function ChatScreen({ navigation, route }) {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           data={isLoadingChat ? [] : messages}
+          extraData={messages}
           keyExtractor={(item) => item.id}
           ListEmptyComponent={
             isLoadingChat ? (
