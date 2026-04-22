@@ -374,6 +374,13 @@ export const saveProjectPhases = async (projectId, phases, schedule = null) => {
       await createWorkerTasksFromPhases(projectId, userId, phasesToInsert);
     }
 
+    // Overwrite the legacy spread distribution with the fill-every-day algo.
+    // Fire-and-forget — the orchestrator debounces per-project and coalesces.
+    try {
+      const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+      redistributeProjectTasks(projectId);
+    } catch (_) { /* best-effort */ }
+
     return true;
   } catch (error) {
     console.error('Error in saveProjectPhases:', error);
@@ -526,7 +533,7 @@ export const extendPhaseTimeline = async (phaseId, extraDays, reason = '') => {
   try {
     const { data: phase, error: fetchError } = await supabase
       .from('project_phases')
-      .select('id, time_extensions, end_date, planned_days')
+      .select('id, project_id, time_extensions, end_date, planned_days')
       .eq('id', phaseId)
       .single();
 
@@ -561,6 +568,13 @@ export const extendPhaseTimeline = async (phaseId, extraDays, reason = '') => {
     if (updateError) {
       console.error('Error extending phase timeline:', updateError);
       return false;
+    }
+
+    if (phase.project_id) {
+      try {
+        const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+        redistributeProjectTasks(phase.project_id);
+      } catch (_) { /* best-effort */ }
     }
 
     return true;
@@ -627,14 +641,23 @@ export const updatePhaseDates = async (phaseId, dates) => {
       updateData.planned_days = diffDays;
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('project_phases')
       .update(updateData)
-      .eq('id', phaseId);
+      .eq('id', phaseId)
+      .select('project_id')
+      .single();
 
     if (error) {
       console.error('Error updating phase dates:', error);
       return false;
+    }
+
+    if (updated?.project_id) {
+      try {
+        const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+        redistributeProjectTasks(updated.project_id);
+      } catch (_) { /* best-effort */ }
     }
 
     return true;
@@ -776,6 +799,14 @@ export const addTaskToPhase = async (phaseId, taskDescription, order) => {
       .single();
 
     if (error) throw error;
+
+    if (data?.project_id) {
+      try {
+        const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+        redistributeProjectTasks(data.project_id);
+      } catch (_) { /* best-effort */ }
+    }
+
     return data;
   } catch (error) {
     console.error('Error adding task to phase:', error);
