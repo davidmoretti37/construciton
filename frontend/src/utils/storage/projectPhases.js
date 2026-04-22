@@ -12,188 +12,22 @@ const CLEANUP_KEYWORDS = ['cleanup', 'clean up', 'final', 'inspection', 'walkthr
 const PREP_KEYWORDS = ['prep', 'preparation', 'site assessment', 'layout', 'remove existing', 'check plumbing', 'site prep'];
 
 /**
- * AI-powered task redistribution
- * Grabs ALL tasks (including manually added ones) and redistributes them intelligently
- * @param {string} projectId - Project ID
- * @param {string} ownerId - Owner ID
- * @param {Array} phases - Array of phase objects with tasks
- * @param {Object} timeline - { startDate, endDate, workingDays }
+ * Redistribute all project tasks so every working day inside each phase
+ * window is filled. Deterministic floor+remainder algorithm — no AI.
+ *
+ * Signature preserved for back-compat; `phases` + `timeline` args are
+ * ignored (the orchestrator re-fetches them from the DB to avoid stale
+ * client-side state).
+ *
+ * The actual algorithm lives in `utils/scheduling/distributeTasks.js`
+ * and `utils/scheduling/redistributeProjectTasks.js` — this export is
+ * just the historical entry point.
  */
-export const redistributeAllTasksWithAI = async (projectId, ownerId, phases, timeline) => {
-  try {
-
-    // 1. Fetch ALL existing tasks for this project (including manually added ones)
-    const { data: existingTasks } = await supabase
-      .from('worker_tasks')
-      .select('id, title, phase_task_id')
-      .eq('project_id', projectId);
-
-    // 2. Collect tasks from phases
-    const phaseTasks = [];
-    phases.forEach(phase => {
-      phase.tasks?.forEach(task => {
-        phaseTasks.push({
-          title: task.description || task.name || 'Untitled task',
-          phaseName: phase.name,
-          isFromPhase: true,
-        });
-      });
-    });
-
-    // 3. Get manually added tasks (those without phase_task_id)
-    const manualTasks = (existingTasks || [])
-      .filter(t => !t.phase_task_id)
-      .map(t => ({
-        title: t.title,
-        phaseName: 'Manual',
-        isFromPhase: false,
-        originalId: t.id,
-      }));
-
-    // 4. Combine all tasks
-    const allTasks = [...phaseTasks, ...manualTasks];
-
-    if (allTasks.length === 0) {
-      return [];
-    }
-
-    // 5. Build the AI prompt
-    const workingDaysStr = (timeline.workingDays || [1, 2, 3, 4, 5])
-      .map(d => ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d])
-      .join(', ');
-
-    const prompt = `You are a construction project scheduler. Distribute these tasks intelligently.
-
-TIMELINE:
-- Start: ${timeline.startDate}
-- End: ${timeline.endDate}
-- Working days: ${workingDaysStr}
-
-PHASES:
-${phases.map((p, i) => `${i + 1}. ${p.name}: ${p.plannedDays || 1} days`).join('\n')}
-
-TASKS (${allTasks.length} total):
-${allTasks.map((t, i) => `${i + 1}. [${t.phaseName}] ${t.title}`).join('\n')}
-
-RULES:
-1. Tasks from each phase must fit within that phase's allocated days
-2. "Manual" tasks: place them logically based on task description
-3. Prep tasks (site assessment, layout, remove existing) go FIRST
-4. Main work distributed evenly within phases
-5. Cleanup/inspection/testing go on LAST day
-6. Consider task DEPENDENCIES - what logically must come before what
-7. Each day: 2-4 tasks typical, but adjust based on complexity
-
-Return ONLY a valid JSON array with date for each task (by index):
-[{"taskIndex":0,"date":"YYYY-MM-DD"},{"taskIndex":1,"date":"YYYY-MM-DD"}]`;
-
-
-    // 6. Call AI
-    const response = await sendPlanningRequest(prompt, 'You are a construction scheduler. Return ONLY valid JSON array, no explanation.');
-
-    // 7. Parse response - handle potential markdown code blocks and extra text
-    let distribution;
-    try {
-      // If response is already an array, use it directly
-      if (Array.isArray(response)) {
-        distribution = response;
-      } else {
-        // Convert to string if not already
-        let jsonStr = typeof response === 'string' ? response : JSON.stringify(response);
-        // Remove markdown code block if present
-        if (jsonStr.includes('```')) {
-          jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-        }
-        // Extract JSON array if there's extra text around it
-        const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
-        if (arrayMatch) {
-          jsonStr = arrayMatch[0];
-        }
-        // Fix common JSON issues (trailing commas from AI responses)
-        jsonStr = jsonStr
-          .replace(/,\s*]/g, ']')   // Remove trailing commas in arrays
-          .replace(/,\s*}/g, '}');  // Remove trailing commas in objects
-        distribution = JSON.parse(jsonStr);
-      }
-    } catch (parseError) {
-      console.error('🤖 [AI-DISTRIBUTE] Failed to parse AI response:', response);
-      console.error('Parse error:', parseError);
-      // Fallback to simple distribution
-      return createSimpleDistribution(projectId, ownerId, phases, timeline);
-    }
-
-
-    // 8. Delete ALL existing tasks for this project
-    await supabase
-      .from('worker_tasks')
-      .delete()
-      .eq('project_id', projectId);
-
-    // 9. Create tasks with AI-assigned dates
-    const tasksToCreate = distribution.map(({ taskIndex, date }) => {
-      const task = allTasks[taskIndex];
-      if (!task) {
-        console.warn('🤖 [AI-DISTRIBUTE] Invalid taskIndex:', taskIndex);
-        return null;
-      }
-      return {
-        owner_id: ownerId,
-        project_id: projectId,
-        title: task.title,
-        description: task.isFromPhase ? `Phase: ${task.phaseName}` : 'Manually added',
-        start_date: date,
-        end_date: date, // Will be extended below to fill gaps
-        status: 'pending',
-        phase_task_id: task.isFromPhase ? `phase-task-${taskIndex}` : null,
-      };
-    }).filter(Boolean);
-
-    // 10. Fill gaps - extend each task's end_date to day before next task
-    // This ensures no blank days on the schedule
-    if (tasksToCreate.length > 1) {
-      // Sort by start_date
-      tasksToCreate.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-
-      for (let i = 0; i < tasksToCreate.length - 1; i++) {
-        const currentTask = tasksToCreate[i];
-        const nextTask = tasksToCreate[i + 1];
-
-        // Calculate day before next task starts
-        const nextStart = new Date(nextTask.start_date + 'T00:00:00');
-        nextStart.setDate(nextStart.getDate() - 1);
-        const newEndDate = nextStart.toISOString().split('T')[0];
-
-        // Only extend if there's a gap (don't shrink if tasks overlap)
-        if (new Date(newEndDate) > new Date(currentTask.end_date)) {
-          currentTask.end_date = newEndDate;
-        }
-      }
-
-      // Last task extends to project end date
-      const lastTask = tasksToCreate[tasksToCreate.length - 1];
-      if (timeline.endDate && new Date(timeline.endDate) > new Date(lastTask.end_date)) {
-        lastTask.end_date = timeline.endDate;
-      }
-    }
-
-    if (tasksToCreate.length > 0) {
-      const { error } = await supabase
-        .from('worker_tasks')
-        .insert(tasksToCreate);
-
-      if (error) {
-        console.error('🤖 [AI-DISTRIBUTE] Error inserting tasks:', error);
-        throw error;
-      }
-    }
-
-    return tasksToCreate;
-
-  } catch (error) {
-    console.error('🤖 [AI-DISTRIBUTE] Error:', error);
-    // Fallback to simple distribution on error
-    return createSimpleDistribution(projectId, ownerId, phases, timeline);
-  }
+export const redistributeAllTasksWithAI = async (projectId, _ownerId, _phases, _timeline) => {
+  const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+  // Immediate (await) because legacy callers expect completion before UI
+  // updates. New callers should prefer fire-and-forget via the debounce.
+  return redistributeProjectTasks(projectId, { immediate: true });
 };
 
 /**

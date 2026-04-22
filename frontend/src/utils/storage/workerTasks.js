@@ -1119,8 +1119,14 @@ export const syncAllProjectTasksToCalendar = async () => {
  * @returns {boolean} True if it's a working day
  */
 export const isWorkingDay = (date, workingDays = [1, 2, 3, 4, 5], nonWorkingDates = []) => {
-  // Check if this specific date is in the non-working dates list
-  const dateString = date.toISOString().split('T')[0];
+  // Check if this specific date is in the non-working dates list.
+  // Use LOCAL-time YYYY-MM-DD — toISOString() would be UTC and could flip
+  // the day for anyone west of UTC on the boundary between midnight local
+  // and midnight UTC.
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const dateString = `${y}-${m}-${d}`;
   if (nonWorkingDates.includes(dateString)) {
     return false;
   }

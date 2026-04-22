@@ -918,6 +918,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         }
       }
 
+      // Redistribute worker_tasks so each phase's working days are filled.
+      // Fire-and-forget — the orchestrator is debounced per-project and will
+      // coalesce if multiple mutations fired in the same save.
+      try {
+        const { redistributeProjectTasks } = await import('../utils/scheduling/redistributeProjectTasks');
+        redistributeProjectTasks(project.id);
+      } catch (_) { /* best-effort */ }
+
       // Refresh phases to get updated values
       if (project?.hasPhases) {
         const updatedPhases = await fetchProjectPhases(project.id);

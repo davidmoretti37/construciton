@@ -455,6 +455,120 @@ async function resolveInvoiceId(userId, idOrName) {
 
 // ==================== PROJECTS ====================
 
+// Fire-and-forget redistribute call used by AI tools that change phase
+// structure or project timeline. Calls the backend equivalent: re-enumerate
+// phase tasks + rewrite worker_tasks dates. Wraps in setImmediate so the
+// AI tool response is not blocked.
+async function redistributeTasksForProject(projectId) {
+  if (!projectId) return;
+  try {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, user_id, start_date, end_date, working_days, non_working_dates')
+      .eq('id', projectId)
+      .maybeSingle();
+    if (!project) return;
+    const { data: phases } = await supabase
+      .from('project_phases')
+      .select('id, name, order_index, planned_days, start_date, end_date, tasks')
+      .eq('project_id', projectId)
+      .order('order_index', { ascending: true });
+    if (!phases || phases.length === 0) return;
+    const workingDays = project.working_days || [1, 2, 3, 4, 5];
+    const nonWorkingDates = project.non_working_dates || [];
+    const toLocalISODate = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    };
+    const parseDate = (s) => s ? new Date(String(s) + 'T00:00:00') : null;
+    const isWorkingDay = (date) => {
+      const nonWorking = new Set(nonWorkingDates || []);
+      if (nonWorking.has(toLocalISODate(date))) return false;
+      const jsDay = date.getDay();
+      const isoDay = jsDay === 0 ? 7 : jsDay;
+      return workingDays.includes(isoDay);
+    };
+    const listWorkingDays = (start, end) => {
+      const s = parseDate(start); const e = parseDate(end);
+      if (!s || !e || e < s) return [];
+      const out = []; const cur = new Date(s);
+      while (cur <= e) {
+        if (isWorkingDay(cur)) out.push(toLocalISODate(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
+      return out;
+    };
+    // Compute phase windows sequentially from planned_days when dates missing.
+    let cursor = project.start_date ? parseDate(project.start_date) : null;
+    const resolvedPhases = phases.map((phase) => {
+      if (phase.start_date && phase.end_date) {
+        cursor = parseDate(phase.end_date);
+        if (cursor) cursor.setDate(cursor.getDate() + 1);
+        return phase;
+      }
+      const n = parseInt(phase.planned_days, 10);
+      if (!cursor || !n || n < 1) return phase;
+      const picked = [];
+      while (picked.length < n && cursor) {
+        if (isWorkingDay(cursor)) picked.push(toLocalISODate(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      if (picked.length === 0) return phase;
+      return { ...phase, start_date: picked[0], end_date: picked[picked.length - 1] };
+    });
+    // Delete phase-owned tasks only, rebuild.
+    await supabase
+      .from('worker_tasks')
+      .delete()
+      .eq('project_id', projectId)
+      .not('phase_task_id', 'is', null);
+    const inserts = [];
+    for (const phase of resolvedPhases) {
+      const tasks = Array.isArray(phase.tasks) ? phase.tasks.filter((t) => t && (t.description || t.name || t.title)) : [];
+      if (tasks.length === 0) continue;
+      const days = listWorkingDays(phase.start_date, phase.end_date);
+      if (days.length === 0) continue;
+      const base = Math.floor(days.length / tasks.length);
+      const remainder = days.length % tasks.length;
+      if (base === 0) {
+        tasks.forEach((task, i) => {
+          const idx = Math.min(i, days.length - 1);
+          inserts.push({
+            project_id: projectId,
+            owner_id: project.user_id,
+            title: task.description || task.name || task.title || 'Untitled',
+            start_date: days[idx], end_date: days[idx],
+            status: 'pending',
+            phase_task_id: String(task.id || `${phase.id}-${task.order ?? 0}`),
+          });
+        });
+        continue;
+      }
+      let cur = 0;
+      for (let i = 0; i < tasks.length; i++) {
+        const span = base + (i < remainder ? 1 : 0);
+        const s = days[cur]; const e = days[cur + span - 1];
+        inserts.push({
+          project_id: projectId,
+          owner_id: project.user_id,
+          title: tasks[i].description || tasks[i].name || tasks[i].title || 'Untitled',
+          start_date: s, end_date: e,
+          status: 'pending',
+          phase_task_id: String(tasks[i].id || `${phase.id}-${tasks[i].order ?? 0}`),
+        });
+        cur += span;
+      }
+    }
+    if (inserts.length > 0) {
+      await supabase.from('worker_tasks').insert(inserts);
+    }
+  } catch (e) {
+    logger.warn('[redistribute-backend] failed:', e?.message);
+  }
+}
+
 async function search_projects(userId, args = {}) {
   const { query, status } = args;
 
@@ -659,6 +773,11 @@ async function update_project(userId, args = {}) {
   }
 
   logger.info(`✅ Updated project ${project_id}:`, { ...updates, resulting_contract_amount: data.contract_amount });
+
+  // Timeline changed → reflow phase tasks. Fire-and-forget.
+  if (start_date !== undefined || end_date !== undefined) {
+    redistributeTasksForProject(project_id).catch(() => {});
+  }
 
   return {
     success: true,
@@ -2656,6 +2775,9 @@ async function add_project_checklist(userId, { project_id, items }) {
     .update({ updated_at: new Date().toISOString() })
     .eq('id', resolved.id);
 
+  
+  // Reflow phase-owned worker_tasks so the calendar is gap-free.
+  try { await redistributeTasksForProject(project_id || (args && args.project_id)); } catch (_) {}
   return {
     success: true,
     project_id: resolved.id,
@@ -2751,6 +2873,9 @@ async function create_project_phase(userId, { project_id, phase_name, planned_da
     .eq('id', resolved.id)
     .single();
 
+  
+  // Reflow phase-owned worker_tasks so the calendar is gap-free.
+  try { await redistributeTasksForProject(project_id || (args && args.project_id)); } catch (_) {}
   return {
     success: true,
     project_name: proj?.name,
@@ -3085,6 +3210,9 @@ async function create_worker_task(userId, { project, title, description, start_d
     }
   }
 
+  
+  // Reflow phase-owned worker_tasks so the calendar is gap-free.
+  try { await redistributeTasksForProject(project_id || (args && args.project_id)); } catch (_) {}
   return {
     success: true,
     task: {

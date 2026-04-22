@@ -820,6 +820,10 @@ export const addNonWorkingDate = async (projectId, date) => {
       console.error('Error adding non-working date:', error);
       return false;
     }
+    try {
+      const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+      redistributeProjectTasks(projectId);
+    } catch (_) { /* fire-and-forget */ }
     return true;
   } catch (error) {
     console.error('Error in addNonWorkingDate:', error);
@@ -852,6 +856,10 @@ export const removeNonWorkingDate = async (projectId, date) => {
       console.error('Error removing non-working date:', error);
       return false;
     }
+    try {
+      const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+      redistributeProjectTasks(projectId);
+    } catch (_) { /* fire-and-forget */ }
     return true;
   } catch (error) {
     console.error('Error in removeNonWorkingDate:', error);
@@ -880,6 +888,10 @@ export const updateNonWorkingDates = async (projectId, dates) => {
       console.error('Error updating non-working dates:', error);
       return false;
     }
+    try {
+      const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+      redistributeProjectTasks(projectId);
+    } catch (_) { /* fire-and-forget */ }
     return true;
   } catch (error) {
     console.error('Error in updateNonWorkingDates:', error);
