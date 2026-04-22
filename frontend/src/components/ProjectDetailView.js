@@ -27,7 +27,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
+import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
 import { SkeletonBox, SkeletonCard } from './SkeletonLoader';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
@@ -51,6 +51,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const Colors = getColors(isDark) || LightColors;
   const [modalVisible, setModalVisible] = useState(visible);
   const wasNavigatingRef = useRef(false);
+  // Holds an imperative save function exposed by DailyChecklistSection when
+  // it's controlled by the global edit pencil. Called inside
+  // handleSaveAllChanges so checklist/labor-role edits flush together with
+  // the rest of the project.
+  const checklistSaveRef = useRef(null);
   const [initialLoading, setInitialLoading] = useState(!isDemo);
   const [phases, setPhases] = useState([]);
   const [loadingPhases, setLoadingPhases] = useState(false);
@@ -468,6 +473,32 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     }
   };
 
+  // Add a brand-new task to a phase (only while global edit mode is on).
+  // The task gets a local `draft-<ts>` id; the real UUID is reconciled on
+  // the next fetchProjectPhases after handleSaveAllChanges flushes.
+  const handleAddTaskToPhase = (phase) => {
+    if (!phase?.id) return;
+    const draftId = `draft-${Date.now()}`;
+    setPhases(prev => prev.map(p => {
+      if (p.id !== phase.id) return p;
+      const nextTasks = Array.isArray(p.tasks) ? [...p.tasks] : [];
+      nextTasks.push({
+        id: draftId,
+        description: 'New task',
+        order: nextTasks.length + 1,
+        completed: false,
+        status: 'not_started',
+      });
+      return { ...p, tasks: nextTasks };
+    }));
+    // Make sure the phase is expanded so the user sees their new task
+    setExpandedPhaseIds(prev => {
+      const next = new Set(prev);
+      next.add(phase.id);
+      return next;
+    });
+  };
+
   const handleTaskReorder = async (phaseId, reorderedTasks) => {
     // Optimistic update
     setPhases(prev => prev.map(p => {
@@ -729,6 +760,48 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         await updatePhaseProgress(phaseId, progress);
       }
 
+      // Save checklist/labor-role edits (if the DailyChecklistSection was
+      // in edit mode). It exposes its save fn via onEditModeChange.
+      if (checklistSaveRef.current) {
+        try {
+          await checklistSaveRef.current();
+        } catch (checklistErr) {
+          console.warn('[ProjectDetail] checklist save failed', checklistErr?.message);
+        }
+      }
+
+      // Persist phases (including any newly added tasks) via the non-destructive
+      // upsert so a mid-save network blip can't wipe pre-existing phase rows.
+      if (project?.hasPhases && phases.length > 0) {
+        try {
+          const phasePayload = phases.map((p, i) => ({
+            id: p.id,
+            name: p.name,
+            plannedDays: p.planned_days || p.plannedDays || 0,
+            budget: parseFloat(p.budget) || 0,
+            order: i,
+            order_index: typeof p.order_index === 'number' ? p.order_index : i,
+            assignedWorkerId: p.assignedWorkerId || p.assigned_worker_id || null,
+            tasks: (p.tasks || [])
+              .filter(t => (t.description || '').trim())
+              .map((t, j) => ({
+                id: t.id,
+                description: t.description.trim(),
+                order: j + 1,
+                completed: !!t.completed,
+                status: t.status || 'not_started',
+              })),
+          }));
+          await upsertProjectPhases(project.id, phasePayload, {
+            startDate: safeParseDateToString(editStartDate),
+            endDate: safeParseDateToString(editEndDate),
+            workingDays: editWorkingDays,
+          });
+        } catch (phaseErr) {
+          console.warn('[ProjectDetail] upsertProjectPhases failed', phaseErr?.message);
+        }
+      }
+
       // Refresh phases to get updated values
       if (project?.hasPhases) {
         const updatedPhases = await fetchProjectPhases(project.id);
@@ -736,6 +809,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       }
 
       setIsEditing(false);
+      // Clear the checklist save-fn reference so stale closures don't linger
+      // into the next edit session.
+      checklistSaveRef.current = null;
 
       // If timeline changed, offer to recalculate task dates
       if (timelineChanged && project?.id && project?.hasPhases) {
@@ -1196,10 +1272,39 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             </TouchableOpacity>
 
-            {!isDemo && (
-              <TouchableOpacity onPress={() => setShowEditModal(true)} style={styles.editButton}>
+            {!isDemo && !isEditing && (
+              <TouchableOpacity
+                onPress={() => {
+                  // Seed edit drafts from current project so the existing
+                  // in-place editable blocks (timeline, phase progress,
+                  // contact info) have values to bind to.
+                  setEditAddress(project?.location || '');
+                  setEditPhone(project?.client_phone || project?.clientPhone || '');
+                  setEditEmail(project?.client_email || project?.clientEmail || '');
+                  setEditStartDate(project?.startDate ? safeParseDateToObject(project.startDate) : null);
+                  setEditEndDate(project?.endDate ? safeParseDateToObject(project.endDate) : null);
+                  setEditWorkingDays(project?.workingDays || [1, 2, 3, 4, 5]);
+                  setIsEditing(true);
+                }}
+                style={styles.editButton}
+              >
                 <View style={[styles.editIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                   <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+            )}
+            {!isDemo && isEditing && (
+              <TouchableOpacity
+                onPress={handleSaveAllChanges}
+                disabled={savingChanges}
+                style={styles.editButton}
+              >
+                <View style={[styles.editIconContainer, { backgroundColor: '#10B981', opacity: savingChanges ? 0.6 : 1 }]}>
+                  {savingChanges ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                  )}
                 </View>
               </TouchableOpacity>
             )}
@@ -1420,6 +1525,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         phaseSpentByName={spentBySubcategory}
                         onViewTransactions={handleViewPhaseTransactions}
                         onAddTransaction={handleAddPhaseTransaction}
+                        onAddTask={isEditing ? handleAddTaskToPhase : undefined}
                       />
                     </View>
                   )}
@@ -1881,13 +1987,19 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             ) : null}
           </View>
 
-          {/* Daily Checklist Section */}
+          {/* Daily Checklist Section — controlled by global project edit pencil. */}
           {!isDemo && project?.id && (
             <DailyChecklistSection
               projectId={project.id}
               ownerId={project.user_id || profile?.id}
               userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
               userId={profile?.id}
+              editMode={isEditing}
+              onEditModeChange={(signal) => {
+                if (signal && typeof signal === 'object' && signal.type === 'save-handler') {
+                  checklistSaveRef.current = signal.fn;
+                }
+              }}
             />
           )}
 

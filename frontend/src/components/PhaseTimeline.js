@@ -27,6 +27,13 @@ export default function PhaseTimeline({
   phaseSpentByName = null,
   onViewTransactions,
   onAddTransaction,
+  // Inline task authoring while editing. When `onAddTask` is provided, each
+  // expanded phase renders a "+ Add Task" button in edit mode. `onTaskDelete`
+  // shows a small trash icon per task; `onTaskDescriptionChange` swaps the
+  // task row into a TextInput so the description can be typed directly.
+  onAddTask,
+  onTaskDelete,
+  onTaskDescriptionChange,
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -319,6 +326,17 @@ export default function PhaseTimeline({
               <View style={[styles.emptyTasks, { borderTopColor: Colors.border }]}>
                 <Text style={[styles.emptyTasksText, { color: Colors.secondaryText }]}>No tasks yet</Text>
               </View>
+            )}
+
+            {/* Inline Add Task — only when editing AND parent wired onAddTask */}
+            {isExpanded && isEditing && onAddTask && (
+              <TouchableOpacity
+                onPress={() => onAddTask(phase)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border }}
+              >
+                <Ionicons name="add-circle-outline" size={16} color="#7C3AED" />
+                <Text style={{ color: '#7C3AED', fontSize: 13, fontWeight: '700' }}>Add Task</Text>
+              </TouchableOpacity>
             )}
 
             {/* Per-phase Transactions CTAs (only when expanded + parent supplied handlers) */}

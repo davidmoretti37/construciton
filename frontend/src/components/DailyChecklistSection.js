@@ -37,6 +37,13 @@ export default function DailyChecklistSection({
   userRole = 'worker',
   userId,
   visitTasks = [],  // visit_checklist_templates from service plan locations — merged into checklist
+  // External edit mode: when provided, the parent owns the edit toggle (global
+  // project-edit pencil). In that mode we hide our own edit button and
+  // auto-enter/exit edit templates when editMode flips. Parent should also
+  // bump `onEditModeChange(false)` after it flushes its own save so this
+  // section collapses back in sync.
+  editMode,
+  onEditModeChange,
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -53,6 +60,37 @@ export default function DailyChecklistSection({
   const [editedTemplates, setEditedTemplates] = useState([]);
   const [editedRoles, setEditedRoles] = useState([]);
   const [saving, setSaving] = useState(false);
+
+  // When controlled by a parent (externalEditMode != null), expose a save
+  // function via onEditModeChange(entering, saveFn) pattern — parent stashes
+  // the returned saveFn and calls it during its global Save before flipping
+  // editMode off. Implementation: we fire onEditModeChange('save-handler', fn)
+  // once after mount when controlled, and re-fire when dependencies change.
+  // Sync internal edit state with parent-provided editMode. When parent flips
+  // editMode on, we seed draft arrays and enter edit view; when it flips off,
+  // we just collapse back (saves happen via the parent's save button).
+  const externalEditMode = editMode === undefined ? null : !!editMode;
+  useEffect(() => {
+    if (externalEditMode === null) return; // uncontrolled — ignore
+    if (externalEditMode && !isEditingTemplates) {
+      setEditedTemplates(templates.map(t => ({ ...t })));
+      setEditedRoles(laborRoles.map(r => ({ ...r })));
+      setIsEditingTemplates(true);
+    } else if (!externalEditMode && isEditingTemplates) {
+      setIsEditingTemplates(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalEditMode, templates, laborRoles]);
+
+  // Expose save function to parent (only when controlled). Uses the
+  // { type: 'save-handler', fn } escape hatch on the same callback.
+  useEffect(() => {
+    if (externalEditMode === null || !onEditModeChange) return;
+    // Give the parent a reference to our internal save fn so it can flush
+    // checklist/labor-role edits as part of its global Save action.
+    onEditModeChange({ type: 'save-handler', fn: handleSaveTemplates });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalEditMode, editedTemplates, editedRoles]);
 
   const today = new Date().toISOString().split('T')[0];
   const parentFilter = projectId
@@ -423,7 +461,8 @@ export default function DailyChecklistSection({
             </Text>
           )}
         </Text>
-        {isOwner && !isEditingTemplates && (
+        {/* Self edit button — only when uncontrolled (no external editMode). */}
+        {externalEditMode === null && isOwner && !isEditingTemplates && (
           <TouchableOpacity
             style={[styles.editButton, { backgroundColor: Colors.primaryBlue + '15' }]}
             onPress={handleStartEditTemplates}
@@ -431,7 +470,7 @@ export default function DailyChecklistSection({
             <Ionicons name="create-outline" size={16} color={Colors.primaryBlue} />
           </TouchableOpacity>
         )}
-        {isEditingTemplates && (
+        {externalEditMode === null && isEditingTemplates && (
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity onPress={handleCancelEditTemplates} style={styles.editActionBtn}>
               <Ionicons name="close" size={18} color="#EF4444" />
@@ -447,7 +486,7 @@ export default function DailyChecklistSection({
         )}
       </View>
 
-      {!isEditingTemplates && (
+      {externalEditMode === null && !isEditingTemplates && (
         <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8, fontStyle: 'italic' }}>
           Edit checklist items here directly — changes save independently from the project Edit button.
         </Text>
