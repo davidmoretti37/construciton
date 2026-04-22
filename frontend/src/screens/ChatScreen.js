@@ -1862,48 +1862,13 @@ export default function ChatScreen({ navigation, route }) {
       case 'create-project':
       case 'save-project':
       case 'confirm-project': {
+        // handleSaveProject already persists the project AND any
+        // checklist_items / labor_roles passed in action.data — we used to
+        // re-insert them here, which (a) duplicated rows on the templates
+        // tables and (b) amplified the post-save re-render cascade that
+        // felt like a full-app reload. Now: single call, single message.
         const savedProject = await projectActions.handleSaveProject(action.data, messages);
         if (savedProject?.id) {
-          // Save daily checklist templates if provided
-          const checklistItems = action.data?.checklist_items || action.data?.checklistItems;
-          if (checklistItems && Array.isArray(checklistItems) && checklistItems.length > 0) {
-            try {
-              const userId = user?.id || profile?.id || await getCurrentUserId();
-              await supabase.from('daily_checklist_templates').insert(
-                checklistItems.map((item, i) => ({
-                  project_id: savedProject.id,
-                  owner_id: userId,
-                  title: typeof item === 'string' ? item : item.title,
-                  item_type: item.item_type || 'checkbox',
-                  quantity_unit: item.quantity_unit || null,
-                  requires_photo: item.requires_photo || false,
-                  sort_order: i,
-                }))
-              );
-              logger.info(`[Chat] Created ${checklistItems.length} checklist templates for project ${savedProject.id}`);
-            } catch (e) {
-              logger.error('[Chat] Failed to save checklist templates:', e.message);
-            }
-          }
-          // Save labor role templates if provided
-          const laborRoles = action.data?.labor_roles || action.data?.laborRoles;
-          if (laborRoles && Array.isArray(laborRoles) && laborRoles.length > 0) {
-            try {
-              const userId = user?.id || profile?.id || await getCurrentUserId();
-              await supabase.from('labor_role_templates').insert(
-                laborRoles.map((role, i) => ({
-                  project_id: savedProject.id,
-                  owner_id: userId,
-                  role_name: typeof role === 'string' ? role : role.role_name,
-                  default_quantity: role.default_quantity || 1,
-                  sort_order: i,
-                }))
-              );
-              logger.info(`[Chat] Created ${laborRoles.length} labor roles for project ${savedProject.id}`);
-            } catch (e) {
-              logger.error('[Chat] Failed to save labor roles:', e.message);
-            }
-          }
           return { projectId: savedProject.id };
         }
         break;

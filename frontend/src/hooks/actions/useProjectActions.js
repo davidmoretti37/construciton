@@ -552,10 +552,21 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
         };
         CoreAgent.updateConversationState({ lastProjectPreview: savedProjectPreview });
 
-        Alert.alert(
-          'Success',
-          `Project "${savedProject.name}" has been saved!`
-        );
+        // Non-blocking in-chat confirmation instead of Alert.alert — the
+        // native alert was dismissing the chat keyboard and causing a visible
+        // "full reload" cascade as every screen re-fetched after the tap.
+        if (typeof addMessage === 'function') {
+          try {
+            addMessage({
+              id: `save-success-${Date.now()}`,
+              text: `✅ Saved "${savedProject.name}" — tap the Projects tab to see it.`,
+              isUser: false,
+              timestamp: new Date(),
+              visualElements: [],
+              actions: [],
+            });
+          } catch (_) { /* best-effort */ }
+        }
 
         emitProjectUpdated(savedProject.id);
         invalidateCacheKey('projects:list');
