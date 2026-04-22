@@ -2,9 +2,16 @@
  * AI helper routes
  *
  * POST /api/ai/suggest-checklist-labor
- *   Generates suggested daily checklist items + labor roles for a project,
- *   based on its name, services, and phases. Used by the ProjectBuilder
- *   "Suggest with AI" button. JSON only — does NOT touch the database.
+ *   Generates suggested RECURRING daily checklist items + labor roles for a
+ *   project, based on its name and service category. Used by the
+ *   ProjectBuilder "Suggest with AI" button. JSON only — does NOT touch
+ *   the database.
+ *
+ *   Important: only the project NAME and a coarse service summary are
+ *   considered. Phase-specific tasks are intentionally NOT fed in — they
+ *   confuse the model into echoing one-time milestones back as "daily"
+ *   items (e.g. "All plumbing pressure tested" is a phase milestone, not
+ *   a recurring daily check).
  */
 
 const express = require('express');
@@ -17,8 +24,12 @@ router.use(authenticateUser);
 
 const FALLBACK_RESPONSE = {
   checklist_items: [
-    { title: 'Site clean at end of day', item_type: 'checkbox', requires_photo: false },
-    { title: 'Photos of completed work', item_type: 'checkbox', requires_photo: true },
+    { title: 'Crew head count', item_type: 'quantity', quantity_unit: 'workers', requires_photo: false },
+    { title: 'PPE check completed', item_type: 'checkbox', requires_photo: false },
+    { title: 'Site photo — start of day', item_type: 'checkbox', requires_photo: true },
+    { title: 'Site photo — end of day', item_type: 'checkbox', requires_photo: true },
+    { title: 'Daily safety walkthrough', item_type: 'checkbox', requires_photo: false },
+    { title: 'Work area cleaned & tools secured', item_type: 'checkbox', requires_photo: false },
     { title: 'Materials staged for tomorrow', item_type: 'checkbox', requires_photo: false },
   ],
   labor_roles: [
@@ -30,7 +41,7 @@ const FALLBACK_RESPONSE = {
 
 router.post('/suggest-checklist-labor', async (req, res) => {
   try {
-    const { projectName, services, phases } = req.body || {};
+    const { projectName, services } = req.body || {};
 
     if (!projectName || typeof projectName !== 'string') {
       return res.status(400).json({ error: 'projectName is required' });
@@ -41,32 +52,63 @@ router.post('/suggest-checklist-labor', async (req, res) => {
       return res.json(FALLBACK_RESPONSE);
     }
 
+    // Coarse service category — just the names, no per-phase task lists.
+    // Feeding tasks in causes the model to echo phase-completion milestones
+    // back as "daily" items.
     const serviceLines = Array.isArray(services) && services.length
-      ? services.map(s => typeof s === 'string' ? `- ${s}` : `- ${s.description || s.name || ''}${s.amount ? ` ($${s.amount})` : ''}`).join('\n')
+      ? services.map(s => typeof s === 'string' ? `- ${s}` : `- ${s.description || s.name || ''}`).filter(l => l !== '- ').join('\n')
       : '(none specified)';
 
-    const phaseLines = Array.isArray(phases) && phases.length
-      ? phases.map(p => {
-          const tasks = Array.isArray(p.tasks) && p.tasks.length
-            ? `: ${p.tasks.map(t => typeof t === 'string' ? t : (t.description || '')).filter(Boolean).join(', ')}`
-            : '';
-          return `- ${p.name || 'Phase'}${tasks}`;
-        }).join('\n')
-      : '(none specified)';
-
-    const prompt = `You help contractors plan job sites. For the project below, generate practical end-of-day checklist items and labor role assignments.
+    const prompt = `You generate the RECURRING daily checklist a construction crew fills out EVERY workday on a job site.
 
 PROJECT: ${projectName}
-SERVICES:
+SERVICE CATEGORIES:
 ${serviceLines}
-PHASES:
-${phaseLines}
 
-RULES:
-- Generate 4-8 checklist_items: short concrete actions a worker checks off at end of day. Set requires_photo: true for items that benefit from photo evidence (cleanups, completed work, damage). Use item_type: "checkbox" for simple yes/no, or "quantity" with quantity_unit (e.g. "bags", "sqft") for measurable items.
-- Generate 2-5 labor_roles: trade roles relevant to the work (Lead Carpenter, Electrician, Helper, etc.) with default_quantity 1-3 indicating how many of that role typically work on this kind of project.
-- Be specific to the project type — don't return generic items for every job.
-- No scheduling, no dates.
+CRITICAL RULES — read carefully:
+
+1. EVERY item must be something a worker does/records EVERY DAY, all the way through the job. NOT one-time milestones, NOT phase-completion checks.
+
+2. Forbidden item types — DO NOT generate any of these:
+   ❌ Phase milestones: "All plumbing pressure tested", "Electrical rough-in complete", "Tile layout checked", "Drywall mud applied" — these happen ONCE per project and belong in phase tasks, not daily checks.
+   ❌ Project deliverables: "Cabinets installed", "Roof shingles laid", "Foundation poured"
+   ❌ Inspections that happen on a specific day: "Final walkthrough", "City inspection passed"
+
+3. Required item types — your list should be drawn from these patterns:
+   ✅ Headcount / roll call: "Crew head count" (quantity, workers)
+   ✅ Safety: "PPE check completed", "Daily safety walkthrough", "Job hazard analysis filled"
+   ✅ Photos: "Site photo — start of day" (photo), "Site photo — end of day" (photo)
+   ✅ Daily progress quantities specific to the trade (linear ft, sqft, bags, gallons installed/used today)
+   ✅ Cleanup / housekeeping: "Work area cleaned & tools secured", "Debris bagged & removed"
+   ✅ Materials: "Materials staged for tomorrow", "Materials/equipment locked up"
+   ✅ Communication: "Daily log photo sent to PM", "Issues/blockers communicated"
+
+4. Generate 5-8 items. Mix checkbox + quantity items. Use requires_photo: true ONLY for items that genuinely need visual evidence (start/end-of-day site photos, damage, completed cleanup).
+
+5. Generate 2-5 labor_roles relevant to the trade (Lead Carpenter, Electrician, Plumber, Helper, etc.) with default_quantity 1-3.
+
+6. No scheduling. No dates. No phase names.
+
+EXAMPLES of well-formed output:
+
+For a bathroom remodel:
+- "Crew head count" (quantity, workers)
+- "PPE & safety briefing complete" (checkbox)
+- "Site photo — start of day" (checkbox, photo)
+- "Linear feet of pipe installed today" (quantity, ft)
+- "Sqft of tile laid today" (quantity, sqft)
+- "Site photo — end of day" (checkbox, photo)
+- "Work area swept & tools secured" (checkbox)
+- "Materials/equipment locked up" (checkbox)
+
+For roofing:
+- "Crew head count" (quantity, workers)
+- "Fall protection inspected" (checkbox)
+- "Bundles of shingles installed today" (quantity, bundles)
+- "Squares of underlayment laid" (quantity, squares)
+- "Debris removed from yard" (checkbox)
+- "Tarp secured for overnight" (checkbox)
+- "Site photo — end of day" (checkbox, photo)
 
 Return ONLY valid JSON, no markdown:
 {

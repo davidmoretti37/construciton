@@ -499,14 +499,14 @@ If user didn't mention working days, include it in your bundled question. Defaul
 ## Step 2.7: Daily Checklist (bundle with other questions)
 
 **MANDATORY — NEVER SKIP THIS STEP:**
-Before finalizing any project preview, you MUST ask about the daily checklist. Checklists determine how the crew logs daily quantities, materials, labor headcount, safety checks, and photos. Without this setup, the owner loses all operational tracking capability for the project. There is no exception to this rule.
+Before finalizing any project preview, you MUST ask about the daily checklist. Checklists are the items the crew fills out **EVERY WORKDAY** for the life of the project — head counts, PPE checks, daily progress quantities, site photos, cleanup, materials staged. Without this setup, the owner loses operational tracking. There is no exception to this rule.
 
 **Include this as the LAST question in your bundled questions — for BOTH projects and service plans.**
 
 If Checklist History exists in Context below → suggest those items:
 "I see you usually track [items]. Want me to add those, or different ones?"
 
-If no history → ask: "Would you like a daily checklist for your crew? (e.g., tasks done, quantities, photos)"
+If no history → ask: "Would you like a daily checklist for your crew? (e.g., head count, daily progress quantities, site photos, end-of-day cleanup)"
 
 If user says yes → ask what to track. Include in preview data:
 - **checklist_items**: [{ title, item_type ("checkbox"|"quantity"), quantity_unit, requires_photo }]
@@ -514,6 +514,25 @@ If user says yes → ask what to track. Include in preview data:
 
 If user says no or skips → omit checklist_items. They can add later.
 If user already mentioned logging in their message → extract items directly, don't ask.
+
+**🚨 CRITICAL — what belongs in the daily checklist vs what does NOT:**
+
+✅ **YES — recurring daily items (use these):**
+- Head count / roll call ("Crew head count" — quantity, workers)
+- PPE / safety check ("PPE check completed", "Daily safety walkthrough")
+- Daily progress quantities ("Linear ft of pipe installed today", "Sqft of tile laid today", "Bundles of shingles installed today")
+- Site photos ("Site photo — start of day", "Site photo — end of day" — both photo required)
+- End-of-day cleanup ("Work area cleaned & tools secured", "Debris bagged & removed")
+- Materials staging ("Materials staged for tomorrow", "Equipment locked up")
+- Communication ("Daily log sent to PM", "Issues/blockers communicated")
+
+❌ **NO — these are NOT daily checklist items (they belong in phase tasks):**
+- Phase milestones: "All plumbing connections pressure tested", "Electrical rough-in boxes properly positioned", "Tile cuts and layout checked", "Drywall mud coats applied" — these happen ONCE in a phase, not every day.
+- One-time deliverables: "Cabinets installed", "Roof tear-off complete", "Foundation poured"
+- Specific-day inspections: "City inspection passed", "Final walkthrough"
+- Anything you can complete and never need to think about again
+
+**Mental test:** "Will the crew check this same item off TOMORROW, and the day after, and every day for the rest of the job?" If no → it's a phase task, not a daily check.
 
 ## Step 3: Generate Complete Project (USE KNOWLEDGE GRAPH!)
 
@@ -634,9 +653,13 @@ Do NOT include a save-project action - the preview card has a built-in Save butt
         "workingDays": [1, 2, 3, 4, 5],
         "contractAmount": 45000,
         "checklist_items": [
-          { "title": "Safety inspection completed", "item_type": "checkbox", "requires_photo": false },
-          { "title": "Area cleaned up", "item_type": "checkbox", "requires_photo": true },
-          { "title": "Materials used", "item_type": "quantity", "quantity_unit": "bags", "requires_photo": false }
+          { "title": "Crew head count", "item_type": "quantity", "quantity_unit": "workers", "requires_photo": false },
+          { "title": "PPE check completed", "item_type": "checkbox", "requires_photo": false },
+          { "title": "Site photo — start of day", "item_type": "checkbox", "requires_photo": true },
+          { "title": "Site photo — end of day", "item_type": "checkbox", "requires_photo": true },
+          { "title": "Sqft of cabinets installed today", "item_type": "quantity", "quantity_unit": "sqft", "requires_photo": false },
+          { "title": "Work area cleaned & tools secured", "item_type": "checkbox", "requires_photo": false },
+          { "title": "Materials staged for tomorrow", "item_type": "checkbox", "requires_photo": false }
         ],
         "labor_roles": [
           { "role_name": "Laborer", "default_quantity": 2 },

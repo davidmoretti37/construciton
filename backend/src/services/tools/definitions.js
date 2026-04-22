@@ -1590,7 +1590,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'setup_daily_checklist',
-      description: 'Set up daily checklist items and labor roles for a project or service plan. Use during creation when the owner says their crew has daily items to log — quantities, materials, safety checks, etc. Takes both checklist items and labor roles in one call.',
+      description: 'Set up the RECURRING daily checklist items and labor roles for a project or service plan. These are items the crew checks off EVERY workday for the life of the project — head counts, PPE checks, daily progress quantities (linear ft / sqft / bundles installed today), site photos, end-of-day cleanup, materials staged for tomorrow. NEVER include phase-completion milestones here (e.g. "Pressure test passed", "Rough-in complete", "Cabinets installed") — those belong in phase tasks, not daily checks.',
       parameters: {
         type: 'object',
         properties: {
@@ -1598,11 +1598,11 @@ const toolDefinitions = [
           service_plan_id: { type: 'string', description: 'UUID of the service plan (provide this OR project_id, not both)' },
           checklist_items: {
             type: 'array',
-            description: 'Array of daily checklist items the crew will fill out each day',
+            description: 'Array of RECURRING daily checklist items the crew fills out EVERY workday. Forbidden: phase milestones, one-time deliverables, or anything that only happens once per project.',
             items: {
               type: 'object',
               properties: {
-                title: { type: 'string', description: 'Item name, e.g. "Fiber spliced", "Safety inspection done", "Debris hauled"' },
+                title: { type: 'string', description: 'Item name. GOOD: "Crew head count", "PPE check completed", "Site photo — end of day", "Linear feet of pipe installed today", "Work area cleaned & tools secured". BAD (do not use): "All plumbing pressure tested" (milestone), "Rough-in complete" (milestone), "Cabinets installed" (one-time deliverable).' },
                 item_type: { type: 'string', enum: ['checkbox', 'quantity'], description: 'checkbox = done/not done, quantity = number + unit. Default: checkbox' },
                 quantity_unit: { type: 'string', description: 'Unit label for quantity items, e.g. "feet", "bags", "gallons", "sq ft"' },
                 requires_photo: { type: 'boolean', description: 'Whether a photo is required for this item. Default: false' }

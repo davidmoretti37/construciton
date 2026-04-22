@@ -2,13 +2,18 @@ import { supabase } from '../../lib/supabase';
 import { API_URL as BACKEND_URL } from '../../config/api';
 
 /**
- * Call the backend AI helper to suggest daily checklist items + labor roles
- * for the project the user is currently configuring.
+ * Call the backend AI helper to suggest RECURRING daily checklist items +
+ * labor roles for the project the user is currently configuring.
  *
- * @param {object} params - { projectName, services?, phases? }
+ * Note: `phases` was intentionally removed from the request — sending phase
+ * tasks to the model caused it to echo phase-completion milestones back as
+ * "daily" checks (e.g. "All plumbing pressure tested"). The backend now
+ * uses only the project name and a coarse service summary as context.
+ *
+ * @param {object} params - { projectName, services? }
  * @returns {Promise<{ checklist_items: Array, labor_roles: Array, source: string } | { error: string }>}
  */
-export const suggestChecklistAndLabor = async ({ projectName, services = [], phases = [] }) => {
+export const suggestChecklistAndLabor = async ({ projectName, services = [] }) => {
   if (!projectName || !String(projectName).trim()) {
     return { error: 'Project name is required to generate suggestions.' };
   }
@@ -23,15 +28,8 @@ export const suggestChecklistAndLabor = async ({ projectName, services = [], pha
     const cleanedServices = (services || [])
       .map(s => typeof s === 'string'
         ? s
-        : { description: s.description || s.name || '', amount: s.amount || 0 })
+        : { description: s.description || s.name || '' })
       .filter(s => typeof s === 'string' ? s.trim() : (s.description || '').trim());
-
-    const cleanedPhases = (phases || []).map(p => ({
-      name: p.name || '',
-      tasks: Array.isArray(p.tasks)
-        ? p.tasks.map(t => typeof t === 'string' ? t : (t.description || '')).filter(Boolean)
-        : [],
-    }));
 
     const response = await fetch(`${BACKEND_URL}/api/ai/suggest-checklist-labor`, {
       method: 'POST',
@@ -42,7 +40,6 @@ export const suggestChecklistAndLabor = async ({ projectName, services = [], pha
       body: JSON.stringify({
         projectName: String(projectName).trim(),
         services: cleanedServices,
-        phases: cleanedPhases,
       }),
     });
 

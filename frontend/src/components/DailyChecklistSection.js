@@ -454,7 +454,7 @@ export default function DailyChecklistSection({
       <View style={styles.sectionHeader}>
         <Ionicons name="checkbox-outline" size={20} color="#8B5CF6" />
         <Text style={[styles.sectionTitle, { color: Colors.primaryText, flex: 1 }]}>
-          Today's Checklist
+          Daily Crew Checks
           {totalCount > 0 && !isEditingTemplates && (
             <Text style={{ color: Colors.secondaryText, fontWeight: '400' }}>
               {' '}({completedCount}/{totalCount})
@@ -659,10 +659,10 @@ export default function DailyChecklistSection({
         <View style={styles.emptyWrap}>
           <Ionicons name="list-outline" size={32} color={Colors.secondaryText + '60'} />
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-            No daily checklist set up
+            No daily checks set up yet
           </Text>
           <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
-            Tap the edit button to add items
+            Tap the edit button to add recurring daily items
           </Text>
         </View>
       ) : (
