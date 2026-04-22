@@ -57,7 +57,11 @@ function calculateSlots(items) {
 }
 
 /**
- * Find the insertion index based on drop X + Y position (2D-aware).
+ * Find the insertion index based on drop X + Y position. Uses horizontal
+ * midpoint-of-slot comparison so dropping on the right half of a slot
+ * inserts AFTER it — which is what makes L/R placement feel right,
+ * especially when a small widget sits alone on a row (dropping another
+ * small to its right should pair them).
  */
 function findInsertIndex(items, dropX, dropY, draggedId) {
   const remaining = items.filter(it => it.id !== draggedId);
@@ -76,32 +80,29 @@ function findInsertIndex(items, dropX, dropY, draggedId) {
   }
   rows.sort((a, b) => a.y - b.y);
 
-  // Find the target row by Y
-  let targetRow = rows[rows.length - 1];
-  for (let r = 0; r < rows.length; r++) {
-    if (dropY < rows[r].y + rows[r].h) {
-      targetRow = rows[r];
+  // Above the first row → insert at the top
+  if (dropY < rows[0].y) return 0;
+  // Below the last row → insert at the end
+  const lastRow = rows[rows.length - 1];
+  if (dropY >= lastRow.y + lastRow.h) return remaining.length;
+
+  // Find target row by Y
+  let targetRow = rows[0];
+  for (const row of rows) {
+    if (dropY < row.y + row.h) {
+      targetRow = row;
       break;
     }
   }
 
-  // Within the target row, pick the slot closest to dropX
-  let bestSlot = targetRow.slots[0];
-  let bestDist = Infinity;
-  for (const s of targetRow.slots) {
-    const dist = Math.abs(dropX - (s.x + s.w / 2));
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestSlot = s;
-    }
+  // Left-to-right within the row; insert before the first slot whose
+  // horizontal midpoint the drop hasn't passed.
+  const sorted = [...targetRow.slots].sort((a, b) => a.x - b.x);
+  for (const s of sorted) {
+    if (dropX < s.x + s.w / 2) return s.index;
   }
-
-  // If dropping after the last slot in the row, insert after it
-  if (targetRow.slots.length > 1 && dropX > bestSlot.x + bestSlot.w) {
-    return Math.min(bestSlot.index + 1, remaining.length);
-  }
-
-  return Math.min(bestSlot.index, remaining.length);
+  // Past every slot's midpoint in the row → insert after the last one.
+  return Math.min(sorted[sorted.length - 1].index + 1, remaining.length);
 }
 
 function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDragMove, onDragEnd }) {
@@ -206,10 +207,11 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
         height: slot.h,
         transform: [{ scale }],
         zIndex: isLifted ? 100 : 1,
+        opacity: isLifted ? 0.94 : 1,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: isLifted ? 8 : 2 },
-        shadowOpacity: isLifted ? 0.25 : 0.1,
-        shadowRadius: isLifted ? 16 : 4,
+        shadowOffset: { width: 0, height: isLifted ? 10 : 2 },
+        shadowOpacity: isLifted ? 0.28 : 0.1,
+        shadowRadius: isLifted ? 18 : 4,
       }}
     >
       <View style={styles.widgetInner}>
@@ -239,6 +241,9 @@ export default function DraggableWidgetGrid({
   const dropXRef = useRef(0);
   const dropYRef = useRef(0);
   const [scrollEnabled, setScrollEnabled] = useState(true);
+  // Re-renders the drop-target placeholder while dragging. Stored as state
+  // (not just a ref) so the placeholder View mounts/unmounts on drag.
+  const [draggingId, setDraggingId] = useState(null);
 
   // Keep order in sync with items when they change externally
   useEffect(() => {
@@ -256,6 +261,7 @@ export default function DraggableWidgetGrid({
 
   const handleDragStart = useCallback((id) => {
     draggingRef.current = id;
+    setDraggingId(id);
     setScrollEnabled(false);
   }, []);
 
@@ -276,6 +282,7 @@ export default function DraggableWidgetGrid({
 
   const handleDragEnd = useCallback((id) => {
     draggingRef.current = null;
+    setDraggingId(null);
     setScrollEnabled(true);
     // Persist the new order
     const itemMap = new Map(items.map(it => [it.id, it]));
@@ -291,6 +298,20 @@ export default function DraggableWidgetGrid({
       scrollEnabled={scrollEnabled}
     >
       <View style={[styles.gridContainer, { height: totalHeight + 80 }]}>
+        {/* Drop placeholder — dashed outline at the slot the lifted widget
+            will land in. Re-positions live as the user drags. */}
+        {draggingId && slotMap.get(draggingId) && (() => {
+          const s = slotMap.get(draggingId);
+          return (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.dropPlaceholder,
+                { left: s.x, top: s.y, width: s.w, height: s.h },
+              ]}
+            />
+          );
+        })()}
         {orderedItems.map((item) => {
           const slot = slotMap.get(item.id);
           if (!slot) return null;
@@ -329,6 +350,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(59, 130, 246, 0.25)',
     borderRadius: 20,
     overflow: 'hidden',
+  },
+  dropPlaceholder: {
+    position: 'absolute',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(59, 130, 246, 0.65)',
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    zIndex: 0,
   },
   removeBadge: {
     position: 'absolute',
