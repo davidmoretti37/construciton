@@ -1700,29 +1700,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           )}
 
-          {/* Services / Line Items */}
-          {project.services && project.services.length > 0 && (
-            <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="list-outline" size={20} color={Colors.primaryBlue} />
-                <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
-                  {t('labels.services', 'Services & Line Items')}
-                </Text>
-              </View>
-              {project.services.map((service, index) => (
-                <View key={index} style={[styles.detailRow, { paddingVertical: 8 }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.detailValue, { color: Colors.primaryText }]}>{service.description}</Text>
-                  </View>
-                  {service.amount > 0 && (
-                    <Text style={[styles.detailValue, { color: Colors.primaryBlue, fontWeight: '600' }]}>
-                      ${parseFloat(service.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </Text>
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
+          {/* Services / Line Items card removed — invoice generation flows
+              through chat, Phases already shows the work scope, and the
+              auto-extracted unpriced list was visual clutter. project.services
+              still persists in the DB and can be edited from EditProjectModal
+              if needed for future itemized invoicing. */}
 
           {/* Work Sections card removed — phases now live inside Budget Breakdown
               with budget + spent + tasks + per-phase Transactions CTA. */}
