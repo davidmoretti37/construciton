@@ -238,25 +238,11 @@ export default function PhaseTimeline({
                     <Text style={[styles.sectionTaskCount, { color: Colors.secondaryText }]}>
                       {completedCount}/{phaseTasks.length} tasks
                     </Text>
-                    {isEditing && onPhaseBudgetChange ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>$</Text>
-                        <TextInput
-                          style={{ fontSize: 12, fontWeight: '600', color: '#16A34A', minWidth: 60, paddingVertical: 0, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#16A34A' }}
-                          value={String(phase.budget || '')}
-                          onChangeText={(v) => onPhaseBudgetChange(phase.id, String(v).replace(/[^0-9.]/g, ''))}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor="#CBD5E1"
-                          onStartShouldSetResponder={() => true}
-                          onTouchStart={(e) => e.stopPropagation()}
-                        />
-                      </View>
-                    ) : ((parseFloat(phase.budget) || 0) > 0 && (
+                    {(parseFloat(phase.budget) || 0) > 0 && !isEditing && (
                       <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A', marginLeft: 8 }}>
                         ${Number(phase.budget).toLocaleString()}
                       </Text>
-                    ))}
+                    )}
                   </View>
                 </View>
               </View>
@@ -300,6 +286,25 @@ export default function PhaseTimeline({
                 <View
                   style={[styles.sectionProgressFill, { width: `${completion}%`, backgroundColor: '#10B981' }]}
                 />
+              </View>
+            )}
+
+            {/* Dedicated budget editor row — renders only when editing so the
+                progress slider above can't overlap the TextInput. Full-width. */}
+            {isEditing && onPhaseBudgetChange && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border, gap: 12 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Phase Budget</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#16A34A' }}>$</Text>
+                  <TextInput
+                    style={{ fontSize: 16, fontWeight: '700', color: '#16A34A', minWidth: 100, textAlign: 'right', paddingVertical: 4, paddingHorizontal: 6, borderBottomWidth: 2, borderBottomColor: '#16A34A' }}
+                    value={String(phase.budget || '')}
+                    onChangeText={(v) => onPhaseBudgetChange(phase.id, String(v).replace(/[^0-9.]/g, ''))}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor="#CBD5E1"
+                  />
+                </View>
               </View>
             )}
 
