@@ -148,12 +148,32 @@ router.get('/:id/signed-url', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Not found' });
 
     const expiresIn = parseInt(req.query.expiresIn, 10) || 3600;
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(doc.file_url, expiresIn);
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ url: data?.signedUrl || null });
+    // Probe both buckets: new ProjectBuilder uploads live in `project-docs`,
+    // legacy uploads live in `project-documents`. We don't record which
+    // bucket a row belongs to, so try the new one first and fall back.
+    const bucketsToTry = [BUCKET, 'project-documents'];
+    let signedUrl = null;
+    let lastError = null;
+    for (const bucket of bucketsToTry) {
+      try {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(doc.file_url, expiresIn);
+        if (!error && data?.signedUrl) {
+          signedUrl = data.signedUrl;
+          break;
+        }
+        lastError = error;
+      } catch (probeErr) {
+        lastError = probeErr;
+      }
+    }
+    if (!signedUrl) {
+      return res.status(404).json({
+        error: lastError?.message || 'File not found in any project bucket',
+      });
+    }
+    res.json({ url: signedUrl });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Failed to sign URL' });
   }
