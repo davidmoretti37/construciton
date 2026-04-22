@@ -1436,6 +1436,15 @@ export const upsertProjectPhases = async (projectId, phases, schedule = null) =>
       name: r.name,
     }));
 
+    // 10. Fire reflow so worker_tasks get generated/redistributed across every
+    //     working day in each phase window. Fire-and-forget — the orchestrator
+    //     debounces per-project and coalesces back-to-back calls (draft
+    //     autosaves in ProjectBuilder fire this in rapid succession).
+    try {
+      const { redistributeProjectTasks } = await import('../scheduling/redistributeProjectTasks');
+      redistributeProjectTasks(projectId);
+    } catch (_) { /* best-effort */ }
+
     return {
       ok: failedPhaseIds.length === 0,
       phases: returnedPhases,
