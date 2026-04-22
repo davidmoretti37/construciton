@@ -25,7 +25,6 @@ import { submitWorkerExpense } from '../../utils/storage/transactions';
 import { fetchProjects } from '../../utils/storage/projects';
 import { analyzeReceipt } from '../../services/aiService';
 import { supabase } from '../../lib/supabase';
-import { EXPENSE_SUBCATEGORIES } from '../../constants/transactionCategories';
 
 const EXPENSE_CATEGORIES = [
   { id: 'materials', label: 'Materials', icon: 'cube' },
@@ -615,10 +614,12 @@ export default function ExpenseFormScreen({ navigation }) {
                   ))}
                 </View>
 
-                {/* Phase picker (required for project expenses; falls back to
-                    trade-budget / static subcategory chips for service plans
-                    or legacy projects with no phases). Section paints with a
-                    red left border on a save attempt with nothing selected. */}
+                {/* Phase picker. Phases render first; if none, project trade
+                    budgets take their place. An "Extras / Overhead" chip is
+                    always appended so expenses that don't map to any phase
+                    (permit runner, dumpster, site cleanup) still have a
+                    bucket. The section paints with a red left border on a
+                    save attempt with nothing selected. */}
                 <View
                   style={{
                     marginTop: Spacing.md,
@@ -628,106 +629,102 @@ export default function ExpenseFormScreen({ navigation }) {
                   }}
                 >
                   <Text style={[styles.sectionTitle, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                    {phases.length > 0 ? 'Phase' : 'Category'} <Text style={{ color: '#EF4444' }}>*</Text>
+                    {phases.length > 0 ? 'Phase' : 'Phase or Trade'} <Text style={{ color: '#EF4444' }}>*</Text>
                   </Text>
 
-                  {phases.length > 0 ? (
-                    <View style={styles.categoryGrid}>
-                      {phases.map((p) => {
-                        const isActive = phaseId === p.id;
-                        return (
-                          <TouchableOpacity
-                            key={`phase-${p.id}`}
+                  <View style={styles.categoryGrid}>
+                    {phases.map((p) => {
+                      const isActive = phaseId === p.id;
+                      return (
+                        <TouchableOpacity
+                          key={`phase-${p.id}`}
+                          style={[
+                            styles.categoryButton,
+                            {
+                              backgroundColor: isActive ? '#10B981' + '15' : Colors.lightBackground,
+                              borderColor: isActive ? '#10B981' : Colors.border,
+                            }
+                          ]}
+                          onPress={() => {
+                            setPhaseId(p.id);
+                            setSubcategory(p.name);
+                          }}
+                        >
+                          <Text
                             style={[
-                              styles.categoryButton,
-                              {
-                                backgroundColor: isActive ? '#10B981' + '15' : Colors.lightBackground,
-                                borderColor: isActive ? '#10B981' : Colors.border,
-                              }
+                              styles.categoryButtonText,
+                              { color: isActive ? '#10B981' : Colors.secondaryText }
                             ]}
-                            onPress={() => {
-                              setPhaseId(p.id);
-                              setSubcategory(p.name);
-                            }}
                           >
-                            <Text
-                              style={[
-                                styles.categoryButtonText,
-                                { color: isActive ? '#10B981' : Colors.secondaryText }
-                              ]}
-                            >
-                              {p.name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                  <>
-                  {/* Project trade budgets — priority options */}
-                  {tradeBudgets.length > 0 && (
-                    <View style={{ marginBottom: 10 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#10B981', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Project Trades</Text>
-                      <View style={styles.categoryGrid}>
-                        {tradeBudgets.map((tb) => (
-                          <TouchableOpacity
-                            key={`trade-${tb.trade_name}`}
+                            {p.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {phases.length === 0 && tradeBudgets.map((tb) => {
+                      const tradeKey = tb.trade_name.toLowerCase();
+                      const isActive = subcategory === tradeKey;
+                      return (
+                        <TouchableOpacity
+                          key={`trade-${tb.trade_name}`}
+                          style={[
+                            styles.categoryButton,
+                            {
+                              backgroundColor: isActive ? '#10B981' + '15' : Colors.lightBackground,
+                              borderColor: isActive ? '#10B981' : Colors.border,
+                            }
+                          ]}
+                          onPress={() => {
+                            setPhaseId(null);
+                            setSubcategory(tradeKey);
+                          }}
+                        >
+                          <Text
                             style={[
-                              styles.categoryButton,
-                              {
-                                backgroundColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' + '15' : Colors.lightBackground,
-                                borderColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : Colors.border,
-                              }
+                              styles.categoryButtonText,
+                              { color: isActive ? '#10B981' : Colors.secondaryText }
                             ]}
-                            onPress={() => setSubcategory(tb.trade_name.toLowerCase())}
                           >
-                            <Text
-                              style={[
-                                styles.categoryButtonText,
-                                { color: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : Colors.secondaryText }
-                              ]}
-                            >
-                              {tb.trade_name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Hardcoded subcategories by category */}
-                  {EXPENSE_SUBCATEGORIES[category] && EXPENSE_SUBCATEGORIES[category].length > 0 && (
-                    <View>
-                      {tradeBudgets.length > 0 && (
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.secondaryText, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>General</Text>
-                      )}
-                      <View style={styles.categoryGrid}>
-                        {EXPENSE_SUBCATEGORIES[category].map((sub) => (
-                          <TouchableOpacity
-                            key={sub.value}
-                            style={[
-                              styles.categoryButton,
-                              {
-                                backgroundColor: subcategory === sub.value ? Colors.primaryBlue + '15' : Colors.lightBackground,
-                                borderColor: subcategory === sub.value ? Colors.primaryBlue : Colors.border,
-                              }
-                            ]}
-                            onPress={() => setSubcategory(sub.value)}
-                          >
-                            <Text
-                              style={[
-                                styles.categoryButtonText,
-                                { color: subcategory === sub.value ? Colors.primaryBlue : Colors.secondaryText }
-                              ]}
-                            >
-                              {sub.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                  </>
+                            {tb.trade_name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {/* Always-available bucket for expenses that don't map to a phase */}
+                    <TouchableOpacity
+                      key="phase-overhead"
+                      style={[
+                        styles.categoryButton,
+                        {
+                          backgroundColor: subcategory === 'overhead' ? '#10B981' + '15' : Colors.lightBackground,
+                          borderColor: subcategory === 'overhead' ? '#10B981' : Colors.border,
+                          borderStyle: 'dashed',
+                        }
+                      ]}
+                      onPress={() => {
+                        setPhaseId(null);
+                        setSubcategory('overhead');
+                      }}
+                    >
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={16}
+                        color={subcategory === 'overhead' ? '#10B981' : Colors.secondaryText}
+                      />
+                      <Text
+                        style={[
+                          styles.categoryButtonText,
+                          { color: subcategory === 'overhead' ? '#10B981' : Colors.secondaryText }
+                        ]}
+                      >
+                        Extras / Overhead
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {subcategory === 'overhead' && (
+                    <Text style={{ color: Colors.secondaryText, fontSize: FontSizes.small, marginTop: Spacing.sm }}>
+                      Use Description above to note what this extra was for.
+                    </Text>
                   )}
                 </View>
               </View>

@@ -236,6 +236,7 @@
     "failedToDelete": "Error al eliminar {{item}}. Por favor, intenta de nuevo.",
     "failedToUpdate": "Error al actualizar {{item}}. Por favor, intenta de nuevo.",
     "savedSuccessfully": "{{item}} guardado exitosamente",
+    "allChangesSaved": "Todos los cambios guardados",
     "deletedSuccessfully": "{{item}} eliminado exitosamente",
     "updatedSuccessfully": "{{item}} actualizado exitosamente",
     "uploadedSuccessfully": "{{item}} subido exitosamente",

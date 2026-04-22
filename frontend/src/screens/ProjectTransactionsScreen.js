@@ -225,8 +225,13 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
           {subcategoryFilter ? `${entityName} · ${subcategoryFilter}` : entityName}
         </Text>
-        <TouchableOpacity onPress={handleAddTransaction} style={styles.addButton}>
-          <Ionicons name="add" size={24} color={Colors.primaryText} />
+        <TouchableOpacity
+          onPress={handleAddTransaction}
+          style={[styles.addButton, { backgroundColor: Colors.primaryBlue }]}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={20} color="#FFFFFF" />
+          <Text style={styles.addButtonText}>Add</Text>
         </TouchableOpacity>
       </View>
 
@@ -533,10 +538,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addButton: {
-    width: 40,
-    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'flex-end',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   headerTitle: {
     flex: 1,

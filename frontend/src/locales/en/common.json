@@ -236,6 +236,7 @@
     "failedToDelete": "Failed to delete {{item}}. Please try again.",
     "failedToUpdate": "Failed to update {{item}}. Please try again.",
     "savedSuccessfully": "{{item}} saved successfully",
+    "allChangesSaved": "All changes saved",
     "deletedSuccessfully": "{{item}} deleted successfully",
     "updatedSuccessfully": "{{item}} updated successfully",
     "uploadedSuccessfully": "{{item}} uploaded successfully",

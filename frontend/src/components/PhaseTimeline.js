@@ -26,7 +26,9 @@ export default function PhaseTimeline({
   // phase name as a transaction subcategory filter.
   phaseSpentByName = null,
   onViewTransactions,
-  onAddTransaction,
+  // Quick-add-task from the phase footer (works outside of edit mode).
+  // Parent persists the task; this component just fires the callback.
+  onQuickAddTask,
   // Inline task authoring while editing. When `onAddTask` is provided, each
   // expanded phase renders a "+ Add Task" button in edit mode. `onTaskDelete`
   // shows a small trash icon per task; `onTaskDescriptionChange` swaps the
@@ -363,8 +365,11 @@ export default function PhaseTimeline({
               </TouchableOpacity>
             )}
 
-            {/* Per-phase Transactions CTAs (only when expanded + parent supplied handlers) */}
-            {isExpanded && (onViewTransactions || onAddTransaction) && (
+            {/* Per-phase footer CTAs: View Transactions + Add Task.
+                Transactions have their own Quick Action from Home and a
+                prominent + button on the transactions list, so this row
+                surfaces task creation instead. */}
+            {isExpanded && (onViewTransactions || onQuickAddTask) && (
               <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12, borderTopWidth: 1, borderTopColor: Colors.border }}>
                 {onViewTransactions && (
                   <TouchableOpacity
@@ -375,13 +380,13 @@ export default function PhaseTimeline({
                     <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>View Transactions</Text>
                   </TouchableOpacity>
                 )}
-                {onAddTransaction && (
+                {onQuickAddTask && (
                   <TouchableOpacity
-                    onPress={() => onAddTransaction(phase)}
+                    onPress={() => onQuickAddTask(phase)}
                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F0FDF4', paddingVertical: 10, borderRadius: 10 }}
                   >
                     <Ionicons name="add-circle-outline" size={14} color="#16A34A" />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#16A34A' }}>Add Transaction</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#16A34A' }}>Add Task</Text>
                   </TouchableOpacity>
                 )}
               </View>

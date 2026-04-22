@@ -27,7 +27,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../utils/storage';
+import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask, addTaskToPhase } from '../utils/storage';
 import { SkeletonBox, SkeletonCard } from './SkeletonLoader';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
@@ -44,10 +44,20 @@ import ClientPortalCard from './ClientPortalCard';
 import { supabase } from '../lib/supabase';
 import { DEMO_PHASES } from '../screens/ProjectsScreen';
 
+// In-memory cache of a project's fetched detail data, keyed by project.id.
+// Re-entering a previously-viewed project hydrates from here so the view
+// renders instantly, and the normal parallel fetch runs in the background
+// to revalidate. Lives at module scope so it survives component unmounts.
+const projectDetailCache = new Map();
+
 export default function ProjectDetailView({ visible, project, onClose, onEdit, onAction, navigation, onDelete, asScreen = false, onRefreshNeeded, isDemo = false }) {
   const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  // Seed useState defaults from the in-memory cache so return visits render
+  // with the last-seen data instead of empty arrays while the background
+  // fetch runs.
+  const cachedDetail = (!isDemo && project?.id && projectDetailCache.get(project.id)) || null;
   const [modalVisible, setModalVisible] = useState(visible);
   const wasNavigatingRef = useRef(false);
   // Holds an imperative save function exposed by DailyChecklistSection when
@@ -55,18 +65,21 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // handleSaveAllChanges so checklist/labor-role edits flush together with
   // the rest of the project.
   const checklistSaveRef = useRef(null);
-  const [initialLoading, setInitialLoading] = useState(!isDemo);
-  const [phases, setPhases] = useState([]);
+  // Skip the loading skeleton if we already have cached data for this project.
+  const [initialLoading, setInitialLoading] = useState(
+    !isDemo && !(project?.id && projectDetailCache.has(project.id))
+  );
+  const [phases, setPhases] = useState(cachedDetail?.phases || []);
   const [loadingPhases, setLoadingPhases] = useState(false);
 
   // Manual tasks (tasks added outside of phases)
-  const [manualTasks, setManualTasks] = useState([]);
+  const [manualTasks, setManualTasks] = useState(cachedDetail?.manualTasks || []);
   const [loadingManualTasks, setLoadingManualTasks] = useState(false);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
   const [selectedManualTask, setSelectedManualTask] = useState(null);
 
   // Calculated progress (from tasks, not from stale parent prop)
-  const [calculatedProgress, setCalculatedProgress] = useState(null);
+  const [calculatedProgress, setCalculatedProgress] = useState(cachedDetail?.calculatedProgress ?? null);
 
   // Main editing mode (controls all editing)
   const [isEditing, setIsEditing] = useState(false);
@@ -87,12 +100,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   // Workers
-  const [workers, setWorkers] = useState([]);
+  const [workers, setWorkers] = useState(cachedDetail?.workers || []);
   const [showWorkerAssignment, setShowWorkerAssignment] = useState(false);
 
   // Supervisor assignment (for owners)
   const [showSupervisorAssignment, setShowSupervisorAssignment] = useState(false);
-  const [supervisorName, setSupervisorName] = useState(null);
+  const [supervisorName, setSupervisorName] = useState(cachedDetail?.supervisorName ?? null);
   const { profile, ownerHidesContract, refreshProfile } = useAuth() || {};
   const isOwner = profile?.role === 'owner';
   const isSupervisor = profile?.role === 'supervisor';
@@ -115,22 +128,22 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [phaseProgressValues, setPhaseProgressValues] = useState({});
 
   // Daily Reports section
-  const [projectReports, setProjectReports] = useState([]);
+  const [projectReports, setProjectReports] = useState(cachedDetail?.projectReports || []);
   const [loadingReports, setLoadingReports] = useState(false);
   const [visibleReportsCount, setVisibleReportsCount] = useState(5);
 
   // Estimates section
-  const [projectEstimates, setProjectEstimates] = useState([]);
+  const [projectEstimates, setProjectEstimates] = useState(cachedDetail?.projectEstimates || []);
   const [loadingEstimates, setLoadingEstimates] = useState(false);
   const [selectedEstimate, setSelectedEstimate] = useState(null);
   const [showEstimateModal, setShowEstimateModal] = useState(false);
 
   // Calculated financial totals (from transactions)
-  const [calculatedExpenses, setCalculatedExpenses] = useState(null);
-  const [calculatedIncome, setCalculatedIncome] = useState(null);
+  const [calculatedExpenses, setCalculatedExpenses] = useState(cachedDetail?.calculatedExpenses ?? null);
+  const [calculatedIncome, setCalculatedIncome] = useState(cachedDetail?.calculatedIncome ?? null);
 
   // Documents section
-  const [projectDocuments, setProjectDocuments] = useState([]);
+  const [projectDocuments, setProjectDocuments] = useState(cachedDetail?.projectDocuments || []);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [documentVisibilityModalVisible, setDocumentVisibilityModalVisible] = useState(false);
@@ -138,15 +151,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [newDocumentVisibleToWorkers, setNewDocumentVisibleToWorkers] = useState(false);
 
   // Time tracking
-  const [totalProjectHours, setTotalProjectHours] = useState(0);
+  const [totalProjectHours, setTotalProjectHours] = useState(cachedDetail?.totalProjectHours ?? 0);
 
   // Financials collapsible + trade budgets
   const [financialsExpanded, setFinancialsExpanded] = useState(true);
-  const [tradeBudgets, setTradeBudgets] = useState([]);
+  const [tradeBudgets, setTradeBudgets] = useState(cachedDetail?.tradeBudgets || []);
   // Map of lowercased name → total spent. Keyed by both phase name and trade
   // name so the merged Budget Breakdown card can show "Spent X of Y" per phase
   // and per orphan trade. Computed from project_transactions.subcategory.
-  const [spentBySubcategory, setSpentBySubcategory] = useState({});
+  const [spentBySubcategory, setSpentBySubcategory] = useState(cachedDetail?.spentBySubcategory || {});
   const [showAddTrade, setShowAddTrade] = useState(false);
   const [newTradeName, setNewTradeName] = useState('');
   const [newTradeAmount, setNewTradeAmount] = useState('');
@@ -182,7 +195,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       }
 
       if (project?.id) {
-        setInitialLoading(true);
+        // Only show the skeleton when we have nothing cached — otherwise
+        // keep rendering the last-seen snapshot while we revalidate.
+        if (!projectDetailCache.has(project.id)) {
+          setInitialLoading(true);
+        }
 
         // Fire ALL fetches in parallel
         const [
@@ -313,14 +330,15 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         }
 
         // Hours
+        let totalHours = 0;
         if (hoursResult.status === 'fulfilled') {
-          let hours = 0;
           (hoursResult.value?.data || []).forEach(e => {
             let h = (new Date(e.clock_out) - new Date(e.clock_in)) / 3600000;
             if (e.break_start && e.break_end) h -= (new Date(e.break_end) - new Date(e.break_start)) / 3600000;
-            hours += h;
+            totalHours += h;
           });
-          setTotalProjectHours(parseFloat(hours.toFixed(1)));
+          totalHours = parseFloat(totalHours.toFixed(1));
+          setTotalProjectHours(totalHours);
         }
 
         // Documents
@@ -335,6 +353,38 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
         // Everything loaded — reveal the entire view at once
         setInitialLoading(false);
+
+        // Cache the freshly-fetched snapshot so the next visit renders
+        // instantly from memory and revalidates in the background.
+        const freshPhases = phasesResult.status === 'fulfilled' ? (phasesResult.value || []) : [];
+        const freshWorkers = workersResult.status === 'fulfilled' ? (workersResult.value || []) : [];
+        const freshSupervisorName = supervisorResult.status === 'fulfilled' ? (supervisorResult.value?.data?.business_name || null) : null;
+        const freshReports = reportsResult.status === 'fulfilled' ? (reportsResult.value || []) : [];
+        const freshEstimates = estimatesResult.status === 'fulfilled' ? (estimatesResult.value || []) : [];
+        const freshDocs = docsResult.status === 'fulfilled' ? (docsResult.value || []) : [];
+        const freshExpenses = transactionResult.status === 'fulfilled' ? (transactionResult.value?.totalExpenses || 0) : null;
+        const freshIncome = transactionResult.status === 'fulfilled' ? (transactionResult.value?.totalIncome || 0) : null;
+        const freshProgress = progressResult.status === 'fulfilled' ? (progressResult.value?.progress ?? null) : null;
+        const freshTradeBudgets = budgets.length > 0 ? budgets.map(b => ({
+          ...b,
+          paid: paidByKey[b.trade_name.toLowerCase()] || 0,
+          remaining: (parseFloat(b.budget_amount) || 0) - (paidByKey[b.trade_name.toLowerCase()] || 0),
+        })) : [];
+        projectDetailCache.set(project.id, {
+          phases: freshPhases,
+          workers: freshWorkers,
+          supervisorName: freshSupervisorName,
+          manualTasks: sortedTasks,
+          calculatedProgress: freshProgress,
+          projectReports: freshReports,
+          projectEstimates: freshEstimates,
+          calculatedExpenses: freshExpenses,
+          calculatedIncome: freshIncome,
+          spentBySubcategory: paidByKey,
+          tradeBudgets: freshTradeBudgets,
+          totalProjectHours: totalHours,
+          projectDocuments: freshDocs,
+        });
       }
     };
 
@@ -576,19 +626,42 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     });
   };
 
-  // Open Add Transaction prefilled with this phase as the subcategory.
-  const handleAddPhaseTransaction = (phase) => {
-    if (!navigation || !phase) return;
-    wasNavigatingRef.current = true;
-    setModalVisible(false);
-    navigation.navigate('TransactionEntry', {
-      projectId: project.id,
-      projectName: project.name,
-      type: 'expense',
-      category: 'subcontractor',
-      subcategory: phase.name,
-      phaseId: phase.id,
-    });
+  // Quick-add a task to a phase without entering edit mode. Uses the native
+  // Alert.prompt on iOS; on Android (no prompt primitive) we create with a
+  // default description which the user can then rename via TaskDetailModal.
+  const handleQuickAddTask = (phase) => {
+    if (!phase?.id) return;
+    const persistTask = async (description) => {
+      const taskDescription = (description || '').trim();
+      if (!taskDescription) return;
+      const updated = await addTaskToPhase(phase.id, taskDescription);
+      if (!updated) {
+        Alert.alert('Error', 'Could not add task. Please try again.');
+        return;
+      }
+      const fresh = await fetchProjectPhases(project.id);
+      if (fresh) setPhases(fresh);
+      setExpandedPhaseIds(prev => {
+        const next = new Set(prev);
+        next.add(phase.id);
+        return next;
+      });
+    };
+
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'New Task',
+        `Add a task to ${phase.name}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add', onPress: persistTask },
+        ],
+        'plain-text',
+        ''
+      );
+    } else {
+      persistTask('New task');
+    }
   };
 
   const handleTaskToggle = (task, phase) => {
@@ -1598,7 +1671,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         }}
                         phaseSpentByName={spentBySubcategory}
                         onViewTransactions={handleViewPhaseTransactions}
-                        onAddTransaction={handleAddPhaseTransaction}
+                        onQuickAddTask={handleQuickAddTask}
                         onAddTask={isEditing ? handleAddTaskToPhase : undefined}
                         onPhaseBudgetChange={isEditing ? (phaseId, newBudget) => {
                           setPhases(prev => prev.map(p =>

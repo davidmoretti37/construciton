@@ -357,6 +357,9 @@ function formatDate(date) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // Reserve space for the floating bottom tab bar so the last week row
+    // is fully visible instead of sitting under the pill.
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,

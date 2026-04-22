@@ -1,13 +1,13 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { TASK_STATUSES } from '../../constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CELL_WIDTH = Math.floor((SCREEN_WIDTH - 2) / 7);
-const MAX_BARS_PER_WEEK = 3;
-const BAR_HEIGHT = 18;
+const MAX_BARS_PER_WEEK = 2;
+const BAR_HEIGHT = 14;
 const BAR_GAP = 2;
-const DAY_HEADER_HEIGHT = 32;
+const DAY_HEADER_HEIGHT = 26;
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -136,7 +136,7 @@ export default function MonthGridView({ currentMonth, tasks, theme, onDayPress, 
   }, []);
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       {/* Weekday headers */}
       <View style={styles.weekdayRow}>
         {WEEKDAY_LABELS.map((label, i) => (
@@ -148,14 +148,12 @@ export default function MonthGridView({ currentMonth, tasks, theme, onDayPress, 
         ))}
       </View>
 
-      {/* Week rows */}
+      {/* Week rows — flex-distributed so all weeks fit on screen without scrolling */}
       {weeks.map((week, weekIdx) => {
         const bars = weekBars[weekIdx];
-        const barsHeight = Math.max(bars.visible.length, 1) * (BAR_HEIGHT + BAR_GAP);
-        const rowHeight = DAY_HEADER_HEIGHT + barsHeight + (bars.overflow > 0 ? 16 : 4);
 
         return (
-          <View key={weekIdx} style={[styles.weekRow, { height: rowHeight, borderBottomColor: theme.border }]}>
+          <View key={weekIdx} style={[styles.weekRow, { borderBottomColor: theme.border }]}>
             {/* Day number cells */}
             <View style={styles.dayNumberRow}>
               {week.map((day) => (
@@ -167,8 +165,8 @@ export default function MonthGridView({ currentMonth, tasks, theme, onDayPress, 
                 >
                   <View style={[
                     styles.dayNumber,
-                    day.isToday && { backgroundColor: theme.errorRed, borderRadius: 12 },
-                    day.isSelected && !day.isToday && { backgroundColor: theme.primaryBlue + '20', borderRadius: 12 },
+                    day.isToday && { backgroundColor: theme.errorRed, borderRadius: 11 },
+                    day.isSelected && !day.isToday && { backgroundColor: theme.primaryBlue + '20', borderRadius: 11 },
                   ]}>
                     <Text style={[
                       styles.dayText,
@@ -216,11 +214,14 @@ export default function MonthGridView({ currentMonth, tasks, theme, onDayPress, 
           </View>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   weekdayRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -229,15 +230,17 @@ const styles = StyleSheet.create({
   weekdayCell: {
     width: CELL_WIDTH,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   weekdayText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   weekRow: {
+    flex: 1,
     position: 'relative',
     borderBottomWidth: 1,
+    overflow: 'hidden',
   },
   dayNumberRow: {
     flexDirection: 'row',
@@ -250,39 +253,39 @@ const styles = StyleSheet.create({
   dayCell: {
     width: CELL_WIDTH,
     alignItems: 'center',
-    paddingTop: 4,
+    paddingTop: 3,
   },
   dayNumber: {
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
   },
   noWorkLabel: {
     fontSize: 7,
-    marginTop: 1,
+    marginTop: 0,
   },
   taskBar: {
     position: 'absolute',
     height: BAR_HEIGHT,
-    borderRadius: 4,
-    paddingHorizontal: 6,
+    borderRadius: 3,
+    paddingHorizontal: 5,
     justifyContent: 'center',
     zIndex: 1,
   },
   taskBarText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     color: '#fff',
   },
   overflowText: {
     position: 'absolute',
-    left: 8,
-    fontSize: 10,
+    left: 6,
+    fontSize: 9,
     fontWeight: '500',
   },
 });
