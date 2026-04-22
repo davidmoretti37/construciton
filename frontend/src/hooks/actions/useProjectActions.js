@@ -555,16 +555,12 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
         // Non-blocking in-chat confirmation instead of Alert.alert — the
         // native alert was dismissing the chat keyboard and causing a visible
         // "full reload" cascade as every screen re-fetched after the tap.
+        // addMessage from ChatScreen expects a plain string (addAIMessage at
+        // ChatScreen.js:418). Passing an object broke the renderer because
+        // message.text ended up non-string and .trim() blew up.
         if (typeof addMessage === 'function') {
           try {
-            addMessage({
-              id: `save-success-${Date.now()}`,
-              text: `✅ Saved "${savedProject.name}" — tap the Projects tab to see it.`,
-              isUser: false,
-              timestamp: new Date(),
-              visualElements: [],
-              actions: [],
-            });
+            addMessage(`✅ Saved "${savedProject.name}" — tap the Projects tab to see it.`);
           } catch (_) { /* best-effort */ }
         }
 
