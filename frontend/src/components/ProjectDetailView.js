@@ -219,8 +219,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           getProjectTransactionSummary(project.id),
           // 8: trade budgets
           supabase.from('project_trade_budgets').select('*').eq('project_id', project.id).order('created_at', { ascending: true }),
-          // 9: trade expenses (for paid amounts)
-          supabase.from('project_transactions').select('subcategory, amount').eq('project_id', project.id).eq('type', 'expense'),
+          // 9: trade expenses (for paid amounts) — pull phase_id too so we can
+          //    match by FK first, then fall back to lowercased subcategory.
+          supabase.from('project_transactions').select('subcategory, amount, phase_id').eq('project_id', project.id).eq('type', 'expense'),
           // 10: hours
           supabase.from('time_tracking').select('clock_in, clock_out, break_start, break_end').eq('project_id', project.id).not('clock_out', 'is', null),
           // 11: documents
@@ -267,14 +268,38 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         // Trade budgets with paid amounts
         const budgets = tradeBudgetsResult.status === 'fulfilled' ? (tradeBudgetsResult.value?.data || []) : [];
         const txns = tradeExpensesResult.status === 'fulfilled' ? (tradeExpensesResult.value?.data || []) : [];
-        // Aggregate spend by subcategory (case-insensitive). Used by both the
-        // trade-budget list and the per-phase "Spent" overlay in Budget
-        // Breakdown — phases match by phase name == subcategory.
+        // Aggregate spend two ways:
+        //   (a) by phase_id  — primary, survives phase renames
+        //   (b) by lower(subcategory) string — back-compat for legacy rows
+        // Then resolve a unified `paidByPhaseName` map: for each phase the
+        // user has, sum txs whose phase_id matches OR whose subcategory
+        // string matches the phase name (case-insensitive). PhaseTimeline
+        // consumes this name-keyed map for the "Spent" overlay.
+        const paidByPhaseId = {};
         const paidByKey = {};
         txns.forEach(tx => {
+          const amt = parseFloat(tx.amount) || 0;
+          if (tx.phase_id) {
+            paidByPhaseId[tx.phase_id] = (paidByPhaseId[tx.phase_id] || 0) + amt;
+          }
           const key = (tx.subcategory || '').toLowerCase().trim();
-          if (!key) return;
-          paidByKey[key] = (paidByKey[key] || 0) + (parseFloat(tx.amount) || 0);
+          if (key) {
+            paidByKey[key] = (paidByKey[key] || 0) + amt;
+          }
+        });
+        // Fold phase_id-attributed spend into the name-keyed map by looking
+        // up phase names from the phases we just fetched. Avoids double-
+        // counting (skip rows already counted by subcategory string match).
+        const phaseRows = phasesResult.status === 'fulfilled' ? (phasesResult.value || []) : [];
+        const txsCountedById = new Set();
+        txns.forEach(tx => {
+          if (!tx.phase_id) return;
+          const matchPhase = phaseRows.find(p => p.id === tx.phase_id);
+          if (!matchPhase) return;
+          const nameKey = String(matchPhase.name || '').toLowerCase().trim();
+          // If subcategory already matched the same phase name, don't add again.
+          if ((tx.subcategory || '').toLowerCase().trim() === nameKey) return;
+          paidByKey[nameKey] = (paidByKey[nameKey] || 0) + (parseFloat(tx.amount) || 0);
         });
         setSpentBySubcategory(paidByKey);
         if (budgets.length > 0) {

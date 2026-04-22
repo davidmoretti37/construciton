@@ -2191,7 +2191,15 @@ async function share_document(userId, args) {
 
 // ==================== FINANCIAL MUTATIONS ====================
 
-async function record_expense(userId, { project_id, service_plan_name, type, amount, category, description, date, subcategory }) {
+async function record_expense(userId, { project_id, service_plan_name, type, amount, category, description, date, subcategory, phase_id }) {
+  // Phase/category is required for expenses (income still optional). Surface
+  // a clear error so the AI prompts the user for which phase to attribute it
+  // to instead of silently dropping the row.
+  if (type === 'expense' && !subcategory && !phase_id) {
+    return {
+      error: 'A phase (or subcategory) is required for expenses. Ask the user which phase this expense belongs to before recording it.',
+    };
+  }
   const transactionDate = date || new Date().toISOString().split('T')[0];
   let insertData = {
     created_by: userId,
@@ -2202,6 +2210,7 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
     date: transactionDate,
   };
   if (subcategory) insertData.subcategory = subcategory;
+  if (phase_id) insertData.phase_id = phase_id;
 
   let entityName = '';
   let entityFilterCol = '';
@@ -2432,7 +2441,11 @@ async function delete_expense(userId, { transaction_id, project_id }) {
   };
 }
 
-async function update_expense(userId, { transaction_id, amount, category, description, date, subcategory }) {
+async function update_expense(userId, { transaction_id, amount, category, description, date, subcategory, phase_id }) {
+  // Reject explicit clears that would violate the new tx_phase_required CHECK.
+  if (subcategory === '' || subcategory === null) {
+    return { error: 'Cannot clear the phase/subcategory on an expense — pick a different phase or leave it as-is.' };
+  }
   // Resolve transaction ID if needed
   let resolvedId = transaction_id;
 
@@ -2448,9 +2461,10 @@ async function update_expense(userId, { transaction_id, amount, category, descri
   if (description !== undefined) updates.description = description;
   if (date !== undefined) updates.date = date;
   if (subcategory !== undefined) updates.subcategory = subcategory;
+  if (phase_id !== undefined) updates.phase_id = phase_id || null;
 
   if (Object.keys(updates).length === 0) {
-    return { error: 'No fields to update. Provide at least one field: amount, category, description, date, or subcategory.' };
+    return { error: 'No fields to update. Provide at least one field: amount, category, description, date, subcategory, or phase_id.' };
   }
 
   // First, get the transaction to verify project ownership
@@ -3198,7 +3212,7 @@ async function get_bank_transactions(userId, args = {}) {
 }
 
 async function assign_bank_transaction(userId, args = {}) {
-  const { bank_transaction_id, project_id, category, description, subcategory } = args;
+  const { bank_transaction_id, project_id, category, description, subcategory, phase_id } = args;
 
   if (!bank_transaction_id || !project_id) {
     return { error: 'Both bank_transaction_id and project_id are required.' };
@@ -3281,6 +3295,12 @@ async function assign_bank_transaction(userId, args = {}) {
   const txAmount = Math.abs(bankTx.amount);
   const txType = bankTx.amount > 0 ? 'expense' : 'income';
 
+  // Phase/subcategory required when this becomes an expense.
+  if (txType === 'expense' && !subcategory && !phase_id) {
+    return {
+      error: 'A phase (or subcategory) is required to assign this bank transaction as an expense. Ask the user which phase it should attach to.',
+    };
+  }
   const insertData = {
     project_id: resolvedProjectId,
     type: txType,
@@ -3293,6 +3313,8 @@ async function assign_bank_transaction(userId, args = {}) {
     created_by: userId,
     bank_transaction_id: bankTx.id,
   };
+  if (subcategory) insertData.subcategory = subcategory;
+  if (phase_id) insertData.phase_id = phase_id;
   if (subcategory) insertData.subcategory = subcategory;
 
   const { data: projectTx, error: insertError } = await supabase

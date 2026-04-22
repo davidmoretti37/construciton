@@ -667,6 +667,7 @@ export const submitWorkerExpense = async (expense) => {
         type: 'expense',
         category: expense.category || 'misc',
         subcategory: expense.subcategory || null,
+        phase_id: expense.phaseId || null,
         description: expense.description,
         amount: expense.amount,
         date: expense.date || new Date().toISOString().split('T')[0],
@@ -678,7 +679,7 @@ export const submitWorkerExpense = async (expense) => {
         is_auto_generated: false,
         created_by: userId
       })
-      .select('id, project_id, type, category, subcategory, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
+      .select('id, project_id, type, category, subcategory, phase_id, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
       .single();
 
     if (error) throw error;

@@ -60,8 +60,15 @@ export default function TransactionEntryScreen({ route, navigation }) {
   );
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
-  // Project trade budgets for subcategory picker
+  // Phases for category picker (primary). Trade budgets fall back to this when
+  // the project has no phases (legacy projects, service plans).
+  const [phases, setPhases] = useState([]);
+  const [phaseId, setPhaseId] = useState(transaction?.phase_id || null);
+  // Trade budgets are kept as a secondary chip group ONLY when no phases exist.
   const [tradeBudgets, setTradeBudgets] = useState([]);
+  // Toggled to true on a save attempt so we can paint the phase section red
+  // when the user hasn't picked one yet.
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   // Fetch projects when opened from quick action
   useEffect(() => {
@@ -70,17 +77,39 @@ export default function TransactionEntryScreen({ route, navigation }) {
     }
   }, [needsProjectPicker, isSupervisor]);
 
-  // Fetch trade budgets for the selected project
+  // Fetch phases first; trade budgets only as a fallback when no phases exist.
+  // Re-runs whenever the selected project changes so a freshly-added phase
+  // appears immediately on the next form open.
   useEffect(() => {
     const pid = selectedProject?.id || initialProjectId;
     if (!pid) return;
-    supabase
-      .from('project_trade_budgets')
-      .select('trade_name')
-      .eq('project_id', pid)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => setTradeBudgets(data || []))
-      .catch(() => setTradeBudgets([]));
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: phaseRows } = await supabase
+          .from('project_phases')
+          .select('id, name, order_index')
+          .eq('project_id', pid)
+          .order('order_index', { ascending: true });
+        if (cancelled) return;
+        const list = phaseRows || [];
+        setPhases(list);
+        if (list.length === 0) {
+          const { data: trades } = await supabase
+            .from('project_trade_budgets')
+            .select('trade_name')
+            .eq('project_id', pid)
+            .order('created_at', { ascending: true });
+          if (!cancelled) setTradeBudgets(trades || []);
+        } else {
+          // Prefer phases — drop any stale trade-budget chips
+          if (!cancelled) setTradeBudgets([]);
+        }
+      } catch (_) {
+        if (!cancelled) { setPhases([]); setTradeBudgets([]); }
+      }
+    })();
+    return () => { cancelled = true; };
   }, [selectedProject?.id, initialProjectId]);
 
   const loadProjects = async () => {
@@ -180,6 +209,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
   };
 
   const handleSave = async () => {
+    // Mark attempted so the phase section can paint red if missing.
+    setAttemptedSubmit(true);
     // Validation
     if (needsProjectPicker && !selectedProject) {
       Alert.alert('Required', 'Please select a project');
@@ -191,6 +222,14 @@ export default function TransactionEntryScreen({ route, navigation }) {
     }
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert(t('alerts.required'), t('messages.pleaseEnterValid', { item: t('labels.amount').toLowerCase() }));
+      return;
+    }
+    // Phase / subcategory required for expenses (income still optional).
+    if (type === 'expense' && !subcategory && !phaseId) {
+      Alert.alert(
+        'Phase required',
+        'Pick a phase for this expense so the project budget breakdown stays accurate.'
+      );
       return;
     }
 
@@ -208,6 +247,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
         type,
         category: type === 'expense' ? category : null,
         subcategory: subcategory || null,
+        phase_id: phaseId || null,
         tax_category: type === 'expense' ? (taxCategory || DEFAULT_TAX_CATEGORY[category] || null) : null,
         description: description.trim(),
         amount: parseFloat(amount),
@@ -575,7 +615,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                       styles.categoryButton,
                       category === cat.value && styles.categoryButtonActive,
                     ]}
-                    onPress={() => { setCategory(cat.value); setSubcategory(null); if (!taxCategory) setTaxCategory(DEFAULT_TAX_CATEGORY[cat.value] || null); }}
+                    onPress={() => { setCategory(cat.value); setSubcategory(null); setPhaseId(null); if (!taxCategory) setTaxCategory(DEFAULT_TAX_CATEGORY[cat.value] || null); }}
                   >
                     <Ionicons
                       name={cat.icon}
@@ -596,74 +636,121 @@ export default function TransactionEntryScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* Subcategory (for expenses) */}
+          {/* Phase (required for expenses). Falls back to trade budgets / static
+              subcategories only when the project has no phases at all. The
+              section gets a red border on a save attempt with no selection. */}
           {type === 'expense' && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Subcategory (Optional)</Text>
+            <View
+              style={[
+                styles.section,
+                attemptedSubmit && !subcategory && !phaseId
+                  ? { borderLeftWidth: 3, borderLeftColor: '#EF4444', paddingLeft: 12 }
+                  : null,
+              ]}
+            >
+              <Text style={styles.sectionLabel}>
+                Phase <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
 
-              {/* Project trade budgets — shown first as priority options */}
-              {tradeBudgets.length > 0 && (
-                <View style={{ marginBottom: 10 }}>
-                  <Text style={[styles.sectionLabel, { fontSize: 11, color: '#10B981', marginBottom: 6 }]}>Project Trades</Text>
-                  <View style={styles.categoryGrid}>
-                    {tradeBudgets.map((tb) => (
+              {phases.length > 0 ? (
+                <View style={styles.categoryGrid}>
+                  {phases.map((p) => {
+                    const isActive = phaseId === p.id;
+                    return (
                       <TouchableOpacity
-                        key={`trade-${tb.trade_name}`}
+                        key={`phase-${p.id}`}
                         style={[
                           styles.categoryButton,
-                          subcategory === tb.trade_name.toLowerCase() && styles.categoryButtonActive,
-                          { borderColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : undefined },
+                          isActive && styles.categoryButtonActive,
+                          { borderColor: isActive ? '#10B981' : undefined },
                         ]}
-                        onPress={() => setSubcategory(subcategory === tb.trade_name.toLowerCase() ? null : tb.trade_name.toLowerCase())}
+                        onPress={() => {
+                          // Once required, single-select (no toggle-off)
+                          setPhaseId(p.id);
+                          setSubcategory(p.name);
+                        }}
                       >
                         <Text
                           style={[
                             styles.categoryButtonText,
-                            subcategory === tb.trade_name.toLowerCase() && [styles.categoryButtonTextActive, { color: '#10B981' }],
+                            isActive && [styles.categoryButtonTextActive, { color: '#10B981' }],
                           ]}
                         >
-                          {tb.trade_name}
+                          {p.name}
                         </Text>
                       </TouchableOpacity>
-                    ))}
-                  </View>
+                    );
+                  })}
                 </View>
-              )}
-
-              {/* Hardcoded subcategories by category */}
-              {category && EXPENSE_SUBCATEGORIES[category] && (
-                <View>
+              ) : (
+                <>
                   {tradeBudgets.length > 0 && (
-                    <Text style={[styles.sectionLabel, { fontSize: 11, color: Colors.secondaryText, marginBottom: 6 }]}>General</Text>
+                    <View style={{ marginBottom: 10 }}>
+                      <Text style={[styles.sectionLabel, { fontSize: 11, color: '#10B981', marginBottom: 6 }]}>Project Trades</Text>
+                      <View style={styles.categoryGrid}>
+                        {tradeBudgets.map((tb) => (
+                          <TouchableOpacity
+                            key={`trade-${tb.trade_name}`}
+                            style={[
+                              styles.categoryButton,
+                              subcategory === tb.trade_name.toLowerCase() && styles.categoryButtonActive,
+                              { borderColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : undefined },
+                            ]}
+                            onPress={() => setSubcategory(tb.trade_name.toLowerCase())}
+                          >
+                            <Text
+                              style={[
+                                styles.categoryButtonText,
+                                subcategory === tb.trade_name.toLowerCase() && [styles.categoryButtonTextActive, { color: '#10B981' }],
+                              ]}
+                            >
+                              {tb.trade_name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
                   )}
-                  <View style={styles.categoryGrid}>
-                    {EXPENSE_SUBCATEGORIES[category].map((sub) => (
-                      <TouchableOpacity
-                        key={sub.value}
-                        style={[
-                          styles.categoryButton,
-                          subcategory === sub.value && styles.categoryButtonActive,
-                        ]}
-                        onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
-                      >
-                        <Text
-                          style={[
-                            styles.categoryButtonText,
-                            subcategory === sub.value && styles.categoryButtonTextActive,
-                          ]}
-                        >
-                          {sub.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+                  {category && EXPENSE_SUBCATEGORIES[category] && (
+                    <View>
+                      {tradeBudgets.length > 0 && (
+                        <Text style={[styles.sectionLabel, { fontSize: 11, color: Colors.secondaryText, marginBottom: 6 }]}>General</Text>
+                      )}
+                      <View style={styles.categoryGrid}>
+                        {EXPENSE_SUBCATEGORIES[category].map((sub) => (
+                          <TouchableOpacity
+                            key={sub.value}
+                            style={[
+                              styles.categoryButton,
+                              subcategory === sub.value && styles.categoryButtonActive,
+                            ]}
+                            onPress={() => setSubcategory(sub.value)}
+                          >
+                            <Text
+                              style={[
+                                styles.categoryButtonText,
+                                subcategory === sub.value && styles.categoryButtonTextActive,
+                              ]}
+                            >
+                              {sub.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </>
+              )}
+              {attemptedSubmit && !subcategory && !phaseId && (
+                <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 6 }}>
+                  Pick a phase so this expense rolls up to the right bucket.
+                </Text>
               )}
             </View>
           )}
 
-          {/* Tax Category (for expenses) */}
-          {type === 'expense' && (
+          {/* Tax Category (for expenses, owners only — supervisors get the default from DEFAULT_TAX_CATEGORY) */}
+          {type === 'expense' && !isSupervisor && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Tax Category (Optional)</Text>
               <View style={styles.categoryGrid}>

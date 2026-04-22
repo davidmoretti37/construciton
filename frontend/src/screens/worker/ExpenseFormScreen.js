@@ -64,21 +64,49 @@ export default function ExpenseFormScreen({ navigation }) {
   const [lineItems, setLineItems] = useState([]);
   const [notes, setNotes] = useState('');
   const [tradeBudgets, setTradeBudgets] = useState([]);
+  // Phases (primary required category) + a draft id for the picked one.
+  const [phases, setPhases] = useState([]);
+  const [phaseId, setPhaseId] = useState(null);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   useEffect(() => {
     loadProjects();
   }, [isWorker, isSupervisor, isOwner]);
 
-  // Fetch trade budgets when project is selected
+  // Fetch phases first; trade budgets only as fallback when no phases exist.
+  // Re-runs whenever the selected project changes so a freshly-added phase
+  // appears immediately on the next form open.
   useEffect(() => {
-    if (!selectedProject?.id) return;
-    supabase
-      .from('project_trade_budgets')
-      .select('trade_name')
-      .eq('project_id', selectedProject.id)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => setTradeBudgets(data || []))
-      .catch(() => setTradeBudgets([]));
+    if (!selectedProject?.id || selectedProject.isServicePlan) {
+      setPhases([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: phaseRows } = await supabase
+          .from('project_phases')
+          .select('id, name, order_index')
+          .eq('project_id', selectedProject.id)
+          .order('order_index', { ascending: true });
+        if (cancelled) return;
+        const list = phaseRows || [];
+        setPhases(list);
+        if (list.length === 0) {
+          const { data: trades } = await supabase
+            .from('project_trade_budgets')
+            .select('trade_name')
+            .eq('project_id', selectedProject.id)
+            .order('created_at', { ascending: true });
+          if (!cancelled) setTradeBudgets(trades || []);
+        } else {
+          if (!cancelled) setTradeBudgets([]);
+        }
+      } catch (_) {
+        if (!cancelled) { setPhases([]); setTradeBudgets([]); }
+      }
+    })();
+    return () => { cancelled = true; };
   }, [selectedProject?.id]);
 
   const loadProjects = async () => {
@@ -238,6 +266,7 @@ export default function ExpenseFormScreen({ navigation }) {
   };
 
   const handleSubmit = async () => {
+    setAttemptedSubmit(true);
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'valid amount' }));
       return;
@@ -245,6 +274,23 @@ export default function ExpenseFormScreen({ navigation }) {
 
     if (!description.trim()) {
       Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'description' }));
+      return;
+    }
+
+    // Phase / subcategory required for project expenses (service plans fall
+    // back to the static subcategory list, also required there).
+    if (!selectedProject?.isServicePlan && !subcategory && !phaseId) {
+      Alert.alert(
+        'Phase required',
+        'Pick a phase for this expense so the project budget breakdown stays accurate.'
+      );
+      return;
+    }
+    if (selectedProject?.isServicePlan && !subcategory) {
+      Alert.alert(
+        'Category required',
+        'Pick a category for this expense.'
+      );
       return;
     }
 
@@ -267,6 +313,7 @@ export default function ExpenseFormScreen({ navigation }) {
           description: description.trim(),
           category: category,
           subcategory: subcategory || null,
+          phaseId: phaseId || null,
           date: date,
           receiptUrl: receiptUrl,
           lineItems: lineItems.length > 0 ? lineItems : null,
@@ -282,6 +329,7 @@ export default function ExpenseFormScreen({ navigation }) {
           description: description.trim(),
           category: category,
           subcategory: subcategory || null,
+          phase_id: phaseId || null,
           date: date,
           receipt_url: receiptUrl,
           line_items: lineItems.length > 0 ? lineItems : null,
@@ -548,7 +596,7 @@ export default function ExpenseFormScreen({ navigation }) {
                           borderColor: category === cat.id ? Colors.primaryBlue : Colors.border
                         }
                       ]}
-                      onPress={() => { setCategory(cat.id); setSubcategory(null); }}
+                      onPress={() => { setCategory(cat.id); setSubcategory(null); setPhaseId(null); }}
                     >
                       <Ionicons
                         name={cat.icon}
@@ -567,12 +615,55 @@ export default function ExpenseFormScreen({ navigation }) {
                   ))}
                 </View>
 
-                {/* Subcategory picker */}
-                <View style={{ marginTop: Spacing.md }}>
+                {/* Phase picker (required for project expenses; falls back to
+                    trade-budget / static subcategory chips for service plans
+                    or legacy projects with no phases). Section paints with a
+                    red left border on a save attempt with nothing selected. */}
+                <View
+                  style={{
+                    marginTop: Spacing.md,
+                    ...((attemptedSubmit && !subcategory && !phaseId)
+                      ? { borderLeftWidth: 3, borderLeftColor: '#EF4444', paddingLeft: 12 }
+                      : null),
+                  }}
+                >
                   <Text style={[styles.sectionTitle, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                    Subcategory (Optional)
+                    {phases.length > 0 ? 'Phase' : 'Category'} <Text style={{ color: '#EF4444' }}>*</Text>
                   </Text>
 
+                  {phases.length > 0 ? (
+                    <View style={styles.categoryGrid}>
+                      {phases.map((p) => {
+                        const isActive = phaseId === p.id;
+                        return (
+                          <TouchableOpacity
+                            key={`phase-${p.id}`}
+                            style={[
+                              styles.categoryButton,
+                              {
+                                backgroundColor: isActive ? '#10B981' + '15' : Colors.lightBackground,
+                                borderColor: isActive ? '#10B981' : Colors.border,
+                              }
+                            ]}
+                            onPress={() => {
+                              setPhaseId(p.id);
+                              setSubcategory(p.name);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.categoryButtonText,
+                                { color: isActive ? '#10B981' : Colors.secondaryText }
+                              ]}
+                            >
+                              {p.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                  <>
                   {/* Project trade budgets — priority options */}
                   {tradeBudgets.length > 0 && (
                     <View style={{ marginBottom: 10 }}>
@@ -588,7 +679,7 @@ export default function ExpenseFormScreen({ navigation }) {
                                 borderColor: subcategory === tb.trade_name.toLowerCase() ? '#10B981' : Colors.border,
                               }
                             ]}
-                            onPress={() => setSubcategory(subcategory === tb.trade_name.toLowerCase() ? null : tb.trade_name.toLowerCase())}
+                            onPress={() => setSubcategory(tb.trade_name.toLowerCase())}
                           >
                             <Text
                               style={[
@@ -621,7 +712,7 @@ export default function ExpenseFormScreen({ navigation }) {
                                 borderColor: subcategory === sub.value ? Colors.primaryBlue : Colors.border,
                               }
                             ]}
-                            onPress={() => setSubcategory(subcategory === sub.value ? null : sub.value)}
+                            onPress={() => setSubcategory(sub.value)}
                           >
                             <Text
                               style={[
@@ -635,6 +726,8 @@ export default function ExpenseFormScreen({ navigation }) {
                         ))}
                       </View>
                     </View>
+                  )}
+                  </>
                   )}
                 </View>
               </View>
