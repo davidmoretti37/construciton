@@ -39,6 +39,7 @@ import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import DailyChecklistSection from './DailyChecklistSection';
+import TodaysChecklistSection from './TodaysChecklistSection';
 import { formatHoursMinutes } from '../utils/calculations';
 import ClientPortalCard from './ClientPortalCard';
 import { supabase } from '../lib/supabase';
@@ -2146,6 +2147,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               </View>
             ) : null}
           </View>
+
+          {/* Today's Checklist — phase tasks scheduled for today.
+              Distinct from the recurring Daily Crew Checks below. Hidden
+              when the scheduler has nothing for today. */}
+          {!isDemo && project?.id && (
+            <TodaysChecklistSection
+              projectId={project.id}
+              userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
+            />
+          )}
 
           {/* Daily Checklist Section — controlled by global project edit pencil. */}
           {!isDemo && project?.id && (

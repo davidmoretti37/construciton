@@ -16,6 +16,8 @@ import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchProjectDocuments, fetchProjectPhases, fetchDailyReports, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
+import TodaysChecklistSection from '../../components/TodaysChecklistSection';
+import DailyChecklistSection from '../../components/DailyChecklistSection';
 
 export default function WorkerProjectDetailScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -458,6 +460,28 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                 </View>
               </>
             )}
+          </View>
+        )}
+
+        {/* Today's Checklist — phase tasks scheduled for TODAY only.
+            Distinct from Daily Crew Checks (recurring items). */}
+        {project?.id && (
+          <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+            <TodaysChecklistSection
+              projectId={project.id}
+              userRole="worker"
+            />
+          </View>
+        )}
+
+        {/* Daily Crew Checks — recurring items the crew ticks every workday */}
+        {project?.id && (
+          <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+            <DailyChecklistSection
+              projectId={project.id}
+              ownerId={project.user_id}
+              userRole="worker"
+            />
           </View>
         )}
 

@@ -83,20 +83,37 @@ export default function WorkerProjectsListScreen() {
             phases[0];
         }
 
-        const { data: nextTasks } = await supabase
+        // Today's tasks (scheduled for TODAY) — preferred surface on the card.
+        const { data: todayTasks } = await supabase
           .from('worker_tasks')
-          .select('id, title, start_date, end_date, status')
+          .select('id, title, status, start_date, end_date')
           .eq('project_id', p.id)
           .eq('worker_id', workerData.id)
+          .lte('start_date', today)
           .gte('end_date', today)
-          .neq('status', 'completed')
-          .order('start_date', { ascending: true })
-          .limit(1);
+          .order('start_date', { ascending: true });
+
+        // Fallback: next upcoming task when nothing today.
+        let nextTask = null;
+        if (!todayTasks || todayTasks.length === 0) {
+          const { data: nextRows } = await supabase
+            .from('worker_tasks')
+            .select('id, title, start_date, end_date, status')
+            .eq('project_id', p.id)
+            .eq('worker_id', workerData.id)
+            .gte('start_date', today)
+            .neq('status', 'completed')
+            .order('start_date', { ascending: true })
+            .limit(1);
+          nextTask = nextRows && nextRows[0] ? nextRows[0] : null;
+        }
 
         return {
           ...p,
           currentPhase: currentPhase?.name || null,
-          nextTask: nextTasks && nextTasks[0] ? nextTasks[0] : null,
+          currentPhaseProgress: currentPhase?.completion_percentage || 0,
+          todayTasks: todayTasks || [],
+          nextTask,
         };
       }));
 
@@ -134,22 +151,54 @@ export default function WorkerProjectsListScreen() {
   const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
     header: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
-    title: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.primaryText },
+    title: { fontSize: FontSizes.xl + 2, fontWeight: '700', color: Colors.primaryText, letterSpacing: -0.5 },
     subtitle: { fontSize: FontSizes.sm, color: Colors.secondaryText, marginTop: 2 },
     list: { paddingHorizontal: Spacing.md, paddingBottom: 120 },
     card: {
       borderRadius: BorderRadius.lg,
       borderWidth: 1,
-      padding: Spacing.md,
       marginBottom: Spacing.sm,
+      overflow: 'hidden',
+      flexDirection: 'row',
     },
-    cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    projectName: { fontSize: FontSizes.md, fontWeight: '700', flex: 1 },
-    phasePill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, maxWidth: 140 },
-    phasePillText: { fontSize: 11, fontWeight: '700' },
-    metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 },
+    cardAccent: { width: 4 },
+    cardBody: { flex: 1, padding: Spacing.md, gap: 6 },
+    cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    projectName: { fontSize: FontSizes.md + 1, fontWeight: '700', flex: 1, letterSpacing: -0.2 },
+    phasePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      maxWidth: 160,
+    },
+    phasePillText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+    metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 2 },
     metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '60%' },
     metaText: { fontSize: FontSizes.sm, flexShrink: 1 },
+    todayBlock: {
+      marginTop: 10,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      gap: 6,
+    },
+    todayHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    todayLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    todayCount: { fontSize: 11, fontWeight: '600' },
+    todayTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    todayTaskText: { fontSize: FontSizes.sm, flexShrink: 1 },
+    moreText: { fontSize: 11, fontWeight: '600', marginLeft: 24 },
     nextTaskRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -159,68 +208,130 @@ export default function WorkerProjectsListScreen() {
       borderTopWidth: 1,
     },
     nextTaskText: { fontSize: FontSizes.sm, flexShrink: 1 },
+    chevronRow: {
+      position: 'absolute',
+      top: Spacing.md,
+      right: Spacing.md,
+    },
     emptyState: { alignItems: 'center', padding: Spacing.xl, gap: 8 },
     emptyTitle: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.primaryText },
     emptyText: { fontSize: FontSizes.sm, color: Colors.secondaryText, textAlign: 'center' },
   });
 
   const renderCard = ({ item }) => {
+    const today = item.todayTasks || [];
+    const todayCompleted = today.filter(t => t.status === 'completed').length;
     const next = item.nextTask;
-    const nextLabel = next
-      ? `Next: ${next.title} · ${formatDate(next.start_date)}`
-      : 'No upcoming tasks';
+    const phaseColor = '#059669';
 
     return (
       <TouchableOpacity
-        activeOpacity={0.7}
+        activeOpacity={0.6}
         onPress={() => openProject(item)}
         style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
       >
-        <View style={styles.cardTopRow}>
-          <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          {item.currentPhase && (
-            <View style={[styles.phasePill, { backgroundColor: '#05966915' }]}>
-              <Text style={[styles.phasePillText, { color: '#059669' }]} numberOfLines={1}>
-                {item.currentPhase}
+        {/* Phase-color accent stripe on the left */}
+        <View style={[styles.cardAccent, { backgroundColor: phaseColor }]} />
+
+        <View style={styles.cardBody}>
+          <View style={styles.cardTopRow}>
+            <Text style={[styles.projectName, { color: Colors.primaryText }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {item.currentPhase && (
+              <View style={[styles.phasePill, { backgroundColor: phaseColor + '15' }]}>
+                <Ionicons name="layers-outline" size={11} color={phaseColor} />
+                <Text style={[styles.phasePillText, { color: phaseColor }]} numberOfLines={1}>
+                  {item.currentPhase}
+                  {item.currentPhaseProgress > 0 ? ` · ${item.currentPhaseProgress}%` : ''}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {(item.client_name || item.location) && (
+            <View style={styles.metaRow}>
+              {item.client_name && (
+                <View style={styles.metaItem}>
+                  <Ionicons name="person-outline" size={14} color={Colors.secondaryText} />
+                  <Text style={[styles.metaText, { color: Colors.secondaryText }]} numberOfLines={1}>
+                    {item.client_name}
+                  </Text>
+                </View>
+              )}
+              {item.location && (
+                <View style={styles.metaItem}>
+                  <Ionicons name="location-outline" size={14} color={Colors.secondaryText} />
+                  <Text style={[styles.metaText, { color: Colors.secondaryText }]} numberOfLines={1}>
+                    {item.location}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {today.length > 0 ? (
+            <View style={[styles.todayBlock, { borderTopColor: Colors.border }]}>
+              <View style={styles.todayHeader}>
+                <Text style={[styles.todayLabel, { color: '#3B82F6' }]}>
+                  Today · {today.length} task{today.length === 1 ? '' : 's'}
+                </Text>
+                <Text style={[styles.todayCount, { color: Colors.secondaryText }]}>
+                  {todayCompleted}/{today.length}
+                </Text>
+              </View>
+              {today.slice(0, 3).map(t => {
+                const done = t.status === 'completed';
+                return (
+                  <View key={t.id} style={styles.todayTaskRow}>
+                    <Ionicons
+                      name={done ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={16}
+                      color={done ? '#10B981' : Colors.secondaryText}
+                    />
+                    <Text
+                      style={[
+                        styles.todayTaskText,
+                        { color: Colors.primaryText },
+                        done && { textDecorationLine: 'line-through', color: Colors.secondaryText },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {t.title}
+                    </Text>
+                  </View>
+                );
+              })}
+              {today.length > 3 && (
+                <Text style={[styles.moreText, { color: Colors.secondaryText }]}>+{today.length - 3} more</Text>
+              )}
+            </View>
+          ) : (
+            <View style={[styles.nextTaskRow, { borderTopColor: Colors.border }]}>
+              <Ionicons
+                name={next ? 'time-outline' : 'checkmark-done-outline'}
+                size={14}
+                color={next ? '#3B82F6' : Colors.secondaryText}
+              />
+              <Text
+                style={[
+                  styles.nextTaskText,
+                  { color: next ? Colors.primaryText : Colors.secondaryText },
+                ]}
+                numberOfLines={1}
+              >
+                {next ? `Next: ${next.title} · ${formatDate(next.start_date)}` : 'No upcoming tasks'}
               </Text>
             </View>
           )}
         </View>
 
-        {(item.client_name || item.location) && (
-          <View style={styles.metaRow}>
-            {item.client_name && (
-              <View style={styles.metaItem}>
-                <Ionicons name="person-outline" size={14} color={Colors.secondaryText} />
-                <Text style={[styles.metaText, { color: Colors.secondaryText }]} numberOfLines={1}>
-                  {item.client_name}
-                </Text>
-              </View>
-            )}
-            {item.location && (
-              <View style={styles.metaItem}>
-                <Ionicons name="location-outline" size={14} color={Colors.secondaryText} />
-                <Text style={[styles.metaText, { color: Colors.secondaryText }]} numberOfLines={1}>
-                  {item.location}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        <View style={[styles.nextTaskRow, { borderTopColor: Colors.border }]}>
-          <Ionicons
-            name={next ? 'checkbox-outline' : 'checkmark-done-outline'}
-            size={14}
-            color={next ? '#059669' : Colors.secondaryText}
-          />
-          <Text style={[styles.nextTaskText, { color: next ? Colors.primaryText : Colors.secondaryText }]} numberOfLines={1}>
-            {nextLabel}
-          </Text>
-          <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ marginLeft: 'auto' }} />
-        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={16}
+          color={Colors.secondaryText}
+          style={styles.chevronRow}
+        />
       </TouchableOpacity>
     );
   };

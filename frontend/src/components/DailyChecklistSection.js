@@ -677,24 +677,10 @@ export default function DailyChecklistSection({
       ) : (
         /* ══════ LIVE CHECKLIST VIEW ══════ */
         <View>
-          {/* Today's Checklist sub-header — anchors the live list to a specific
-              date so workers/owners know these items are for TODAY. */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="today-outline" size={13} color="#8B5CF6" />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primaryText, letterSpacing: 0.3 }}>
-                TODAY'S CHECKLIST
-              </Text>
-              <Text style={{ fontSize: 11, color: Colors.secondaryText }}>· {todayDateLabel}</Text>
-            </View>
-            {totalCount > 0 && (
-              <Text style={{ fontSize: 11, color: Colors.secondaryText, fontWeight: '600' }}>
-                {completedCount}/{totalCount}
-              </Text>
-            )}
-          </View>
-
-          {/* Checklist items */}
+          {/* Recurring daily items the crew ticks off every workday.
+              Distinct from phase tasks scheduled for today, which live in
+              their own TodaysChecklistSection — the two are surfaced as
+              separate sections so the labels never get conflated. */}
           {templates.map(template => {
             const entry = entries[template.id];
             const isCompleted = entry?.completed || false;
