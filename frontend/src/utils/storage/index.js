@@ -304,6 +304,7 @@ export {
   shiftDate,
   bulkShiftTasks,
   fetchTasksForSelection,
+  createAdHocDayTask,
   recalculateTaskDatesForProject,
   redistributeTasksFromDayWithAI,
   restoreTasksToOriginalDay,

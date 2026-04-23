@@ -1863,6 +1863,57 @@ export const restoreTasksToSpecificDate = async (projectId, dateToRestore) => {
 };
 
 /**
+ * Create an ad-hoc task pinned to a specific date range. Owner-driven
+ * (the green "+ Add Task" on Today's Checklist). Inserts with
+ * phase_task_id = NULL so the reflow algorithm preserves it (existing
+ * manual-task convention — see redistributeProjectTasks.js:8).
+ *
+ * Supports multi-day spans: pass startDate !== endDate to create a task
+ * that shows up in every day inside the window in agenda + Today's
+ * Checklist views. Defaults end = start (single-day) when omitted.
+ *
+ * @param {string} projectId  Project to attach the task to
+ * @param {string} title      Task title (1-200 chars)
+ * @param {string} startDate  YYYY-MM-DD
+ * @param {string} [endDate]  YYYY-MM-DD; defaults to startDate
+ * @returns {Promise<object|null>} Inserted row or null on error
+ */
+export const createAdHocDayTask = async (projectId, title, startDate, endDate = null) => {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId || !projectId || !title || !startDate) return null;
+    const cleanTitle = String(title).trim().slice(0, 200);
+    if (!cleanTitle) return null;
+    const start = String(startDate);
+    const end = String(endDate || startDate);
+    if (end < start) return null; // sanity: end must be >= start
+
+    const { data, error } = await supabase
+      .from('worker_tasks')
+      .insert({
+        owner_id: userId,
+        project_id: projectId,
+        title: cleanTitle,
+        start_date: start,
+        end_date: end,
+        status: 'pending',
+        phase_task_id: null, // load-bearing — marks this as a manual task
+      })
+      .select('id, title, start_date, end_date, status, project_id, owner_id')
+      .single();
+
+    if (error) {
+      console.error('[createAdHocDayTask] insert error:', error.message);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.error('[createAdHocDayTask] exception:', e?.message);
+    return null;
+  }
+};
+
+/**
  * Fetch tasks for a project (for selection UI)
  * @param {string} projectId - Project ID
  * @param {object} filters - Optional filters { startDate, endDate, status }

@@ -2,28 +2,42 @@
  * TodaysChecklistSection — phase tasks scheduled for TODAY for one project.
  *
  * Distinct from DailyChecklistSection (recurring daily checks).
- * This section ONLY surfaces worker_tasks rows where today falls inside the
- * scheduled [start_date, end_date] window. Each row links back to its phase
- * via phase_task_id so we can render the phase name as a context pill.
+ * Surfaces worker_tasks rows where today falls inside [start_date, end_date].
+ * Each row links back to its phase via phase_task_id so we render the phase
+ * name as a context pill.
  *
- * Hidden when no tasks today (no empty card — keeps detail screens clean).
+ * Always renders the header (even with zero tasks) so owner/supervisor have
+ * a tap target to add a task on a quiet day. Worker view: read-only when
+ * empty (no add button).
  *
  * Roles:
- * - Owner / supervisor: read-only summary (with completion count)
- * - Worker: tap a row to mark complete / uncomplete (only their own tasks)
+ * - Owner / supervisor: read-only task list + Add Task button (multi-day)
+ * - Worker: tap a row to mark complete / uncomplete
  *
  * Data source:
- *   worker_tasks (id, title, start_date, end_date, status, phase_task_id, worker_id)
+ *   worker_tasks (id, title, start_date, end_date, status, phase_task_id, owner_id)
  *   project_phases.tasks (JSONB) — joined client-side for phase pill labels
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
+  Alert,
+} from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { LightColors, getColors, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { completeTask, uncompleteTask } from '../utils/storage';
+import { completeTask, uncompleteTask, createAdHocDayTask } from '../utils/storage';
 
 const todayLocalISO = () => {
   const d = new Date();
@@ -38,24 +52,52 @@ const formatTodayLabel = () => {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 };
 
+const parseISO = (iso) => {
+  if (!iso) return new Date();
+  const [y, m, d] = iso.split('-');
+  return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+};
+
+const toISOLocal = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const formatPickerLabel = (iso) => {
+  const d = parseISO(iso);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+};
+
 export default function TodaysChecklistSection({
   projectId,
   userRole = 'owner',     // 'owner' | 'supervisor' | 'worker'
-  onChange,               // optional callback after a task toggle
+  onChange,               // optional callback after a task toggle / add
 }) {
-  // Note: worker_tasks has no per-worker column (no worker_id field).
-  // All crew assigned to a project share the same tasks. Worker access
-  // is gated by project_assignments + RLS, not by per-task filter.
+  // Note: worker_tasks has no per-worker column. All crew on a project share
+  // the same task pool; access is gated by project_assignments + RLS.
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
   const [tasks, setTasks] = useState([]);
-  const [phaseLookup, setPhaseLookup] = useState({}); // phase_task_id -> phaseName
+  const [phaseLookup, setPhaseLookup] = useState({});
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(null);
 
+  // Add-task modal state
+  const [addOpen, setAddOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newStart, setNewStart] = useState(todayLocalISO());
+  const [newEnd, setNewEnd] = useState(todayLocalISO());
+  const [pickerMode, setPickerMode] = useState(null); // 'start' | 'end' | null
+  const [saving, setSaving] = useState(false);
+
   const today = todayLocalISO();
   const canToggle = userRole === 'worker';
+  const canAdd = userRole === 'owner' || userRole === 'supervisor';
+
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -71,7 +113,6 @@ export default function TodaysChecklistSection({
       const rows = data || [];
       setTasks(rows);
 
-      // Build phase lookup: phase_task_id (string) -> phase name
       const phaseTaskIds = rows.map(t => t.phase_task_id).filter(Boolean);
       if (phaseTaskIds.length > 0) {
         const { data: phases } = await supabase
@@ -84,7 +125,6 @@ export default function TodaysChecklistSection({
         let globalIdx = 0;
         (phases || []).forEach(ph => {
           (ph.tasks || []).forEach((task, localIdx) => {
-            // Match all three legacy phase_task_id formats
             if (task?.id) lookup[task.id] = ph.name;
             lookup[`phase-task-${globalIdx}`] = ph.name;
             lookup[`${ph.name}-${localIdx}`] = ph.name;
@@ -92,6 +132,8 @@ export default function TodaysChecklistSection({
           });
         });
         setPhaseLookup(lookup);
+      } else {
+        setPhaseLookup({});
       }
     } catch (e) {
       console.error('[TodaysChecklist] load error:', e?.message);
@@ -101,16 +143,12 @@ export default function TodaysChecklistSection({
     }
   }, [projectId, today]);
 
-  // Note: load deps intentionally exclude workerId since query no longer
-  // filters by it (column doesn't exist on worker_tasks).
   useEffect(() => { load(); }, [load]);
 
   const handleToggle = async (task) => {
     if (!canToggle || toggling === task.id) return;
     setToggling(task.id);
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-
-    // Optimistic
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
     try {
       if (newStatus === 'completed') await completeTask(task.id);
@@ -123,10 +161,63 @@ export default function TodaysChecklistSection({
     }
   };
 
+  const openAdd = () => {
+    setNewTitle('');
+    setNewStart(today);
+    setNewEnd(today);
+    setPickerMode(null);
+    setAddOpen(true);
+  };
+
+  const closeAdd = () => {
+    if (saving) return;
+    setAddOpen(false);
+    setPickerMode(null);
+  };
+
+  const handleSaveTask = async () => {
+    const title = newTitle.trim();
+    if (!title) {
+      Alert.alert('Title required', 'Give the task a short name first.');
+      return;
+    }
+    if (newEnd < newStart) {
+      Alert.alert('Invalid range', 'End date must be on or after start date.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const created = await createAdHocDayTask(projectId, title, newStart, newEnd);
+      if (!created) {
+        Alert.alert('Couldn\'t create task', 'Something went wrong. Try again.');
+        return;
+      }
+      setAddOpen(false);
+      await load();
+      if (onChange) onChange();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePickerChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') setPickerMode(null);
+    if (event?.type === 'dismissed') return;
+    if (!selectedDate) return;
+    const iso = toISOLocal(selectedDate);
+    if (pickerMode === 'start') {
+      setNewStart(iso);
+      // Bump end forward if it's now before start
+      if (newEnd < iso) setNewEnd(iso);
+    } else if (pickerMode === 'end') {
+      setNewEnd(iso);
+    }
+  };
+
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const totalCount = tasks.length;
+  const isComplete = totalCount > 0 && completedCount === totalCount;
 
-  // Don't render an empty card — caller's screen stays clean.
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
@@ -134,7 +225,6 @@ export default function TodaysChecklistSection({
       </View>
     );
   }
-  if (tasks.length === 0) return null;
 
   return (
     <View style={[styles.container, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
@@ -144,72 +234,219 @@ export default function TodaysChecklistSection({
           <View style={styles.iconCircle}>
             <Ionicons name="today" size={16} color="#3B82F6" />
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.title, { color: Colors.primaryText }]}>Today's Checklist</Text>
-            <Text style={[styles.subtitle, { color: Colors.secondaryText }]}>
-              {formatTodayLabel()} · {totalCount} task{totalCount === 1 ? '' : 's'} from phases
+            <Text style={[styles.subtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
+              {formatTodayLabel()}
+              {totalCount > 0
+                ? ` · ${totalCount} task${totalCount === 1 ? '' : 's'}`
+                : ' · nothing scheduled yet'}
             </Text>
           </View>
         </View>
-        <View style={[styles.countPill, { backgroundColor: completedCount === totalCount ? '#10B98115' : '#3B82F615' }]}>
-          <Text style={[styles.countPillText, { color: completedCount === totalCount ? '#10B981' : '#3B82F6' }]}>
-            {completedCount}/{totalCount}
-          </Text>
+        <View style={styles.headerActions}>
+          {totalCount > 0 && (
+            <View style={[styles.countPill, { backgroundColor: isComplete ? '#10B98115' : '#3B82F615' }]}>
+              <Text style={[styles.countPillText, { color: isComplete ? '#10B981' : '#3B82F6' }]}>
+                {completedCount}/{totalCount}
+              </Text>
+            </View>
+          )}
+          {canAdd && (
+            <TouchableOpacity
+              onPress={openAdd}
+              style={[styles.addBtn, { backgroundColor: '#3B82F6' }]}
+              activeOpacity={0.8}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="add" size={16} color="#fff" />
+              <Text style={styles.addBtnText}>Add</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* Task rows */}
-      <View style={styles.body}>
-        {tasks.map((task, idx) => {
-          const isCompleted = task.status === 'completed';
-          const phaseName = task.phase_task_id ? phaseLookup[task.phase_task_id] : null;
-          const isLast = idx === tasks.length - 1;
+      {/* Body */}
+      {totalCount === 0 ? (
+        <View style={styles.emptyBody}>
+          <Ionicons name="calendar-outline" size={28} color={Colors.secondaryText + '60'} />
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Nothing scheduled today</Text>
+          <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+            {canAdd
+              ? 'Tap Add to drop a task on today (or pick a date range for multi-day work).'
+              : 'Check back later or jump in on the daily crew checks below.'}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.body}>
+          {tasks.map((task, idx) => {
+            const isCompleted = task.status === 'completed';
+            const phaseName = task.phase_task_id ? phaseLookup[task.phase_task_id] : null;
+            const isMultiDay = task.start_date !== task.end_date;
+            const isLast = idx === tasks.length - 1;
 
-          return (
-            <TouchableOpacity
-              key={task.id}
-              activeOpacity={canToggle ? 0.6 : 1}
-              onPress={() => handleToggle(task)}
-              disabled={!canToggle || toggling === task.id}
-              style={[styles.taskRow, !isLast && { borderBottomColor: Colors.border, borderBottomWidth: 1 }]}
-            >
-              <Ionicons
-                name={isCompleted ? 'checkbox' : 'square-outline'}
-                size={22}
-                color={isCompleted ? '#10B981' : Colors.secondaryText + (canToggle ? 'FF' : '80')}
-              />
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text
-                  style={[
-                    styles.taskTitle,
-                    { color: Colors.primaryText },
-                    isCompleted && { textDecorationLine: 'line-through', color: Colors.secondaryText },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {task.title}
-                </Text>
-                {phaseName && (
-                  <View style={[styles.phasePill, { backgroundColor: '#8B5CF615' }]}>
-                    <Ionicons name="layers-outline" size={10} color="#8B5CF6" />
-                    <Text style={[styles.phasePillText, { color: '#8B5CF6' }]} numberOfLines={1}>
-                      {phaseName}
-                    </Text>
+            return (
+              <TouchableOpacity
+                key={task.id}
+                activeOpacity={canToggle ? 0.6 : 1}
+                onPress={() => handleToggle(task)}
+                disabled={!canToggle || toggling === task.id}
+                style={[styles.taskRow, !isLast && { borderBottomColor: Colors.border, borderBottomWidth: 1 }]}
+              >
+                <Ionicons
+                  name={isCompleted ? 'checkbox' : 'square-outline'}
+                  size={22}
+                  color={isCompleted ? '#10B981' : Colors.secondaryText + (canToggle ? 'FF' : '80')}
+                />
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text
+                    style={[
+                      styles.taskTitle,
+                      { color: Colors.primaryText },
+                      isCompleted && { textDecorationLine: 'line-through', color: Colors.secondaryText },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {task.title}
+                  </Text>
+                  <View style={styles.taskMetaRow}>
+                    {phaseName ? (
+                      <View style={[styles.phasePill, { backgroundColor: '#8B5CF615' }]}>
+                        <Ionicons name="layers-outline" size={10} color="#8B5CF6" />
+                        <Text style={[styles.phasePillText, { color: '#8B5CF6' }]} numberOfLines={1}>
+                          {phaseName}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.phasePill, { backgroundColor: '#F59E0B15' }]}>
+                        <Ionicons name="bookmark-outline" size={10} color="#F59E0B" />
+                        <Text style={[styles.phasePillText, { color: '#F59E0B' }]} numberOfLines={1}>
+                          Custom
+                        </Text>
+                      </View>
+                    )}
+                    {isMultiDay && (
+                      <View style={[styles.rangePill, { backgroundColor: Colors.lightGray || '#F3F4F6' }]}>
+                        <Ionicons name="calendar-outline" size={10} color={Colors.secondaryText} />
+                        <Text style={[styles.rangePillText, { color: Colors.secondaryText }]} numberOfLines={1}>
+                          {formatPickerLabel(task.start_date)} – {formatPickerLabel(task.end_date)}
+                        </Text>
+                      </View>
+                    )}
                   </View>
+                </View>
+                {toggling === task.id && (
+                  <ActivityIndicator size="small" color="#3B82F6" />
                 )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Add Task Modal */}
+      <Modal visible={addOpen} animationType="slide" transparent onRequestClose={closeAdd}>
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.modalKav}
+          >
+            <View style={[styles.modalCard, { backgroundColor: Colors.cardBackground }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Add Task</Text>
+                <TouchableOpacity onPress={closeAdd} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={22} color={Colors.secondaryText} />
+                </TouchableOpacity>
               </View>
-              {toggling === task.id && (
-                <ActivityIndicator size="small" color="#3B82F6" />
+
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>TITLE</Text>
+              <TextInput
+                value={newTitle}
+                onChangeText={setNewTitle}
+                placeholder="e.g. Pick up tile from supplier"
+                placeholderTextColor={Colors.secondaryText + '80'}
+                autoFocus
+                style={[styles.modalInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
+                returnKeyType="done"
+                onSubmitEditing={handleSaveTask}
+              />
+
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText, marginTop: 14 }]}>WHEN</Text>
+              <View style={styles.dateRow}>
+                <TouchableOpacity
+                  onPress={() => setPickerMode('start')}
+                  style={[styles.dateChip, { borderColor: Colors.border, backgroundColor: Colors.background }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="calendar-outline" size={14} color="#3B82F6" />
+                  <View>
+                    <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>Start</Text>
+                    <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>{formatPickerLabel(newStart)}</Text>
+                  </View>
+                </TouchableOpacity>
+                <Ionicons name="arrow-forward" size={14} color={Colors.secondaryText} />
+                <TouchableOpacity
+                  onPress={() => setPickerMode('end')}
+                  style={[styles.dateChip, { borderColor: Colors.border, backgroundColor: Colors.background }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="calendar-outline" size={14} color="#3B82F6" />
+                  <View>
+                    <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>End</Text>
+                    <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>{formatPickerLabel(newEnd)}</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.modalHint, { color: Colors.secondaryText }]}>
+                {newStart === newEnd
+                  ? 'Single-day task. Tap End to span multiple days.'
+                  : `Multi-day task — shows on every day in this range.`}
+              </Text>
+
+              {pickerMode && (
+                <DateTimePicker
+                  value={parseISO(pickerMode === 'start' ? newStart : newEnd)}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  minimumDate={pickerMode === 'end' ? parseISO(newStart) : undefined}
+                  onChange={handlePickerChange}
+                />
               )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  onPress={closeAdd}
+                  disabled={saving}
+                  style={[styles.modalBtn, { backgroundColor: 'transparent', borderColor: Colors.border, borderWidth: 1 }]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.modalBtnText, { color: Colors.primaryText }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSaveTask}
+                  disabled={saving || !newTitle.trim()}
+                  style={[
+                    styles.modalBtn,
+                    { backgroundColor: !newTitle.trim() ? '#3B82F660' : '#3B82F6' },
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={[styles.modalBtnText, { color: '#fff' }]}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors) => StyleSheet.create({
   container: {
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
@@ -236,12 +473,18 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: FontSizes.md, fontWeight: '700' },
   subtitle: { fontSize: 11, marginTop: 1 },
-  countPill: {
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  countPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  countPillText: { fontSize: 12, fontWeight: '700' },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 12,
   },
-  countPillText: { fontSize: 12, fontWeight: '700' },
+  addBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
   body: { paddingHorizontal: 4 },
   taskRow: {
     flexDirection: 'row',
@@ -251,6 +494,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   taskTitle: { fontSize: FontSizes.sm, fontWeight: '600', flexShrink: 1 },
+  taskMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   phasePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -261,4 +505,80 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   phasePillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2, maxWidth: 160 },
+  rangePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  rangePillText: { fontSize: 10, fontWeight: '600' },
+  emptyBody: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 24,
+    gap: 6,
+  },
+  emptyTitle: { fontSize: FontSizes.sm, fontWeight: '700' },
+  emptyText: { fontSize: 12, textAlign: 'center', lineHeight: 18 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalKav: { width: '100%' },
+  modalCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  modalTitle: { fontSize: FontSizes.lg, fontWeight: '700' },
+  modalLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: FontSizes.md,
+  },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dateChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dateChipLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  dateChipValue: { fontSize: FontSizes.sm, fontWeight: '600' },
+  modalHint: { fontSize: 11, marginTop: 8, fontStyle: 'italic' },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  modalBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  modalBtnText: { fontSize: FontSizes.md, fontWeight: '700' },
 });
