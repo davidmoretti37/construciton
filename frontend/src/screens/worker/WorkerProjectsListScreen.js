@@ -234,24 +234,48 @@ export default function WorkerProjectsListScreen() {
     todayTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     todayTaskText: { fontSize: FontSizes.sm, flexShrink: 1 },
     moreText: { fontSize: 11, fontWeight: '600', marginLeft: 24 },
-    dailyBlock: {
+    sectionLabelRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginTop: 8,
-      paddingTop: 8,
-      borderTopWidth: 1,
+      paddingHorizontal: 4,
+      marginBottom: 8,
     },
-    dailyLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-    dailyLabel: {
+    sectionLabel: {
       fontSize: 11,
       fontWeight: '700',
-      letterSpacing: 0.5,
+      letterSpacing: 0.8,
       textTransform: 'uppercase',
     },
+    sectionMeta: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    dailyCard: {
+      borderRadius: BorderRadius.lg,
+      borderWidth: 1,
+      overflow: 'hidden',
+    },
+    dailyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    dailyRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+    dailyRowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    dailyIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dailyProjectName: { fontSize: FontSizes.sm, fontWeight: '600', flexShrink: 1 },
     dailyCountPill: {
-      paddingHorizontal: 8,
-      paddingVertical: 2,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
       borderRadius: 10,
     },
     dailyCountText: { fontSize: 11, fontWeight: '700' },
@@ -383,27 +407,6 @@ export default function WorkerProjectsListScreen() {
 
           {/* Daily Crew Checks summary — recurring items workers tick every day.
               Hidden when no checklist templates configured for this project. */}
-          {(item.dailyTotal || 0) > 0 && (() => {
-            const dailyDone = item.dailyDone || 0;
-            const dailyTotal = item.dailyTotal || 0;
-            const allDone = dailyDone === dailyTotal;
-            const purple = '#8B5CF6';
-            return (
-              <View style={[styles.dailyBlock, { borderTopColor: Colors.border }]}>
-                <View style={styles.dailyLeft}>
-                  <Ionicons name="checkbox-outline" size={14} color={purple} />
-                  <Text style={[styles.dailyLabel, { color: purple }]} numberOfLines={1}>
-                    Daily Checks · {dailyTotal} item{dailyTotal === 1 ? '' : 's'}
-                  </Text>
-                </View>
-                <View style={[styles.dailyCountPill, { backgroundColor: allDone ? '#10B98115' : purple + '15' }]}>
-                  <Text style={[styles.dailyCountText, { color: allDone ? '#10B981' : purple }]}>
-                    {dailyDone}/{dailyTotal}
-                  </Text>
-                </View>
-              </View>
-            );
-          })()}
         </View>
 
         <Ionicons
@@ -426,6 +429,79 @@ export default function WorkerProjectsListScreen() {
     );
   }
 
+  // Daily Checks summary — pulled out of each card per David's spec so
+  // checklists surface prominently at the top of the page, not buried.
+  // Only includes projects that actually have templates configured.
+  const projectsWithDaily = projects.filter(p => (p.dailyTotal || 0) > 0);
+  const totalDailyPending = projectsWithDaily.reduce(
+    (sum, p) => sum + Math.max(0, (p.dailyTotal || 0) - (p.dailyDone || 0)),
+    0
+  );
+
+  const renderListHeader = () => {
+    if (projectsWithDaily.length === 0) return null;
+    const purple = '#8B5CF6';
+    return (
+      <View style={{ marginBottom: Spacing.md }}>
+        <View style={styles.sectionLabelRow}>
+          <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+            TODAY'S DAILY CHECKS
+          </Text>
+          {totalDailyPending > 0 && (
+            <Text style={[styles.sectionMeta, { color: purple }]}>
+              {totalDailyPending} pending
+            </Text>
+          )}
+        </View>
+        <View style={[styles.dailyCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
+          {projectsWithDaily.map((p, idx) => {
+            const done = p.dailyDone || 0;
+            const total = p.dailyTotal || 0;
+            const allDone = done === total;
+            const isLast = idx === projectsWithDaily.length - 1;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                activeOpacity={0.6}
+                onPress={() => openProject(p)}
+                style={[
+                  styles.dailyRow,
+                  !isLast && { borderBottomColor: Colors.border, borderBottomWidth: 1 },
+                ]}
+              >
+                <View style={styles.dailyRowLeft}>
+                  <View style={[styles.dailyIcon, { backgroundColor: allDone ? '#10B98115' : purple + '15' }]}>
+                    <Ionicons
+                      name={allDone ? 'checkmark-done' : 'checkbox-outline'}
+                      size={14}
+                      color={allDone ? '#10B981' : purple}
+                    />
+                  </View>
+                  <Text style={[styles.dailyProjectName, { color: Colors.primaryText }]} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                </View>
+                <View style={styles.dailyRowRight}>
+                  <View style={[styles.dailyCountPill, { backgroundColor: allDone ? '#10B98115' : purple + '15' }]}>
+                    <Text style={[styles.dailyCountText, { color: allDone ? '#10B981' : purple }]}>
+                      {done}/{total}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={Colors.secondaryText} />
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <View style={styles.sectionLabelRow}>
+          <Text style={[styles.sectionLabel, { color: Colors.secondaryText, marginTop: 14 }]}>
+            PROJECTS
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -438,6 +514,7 @@ export default function WorkerProjectsListScreen() {
         data={projects}
         keyExtractor={(item) => item.id}
         renderItem={renderCard}
+        ListHeaderComponent={renderListHeader}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#059669" />}
         ListEmptyComponent={

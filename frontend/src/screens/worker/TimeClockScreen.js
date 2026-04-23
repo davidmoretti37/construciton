@@ -458,9 +458,16 @@ export default function TimeClockScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
-      {/* Minimalist Top Bar */}
+      {/* Top bar — matches My Projects polished style */}
       <View style={[styles.topBar, { backgroundColor: Colors.background }]}>
-        <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Clock</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.topBarTitle, { color: Colors.primaryText }]}>Time Clock</Text>
+          <Text style={[styles.topBarSub, { color: Colors.secondaryText }]}>
+            {activeSession
+              ? `Clocked in · ${elapsedTime}`
+              : 'Off the clock'}
+          </Text>
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <NotificationBell onPress={() => navigation.navigate('Notifications')} />
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
@@ -707,15 +714,21 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingTop: 14,
+    paddingBottom: 12,
   },
   topBarTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 26,
+    fontWeight: '700',
     letterSpacing: -0.5,
+  },
+  topBarSub: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 3,
   },
   content: {
     flex: 1,

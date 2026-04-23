@@ -229,15 +229,15 @@ export default function TodaysWorkScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
-      {/* Header */}
+      {/* Header — matches My Projects polished style */}
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Today's Work</Text>
-          {totalItems > 0 && (
-            <Text style={[styles.headerSub, { color: Colors.secondaryText }]}>
-              {completedItems}/{totalItems} items done
-            </Text>
-          )}
+          <Text style={[styles.headerSub, { color: Colors.secondaryText }]}>
+            {totalItems > 0
+              ? `${completedItems}/${totalItems} items done · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
+              : `Nothing due today · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
+          </Text>
         </View>
         <View style={styles.toggleRow}>
           <View style={[styles.toggleBtn, { backgroundColor: '#059669' }]}>
@@ -437,11 +437,11 @@ export default function TodaysWorkScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12,
   },
-  headerTitle: { fontSize: 22, fontWeight: '700' },
-  headerSub: { fontSize: 13, marginTop: 2 },
+  headerTitle: { fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
+  headerSub: { fontSize: 13, marginTop: 3, fontWeight: '500' },
   toggleRow: { flexDirection: 'row', gap: 4 },
   toggleBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16 },
   toggleText: { fontSize: 13, fontWeight: '600' },
