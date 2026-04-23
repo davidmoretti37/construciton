@@ -108,12 +108,47 @@ export default function WorkerProjectsListScreen() {
           nextTask = nextRows && nextRows[0] ? nextRows[0] : null;
         }
 
+        // Daily Crew Checks — recurring items + today's completion state.
+        // Templates: any active row whose specific_date is null (recurring)
+        // or matches today (one-off). Done count: completed entries from
+        // today's daily_service_report (lazy-created on first submit).
+        const { data: templates } = await supabase
+          .from('daily_checklist_templates')
+          .select('id, specific_date')
+          .eq('project_id', p.id)
+          .eq('is_active', true);
+        const activeTemplates = (templates || []).filter(t =>
+          !t.specific_date || t.specific_date === today
+        );
+        const dailyTotal = activeTemplates.length;
+
+        let dailyDone = 0;
+        if (dailyTotal > 0) {
+          const { data: todayReport } = await supabase
+            .from('daily_service_reports')
+            .select('id')
+            .eq('project_id', p.id)
+            .eq('report_date', today)
+            .maybeSingle();
+          if (todayReport?.id) {
+            const { data: entries } = await supabase
+              .from('daily_report_entries')
+              .select('id')
+              .eq('report_id', todayReport.id)
+              .eq('entry_type', 'checklist')
+              .eq('completed', true);
+            dailyDone = (entries || []).length;
+          }
+        }
+
         return {
           ...p,
           currentPhase: currentPhase?.name || null,
           currentPhaseProgress: currentPhase?.completion_percentage || 0,
           todayTasks: todayTasks || [],
           nextTask,
+          dailyTotal,
+          dailyDone,
         };
       }));
 
@@ -199,6 +234,27 @@ export default function WorkerProjectsListScreen() {
     todayTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     todayTaskText: { fontSize: FontSizes.sm, flexShrink: 1 },
     moreText: { fontSize: 11, fontWeight: '600', marginLeft: 24 },
+    dailyBlock: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+    },
+    dailyLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+    dailyLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    dailyCountPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 10,
+    },
+    dailyCountText: { fontSize: 11, fontWeight: '700' },
     nextTaskRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -324,6 +380,30 @@ export default function WorkerProjectsListScreen() {
               </Text>
             </View>
           )}
+
+          {/* Daily Crew Checks summary — recurring items workers tick every day.
+              Hidden when no checklist templates configured for this project. */}
+          {(item.dailyTotal || 0) > 0 && (() => {
+            const dailyDone = item.dailyDone || 0;
+            const dailyTotal = item.dailyTotal || 0;
+            const allDone = dailyDone === dailyTotal;
+            const purple = '#8B5CF6';
+            return (
+              <View style={[styles.dailyBlock, { borderTopColor: Colors.border }]}>
+                <View style={styles.dailyLeft}>
+                  <Ionicons name="checkbox-outline" size={14} color={purple} />
+                  <Text style={[styles.dailyLabel, { color: purple }]} numberOfLines={1}>
+                    Daily Checks · {dailyTotal} item{dailyTotal === 1 ? '' : 's'}
+                  </Text>
+                </View>
+                <View style={[styles.dailyCountPill, { backgroundColor: allDone ? '#10B98115' : purple + '15' }]}>
+                  <Text style={[styles.dailyCountText, { color: allDone ? '#10B981' : purple }]}>
+                    {dailyDone}/{dailyTotal}
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
         </View>
 
         <Ionicons
