@@ -40,10 +40,12 @@ const formatTodayLabel = () => {
 
 export default function TodaysChecklistSection({
   projectId,
-  workerId = null,        // when provided, scope tasks to this worker
   userRole = 'owner',     // 'owner' | 'supervisor' | 'worker'
   onChange,               // optional callback after a task toggle
 }) {
+  // Note: worker_tasks has no per-worker column (no worker_id field).
+  // All crew assigned to a project share the same tasks. Worker access
+  // is gated by project_assignments + RLS, not by per-task filter.
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -58,17 +60,13 @@ export default function TodaysChecklistSection({
   const load = useCallback(async () => {
     if (!projectId) return;
     try {
-      let q = supabase
+      const { data, error } = await supabase
         .from('worker_tasks')
-        .select('id, title, start_date, end_date, status, phase_task_id, worker_id, owner_id')
+        .select('id, title, start_date, end_date, status, phase_task_id, owner_id')
         .eq('project_id', projectId)
         .lte('start_date', today)
         .gte('end_date', today)
         .order('start_date', { ascending: true });
-
-      if (workerId) q = q.eq('worker_id', workerId);
-
-      const { data, error } = await q;
       if (error) throw error;
       const rows = data || [];
       setTasks(rows);
@@ -101,8 +99,10 @@ export default function TodaysChecklistSection({
     } finally {
       setLoading(false);
     }
-  }, [projectId, workerId, today]);
+  }, [projectId, today]);
 
+  // Note: load deps intentionally exclude workerId since query no longer
+  // filters by it (column doesn't exist on worker_tasks).
   useEffect(() => { load(); }, [load]);
 
   const handleToggle = async (task) => {

@@ -84,11 +84,12 @@ export default function WorkerProjectsListScreen() {
         }
 
         // Today's tasks (scheduled for TODAY) — preferred surface on the card.
+        // Note: worker_tasks has no per-worker column. All crew on a project
+        // share the same task pool; access is gated by project_assignments + RLS.
         const { data: todayTasks } = await supabase
           .from('worker_tasks')
           .select('id, title, status, start_date, end_date')
           .eq('project_id', p.id)
-          .eq('worker_id', workerData.id)
           .lte('start_date', today)
           .gte('end_date', today)
           .order('start_date', { ascending: true });
@@ -100,7 +101,6 @@ export default function WorkerProjectsListScreen() {
             .from('worker_tasks')
             .select('id, title, start_date, end_date, status')
             .eq('project_id', p.id)
-            .eq('worker_id', workerData.id)
             .gte('start_date', today)
             .neq('status', 'completed')
             .order('start_date', { ascending: true })
