@@ -56,11 +56,12 @@ export default function SupervisorsWidget({ totalSupervisors, totalWorkers, tota
         end={{ x: 1, y: 1 }}
         style={styles.gradientSmall}
       >
+        <Text style={styles.titleSmall}>Supervisors</Text>
         <View style={styles.shieldWrapSmall}>
           <ShieldIcon size={44} color="rgba(255,255,255,0.12)" />
           <Text style={styles.shieldCountSmall}>{totalSupervisors}</Text>
         </View>
-        <Text style={styles.label}>SUPERVISORS</Text>
+        <Text style={styles.label}>{totalSupervisors === 1 ? 'on the team' : 'on the team'}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );
@@ -84,6 +85,15 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  titleSmall: {
+    position: 'absolute',
+    top: 12,
+    left: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
   },
   gradientMedium: {
     flex: 1,

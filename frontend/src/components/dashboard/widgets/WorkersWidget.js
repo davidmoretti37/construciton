@@ -51,13 +51,14 @@ export default function WorkersWidget({ totalWorkers, totalSupervisors, totalPro
         end={{ x: 1, y: 1 }}
         style={styles.gradientSmall}
       >
+        <Text style={styles.titleSmall}>Workers</Text>
         <Ionicons name="people" size={16} color="rgba(255,255,255,0.35)" style={styles.bgIcon} />
         <Text style={styles.valueSmall}>{totalWorkers}</Text>
         <View style={styles.smallBars}>
           <View style={[styles.tinyBar, { backgroundColor: '#FED7AA', width: '60%' }]} />
           <View style={[styles.tinyBar, { backgroundColor: 'rgba(255,255,255,0.3)', width: '40%' }]} />
         </View>
-        <Text style={styles.label}>WORKERS</Text>
+        <Text style={styles.label}>{totalWorkers === 1 ? 'on the team' : 'on the team'}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );
@@ -80,6 +81,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     justifyContent: 'flex-end',
+  },
+  titleSmall: {
+    position: 'absolute',
+    top: 12,
+    left: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
   },
   gradientMedium: {
     flex: 1,

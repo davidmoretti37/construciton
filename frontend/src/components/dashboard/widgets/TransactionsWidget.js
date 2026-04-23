@@ -58,8 +58,9 @@ export default function TransactionsWidget({
         end={{ x: 1, y: 1 }}
         style={styles.gradientSmall}
       >
+        <Text style={styles.titleSmall}>Transactions</Text>
         <Text style={styles.valueSmall}>{transactionCount}</Text>
-        <Text style={styles.label}>TRANSACTIONS</Text>
+        <Text style={styles.label}>{matched} matched · {unmatched} unmatched</Text>
         <View style={styles.miniDonut}>
           <CircularProgress
             progress={progress}
@@ -91,6 +92,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     justifyContent: 'flex-end',
+  },
+  titleSmall: {
+    position: 'absolute',
+    top: 12,
+    left: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
   },
   gradientMedium: {
     flex: 1,

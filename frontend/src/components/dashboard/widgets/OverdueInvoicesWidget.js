@@ -57,7 +57,8 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
           >
             <Text style={styles.valueMedium}>{count}</Text>
             <View style={styles.mediumContent}>
-              <Text style={styles.labelMedium}>OVERDUE</Text>
+              <Text style={styles.titleMedium}>Invoices</Text>
+              <Text style={styles.labelMedium}>{count > 0 ? 'OVERDUE' : 'ALL CURRENT'}</Text>
               <Text style={styles.amountText}>{fmtK(amount)} outstanding</Text>
             </View>
             <Ionicons name="alert-circle" size={20} color="rgba(255,255,255,0.3)" />
@@ -81,6 +82,7 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
           end={{ x: 1, y: 1 }}
           style={styles.gradientSmall}
         >
+          <Text style={styles.titleSmall}>Invoices</Text>
           <Ionicons name="alert-circle" size={16} color="rgba(255,255,255,0.3)" style={styles.bgIcon} />
           <Text style={styles.valueSmall}>{count}</Text>
           {amount > 0 && (
@@ -88,7 +90,7 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
               <Text style={styles.amountPillText}>{fmtK(amount)}</Text>
             </View>
           )}
-          <Text style={styles.label}>OVERDUE</Text>
+          <Text style={styles.label}>{count > 0 ? 'OVERDUE' : 'ALL CURRENT'}</Text>
         </LinearGradient>
       </Animated.View>
     </TouchableOpacity>
@@ -117,6 +119,22 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     justifyContent: 'flex-end',
+  },
+  titleSmall: {
+    position: 'absolute',
+    top: 12,
+    left: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  titleMedium: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+    marginBottom: 1,
   },
   gradientMedium: {
     flex: 1,
