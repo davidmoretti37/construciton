@@ -69,11 +69,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           setProjects(projectData || []);
         }
 
-        // Load tasks for 60-day window
+        // Load tasks for the full project window — was previously capped at
+        // 60 days which clipped the agenda. AgendaView extends through the
+        // furthest task end_date, so feed it everything within a year.
         const start = new Date();
-        start.setDate(start.getDate() - 7); // 1 week back
+        start.setDate(start.getDate() - 7); // 1 week back for recently-completed
         const end = new Date();
-        end.setDate(end.getDate() + 53); // ~2 months forward
+        end.setDate(end.getDate() + 365); // 1 year forward — covers any project
         const startStr = formatDate(start);
         const endStr = formatDate(end);
 
@@ -99,10 +101,12 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       .order('name');
     setProjects(projectData || []);
 
+    // Owner agenda spans the full project window — was capped at 60 days
+    // which clipped tasks. AgendaView extends to the furthest task end_date.
     const start = new Date();
     start.setDate(start.getDate() - 7);
     const end = new Date();
-    end.setDate(end.getDate() + 53);
+    end.setDate(end.getDate() + 365);
     const startStr = formatDate(start);
     const endStr = formatDate(end);
 

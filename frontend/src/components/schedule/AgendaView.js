@@ -31,15 +31,35 @@ const formatSectionDate = (dateStr) => {
 export default function AgendaView({ tasks, theme, onTaskPress, onTaskLongPress, scrollToDate, onAddTaskForDate }) {
   const sectionListRef = useRef(null);
 
-  // Build sections: one per day, 30 days from today.
-  // We render EVERY day (not just days with tasks) so the owner can tap "+"
-  // on any day to add an ad-hoc task. Empty days get a subtle placeholder.
+  // Build sections: one per day from today through the last scheduled task
+  // (plus a small buffer) — not capped at 30 days. Month view shows the
+  // whole project window and the agenda should too. Render EVERY day
+  // (not just days with tasks) so the owner can tap "+" on any day to add
+  // an ad-hoc task. Empty days get a subtle placeholder.
   const sections = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const days = [];
 
-    for (let i = 0; i < 30; i++) {
+    // Extend through the furthest task end_date (+7 day buffer) so workers
+    // see every scheduled day. Falls back to 60 days when nothing scheduled
+    // and is hard-capped at 366 to prevent runaway loops on bad dates.
+    let furthestEnd = new Date(today);
+    furthestEnd.setDate(furthestEnd.getDate() + 60);
+    (tasks || []).forEach((t) => {
+      const iso = t.end_date || t.start_date;
+      if (!iso) return;
+      const [y, m, d] = String(iso).split('-');
+      const parsed = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+      if (!isNaN(parsed.getTime()) && parsed > furthestEnd) furthestEnd = parsed;
+    });
+    furthestEnd.setDate(furthestEnd.getDate() + 7);
+    const totalDays = Math.min(
+      366,
+      Math.max(30, Math.floor((furthestEnd - today) / 86400000) + 1),
+    );
+
+    for (let i = 0; i < totalDays; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
