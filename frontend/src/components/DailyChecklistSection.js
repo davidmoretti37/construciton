@@ -448,6 +448,15 @@ export default function DailyChecklistSection({
   const completedCount = templates.filter(t => entries[t.id]?.completed).length;
   const totalCount = templates.length;
 
+  // Today's date label — shown as a sub-header above the live checklist
+  // to make it crystal clear these items are for TODAY (workers tick them
+  // off every workday). Hidden when in template-edit mode (owner is just
+  // configuring the recurring set, not running a live checklist).
+  const todayDateLabel = (() => {
+    const d = new Date();
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  })();
+
   return (
     <View style={[styles.container, { backgroundColor: Colors.cardBackground }]}>
       {/* Header */}
@@ -668,6 +677,23 @@ export default function DailyChecklistSection({
       ) : (
         /* ══════ LIVE CHECKLIST VIEW ══════ */
         <View>
+          {/* Today's Checklist sub-header — anchors the live list to a specific
+              date so workers/owners know these items are for TODAY. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="today-outline" size={13} color="#8B5CF6" />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primaryText, letterSpacing: 0.3 }}>
+                TODAY'S CHECKLIST
+              </Text>
+              <Text style={{ fontSize: 11, color: Colors.secondaryText }}>· {todayDateLabel}</Text>
+            </View>
+            {totalCount > 0 && (
+              <Text style={{ fontSize: 11, color: Colors.secondaryText, fontWeight: '600' }}>
+                {completedCount}/{totalCount}
+              </Text>
+            )}
+          </View>
+
           {/* Checklist items */}
           {templates.map(template => {
             const entry = entries[template.id];

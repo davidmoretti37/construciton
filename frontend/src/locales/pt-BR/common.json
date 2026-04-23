@@ -489,8 +489,8 @@
     "addWorker": "Adicionar Trabalhador",
     "logTransaction": "Registrar Transação",
     "dailyReport": "Relatório Diário",
-    "newEstimate": "Novo Orçamento",
-    "newProject": "Novo Projeto"
+    "newEstimate": "Descrever Orçamento",
+    "newProject": "Descrever Projeto"
   },
   "appLoading": {
     "connectionError": "Erro de Conexão",

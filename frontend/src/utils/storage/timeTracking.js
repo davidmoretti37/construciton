@@ -232,6 +232,7 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
           project_id: timeEntry.project_id,
           type: 'expense',
           category: 'labor',
+          subcategory: 'labor',
           description: costDescription,
           amount: laborCost,
           date: getLocalDateString(), // Use local date
@@ -1788,6 +1789,7 @@ export const supervisorClockOut = async (timeTrackingId, notes = null) => {
           project_id: record.project_id,
           type: 'expense',
           category: 'labor',
+          subcategory: 'labor',
           amount: laborCost,
           description: `Supervisor labor - ${formatHoursMinutes(hoursWorked)}`,
           date: clockOutTime,

@@ -353,8 +353,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const projectIdRef = useRef(projectId);
   const mountedRef = useRef(true);
   const appStateRef = useRef(AppState.currentState);
-  // In-flight guard so overlapping autosaves can't race each other
+  // In-flight guard so overlapping autosaves can't race each other.
+  // pendingSaveRef records whether new edits arrived while a save was in
+  // flight — if so, flushSave re-runs itself once the current save
+  // completes, guaranteeing the last keystroke reaches the DB.
   const savingRef = useRef(false);
+  const pendingSaveRef = useRef(false);
   // Ref-mirror for flushSave: the AppState/unmount effect below has [] deps
   // and would otherwise capture the very first flushSave closure (which
   // references initial-render state). We keep this ref pointed at the
@@ -609,10 +613,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const flushSave = useCallback(async () => {
     if (!projectIdRef.current) return;
     // In-flight guard: if an earlier flushSave is still awaiting Supabase,
-    // don't kick off a second concurrent save — they'd race, and the slower
-    // one would overwrite the fresher one. The debounce timer will schedule
-    // another pass once we're free.
-    if (savingRef.current) return;
+    // flag that a follow-up is needed and bail. The finally block below
+    // picks that flag up and re-runs, so the newest edits always land.
+    if (savingRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
     savingRef.current = true;
     let hadError = false;
     try {
@@ -676,6 +682,15 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       if (mountedRef.current) setAutoSaveStatus('error');
     } finally {
       savingRef.current = false;
+      // If edits arrived while we were saving, run once more so the last
+      // keystroke isn't silently dropped. Runs even if the component has
+      // unmounted — the write still matters, the UI just won't observe it.
+      // Uses flushSaveRef to avoid a stale closure if flushSave has been
+      // recreated since we started.
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        setTimeout(() => flushSaveRef.current?.(), 0);
+      }
     }
   }, [buildSavePayload, buildPhasesPayload, startDate, endDate, workingDays]);
 

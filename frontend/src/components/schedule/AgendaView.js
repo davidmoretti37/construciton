@@ -28,10 +28,12 @@ const formatSectionDate = (dateStr) => {
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 };
 
-export default function AgendaView({ tasks, theme, onTaskPress, onTaskLongPress, scrollToDate }) {
+export default function AgendaView({ tasks, theme, onTaskPress, onTaskLongPress, scrollToDate, onAddTaskForDate }) {
   const sectionListRef = useRef(null);
 
-  // Build sections: one per day, 30 days from today
+  // Build sections: one per day, 30 days from today.
+  // We render EVERY day (not just days with tasks) so the owner can tap "+"
+  // on any day to add an ad-hoc task. Empty days get a subtle placeholder.
   const sections = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -49,7 +51,9 @@ export default function AgendaView({ tasks, theme, onTaskPress, onTaskLongPress,
         const end = t.end_date || t.start_date;
         if (dateStr < start || dateStr > end) return false;
 
-        // Check working days
+        // Check working days (skip weekends / non-working dates for tasks
+        // that have a project context; ad-hoc owner tasks with no project
+        // pass through and show on the day they're pinned to).
         const project = t.projects;
         if (project) {
           const workingDays = project.working_days || [1, 2, 3, 4, 5];
@@ -62,30 +66,49 @@ export default function AgendaView({ tasks, theme, onTaskPress, onTaskLongPress,
         return true;
       });
 
-      // Show days with tasks + today (always visible)
-      if (dayTasks.length > 0 || i === 0) {
-        days.push({
-          title: dateStr,
-          formattedDate: formatSectionDate(dateStr),
-          isToday: i === 0,
-          data: dayTasks.length > 0 ? dayTasks : [{ _empty: true }],
-        });
-      }
+      days.push({
+        title: dateStr,
+        formattedDate: formatSectionDate(dateStr),
+        isToday: i === 0,
+        isWeekend: (() => { const jd = d.getDay(); return jd === 0 || jd === 6; })(),
+        data: dayTasks.length > 0 ? dayTasks : [{ _empty: true, _date: dateStr }],
+      });
     }
 
     return days;
   }, [tasks]);
 
   const renderSectionHeader = useCallback(({ section }) => (
-    <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
-      <Text style={[styles.sectionDate, { color: section.isToday ? theme.primaryBlue : theme.primaryText }]}>
-        {section.formattedDate}
-      </Text>
-      {section.data.length === 1 && section.data[0]._empty && (
-        <Text style={[styles.noTasks, { color: theme.secondaryText }]}>No tasks</Text>
+    <View style={[
+      styles.sectionHeader,
+      { backgroundColor: theme.background, borderBottomColor: theme.border },
+      section.isToday && { borderLeftWidth: 3, borderLeftColor: theme.primaryBlue },
+    ]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[
+          styles.sectionDate,
+          { color: section.isToday ? theme.primaryBlue : theme.primaryText },
+          section.isWeekend && !section.isToday && { color: theme.secondaryText },
+        ]}>
+          {section.formattedDate}
+        </Text>
+        {section.data.length === 1 && section.data[0]._empty && (
+          <Text style={[styles.noTasks, { color: theme.secondaryText }]}>No tasks</Text>
+        )}
+      </View>
+      {onAddTaskForDate && (
+        <TouchableOpacity
+          onPress={() => onAddTaskForDate(section.title)}
+          style={[styles.addBtn, { borderColor: theme.primaryBlue + '40', backgroundColor: theme.primaryBlue + '10' }]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={16} color={theme.primaryBlue} />
+          <Text style={[styles.addBtnText, { color: theme.primaryBlue }]}>Add</Text>
+        </TouchableOpacity>
       )}
     </View>
-  ), [theme]);
+  ), [theme, onAddTaskForDate]);
 
   const renderTask = useCallback(({ item }) => {
     if (item._empty) return null;
@@ -166,7 +189,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    marginTop: 4,
   },
   sectionDate: {
     fontSize: 15,
@@ -175,6 +200,20 @@ const styles = StyleSheet.create({
   noTasks: {
     fontSize: 12,
     fontStyle: 'italic',
+    marginTop: 2,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  addBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   taskCard: {
     flexDirection: 'row',

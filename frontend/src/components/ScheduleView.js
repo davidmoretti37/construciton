@@ -18,7 +18,7 @@ import { getProjectColor } from '../utils/calendarUtils';
 import AgendaView from './schedule/AgendaView';
 import MonthGridView from './schedule/MonthGridView';
 
-export default function ScheduleView({ navigation, role = 'worker' }) {
+export default function ScheduleView({ navigation, role = 'worker', onAddTaskForDate }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -290,6 +290,7 @@ export default function ScheduleView({ navigation, role = 'worker' }) {
           theme={Colors}
           onTaskPress={handleTaskPress}
           scrollToDate={selectedDate}
+          onAddTaskForDate={role !== 'worker' ? onAddTaskForDate : undefined}
         />
       ) : (
         <MonthGridView

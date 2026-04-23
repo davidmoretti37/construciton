@@ -37,16 +37,22 @@ const OWNER_PRIMARY = '#1E40AF';
 // Configuration for different action types
 const ACTION_CONFIG = {
   project: {
-    title: 'New Project',
+    title: 'Describe Project',
+    subtitle: 'Write anything you know — AI builds the full project',
     icon: 'folder-outline',
     placeholder: 'Describe your project...\n\nTry including:\n• Client name & contact\n• Type of work (bathroom, kitchen...)\n• Size/scope\n• Budget if known\n• Start date',
     messagePrefix: 'I want to create a new project: ',
+    infoTitle: 'How this works',
+    infoBody: "Write or dictate whatever you know about the job — it doesn't need to be structured. When you hit Send, the AI pulls out the client, scope, phases, budget, and dates, and drafts a full project. You review everything before it saves.",
   },
   estimate: {
-    title: 'New Estimate',
+    title: 'Describe Estimate',
+    subtitle: 'Write what the job needs — AI drafts the estimate',
     icon: 'calculator-outline',
     placeholder: 'What do you need an estimate for?\n\nTry including:\n• Type of work\n• Size (sq ft, rooms, etc.)\n• Finish level (basic, mid-range, high-end)\n• Any specific materials or fixtures',
     messagePrefix: 'I need an estimate for: ',
+    infoTitle: 'How this works',
+    infoBody: "Dictate or type whatever you know about the job. When you hit Send, the AI breaks it into line items with materials, labor, and markup, and drafts an estimate you can edit and send to the client.",
   },
 };
 
@@ -275,9 +281,25 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
             <View style={styles.headerIcon}>
               <Ionicons name={config.icon} size={24} color={OWNER_PRIMARY} />
             </View>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
-              {config.title}
-            </Text>
+            <View style={styles.headerTextWrap}>
+              <View style={styles.headerTitleRow}>
+                <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+                  {config.title}
+                </Text>
+                <TouchableOpacity
+                  style={styles.infoButton}
+                  onPress={() => Alert.alert(config.infoTitle, config.infoBody)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="information-circle-outline" size={18} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              </View>
+              {config.subtitle && (
+                <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={2}>
+                  {config.subtitle}
+                </Text>
+              )}
+            </View>
             <TouchableOpacity
               style={styles.closeButton}
               onPress={handleClose}
@@ -433,11 +455,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: Spacing.md,
   },
-  headerTitle: {
+  headerTextWrap: {
     flex: 1,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  infoButton: {
+    padding: 2,
   },
   closeButton: {
     width: 40,

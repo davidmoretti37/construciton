@@ -14,15 +14,13 @@
 -- worker_tasks: "Error fetching tasks for progress"
 -- The table had no indexes at all. Every per-project task load filtered
 -- on project_id; often combined with .is('phase_task_id', null) or status
--- checks. These four cover the hot paths.
+-- checks. These three cover the hot paths. (Worker assignment lives on
+-- project_phases.assigned_worker_id — worker_tasks has no worker_id.)
 CREATE INDEX IF NOT EXISTS idx_worker_tasks_project_id
   ON public.worker_tasks(project_id);
 
 CREATE INDEX IF NOT EXISTS idx_worker_tasks_phase_task_id
   ON public.worker_tasks(phase_task_id);
-
-CREATE INDEX IF NOT EXISTS idx_worker_tasks_worker_id
-  ON public.worker_tasks(worker_id);
 
 CREATE INDEX IF NOT EXISTS idx_worker_tasks_status
   ON public.worker_tasks(status);

@@ -105,10 +105,12 @@ const applyRedistribution = async (projectId) => {
   }
   if (allAssignments.length === 0) return { ok: true, written: 0, warnings };
 
-  // 4. Fetch existing phase-owned tasks for progress/status preservation
+  // 4. Fetch existing phase-owned tasks for status preservation.
+  //    Worker assignment lives on project_phases.assigned_worker_id —
+  //    worker_tasks has no worker_id column, so we don't carry it here.
   const { data: existing } = await supabase
     .from('worker_tasks')
-    .select('id, phase_task_id, status, worker_id')
+    .select('id, phase_task_id, status')
     .eq('project_id', projectId)
     .not('phase_task_id', 'is', null);
 
@@ -127,7 +129,6 @@ const applyRedistribution = async (projectId) => {
     return {
       project_id: projectId,
       owner_id: project.user_id,
-      worker_id: prior?.worker_id || null,
       title: task.description || task.name || task.title || 'Untitled task',
       description: task.description || null,
       start_date: a.start_date,

@@ -489,8 +489,8 @@
     "addWorker": "Add Worker",
     "logTransaction": "Log Transaction",
     "dailyReport": "Daily Report",
-    "newEstimate": "New Estimate",
-    "newProject": "New Project"
+    "newEstimate": "Describe Estimate",
+    "newProject": "Describe Project"
   },
   "appLoading": {
     "connectionError": "Connection Error",

@@ -1364,7 +1364,22 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
       {/* SCHEDULE TAB — rendered outside ScrollView to avoid nested VirtualizedList */}
       {activeTab === 'schedule' && (
-        <ScheduleView navigation={navigation} role="owner" />
+        <ScheduleView
+          navigation={navigation}
+          role="owner"
+          onAddTaskForDate={(dateStr) => {
+            // Hand off to QuickActionSheet's add-task flow with the date
+            // pre-selected. Falls back to AI chat suggesting "create a task
+            // for [date]" so the agenda's + button always does something
+            // even before a dedicated bottom sheet is wired.
+            try {
+              navigation.navigate('Chat', {
+                preset: `Add a task for ${dateStr}`,
+                presetSource: 'agenda-add',
+              });
+            } catch (_) { /* navigation may not have Chat in this stack */ }
+          }}
+        />
       )}
 
       <ScrollView

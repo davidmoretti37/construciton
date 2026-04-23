@@ -306,7 +306,11 @@ export default function TodaysWorkScreen() {
 
                 {isOpen && (
                   <View style={[styles.cardBody, { borderTopColor: Colors.border }]}>
-                    {/* Tasks */}
+                    {/* Today's Phase Tasks — distributed by the scheduler */}
+                    <View style={styles.sectionLabel}>
+                      <Ionicons name="construct-outline" size={14} color="#F59E0B" />
+                      <Text style={[styles.sectionLabelText, { color: Colors.secondaryText }]}>Today's Tasks</Text>
+                    </View>
                     {proj.tasks.map(task => (
                       <TouchableOpacity key={task.id} style={styles.taskRow} onPress={() => handleToggleTask(task)}>
                         <Ionicons
@@ -323,10 +327,10 @@ export default function TodaysWorkScreen() {
                       </TouchableOpacity>
                     ))}
                     {proj.tasks.length === 0 && (
-                      <Text style={[styles.noItems, { color: Colors.secondaryText }]}>No tasks for today</Text>
+                      <Text style={[styles.noItems, { color: Colors.secondaryText }]}>No tasks scheduled today</Text>
                     )}
 
-                    {/* Checklist */}
+                    {/* Daily Crew Checks — recurring items workers tick off every workday */}
                     <DailyChecklistSection
                       projectId={proj.id}
                       ownerId={proj.user_id}
@@ -462,6 +466,8 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 15, fontWeight: '700' },
   cardMeta: { fontSize: 12, marginTop: 1 },
   cardBody: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingBottom: 10 },
+  sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, marginBottom: 2 },
+  sectionLabelText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   taskText: { flex: 1, fontSize: 14 },
   taskDone: { textDecorationLine: 'line-through', opacity: 0.5 },
