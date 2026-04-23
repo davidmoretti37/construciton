@@ -28,7 +28,7 @@ const contextCache = {
 export const AGENT_DATA_REQUIREMENTS = {
   'WorkersSchedulingAgent': ['workers', 'clockedInToday', 'workSchedules', 'completedShiftsToday', 'staleClockIns', 'scheduleEvents', 'projects'],
   'FinancialAgent': ['projects', 'invoices', 'estimates'],
-  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate', 'constructionKnowledge', 'checklistHistory', 'existingSchedules'],
+  'ProjectAgent': ['projects', 'workers', 'scheduleEvents', 'userServices', 'pricingHistory', 'phasesTemplate', 'constructionKnowledge', 'checklistHistory', 'existingSchedules', 'ownerPatterns'],
   'EstimateInvoiceAgent': ['projects', 'estimates', 'invoices', 'userServices', 'pricingHistory', 'subcontractorQuotes'],
   'DocumentAgent': ['projects', 'estimates', 'invoices', 'contractDocuments', 'workers'],
   'SettingsConfigAgent': ['userServices', 'pricingHistory', 'subcontractorQuotes'],
@@ -567,6 +567,151 @@ export const fetchAgentSpecificContext = async (agentName) => {
             return { checklistItems: [], laborRoles: [] };
           }
         })
+      );
+    }
+
+    if (requirements.includes('ownerPatterns')) {
+      // Per-owner project-creation learning. Aggregates the owner's past
+      // projects (classified by name regex) into typical phase structure,
+      // duration, working days, and start-offset patterns. Confidence band
+      // is set by sample count: low (<2), medium (2-4), high (5+).
+      // No new DB schema — pulls from existing `projects` + `project_phases`.
+      fetchKeys.push('ownerPatterns');
+      const { supabase: ownerSb } = require('../../../lib/supabase');
+      fetchPromises.push(
+        (async () => {
+          if (!userId) return null;
+          try {
+            const classify = (name) => {
+              const n = String(name || '').toLowerCase();
+              if (/bath/.test(n)) return 'bathroom_remodel';
+              if (/kitchen/.test(n)) return 'kitchen_remodel';
+              if (/roof/.test(n)) return 'roofing';
+              if (/deck/.test(n)) return 'deck';
+              if (/fenc/.test(n)) return 'fencing';
+              if (/paint/.test(n)) return 'painting';
+              if (/floor/.test(n)) return 'flooring';
+              if (/window/.test(n)) return 'windows';
+              if (/garage/.test(n)) return 'garage';
+              if (/basement/.test(n)) return 'basement';
+              if (/addition/.test(n)) return 'addition';
+              if (/landsc|lawn|yard/.test(n)) return 'landscaping';
+              return 'other';
+            };
+
+            // Pull owner's past projects + their phases in two queries.
+            const { data: pastProjects } = await ownerSb
+              .from('projects')
+              .select('id, name, start_date, end_date, working_days, created_at')
+              .eq('user_id', userId)
+              .not('start_date', 'is', null)
+              .order('created_at', { ascending: false })
+              .limit(60);
+
+            if (!pastProjects || pastProjects.length === 0) {
+              return { byType: {}, totalProjects: 0 };
+            }
+
+            const ids = pastProjects.map(p => p.id);
+            const { data: pastPhases } = await ownerSb
+              .from('project_phases')
+              .select('project_id, name, planned_days, order_index')
+              .in('project_id', ids)
+              .order('order_index', { ascending: true });
+
+            const phasesByProject = {};
+            (pastPhases || []).forEach(ph => {
+              if (!phasesByProject[ph.project_id]) phasesByProject[ph.project_id] = [];
+              phasesByProject[ph.project_id].push(ph);
+            });
+
+            // Bucket projects by classified type
+            const buckets = {};
+            pastProjects.forEach(p => {
+              const t = classify(p.name);
+              if (!buckets[t]) buckets[t] = [];
+              buckets[t].push({
+                ...p,
+                phases: phasesByProject[p.id] || [],
+              });
+            });
+
+            // Helper math
+            const median = (arr) => {
+              if (!arr.length) return null;
+              const s = [...arr].sort((a, b) => a - b);
+              const m = Math.floor(s.length / 2);
+              return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+            };
+            const mode = (arr) => {
+              if (!arr.length) return null;
+              const counts = {};
+              arr.forEach(v => { const k = JSON.stringify(v); counts[k] = (counts[k] || 0) + 1; });
+              const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+              return best ? JSON.parse(best[0]) : null;
+            };
+
+            const byType = {};
+            Object.entries(buckets).forEach(([type, projs]) => {
+              const n = projs.length;
+              const conf = n >= 5 ? 'high' : n >= 2 ? 'medium' : 'low';
+
+              // Duration in days (start_date to end_date)
+              const durations = projs
+                .filter(p => p.start_date && p.end_date)
+                .map(p => {
+                  const d = (new Date(p.end_date + 'T00:00:00') - new Date(p.start_date + 'T00:00:00')) / 86400000;
+                  return Math.max(1, Math.round(d) + 1);
+                });
+
+              // Modal phase shape: pick the most common (phase count, name list)
+              const phaseShapes = projs
+                .filter(p => p.phases && p.phases.length > 0)
+                .map(p => p.phases.map(ph => ph.name));
+              const modalNames = mode(phaseShapes);
+
+              // Median planned_days per phase position (when modal shape exists)
+              let typicalPhases = null;
+              if (modalNames && modalNames.length > 0) {
+                typicalPhases = modalNames.map((name, idx) => {
+                  const dayPicks = projs
+                    .map(p => p.phases?.[idx])
+                    .filter(ph => ph && ph.name === name && ph.planned_days)
+                    .map(ph => ph.planned_days);
+                  return { name, plannedDays: median(dayPicks) || 5 };
+                });
+              }
+
+              const wdays = projs.map(p => p.working_days).filter(Array.isArray);
+              const typicalWorkingDays = mode(wdays) || [1, 2, 3, 4, 5];
+
+              // Start offset: days between created_at date and start_date
+              const offsets = projs
+                .filter(p => p.start_date && p.created_at)
+                .map(p => {
+                  const created = new Date(p.created_at);
+                  created.setHours(0, 0, 0, 0);
+                  const start = new Date(p.start_date + 'T00:00:00');
+                  return Math.round((start - created) / 86400000);
+                })
+                .filter(d => d >= 0 && d <= 90);
+
+              byType[type] = {
+                sampleCount: n,
+                confidence: conf,
+                typicalDurationDays: median(durations),
+                typicalPhases,
+                typicalWorkingDays,
+                typicalStartOffsetDays: median(offsets),
+              };
+            });
+
+            return { byType, totalProjects: pastProjects.length };
+          } catch (e) {
+            logger.debug('[AgentContext] Owner patterns not available:', e.message);
+            return null;
+          }
+        })()
       );
     }
 

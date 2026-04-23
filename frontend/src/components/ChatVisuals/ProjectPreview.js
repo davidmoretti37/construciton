@@ -165,6 +165,12 @@ export default function ProjectPreview({ data, onAction }) {
     location,
   } = editedData;  // Always use editedData - it's initialized from data and persists after save
 
+  // Owner-pattern signal: AI returns this when it used learned defaults for
+  // this project type (e.g. owner has 4+ past bathroom remodels). Drives the
+  // "Learned" / "Suggested" pill in the header. Read from the original `data`
+  // (not editedData) so user-edits don't clear the signal.
+  const ownerPatternsApplied = data?.ownerPatternsApplied || null;
+
   // Extract client name - handle both string and object formats
   const displayClientName = clientName || (typeof client === 'string' ? client : client?.name) || null;
 
@@ -728,10 +734,45 @@ export default function ProjectPreview({ data, onAction }) {
     <View style={[styles.container, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <View>
-          <Text style={[styles.title, { color: Colors.primaryText }]}>
-            {t('project.projectTitle')}
-          </Text>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Text style={[styles.title, { color: Colors.primaryText }]}>
+              {t('project.projectTitle')}
+            </Text>
+            {ownerPatternsApplied && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => {
+                  const sample = ownerPatternsApplied.sampleCount || 0;
+                  const type = (ownerPatternsApplied.type || 'project').replace(/_/g, ' ');
+                  Alert.alert(
+                    ownerPatternsApplied.confidence === 'high' ? 'Learned' : 'Suggested',
+                    `Based on your last ${sample} ${type}${sample === 1 ? '' : 's'}.`
+                  );
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 10,
+                  backgroundColor: ownerPatternsApplied.confidence === 'high' ? '#10B98115' : 'transparent',
+                  borderWidth: ownerPatternsApplied.confidence === 'high' ? 0 : 1,
+                  borderColor: '#10B981',
+                }}
+              >
+                <Ionicons
+                  name={ownerPatternsApplied.confidence === 'high' ? 'sparkles' : 'sparkles-outline'}
+                  size={11}
+                  color="#10B981"
+                />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>
+                  {ownerPatternsApplied.confidence === 'high' ? 'Learned' : 'Suggested'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {projectNumber && (
             <Text style={[styles.projectNumber, { color: Colors.primaryBlue }]}>
               {projectNumber}

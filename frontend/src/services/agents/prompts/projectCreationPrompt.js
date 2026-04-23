@@ -22,7 +22,7 @@ const getLanguageName = (code) => ({
 }[code] || 'English');
 
 export const getProjectCreationPrompt = (context) => {
-  const { projects, pricing, phasesTemplate, pricingHistory, currentDate, yesterdayDate, lastEstimatePreview, lastProjectPreview, userLanguage, userPersonalization, constructionKnowledge, checklistHistory, existingSchedules } = context || {};
+  const { projects, pricing, phasesTemplate, pricingHistory, currentDate, yesterdayDate, lastEstimatePreview, lastProjectPreview, userLanguage, userPersonalization, constructionKnowledge, checklistHistory, existingSchedules, ownerPatterns } = context || {};
 
   // Get language for AI responses
   const languageName = getLanguageName(userLanguage);
@@ -440,32 +440,52 @@ Search the projects list (see Context below) for matching project by name or cli
 - If found: Ask "Project [name] already exists. Create new anyway?"
 - If not found: Proceed to Step 2
 
-## CRITICAL: SMART QUESTION FLOW
+## CRITICAL: SMART QUESTION FLOW (v2 — owner-friendly defaults)
 
-**STEP A: EXTRACT first.** Read the user's message carefully and extract everything they already told you:
-- Client name, phone, email
-- Location/address (one or multiple)
-- Budget/contract amount
-- Schedule (working days, frequency, time)
-- Scope, complexity, size
-- Service type (lawn care, pest control, etc.)
+**Philosophy:** Skip every question whose answer is either inferable from context or unnecessary for a draft project. Owner can edit anything in the preview card after — never block creation on optional fields.
 
-**STEP B: Identify what's MISSING** based on job type. Only ask about what you DON'T already have:
+**STEP A: EXTRACT first.** Read the user's message carefully and extract everything they already told you (client first name, address, budget, scope hint, start date, anything about working days or schedule).
 
-For COMPLEX PROJECTS (remodels, additions): Need scope, plumbing/electrical changes, permits, working days, location
-For MEDIUM PROJECTS (partial remodels, flooring): Need size, working days, location
-For SIMPLE PROJECTS (unit-based): Need working days or location
-For SERVICE PLANS (lawn care, pest control, cleaning, pool, HVAC): Need location, schedule (frequency + days), billing
+**STEP B: Apply the question matrix.** For each field below, follow the rule exactly. Do NOT add fields outside this matrix.
 
-**STEP C: Bundle ALL missing questions + daily checklist into ONE message.** Never ask questions one at a time. Example:
-"I just need a couple things before I create this:
-1. What days will the crew work?
-2. Would you like a daily checklist for your crew to fill out?"
+| Field | Rule |
+|-------|------|
+| **Client first name** | Use whatever the user said. "Sarah" is fine. NEVER ask for last name. |
+| **Client phone** | NEVER ASK. Owner adds later if they want. |
+| **Client email** | NEVER ASK. Owner adds later if they want. |
+| **Contract amount** | If missing, ask. Required. |
+| **Address / location** | If missing, ask. Required. |
+| **Start date** | If missing, ask. Required. (Default suggestion in your question: next Monday.) |
+| **End date** | NEVER ASK. ALWAYS auto-derive from phases × planned_days × working_days. |
+| **Working days** | DO NOT ASK on first project. Default Mon-Fri. If owner pattern is HIGH/MEDIUM confidence (see Owner Pattern block below), use the owner's modal working days silently. |
+| **Phases / phase detail** | DO NOT ASK unless the user hinted at phase structure ("4 phases", "demo then rough then finish"). Auto-infer from the construction knowledge graph or owner pattern. |
+| **Daily checklist** | MANDATORY question — always ask LAST in the bundle. NEVER skip. (See Step C.) |
 
-**STEP D: Daily checklist is ALWAYS the last question in the bundle — for BOTH projects and service plans. This is NON-NEGOTIABLE.**
-- If the user already provided everything else, the daily checklist question is your ONLY question before generating the preview.
-- If the user already mentioned daily logging in their message (e.g. "we track fiber laid", "crew logs safety"), extract those items directly and skip asking.
-- THERE IS NO OTHER CASE WHERE YOU MAY SKIP THE CHECKLIST QUESTION. Even if the user provides every other detail, you MUST ask about the daily checklist before generating any project preview.
+**STEP C: Bundle ALL missing required + the mandatory checklist into ONE message.** Never ask questions one at a time.
+
+Example with missing address + start date:
+"I just need a couple things:
+1. What's the address?
+2. When does the crew start? (Default: next Monday)
+3. Want a daily checklist for the crew to fill out?"
+
+Example with everything but checklist:
+"Just one question — want a daily checklist for the crew to fill out (head count, safety check, daily quantities, photos)?"
+
+**STEP D: Daily checklist question is ALWAYS the last question — NON-NEGOTIABLE.**
+- Even if the user provided everything else, you MUST ask about the checklist before generating the preview.
+- If the user already mentioned daily logging in their message ("we track sqft of tile per day"), extract those items and skip asking.
+- If owner pattern includes typical checklist items (HIGH/MEDIUM confidence), reference them in the question: "Want me to use your usual checklist (head count, safety, end-of-day photos), or different ones?"
+
+**STEP E: Owner Pattern block — silently apply defaults.**
+When the Owner Pattern context block below shows confidence ≥ MEDIUM for the relevant project type:
+- Use typical phases (count + names + planned_days) — don't ask, don't list, just use them
+- Use typical working days
+- Use typical start offset as your suggested default in the start-date question
+- In the project-preview response, set ownerPatternsApplied to an object with type, confidence, and sampleCount so the UI can show a "Learned" pill
+When confidence is LOW (0-1 sample):
+- Fall back to construction-knowledge-graph defaults
+- In the response, set ownerPatternsApplied to null
 
 ---
 
@@ -704,6 +724,24 @@ Example:
 
 # CONTEXT
 Today: ${currentDate} | Yesterday: ${yesterdayDate} | Tomorrow: ${tomorrowDate}
+
+## Owner Pattern (learned from past projects)
+${(() => {
+  const totals = ownerPatterns?.totalProjects || 0;
+  const types = ownerPatterns?.byType || {};
+  const entries = Object.entries(types).filter(([, v]) => v && v.confidence !== 'low');
+  if (totals === 0) return 'No past projects yet — first project ever. Use construction-knowledge defaults.';
+  if (entries.length === 0) return `Owner has ${totals} past project(s), but no per-type sample is high enough for confident defaults yet. Use construction-knowledge defaults; record \`ownerPatternsApplied: null\` in preview.`;
+  return entries.map(([type, p]) => {
+    const phaseSummary = p.typicalPhases ? p.typicalPhases.map(ph => `${ph.name} (${ph.plannedDays}d)`).join(' → ') : 'no modal phase shape yet';
+    const wd = (p.typicalWorkingDays || [1,2,3,4,5]).map(d => ({1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat',7:'Sun'})[d]).join(',');
+    return `- **${type}** (${p.confidence} confidence, ${p.sampleCount} sample${p.sampleCount === 1 ? '' : 's'}): typical duration ${p.typicalDurationDays || '?'}d, working days ${wd}, typical start offset ${p.typicalStartOffsetDays ?? '?'}d from creation, typical phases: ${phaseSummary}`;
+  }).join('\n');
+})()}
+
+**How to use this block:**
+- If the user's request matches a type listed above with MEDIUM/HIGH confidence: silently use those defaults (working days, phases, start offset). Set \`ownerPatternsApplied: { type, confidence, sampleCount }\` on your project-preview data.
+- If LOW or no match: fall back to construction-knowledge defaults and set \`ownerPatternsApplied: null\`.
 
 ## Projects (${projects?.length || 0} total)
 ${(projects || []).slice(0, 10).map(p => `- ${p.name} [${p.id}] | Client: ${p.client || 'N/A'} | Status: ${p.status || 'active'}`).join('\n') || 'None'}
