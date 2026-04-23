@@ -454,24 +454,39 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   // but tight enough that a long-abandoned draft from last week doesn't get
   // hijacked by an unrelated new chat about a different project of the same
   // name.
+  // Guard against concurrent draft-create calls. The effect below watches
+  // every form field, so rapid typing could otherwise fire multiple creates
+  // before the first completes.
+  const creatingDraftRef = useRef(false);
   useEffect(() => {
     if (initialProjectId) return;
     if (projectIdRef.current) return;
-    // Only create a draft if we have at least a name or client from chat data
-    const hasAnyData = (initial.name && initial.name.trim()) || (initial.client && initial.client.trim());
+    if (creatingDraftRef.current) return;
+    // Fire the draft create as soon as ANY field has content. Previously
+    // this only triggered on name/client from chat data — if the user
+    // opened ProjectBuilder without chat data and started typing email or
+    // phone first, no draft was ever created and nothing saved.
+    const hasAnyData =
+      (name && name.trim()) ||
+      (client && client.trim()) ||
+      (clientPhone && clientPhone.trim()) ||
+      (clientEmail && clientEmail.trim()) ||
+      (location && location.trim()) ||
+      (contractAmount && String(contractAmount).trim());
     if (!hasAnyData) return;
 
+    creatingDraftRef.current = true;
     (async () => {
       try {
         // 1. Look for an existing in-progress draft for this user that
-        //    matches the chat-extracted name + client. Use the most recently
+        //    matches the current name + client. Use the most recently
         //    updated one so resuming feels predictable.
         const userId = await getCurrentUserId();
         if (userId) {
           try {
             const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const nameKey = (initial.name || '').trim();
-            const clientKey = (initial.client || '').trim();
+            const nameKey = (name || '').trim();
+            const clientKey = (client || '').trim();
             let q = supabase
               .from('projects')
               .select('id, name, client_name, updated_at')
@@ -498,21 +513,22 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           }
         }
 
-        // 2. No existing draft → insert one.
+        // 2. No existing draft → insert one with whatever the user has
+        //    typed so far. Subsequent autosaves will update this row.
         const draft = await saveProject({
           ...chatExtractedData,
-          projectName: initial.name,
-          name: initial.name,
-          client: initial.client,
-          clientPhone: initial.clientPhone,
-          email: initial.clientEmail,
-          location: initial.location,
-          contractAmount: parseFloat(initial.contractAmount) || 0,
+          projectName: name,
+          name,
+          client,
+          clientPhone,
+          email: clientEmail,
+          location,
+          contractAmount: parseFloat(contractAmount) || 0,
           status: 'draft',
-          startDate: toISODate(initial.startDate),
-          endDate: toISODate(initial.endDate),
-          workingDays: initial.workingDays,
-          services: initial.services && initial.services.length > 0 ? initial.services : undefined,
+          startDate: toISODate(startDate),
+          endDate: toISODate(endDate),
+          workingDays,
+          services: services && services.length > 0 ? services : undefined,
           phases: undefined, // phases saved in separate upsert pass
         });
         if (draft?.id) {
@@ -521,10 +537,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         }
       } catch (e) {
         console.warn('[ProjectBuilder] draft create failed', e);
+      } finally {
+        creatingDraftRef.current = false;
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [name, client, clientPhone, clientEmail, location, contractAmount]);
 
   // ---- Auto-save (debounced 2s) ----
   const buildSavePayload = useCallback((overrideStatus) => {
@@ -702,7 +720,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     flushSaveRef.current = flushSave;
   }, [flushSave]);
 
-  // Schedule a debounced save on every state change
+  // Schedule a debounced save on every state change. Includes `projectId` in
+  // the dep list so the first save gets scheduled the moment the draft row
+  // is created — otherwise keystrokes typed before the async draft-create
+  // resolves would never reach the DB (effect wouldn't re-fire because none
+  // of the tracked fields changed when projectId transitioned null → uuid).
   useEffect(() => {
     if (!projectIdRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -714,6 +736,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    projectId,
     name,
     client,
     clientPhone,
