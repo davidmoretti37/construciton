@@ -450,8 +450,14 @@ const createStyles = (Colors) => StyleSheet.create({
   container: {
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
+    marginHorizontal: 16,
     marginBottom: 12,
     overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
   },
   header: {
     flexDirection: 'row',
