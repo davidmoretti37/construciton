@@ -12,7 +12,8 @@ import NotificationBell from './NotificationBell';
 
 const items = [
   { id: 0, icon: 'time', label: 'TimeClock', routeIndex: 0 },
-  { id: 1, icon: 'clipboard', label: 'TodaysWork', routeIndex: 1 },
+  { id: 1, icon: 'briefcase', label: 'WorkerProjects', routeIndex: 1 },
+  { id: 2, icon: 'clipboard', label: 'TodaysWork', routeIndex: 2 },
 ];
 
 const WorkerLumaBar = ({ state, navigation }) => {
