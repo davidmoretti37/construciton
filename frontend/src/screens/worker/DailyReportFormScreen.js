@@ -30,6 +30,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useNetwork } from '../../contexts/NetworkContext';
 import { queueAction } from '../../services/offlineQueue';
+import TodaysChecklistSection from '../../components/TodaysChecklistSection';
 
 const ACCENT = '#1E40AF';
 
@@ -657,6 +658,17 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
           {(selectedProject || isServicePlanMode) && (
             <>
+              {/* Today's Checklist — phase tasks scheduled for TODAY for this
+                  project. Distinct from the recurring Daily Checklist below.
+                  Hidden in service-plan mode (today's checklist is project-
+                  scoped only; service plans use their own visit model). */}
+              {selectedProject && !isServicePlanMode && (
+                <TodaysChecklistSection
+                  projectId={selectedProject.id}
+                  userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
+                />
+              )}
+
               {/* Daily Checklist */}
               {checklistTemplates.length > 0 && (
                 <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
