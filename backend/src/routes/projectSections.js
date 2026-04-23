@@ -101,8 +101,12 @@ ${userTemplateContext}
 
 RULES:
 - Create 3-8 sections based on the scope complexity
-- Each section should have 3-8 specific, actionable tasks
-- Tasks should be things a worker can check off (not vague like "do plumbing")
+- Task depth scales with section duration — NOT a flat default:
+  • Trade-heavy sections (demo, rough plumbing, electrical, framing, drywall, tile, cabinetry, HVAC rough-in): ~1.5–2 actionable tasks per planned working day. Example: an 8-day rough-plumbing section should have 12–16 tasks, not 4.
+  • Finishing / inspection / cleanup sections: ~1 task per planned day.
+  • Floor: 3 tasks per section minimum. No fixed ceiling — complexity drives depth.
+  • Short jobs (section ≤ 2 planned days, typical of one-off service work like cleaning, landscaping, simple repairs): 3–5 tasks only. Do not pad — keep service-business projects lightweight.
+- Tasks must be granular and checkable by one worker ("Install P-trap under sink", "Pressure-test hot water line to 80 psi"), never vague ("Do plumbing").
 - Order sections in the logical construction sequence
 - Use industry-standard terminology
 - Don't include scheduling, dates, or durations — just the work breakdown
@@ -124,7 +128,7 @@ Return ONLY valid JSON, no markdown, no explanation:
       body: JSON.stringify({
         model: 'anthropic/claude-sonnet-4',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 2000,
+        max_tokens: 4000,
         temperature: 0.3,
       }),
     });

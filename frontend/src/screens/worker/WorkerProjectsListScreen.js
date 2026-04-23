@@ -10,7 +10,7 @@
  * contract_amount, budget, or financial fields.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -28,14 +28,26 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../utils/storage/auth';
 
+// Module-level snapshot so switching tabs (Clock ↔ Projects) keeps the
+// last-seen list on screen instead of flashing a spinner. Refreshed in
+// the background on every focus; pull-to-refresh forces a reload.
+let cachedProjects = null;
+
 export default function WorkerProjectsListScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
 
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState(cachedProjects || []);
+  const [loading, setLoading] = useState(cachedProjects === null);
   const [refreshing, setRefreshing] = useState(false);
+  // Per-card collapse state for the Today's items list — starts expanded so
+  // nothing appears hidden on first load; user can minimize to just the
+  // "Today · N items" header.
+  const [collapsed, setCollapsed] = useState({});
+  // Tracks whether the first load has completed, to distinguish cold start
+  // (show spinner) from silent background revalidation (no spinner).
+  const hasLoadedRef = useRef(cachedProjects !== null);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -114,15 +126,17 @@ export default function WorkerProjectsListScreen() {
         // today's daily_service_report (lazy-created on first submit).
         const { data: templates } = await supabase
           .from('daily_checklist_templates')
-          .select('id, specific_date')
+          .select('id, title, sort_order, specific_date')
           .eq('project_id', p.id)
-          .eq('is_active', true);
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
         const activeTemplates = (templates || []).filter(t =>
           !t.specific_date || t.specific_date === today
         );
         const dailyTotal = activeTemplates.length;
 
         let dailyDone = 0;
+        let completedTemplateIds = new Set();
         if (dailyTotal > 0) {
           const { data: todayReport } = await supabase
             .from('daily_service_reports')
@@ -133,13 +147,26 @@ export default function WorkerProjectsListScreen() {
           if (todayReport?.id) {
             const { data: entries } = await supabase
               .from('daily_report_entries')
-              .select('id')
+              .select('checklist_template_id, completed')
               .eq('report_id', todayReport.id)
-              .eq('entry_type', 'checklist')
-              .eq('completed', true);
-            dailyDone = (entries || []).length;
+              .eq('entry_type', 'checklist');
+            (entries || []).forEach(e => {
+              if (e.completed && e.checklist_template_id) {
+                completedTemplateIds.add(e.checklist_template_id);
+              }
+            });
+            dailyDone = completedTemplateIds.size;
           }
         }
+
+        // Daily checklist items, shaped to match phase tasks so the card
+        // can render both kinds in one unified preview list.
+        const dailyItems = activeTemplates.map(t => ({
+          id: `daily-${t.id}`,
+          title: t.title,
+          status: completedTemplateIds.has(t.id) ? 'completed' : 'pending',
+          kind: 'daily',
+        }));
 
         return {
           ...p,
@@ -149,13 +176,16 @@ export default function WorkerProjectsListScreen() {
           nextTask,
           dailyTotal,
           dailyDone,
+          dailyItems,
         };
       }));
 
       setProjects(enriched);
+      cachedProjects = enriched;
+      hasLoadedRef.current = true;
     } catch (e) {
       console.error('[WorkerProjects] load error:', e?.message);
-      setProjects([]);
+      if (!hasLoadedRef.current) setProjects([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -163,7 +193,9 @@ export default function WorkerProjectsListScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => {
-    setLoading(true);
+    // Cold start (no cache) → show spinner. Subsequent focuses keep the
+    // cached list visible and silently revalidate in the background.
+    if (!hasLoadedRef.current) setLoading(true);
     loadProjects();
   }, [loadProjects]));
 
@@ -185,9 +217,8 @@ export default function WorkerProjectsListScreen() {
 
   const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    header: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
-    title: { fontSize: FontSizes.xl + 2, fontWeight: '700', color: Colors.primaryText, letterSpacing: -0.5 },
-    subtitle: { fontSize: FontSizes.sm, color: Colors.secondaryText, marginTop: 2 },
+    header: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.md },
+    title: { fontSize: 28, fontWeight: '800', color: Colors.primaryText, letterSpacing: -0.6 },
     list: { paddingHorizontal: Spacing.md, paddingBottom: 120 },
     card: {
       borderRadius: BorderRadius.lg,
@@ -301,6 +332,20 @@ export default function WorkerProjectsListScreen() {
   const renderCard = ({ item }) => {
     const today = item.todayTasks || [];
     const todayCompleted = today.filter(t => t.status === 'completed').length;
+    const dailyTotal = item.dailyTotal || 0;
+    const dailyDone = item.dailyDone || 0;
+    const dailyItems = item.dailyItems || [];
+    // Merge today's phase tasks + daily crew checks into one unified count
+    // so the card shows a single "things to do today" number instead of
+    // splitting them across separate sections.
+    const totalToday = today.length + dailyTotal;
+    const doneToday = todayCompleted + dailyDone;
+    // Unified preview: phase tasks first, then daily checklist items, so the
+    // list the card shows matches the count in the header.
+    const previewItems = [
+      ...today.map(t => ({ id: t.id, title: t.title, status: t.status, kind: 'task' })),
+      ...dailyItems,
+    ];
     const next = item.nextTask;
     const phaseColor = '#059669';
 
@@ -350,17 +395,33 @@ export default function WorkerProjectsListScreen() {
             </View>
           )}
 
-          {today.length > 0 ? (
+          {totalToday > 0 ? (
             <View style={[styles.todayBlock, { borderTopColor: Colors.border }]}>
-              <View style={styles.todayHeader}>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={(e) => {
+                  // Stop the card's outer TouchableOpacity from also firing
+                  // (which would navigate into the project detail screen).
+                  e.stopPropagation?.();
+                  setCollapsed(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                }}
+                style={styles.todayHeader}
+              >
                 <Text style={[styles.todayLabel, { color: '#3B82F6' }]}>
-                  Today · {today.length} task{today.length === 1 ? '' : 's'}
+                  Today · {totalToday} item{totalToday === 1 ? '' : 's'}
                 </Text>
-                <Text style={[styles.todayCount, { color: Colors.secondaryText }]}>
-                  {todayCompleted}/{today.length}
-                </Text>
-              </View>
-              {today.slice(0, 3).map(t => {
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.todayCount, { color: Colors.secondaryText }]}>
+                    {doneToday}/{totalToday}
+                  </Text>
+                  <Ionicons
+                    name={collapsed[item.id] ? 'chevron-down' : 'chevron-up'}
+                    size={14}
+                    color={Colors.secondaryText}
+                  />
+                </View>
+              </TouchableOpacity>
+              {!collapsed[item.id] && previewItems.map(t => {
                 const done = t.status === 'completed';
                 return (
                   <View key={t.id} style={styles.todayTaskRow}>
@@ -382,9 +443,6 @@ export default function WorkerProjectsListScreen() {
                   </View>
                 );
               })}
-              {today.length > 3 && (
-                <Text style={[styles.moreText, { color: Colors.secondaryText }]}>+{today.length - 3} more</Text>
-              )}
             </View>
           ) : (
             <View style={[styles.nextTaskRow, { borderTopColor: Colors.border }]}>
@@ -506,15 +564,11 @@ export default function WorkerProjectsListScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>My Projects</Text>
-        <Text style={styles.subtitle}>
-          {projects.length === 0 ? 'No projects assigned yet' : `${projects.length} active`}
-        </Text>
       </View>
       <FlatList
         data={projects}
         keyExtractor={(item) => item.id}
         renderItem={renderCard}
-        ListHeaderComponent={renderListHeader}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#059669" />}
         ListEmptyComponent={

@@ -168,6 +168,13 @@ ONLY use when creating a NEW project from scratch (status: "draft"). NEVER use f
 Data: { projectName, client, location, phone, email, date, phases: [{name, plannedDays, tasks: [{id, order, description, completed}]}], schedule: {startDate, estimatedEndDate, phaseSchedule: [{phaseName, startDate, endDate}]}, scope: {description, squareFootage, complexity}, services: [{description}], workingDays: [1,2,3,4,5], status: "draft" }
 NOTE: "phases" are work sections — each should be a scope-specific category of work (e.g., "Demolition", "Rough Plumbing", "Tile Work"), NOT generic project management phases. Each section needs plannedDays and actionable tasks.
 
+TASK DEPTH RULE (scales with plannedDays — NOT a flat default):
+- Trade-heavy phases (demolition, rough plumbing, electrical, framing, drywall, tile, cabinetry, HVAC rough-in): ~1.5–2 tasks per planned day. Example: an 8-day rough-plumbing phase → 12–16 tasks.
+- Finishing / inspection / cleanup phases: ~1 task per planned day.
+- Floor: 3 tasks per phase minimum. No fixed ceiling — complexity drives depth.
+- Short jobs (phase plannedDays ≤ 2, typical of one-off service work like cleaning, landscaping, simple repairs): 3–5 tasks total. Do not pad — keep service-business projects lightweight.
+- Each task must be one concrete action a single worker can check off ("Install P-trap under sink", "Pressure-test hot water line"), never vague ("Do plumbing").
+
 ### estimate-preview
 ONLY use when creating a NEW estimate. NEVER use for existing estimates or status queries. For existing estimate info, use text or estimate-list.
 Data: { project_id (REQUIRED if a project exists — use the full UUID from search_projects/get_project_details. Without this, the estimate won't link to the project!), estimateNumber, client, clientName, clientAddress, clientCity, clientState, clientZip, clientPhone, clientEmail, projectName, date, scope: {description, squareFootage, complexity}, items: [{index, description, quantity, unit, price, total}], subtotal, total, laborEstimate: {workersNeeded, daysNeeded, laborCost, isFromProject, reasoning} }

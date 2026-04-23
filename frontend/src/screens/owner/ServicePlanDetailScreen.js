@@ -574,13 +574,15 @@ export default function ServicePlanDetailScreen({ route }) {
 
         {/* ═══ E. DAILY CHECKLIST (Living) ═══ */}
         {resolvedId && (
-          <DailyChecklistSection
-            servicePlanId={resolvedId}
-            ownerId={plan?.owner_id}
-            userRole={userRole}
-            userId={profile?.id}
-            visitTasks={!plan?.has_phases ? (plan?.locations || []).flatMap(loc => loc.checklist_templates || []) : []}
-          />
+          <View style={{ marginHorizontal: 16 }}>
+            <DailyChecklistSection
+              servicePlanId={resolvedId}
+              ownerId={plan?.owner_id}
+              userRole={userRole}
+              userId={profile?.id}
+              visitTasks={!plan?.has_phases ? (plan?.locations || []).flatMap(loc => loc.checklist_templates || []) : []}
+            />
+          </View>
         )}
 
         {/* ═══ F. ASSIGNED ═══ */}

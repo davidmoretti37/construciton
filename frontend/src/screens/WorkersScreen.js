@@ -1811,8 +1811,27 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     </View>
 
                     {/* Reports for this project */}
-                    {projectData.reports.map((report) => (
-                      <View key={report.id} style={[styles.reportCard, { backgroundColor: Colors.white }]}>
+                    {projectData.reports.map((report) => {
+                      // Pull summary counts from fields populated during the
+                      // worker's daily-log submission. Empty/absent fields are
+                      // normalized to zero so the summary row is stable.
+                      const manpowerCount = Array.isArray(report.manpower) ? report.manpower.length : 0;
+                      const materialsCount = Array.isArray(report.materials) ? report.materials.length : 0;
+                      const equipmentCount = Array.isArray(report.equipment) ? report.equipment.length : 0;
+                      const delaysCount = Array.isArray(report.delays) ? report.delays.length : 0;
+                      const tagsCount = Array.isArray(report.tags) ? report.tags.length : 0;
+                      const stepsCount = Array.isArray(report.completed_steps) ? report.completed_steps.length : 0;
+                      const photosCount = Array.isArray(report.photos) ? report.photos.length : 0;
+                      const workPreview = typeof report.work_performed === 'string' && report.work_performed.trim()
+                        ? report.work_performed.trim()
+                        : (typeof report.notes === 'string' ? report.notes.trim() : '');
+                      return (
+                      <TouchableOpacity
+                        key={report.id}
+                        style={[styles.reportCard, { backgroundColor: Colors.white }]}
+                        onPress={() => navigation.navigate('DailyReportDetail', { report })}
+                        activeOpacity={0.7}
+                      >
                         {/* Worker Header */}
                         <View style={styles.reportCardHeader}>
                           <View style={[styles.workerAvatarSmall, { backgroundColor: Colors.primaryBlue }]}>
@@ -1866,38 +1885,77 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                           </View>
                         )}
 
-                        {/* Notes */}
-                        {report.notes && (
+                        {/* Work performed / notes preview — surfaces what the
+                            worker filled so the card isn't just a photo grid. */}
+                        {workPreview ? (
                           <View style={styles.reportNotes}>
                             <Ionicons name="document-text-outline" size={16} color={Colors.secondaryText} />
-                            <Text style={[styles.reportNotesText, { color: Colors.primaryText }]}>
-                              {report.notes}
+                            <Text style={[styles.reportNotesText, { color: Colors.primaryText }]} numberOfLines={3}>
+                              {workPreview}
                             </Text>
+                          </View>
+                        ) : null}
+
+                        {/* Summary strip — shows which report sections the
+                            worker filled in. Tapping the card opens the full
+                            DailyReportDetail screen with every field. */}
+                        {(stepsCount + manpowerCount + materialsCount + equipmentCount + delaysCount + tagsCount) > 0 && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                            {stepsCount > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.successGreen + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                                <Ionicons name="checkmark-circle" size={12} color={Colors.successGreen} />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.successGreen }}>{stepsCount} {stepsCount === 1 ? 'task' : 'tasks'}</Text>
+                              </View>
+                            )}
+                            {manpowerCount > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primaryBlue + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                                <Ionicons name="people" size={12} color={Colors.primaryBlue} />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primaryBlue }}>{manpowerCount} crew</Text>
+                              </View>
+                            )}
+                            {materialsCount > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F59E0B' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                                <Ionicons name="cube" size={12} color="#F59E0B" />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#F59E0B' }}>{materialsCount} materials</Text>
+                              </View>
+                            )}
+                            {equipmentCount > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#6366F1' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                                <Ionicons name="construct" size={12} color="#6366F1" />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#6366F1' }}>{equipmentCount} equip.</Text>
+                              </View>
+                            )}
+                            {delaysCount > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444' + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                                <Ionicons name="warning" size={12} color="#EF4444" />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#EF4444' }}>{delaysCount} {delaysCount === 1 ? 'delay' : 'delays'}</Text>
+                              </View>
+                            )}
+                            {tagsCount > 0 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.lightBackground, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                                <Ionicons name="pricetag" size={12} color={Colors.secondaryText} />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.secondaryText }}>{tagsCount} {tagsCount === 1 ? 'tag' : 'tags'}</Text>
+                              </View>
+                            )}
                           </View>
                         )}
 
-                        {/* Completed Steps */}
-                        {report.completed_steps && report.completed_steps.length > 0 && (
-                          <View style={styles.completedSteps}>
-                            <Ionicons name="checkmark-circle" size={16} color={Colors.successGreen} />
-                            <Text style={[styles.completedStepsText, { color: Colors.successGreen }]}>
-                              {report.completed_steps.length} {report.completed_steps.length !== 1 ? t('reports.tasksCompleted', 'tasks completed') : t('reports.taskCompleted', 'task completed')}
+                        {/* Footer — submission time + chevron hints tapability */}
+                        <View style={[styles.reportFooter, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Ionicons name="time-outline" size={14} color={Colors.secondaryText} />
+                            <Text style={[styles.reportTime, { color: Colors.secondaryText }]}>
+                              {t('reports.submittedAt', 'Submitted at')} {new Date(report.created_at).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
                             </Text>
                           </View>
-                        )}
-
-                        {/* Footer - Time */}
-                        <View style={styles.reportFooter}>
-                          <Ionicons name="time-outline" size={14} color={Colors.secondaryText} />
-                          <Text style={[styles.reportTime, { color: Colors.secondaryText }]}>
-                            {t('reports.submittedAt', 'Submitted at')} {new Date(report.created_at).toLocaleTimeString('en-US', {
-                              hour: 'numeric',
-                              minute: '2-digit'
-                            })}
-                          </Text>
+                          <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
                         </View>
-                      </View>
-                    ))}
+                      </TouchableOpacity>
+                    );
+                    })}
                   </View>
                 ))}
               </View>

@@ -109,7 +109,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
       transaction,
       projectId,
       projectName,
-      onRefresh: loadTransactions,
+      onRefresh: refresh,
     });
   };
 
@@ -117,7 +117,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     navigation.navigate('TransactionEntry', {
       projectId,
       projectName,
-      onSave: loadTransactions,
+      onSave: refresh,
       ...(subcategoryFilter && { prefillSubcategory: subcategoryFilter.toLowerCase() }),
     });
   };

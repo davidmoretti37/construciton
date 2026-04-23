@@ -439,44 +439,11 @@ export default function useProjectActions({ addMessage, setMessages, navigation 
       if (savedProject && savedProject.id) {
         logger.debug('✅ Project saved successfully:', savedProject.id);
 
-        // Daily Checklist Setup — create templates if AI included them
-        const checklistItems = cleanProjectData.checklist_items || cleanProjectData.checklistItems || [];
-        const laborRoles = cleanProjectData.labor_roles || cleanProjectData.laborRoles || [];
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          const ownerId = user?.id;
-          if (ownerId) {
-            if (checklistItems.length > 0) {
-              const checklistInserts = checklistItems.map((item, i) => ({
-                project_id: savedProject.id,
-                service_plan_id: null,
-                owner_id: ownerId,
-                title: item.title,
-                item_type: item.item_type || 'checkbox',
-                quantity_unit: item.quantity_unit || null,
-                requires_photo: item.requires_photo || false,
-                sort_order: i,
-              }));
-              await supabase.from('daily_checklist_templates').insert(checklistInserts);
-              logger.debug(`✅ Created ${checklistInserts.length} daily checklist templates`);
-            }
-            if (laborRoles.length > 0) {
-              const laborInserts = laborRoles.map((role, i) => ({
-                project_id: savedProject.id,
-                service_plan_id: null,
-                owner_id: ownerId,
-                role_name: role.role_name,
-                default_quantity: role.default_quantity || 1,
-                sort_order: i,
-              }));
-              await supabase.from('labor_role_templates').insert(laborInserts);
-              logger.debug(`✅ Created ${laborInserts.length} labor role templates`);
-            }
-          }
-        } catch (e) {
-          logger.error('⚠️ Checklist/labor setup error:', e.message);
-          Alert.alert('Note', 'Some setup items could not be saved. You can add them manually from the project detail screen.');
-        }
+        // Daily checklist + labor role templates are persisted inside
+        // saveProject() (storage/projects.js) via a delete-then-insert
+        // reconcile. Re-inserting here would duplicate every row — previously
+        // caused each checklist item and crew role to show twice on the
+        // project detail screen. Leave persistence to saveProject.
 
         // AI Task Distribution - distribute tasks intelligently across the timeline (requires dates)
         const phases = cleanProjectData.phases || [];

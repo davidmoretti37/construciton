@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -437,10 +437,16 @@ export default function ChatScreen({ navigation, route }) {
   const reportActions = useReportActions({ addMessage: addAIMessage, setMessages });
   const settingsActions = useSettingsActions({ addMessage: addAIMessage });
 
-  useEffect(() => {
-    // Auto-scroll to bottom when new messages appear or AI starts thinking
-    flatListRef.current?.scrollToEnd({ animated: true });
-  }, [messages, isAIThinking]);
+  // Inverted FlatList expects newest-first. Memoize the reversed view so
+  // we don't allocate on unrelated renders.
+  const reversedMessages = useMemo(() => {
+    const arr = isLoadingChat ? [] : messages;
+    // Iterate back-to-front so we don't mutate `messages` or pay the cost of
+    // `[...messages].reverse()` on every render.
+    const out = new Array(arr.length);
+    for (let i = 0; i < arr.length; i++) out[i] = arr[arr.length - 1 - i];
+    return out;
+  }, [messages, isLoadingChat]);
 
   // Initialize session on mount
   useEffect(() => {
@@ -3543,10 +3549,14 @@ export default function ChatScreen({ navigation, route }) {
         <FlatList
           ref={flatListRef}
           style={styles.chatArea}
-          contentContainerStyle={[styles.chatContent, { paddingBottom: 180 }]}
+          // Inverted list: paddingTop/Bottom swap visually. Visual bottom ==
+          // contentContainer `paddingTop` (≈ room above floating input), visual
+          // top == `paddingBottom`.
+          contentContainerStyle={[styles.chatContent, { paddingTop: 180, paddingBottom: 24 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          data={isLoadingChat ? [] : messages}
+          inverted
+          data={reversedMessages}
           extraData={messages}
           keyExtractor={(item) => item.id}
           ListEmptyComponent={
@@ -3574,7 +3584,7 @@ export default function ChatScreen({ navigation, route }) {
               </View>
             )
           }
-          ListFooterComponent={statusMessage ? <StatusMessage message={statusMessage} /> : null}
+          ListHeaderComponent={statusMessage ? <StatusMessage message={statusMessage} /> : null}
           renderItem={({ item: message }) => (
                 <View style={styles.messageContainer}>
                   {/* Attachments display in user messages */}

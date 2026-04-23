@@ -14,115 +14,119 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { fetchProjectDocuments, fetchProjectPhases, fetchDailyReports, calculateProjectProgressFromTasks, completeTask, uncompleteTask } from '../../utils/storage';
+import { fetchProjectDocuments, fetchProjectPhases, fetchDailyReports, calculateProjectProgressFromTasks, completeTask, uncompleteTask, getCurrentUserId } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
 import TodaysChecklistSection from '../../components/TodaysChecklistSection';
 import DailyChecklistSection from '../../components/DailyChecklistSection';
+
+// In-memory cache of a worker's project detail fetches, keyed by project.id.
+// Lives at module scope so navigating away and back hydrates instantly from
+// the last-seen snapshot while a background refresh revalidates. Mirrors
+// the pattern used in ProjectDetailView for the owner flow.
+const workerProjectDetailCache = new Map();
 
 export default function WorkerProjectDetailScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { project } = route.params;
 
+  // Seed useState defaults from the in-memory cache so return visits
+  // render the previous snapshot instantly while the background refresh
+  // runs. No cache → show skeletons during first load only.
+  const cached = (project?.id && workerProjectDetailCache.get(project.id)) || null;
+
   // Documents state
-  const [documents, setDocuments] = useState([]);
-  const [loadingDocuments, setLoadingDocuments] = useState(true);
+  const [documents, setDocuments] = useState(cached?.documents || []);
+  const [loadingDocuments, setLoadingDocuments] = useState(!cached);
 
   // Phases state (fetched with task completion data)
-  const [phases, setPhases] = useState([]);
-  const [loadingPhases, setLoadingPhases] = useState(true);
-  const [overallProgress, setOverallProgress] = useState(0);
+  const [phases, setPhases] = useState(cached?.phases || []);
+  const [loadingPhases, setLoadingPhases] = useState(!cached);
+  const [overallProgress, setOverallProgress] = useState(cached?.overallProgress ?? 0);
   const [expandedPhases, setExpandedPhases] = useState({});
 
-  // Additional Tasks state
-  const [manualTasks, setManualTasks] = useState([]);
-  const [loadingTasks, setLoadingTasks] = useState(true);
-
   // Daily Reports state
-  const [reports, setReports] = useState([]);
-  const [loadingReports, setLoadingReports] = useState(true);
+  const [reports, setReports] = useState(cached?.reports || []);
+  const [loadingReports, setLoadingReports] = useState(!cached);
 
-  // Load documents on mount (only documents visible to workers)
+  // Expenses state — project_transactions this worker submitted for THIS project.
+  const [expenses, setExpenses] = useState(cached?.expenses || []);
+  const [loadingExpenses, setLoadingExpenses] = useState(!cached);
+
+  // Single parallel fetch — replaces four sequential `useEffect`s that each
+  // awaited their own roundtrip. Fires all the supabase calls simultaneously
+  // via Promise.allSettled so one slow/failed query doesn't block the others,
+  // then caches the snapshot for instant rehydration on next navigation.
   useEffect(() => {
-    const loadDocuments = async () => {
-      try {
-        setLoadingDocuments(true);
-        // Pass true for workerView to only fetch documents visible to workers
-        const docs = await fetchProjectDocuments(project.id, true);
-        setDocuments(docs || []);
-      } catch (error) {
-        console.error('Error loading documents:', error);
-        setDocuments([]);
-      } finally {
-        setLoadingDocuments(false);
-      }
-    };
-    loadDocuments();
-  }, [project.id]);
+    if (!project?.id) return;
+    let cancelled = false;
 
-  // Load phases with task completion data
-  useEffect(() => {
-    const loadPhases = async () => {
-      try {
-        setLoadingPhases(true);
-        // Fetch phases with task completion status merged from worker_tasks
-        const projectPhases = await fetchProjectPhases(project.id);
-        setPhases(projectPhases || []);
-
-        // Calculate overall progress from all tasks
-        const { progress } = await calculateProjectProgressFromTasks(project.id);
-        setOverallProgress(progress);
-      } catch (error) {
-        console.error('Error loading phases:', error);
-        setPhases(project.project_phases || []);
-      } finally {
-        setLoadingPhases(false);
+    (async () => {
+      // Resolve this worker's workers.id so daily reports + expenses are
+      // scoped to what THIS worker submitted (not all crew on the project).
+      const userId = await getCurrentUserId();
+      let workerId = null;
+      if (userId) {
+        const { data: w } = await supabase
+          .from('workers')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        workerId = w?.id || null;
       }
-    };
-    loadPhases();
-  }, [project.id]);
 
-  // Load Additional Tasks
-  useEffect(() => {
-    const loadTasks = async () => {
-      try {
-        setLoadingTasks(true);
-        const { data: tasks } = await supabase
-          .from('worker_tasks')
-          .select('*')
-          .eq('project_id', project.id)
-          .is('phase_task_id', null)
-          .order('start_date', { ascending: true });
-        const sorted = (tasks || []).sort((a, b) => {
-          if (a.status === 'completed' && b.status !== 'completed') return 1;
-          if (a.status !== 'completed' && b.status === 'completed') return -1;
-          return 0;
-        });
-        setManualTasks(sorted);
-      } catch (error) {
-        console.error('Error loading additional tasks:', error);
-      } finally {
-        setLoadingTasks(false);
-      }
-    };
-    loadTasks();
-  }, [project.id]);
+      const expensesPromise = workerId
+        ? supabase
+            .from('project_transactions')
+            .select('id, project_id, type, category, subcategory, description, amount, date, worker_id, receipt_url, line_items, notes, created_at')
+            .eq('project_id', project.id)
+            .eq('worker_id', workerId)
+            .eq('type', 'expense')
+            .order('date', { ascending: false })
+            .limit(100)
+            .then(r => r.data || [])
+        : Promise.resolve([]);
 
-  // Load Daily Reports
-  useEffect(() => {
-    const loadReports = async () => {
-      try {
-        setLoadingReports(true);
-        const data = await fetchDailyReports(project.id, { workerView: true });
-        setReports(data || []);
-      } catch (error) {
-        console.error('Error loading daily reports:', error);
-      } finally {
-        setLoadingReports(false);
-      }
-    };
-    loadReports();
-  }, [project.id]);
+      const [docsRes, phasesRes, progressRes, reportsRes, expensesRes] = await Promise.allSettled([
+        fetchProjectDocuments(project.id, true),
+        fetchProjectPhases(project.id),
+        calculateProjectProgressFromTasks(project.id),
+        fetchDailyReports(project.id, { workerView: true, workerId: workerId || undefined }),
+        expensesPromise,
+      ]);
+      if (cancelled) return;
+
+      const freshDocs = docsRes.status === 'fulfilled' ? (docsRes.value || []) : [];
+      const freshPhases = phasesRes.status === 'fulfilled'
+        ? (phasesRes.value || [])
+        : (project.project_phases || []);
+      const freshProgress = progressRes.status === 'fulfilled'
+        ? (progressRes.value?.progress ?? 0)
+        : 0;
+      const freshReports = reportsRes.status === 'fulfilled' ? (reportsRes.value || []) : [];
+      const freshExpenses = expensesRes.status === 'fulfilled' ? (expensesRes.value || []) : [];
+
+      setDocuments(freshDocs);
+      setLoadingDocuments(false);
+      setPhases(freshPhases);
+      setLoadingPhases(false);
+      setOverallProgress(freshProgress);
+      setReports(freshReports);
+      setLoadingReports(false);
+      setExpenses(freshExpenses);
+      setLoadingExpenses(false);
+
+      workerProjectDetailCache.set(project.id, {
+        documents: freshDocs,
+        phases: freshPhases,
+        overallProgress: freshProgress,
+        reports: freshReports,
+        expenses: freshExpenses,
+      });
+    })();
+
+    return () => { cancelled = true; };
+  }, [project?.id]);
 
   // Toggle phase task completion
   const handlePhaseTaskToggle = async (phase, taskItem, taskIndex) => {
@@ -182,47 +186,6 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
           completion_percentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
         };
       }));
-    }
-  };
-
-  // Toggle task completion
-  const handleTaskToggle = async (task) => {
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-    // Optimistic update, sort completed to bottom
-    setManualTasks(prev => {
-      const updated = prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t);
-      return updated.sort((a, b) => {
-        if (a.status === 'completed' && b.status !== 'completed') return 1;
-        if (a.status !== 'completed' && b.status === 'completed') return -1;
-        return 0;
-      });
-    });
-    try {
-      const success = newStatus === 'completed' ? await completeTask(task.id) : await uncompleteTask(task.id);
-      if (!success) {
-        // Revert
-        setManualTasks(prev => {
-          const reverted = prev.map(t => t.id === task.id ? { ...t, status: task.status } : t);
-          return reverted.sort((a, b) => {
-            if (a.status === 'completed' && b.status !== 'completed') return 1;
-            if (a.status !== 'completed' && b.status === 'completed') return -1;
-            return 0;
-          });
-        });
-      } else {
-        const { progress } = await calculateProjectProgressFromTasks(project.id);
-        setOverallProgress(progress);
-      }
-    } catch (error) {
-      console.error('Error toggling task:', error);
-      setManualTasks(prev => {
-        const reverted = prev.map(t => t.id === task.id ? { ...t, status: task.status } : t);
-        return reverted.sort((a, b) => {
-          if (a.status === 'completed' && b.status !== 'completed') return 1;
-          if (a.status !== 'completed' && b.status === 'completed') return -1;
-          return 0;
-        });
-      });
     }
   };
 
@@ -464,9 +427,11 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
         )}
 
         {/* Today's Checklist — phase tasks scheduled for TODAY only.
-            Distinct from Daily Crew Checks (recurring items). */}
+            Distinct from Daily Crew Checks (recurring items).
+            No horizontal margin so it matches the width of peer cards
+            (parent contentContainer already pads 20px). */}
         {project?.id && (
-          <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+          <View style={{ marginBottom: 16 }}>
             <TodaysChecklistSection
               projectId={project.id}
               userRole="worker"
@@ -476,80 +441,12 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
 
         {/* Daily Crew Checks — recurring items the crew ticks every workday */}
         {project?.id && (
-          <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+          <View style={{ marginBottom: 16 }}>
             <DailyChecklistSection
               projectId={project.id}
               ownerId={project.user_id}
               userRole="worker"
             />
-          </View>
-        )}
-
-        {/* Additional Tasks Section */}
-        {(manualTasks.length > 0 || loadingTasks) && (
-          <View style={[styles.card, { backgroundColor: Colors.white }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-              <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
-                Additional Tasks ({manualTasks.length})
-              </Text>
-            </View>
-            {loadingTasks ? (
-              <ActivityIndicator size="small" color={Colors.primaryBlue} />
-            ) : (
-              <View style={{ gap: 8 }}>
-                {manualTasks.map((task) => (
-                  <TouchableOpacity
-                    key={task.id}
-                    activeOpacity={0.7}
-                    onPress={() => handleTaskToggle(task)}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderWidth: 1,
-                      borderColor: Colors.border,
-                      borderRadius: 8,
-                    }}
-                  >
-                    <Ionicons
-                      name={task.status === 'completed' ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={24}
-                      color={task.status === 'completed' ? '#10B981' : Colors.secondaryText}
-                      style={{ marginRight: 10 }}
-                    />
-                    <View style={{ flex: 1, marginRight: 12 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText, textDecorationLine: task.status === 'completed' ? 'line-through' : 'none' }}>
-                        {task.title}
-                      </Text>
-                      {task.description ? (
-                        <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }} numberOfLines={2}>
-                          {task.description}
-                        </Text>
-                      ) : null}
-                      <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }}>
-                        {task.start_date ? new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date'}
-                      </Text>
-                    </View>
-                    <View style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 4,
-                      backgroundColor: task.status === 'completed' ? '#10B981' : Colors.primaryBlue + '20',
-                    }}>
-                      <Text style={{
-                        fontSize: 12,
-                        fontWeight: '500',
-                        color: task.status === 'completed' ? '#FFFFFF' : Colors.primaryBlue,
-                      }}>
-                        {task.status === 'completed' ? 'Done' : 'Pending'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
           </View>
         )}
 
@@ -604,6 +501,56 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                         </View>
                       </View>
                       <Text style={{ fontSize: 13, color: Colors.primaryText, marginTop: 4 }}>{getReporterName()}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
+        {/* My Expenses Section — transactions this worker submitted for this project */}
+        {(expenses.length > 0 || loadingExpenses) && (
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <Ionicons name="receipt-outline" size={20} color={Colors.primaryBlue} />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
+                My Expenses ({expenses.length})
+              </Text>
+            </View>
+            {loadingExpenses ? (
+              <ActivityIndicator size="small" color={Colors.primaryBlue} />
+            ) : (
+              <ScrollView style={expenses.length > 3 ? { maxHeight: 220 } : undefined} nestedScrollEnabled showsVerticalScrollIndicator={expenses.length > 3}>
+                {expenses.map((exp) => {
+                  const d = exp.date
+                    ? new Date(exp.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : '';
+                  return (
+                    <TouchableOpacity
+                      key={exp.id}
+                      style={{ paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, marginBottom: 8 }}
+                      onPress={() => navigation?.navigate('ExpenseDetail', { expense: exp })}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primaryText, flex: 1 }} numberOfLines={1}>
+                          {exp.description || exp.category || 'Expense'}
+                        </Text>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#EF4444' }}>
+                          ${parseFloat(exp.amount || 0).toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: Colors.secondaryText }}>{d}</Text>
+                        {exp.category && (
+                          <View style={{ backgroundColor: Colors.lightBackground, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                            <Text style={{ fontSize: 11, color: Colors.secondaryText, textTransform: 'capitalize' }}>
+                              {exp.category}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -770,18 +717,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   phasesList: {
-    gap: 12,
+    gap: 8,
   },
   phaseCard: {
     borderRadius: 10,
-    padding: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderLeftWidth: 3,
   },
   phaseHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 12,
+    alignItems: 'center',
+    gap: 10,
   },
   phaseNumber: {
     width: 32,
@@ -798,9 +745,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   phaseName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   phaseDescription: {
     fontSize: 14,

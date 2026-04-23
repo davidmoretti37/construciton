@@ -42,6 +42,7 @@ import DailyChecklistSection from './DailyChecklistSection';
 import TodaysChecklistSection from './TodaysChecklistSection';
 import { formatHoursMinutes } from '../utils/calculations';
 import ClientPortalCard from './ClientPortalCard';
+import AddTradePhaseModal from './AddTradePhaseModal';
 import { supabase } from '../lib/supabase';
 import { DEMO_PHASES } from '../screens/ProjectsScreen';
 
@@ -162,9 +163,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // and per orphan trade. Computed from project_transactions.subcategory.
   const [spentBySubcategory, setSpentBySubcategory] = useState(cachedDetail?.spentBySubcategory || {});
   const [showAddTrade, setShowAddTrade] = useState(false);
-  const [newTradeName, setNewTradeName] = useState('');
-  const [newTradeAmount, setNewTradeAmount] = useState('');
-  const [newTradePaid, setNewTradePaid] = useState('');
 
   // Working days and task shifting
   const [showBulkShiftModal, setShowBulkShiftModal] = useState(false);
@@ -1570,20 +1568,12 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           </View>
 
-          {/* Hours + Timeline Row */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginTop: 12, gap: 10 }}>
-            {totalProjectHours > 0 && (
-              <View style={[styles.financialCard, { flex: 1, backgroundColor: '#FFFFFF' }]}>
-                <View style={[styles.iconBadge, { backgroundColor: '#EFF6FF' }]}>
-                  <Ionicons name="time" size={18} color="#1E40AF" />
-                </View>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Hours Logged</Text>
-                <Text style={{ fontSize: 22, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>{formatHoursMinutes(totalProjectHours)}</Text>
-                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>This project</Text>
-              </View>
-            )}
-            {project.start_date && (
-              <View style={[styles.financialCard, { flex: 1, backgroundColor: '#FFFFFF' }]}>
+          {/* Timeline — Hours Logged moved into the Project Details
+              container below so this row doesn't orphan white space when
+              hours are absent. */}
+          {project.start_date && (
+            <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+              <View style={[styles.financialCard, { backgroundColor: '#FFFFFF' }]}>
                 <View style={[styles.iconBadge, { backgroundColor: '#EFF6FF' }]}>
                   <Ionicons name="calendar" size={18} color="#1E40AF" />
                 </View>
@@ -1596,8 +1586,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 </View>
                 <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>complete</Text>
               </View>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* Budget & Trade Budgets — Collapsible Card */}
           {(contractAmount > 0 || tradeBudgets.length > 0 || phases.some(p => (parseFloat(p.budget) || 0) > 0)) && (
@@ -1751,84 +1741,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   {/* Add Trade Budget */}
                   {isOwner && !isDemo && (
                     <View style={{ marginTop: tradeBudgets.length > 0 ? 12 : 0 }}>
-                      {!showAddTrade ? (
-                        <TouchableOpacity
-                          onPress={() => setShowAddTrade(true)}
-                          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed' }}
-                        >
-                          <Ionicons name="add" size={16} color="#3B82F6" />
-                          <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Add Trade Budget</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, gap: 10 }}>
-                          <TextInput
-                            style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: '#0F172A', fontSize: 14, backgroundColor: '#FFFFFF' }}
-                            placeholder="Trade name (e.g. Electrical)"
-                            placeholderTextColor="#94A3B8"
-                            value={newTradeName}
-                            onChangeText={setNewTradeName}
-                          />
-                          <TextInput
-                            style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: '#0F172A', fontSize: 14, backgroundColor: '#FFFFFF' }}
-                            placeholder="Budget amount"
-                            placeholderTextColor="#94A3B8"
-                            value={newTradeAmount}
-                            onChangeText={setNewTradeAmount}
-                            keyboardType="decimal-pad"
-                          />
-                          <TextInput
-                            style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: '#0F172A', fontSize: 14, backgroundColor: '#FFFFFF' }}
-                            placeholder="Amount already paid (optional)"
-                            placeholderTextColor="#94A3B8"
-                            value={newTradePaid}
-                            onChangeText={setNewTradePaid}
-                            keyboardType="decimal-pad"
-                          />
-                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
-                            <TouchableOpacity
-                              style={{ flex: 1, backgroundColor: '#F1F5F9', paddingVertical: 11, borderRadius: 10, alignItems: 'center' }}
-                              onPress={() => { setShowAddTrade(false); setNewTradeName(''); setNewTradeAmount(''); setNewTradePaid(''); }}
-                            >
-                              <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 11, borderRadius: 10, alignItems: 'center' }}
-                              onPress={async () => {
-                                if (!newTradeName.trim() || !newTradeAmount) return;
-                                try {
-                                  const budgetAmount = parseFloat(newTradeAmount) || 0;
-                                  const paidAmount = parseFloat(newTradePaid) || 0;
-                                  await supabase.from('project_trade_budgets').insert({
-                                    project_id: project.id,
-                                    trade_name: newTradeName.trim(),
-                                    budget_amount: budgetAmount,
-                                  });
-                                  if (paidAmount > 0) {
-                                    await supabase.from('project_transactions').insert({
-                                      project_id: project.id,
-                                      type: 'expense',
-                                      category: 'subcontractor',
-                                      subcategory: newTradeName.trim().toLowerCase(),
-                                      description: `${newTradeName.trim()} - initial payment`,
-                                      amount: paidAmount,
-                                      date: new Date().toISOString().split('T')[0],
-                                    });
-                                  }
-                                  setShowAddTrade(false);
-                                  setNewTradeName('');
-                                  setNewTradeAmount('');
-                                  setNewTradePaid('');
-                                  onRefreshNeeded && onRefreshNeeded();
-                                } catch (e) {
-                                  Alert.alert('Error', 'Failed to add trade budget.');
-                                }
-                              }}
-                            >
-                              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>Add</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      )}
+                      <TouchableOpacity
+                        onPress={() => setShowAddTrade(true)}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed' }}
+                      >
+                        <Ionicons name="add" size={16} color="#3B82F6" />
+                        <Text style={{ fontSize: 13, color: '#3B82F6', fontWeight: '600' }}>Add Trade Budget</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -1889,9 +1808,21 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           )}
 
           {/* Project Details Section */}
-          {(project.taskDescription || project.location || project.client || project.clientPhone || project.clientEmail) && (
+          {(project.taskDescription || project.location || project.client || project.clientPhone || project.clientEmail || totalProjectHours > 0) && (
             <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
               <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('labels.projectDetails')}</Text>
+
+              {totalProjectHours > 0 && (
+                <View style={styles.detailRow}>
+                  <View style={[styles.detailIconBadge, { backgroundColor: Colors.lightGray }]}>
+                    <Ionicons name="time-outline" size={18} color={Colors.primaryBlue} />
+                  </View>
+                  <View style={styles.detailContent}>
+                    <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Hours Logged</Text>
+                    <Text style={[styles.detailValue, { color: Colors.primaryText }]}>{formatHoursMinutes(totalProjectHours)}</Text>
+                  </View>
+                </View>
+              )}
 
               {project.client && (
                 <View style={styles.detailRow}>
@@ -1975,82 +1906,6 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
           {/* Work Sections card removed — phases now live inside Budget Breakdown
               with budget + spent + tasks + per-phase Transactions CTA. */}
-
-          {/* Additional Tasks Section - Shows manually added tasks */}
-          {manualTasks.length > 0 && (
-            <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
-                <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
-                  {t('labels.additionalTasksCount', { count: manualTasks.length })}
-                </Text>
-              </View>
-              <View style={{ gap: 8 }}>
-                {manualTasks.map((task) => (
-                  <TouchableOpacity
-                    key={task.id}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      setSelectedManualTask(task);
-                      setShowTaskDetailModal(true);
-                    }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderWidth: 1,
-                      borderColor: Colors.border,
-                      borderRadius: 8,
-                    }}
-                  >
-                    <TouchableOpacity
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleManualTaskToggle(task);
-                      }}
-                      style={{ marginRight: 10 }}
-                    >
-                      <Ionicons
-                        name={task.status === 'completed' ? 'checkmark-circle' : 'ellipse-outline'}
-                        size={24}
-                        color={task.status === 'completed' ? '#10B981' : Colors.secondaryText}
-                      />
-                    </TouchableOpacity>
-                    <View style={{ flex: 1, marginRight: 12 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText, textDecorationLine: task.status === 'completed' ? 'line-through' : 'none' }}>
-                        {task.title}
-                      </Text>
-                      {task.description ? (
-                        <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }} numberOfLines={2}>
-                          {task.description}
-                        </Text>
-                      ) : null}
-                      <Text style={{ fontSize: 12, marginTop: 2, color: Colors.secondaryText }}>
-                        {task.start_date ? new Date(task.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : t('emptyStates.noDate')}
-                      </Text>
-                    </View>
-                    <View style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 4,
-                      backgroundColor: task.status === 'completed' ? '#10B981' : Colors.primaryBlue + '20',
-                    }}>
-                      <Text style={{
-                        fontSize: 12,
-                        fontWeight: '500',
-                        color: task.status === 'completed' ? '#FFFFFF' : Colors.primaryBlue,
-                      }}>
-                        {task.status === 'completed' ? t('labels.done') : t('labels.pending')}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
 
           {/* Assigned Section */}
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
@@ -2148,30 +2003,28 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             ) : null}
           </View>
 
-          {/* Today's Checklist — phase tasks scheduled for today.
-              Distinct from the recurring Daily Crew Checks below. Hidden
-              when the scheduler has nothing for today. */}
+          {/* Today's Checklist + Daily Crew Checks — both wrapped so they
+              share the same 16px horizontal margin as surrounding section
+              cards. Components are layout-neutral; parent owns placement. */}
           {!isDemo && project?.id && (
-            <TodaysChecklistSection
-              projectId={project.id}
-              userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
-            />
-          )}
-
-          {/* Daily Checklist Section — controlled by global project edit pencil. */}
-          {!isDemo && project?.id && (
-            <DailyChecklistSection
-              projectId={project.id}
-              ownerId={project.user_id || profile?.id}
-              userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
-              userId={profile?.id}
-              editMode={isEditing}
-              onEditModeChange={(signal) => {
-                if (signal && typeof signal === 'object' && signal.type === 'save-handler') {
-                  checklistSaveRef.current = signal.fn;
-                }
-              }}
-            />
+            <View style={{ marginHorizontal: 16 }}>
+              <TodaysChecklistSection
+                projectId={project.id}
+                userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
+              />
+              <DailyChecklistSection
+                projectId={project.id}
+                ownerId={project.user_id || profile?.id}
+                userRole={isOwner ? 'owner' : isSupervisor ? 'supervisor' : 'worker'}
+                userId={profile?.id}
+                editMode={isEditing}
+                onEditModeChange={(signal) => {
+                  if (signal && typeof signal === 'object' && signal.type === 'save-handler') {
+                    checklistSaveRef.current = signal.fn;
+                  }
+                }}
+              />
+            </View>
           )}
 
           {/* Daily Reports Section */}
@@ -2916,6 +2769,28 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         projectName={project?.name}
         onTasksShifted={() => {
           // Refresh the project data after tasks are shifted
+          onRefreshNeeded?.();
+        }}
+      />
+
+      {/* Add Trade Phase Modal — name + budget + already-paid + tasks */}
+      <AddTradePhaseModal
+        visible={showAddTrade}
+        onClose={() => setShowAddTrade(false)}
+        projectId={project?.id}
+        onAdded={async () => {
+          setShowAddTrade(false);
+          // Refetch phases immediately so the new phase renders in the
+          // PhaseTimeline with the same card layout as existing phases,
+          // without waiting for the parent refresh round-trip.
+          if (project?.id && !isDemo) {
+            try {
+              const updated = await fetchProjectPhases(project.id);
+              if (updated) setPhases(updated);
+            } catch (e) {
+              // non-fatal — parent refresh below will cover us
+            }
+          }
           onRefreshNeeded?.();
         }}
       />

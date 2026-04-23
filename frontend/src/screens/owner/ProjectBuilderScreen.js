@@ -55,6 +55,7 @@ import {
   upsertProjectPhases,
 } from '../../utils/storage';
 import { fetchEstimates, getEstimate } from '../../utils/storage/estimates';
+import { countWorkingDays } from '../../utils/scheduling/distributeTasks';
 import {
   pickAndUploadProjectDocument,
   fetchProjectBuilderDocuments,
@@ -335,7 +336,6 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     basics: true,
     timeline: false,
     phases: false,
-    financial: false,
     team: false,
     checklist: false,
     documents: false,
@@ -353,6 +353,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const projectIdRef = useRef(projectId);
   const mountedRef = useRef(true);
   const appStateRef = useRef(AppState.currentState);
+  // Tracks the last timeline snapshot we rebalanced against so we only
+  // rescale phase days when the user actually changes start/end/working
+  // days (not on initial mount or data load).
+  const timelineRebalanceRef = useRef({ startDate: null, endDate: null, workingDays: null, nonWorkingDates: null, initialized: false });
   // In-flight guard so overlapping autosaves can't race each other.
   // pendingSaveRef records whether new edits arrived while a save was in
   // flight — if so, flushSave re-runs itself once the current save
@@ -444,6 +448,73 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       }
     })();
   }, [initialProjectId]);
+
+  // ---- Rebalance phase days when timeline changes ----
+  // If the user changes start/end date, working days, or non-working dates
+  // in the Timeline section, rescale each phase's plannedDays so the sum
+  // matches the new total working days while preserving the relative ratios
+  // the user (or AI) previously set. Skips the first run so loading an
+  // existing project doesn't rewrite persisted phase durations.
+  useEffect(() => {
+    const ref = timelineRebalanceRef.current;
+    // First pass: snapshot the initial timeline and bail — we only rebalance
+    // on subsequent user-driven changes.
+    if (!ref.initialized) {
+      ref.startDate = startDate;
+      ref.endDate = endDate;
+      ref.workingDays = workingDays;
+      ref.nonWorkingDates = nonWorkingDates;
+      ref.initialized = true;
+      return;
+    }
+    // Bail if timeline signals aren't meaningful yet.
+    if (!startDate || !endDate) return;
+    if (phases.length === 0) return;
+
+    // Detect a real change vs. unrelated renders.
+    const sameStart = ref.startDate === startDate;
+    const sameEnd = ref.endDate === endDate;
+    const sameWD = JSON.stringify(ref.workingDays) === JSON.stringify(workingDays);
+    const sameNWD = JSON.stringify(ref.nonWorkingDates) === JSON.stringify(nonWorkingDates);
+    if (sameStart && sameEnd && sameWD && sameNWD) return;
+
+    const newTotal = countWorkingDays(startDate, endDate, workingDays, nonWorkingDates);
+    if (!Number.isFinite(newTotal) || newTotal <= 0) {
+      // Update ref so we don't loop, but don't scale to 0.
+      ref.startDate = startDate;
+      ref.endDate = endDate;
+      ref.workingDays = workingDays;
+      ref.nonWorkingDates = nonWorkingDates;
+      return;
+    }
+
+    setPhases((prev) => {
+      const currentSum = prev.reduce((s, p) => s + (parseInt(p.plannedDays, 10) || 0), 0);
+      // If no phase has a duration yet, split the new total evenly so something
+      // sensible lands in each row.
+      if (currentSum <= 0) {
+        const base = Math.floor(newTotal / prev.length);
+        const extra = newTotal - base * prev.length;
+        return prev.map((p, i) => ({ ...p, plannedDays: base + (i < extra ? 1 : 0) }));
+      }
+      // Proportional scale. Round each, then fix drift on the last phase so
+      // the sum matches newTotal exactly.
+      const scaled = prev.map((p) => {
+        const days = parseInt(p.plannedDays, 10) || 0;
+        return Math.max(1, Math.round((days / currentSum) * newTotal));
+      });
+      const drift = newTotal - scaled.reduce((s, n) => s + n, 0);
+      if (drift !== 0 && scaled.length > 0) {
+        scaled[scaled.length - 1] = Math.max(1, scaled[scaled.length - 1] + drift);
+      }
+      return prev.map((p, i) => ({ ...p, plannedDays: scaled[i] }));
+    });
+
+    ref.startDate = startDate;
+    ref.endDate = endDate;
+    ref.workingDays = workingDays;
+    ref.nonWorkingDates = nonWorkingDates;
+  }, [startDate, endDate, workingDays, nonWorkingDates, phases.length]);
 
   // ---- Create draft on mount if no projectId ----
   // Resumes an existing in-progress draft for the same name+client when one
@@ -793,13 +864,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       }
       case 'phases': {
         if (phases.length === 0) return { kind: 'red', label: '!' };
-        const anyNoBudget = phases.some((p) => !(parseFloat(p.budget) > 0));
-        if (anyNoBudget) return { kind: 'amber', label: '⚠' };
-        return { kind: 'green', label: '✓' };
-      }
-      case 'financial': {
         const amt = parseFloat(contractAmount) || 0;
         if (amt <= 0) return { kind: 'red', label: '!' };
+        const anyNoBudget = phases.some((p) => !(parseFloat(p.budget) > 0));
+        if (anyNoBudget) return { kind: 'amber', label: '⚠' };
         return { kind: 'green', label: '✓' };
       }
       case 'team': {
@@ -1384,15 +1452,30 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.phases && (
               <View style={styles.sectionBody}>
+                {/* Contract amount — drives the allocation bar below and the
+                    per-phase budget math. Lives here (not in a separate
+                    Financial section) so the contract $ sits next to the
+                    phases it funds. */}
+                <LabelRow label="Contract Amount ($)" required confidence={aiConfidence.contractAmount} Colors={Colors} />
+                <ThemedInput
+                  value={contractAmount}
+                  onChangeText={(v) => setContractAmount(sanitizeNumeric(v))}
+                  placeholder="0.00"
+                  keyboardType="decimal-pad"
+                  required
+                  confidence={aiConfidence.contractAmount}
+                  Colors={Colors}
+                />
+
                 {/* Allocation bar */}
-                <View style={[styles.allocBar, { backgroundColor: overAllocated ? '#FEE2E2' : '#EFF6FF', borderColor: overAllocated ? '#DC2626' : Colors.primaryBlue + '30' }]}>
+                <View style={[styles.allocBar, { backgroundColor: overAllocated ? '#FEE2E2' : '#EFF6FF', borderColor: overAllocated ? '#DC2626' : Colors.primaryBlue + '30', marginTop: 12 }]}>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: overAllocated ? '#DC2626' : Colors.primaryText }}>
                     Allocated ${allocatedTotal.toLocaleString()} / Contract ${contractTotal.toLocaleString()}
                   </Text>
                   <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
                     {contractTotal > 0
                       ? `${Math.round((allocatedTotal / contractTotal) * 100)}% of contract allocated`
-                      : 'Set a contract amount in the Financial section'}
+                      : 'Set a contract amount above'}
                   </Text>
                 </View>
 
@@ -1515,88 +1598,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             )}
           </View>
 
-          {/* ============ 4. FINANCIAL ============ */}
-          <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            <SectionHeader
-              title="Financial"
-              icon="cash-outline"
-              sectionKey="financial"
-              expanded={expandedSections.financial}
-              chip={sectionChip('financial')}
-              onToggle={toggleSection}
-              Colors={Colors}
-            />
-            {expandedSections.financial && (
-              <View style={styles.sectionBody}>
-                <LabelRow label="Contract Amount ($)" required confidence={aiConfidence.contractAmount} Colors={Colors} />
-                <ThemedInput
-                  value={contractAmount}
-                  onChangeText={(v) => setContractAmount(sanitizeNumeric(v))}
-                  placeholder="0.00"
-                  keyboardType="decimal-pad"
-                  required
-                  confidence={aiConfidence.contractAmount}
-                  Colors={Colors}
-                />
-
-                <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 12 }]}>Services</Text>
-                {services.map((s, i) => (
-                  <View key={`svc-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <TextInput
-                      style={[styles.input, { flex: 2, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
-                      value={s.description}
-                      onChangeText={(v) => updateService(i, 'description', v)}
-                      placeholder="Service / scope item"
-                      placeholderTextColor={Colors.placeholderText}
-                    />
-                    <TextInput
-                      style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
-                      value={String(s.amount || '')}
-                      onChangeText={(v) => updateService(i, 'amount', sanitizeNumeric(v))}
-                      placeholder="$0"
-                      placeholderTextColor={Colors.placeholderText}
-                      keyboardType="decimal-pad"
-                    />
-                    <TouchableOpacity onPress={() => removeService(i)}>
-                      <Ionicons name="close-circle" size={20} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addService}>
-                  <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Service</Text>
-                </TouchableOpacity>
-
-                <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 16 }]}>Trade Budgets</Text>
-                {trades.map((tr, i) => (
-                  <View key={`trade-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <TextInput
-                      style={[styles.input, { flex: 2, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
-                      value={tr.name}
-                      onChangeText={(v) => updateTrade(i, 'name', v)}
-                      placeholder="Trade (e.g. Electrical)"
-                      placeholderTextColor={Colors.placeholderText}
-                    />
-                    <TextInput
-                      style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
-                      value={String(tr.amount || '')}
-                      onChangeText={(v) => updateTrade(i, 'amount', sanitizeNumeric(v))}
-                      placeholder="$0"
-                      placeholderTextColor={Colors.placeholderText}
-                      keyboardType="decimal-pad"
-                    />
-                    <TouchableOpacity onPress={() => removeTrade(i)}>
-                      <Ionicons name="close-circle" size={20} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addTrade}>
-                  <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-                  <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Trade Budget</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+          {/* Financial section removed — Contract Amount now lives at the top
+              of the Phases section; trade budgets are entered per-phase via
+              Add Phase. */}
 
           {/* ============ 5. TEAM ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>

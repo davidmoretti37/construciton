@@ -302,6 +302,14 @@ export default function ExpenseFormScreen({ navigation }) {
         receiptUrl = await uploadPhoto(receiptImage, 'expense-receipts');
       }
 
+      // Normalize line items: drop empty rows, coerce total to number.
+      const cleanedLineItems = lineItems
+        .map((li) => ({
+          description: (li.description ?? '').toString().trim(),
+          total: parseFloat(li.total) || 0,
+        }))
+        .filter((li) => li.description.length > 0 || li.total > 0);
+
       // Submit expense - use different method based on role
       if (isWorker && workerId) {
         await submitWorkerExpense({
@@ -315,7 +323,7 @@ export default function ExpenseFormScreen({ navigation }) {
           phaseId: phaseId || null,
           date: date,
           receiptUrl: receiptUrl,
-          lineItems: lineItems.length > 0 ? lineItems : null,
+          lineItems: cleanedLineItems.length > 0 ? cleanedLineItems : null,
           notes: notes.trim() || null,
         });
       } else {
@@ -331,7 +339,7 @@ export default function ExpenseFormScreen({ navigation }) {
           phase_id: phaseId || null,
           date: date,
           receipt_url: receiptUrl,
-          line_items: lineItems.length > 0 ? lineItems : null,
+          line_items: cleanedLineItems.length > 0 ? cleanedLineItems : null,
           notes: notes.trim() || null,
         });
       }
@@ -749,19 +757,69 @@ export default function ExpenseFormScreen({ navigation }) {
               {/* Line Items (if any) */}
               {lineItems.length > 0 && (
                 <View style={[styles.section, { backgroundColor: Colors.white }]}>
-                  <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
-                    Line Items
-                  </Text>
-                  {lineItems.map((item, index) => (
-                    <View key={index} style={[styles.lineItem, { borderBottomColor: Colors.border }]}>
-                      <Text style={[styles.lineItemDesc, { color: Colors.primaryText }]}>
-                        {item.description}
-                      </Text>
-                      <Text style={[styles.lineItemAmount, { color: Colors.secondaryText }]}>
-                        ${parseFloat(item.total || 0).toFixed(2)}
-                      </Text>
-                    </View>
-                  ))}
+                  <View style={styles.lineItemsHeaderRow}>
+                    <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginBottom: 0 }]}>
+                      Line Items
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setLineItems([...lineItems, { description: '', total: '' }])}
+                      style={styles.lineItemAddBtn}
+                    >
+                      <Ionicons name="add" size={18} color={Colors.primaryBlue} />
+                    </TouchableOpacity>
+                  </View>
+                  {lineItems.map((item, index) => {
+                    const rawDesc = (item.description ?? '').toString().trim().toLowerCase();
+                    const looksBlank =
+                      rawDesc === '' || rawDesc === '0' || rawDesc === 'item description was zero';
+                    const descValue = looksBlank ? '' : item.description;
+                    const amountRaw = item.total;
+                    const amountStr =
+                      amountRaw === null || amountRaw === undefined || amountRaw === ''
+                        ? ''
+                        : String(amountRaw);
+                    return (
+                      <View key={index} style={[styles.lineItem, { borderBottomColor: Colors.border }]}>
+                        <TextInput
+                          style={[
+                            styles.lineItemDescInput,
+                            { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground },
+                          ]}
+                          value={descValue}
+                          onChangeText={(text) => {
+                            const next = [...lineItems];
+                            next[index] = { ...next[index], description: text };
+                            setLineItems(next);
+                          }}
+                          placeholder="Item description"
+                          placeholderTextColor={Colors.secondaryText}
+                        />
+                        <TextInput
+                          style={[
+                            styles.lineItemAmountInput,
+                            { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground },
+                          ]}
+                          value={amountStr}
+                          onChangeText={(text) => {
+                            const cleaned = text.replace(/[^0-9.]/g, '');
+                            const next = [...lineItems];
+                            next[index] = { ...next[index], total: cleaned };
+                            setLineItems(next);
+                          }}
+                          placeholder="0.00"
+                          placeholderTextColor={Colors.secondaryText}
+                          keyboardType="decimal-pad"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setLineItems(lineItems.filter((_, i) => i !== index))}
+                          style={styles.lineItemDeleteBtn}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
 
@@ -1039,8 +1097,8 @@ const styles = StyleSheet.create({
   },
   lineItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
   },
@@ -1051,6 +1109,40 @@ const styles = StyleSheet.create({
   lineItemAmount: {
     fontSize: FontSizes.small,
     fontWeight: '600',
+  },
+  lineItemDescInput: {
+    flex: 1,
+    fontSize: FontSizes.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  lineItemAmountInput: {
+    width: 90,
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    textAlign: 'right',
+  },
+  lineItemDeleteBtn: {
+    padding: 2,
+  },
+  lineItemsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  lineItemAddBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   notesInput: {
     padding: Spacing.md,

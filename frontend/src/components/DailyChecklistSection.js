@@ -44,6 +44,9 @@ export default function DailyChecklistSection({
   // section collapses back in sync.
   editMode,
   onEditModeChange,
+  // Fires whenever the (completed, total) count changes so parents can
+  // merge this section's progress into a combined header count.
+  onCountsChange,
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -448,6 +451,14 @@ export default function DailyChecklistSection({
   const completedCount = templates.filter(t => entries[t.id]?.completed).length;
   const totalCount = templates.length;
 
+  // Surface counts to an interested parent (e.g. TodaysWorkScreen merges
+  // this into the card header so users see one combined total).
+  useEffect(() => {
+    if (typeof onCountsChange === 'function') {
+      onCountsChange(completedCount, totalCount);
+    }
+  }, [completedCount, totalCount, onCountsChange]);
+
   // Today's date label — shown as a sub-header above the live checklist
   // to make it crystal clear these items are for TODAY (workers tick them
   // off every workday). Hidden when in template-edit mode (owner is just
@@ -772,14 +783,15 @@ export default function DailyChecklistSection({
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 14,
+    // Layout-neutral: parent controls horizontal position. Shadow/radius
+    // match TodaysChecklistSection so the two cards look like siblings.
     marginBottom: 12,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 2,
   },
   sectionHeader: {

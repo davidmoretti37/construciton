@@ -448,9 +448,10 @@ export default function TodaysChecklistSection({
 
 const createStyles = (Colors) => StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginHorizontal: 16,
+    // Layout-neutral: parent controls horizontal position so every host
+    // (owner ProjectDetailView, worker screens, nested cards) can place
+    // the card correctly without double-margins.
+    borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
     shadowColor: '#0F172A',

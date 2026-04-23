@@ -1162,54 +1162,10 @@ export default function ProjectPreview({ data, onAction }) {
         </View>
       )}
 
-      {/* Services */}
-      {(services && services.length > 0) || isEditing ? (
-        <View style={[styles.section, { borderTopColor: Colors.border }]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm }}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{t('project.services')}</Text>
-            {isEditing && (
-              <TouchableOpacity
-                onPress={handleAddService}
-                style={[styles.addTaskButton, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue }]}
-              >
-                <Ionicons name="add" size={14} color={Colors.primaryBlue} />
-                <Text style={[styles.addTaskText, { color: Colors.primaryBlue }]}>{t('actions.addService')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {(isEditing ? (editedData.services || services) : services).map((service, index) => (
-            <View key={index} style={styles.lineItem}>
-              <View style={styles.itemHeader}>
-                <Text style={[styles.itemNumber, { color: Colors.secondaryText }]}>
-                  {index + 1}.
-                </Text>
-                {isEditing ? (
-                  <>
-                    <TextInput
-                      ref={index === newServiceIndex ? newServiceRef : undefined}
-                      style={[styles.editInput, styles.itemDescription, { color: Colors.primaryText, borderColor: Colors.border }]}
-                      value={service.description?.replace(/^undefined\.\s*/i, '') || service.description || ''}
-                      onChangeText={(value) => handleUpdateService(index, value)}
-                      placeholder={t('placeholders.serviceDescription')}
-                      placeholderTextColor={Colors.secondaryText}
-                    />
-                    <TouchableOpacity
-                      onPress={() => handleRemoveService(index)}
-                      style={styles.removeTaskButton}
-                    >
-                      <Ionicons name="close-circle" size={20} color="#EF4444" />
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <Text style={[styles.itemDescription, { color: Colors.primaryText }]}>
-                    {service.description?.replace(/^undefined\.\s*/i, '').trim() || service.description}
-                  </Text>
-                )}
-              </View>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      {/* Services section removed from the project preview card — line items
+          belong on estimates, not on the project view. The underlying
+          `services` state is still populated so estimate conversion keeps
+          working; it just isn't rendered here. */}
 
       {/* Daily Checklist */}
       {(checklistItems.length > 0 || isEditing) ? (

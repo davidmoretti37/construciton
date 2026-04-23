@@ -1377,36 +1377,53 @@ export const upsertProjectPhases = async (projectId, phases, schedule = null) =>
       }
     }
 
-    // 6+7. Batched upsert — single round trip instead of 1 insert + N updates.
-    // Rows with an `id` get updated; rows without one get inserted (Postgres
-    // generates the UUID server-side). `ignoreDuplicates: false` means
-    // conflicts on (id) UPDATE rather than skip.
+    // 6+7. Apply inserts and updates in two separate round trips.
+    // We USED to batch them into one `.upsert(...)` call, but PostgREST
+    // normalizes the column set across all rows in an array payload — rows
+    // without an `id` end up serialized as `id: null`, which trips the
+    // NOT NULL constraint. Splitting the calls lets the DB generate UUIDs
+    // for inserts (no id key at all) and updates carry their existing ids.
     let returnedRows = [];
-    const allRows = [
-      ...toInsert.map((r) => ({ ...r })),
-      ...toUpdate.map(({ id, updates }) => ({ id, ...updates })),
-    ];
     const failedPhaseIds = [];
-    if (allRows.length > 0) {
+
+    if (toInsert.length > 0) {
       try {
         const { data } = await withRetry(
           async () => {
             const r = await supabase
               .from('project_phases')
-              .upsert(allRows, { onConflict: 'id', ignoreDuplicates: false })
+              .insert(toInsert)
+              .select('id, order_index, name');
+            if (r.error) throw r.error;
+            return r;
+          },
+          { label: 'upsertProjectPhases.insert' }
+        );
+        if (data) returnedRows = returnedRows.concat(data);
+      } catch (e) {
+        console.error('upsertProjectPhases insert error:', e?.message);
+        // New rows had no ids, so we can't record specific failedPhaseIds.
+      }
+    }
+
+    if (toUpdate.length > 0) {
+      const updateRows = toUpdate.map(({ id, updates }) => ({ id, ...updates }));
+      try {
+        const { data } = await withRetry(
+          async () => {
+            const r = await supabase
+              .from('project_phases')
+              .upsert(updateRows, { onConflict: 'id', ignoreDuplicates: false })
               .select('id, order_index, name');
             if (r.error) throw r.error;
             return r;
           },
           { label: 'upsertProjectPhases.upsert' }
         );
-        returnedRows = data || [];
+        if (data) returnedRows = returnedRows.concat(data);
       } catch (e) {
         console.error('upsertProjectPhases upsert error:', e?.message);
-        // Record which phases didn't make it so the caller can report partial success.
         toUpdate.forEach(({ id }) => failedPhaseIds.push(id));
-        // Keep going — we'd rather report partial success than nuke unrelated
-        // already-saved phases by returning false to the caller.
       }
     }
 

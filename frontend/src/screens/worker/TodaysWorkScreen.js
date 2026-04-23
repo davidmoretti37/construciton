@@ -43,6 +43,17 @@ export default function TodaysWorkScreen() {
   const [projectCards, setProjectCards] = useState([]); // { id, name, location, tasks: [], user_id }
   const [planCards, setPlanCards] = useState([]); // { id, name, visits: [], owner_id }
   const [expandedCards, setExpandedCards] = useState(new Set());
+  // Per-project Daily Crew Checks counts, surfaced via DailyChecklistSection's
+  // onCountsChange callback so the card header can show a merged total
+  // (phase tasks + crew checks) instead of two separate progress numbers.
+  const [checklistCounts, setChecklistCounts] = useState({}); // projectId → { done, total }
+  const handleChecklistCounts = useCallback((projectId) => (done, total) => {
+    setChecklistCounts(prev => {
+      const existing = prev[projectId];
+      if (existing && existing.done === done && existing.total === total) return prev;
+      return { ...prev, [projectId]: { done, total } };
+    });
+  }, []);
 
   const toggleCard = (cardId) => {
     setExpandedCards(prev => {
@@ -283,6 +294,11 @@ export default function TodaysWorkScreen() {
             const cardId = `proj-${proj.id}`;
             const isOpen = expandedCards.has(cardId);
             const tasksDone = proj.tasks.filter(t => t.status === 'completed').length;
+            // Merge today's phase tasks + daily crew check counts into one
+            // progress figure so the card header shows a single source of truth.
+            const checks = checklistCounts[proj.id] || { done: 0, total: 0 };
+            const totalItems = proj.tasks.length + checks.total;
+            const doneItems = tasksDone + checks.done;
 
             return (
               <View key={cardId} style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
@@ -292,8 +308,8 @@ export default function TodaysWorkScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.cardTitle, { color: Colors.primaryText }]} numberOfLines={1}>{proj.name}</Text>
-                    {proj.tasks.length > 0 && (
-                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{tasksDone}/{proj.tasks.length} tasks</Text>
+                    {totalItems > 0 && (
+                      <Text style={[styles.cardMeta, { color: Colors.secondaryText }]}>{doneItems}/{totalItems} items</Text>
                     )}
                   </View>
                   {proj.location && (
@@ -336,6 +352,7 @@ export default function TodaysWorkScreen() {
                       ownerId={proj.user_id}
                       userRole="worker"
                       userId={profile?.id}
+                      onCountsChange={handleChecklistCounts(proj.id)}
                     />
 
                     {/* Details link */}

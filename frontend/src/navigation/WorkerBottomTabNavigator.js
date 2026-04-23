@@ -20,8 +20,8 @@ export default function WorkerBottomTabNavigator() {
       }}
     >
       <Tab.Screen name="TimeClock" component={TimeClockScreen} />
-      <Tab.Screen name="WorkerProjects" component={WorkerProjectsListScreen} />
       <Tab.Screen name="TodaysWork" component={TodaysWorkScreen} />
+      <Tab.Screen name="WorkerProjects" component={WorkerProjectsListScreen} />
     </Tab.Navigator>
   );
 }
