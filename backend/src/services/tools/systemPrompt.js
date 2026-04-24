@@ -178,6 +178,7 @@ TASK DEPTH RULE (scales with plannedDays — NOT a flat default):
 ### estimate-preview
 ONLY use when creating a NEW estimate. NEVER use for existing estimates or status queries. For existing estimate info, use text or estimate-list.
 Data: { project_id (REQUIRED if a project exists — use the full UUID from search_projects/get_project_details. Without this, the estimate won't link to the project!), estimateNumber, client, clientName, clientAddress, clientCity, clientState, clientZip, clientPhone, clientEmail, projectName, date, scope: {description, squareFootage, complexity}, items: [{index, description, quantity, unit, price, total}], subtotal, total, laborEstimate: {workersNeeded, daysNeeded, laborCost, isFromProject, reasoning} }
+UNIT RULES for items: use ONLY one of "sq ft", "linear ft", "hour", "day", "unit", "job". NEVER use "lot" (say "job" for a lump-sum line). Always write units in SINGULAR form ("day", not "days") — the UI handles pluralization.
 
 ### estimate-list
 Show when listing multiple estimates.

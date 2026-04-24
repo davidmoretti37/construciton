@@ -11,6 +11,26 @@ import { shareEstimatePDF, emailEstimatePDF, generateEstimateHTML } from '../../
 import { getUserProfile, getAverageWorkerRate } from '../../utils/storage';
 import { recordPricingCorrection, extractServiceType } from '../../services/pricingIntelligence';
 
+/**
+ * Format a unit label for display on line items.
+ * - Rewrites "lot" → "job" (users didn't recognize "lot")
+ * - Adds "s" only when the unit doesn't already end in one, so an AI that
+ *   already output "days" doesn't become "dayss"
+ * - Skips pluralization for units where it doesn't make sense (sq ft, etc.)
+ */
+const formatUnit = (rawUnit, quantity) => {
+  const base = (rawUnit || 'unit').trim().toLowerCase() === 'lot'
+    ? 'job'
+    : (rawUnit || 'unit');
+  const qty = parseFloat(quantity) || 0;
+  if (qty <= 1) return base;
+  // Already plural? Don't double up.
+  if (/s$/i.test(base)) return base;
+  // Units that don't take a trailing 's'.
+  if (/sq\s*ft|linear\s*ft|ft\b|oz|lb|kg|m\b|cm|mm/i.test(base)) return base;
+  return `${base}s`;
+};
+
 export default function EstimatePreview({ data, onAction }) {
   const { t } = useTranslation('chat');
   const { isDark = false } = useTheme() || {};
@@ -344,7 +364,7 @@ export default function EstimatePreview({ data, onAction }) {
       text += `${item.index}. ${cleanDescription}\n`;
       const itemPrice = typeof item.price === 'number' ? item.price : (parseFloat(item.price) || 0);
       const itemTotal = typeof item.total === 'number' ? item.total : (parseFloat(item.total) || 0);
-      text += `   ${item.quantity || 0} ${item.unit || 'unit'}${(item.quantity || 0) > 1 ? 's' : ''} × $${itemPrice.toFixed(2)} = $${itemTotal.toFixed(2)}\n`;
+      text += `   ${item.quantity || 0} ${formatUnit(item.unit, item.quantity)} × $${itemPrice.toFixed(2)} = $${itemTotal.toFixed(2)}\n`;
     });
 
     const totalAmount = typeof total === 'number' ? total : (parseFloat(total) || 0);
@@ -820,7 +840,7 @@ export default function EstimatePreview({ data, onAction }) {
                 </View>
               ) : (
                 <Text style={[styles.itemCalc, { color: Colors.secondaryText }]}>
-                  {item.quantity} {item.unit || 'unit'}{item.quantity > 1 ? 's' : ''} × ${(parseFloat(item.price) || 0).toFixed(2)}
+                  {item.quantity} {formatUnit(item.unit, item.quantity)} × ${(parseFloat(item.price) || 0).toFixed(2)}
                 </Text>
               )}
               <Text style={[styles.itemTotal, { color: Colors.primaryText }]}>
