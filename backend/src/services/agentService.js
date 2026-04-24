@@ -656,6 +656,19 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     { role: 'system', content: systemPrompt },
   ];
 
+  // Re-inject the top recalled IMAGES as a synthetic user message right after
+  // the system prompt. This gives the model the actual pixels of past photos
+  // (e.g. that Home Depot receipt from last week) — not just the caption text.
+  // Capped at RECALLED_IMAGE_INJECT_CAP (2) to keep input tokens sane.
+  if (recallSnapshot) {
+    const recalledImageMsg = memoryService.buildRecalledImageMessage(recallSnapshot);
+    if (recalledImageMsg) {
+      messages.push(recalledImageMsg);
+      const n = recalledImageMsg.content.filter((b) => b.type === 'image_url').length;
+      logger.info(`🧠 injected ${n} recalled image(s) into context`);
+    }
+  }
+
   // Add conversation history — pass content as-is (string or array of content blocks for vision)
   for (const msg of userMessages) {
     if (msg.role && msg.content) {

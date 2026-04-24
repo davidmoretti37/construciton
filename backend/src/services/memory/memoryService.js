@@ -31,6 +31,32 @@ const supabase = createClient(
 const EMBED_MODEL_OPENROUTER = 'openai/text-embedding-3-small';
 const EMBED_MODEL_OPENAI = 'text-embedding-3-small';
 const EMBED_DIM = 1536;
+const ATTACHMENT_BUCKET = 'chat-attachments';
+const SIGNED_URL_TTL_SECONDS = 24 * 60 * 60;  // 24h
+const RECALLED_IMAGE_INJECT_CAP = 2;          // max images re-injected per turn
+
+// Lazy bucket bootstrap — idempotent. Creates the private chat-attachments
+// bucket the first time the service is touched per process. Errors are swallowed
+// because the bucket may already exist or the service role may lack create
+// permission (in which case the admin is expected to have set it up manually).
+let _bucketChecked = false;
+async function ensureBucket() {
+  if (_bucketChecked) return;
+  _bucketChecked = true;
+  try {
+    const { data: list } = await supabase.storage.listBuckets();
+    if ((list || []).some((b) => b.name === ATTACHMENT_BUCKET)) return;
+    await supabase.storage.createBucket(ATTACHMENT_BUCKET, {
+      public: false,
+      fileSizeLimit: 25 * 1024 * 1024,
+      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif',
+                         'image/heic', 'image/heif', 'application/pdf'],
+    });
+    logger.info(`📦 created Storage bucket: ${ATTACHMENT_BUCKET}`);
+  } catch (e) {
+    logger.warn(`ensureBucket(${ATTACHMENT_BUCKET}) failed (continuing):`, e.message);
+  }
+}
 const SUMMARY_MODEL = 'anthropic/claude-haiku-4.5';
 const FACT_MODEL = 'anthropic/claude-haiku-4.5';
 const VISION_MODEL = 'anthropic/claude-haiku-4.5';
@@ -257,6 +283,32 @@ async function persistMessage({
     };
     // Compute caption + embedding for images (best-effort)
     if (att.kind === 'image' && att.base64) {
+      // Persist the actual bytes to Storage so we can re-inject the image into
+      // future turns via a signed URL. Without this, recall only ever sees the
+      // caption text and the model can't actually look at the photo again.
+      try {
+        await ensureBucket();
+        const ext = (att.mimeType?.split('/')?.[1] || 'jpg').split('+')[0];
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+        const storagePath = `${userId}/${sessionId}/${filename}`;
+        const bytes = Buffer.from(att.base64, 'base64');
+        const { error: upErr } = await supabase.storage
+          .from(ATTACHMENT_BUCKET)
+          .upload(storagePath, bytes, {
+            contentType: att.mimeType || 'image/jpeg',
+            upsert: false,
+          });
+        if (!upErr) {
+          row.bucket = ATTACHMENT_BUCKET;
+          row.storage_path = storagePath;
+          row.byte_size = bytes.byteLength;
+        } else {
+          logger.warn('chat-attachments upload failed:', upErr.message);
+        }
+      } catch (e) {
+        logger.warn('chat-attachments upload exception:', e.message);
+      }
+
       const { caption, embedding } = await embedImage({
         base64: att.base64,
         mimeType: att.mimeType,
@@ -320,7 +372,7 @@ async function recallRelevant({ userId, sessionId, query, k = 6, recentN = 12 })
 
   // Semantic recall via vector RPC
   const vec = await vectorEnabled();
-  if (vec && hasOpenAI && query) {
+  if (vec && (hasOpenRouter || hasOpenAI) && query) {
     const qEmb = await embedText(query);
     if (qEmb) {
       const { data: matches, error } = await supabase
@@ -330,6 +382,22 @@ async function recallRelevant({ userId, sessionId, query, k = 6, recentN = 12 })
         const recentIds = new Set(out.recent.map(r => r.id));
         out.semantic = matches.filter(m => !recentIds.has(m.id));
         out.userMemories = matches.filter(m => m.kind === 'user_memory');
+
+        // Eagerly sign URLs for any image attachments we recalled so callers
+        // can re-inject the actual pixels into the model's context. Falls back
+        // silently if the bucket/path is missing.
+        const attachmentMatches = out.semantic.filter(s => s.kind === 'attachment');
+        await Promise.all(attachmentMatches.map(async (a) => {
+          const bucket = a.metadata?.bucket;
+          const path = a.metadata?.storage_path;
+          if (!bucket || !path) return;
+          try {
+            const { data: signed } = await supabase.storage
+              .from(bucket)
+              .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+            if (signed?.signedUrl) a.signed_url = signed.signedUrl;
+          } catch (e) { /* ignore — caption-only fallback */ }
+        }));
       }
     }
   }
@@ -548,7 +616,40 @@ module.exports = {
   persistMessage,
   recallRelevant,
   formatRecallForPrompt,
+  buildRecalledImageMessage,
   updateRollingSummary,
   extractUserFacts,
+  ensureBucket,
   SUMMARY_EVERY_N_MESSAGES,
+  RECALLED_IMAGE_INJECT_CAP,
+  ATTACHMENT_BUCKET,
 };
+
+/**
+ * Build a synthetic Claude-format user message that re-injects the top-N
+ * recalled image attachments (with signed URLs) so the model can actually
+ * SEE them again, not just read their captions. Returns null if there are
+ * no image recalls with signed URLs.
+ *
+ * Cap is enforced via RECALLED_IMAGE_INJECT_CAP to avoid context blowout
+ * (~1500 vision tokens per Claude image). Captions are interleaved as text
+ * blocks so the model has both pixels and a textual hook for grounding.
+ */
+function buildRecalledImageMessage(recall) {
+  if (!recall?.semantic?.length) return null;
+  const images = recall.semantic
+    .filter((s) => s.kind === 'attachment' && s.signed_url)
+    .slice(0, RECALLED_IMAGE_INJECT_CAP);
+  if (images.length === 0) return null;
+
+  const blocks = [
+    { type: 'text', text: `Below ${images.length === 1 ? 'is an image' : `are ${images.length} images`} from earlier in this user's conversation history. Use them as visual context if relevant to their current question.` },
+  ];
+  for (const img of images) {
+    blocks.push({ type: 'image_url', image_url: { url: img.signed_url } });
+    if (img.content) {
+      blocks.push({ type: 'text', text: `(Caption: ${img.content})` });
+    }
+  }
+  return { role: 'user', content: blocks };
+}

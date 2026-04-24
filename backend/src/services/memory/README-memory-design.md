@@ -83,13 +83,33 @@ All three run in `Promise.allSettled` so a slow embedding call never blocks the 
 - **OpenRouter `/embeddings` returns 404/405** — silent fallback to direct OpenAI if `OPENAI_API_KEY` is set; otherwise null (recency-only recall).
 - **sessionId missing** on the agent request — `persistMessage` is a no-op; nothing breaks, but nothing is remembered either. Ensure the client always sends `sessionId` from `ChatScreen`.
 
+## Multimodal recall — pixels, not just captions
+
+Chat images are uploaded to a private Supabase Storage bucket `chat-attachments` on send. `chat_attachments.bucket` + `.storage_path` hold the location. When `recallRelevant` surfaces an old image attachment, it eagerly generates a 24h signed URL and attaches it as `signed_url` on the result row.
+
+`agentService` then calls `memoryService.buildRecalledImageMessage(recallSnapshot)` which builds a synthetic Claude-format user message:
+
+```
+{ role: 'user', content: [
+    { type: 'text', text: 'Below is an image from earlier ...' },
+    { type: 'image_url', image_url: { url: signedUrl1 } },
+    { type: 'text', text: '(Caption: ...)' },
+    { type: 'image_url', image_url: { url: signedUrl2 } },
+    { type: 'text', text: '(Caption: ...)' },
+]}
+```
+
+This message is inserted **after** the cached system prompt and **before** the latest user turn — so cache hits on the stable prefix still work, and the model sees both the actual pixels and the textual caption hook.
+
+Cap is `RECALLED_IMAGE_INJECT_CAP = 2` per turn to keep ~3000 vision tokens of overhead bounded. Storage bucket bootstrapped lazily on first call to `ensureBucket()` — idempotent, swallowed on permission errors so manual setup still works.
+
 ## What this does NOT do (intentionally)
 
-- No image upload to Supabase Storage yet — chat images still arrive as base64. Captions and embeddings are stored, but not a URL the model can re-view. Next iteration: upload on send, keep a signed URL on the `chat_attachments` row, re-inject the image back into Claude's context when recall surfaces it.
 - No cross-user memory (by design).
 - No export/delete-my-data endpoint (will add when GDPR becomes a concern).
+- No nightly cleanup of orphaned Storage objects when a session is deleted (`chat_attachments` cascades via FK; bucket files orphan). Cheap enough to defer.
 
 ## Requirements for full activation
 
 1. **Enable pgvector** in the Supabase dashboard (Database → Extensions → vector). Re-run `node backend/scripts/_apply_chat_memory.js` — the DO blocks then add the columns + RPC.
-2. Nothing else. `OPENROUTER_API_KEY` already handles embeddings, captioning, summaries, and fact extraction.
+2. Nothing else. `OPENROUTER_API_KEY` already handles embeddings, captioning, summaries, and fact extraction. The `chat-attachments` Storage bucket is created on first use by `memoryService.ensureBucket()`.
