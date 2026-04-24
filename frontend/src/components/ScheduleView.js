@@ -7,13 +7,20 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, BorderRadius, FontSizes } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { fetchTasksForWorkerDateRange, fetchTasksForDateRange, fetchProjectPhases, getCurrentUserId } from '../utils/storage';
+import { createAdHocDayTask } from '../utils/storage/workerTasks';
 import { getProjectColor } from '../utils/calendarUtils';
 import AgendaView from './schedule/AgendaView';
 import MonthGridView from './schedule/MonthGridView';
@@ -32,6 +39,17 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // Add-task modal state — single entry point in the top bar (Option A in
+  // the UX plan). Opens a modal with project + title + date so users don't
+  // get a per-day "+ Add" button polluting every section header.
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskProjectId, setNewTaskProjectId] = useState(null);
+  const [newTaskDate, setNewTaskDate] = useState(() => formatDate(new Date()));
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTaskProjectPicker, setShowTaskProjectPicker] = useState(false);
+  const [savingTask, setSavingTask] = useState(false);
 
   // Hydrate persisted UI state on mount
   useEffect(() => {
@@ -218,6 +236,53 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     setShowProjectPicker(false);
   }, []);
 
+  const openAddTask = useCallback(() => {
+    // Pre-select the filtered project (if any) so it's one less tap when
+    // the user was already narrowing by project. Default date = today.
+    setNewTaskTitle('');
+    setNewTaskProjectId(selectedProject?.id || (projects[0]?.id || null));
+    setNewTaskDate(formatDate(new Date()));
+    setShowDatePicker(false);
+    setShowTaskProjectPicker(false);
+    setShowAddTask(true);
+  }, [selectedProject, projects]);
+
+  const closeAddTask = useCallback(() => {
+    if (savingTask) return;
+    setShowAddTask(false);
+    setShowDatePicker(false);
+    setShowTaskProjectPicker(false);
+  }, [savingTask]);
+
+  const handleSaveNewTask = useCallback(async () => {
+    const title = newTaskTitle.trim();
+    if (!title) {
+      Alert.alert('Title required', 'Give the task a short name first.');
+      return;
+    }
+    if (!newTaskProjectId) {
+      Alert.alert('Project required', 'Pick which project this task belongs to.');
+      return;
+    }
+    setSavingTask(true);
+    try {
+      const created = await createAdHocDayTask(newTaskProjectId, title, newTaskDate, newTaskDate);
+      if (!created) {
+        Alert.alert("Couldn't create task", 'Something went wrong. Try again.');
+        return;
+      }
+      setShowAddTask(false);
+      await loadData();
+    } finally {
+      setSavingTask(false);
+    }
+  }, [newTaskTitle, newTaskProjectId, newTaskDate, loadData]);
+
+  const selectedTaskProject = useMemo(
+    () => projects.find((p) => p.id === newTaskProjectId) || null,
+    [projects, newTaskProjectId]
+  );
+
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: Colors.background }]}>
@@ -290,6 +355,20 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Add-task trigger — mirrors the filter button on the left so the
+            top bar reads [filter] [toggle] [+] like an iOS nav bar. One
+            tap opens a modal that picks project + title + date. No
+            collision with the screen-level quick-actions FAB. */}
+        <TouchableOpacity
+          onPress={openAddTask}
+          activeOpacity={0.7}
+          style={styles.filterButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Add task"
+        >
+          <Ionicons name="add" size={24} color={Colors.primaryBlue} />
+        </TouchableOpacity>
       </View>
 
       {/* View Content */}
@@ -298,7 +377,9 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           tasks={filteredTasks}
           theme={Colors}
           scrollToDate={selectedDate}
-          onAddTaskForDate={role !== 'worker' ? onAddTaskForDate : undefined}
+          // onAddTaskForDate intentionally omitted — the top-bar "+" button
+          // (openAddTask) is now the single entry point for creating tasks,
+          // so the in-agenda FAB would be redundant.
         />
       ) : (
         <MonthGridView
@@ -314,6 +395,162 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           }}
         />
       )}
+
+      {/* Add Task Modal — bottom sheet with Project + Title + Date */}
+      <Modal
+        visible={showAddTask}
+        animationType="slide"
+        transparent
+        onRequestClose={closeAddTask}
+      >
+        <View style={styles.addTaskBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ width: '100%' }}
+          >
+            <View style={[styles.addTaskCard, { backgroundColor: Colors.cardBackground || Colors.white }]}>
+              <View style={styles.addTaskHeader}>
+                <Text style={[styles.addTaskTitle, { color: Colors.primaryText }]}>New Task</Text>
+                <TouchableOpacity onPress={closeAddTask} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={22} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>TITLE</Text>
+                <TextInput
+                  value={newTaskTitle}
+                  onChangeText={setNewTaskTitle}
+                  placeholder="e.g. Pick up tile from supplier"
+                  placeholderTextColor={Colors.secondaryText + '80'}
+                  autoFocus
+                  style={[styles.addTaskInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveNewTask}
+                />
+
+                <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>PROJECT</Text>
+                <TouchableOpacity
+                  onPress={() => setShowTaskProjectPicker(true)}
+                  activeOpacity={0.7}
+                  style={[styles.addTaskRow, { borderColor: Colors.border, backgroundColor: Colors.background }]}
+                >
+                  {selectedTaskProject ? (
+                    <View style={[styles.projectDot, { backgroundColor: getProjectColor(selectedTaskProject.id) }]} />
+                  ) : (
+                    <Ionicons name="folder-outline" size={16} color={Colors.secondaryText} style={{ marginRight: 10 }} />
+                  )}
+                  <Text style={[styles.addTaskRowText, { color: selectedTaskProject ? Colors.primaryText : Colors.secondaryText }]}>
+                    {selectedTaskProject ? selectedTaskProject.name : 'Pick a project'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+                </TouchableOpacity>
+
+                <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>DATE</Text>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker((v) => !v)}
+                  activeOpacity={0.7}
+                  style={[styles.addTaskRow, { borderColor: Colors.border, backgroundColor: Colors.background }]}
+                >
+                  <Ionicons name="calendar-outline" size={16} color={Colors.primaryBlue} style={{ marginRight: 10 }} />
+                  <Text style={[styles.addTaskRowText, { color: Colors.primaryText }]}>
+                    {(() => {
+                      const d = new Date(newTaskDate + 'T12:00:00');
+                      const today = formatDate(new Date());
+                      const prefix = newTaskDate === today ? 'Today · ' : '';
+                      return `${prefix}${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`;
+                    })()}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={Colors.secondaryText} />
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={new Date(newTaskDate + 'T12:00:00')}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    onChange={(_event, date) => {
+                      if (Platform.OS === 'android') setShowDatePicker(false);
+                      if (date) setNewTaskDate(formatDate(date));
+                    }}
+                  />
+                )}
+
+                <View style={styles.addTaskActions}>
+                  <TouchableOpacity
+                    onPress={closeAddTask}
+                    disabled={savingTask}
+                    style={[styles.addTaskBtn, { borderColor: Colors.border, borderWidth: 1 }]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.addTaskBtnText, { color: Colors.primaryText }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSaveNewTask}
+                    disabled={savingTask || !newTaskTitle.trim() || !newTaskProjectId}
+                    style={[
+                      styles.addTaskBtn,
+                      { backgroundColor: (!newTaskTitle.trim() || !newTaskProjectId) ? Colors.primaryBlue + '60' : Colors.primaryBlue },
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    {savingTask ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={[styles.addTaskBtnText, { color: '#fff' }]}>Save</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+
+        {/* Inline project picker inside the Add-task modal. Kept separate
+            from the filter-bar project picker so it doesn't interfere
+            with the screen-level project filter. */}
+        <Modal
+          visible={showTaskProjectPicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowTaskProjectPicker(false)}
+        >
+          <View style={[styles.pickerContainer, { backgroundColor: Colors.background }]}>
+            <View style={[styles.pickerHeader, { borderBottomColor: Colors.border }]}>
+              <Text style={[styles.pickerTitle, { color: Colors.primaryText }]}>Pick Project</Text>
+              <TouchableOpacity onPress={() => setShowTaskProjectPicker(false)}>
+                <Ionicons name="close" size={24} color={Colors.primaryText} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={projects}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const isSelected = newTaskProjectId === item.id;
+                return (
+                  <TouchableOpacity
+                    style={[styles.pickerItem, isSelected && { backgroundColor: Colors.primaryBlue + '10' }]}
+                    onPress={() => {
+                      setNewTaskProjectId(item.id);
+                      setShowTaskProjectPicker(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.pickerItemLeft}>
+                      <View style={[styles.projectDot, { backgroundColor: getProjectColor(item.id) }]} />
+                      <Text style={[styles.pickerItemText, { color: Colors.primaryText }]}>{item.name}</Text>
+                    </View>
+                    {isSelected && <Ionicons name="checkmark" size={20} color={Colors.primaryBlue} />}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </Modal>
+      </Modal>
 
       {/* Project Picker Modal */}
       <Modal
@@ -382,10 +619,10 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 8,
+    gap: 10,
   },
   filterButton: {
     width: 40,
@@ -401,26 +638,28 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  // flex:1 so the toggle stretches from the filter icon all the way to the
+  // right edge of the screen. The two inner buttons split that width via
+  // their own flex weighting — active side gets flex:2 so it's ~2× the
+  // size of the inactive side (bigger "selected" pill).
   viewToggle: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderRadius: 10,
     padding: 3,
   },
   viewToggleBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
     borderRadius: 8,
     gap: 6,
-  },
-  // Active state: slightly wider padding + shadow so the pill visibly
-  // grows vs the inactive side. Label only appears when active.
-  viewToggleBtnActive: {
-    paddingHorizontal: 14,
     paddingVertical: 8,
+  },
+  viewToggleBtnActive: {
+    flex: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -467,5 +706,74 @@ const styles = StyleSheet.create({
   pickerItemText: {
     fontSize: 15,
     fontWeight: '500',
+  },
+
+  // ─── Add Task modal ───
+  addTaskBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  addTaskCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 24,
+    maxHeight: '85%',
+  },
+  addTaskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  addTaskTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  addTaskLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  addTaskInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    marginBottom: 14,
+  },
+  addTaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  addTaskRowText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  addTaskActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  addTaskBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addTaskBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
