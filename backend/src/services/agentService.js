@@ -33,6 +33,7 @@ const { buildSystemPrompt } = require('./tools/systemPrompt');
 const { routeTools } = require('./toolRouter');
 const { selectModel, trackUsage } = require('./modelRouter');
 const memory = require('./requestMemory');
+const memoryService = require('./memory/memoryService');
 
 // Supabase client for job persistence
 const supabase = createClient(
@@ -155,9 +156,25 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
 
+  // Anthropic prompt caching via OpenRouter — wrap the (large, stable) system
+  // prompt in a structured content block with cache_control. The first turn pays
+  // full input tokens + ~25% to write the cache; every later turn reads from
+  // cache at ~10% the price. Tools array is also marked when present.
+  const cachedMessages = messages.map((m, idx) => {
+    if (idx === 0 && m.role === 'system' && typeof m.content === 'string') {
+      return {
+        role: 'system',
+        content: [
+          { type: 'text', text: m.content, cache_control: { type: 'ephemeral' } },
+        ],
+      };
+    }
+    return m;
+  });
+
   const requestBody = {
     model: `anthropic/${model}`,
-    messages,
+    messages: cachedMessages,
     tools,
     max_tokens: 8000,
     temperature: 0.3,
@@ -244,6 +261,21 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
           const reason = parsed.choices?.[0]?.finish_reason;
 
           if (reason) finishReason = reason;
+
+          // Anthropic prompt-cache observability — log token mix when OpenRouter
+          // forwards the usage block (typically on the final SSE chunk).
+          if (parsed.usage) {
+            const u = parsed.usage;
+            const promptT = u.prompt_tokens ?? u.input_tokens ?? 0;
+            const completionT = u.completion_tokens ?? u.output_tokens ?? 0;
+            const cacheRead = u.prompt_tokens_details?.cached_tokens
+              ?? u.cache_read_input_tokens ?? 0;
+            const cacheWrite = u.cache_creation_input_tokens
+              ?? u.prompt_tokens_details?.cache_creation_tokens ?? 0;
+            if (cacheRead || cacheWrite) {
+              logger.info(`💰 cache: read=${cacheRead} write=${cacheWrite} prompt=${promptT} completion=${completionT}`);
+            }
+          }
 
           // Text content — extract "text" field and stream only clean text
           if (delta?.content) {
@@ -555,7 +587,7 @@ function buildToolContext(messages) {
  * @param {object} req - Express request object for disconnect detection
  * @param {string} jobId - Agent job ID for persistence
  */
-async function processAgentRequest(userMessages, userId, userContext, res, req, jobId, attachments) {
+async function processAgentRequest(userMessages, userId, userContext, res, req, jobId, attachments, sessionId) {
   const startTime = Date.now();
   const writer = createJobWriter(jobId, res);
 
@@ -597,7 +629,24 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
 
   // PHASE 4: Add memory context to system prompt
   const memoryContext = memory.getContextForPrompt(userId);
-  const systemPrompt = buildSystemPrompt(userContext) + memoryContext;
+
+  // Persistent semantic + user-level memory recall (best-effort, non-blocking).
+  // When pgvector + an embedding API key are present this surfaces past messages,
+  // image captions, and learned facts; otherwise it falls back to recency-based.
+  let recalledContext = '';
+  let recallSnapshot = null;
+  if (sessionId) {
+    try {
+      recallSnapshot = await memoryService.recallRelevant({
+        userId, sessionId, query: lastUserMsg, k: 6, recentN: 0,
+      });
+      recalledContext = memoryService.formatRecallForPrompt(recallSnapshot);
+    } catch (e) {
+      logger.warn('memoryService.recallRelevant failed:', e.message);
+    }
+  }
+
+  const systemPrompt = buildSystemPrompt(userContext) + memoryContext + recalledContext;
 
   // Log routing decisions
   logger.info(`🎯 Intent: ${intent} | Tools: ${toolCount}/34 | Model: ${model} (${reason})`);
@@ -800,6 +849,63 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       // Signal completion
       writer.emit({ type: 'done' });
       await writer.complete();
+
+      // Persist this turn's user + assistant messages to chat_messages so future
+      // turns can recall them. Fire-and-forget so the user-facing response isn't
+      // delayed. Skips silently if sessionId is missing (legacy chat path).
+      if (sessionId) {
+        const lastUser = userMessages[userMessages.length - 1];
+        const userText = typeof lastUser?.content === 'string'
+          ? lastUser.content
+          : (Array.isArray(lastUser?.content)
+              ? (lastUser.content.find(b => b.type === 'text')?.text || '')
+              : '');
+        const userAttachments = Array.isArray(attachments) ? attachments.map(a => ({
+          kind: (a.mimeType || '').startsWith('image/') ? 'image' : 'document',
+          base64: a.base64,
+          mimeType: a.mimeType,
+          metadata: { name: a.name },
+        })) : [];
+
+        // Collect structured tool_calls and tool_results from the loop's messages
+        const turnToolCalls = [];
+        const turnToolResults = [];
+        for (const m of messages) {
+          if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+            turnToolCalls.push(...m.tool_calls.map(tc => ({
+              id: tc.id, name: tc.function?.name, arguments: tc.function?.arguments,
+            })));
+          } else if (m.role === 'tool') {
+            turnToolResults.push({ tool_call_id: m.tool_call_id, content: m.content });
+          }
+        }
+
+        Promise.allSettled([
+          memoryService.persistMessage({
+            sessionId, userId, role: 'user',
+            content: userText,
+            attachments: userAttachments,
+          }),
+          memoryService.persistMessage({
+            sessionId, userId, role: 'assistant',
+            content: finalContent || '',
+            toolCalls: turnToolCalls,
+            toolResults: turnToolResults,
+          }),
+        ]).then(async () => {
+          // Async post-turn enrichment — never blocks the user.
+          try {
+            await memoryService.updateRollingSummary({ sessionId, userId });
+            const recentForFacts = [
+              { role: 'user', content: userText },
+              { role: 'assistant', content: finalContent || '' },
+            ];
+            await memoryService.extractUserFacts({ userId, sessionId, recentMessages: recentForFacts });
+          } catch (e) {
+            logger.warn('memory writeback enrichment failed:', e.message);
+          }
+        }).catch((e) => logger.warn('persistMessage failed:', e.message));
+      }
 
       // Send push notification if client disconnected during processing
       if (writer.isDisconnected()) {

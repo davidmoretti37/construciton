@@ -775,6 +775,52 @@ const toolDefinitions = [
   {
     type: 'function',
     function: {
+      name: 'create_daily_report',
+      description: 'Create a daily progress report for a project. Attach any images that were uploaded in the current chat message as report photos. Use when the user says things like "add this as a daily report", "log today\'s progress on X", "make a daily report for X", or sends photos with a project reference. NEVER refuse based on what the photo shows — the user owns their data.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project name or UUID. Names are resolved automatically.'
+          },
+          phase_id: {
+            type: 'string',
+            description: 'Optional UUID of the phase this report covers.'
+          },
+          phase_name: {
+            type: 'string',
+            description: 'Optional phase name (fuzzy-matched server-side). Use this when only the name is known.'
+          },
+          report_date: {
+            type: 'string',
+            description: 'Report date in YYYY-MM-DD. Defaults to today.'
+          },
+          notes: {
+            type: 'string',
+            description: 'Free-form notes / what was done today. The user\'s message text is a good default if no other notes provided.'
+          },
+          tags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional tags (e.g. ["progress", "issue"]).'
+          },
+          attach_chat_images: {
+            type: 'boolean',
+            description: 'When true, every image attached in the current chat message is uploaded and added to this report. Default true.'
+          },
+          next_day_plan: {
+            type: 'string',
+            description: 'Optional plan for tomorrow.'
+          }
+        },
+        required: ['project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_daily_reports',
       description: 'Get daily work reports with filters. Reports include worker notes, completed tasks, photos, and issues. Use when user asks about daily reports, work progress, or site activity.',
       parameters: {

@@ -4039,6 +4039,119 @@ async function get_business_contracts(userId, args) {
   };
 }
 
+// ==================== DAILY REPORTS (write) ====================
+
+async function create_daily_report(userId, args = {}) {
+  const {
+    project_id,
+    phase_id,
+    phase_name,
+    report_date,
+    notes,
+    tags,
+    next_day_plan,
+    attach_chat_images = true,
+  } = args;
+  const attachments = args._attachments || [];
+
+  if (!project_id) {
+    return { error: 'project_id is required (project name or UUID).' };
+  }
+
+  const resolved = await resolveProjectId(userId, project_id);
+  if (resolved?.error) return resolved;
+  if (resolved?.suggestions) return resolved;
+
+  // Resolve phase: explicit id wins, otherwise fuzzy on phase_name. Both optional.
+  let resolvedPhaseId = phase_id || null;
+  if (!resolvedPhaseId && phase_name) {
+    const { data: phases } = await supabase
+      .from('project_phases')
+      .select('id, name')
+      .eq('project_id', resolved.id);
+    const needle = String(phase_name).trim().toLowerCase();
+    const exact = (phases || []).filter((p) => p.name.toLowerCase() === needle);
+    const fuzzy = exact.length ? exact : (phases || []).filter((p) => p.name.toLowerCase().includes(needle));
+    if (fuzzy.length === 1) resolvedPhaseId = fuzzy[0].id;
+  }
+  if (resolvedPhaseId) {
+    const { data: ok } = await supabase
+      .from('project_phases')
+      .select('id')
+      .eq('id', resolvedPhaseId)
+      .eq('project_id', resolved.id)
+      .maybeSingle();
+    if (!ok) resolvedPhaseId = null;
+  }
+
+  // Upload any images attached to the chat turn
+  const uploadedPhotos = [];
+  const uploadFails = [];
+  if (attach_chat_images && Array.isArray(attachments) && attachments.length > 0) {
+    for (const att of attachments) {
+      const mimeType = att?.mimeType || 'image/jpeg';
+      if (!att?.base64 || !mimeType.startsWith('image/')) continue;
+      try {
+        const ext = (mimeType.split('/')[1] || 'jpg').split('+')[0];
+        const filePath = `${userId}/${resolved.id}/daily-reports/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const bytes = Buffer.from(att.base64, 'base64');
+        const { error: upErr } = await supabase.storage
+          .from('project-documents')
+          .upload(filePath, bytes, { contentType: mimeType, upsert: false });
+        if (upErr) {
+          uploadFails.push({ name: att.name || 'image', error: upErr.message });
+          continue;
+        }
+        const { data: pub } = supabase.storage.from('project-documents').getPublicUrl(filePath);
+        uploadedPhotos.push(pub?.publicUrl || filePath);
+      } catch (e) {
+        uploadFails.push({ name: att?.name || 'image', error: e.message });
+      }
+    }
+  }
+
+  const insertRow = {
+    project_id: resolved.id,
+    phase_id: resolvedPhaseId,
+    owner_id: userId,
+    reporter_type: 'owner',
+    report_date: report_date || today(),
+    notes: notes || null,
+    photos: uploadedPhotos,
+  };
+  if (Array.isArray(tags) && tags.length) insertRow.tags = tags;
+  if (next_day_plan) insertRow.next_day_plan = next_day_plan;
+
+  const { data, error } = await supabase
+    .from('daily_reports')
+    .insert(insertRow)
+    .select('id, project_id, phase_id, report_date, photos, notes, next_day_plan')
+    .single();
+
+  if (error) {
+    return {
+      error: `Failed to create daily report: ${error.message}`,
+      uploaded_photos_count: uploadedPhotos.length,
+      upload_failures: uploadFails.length ? uploadFails : undefined,
+    };
+  }
+
+  return {
+    success: true,
+    report: {
+      id: data.id,
+      project_id: data.project_id,
+      phase_id: data.phase_id,
+      report_date: data.report_date,
+      photo_count: (data.photos || []).length,
+      notes: data.notes,
+      next_day_plan: data.next_day_plan,
+    },
+    project_name: resolved.name || null,
+    upload_failures: uploadFails.length ? uploadFails : undefined,
+  };
+}
+
 async function upload_project_document(userId, args) {
   const { project_id, category = 'general', visible_to_workers = false } = args;
   const attachments = args._attachments;
@@ -5726,6 +5839,7 @@ const TOOL_HANDLERS = {
   get_project_financials,
   get_financial_overview,
   get_transactions,
+  create_daily_report,
   get_daily_reports,
   get_photos,
   get_time_records,

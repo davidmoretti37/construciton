@@ -1,5 +1,4 @@
 // Legacy prompt archived - now using multi-agent system via CoreAgent
-// import { getSystemPrompt } from './agentPrompt';
 import logger from '../utils/logger';
 import { supabase } from '../lib/supabase';
 import { API_URL as BACKEND_URL } from '../config/api';
