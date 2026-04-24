@@ -73,6 +73,7 @@ const ACCENT = {
 export default function OwnerDashboardScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
   const { user } = useAuth();
   const navigation = useNavigation();
   const { t } = useTranslation('owner');
@@ -683,7 +684,7 @@ export default function OwnerDashboardScreen() {
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={enterEditMode} style={styles.customizeIconBtn}>
-            <Ionicons name="grid-outline" size={22} color="#64748B" />
+            <Ionicons name="grid-outline" size={22} color={Colors.secondaryText} />
           </TouchableOpacity>
           <NotificationBell onPress={() => navigation.navigate('Notifications')} />
         </View>
@@ -720,7 +721,7 @@ export default function OwnerDashboardScreen() {
           footer={
             <View>
               <TouchableOpacity style={styles.addSlot} onPress={() => setShowAddSheet(true)}>
-                <Ionicons name="add-circle-outline" size={20} color="#94A3B8" />
+                <Ionicons name="add-circle-outline" size={20} color={Colors.placeholderText} />
                 <Text style={styles.addSlotText}>Add Widget</Text>
               </TouchableOpacity>
               <View style={{ height: 100 }} />
@@ -732,7 +733,7 @@ export default function OwnerDashboardScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryBlue} />}
         >
           {/* Company Info Card */}
           <TouchableOpacity
@@ -823,11 +824,11 @@ export default function OwnerDashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors, isDark) => StyleSheet.create({
   // Root
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: Colors.background,
   },
 
   // Header
@@ -842,19 +843,19 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#0F172A',
+    color: Colors.primaryText,
     letterSpacing: -0.5,
   },
   dateText: {
     fontSize: FontSizes.small,
-    color: '#94A3B8',
+    color: Colors.placeholderText,
     marginTop: 2,
   },
 
   // Scroll
   scroll: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     paddingTop: Spacing.md,
@@ -872,26 +873,28 @@ const styles = StyleSheet.create({
 
   // Edit mode header
   editHeader: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.cardBackground,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
   },
   editHeaderReset: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: Colors.placeholderText,
   },
   editHeaderTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
+    color: Colors.primaryText,
   },
   editHeaderDone: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#3B82F6',
+    color: Colors.primaryBlue,
   },
 
   // Edit mode list
@@ -908,7 +911,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(59, 130, 246, 0.35)',
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#3B82F6',
+    shadowColor: Colors.primaryBlue,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 8,
@@ -922,15 +925,17 @@ const styles = StyleSheet.create({
     top: -6,
     left: -6,
     zIndex: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.cardBackground,
     borderRadius: 11,
   },
 
-  // Add widget slot (edit mode)
+  // Add widget slot (edit mode) — dashed border at low contrast in dark
+  // mode is invisible, so bump to placeholderText (lighter mid-gray) when
+  // the page background is dark.
   addSlot: {
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#E5E7EB',
+    borderColor: isDark ? Colors.placeholderText : Colors.border,
     borderRadius: 16,
     height: 80,
     width: '100%',
@@ -941,7 +946,7 @@ const styles = StyleSheet.create({
   },
   addSlotText: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: Colors.placeholderText,
     marginLeft: 6,
   },
 

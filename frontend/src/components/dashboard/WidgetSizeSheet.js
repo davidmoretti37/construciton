@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getColors, LightColors } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const SIZE_META = {
   small: { letter: 'S', name: 'Small', hint: '1 column \u00B7 compact' },
@@ -15,6 +17,10 @@ const SIZE_META = {
 };
 
 export default function WidgetSizeSheet({ visible, onClose, widget, currentSize, onResize }) {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
+
   if (!widget) return null;
 
   return (
@@ -51,7 +57,7 @@ export default function WidgetSizeSheet({ visible, onClose, widget, currentSize,
                       <Text style={styles.optionHint}>{meta.hint}</Text>
                     </View>
                     {selected && (
-                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                      <Ionicons name="checkmark-circle" size={20} color={Colors.successGreen || '#10B981'} />
                     )}
                   </TouchableOpacity>
                 );
@@ -64,7 +70,7 @@ export default function WidgetSizeSheet({ visible, onClose, widget, currentSize,
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -74,7 +80,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.cardBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: 280,
@@ -83,7 +89,7 @@ const styles = StyleSheet.create({
   handle: {
     width: 36,
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 10,
@@ -96,11 +102,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    color: Colors.primaryText,
   },
   widgetName: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: Colors.secondaryText,
     marginBottom: 16,
   },
   options: {
@@ -114,12 +120,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   optionSelected: {
-    borderColor: '#0F172A',
-    backgroundColor: '#F8FAFC',
+    borderColor: Colors.primaryBlue,
+    backgroundColor: Colors.primaryBlue + '14',
   },
   optionDefault: {
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: Colors.border,
+    backgroundColor: Colors.cardBackground,
   },
   letterBox: {
     width: 32,
@@ -129,10 +135,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   letterBoxSelected: {
-    backgroundColor: '#0F172A',
+    backgroundColor: Colors.primaryBlue,
   },
   letterBoxDefault: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: Colors.lightGray,
   },
   letter: {
     fontSize: 12,
@@ -142,7 +148,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   letterDefault: {
-    color: '#94A3B8',
+    color: Colors.secondaryText,
   },
   optionInfo: {
     flex: 1,
@@ -151,10 +157,10 @@ const styles = StyleSheet.create({
   optionName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
+    color: Colors.primaryText,
   },
   optionHint: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: Colors.secondaryText,
   },
 });

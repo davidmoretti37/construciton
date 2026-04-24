@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WIDGET_PALETTES } from './widgets/widgetColors';
+import { getColors, LightColors } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const WIDGET_ICONS = {
   pnl: 'trending-up-outline',
@@ -103,6 +105,10 @@ function GradientPreview({ widgetId, size, icon }) {
 }
 
 export default function AddWidgetSheet({ visible, onClose, availableWidgets, onAdd }) {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
+  const styles = useMemo(() => createSheetStyles(Colors), [Colors]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.backdrop}>
@@ -112,7 +118,7 @@ export default function AddWidgetSheet({ visible, onClose, availableWidgets, onA
           <View style={styles.titleRow}>
             <Text style={styles.title}>Add Widget</Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} color="#94A3B8" />
+              <Ionicons name="close" size={22} color={Colors.secondaryText} />
             </TouchableOpacity>
           </View>
 
@@ -228,8 +234,8 @@ const s = StyleSheet.create({
   },
 });
 
-// Main sheet styles
-const styles = StyleSheet.create({
+// Main sheet styles — theme-aware
+const createSheetStyles = (Colors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -239,7 +245,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.cardBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: 520,
@@ -248,7 +254,7 @@ const styles = StyleSheet.create({
   handle: {
     width: 36,
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 10,
@@ -264,7 +270,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    color: Colors.primaryText,
   },
   list: {
     paddingHorizontal: 20,
@@ -275,11 +281,11 @@ const styles = StyleSheet.create({
   widgetLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
+    color: Colors.primaryText,
   },
   widgetDesc: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: Colors.secondaryText,
     marginTop: 1,
     marginBottom: 10,
   },
@@ -293,6 +299,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: Colors.secondaryText,
   },
 });

@@ -15,7 +15,8 @@ import {
   PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Spacing } from '../../constants/theme';
+import { Spacing, getColors, LightColors } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getWidgetSize, colWidth } from './WidgetGrid';
 
 const screenWidth = Dimensions.get('window').width;
@@ -105,7 +106,7 @@ function findInsertIndex(items, dropX, dropY, draggedId) {
   return Math.min(sorted[sorted.length - 1].index + 1, remaining.length);
 }
 
-function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDragMove, onDragEnd }) {
+function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDragMove, onDragEnd, badgeBg }) {
   const animX = useRef(new Animated.Value(slot.x)).current;
   const animY = useRef(new Animated.Value(slot.y)).current;
   const offsetX = useRef(0);
@@ -218,7 +219,7 @@ function DraggableWidget({ item, slot, onRemove, renderWidget, onDragStart, onDr
         {renderWidget(item)}
       </View>
       <TouchableOpacity
-        style={styles.removeBadge}
+        style={[styles.removeBadge, { backgroundColor: badgeBg }]}
         onPress={() => onRemove(item.id)}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
@@ -236,6 +237,8 @@ export default function DraggableWidgetGrid({
   renderWidget,
   footer,
 }) {
+  const { isDark = false } = useTheme() || {};
+  const Colors = getColors(isDark) || LightColors;
   const [order, setOrder] = useState(items.map(it => it.id));
   const draggingRef = useRef(null);
   const dropXRef = useRef(0);
@@ -325,6 +328,7 @@ export default function DraggableWidgetGrid({
               onDragStart={handleDragStart}
               onDragMove={handleDragMove}
               onDragEnd={handleDragEnd}
+              badgeBg={Colors.cardBackground}
             />
           );
         })}
@@ -365,7 +369,6 @@ const styles = StyleSheet.create({
     top: -6,
     left: -6,
     zIndex: 10,
-    backgroundColor: '#fff',
     borderRadius: 11,
   },
 });
