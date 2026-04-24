@@ -191,22 +191,31 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
 
   const handleViewDocument = async (doc) => {
     const { getDocumentUrl } = require('../../utils/storage/projectDocuments');
-    let fileUrl = doc.file_url;
+    const originalUrl = doc.file_url;
+    let fileUrl = originalUrl;
 
-    if (fileUrl && !fileUrl.startsWith('http')) {
-      // New format: storage path → generate signed URL
-      fileUrl = await getDocumentUrl(doc.file_url);
-    } else if (fileUrl && fileUrl.includes('/project-documents/')) {
-      // Old format: public URL that may not be accessible → extract path and sign it
-      const pathMatch = fileUrl.split('/project-documents/')[1];
-      if (pathMatch) {
-        const signedUrl = await getDocumentUrl(pathMatch);
-        if (signedUrl) fileUrl = signedUrl;
+    if (!fileUrl) {
+      console.warn('[handleViewDocument] worker doc has no file_url', doc?.id);
+      Alert.alert('Error', 'This document has no file path stored.');
+      return;
+    }
+
+    if (!fileUrl.startsWith('http')) {
+      fileUrl = await getDocumentUrl(originalUrl);
+    } else {
+      const match = fileUrl.match(/\/(project-documents|project-docs)\/(.+)$/);
+      if (match) {
+        const signed = await getDocumentUrl(match[2]);
+        if (signed) fileUrl = signed;
       }
     }
 
     if (!fileUrl) {
-      Alert.alert('Error', 'Could not load document.');
+      console.warn('[handleViewDocument] worker could not resolve signed URL for', originalUrl);
+      Alert.alert(
+        'Error',
+        `Could not load document.\n\nPath: ${originalUrl}\n\nStorage bucket may not be accessible with worker RLS.`
+      );
       return;
     }
 

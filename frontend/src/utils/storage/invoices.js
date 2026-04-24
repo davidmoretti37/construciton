@@ -481,7 +481,7 @@ export const updateInvoiceTemplate = async (templateData) => {
  * Fetch AR aging report — buckets unpaid invoices by days overdue
  * @returns {Promise<object>} Aging data grouped by client
  */
-export const fetchAgingReport = async () => {
+export const fetchAgingReport = async (projectId = null) => {
   try {
     const userId = await getCurrentUserId();
     if (!userId) return { clients: [], totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } };
@@ -494,12 +494,16 @@ export const fetchAgingReport = async () => {
       allIds = [userId, ...supervisors.map(s => s.id)];
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('invoices')
-      .select('id, invoice_number, client_name, project_name, total, amount_paid, status, due_date, created_at')
+      .select('id, invoice_number, client_name, project_name, project_id, total, amount_paid, status, due_date, created_at')
       .in('user_id', allIds)
       .in('status', ['unpaid', 'partial', 'overdue'])
       .order('due_date', { ascending: true });
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching aging data:', error);

@@ -104,23 +104,32 @@ export const uploadProjectDocument = async (projectId, fileUri, fileName, fileTy
  * @returns {Promise<string|null>} Signed URL or null on error
  */
 export const getDocumentUrl = async (filePath) => {
+  if (!filePath) {
+    console.warn('[getDocumentUrl] called with empty filePath');
+    return null;
+  }
   // Probe both buckets. ProjectBuilder uploads from the newer flow live in
   // `project-docs`; legacy uploads live in `project-documents`. We don't
   // track which bucket a row belongs to, so try each in turn.
   const buckets = ['project-docs', 'project-documents'];
-  let lastError = null;
+  const failures = [];
   for (const bucket of buckets) {
     try {
       const { data, error } = await supabase.storage
         .from(bucket)
         .createSignedUrl(filePath, 3600);
-      if (!error && data?.signedUrl) return data.signedUrl;
-      lastError = error;
+      if (!error && data?.signedUrl) {
+        return data.signedUrl;
+      }
+      failures.push(`${bucket}: ${error?.message || 'no signedUrl returned'}`);
     } catch (probeErr) {
-      lastError = probeErr;
+      failures.push(`${bucket}: ${probeErr?.message || String(probeErr)}`);
     }
   }
-  console.warn('Error creating signed URL for', filePath, ':', lastError?.message);
+  console.warn(
+    '[getDocumentUrl] FAILED to sign',
+    JSON.stringify({ filePath, failures })
+  );
   return null;
 };
 

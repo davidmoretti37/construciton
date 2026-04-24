@@ -209,9 +209,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    // paddingTop is 4px larger than paddingBottom so there's breathing room
+    // above the date label. Using padding (not margin) keeps the opaque
+    // background covering the whole sticky-header slot — previously a 4px
+    // margin created a transparent strip where scrolled-away rows peeked
+    // through.
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    marginTop: 4,
   },
   sectionDate: {
     fontSize: 15,

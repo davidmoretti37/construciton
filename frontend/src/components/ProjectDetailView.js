@@ -1231,22 +1231,35 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     if (!navigation) return;
 
     const { getDocumentUrl } = require('../utils/storage/projectDocuments');
-    let fileUrl = doc.file_url;
+    const originalUrl = doc.file_url;
+    let fileUrl = originalUrl;
 
-    if (fileUrl && !fileUrl.startsWith('http')) {
-      // New format: storage path → generate signed URL
-      fileUrl = await getDocumentUrl(doc.file_url);
-    } else if (fileUrl && fileUrl.includes('/project-documents/')) {
-      // Old format: public URL that may not be accessible → extract path and sign it
-      const pathMatch = fileUrl.split('/project-documents/')[1];
-      if (pathMatch) {
-        const signedUrl = await getDocumentUrl(pathMatch);
-        if (signedUrl) fileUrl = signedUrl;
+    if (!fileUrl) {
+      console.warn('[handleViewDocument] doc has no file_url', doc?.id);
+      Alert.alert(t('alerts.error'), 'This document has no file path stored. It may have failed to upload.');
+      return;
+    }
+
+    if (!fileUrl.startsWith('http')) {
+      // New format: stored as a bare storage path → sign it.
+      fileUrl = await getDocumentUrl(originalUrl);
+    } else {
+      // Legacy: stored as a full public URL. Extract the path after either
+      // bucket segment and sign that instead — public URLs don't work when
+      // the bucket is private.
+      const match = fileUrl.match(/\/(project-documents|project-docs)\/(.+)$/);
+      if (match) {
+        const signed = await getDocumentUrl(match[2]);
+        if (signed) fileUrl = signed;
       }
     }
 
     if (!fileUrl) {
-      Alert.alert(t('alerts.error'), 'Could not load document.');
+      console.warn('[handleViewDocument] could not resolve signed URL for', originalUrl);
+      Alert.alert(
+        t('alerts.error'),
+        `Could not load document.\n\nPath: ${originalUrl}\n\nCheck the storage bucket and RLS policies — the file may be in a bucket the signer can't read.`
+      );
       return;
     }
 

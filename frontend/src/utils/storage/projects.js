@@ -275,15 +275,20 @@ export const saveProject = async (projectData) => {
         failedPhaseIds = phaseResult.failedPhaseIds || [];
       }
 
-      // Auto-create trade budgets from phase names (seed with $0 — owner sets amounts later)
+      // Auto-create trade budgets from phase names (seed with $0 — owner sets amounts later).
+      // Skip placeholder names like "Phase 7" that come from handleAddPhase's
+      // default; those previously orphaned rows in project_trade_budgets when
+      // the user renamed or removed the phase, showing up as ghost entries in
+      // the "Other Trades" section.
       try {
+        const PLACEHOLDER_NAME = /^\s*Phase\s+\d+\s*$/i;
         const { data: existingBudgets } = await supabase
           .from('project_trade_budgets')
           .select('trade_name')
           .eq('project_id', result.id);
         const existingNames = new Set((existingBudgets || []).map(b => b.trade_name.toLowerCase()));
         const newBudgets = projectData.phases
-          .filter(p => p.name && !existingNames.has(p.name.toLowerCase()))
+          .filter(p => p.name && !PLACEHOLDER_NAME.test(p.name) && !existingNames.has(p.name.toLowerCase()))
           .map(p => ({ project_id: result.id, trade_name: p.name, budget_amount: parseFloat(p.budget) || 0 }));
         if (newBudgets.length > 0) {
           await supabase.from('project_trade_budgets').insert(newBudgets);

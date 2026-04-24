@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -29,7 +29,12 @@ export default function PayrollSummaryScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const route = useRoute();
   const { t } = useTranslation('owner');
+
+  // Optional project scope from FinancialReportScreen's By-Project view.
+  const projectId = route?.params?.projectId || null;
+  const projectName = route?.params?.projectName || null;
 
   const [period, setPeriod] = useState('month');
   const [workers, setWorkers] = useState([]);
@@ -52,7 +57,10 @@ export default function PayrollSummaryScreen() {
   const loadData = useCallback(async () => {
     try {
       const projects = await fetchProjectsForOwner();
-      const projectIds = (projects || []).map(p => p.id);
+      // Restrict to selected project when in By-Project mode.
+      const projectIds = projectId
+        ? [projectId]
+        : (projects || []).map(p => p.id);
       const projectMap = {};
       (projects || []).forEach(p => { projectMap[p.id] = p.name; });
 
@@ -68,7 +76,8 @@ export default function PayrollSummaryScreen() {
       const workerMap = {};
       (workerData || []).forEach(w => { workerMap[w.id] = w; });
 
-      // Filter labor transactions for the period
+      // Filter labor transactions for the period (project filter already
+      // applied upstream via projectIds passed to fetchAllOwnerTransactions).
       const laborTxs = transactions.filter(tx =>
         tx.type === 'expense' &&
         tx.category === 'labor' &&
@@ -138,7 +147,7 @@ export default function PayrollSummaryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [period, groupByProject]);
+  }, [period, groupByProject, projectId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -175,7 +184,12 @@ export default function PayrollSummaryScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('payroll.title')}</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('payroll.title')}</Text>
+          <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }} numberOfLines={1}>
+            {projectId ? (projectName || 'This Project') : 'All Projects'}
+          </Text>
+        </View>
         <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="download-outline" size={22} color="#1E40AF" />
         </TouchableOpacity>

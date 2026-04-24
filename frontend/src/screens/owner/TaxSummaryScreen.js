@@ -10,14 +10,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { TAX_CATEGORY_LABELS, DEFAULT_TAX_CATEGORY } from '../../constants/transactionCategories';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchAllOwnerTransactions } from '../../utils/financialReportUtils';
-import { exportTransactionsCSV } from '../../utils/csvExport';
+import { exportTransactionsCSV, export1099CSV } from '../../utils/csvExport';
 
 const formatCurrency = (amount) => {
   return `$${parseFloat(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -27,7 +27,12 @@ export default function TaxSummaryScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const route = useRoute();
   const { t } = useTranslation('owner');
+
+  // Optional project scope from FinancialReportScreen's By-Project view.
+  const projectId = route?.params?.projectId || null;
+  const projectName = route?.params?.projectName || null;
 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -40,7 +45,10 @@ export default function TaxSummaryScreen() {
   const loadData = useCallback(async () => {
     try {
       const projects = await fetchProjectsForOwner();
-      const projectIds = (projects || []).map(p => p.id);
+      // Restrict to selected project when in By-Project mode
+      const projectIds = projectId
+        ? [projectId]
+        : (projects || []).map(p => p.id);
       const transactions = await fetchAllOwnerTransactions(projectIds);
 
       const yearStart = `${selectedYear}-01-01`;
@@ -90,7 +98,7 @@ export default function TaxSummaryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedYear]);
+  }, [selectedYear, projectId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -107,6 +115,14 @@ export default function TaxSummaryScreen() {
   const handleExportCSV = useCallback(async () => {
     if (!data) return;
     await exportTransactionsCSV(data.transactions, data.projects, `tax-summary-${selectedYear}.csv`);
+  }, [data, selectedYear]);
+
+  const handleExport1099 = useCallback(async () => {
+    if (!data?.contractors?.length) return;
+    await export1099CSV(
+      data.contractors.filter(c => c.requires1099),
+      `1099-contractors-${selectedYear}.csv`
+    );
   }, [data, selectedYear]);
 
   if (loading) {
@@ -128,7 +144,17 @@ export default function TaxSummaryScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('tax.title')}</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('tax.title')}</Text>
+          <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }} numberOfLines={1}>
+            {projectId ? (projectName || 'This Project') : 'All Projects'}
+          </Text>
+        </View>
+        {contractorsAboveThreshold > 0 && (
+          <TouchableOpacity onPress={handleExport1099} style={styles.headerBtn} activeOpacity={0.7}>
+            <Ionicons name="document-text-outline" size={22} color="#EF4444" />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="download-outline" size={22} color="#1E40AF" />
         </TouchableOpacity>

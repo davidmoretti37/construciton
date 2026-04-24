@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -34,7 +34,13 @@ export default function ARAgingScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
+  const route = useRoute();
   const { t } = useTranslation('owner');
+
+  // Optional project scope — passed from FinancialReportScreen when in
+  // By-Project view. Null/undefined = company-wide (all projects).
+  const projectId = route?.params?.projectId || null;
+  const projectName = route?.params?.projectName || null;
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +49,7 @@ export default function ARAgingScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const result = await fetchAgingReport();
+      const result = await fetchAgingReport(projectId);
       setData(result);
     } catch (error) {
       console.error('Error loading aging data:', error);
@@ -51,7 +57,7 @@ export default function ARAgingScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [projectId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -97,7 +103,12 @@ export default function ARAgingScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('aging.title')}</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('aging.title')}</Text>
+          <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }} numberOfLines={1}>
+            {projectId ? (projectName || 'This Project') : 'All Projects'}
+          </Text>
+        </View>
         <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="download-outline" size={22} color="#1E40AF" />
         </TouchableOpacity>

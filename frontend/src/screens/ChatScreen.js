@@ -3546,6 +3546,17 @@ export default function ChatScreen({ navigation, route }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? -60 : 0}
       >
         <View style={{ flex: 1 }}>
+        {/* Empty-state is rendered OUTSIDE the FlatList because with
+            inverted={true}, ListEmptyComponent doesn't stretch with flex:1
+            and the greeting collapses against the floating input. */}
+        {!isLoadingChat && messages.length === 0 && (
+          <View pointerEvents="none" style={styles.emptyStateOverlay}>
+            <AnimatedText
+              text={t('welcome.title')}
+              delay={60}
+            />
+          </View>
+        )}
         <FlatList
           ref={flatListRef}
           style={styles.chatArea}
@@ -3575,14 +3586,7 @@ export default function ChatScreen({ navigation, route }) {
                   <SkeletonBox width={240} height={80} borderRadius={16} />
                 </View>
               </View>
-            ) : (
-              <View style={styles.emptyState}>
-                <AnimatedText
-                  text={t('welcome.title')}
-                  delay={60}
-                />
-              </View>
-            )
+            ) : null
           }
           ListHeaderComponent={statusMessage ? <StatusMessage message={statusMessage} /> : null}
           renderItem={({ item: message }) => (
@@ -3964,6 +3968,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 100,
     paddingHorizontal: Spacing.xl,
+  },
+  emptyStateOverlay: {
+    // Absolutely positioned so placement isn't affected by the inverted
+    // FlatList below. Anchored to ~28% from the top so the greeting sits
+    // comfortably above the screen center instead of drifting down toward
+    // the floating input bar.
+    position: 'absolute',
+    top: '28%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    zIndex: 1,
   },
   loaderContainer: {
     alignItems: 'flex-start',
