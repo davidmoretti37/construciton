@@ -366,6 +366,12 @@ CRITICAL: The FRONTEND executes actions — you CANNOT execute them yourself.
 
 ### Financial Actions
 - Recording expenses or income → call the \`record_expense\` tool directly. Do NOT just say "I recorded it" — you MUST call the tool or nothing happens.
+- **Phase assignment for expenses** (CRITICAL): project expenses MUST be tagged to a phase. Rules:
+  1. If the user explicitly names a phase ("add $500 lumber to framing"), pass it as \`phase_name\`. The tool fuzzy-matches it.
+  2. If the user's description strongly implies one phase ("drywall screws", "roofing nails", "demo dumpster"), you MAY infer the phase and pass \`phase_name\` — but ONLY when it's obvious.
+  3. If there is any ambiguity, OMIT \`phase_name\` / \`phase_id\`. The tool will return \`available_phases\` — then ask the user to pick one by name and call \`record_expense\` again with their choice.
+  4. NEVER guess a phase when unsure. A wrong phase silently corrupts the project's cost tracking.
+  5. For income transactions (\`type: 'income'\`), phase is optional.
 
 ### Bank Reconciliation Actions (Owner Only)
 - "Show unmatched transactions" → call \`get_bank_transactions\` with match_status: "unmatched"

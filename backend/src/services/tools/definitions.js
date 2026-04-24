@@ -145,6 +145,14 @@ const toolDefinitions = [
             type: 'string',
             description: 'Optional subcategory for detailed tracking. For expenses: wages, overtime, payroll_taxes, workers_comp, benefits (labor); lumber, concrete_cement, plumbing_supplies, electrical_supplies, drywall, paint, hardware, roofing, flooring, fixtures (materials); rental, purchase, fuel_gas, maintenance_repair, small_tools (equipment); sub_plumbing, sub_electrical, sub_hvac, sub_painting, sub_concrete, sub_framing, sub_roofing, sub_landscaping, sub_demolition (subcontractor); building_permit, inspection_fee, impact_fee, utility_connection (permits); office_supplies, vehicle_transport, insurance, cleanup_disposal, professional_fees (misc). For income: contract_payment, change_order, deposit, retainage_release, income_other.'
           },
+          phase_id: {
+            type: 'string',
+            description: 'UUID of the project phase this transaction belongs to. REQUIRED for expenses (unless subcategory is provided). Use phase_name instead if you only have the phase name — the backend will resolve it.'
+          },
+          phase_name: {
+            type: 'string',
+            description: 'Name of the project phase this transaction belongs to (e.g. "Demolition", "Framing", "Drywall"). Alternative to phase_id — the backend resolves the name to an id. If the name matches multiple phases, the tool returns the options so you can ask the user which one. If the user did NOT tell you which phase, do NOT guess — omit this and the tool will return the list of phases for you to ask.'
+          },
           date: {
             type: 'string',
             description: 'Transaction date in YYYY-MM-DD format. Defaults to today if not specified.'

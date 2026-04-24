@@ -2310,15 +2310,7 @@ async function share_document(userId, args) {
 
 // ==================== FINANCIAL MUTATIONS ====================
 
-async function record_expense(userId, { project_id, service_plan_name, type, amount, category, description, date, subcategory, phase_id }) {
-  // Phase/category is required for expenses (income still optional). Surface
-  // a clear error so the AI prompts the user for which phase to attribute it
-  // to instead of silently dropping the row.
-  if (type === 'expense' && !subcategory && !phase_id) {
-    return {
-      error: 'A phase (or subcategory) is required for expenses. Ask the user which phase this expense belongs to before recording it.',
-    };
-  }
+async function record_expense(userId, { project_id, service_plan_name, type, amount, category, description, date, subcategory, phase_id, phase_name }) {
   const transactionDate = date || new Date().toISOString().split('T')[0];
   let insertData = {
     created_by: userId,
@@ -2329,7 +2321,6 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
     date: transactionDate,
   };
   if (subcategory) insertData.subcategory = subcategory;
-  if (phase_id) insertData.phase_id = phase_id;
 
   let entityName = '';
   let entityFilterCol = '';
@@ -2362,6 +2353,63 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
     entityName = resolved.name || project_id;
     entityFilterCol = 'project_id';
     entityFilterId = resolved.id;
+  }
+
+  // Phase resolution (project-scoped only; service plans don't have phases).
+  // Accept either phase_id (trusted as-is) or phase_name (fuzzy-matched).
+  // For expenses we REQUIRE a phase_id or subcategory — if the AI didn't
+  // supply one, return the list of phases so it can ask the user to pick.
+  if (insertData.project_id) {
+    const { data: projectPhases } = await supabase
+      .from('project_phases')
+      .select('id, name, order_index')
+      .eq('project_id', insertData.project_id)
+      .order('order_index', { ascending: true });
+
+    if (phase_id) {
+      // Validate that the id belongs to this project
+      const match = (projectPhases || []).find((p) => p.id === phase_id);
+      if (!match) {
+        return {
+          error: `phase_id ${phase_id} does not belong to project "${entityName}". Ask the user to pick one of the phases below.`,
+          available_phases: (projectPhases || []).map((p) => ({ id: p.id, name: p.name })),
+        };
+      }
+      insertData.phase_id = match.id;
+    } else if (phase_name) {
+      const needle = String(phase_name).trim().toLowerCase();
+      const exact = (projectPhases || []).filter((p) => p.name.toLowerCase() === needle);
+      const fuzzy = exact.length > 0
+        ? exact
+        : (projectPhases || []).filter((p) => p.name.toLowerCase().includes(needle));
+      if (fuzzy.length === 0) {
+        return {
+          error: `No phase matching "${phase_name}" on project "${entityName}". Ask the user to pick one of the phases below.`,
+          available_phases: (projectPhases || []).map((p) => ({ id: p.id, name: p.name })),
+        };
+      }
+      if (fuzzy.length > 1) {
+        return {
+          error: `"${phase_name}" matches multiple phases on "${entityName}". Ask the user which one.`,
+          matching_phases: fuzzy.map((p) => ({ id: p.id, name: p.name })),
+        };
+      }
+      insertData.phase_id = fuzzy[0].id;
+    }
+
+    if (type === 'expense' && !subcategory && !insertData.phase_id) {
+      return {
+        error: 'A phase is required for this expense. Ask the user which phase to assign it to — list the phases below and let them choose.',
+        available_phases: (projectPhases || []).map((p) => ({ id: p.id, name: p.name })),
+        needs_clarification: 'phase',
+      };
+    }
+  } else if (type === 'expense' && !subcategory) {
+    // Service-plan expense — no phases to pick from, require subcategory.
+    return {
+      error: 'A subcategory is required for service-plan expenses. Ask the user what kind of expense this is (e.g. materials, labor, equipment).',
+      needs_clarification: 'subcategory',
+    };
   }
 
   const { data, error } = await supabase
