@@ -708,11 +708,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
     const newCompleted = !task.completed;
 
-    // Optimistic UI update — instant feedback
+    // Optimistic UI update — instant feedback. Set both `completed` AND
+    // `status` so getTaskStatus() (constants/theme.js:146) — which checks
+    // status first — returns 'done' and the PhaseTimeline row flips its
+    // checkmark + strikethrough right away, not just the progress bar.
     setPhases(prev => prev.map(p => {
       if (p.id !== phase.id) return p;
       const updatedTasks = p.tasks.map(t =>
-        t.workerTaskId === task.workerTaskId ? { ...t, completed: newCompleted } : t
+        t.workerTaskId === task.workerTaskId
+          ? { ...t, completed: newCompleted, status: newCompleted ? 'done' : 'not_started' }
+          : t
       );
       const completedCount = updatedTasks.filter(t => t.completed).length;
       return {

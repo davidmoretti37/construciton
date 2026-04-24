@@ -476,6 +476,14 @@ export const fetchProjectPhases = async (projectId) => {
             if (taskStatusMap.hasOwnProperty(phaseTaskId)) {
               task.completed = taskStatusMap[phaseTaskId].completed;
               task.workerTaskId = taskStatusMap[phaseTaskId].workerTaskId;
+              // Keep `status` in sync with `completed`. PhaseTimeline's
+              // getTaskStatus() helper (constants/theme.js:146) checks
+              // `status` FIRST and only falls back to `completed`. If
+              // the JSONB status field was frozen at 'not_started' on
+              // creation, the checkmark would never render even though
+              // the DB flipped. Writing status here keeps the two
+              // fields in lock-step.
+              task.status = task.completed ? 'done' : 'not_started';
               matched = true;
               break;
             }
@@ -493,6 +501,7 @@ export const fetchProjectPhases = async (projectId) => {
             if (titleKey && titleToWorkerTask[titleKey]) {
               task.completed = titleToWorkerTask[titleKey].completed;
               task.workerTaskId = titleToWorkerTask[titleKey].workerTaskId;
+              task.status = task.completed ? 'done' : 'not_started';
             }
           }
 
