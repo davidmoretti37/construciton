@@ -1936,7 +1936,8 @@ export const sendAgentMessage = async (
   context,
   images = [],
   callbacks,
-  rawAttachments = []
+  rawAttachments = [],
+  sessionId = null
 ) => {
   const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onAbortRef } = callbacks;
   const startTime = Date.now();
@@ -2200,6 +2201,7 @@ export const sendAgentMessage = async (
       user_id: userId,
       context: context || {},
       attachments: rawAttachments.length > 0 ? rawAttachments : undefined,
+      sessionId: sessionId || undefined,
     }));
   });
 };

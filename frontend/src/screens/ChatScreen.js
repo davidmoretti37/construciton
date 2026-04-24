@@ -1490,7 +1490,8 @@ export default function ChatScreen({ navigation, route }) {
           }
         }
         },
-        rawAttachmentsForUpload
+        rawAttachmentsForUpload,
+        currentSessionIdRef.current
       );
     } catch (error) {
       console.error('Error calling AI:', error);

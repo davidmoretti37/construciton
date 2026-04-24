@@ -28,7 +28,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const EMBED_MODEL = 'text-embedding-3-small';
+const EMBED_MODEL_OPENROUTER = 'openai/text-embedding-3-small';
+const EMBED_MODEL_OPENAI = 'text-embedding-3-small';
 const EMBED_DIM = 1536;
 const SUMMARY_MODEL = 'anthropic/claude-haiku-4.5';
 const FACT_MODEL = 'anthropic/claude-haiku-4.5';
@@ -63,29 +64,66 @@ const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
 // Embeddings
 // ============================================================
 
+/**
+ * Embed text to a 1536-d vector via OpenRouter first (reuses the existing
+ * OPENROUTER_API_KEY — no new credential to manage), with a fallback to
+ * direct OpenAI when OPENAI_API_KEY is set. Returns null on any failure
+ * so callers can gracefully degrade to recency-based recall.
+ */
 async function embedText(text) {
-  if (!hasOpenAI || !text || typeof text !== 'string') return null;
+  if (!text || typeof text !== 'string') return null;
   const cleaned = text.trim().slice(0, 8000);
   if (!cleaned) return null;
-  try {
-    const res = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({ model: EMBED_MODEL, input: cleaned }),
-    });
-    if (!res.ok) {
-      logger.warn(`embedText failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+
+  // Primary: OpenRouter's OpenAI-compatible /embeddings endpoint.
+  if (hasOpenRouter) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://construction-manager.app',
+          'X-Title': 'Construction Manager - Memory',
+        },
+        body: JSON.stringify({ model: EMBED_MODEL_OPENROUTER, input: cleaned }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const v = json.data?.[0]?.embedding;
+        if (Array.isArray(v) && v.length === EMBED_DIM) return v;
+      } else if (res.status !== 404 && res.status !== 405) {
+        // 404/405 means the endpoint isn't available — don't spam logs.
+        logger.warn(`embedText OpenRouter failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+      }
+    } catch (e) {
+      logger.warn('embedText OpenRouter error:', e.message);
+    }
+  }
+
+  // Fallback: direct OpenAI.
+  if (hasOpenAI) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({ model: EMBED_MODEL_OPENAI, input: cleaned }),
+      });
+      if (!res.ok) {
+        logger.warn(`embedText OpenAI failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+        return null;
+      }
+      const json = await res.json();
+      return json.data?.[0]?.embedding || null;
+    } catch (e) {
+      logger.warn('embedText OpenAI error:', e.message);
       return null;
     }
-    const json = await res.json();
-    return json.data?.[0]?.embedding || null;
-  } catch (e) {
-    logger.warn('embedText error:', e.message);
-    return null;
   }
+  return null;
 }
 
 async function captionImage({ base64, mimeType }) {
@@ -176,7 +214,7 @@ async function persistMessage({
     const embedding = await embedText(safeContent);
     if (embedding) {
       insertRow.embedding = embedding;
-      insertRow.embedding_model = EMBED_MODEL;
+      insertRow.embedding_model = hasOpenRouter ? EMBED_MODEL_OPENROUTER : EMBED_MODEL_OPENAI;
     }
   }
 
