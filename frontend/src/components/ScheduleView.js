@@ -7,8 +7,6 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
-  TextInput,
-  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,24 +19,12 @@ import AgendaView from './schedule/AgendaView';
 import MonthGridView from './schedule/MonthGridView';
 
 const STORAGE_KEY_VIEW_MODE = 'schedule.viewMode.v1';
-const STORAGE_KEY_STATUS = 'schedule.statusFilter.v1';
-
-const STATUS_FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'today', label: 'Today' },
-  { id: 'week', label: 'This week' },
-  { id: 'overdue', label: 'Overdue' },
-  { id: 'done', label: 'Done' },
-];
 
 export default function ScheduleView({ navigation, role = 'worker', onAddTaskForDate }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
   const [viewMode, setViewMode] = useState('agenda'); // 'agenda' | 'month'
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -51,30 +37,15 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   useEffect(() => {
     (async () => {
       try {
-        const [savedView, savedStatus] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEY_VIEW_MODE),
-          AsyncStorage.getItem(STORAGE_KEY_STATUS),
-        ]);
+        const savedView = await AsyncStorage.getItem(STORAGE_KEY_VIEW_MODE);
         if (savedView === 'agenda' || savedView === 'month') setViewMode(savedView);
-        if (savedStatus && STATUS_FILTERS.some((s) => s.id === savedStatus)) setStatusFilter(savedStatus);
       } catch (_) { /* AsyncStorage hydration is best-effort */ }
     })();
   }, []);
 
-  // Debounce search to avoid filtering on every keystroke
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim().toLowerCase()), 250);
-    return () => clearTimeout(t);
-  }, [searchQuery]);
-
   const persistViewMode = useCallback((mode) => {
     setViewMode(mode);
     AsyncStorage.setItem(STORAGE_KEY_VIEW_MODE, mode).catch(() => {});
-  }, []);
-
-  const persistStatus = useCallback((id) => {
-    setStatusFilter(id);
-    AsyncStorage.setItem(STORAGE_KEY_STATUS, id).catch(() => {});
   }, []);
 
   // Load data
@@ -221,47 +192,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     loadData();
   }, [loadData]);
 
-  // Compute today / week boundaries once per filter pass
+  // Only filter left is "which project" — status/time filters were removed
+  // in favor of the agenda's own visual grouping (Today / Tomorrow /
+  // weekday sections make date-based filters redundant).
   const filteredTasks = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = formatDate(today);
-    const weekEnd = new Date(today);
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    const weekEndStr = formatDate(weekEnd);
-
-    return tasks.filter((t) => {
-      // Project filter
-      if (selectedProject && t.project_id !== selectedProject.id) return false;
-
-      // Search filter (title, project name, description)
-      if (debouncedSearch) {
-        const hay = `${t.title || ''} ${t.projects?.name || ''} ${t.description || ''}`.toLowerCase();
-        if (!hay.includes(debouncedSearch)) return false;
-      }
-
-      // Status / range filter
-      const start = t.start_date;
-      const end = t.end_date || t.start_date;
-      if (!start) return statusFilter === 'all' || statusFilter === 'done';
-
-      const isDone = t.status === 'done' || t.status === 'completed';
-
-      switch (statusFilter) {
-        case 'today':
-          return start <= todayStr && end >= todayStr && !isDone;
-        case 'week':
-          return start <= weekEndStr && end >= todayStr && !isDone;
-        case 'overdue':
-          return end < todayStr && !isDone;
-        case 'done':
-          return isDone;
-        case 'all':
-        default:
-          return true;
-      }
-    });
-  }, [tasks, selectedProject, debouncedSearch, statusFilter]);
+    if (!selectedProject) return tasks;
+    return tasks.filter((t) => t.project_id === selectedProject.id);
+  }, [tasks, selectedProject]);
 
   const handleDayPress = useCallback((dateStr) => {
     setSelectedDate(dateStr);
@@ -291,110 +228,66 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
 
   return (
     <View style={[styles.container, { backgroundColor: Colors.background }]}>
-      {/* Search bar */}
-      <View style={[styles.searchBar, { backgroundColor: Colors.lightGray }]}>
-        <Ionicons name="search" size={16} color={Colors.secondaryText} />
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search tasks…"
-          placeholderTextColor={Colors.placeholderText}
-          style={[styles.searchInput, { color: Colors.primaryText }]}
-          returnKeyType="search"
-          autoCorrect={false}
-        />
-        {searchQuery !== '' && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close-circle" size={16} color={Colors.secondaryText} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Chip row: status filters + project chip + view toggle */}
-      <View style={styles.chipRow}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipScroll}
+      {/* Top bar: [filter icon] · [Agenda / Month segmented toggle].
+          Matches the OwnerProjectsScreen filter-button pattern exactly
+          (40×40 icon, small active-state dot badge). The Agenda/Month
+          toggle emphasizes the active mode by growing its pill and
+          showing its label while shrinking the inactive one. */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          onPress={() => setShowProjectPicker(true)}
+          activeOpacity={0.7}
+          style={styles.filterButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          {STATUS_FILTERS.map((f) => {
-            const active = statusFilter === f.id;
-            return (
-              <TouchableOpacity
-                key={f.id}
-                onPress={() => persistStatus(f.id)}
-                activeOpacity={0.7}
-                style={[
-                  styles.chip,
-                  { backgroundColor: active ? Colors.primaryBlue : Colors.lightGray },
-                ]}
-              >
-                <Text style={[
-                  styles.chipText,
-                  { color: active ? Colors.white : Colors.primaryText },
-                ]}>
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          <Ionicons
+            name="filter"
+            size={20}
+            color={selectedProject ? Colors.primaryBlue : Colors.secondaryText}
+          />
+          {selectedProject && (
+            <View style={[styles.filterDot, { backgroundColor: Colors.primaryBlue }]} />
+          )}
+        </TouchableOpacity>
 
-          {/* Project picker chip */}
-          <TouchableOpacity
-            onPress={() => setShowProjectPicker(true)}
-            activeOpacity={0.7}
-            style={[
-              styles.chip,
-              styles.projectChip,
-              { backgroundColor: selectedProject ? Colors.primaryBlue + '14' : Colors.lightGray, borderColor: selectedProject ? Colors.primaryBlue + '40' : 'transparent' },
-            ]}
-          >
-            {selectedProject ? (
-              <View style={[styles.projectChipDot, { backgroundColor: getProjectColor(selectedProject.id) }]} />
-            ) : (
-              <Ionicons name="folder-open-outline" size={13} color={Colors.secondaryText} style={{ marginRight: 6 }} />
-            )}
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.chipText,
-                { color: selectedProject ? Colors.primaryBlue : Colors.primaryText, maxWidth: 110 },
-              ]}
-            >
-              {selectedProject ? selectedProject.name : 'All projects'}
-            </Text>
-            <Ionicons
-              name="chevron-down"
-              size={12}
-              color={selectedProject ? Colors.primaryBlue : Colors.secondaryText}
-              style={{ marginLeft: 4 }}
-            />
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* View toggle — icon buttons */}
         <View style={[styles.viewToggle, { backgroundColor: Colors.lightGray }]}>
           <TouchableOpacity
             onPress={() => persistViewMode('agenda')}
-            style={[styles.viewToggleBtn, viewMode === 'agenda' && { backgroundColor: Colors.white, shadowOpacity: 0.06 }]}
             activeOpacity={0.7}
+            style={[
+              styles.viewToggleBtn,
+              viewMode === 'agenda' && [styles.viewToggleBtnActive, { backgroundColor: Colors.white }],
+            ]}
           >
             <Ionicons
               name="list"
-              size={16}
+              size={viewMode === 'agenda' ? 16 : 14}
               color={viewMode === 'agenda' ? Colors.primaryBlue : Colors.secondaryText}
             />
+            {viewMode === 'agenda' && (
+              <Text style={[styles.viewToggleLabel, { color: Colors.primaryBlue }]}>
+                Agenda
+              </Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => persistViewMode('month')}
-            style={[styles.viewToggleBtn, viewMode === 'month' && { backgroundColor: Colors.white, shadowOpacity: 0.06 }]}
             activeOpacity={0.7}
+            style={[
+              styles.viewToggleBtn,
+              viewMode === 'month' && [styles.viewToggleBtnActive, { backgroundColor: Colors.white }],
+            ]}
           >
             <Ionicons
               name="grid"
-              size={15}
+              size={viewMode === 'month' ? 16 : 14}
               color={viewMode === 'month' ? Colors.primaryBlue : Colors.secondaryText}
             />
+            {viewMode === 'month' && (
+              <Text style={[styles.viewToggleLabel, { color: Colors.primaryBlue }]}>
+                Month
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -486,73 +379,58 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  searchBar: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: BorderRadius.sm,
+    paddingTop: 10,
+    paddingBottom: 8,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    paddingVertical: 0,
-  },
-  chipRow: {
-    flexDirection: 'row',
+  filterButton: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    paddingLeft: 16,
-    paddingRight: 12,
-    marginBottom: 6,
-    gap: 8,
+    justifyContent: 'center',
   },
-  chipScroll: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 8,
-    gap: 6,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.pill,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  projectChip: {
-    paddingHorizontal: 10,
-  },
-  projectChipDot: {
+  filterDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 6,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   viewToggle: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.sm,
-    padding: 2,
-    marginLeft: 4,
+    alignItems: 'center',
+    borderRadius: 10,
+    padding: 3,
   },
   viewToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 6,
+  },
+  // Active state: slightly wider padding + shadow so the pill visibly
+  // grows vs the inactive side. Label only appears when active.
+  viewToggleBtnActive: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0,
-    shadowRadius: 2,
-    elevation: 0,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  viewToggleLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
   pickerContainer: {
     flex: 1,

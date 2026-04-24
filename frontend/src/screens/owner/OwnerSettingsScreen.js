@@ -452,15 +452,61 @@ export default function OwnerSettingsScreen() {
           )}
         </View>
 
-        {/* Documents & Financials */}
+        {/* ────────────────── MY BUSINESS ────────────────── */}
+        {/* Services + Clients live together: they're the "what you sell / who
+            you sell to" half of a service business, matching the pattern
+            used by Jobber, Square, and HouseCall Pro. */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.documents', 'DOCUMENTS & FINANCIALS')}
+          {t('sections.business', 'MY BUSINESS')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+          <MenuItem
+            icon="people-outline"
+            iconColor={OWNER_COLORS.primary}
+            title={t('items.manageClients', 'Clients')}
+            subtitle={t('items.manageClientsSubtitle', 'View and manage your clients')}
+            onPress={() => navigation.navigate('Clients')}
+          />
+          {userServices && userServices.length > 0 ? (
+            userServices.map((userService) => {
+              const service = userService.service_categories;
+              if (!service) return null;
+              return (
+                <MenuItem
+                  key={userService.id}
+                  icon={service.icon || 'briefcase-outline'}
+                  iconColor={OWNER_COLORS.success}
+                  title={service.name}
+                  onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
+                />
+              );
+            })
+          ) : null}
+          <MenuItem
+            icon="add-circle-outline"
+            iconColor={OWNER_COLORS.primary}
+            title={
+              userServices && userServices.length > 0
+                ? t('items.addNewService', 'Add another service')
+                : t('items.addFirstService', 'Add a service')
+            }
+            onPress={() => navigation.navigate('AddService')}
+            isLast
+          />
+        </View>
+
+        {/* ────────────────── DOCUMENTS ────────────────── */}
+        {/* Libraries of generated paperwork. Invoice Template sits at the
+            bottom because it's the "how future invoices look" setting,
+            distinct from the Invoices library of actual records. */}
+        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+          {t('sections.documents', 'DOCUMENTS')}
         </Text>
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <MenuItem
             icon="images-outline"
             iconColor={OWNER_COLORS.primary}
-            title={t('items.pictures', 'Pictures')}
+            title={t('items.pictures', 'Photos')}
             onPress={() => navigation.navigate('Pictures')}
           />
           <MenuItem
@@ -483,101 +529,57 @@ export default function OwnerSettingsScreen() {
           />
           <MenuItem
             icon="color-palette-outline"
-            iconColor="#8B5CF6"
+            iconColor={OWNER_COLORS.accent}
             title={t('items.invoiceTemplate', 'Invoice Template')}
-            subtitle="Customize logo, info & terms"
+            subtitle={t('items.invoiceTemplateSubtitle', 'Logo, business info, terms')}
             onPress={() => navigation.navigate('InvoiceTemplate')}
             isLast
           />
         </View>
 
-        {/* Services */}
+        {/* ────────────────── MONEY ────────────────── */}
+        {/* Everything that moves money: subscription (paying us), Stripe
+            Connect (getting paid by clients), and bank feed (tracking). */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.services', 'YOUR SERVICES')}
-        </Text>
-        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-          {userServices && userServices.length > 0 ? (
-            userServices.map((userService, index) => {
-              const service = userService.service_categories;
-              if (!service) return null;
-              return (
-                <MenuItem
-                  key={userService.id}
-                  icon={service.icon || 'briefcase-outline'}
-                  iconColor={OWNER_COLORS.success}
-                  title={service.name}
-                  onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
-                  isLast={index === userServices.length - 1}
-                />
-              );
-            })
-          ) : (
-            <View style={styles.emptyServices}>
-              <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                {t('business.noServices', 'No services added yet')}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.addServiceBtn, { borderColor: OWNER_COLORS.primary }]}
-          onPress={() => navigation.navigate('AddService')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={OWNER_COLORS.primary} />
-          <Text style={[styles.addServiceText, { color: OWNER_COLORS.primary }]}>
-            {t('items.addNewService', 'Add New Service')}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Clients */}
-        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.clients', 'CLIENTS')}
-        </Text>
-        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-          <MenuItem
-            icon="people-outline"
-            iconColor={OWNER_COLORS.primary}
-            title={t('items.manageClients', 'Manage Clients')}
-            subtitle="View all clients, stats & quick actions"
-            onPress={() => navigation.navigate('Clients')}
-            isLast
-          />
-        </View>
-
-        {/* Account */}
-        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.account', 'ACCOUNT')}
+          {t('sections.money', 'MONEY')}
         </Text>
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <MenuItem
             icon="diamond-outline"
             iconColor={OWNER_COLORS.accent}
-            title={t('subscription.title', 'Subscription')}
+            title={t('subscription.title', 'Subscription Plan')}
             subtitle={t('subscription.managePlan', 'Manage your plan')}
             onPress={() => navigation.navigate('SubscriptionSettings')}
           />
           <MenuItem
             icon="cash-outline"
             iconColor="#059669"
-            title="Receive Payments"
-            subtitle={connectStatus?.onboardingComplete ? `Payments Active ✓${connectStatus?.bankLast4 ? ` · ••${connectStatus.bankLast4}` : ''}` : connectStatus?.accountId ? 'Verification in progress...' : 'Connect bank to get paid'}
+            title={t('items.receivePayments', 'Receive Payments')}
+            subtitle={
+              connectStatus?.onboardingComplete
+                ? `Active ✓${connectStatus?.bankLast4 ? ` · ••${connectStatus.bankLast4}` : ''}`
+                : connectStatus?.accountId
+                  ? 'Verification in progress…'
+                  : t('items.receivePaymentsSubtitle', 'Connect bank to get paid')
+            }
             onPress={handleConnectPayments}
           />
           <MenuItem
             icon="card-outline"
             iconColor={OWNER_COLORS.primary}
-            title="Track Transactions"
-            subtitle="Bank & card integration"
+            title={t('items.trackTransactions', 'Bank & Transactions')}
+            subtitle={t('items.trackTransactionsSubtitle', 'Connect your bank or card')}
             onPress={() => navigation.navigate('BankConnection')}
             isLast
           />
         </View>
 
-        {/* Preferences */}
+        {/* ────────────────── APP ────────────────── */}
+        {/* How the app itself behaves — alerts, language, theme. iOS
+            Settings and Jobber both keep these in a dedicated group
+            separate from anything business-level. */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.preferences', 'PREFERENCES')}
+          {t('sections.app', 'APP')}
         </Text>
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <MenuItem
@@ -617,15 +619,18 @@ export default function OwnerSettingsScreen() {
           />
         </View>
 
-        {/* Support */}
+        {/* ────────────────── HELP ────────────────── */}
+        {/* Consolidated from the old Support + About groups — About drops
+            to the footer below where it belongs. */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.support', 'SUPPORT')}
+          {t('sections.help', 'HELP')}
         </Text>
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <MenuItem
             icon="help-circle-outline"
             iconColor={OWNER_COLORS.primary}
             title={t('help', 'Help & Support')}
+            subtitle={t('support.helpSubtitle', 'Email the team')}
             onPress={() => Linking.openURL('mailto:support@sylkapp.ai')}
           />
           <MenuItem
@@ -643,28 +648,6 @@ export default function OwnerSettingsScreen() {
           />
         </View>
 
-        {/* About */}
-        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.about', 'ABOUT')}
-        </Text>
-        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-          <View style={styles.aboutRow}>
-            <Text style={[styles.aboutLabel, { color: Colors.secondaryText }]}>
-              {t('about.version', 'Version')}
-            </Text>
-            <Text style={[styles.aboutValue, { color: Colors.primaryText }]}>1.0.0</Text>
-          </View>
-          <View style={[styles.aboutDivider, { backgroundColor: Colors.border + '60' }]} />
-          <View style={styles.aboutRow}>
-            <Text style={[styles.aboutLabel, { color: Colors.secondaryText }]}>
-              {t('appName', 'Foreman')}
-            </Text>
-            <Text style={[styles.aboutValue, { color: Colors.primaryText }]}>
-              {t('about.madeWith', 'Made with love')}
-            </Text>
-          </View>
-        </View>
-
         {/* Logout */}
         <TouchableOpacity
           style={[styles.logoutBtn, { backgroundColor: OWNER_COLORS.danger + '10' }]}
@@ -676,6 +659,12 @@ export default function OwnerSettingsScreen() {
             {t('account.logout', 'Log Out')}
           </Text>
         </TouchableOpacity>
+
+        {/* App version footer — tiny, no card, no ceremony. iOS Settings
+            puts app version exactly this way at the very bottom. */}
+        <Text style={[styles.versionFooter, { color: Colors.secondaryText }]}>
+          {t('appName', 'Foreman')} · {t('about.version', 'Version')} 1.0.0
+        </Text>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -907,22 +896,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
   },
-  addServiceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    marginBottom: 12,
-    gap: 8,
-  },
-  addServiceText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-
   // Theme Toggle
   themeToggle: {
     width: 36,
@@ -934,26 +907,6 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-  },
-
-  // About
-  aboutRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  aboutDivider: {
-    height: 1,
-    marginHorizontal: 14,
-  },
-  aboutLabel: {
-    fontSize: 14,
-  },
-  aboutValue: {
-    fontSize: 14,
-    fontWeight: '500',
   },
 
   // Logout
@@ -969,5 +922,14 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+
+  // Version footer — tiny caption below Logout. iOS-style minimal.
+  versionFooter: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 18,
+    marginBottom: 4,
+    letterSpacing: 0.2,
   },
 });

@@ -355,15 +355,64 @@ export default function MoreScreen({ navigation }) {
           )}
         </View>
 
-        {/* Documents & Financials */}
+        {/* ────────────────── MY BUSINESS ────────────────── */}
+        {/* Hidden entirely for supervisors — they don't own services or
+            client relationships. Owners see services + clients grouped
+            together (the "what you sell / who you sell to" pair). */}
+        {!isSupervisor && (
+          <>
+            <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+              {t('sections.business', 'MY BUSINESS')}
+            </Text>
+            <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+              <MenuItem
+                icon="people-outline"
+                iconColor={Colors.primaryBlue}
+                title={t('items.manageClients', 'Clients')}
+                subtitle={t('items.manageClientsSubtitle', 'View and manage your clients')}
+                onPress={() => navigation.navigate('Clients')}
+              />
+              {userServices && userServices.length > 0
+                ? userServices.map((userService) => {
+                    const service = userService.service_categories;
+                    if (!service) return null;
+                    return (
+                      <MenuItem
+                        key={userService.id}
+                        icon={service.icon || 'briefcase-outline'}
+                        iconColor={Colors.success}
+                        title={service.name}
+                        onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
+                      />
+                    );
+                  })
+                : null}
+              <MenuItem
+                icon="add-circle-outline"
+                iconColor={Colors.primaryBlue}
+                title={
+                  userServices && userServices.length > 0
+                    ? t('items.addNewService', 'Add another service')
+                    : t('items.addFirstService', 'Add a service')
+                }
+                onPress={() => navigation.navigate('AddService')}
+                isLast
+              />
+            </View>
+          </>
+        )}
+
+        {/* ────────────────── DOCUMENTS ────────────────── */}
+        {/* Supervisors see photos + contracts (what they need on site).
+            Owners also see estimates + invoices + the invoice template. */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.documents', 'DOCUMENTS & FINANCIALS')}
+          {t('sections.documents', 'DOCUMENTS')}
         </Text>
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <MenuItem
             icon="images-outline"
             iconColor={Colors.primaryBlue}
-            title={t('items.pictures', 'Pictures')}
+            title={t('items.pictures', 'Photos')}
             onPress={() => navigation.navigate('Pictures')}
           />
           <MenuItem
@@ -386,67 +435,32 @@ export default function MoreScreen({ navigation }) {
                 iconColor={Colors.warning}
                 title={t('items.invoices', 'Invoices')}
                 onPress={() => navigation.navigate('InvoicesDetail')}
+              />
+              <MenuItem
+                icon="color-palette-outline"
+                iconColor={Colors.accent || '#8B5CF6'}
+                title={t('items.invoiceTemplate', 'Invoice Template')}
+                subtitle={t('items.invoiceTemplateSubtitle', 'Logo, business info, terms')}
+                onPress={() => navigation.navigate('InvoiceTemplate')}
                 isLast
               />
             </>
           )}
         </View>
 
-        {/* Services - Hidden for supervisors */}
+        {/* ────────────────── MONEY ────────────────── */}
+        {/* Owners only. Subscription + Stripe Connect + bank live together
+            because they're all "money infrastructure". */}
         {!isSupervisor && (
           <>
             <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-              {t('sections.business', 'YOUR SERVICES')}
-            </Text>
-            <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-              {userServices && userServices.length > 0 ? (
-                userServices.map((userService, index) => {
-                  const service = userService.service_categories;
-                  if (!service) return null;
-                  return (
-                    <MenuItem
-                      key={userService.id}
-                      icon={service.icon || 'briefcase-outline'}
-                      iconColor={Colors.success}
-                      title={service.name}
-                      onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
-                      isLast={index === userServices.length - 1}
-                    />
-                  );
-                })
-              ) : (
-                <View style={styles.emptyServices}>
-                  <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
-                    {t('business.noServices', 'No services added yet')}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.addServiceBtn, { borderColor: Colors.primaryBlue }]}
-              onPress={() => navigation.navigate('AddService')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.addServiceText, { color: Colors.primaryBlue }]}>
-                {t('items.addNewService', 'Add New Service')}
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* Account - Hidden for supervisors */}
-        {!isSupervisor && (
-          <>
-            <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-              {t('sections.account', 'ACCOUNT')}
+              {t('sections.money', 'MONEY')}
             </Text>
             <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
               <MenuItem
                 icon="diamond-outline"
                 iconColor={Colors.accent || '#8B5CF6'}
-                title={t('subscription.title', 'Subscription')}
+                title={t('subscription.title', 'Subscription Plan')}
                 subtitle={t('subscription.managePlan', 'Manage your plan')}
                 onPress={() => navigation.navigate('SubscriptionSettings')}
                 isLast
@@ -455,9 +469,11 @@ export default function MoreScreen({ navigation }) {
           </>
         )}
 
-        {/* Preferences */}
+        {/* ────────────────── APP ────────────────── */}
+        {/* App-level preferences, matching iOS Settings + Jobber's
+            separation between app behavior and business data. */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.preferences', 'PREFERENCES')}
+          {t('sections.app', 'APP')}
         </Text>
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <MenuItem
@@ -497,26 +513,31 @@ export default function MoreScreen({ navigation }) {
           />
         </View>
 
-        {/* About & Account */}
+        {/* ────────────────── HELP ────────────────── */}
         <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
-          {t('sections.about', 'ABOUT')}
+          {t('sections.help', 'HELP')}
         </Text>
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-          <View style={styles.aboutRow}>
-            <Text style={[styles.aboutLabel, { color: Colors.secondaryText }]}>
-              {t('about.version', 'Version')}
-            </Text>
-            <Text style={[styles.aboutValue, { color: Colors.primaryText }]}>1.0.0</Text>
-          </View>
-          <View style={[styles.aboutDivider, { backgroundColor: Colors.border + '60' }]} />
-          <View style={styles.aboutRow}>
-            <Text style={[styles.aboutLabel, { color: Colors.secondaryText }]}>
-              {t('appName', 'Foreman')}
-            </Text>
-            <Text style={[styles.aboutValue, { color: Colors.primaryText }]}>
-              {t('about.madeWith', 'Made with love')}
-            </Text>
-          </View>
+          <MenuItem
+            icon="help-circle-outline"
+            iconColor={Colors.primaryBlue}
+            title={t('help', 'Help & Support')}
+            subtitle={t('support.helpSubtitle', 'Email the team')}
+            onPress={() => Linking.openURL('mailto:support@sylkapp.ai')}
+          />
+          <MenuItem
+            icon="document-text-outline"
+            iconColor={Colors.infoBlue}
+            title={t('terms', 'Terms of Service')}
+            onPress={() => Linking.openURL('https://sylkapp.ai/terms').catch(() => {})}
+          />
+          <MenuItem
+            icon="shield-checkmark-outline"
+            iconColor={Colors.success}
+            title={t('privacy', 'Privacy Policy')}
+            onPress={() => Linking.openURL('https://sylkapp.ai/privacy').catch(() => {})}
+            isLast
+          />
         </View>
 
         {/* Logout */}
@@ -530,6 +551,11 @@ export default function MoreScreen({ navigation }) {
             {t('account.logout', 'Log Out')}
           </Text>
         </TouchableOpacity>
+
+        {/* Version footer — iOS-style minimal, bottom of the list. */}
+        <Text style={[styles.versionFooter, { color: Colors.secondaryText }]}>
+          {t('appName', 'Foreman')} · {t('about.version', 'Version')} 1.0.0
+        </Text>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -717,22 +743,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
   },
-  addServiceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    marginBottom: 12,
-    gap: 8,
-  },
-  addServiceText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-
   // Theme Toggle
   themeToggle: {
     width: 36,
@@ -746,24 +756,13 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
 
-  // About
-  aboutRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  aboutDivider: {
-    height: 1,
-    marginHorizontal: 14,
-  },
-  aboutLabel: {
-    fontSize: 14,
-  },
-  aboutValue: {
-    fontSize: 14,
-    fontWeight: '500',
+  // Version footer — tiny caption below Logout. iOS-style minimal.
+  versionFooter: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 18,
+    marginBottom: 4,
+    letterSpacing: 0.2,
   },
 
   // Logout
