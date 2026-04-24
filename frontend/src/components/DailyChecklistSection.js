@@ -474,7 +474,7 @@ export default function DailyChecklistSection({
       <View style={styles.sectionHeader}>
         <Ionicons name="checkbox-outline" size={20} color="#8B5CF6" />
         <Text style={[styles.sectionTitle, { color: Colors.primaryText, flex: 1 }]}>
-          Daily Crew Checks
+          Daily Checklist
           {totalCount > 0 && !isEditingTemplates && (
             <Text style={{ color: Colors.secondaryText, fontWeight: '400' }}>
               {' '}({completedCount}/{totalCount})

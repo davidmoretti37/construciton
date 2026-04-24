@@ -2008,7 +2008,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 onPress={() => {
                   const supervisorId = project?.assignedTo || project?.assigned_supervisor_id;
                   if (navigation && supervisorId) {
-                    onClose?.();
+                    // Keep ProjectDetailView open so swipe-back returns here,
+                    // not to the general Projects/Team tab.
                     navigation.navigate('SupervisorDetail', { supervisorId });
                   }
                 }}
@@ -2044,7 +2045,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     style={[styles.workerCard, { backgroundColor: Colors.lightGray }]}
                     onPress={() => {
                       if (navigation) {
-                        onClose?.();
+                        // Keep ProjectDetailView open underneath so swipe-back
+                        // from WorkerDetailHistory returns the user here, not
+                        // to the general Workers/Projects tab.
                         navigation.navigate('WorkerDetailHistory', { worker });
                       }
                     }}

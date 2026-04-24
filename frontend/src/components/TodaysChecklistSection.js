@@ -19,7 +19,7 @@
  *   project_phases.tasks (JSONB) — joined client-side for phase pill labels
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
+  ScrollView,
   Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -85,16 +86,23 @@ export default function TodaysChecklistSection({
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(null);
 
-  // Add-task modal state
+  // Add-task modal state. `newTitles` is the list of in-progress task rows
+  // the user is typing — the `+` button appends a row, Save creates all of
+  // them as separate tasks with the shared date range.
   const [addOpen, setAddOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
+  const [newTitles, setNewTitles] = useState(['']);
   const [newStart, setNewStart] = useState(todayLocalISO());
   const [newEnd, setNewEnd] = useState(todayLocalISO());
+  const rowRefs = useRef([]);
   const [pickerMode, setPickerMode] = useState(null); // 'start' | 'end' | null
   const [saving, setSaving] = useState(false);
 
   const today = todayLocalISO();
-  const canToggle = userRole === 'worker';
+  // Anyone viewing this card (owner / supervisor / worker) can tick tasks off.
+  // The previous owner/supervisor lockout blocked solo owners from completing
+  // tasks they created for themselves, matching the behavior of the sibling
+  // Daily Checklist card.
+  const canToggle = true;
   const canAdd = userRole === 'owner' || userRole === 'supervisor';
 
   const styles = useMemo(() => createStyles(Colors), [Colors]);
@@ -162,7 +170,7 @@ export default function TodaysChecklistSection({
   };
 
   const openAdd = () => {
-    setNewTitle('');
+    setNewTitles(['']);
     setNewStart(today);
     setNewEnd(today);
     setPickerMode(null);
@@ -175,10 +183,27 @@ export default function TodaysChecklistSection({
     setPickerMode(null);
   };
 
+  const handleTitleChange = (index, value) => {
+    setNewTitles(prev => prev.map((t, i) => (i === index ? value : t)));
+  };
+
+  const handleAddRow = () => {
+    setNewTitles(prev => [...prev, '']);
+    // Focus the newly-appended row after React flushes.
+    setTimeout(() => {
+      const next = rowRefs.current[newTitles.length];
+      next?.focus?.();
+    }, 50);
+  };
+
+  const handleRemoveRow = (index) => {
+    setNewTitles(prev => (prev.length <= 1 ? [''] : prev.filter((_, i) => i !== index)));
+  };
+
   const handleSaveTask = async () => {
-    const title = newTitle.trim();
-    if (!title) {
-      Alert.alert('Title required', 'Give the task a short name first.');
+    const titles = newTitles.map(t => t.trim()).filter(Boolean);
+    if (titles.length === 0) {
+      Alert.alert('Title required', 'Give at least one task a name first.');
       return;
     }
     if (newEnd < newStart) {
@@ -187,14 +212,19 @@ export default function TodaysChecklistSection({
     }
     setSaving(true);
     try {
-      const created = await createAdHocDayTask(projectId, title, newStart, newEnd);
-      if (!created) {
-        Alert.alert('Couldn\'t create task', 'Something went wrong. Try again.');
-        return;
+      // Create all rows sequentially — the API is a single-row insert. If
+      // any row fails we bail early so the user can retry the remainder
+      // instead of silently dropping tasks.
+      for (const title of titles) {
+        const created = await createAdHocDayTask(projectId, title, newStart, newEnd);
+        if (!created) {
+          Alert.alert('Couldn\'t create task', `Failed on "${title}". The rest were saved.`);
+          break;
+        }
       }
-      setAddOpen(false);
       await load();
       if (onChange) onChange();
+      setAddOpen(false);
     } finally {
       setSaving(false);
     }
@@ -359,17 +389,39 @@ export default function TodaysChecklistSection({
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>TITLE</Text>
-              <TextInput
-                value={newTitle}
-                onChangeText={setNewTitle}
-                placeholder="e.g. Pick up tile from supplier"
-                placeholderTextColor={Colors.secondaryText + '80'}
-                autoFocus
-                style={[styles.modalInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
-                returnKeyType="done"
-                onSubmitEditing={handleSaveTask}
-              />
+              <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>TASKS</Text>
+              {newTitles.map((title, i) => (
+                <View key={`task-row-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <TextInput
+                    ref={(el) => { rowRefs.current[i] = el; }}
+                    value={title}
+                    onChangeText={(v) => handleTitleChange(i, v)}
+                    placeholder={i === 0 ? 'e.g. Pick up tile from supplier' : 'Another task…'}
+                    placeholderTextColor={Colors.secondaryText + '80'}
+                    autoFocus={i === 0}
+                    style={[styles.modalInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background, marginBottom: 0 }]}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={handleAddRow}
+                  />
+                  {newTitles.length > 1 && (
+                    <TouchableOpacity
+                      onPress={() => handleRemoveRow(i)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+              <TouchableOpacity
+                onPress={handleAddRow}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.primaryBlue + '60', borderStyle: 'dashed', marginBottom: 4 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={16} color={Colors.primaryBlue} />
+                <Text style={{ fontSize: 13, color: Colors.primaryBlue, fontWeight: '600' }}>Add another task</Text>
+              </TouchableOpacity>
 
               <Text style={[styles.modalLabel, { color: Colors.secondaryText, marginTop: 14 }]}>WHEN</Text>
               <View style={styles.dateRow}>
@@ -424,10 +476,10 @@ export default function TodaysChecklistSection({
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSaveTask}
-                  disabled={saving || !newTitle.trim()}
+                  disabled={saving || !newTitles.some(t => t.trim())}
                   style={[
                     styles.modalBtn,
-                    { backgroundColor: !newTitle.trim() ? '#3B82F660' : '#3B82F6' },
+                    { backgroundColor: !newTitles.some(t => t.trim()) ? '#3B82F660' : '#3B82F6' },
                   ]}
                   activeOpacity={0.8}
                 >
