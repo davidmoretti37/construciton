@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -52,7 +52,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
       const { data, error } = await supabase
         .from('project_transactions')
         .select(`
-          id, project_id, service_plan_id, type, category, subcategory, description, amount, date, worker_id,
+          id, project_id, service_plan_id, type, category, subcategory, phase_id, description, amount, date, worker_id,
           payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at,
           workers (id, full_name)
         `)
@@ -74,6 +74,31 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     { staleTTL: 15000, maxAge: 3 * 60 * 1000 }
   );
   const transactions = rawTransactions || [];
+
+  // ── Project phases (for phase-aware trade filter) ────────
+  // Transactions added via the AI chat store phase_id but leave subcategory
+  // null, so the legacy subcategory-only chip filter hides them. We fetch
+  // the project's phases and match by EITHER subcategory OR phase_id.
+  const [projectPhases, setProjectPhases] = useState([]);
+  useEffect(() => {
+    if (!projectId || isServicePlan) return;
+    let cancelled = false;
+    (async () => {
+      const { supabase } = require('../lib/supabase');
+      const { data, error } = await supabase
+        .from('project_phases')
+        .select('id, name')
+        .eq('project_id', projectId);
+      if (!cancelled && !error && data) setProjectPhases(data);
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, isServicePlan]);
+
+  const phaseNameById = useMemo(() => {
+    const map = {};
+    projectPhases.forEach(p => { map[p.id] = p.name; });
+    return map;
+  }, [projectPhases]);
 
   const onRefresh = useCallback(() => {
     refresh();
@@ -132,10 +157,15 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
       filtered = filtered.filter(tx => tx.category === categoryFilter);
     }
     if (tradeFilter !== 'all') {
-      filtered = filtered.filter(tx => (tx.subcategory || '').toLowerCase() === tradeFilter.toLowerCase());
+      const needle = tradeFilter.toLowerCase();
+      filtered = filtered.filter(tx => {
+        if ((tx.subcategory || '').toLowerCase() === needle) return true;
+        const phaseName = tx.phase_id ? phaseNameById[tx.phase_id] : null;
+        return phaseName ? phaseName.toLowerCase() === needle : false;
+      });
     }
     return filtered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [transactions, typeFilter, categoryFilter, tradeFilter]);
+  }, [transactions, typeFilter, categoryFilter, tradeFilter, phaseNameById]);
 
   // ── Available category filters (only show categories with data) ──
   const availableCategories = useMemo(() => {
@@ -147,21 +177,24 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
   }, [transactions, typeFilter]);
 
   // ── Available trade/subcategory filters ─────────────────
+  // A transaction contributes to a chip via its subcategory OR via the name
+  // of its linked phase. Each transaction increments at most one chip (phase
+  // name wins over subcategory when both are present) so counts stay accurate.
   const availableTrades = useMemo(() => {
     let base = transactions;
     if (typeFilter !== 'all') base = base.filter(tx => tx.type === typeFilter);
     if (categoryFilter !== 'all') base = base.filter(tx => tx.category === categoryFilter);
     const trades = new Map();
     base.forEach(tx => {
-      const sub = tx.subcategory;
-      if (sub) {
-        const key = sub.toLowerCase();
-        if (!trades.has(key)) trades.set(key, { name: sub, count: 0 });
-        trades.get(key).count++;
-      }
+      const phaseName = tx.phase_id ? phaseNameById[tx.phase_id] : null;
+      const chipName = phaseName || tx.subcategory;
+      if (!chipName) return;
+      const key = chipName.toLowerCase();
+      if (!trades.has(key)) trades.set(key, { name: chipName, count: 0 });
+      trades.get(key).count++;
     });
     return Array.from(trades.values()).sort((a, b) => b.count - a.count);
-  }, [transactions, typeFilter, categoryFilter]);
+  }, [transactions, typeFilter, categoryFilter, phaseNameById]);
 
   // ── Totals ───────────────────────────────────────────────
   const totals = useMemo(() => {

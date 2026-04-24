@@ -64,7 +64,7 @@ export const getProjectTransactions = async (projectId, type = null) => {
     let query = supabase
       .from('project_transactions')
       .select(`
-        id, project_id, type, category, subcategory, description, amount, date, worker_id,
+        id, project_id, type, category, subcategory, phase_id, description, amount, date, worker_id,
         payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at,
         workers (id, full_name)
       `)
