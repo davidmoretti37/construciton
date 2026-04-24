@@ -3388,7 +3388,7 @@ async function get_bank_transactions(userId, args = {}) {
 }
 
 async function assign_bank_transaction(userId, args = {}) {
-  const { bank_transaction_id, project_id, category, description, subcategory, phase_id } = args;
+  const { bank_transaction_id, project_id, category, description, subcategory, phase_id, phase_name } = args;
 
   if (!bank_transaction_id || !project_id) {
     return { error: 'Both bank_transaction_id and project_id are required.' };
@@ -3471,12 +3471,65 @@ async function assign_bank_transaction(userId, args = {}) {
   const txAmount = Math.abs(bankTx.amount);
   const txType = bankTx.amount > 0 ? 'expense' : 'income';
 
-  // Phase/subcategory required when this becomes an expense.
-  if (txType === 'expense' && !subcategory && !phase_id) {
-    return {
-      error: 'A phase (or subcategory) is required to assign this bank transaction as an expense. Ask the user which phase it should attach to.',
-    };
+  // Phase resolution mirrors record_expense (handlers.js:2358–2406). Trust
+  // phase_id only when it actually belongs to the resolved project; fuzzy
+  // match phase_name otherwise. On any failure return the live phase list
+  // so the AI can ask the user instead of inventing one. Newly-created
+  // phases are read directly from project_phases — no caching, so they're
+  // immediately valid for assignment.
+  let resolvedPhaseId = null;
+  let availablePhases = [];
+  if (txType === 'expense') {
+    const { data: projectPhases } = await supabase
+      .from('project_phases')
+      .select('id, name, order_index')
+      .eq('project_id', resolvedProjectId)
+      .order('order_index', { ascending: true });
+    availablePhases = (projectPhases || []).map((p) => ({ id: p.id, name: p.name }));
+
+    if (phase_id) {
+      const match = (projectPhases || []).find((p) => p.id === phase_id);
+      if (!match) {
+        return {
+          error: `phase_id ${phase_id} does not belong to project "${project?.name || resolvedProjectId}". Ask the user to pick one of the phases below.`,
+          available_phases: availablePhases,
+          needs_clarification: 'phase',
+        };
+      }
+      resolvedPhaseId = match.id;
+    } else if (phase_name) {
+      const needle = String(phase_name).trim().toLowerCase();
+      const exact = (projectPhases || []).filter((p) => p.name.toLowerCase() === needle);
+      const fuzzy = exact.length > 0
+        ? exact
+        : (projectPhases || []).filter((p) => p.name.toLowerCase().includes(needle));
+      if (fuzzy.length === 0) {
+        return {
+          error: `No phase matching "${phase_name}" on project "${project?.name || resolvedProjectId}". Ask the user to pick one of the phases below.`,
+          available_phases: availablePhases,
+          needs_clarification: 'phase',
+        };
+      }
+      if (fuzzy.length > 1) {
+        return {
+          error: `"${phase_name}" matches multiple phases on "${project?.name || resolvedProjectId}". Ask the user which one.`,
+          matching_phases: fuzzy.map((p) => ({ id: p.id, name: p.name })),
+          needs_clarification: 'phase',
+        };
+      }
+      resolvedPhaseId = fuzzy[0].id;
+    }
+
+    // An expense must carry either a phase or a subcategory.
+    if (!resolvedPhaseId && !subcategory) {
+      return {
+        error: 'A phase is required to assign this bank transaction as an expense. Ask the user which phase to attach it to — list the phases below and let them choose.',
+        available_phases: availablePhases,
+        needs_clarification: 'phase',
+      };
+    }
   }
+
   const insertData = {
     project_id: resolvedProjectId,
     type: txType,
@@ -3490,8 +3543,7 @@ async function assign_bank_transaction(userId, args = {}) {
     bank_transaction_id: bankTx.id,
   };
   if (subcategory) insertData.subcategory = subcategory;
-  if (phase_id) insertData.phase_id = phase_id;
-  if (subcategory) insertData.subcategory = subcategory;
+  if (resolvedPhaseId) insertData.phase_id = resolvedPhaseId;
 
   const { data: projectTx, error: insertError } = await supabase
     .from('project_transactions')

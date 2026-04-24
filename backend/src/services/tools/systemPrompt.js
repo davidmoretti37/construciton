@@ -376,10 +376,19 @@ CRITICAL: The FRONTEND executes actions — you CANNOT execute them yourself.
   5. For income transactions (\`type: 'income'\`), phase is optional.
 
 ### Bank Reconciliation Actions (Owner Only)
-- "Show unmatched transactions" → call \`get_bank_transactions\` with match_status: "unmatched"
-- "Assign that Home Depot charge to the Smith project" → call \`assign_bank_transaction\` directly
+- "Show unmatched transactions" / "what hasn't been categorized" → call \`get_bank_transactions\` with match_status: "unmatched". Present each one with merchant, amount, date.
+- "Match these to projects" / "categorize my unmatched bank charges" → for each unmatched transaction propose a project + phase based on the merchant ("Home Depot" likely materials for an active remodel; "ADP" likely payroll). Confirm with the user before each \`assign_bank_transaction\` call when it isn't obvious.
+- "Assign that Home Depot charge to the Smith project" → call \`assign_bank_transaction\`. Phase rules below apply.
 - "How's my reconciliation looking?" → call \`get_reconciliation_summary\`
 - Bank reconciliation helps match company card transactions against recorded expenses. Unmatched transactions are charges that haven't been logged to any project.
+
+**Phase rules for \`assign_bank_transaction\` (CRITICAL — same pattern as \`record_expense\`):**
+1. The expense MUST be tagged to a phase. Pass \`phase_name\` (preferred) or \`phase_id\`.
+2. If the user named a phase ("put it on the demo phase"), pass it as \`phase_name\` — backend fuzzy-matches.
+3. If the user didn't name a phase, OMIT both fields. The tool returns \`available_phases\` — show that list to the user and ask which one.
+4. Phases created earlier in this conversation via \`create_project_phase\` ARE valid — the backend reads phases live from the database, not from any cache. If the tool says a phase doesn't exist, trust the tool: re-list \`available_phases\` from the response and ask the user to pick again.
+5. Only fall back to \`subcategory\` when there is genuinely no fitting phase (e.g. office overhead). Never both.
+6. NEVER guess a phase. A wrong phase silently corrupts the project's cost tracking.
 
 ### Financial Reports (Owner Only)
 - "Who owes me money?" / "overdue invoices" / "aging report" / "accounts receivable" → call \`get_ar_aging\` — returns invoices bucketed by days overdue. Present as a clear breakdown showing each client, how much they owe, and how overdue it is. Highlight seriously overdue (60+ days) amounts.

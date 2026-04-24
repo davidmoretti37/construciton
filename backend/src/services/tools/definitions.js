@@ -1270,7 +1270,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'assign_bank_transaction',
-      description: 'Assign an unmatched bank/card transaction to a project as an expense. Creates a new project_transaction and links it to the bank transaction. Use when owner says "put that Home Depot charge on the Smith project" or "assign the $432 transaction to the kitchen remodel".',
+      description: 'Assign an unmatched bank/card transaction to a project as an expense. Creates a new project_transaction and links it to the bank transaction. Use when owner says "put that Home Depot charge on the Smith project" or "assign the $432 transaction to the kitchen remodel". For expense assignments you MUST pass either phase_name (preferred) or phase_id. Newly-created phases (via create_project_phase) are immediately valid — no refresh needed.',
       parameters: {
         type: 'object',
         properties: {
@@ -1293,7 +1293,15 @@ const toolDefinitions = [
           },
           subcategory: {
             type: 'string',
-            description: 'Optional subcategory for detailed tracking (see record_expense for valid values)'
+            description: 'Optional subcategory for detailed tracking (see record_expense for valid values). Only use when no phase fits.'
+          },
+          phase_id: {
+            type: 'string',
+            description: 'UUID of the project phase to attach this expense to. REQUIRED for expenses (unless subcategory is supplied). Use phase_name instead if you only have the phase name — the backend will resolve it.'
+          },
+          phase_name: {
+            type: 'string',
+            description: 'Name of the project phase to attach this expense to (e.g. "Demolition", "Garage remodel", "Drywall"). Alternative to phase_id — the backend fuzzy-matches it. If the user did NOT name a phase, OMIT this and the tool will return available_phases for you to ask the user. NEVER guess.'
           }
         },
         required: ['bank_transaction_id', 'project_id']
