@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, SectionList, TouchableOpacity } from 'react-native';
+import React, { useMemo, useRef, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, SectionList, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { TASK_STATUSES, getTaskStatus } from '../../constants/theme';
+import { TASK_STATUSES } from '../../constants/theme';
+import { getProjectColor } from '../../utils/calendarUtils';
 
 const STATUS_MAP = {
   pending: 'not_started',
@@ -14,6 +15,11 @@ const getStatusKey = (task) => {
   return STATUS_MAP[task.status] || 'not_started';
 };
 
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const formatSectionDate = (dateStr) => {
   const date = new Date(dateStr + 'T12:00:00');
   const today = new Date();
@@ -22,131 +28,207 @@ const formatSectionDate = (dateStr) => {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-  if (target.getTime() === today.getTime()) return 'Today';
-  if (target.getTime() === tomorrow.getTime()) return 'Tomorrow';
+  if (target.getTime() === today.getTime()) return { primary: 'Today', meta: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
+  if (target.getTime() === tomorrow.getTime()) return { primary: 'Tomorrow', meta: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
 
-  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  return {
+    primary: date.toLocaleDateString('en-US', { weekday: 'long' }),
+    meta: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+  };
 };
 
-export default function AgendaView({ tasks, theme, onTaskPress, onTaskLongPress, scrollToDate, onAddTaskForDate }) {
+const formatDivider = (startStr, endStr) => {
+  const s = new Date(startStr + 'T12:00:00');
+  const e = new Date(endStr + 'T12:00:00');
+  if (startStr === endStr) {
+    return s.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  const sameMonth = s.getMonth() === e.getMonth();
+  const left = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const right = sameMonth
+    ? e.toLocaleDateString('en-US', { day: 'numeric' })
+    : e.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${left} – ${right}`;
+};
+
+export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, onAddTaskForDate }) {
   const sectionListRef = useRef(null);
+  const fabScale = useRef(new Animated.Value(0)).current;
 
-  // Build sections: one per day from today through the last scheduled task
-  // (plus a small buffer) — not capped at 30 days. Month view shows the
-  // whole project window and the agenda should too. Render EVERY day
-  // (not just days with tasks) so the owner can tap "+" on any day to add
-  // an ad-hoc task. Empty days get a subtle placeholder.
+  // Build sections: only days that have tasks, plus today as anchor.
+  // Empty runs between task-days collapse into a single subtle divider.
   const sections = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const days = [];
+    const today = todayStr();
 
-    // Extend through the furthest task end_date (+7 day buffer) so workers
-    // see every scheduled day. Falls back to 60 days when nothing scheduled
-    // and is hard-capped at 366 to prevent runaway loops on bad dates.
-    let furthestEnd = new Date(today);
-    furthestEnd.setDate(furthestEnd.getDate() + 60);
+    // Group tasks by date string (within their working window)
+    const dayMap = new Map(); // dateStr -> task[]
     (tasks || []).forEach((t) => {
-      const iso = t.end_date || t.start_date;
-      if (!iso) return;
-      const [y, m, d] = String(iso).split('-');
-      const parsed = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-      if (!isNaN(parsed.getTime()) && parsed > furthestEnd) furthestEnd = parsed;
-    });
-    furthestEnd.setDate(furthestEnd.getDate() + 7);
-    const totalDays = Math.min(
-      366,
-      Math.max(30, Math.floor((furthestEnd - today) / 86400000) + 1),
-    );
+      if (!t.start_date) return;
+      const start = t.start_date;
+      const end = t.end_date || t.start_date;
+      const sd = new Date(start + 'T12:00:00');
+      const ed = new Date(end + 'T12:00:00');
+      const cursor = new Date(sd);
+      while (cursor <= ed) {
+        const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
 
-    for (let i = 0; i < totalDays; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-      // Find tasks active on this date
-      const dayTasks = tasks.filter((t) => {
-        if (!t.start_date) return false;
-        const start = t.start_date;
-        const end = t.end_date || t.start_date;
-        if (dateStr < start || dateStr > end) return false;
-
-        // Check working days (skip weekends / non-working dates for tasks
-        // that have a project context; ad-hoc owner tasks with no project
-        // pass through and show on the day they're pinned to).
+        // Honor working days when project context is present
         const project = t.projects;
+        let include = true;
         if (project) {
           const workingDays = project.working_days || [1, 2, 3, 4, 5];
           const nonWorking = project.non_working_dates || [];
-          if (nonWorking.includes(dateStr)) return false;
-          const jsDay = d.getDay();
-          const isoDay = jsDay === 0 ? 7 : jsDay;
-          if (!workingDays.includes(isoDay)) return false;
+          if (nonWorking.includes(dateStr)) include = false;
+          else {
+            const jsDay = cursor.getDay();
+            const isoDay = jsDay === 0 ? 7 : jsDay;
+            if (!workingDays.includes(isoDay)) include = false;
+          }
         }
-        return true;
-      });
+        if (include) {
+          if (!dayMap.has(dateStr)) dayMap.set(dateStr, []);
+          dayMap.get(dateStr).push(t);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    });
 
-      days.push({
+    // Always include today even if empty (anchor)
+    if (!dayMap.has(today)) dayMap.set(today, []);
+
+    // Sort dates ascending
+    const dates = Array.from(dayMap.keys()).sort();
+
+    // Build sections, inserting empty-run dividers between non-adjacent days
+    const out = [];
+    for (let i = 0; i < dates.length; i++) {
+      const dateStr = dates[i];
+      const dayTasks = dayMap.get(dateStr);
+
+      // Empty run before this date (relative to today or previous task-day)
+      const prevStr = i === 0 ? today : dates[i - 1];
+      if (i > 0) {
+        const gap = daysBetween(prevStr, dateStr);
+        if (gap > 1) {
+          // Days in (prev, date) exclusive
+          const startGap = addDays(prevStr, 1);
+          const endGap = addDays(dateStr, -1);
+          if (startGap <= endGap) {
+            out.push({
+              kind: 'gap',
+              key: `gap-${prevStr}-${dateStr}`,
+              startStr: startGap,
+              endStr: endGap,
+              data: [{ _gap: true, _key: `gap-${prevStr}-${dateStr}` }],
+            });
+          }
+        }
+      }
+
+      const labels = formatSectionDate(dateStr);
+      out.push({
+        kind: 'day',
+        key: dateStr,
         title: dateStr,
-        formattedDate: formatSectionDate(dateStr),
-        isToday: i === 0,
-        isWeekend: (() => { const jd = d.getDay(); return jd === 0 || jd === 6; })(),
+        primary: labels.primary,
+        meta: labels.meta,
+        isToday: dateStr === today,
         data: dayTasks.length > 0 ? dayTasks : [{ _empty: true, _date: dateStr }],
+        count: dayTasks.length,
       });
     }
 
-    return days;
+    return out;
   }, [tasks]);
 
-  const renderSectionHeader = useCallback(({ section }) => (
-    <View style={[
-      styles.sectionHeader,
-      { backgroundColor: theme.background, borderBottomColor: theme.border },
-      section.isToday && { borderLeftWidth: 3, borderLeftColor: theme.primaryBlue },
-    ]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[
-          styles.sectionDate,
-          { color: section.isToday ? theme.primaryBlue : theme.primaryText },
-          section.isWeekend && !section.isToday && { color: theme.secondaryText },
-        ]}>
-          {section.formattedDate}
-        </Text>
-        {section.data.length === 1 && section.data[0]._empty && (
-          <Text style={[styles.noTasks, { color: theme.secondaryText }]}>No tasks</Text>
+  // Scroll to a specific date when requested by parent (e.g. from month tap)
+  useEffect(() => {
+    if (!scrollToDate || !sectionListRef.current) return;
+    const idx = sections.findIndex((s) => s.kind === 'day' && s.title === scrollToDate);
+    if (idx < 0) return;
+    // Defer to next frame so layout is ready
+    const t = setTimeout(() => {
+      try {
+        sectionListRef.current.scrollToLocation({
+          sectionIndex: idx,
+          itemIndex: 0,
+          viewPosition: 0,
+          animated: true,
+        });
+      } catch (_) { /* SectionList may not be ready yet — safe to ignore */ }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [scrollToDate, sections]);
+
+  // FAB entrance animation (owner only)
+  useEffect(() => {
+    if (!onAddTaskForDate) return;
+    Animated.spring(fabScale, {
+      toValue: 1,
+      friction: 6,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
+  }, [onAddTaskForDate, fabScale]);
+
+  const renderSectionHeader = useCallback(({ section }) => {
+    if (section.kind === 'gap') return null;
+
+    return (
+      <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
+        <View style={styles.sectionHeaderLeft}>
+          <Text style={[
+            styles.sectionPrimary,
+            { color: section.isToday ? theme.primaryBlue : theme.primaryText },
+          ]}>
+            {section.primary}
+          </Text>
+          <Text style={[styles.sectionMeta, { color: theme.secondaryText }]}>
+            · {section.meta}
+          </Text>
+        </View>
+        {section.count > 0 && (
+          <Text style={[styles.sectionCount, { color: theme.secondaryText }]}>
+            {section.count} {section.count === 1 ? 'task' : 'tasks'}
+          </Text>
         )}
       </View>
-      {onAddTaskForDate && (
-        <TouchableOpacity
-          onPress={() => onAddTaskForDate(section.title)}
-          style={[styles.addBtn, { borderColor: theme.primaryBlue + '40', backgroundColor: theme.primaryBlue + '10' }]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="add" size={16} color={theme.primaryBlue} />
-          <Text style={[styles.addBtnText, { color: theme.primaryBlue }]}>Add</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  ), [theme, onAddTaskForDate]);
+    );
+  }, [theme]);
 
-  const renderTask = useCallback(({ item }) => {
-    if (item._empty) return null;
+  const renderItem = useCallback(({ item, section }) => {
+    if (item._gap) {
+      return (
+        <View style={styles.gapRow}>
+          <View style={[styles.gapLine, { backgroundColor: theme.border }]} />
+          <Text style={[styles.gapText, { color: theme.secondaryText }]}>
+            No tasks · {formatDivider(section.startStr, section.endStr)}
+          </Text>
+          <View style={[styles.gapLine, { backgroundColor: theme.border }]} />
+        </View>
+      );
+    }
+
+    if (item._empty) {
+      return (
+        <Text style={[styles.emptyDay, { color: theme.placeholderText || theme.secondaryText }]}>
+          Nothing scheduled
+        </Text>
+      );
+    }
 
     const statusKey = getStatusKey(item);
     const statusDef = TASK_STATUSES[statusKey] || TASK_STATUSES.not_started;
     const isMultiDay = item.start_date !== (item.end_date || item.start_date);
+    const projectColor = item.project_id ? getProjectColor(item.project_id) : statusDef.color;
 
     return (
       <TouchableOpacity
-        style={[styles.taskCard, { backgroundColor: theme.white, borderColor: theme.border }]}
+        style={[styles.taskCard, { backgroundColor: theme.cardBackground || theme.white, borderColor: theme.border }]}
         onPress={() => onTaskPress?.(item)}
-        onLongPress={() => onTaskLongPress?.(item)}
         activeOpacity={0.7}
-        delayLongPress={300}
       >
-        {/* Status stripe */}
-        <View style={[styles.statusStripe, { backgroundColor: statusDef.color }]} />
+        <View style={[styles.statusStripe, { backgroundColor: projectColor }]} />
 
         <View style={styles.taskContent}>
           <View style={styles.taskHeader}>
@@ -158,87 +240,134 @@ export default function AgendaView({ tasks, theme, onTaskPress, onTaskLongPress,
             </View>
           </View>
 
-          <View style={styles.taskMeta}>
-            {item.projects?.name && (
-              <Text style={[styles.projectName, { color: theme.secondaryText }]} numberOfLines={1}>
-                {item.projects.name}
-              </Text>
-            )}
-            {isMultiDay && (
-              <>
-                <View style={styles.metaDot} />
-                <Text style={[styles.dateRange, { color: theme.secondaryText }]}>
-                  {new Date(item.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  {' - '}
-                  {new Date((item.end_date || item.start_date) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          {(item.projects?.name || isMultiDay) && (
+            <View style={styles.taskMeta}>
+              {item.projects?.name && (
+                <Text style={[styles.projectName, { color: theme.secondaryText }]} numberOfLines={1}>
+                  {item.projects.name}
                 </Text>
-              </>
-            )}
-          </View>
-
-          {item.description ? (
-            <Text style={[styles.taskDescription, { color: theme.secondaryText }]} numberOfLines={1}>
-              {item.description}
-            </Text>
-          ) : null}
+              )}
+              {isMultiDay && (
+                <>
+                  {item.projects?.name && <View style={[styles.metaDot, { backgroundColor: theme.border }]} />}
+                  <Text style={[styles.dateRange, { color: theme.secondaryText }]}>
+                    {new Date(item.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {' – '}
+                    {new Date((item.end_date || item.start_date) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                </>
+              )}
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
-  }, [theme, onTaskPress, onTaskLongPress]);
+  }, [theme, onTaskPress]);
 
   return (
-    <SectionList
-      ref={sectionListRef}
-      sections={sections}
-      keyExtractor={(item, index) => item.id || `empty-${index}`}
-      renderSectionHeader={renderSectionHeader}
-      renderItem={renderTask}
-      stickySectionHeadersEnabled
-      contentContainerStyle={styles.listContent}
-      showsVerticalScrollIndicator={false}
-    />
+    <View style={{ flex: 1 }}>
+      <SectionList
+        ref={sectionListRef}
+        sections={sections}
+        keyExtractor={(item, index) => item.id || item._key || `row-${index}`}
+        renderSectionHeader={renderSectionHeader}
+        renderItem={renderItem}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={20}
+        windowSize={10}
+        onScrollToIndexFailed={() => { /* swallow — sections may not be measured yet */ }}
+      />
+
+      {onAddTaskForDate && (
+        <Animated.View
+          style={[
+            styles.fabWrap,
+            { transform: [{ scale: fabScale }] },
+          ]}
+          pointerEvents="box-none"
+        >
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: theme.primaryBlue, shadowColor: theme.shadow || '#000' }]}
+            onPress={() => onAddTaskForDate(todayStr())}
+            activeOpacity={0.85}
+            accessibilityLabel="Add task"
+          >
+            <Ionicons name="add" size={26} color={theme.white === '#FFFFFF' ? '#FFFFFF' : '#FFFFFF'} />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+    </View>
   );
+}
+
+// --- date helpers (local, no Date timezone math) ---
+function addDays(dateStr, delta) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function daysBetween(a, b) {
+  const da = new Date(a + 'T12:00:00');
+  const db = new Date(b + 'T12:00:00');
+  return Math.round((db - da) / 86400000);
 }
 
 const styles = StyleSheet.create({
   listContent: {
-    paddingBottom: 100,
+    paddingTop: 4,
+    paddingBottom: 120,
   },
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    // paddingTop is 4px larger than paddingBottom so there's breathing room
-    // above the date label. Using padding (not margin) keeps the opaque
-    // background covering the whole sticky-header slot — previously a 4px
-    // margin created a transparent strip where scrolled-away rows peeked
-    // through.
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingTop: 18,
+    paddingBottom: 8,
   },
-  sectionDate: {
-    fontSize: 15,
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flex: 1,
+  },
+  sectionPrimary: {
+    fontSize: 16,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
-  noTasks: {
+  sectionMeta: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  sectionCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  emptyDay: {
     fontSize: 12,
     fontStyle: 'italic',
-    marginTop: 2,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
-  addBtn: {
+  gapRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    gap: 10,
   },
-  addBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
+  gapLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  gapText: {
+    fontSize: 11,
+    fontWeight: '500',
   },
   taskCard: {
     flexDirection: 'row',
@@ -288,14 +417,25 @@ const styles = StyleSheet.create({
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: '#D1D5DB',
     marginHorizontal: 6,
   },
   dateRange: {
     fontSize: 11,
   },
-  taskDescription: {
-    fontSize: 12,
-    marginTop: 4,
+  fabWrap: {
+    position: 'absolute',
+    right: 20,
+    bottom: 110,
+  },
+  fab: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });

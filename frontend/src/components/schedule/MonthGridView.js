@@ -1,58 +1,65 @@
 import React, { useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { TASK_STATUSES } from '../../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { getProjectColor } from '../../utils/calendarUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CELL_WIDTH = Math.floor((SCREEN_WIDTH - 2) / 7);
-const MAX_BARS_PER_WEEK = 2;
-const BAR_HEIGHT = 14;
-const BAR_GAP = 2;
-const DAY_HEADER_HEIGHT = 26;
+const MAX_DOTS = 4;
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const STATUS_MAP = {
-  pending: 'not_started',
-  completed: 'done',
-  incomplete: 'stuck',
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const getColor = (task) => {
-  const status = task.status && TASK_STATUSES[task.status]
-    ? task.status
-    : STATUS_MAP[task.status] || 'not_started';
-  return (TASK_STATUSES[status] || TASK_STATUSES.not_started).color;
+// A date is non-working if every active project for that day says so.
+// When no project context is present, fall back to weekend = non-working.
+const isNonWorkingDay = (dateStr, dayProjects) => {
+  if (!dayProjects || dayProjects.length === 0) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const jsDay = d.getDay();
+    return jsDay === 0 || jsDay === 6;
+  }
+  return dayProjects.every((p) => {
+    const workingDays = p.working_days || [1, 2, 3, 4, 5];
+    const nonWorking = p.non_working_dates || [];
+    if (nonWorking.includes(dateStr)) return true;
+    const d = new Date(dateStr + 'T12:00:00');
+    const jsDay = d.getDay();
+    const isoDay = jsDay === 0 ? 7 : jsDay;
+    return !workingDays.includes(isoDay);
+  });
 };
 
-// Check if a date is a working day for its project
-const isWorkingDay = (dateStr, project) => {
-  if (!project) return true;
-  const workingDays = project.working_days || [1, 2, 3, 4, 5];
-  const nonWorking = project.non_working_dates || [];
-  if (nonWorking.includes(dateStr)) return false;
+const isWeekend = (dateStr) => {
   const d = new Date(dateStr + 'T12:00:00');
   const jsDay = d.getDay();
-  const isoDay = jsDay === 0 ? 7 : jsDay;
-  return workingDays.includes(isoDay);
+  return jsDay === 0 || jsDay === 6;
 };
 
-export default function MonthGridView({ currentMonth, tasks, theme, onDayPress, selectedDate }) {
+export default function MonthGridView({
+  currentMonth,
+  tasks,
+  theme,
+  onDayPress,
+  selectedDate,
+  onMonthChange,
+  onResetToToday,
+}) {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
+  const today = todayStr();
 
-  // Build the grid: 6 weeks max, 7 days each
-  const { weeks, todayStr } = useMemo(() => {
+  // Build the weeks grid
+  const weeks = useMemo(() => {
     const firstDay = new Date(year, month, 1);
-    const startOffset = firstDay.getDay(); // 0=Sun
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startOffset = firstDay.getDay();
 
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-    const weeks = [];
+    const w = [];
     let dayCounter = 1 - startOffset;
-
-    for (let w = 0; w < 6; w++) {
+    for (let row = 0; row < 6; row++) {
       const week = [];
       for (let d = 0; d < 7; d++) {
         const date = new Date(year, month, dayCounter);
@@ -62,158 +69,168 @@ export default function MonthGridView({ currentMonth, tasks, theme, onDayPress, 
           dateStr,
           day: date.getDate(),
           inMonth: date.getMonth() === month,
-          isToday: dateStr === todayStr,
-          isSelected: dateStr === selectedDate,
           colIndex: d,
         });
         dayCounter++;
       }
-      // Only include week if at least one day is in the current month
-      if (week.some((d) => d.inMonth)) {
-        weeks.push(week);
-      }
+      if (week.some((d) => d.inMonth)) w.push(week);
     }
-    return { weeks, todayStr };
-  }, [year, month, selectedDate]);
+    return w;
+  }, [year, month]);
 
-  // Build spanning bars for each week
-  const weekBars = useMemo(() => {
-    return weeks.map((week) => {
-      const weekStart = week[0].dateStr;
-      const weekEnd = week[6].dateStr;
+  // Aggregate tasks per day → up to MAX_DOTS unique project-colored dots + overflow count
+  const dayInfo = useMemo(() => {
+    const map = new Map(); // dateStr -> { dots: Color[], overflow: number, projects: Project[] }
+    weeks.forEach((week) => week.forEach((d) => {
+      if (!d.inMonth) { map.set(d.dateStr, { dots: [], overflow: 0, projects: [] }); return; }
+      map.set(d.dateStr, { dots: [], overflow: 0, projects: [] });
+    }));
 
-      // Find tasks that overlap this week
-      const overlapping = tasks.filter((t) => {
-        if (!t.start_date) return false;
-        const tEnd = t.end_date || t.start_date;
-        return t.start_date <= weekEnd && tEnd >= weekStart;
-      });
-
-      // Create bar segments
-      const bars = overlapping.map((task) => {
-        const tStart = task.start_date;
-        const tEnd = task.end_date || task.start_date;
-
-        // Find start column: first day in this week that's >= task start
-        let startCol = 0;
-        for (let i = 0; i < 7; i++) {
-          if (week[i].dateStr >= tStart) { startCol = i; break; }
-          if (i === 6) startCol = 0; // task started before this week
+    (tasks || []).forEach((t) => {
+      if (!t.start_date) return;
+      const start = t.start_date;
+      const end = t.end_date || t.start_date;
+      const sd = new Date(start + 'T12:00:00');
+      const ed = new Date(end + 'T12:00:00');
+      const cursor = new Date(sd);
+      while (cursor <= ed) {
+        const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        const slot = map.get(dateStr);
+        if (slot) {
+          // Track project for non-working calc
+          if (t.projects && !slot.projects.find((p) => p.id === t.projects.id)) {
+            slot.projects.push(t.projects);
+          }
+          // Honor working days within the project context
+          let include = true;
+          if (t.projects) {
+            const wd = t.projects.working_days || [1, 2, 3, 4, 5];
+            const nw = t.projects.non_working_dates || [];
+            if (nw.includes(dateStr)) include = false;
+            else {
+              const jsDay = cursor.getDay();
+              const isoDay = jsDay === 0 ? 7 : jsDay;
+              if (!wd.includes(isoDay)) include = false;
+            }
+          }
+          if (include) {
+            const color = t.project_id ? getProjectColor(t.project_id) : (t.color || theme.primaryBlue);
+            if (!slot.dots.includes(color)) {
+              if (slot.dots.length < MAX_DOTS) slot.dots.push(color);
+              else slot.overflow += 1;
+            }
+          }
         }
-
-        // Find end column: last day in this week that's <= task end
-        let endCol = startCol;
-        for (let i = 6; i >= 0; i--) {
-          if (week[i].dateStr <= tEnd) { endCol = i; break; }
-        }
-
-        // Ensure endCol >= startCol
-        if (endCol < startCol) endCol = startCol;
-
-        return {
-          task,
-          startCol,
-          endCol,
-          color: getColor(task),
-          title: task.title,
-        };
-      });
-
-      // Sort by span length (longer first) and limit
-      bars.sort((a, b) => (b.endCol - b.startCol) - (a.endCol - a.startCol));
-      const visible = bars.slice(0, MAX_BARS_PER_WEEK);
-      const overflow = bars.length - MAX_BARS_PER_WEEK;
-
-      return { visible, overflow };
+        cursor.setDate(cursor.getDate() + 1);
+      }
     });
-  }, [weeks, tasks]);
 
-  // Non-working day check for display
-  const isNonWorkingDay = useCallback((dateStr) => {
-    const d = new Date(dateStr + 'T12:00:00');
-    const jsDay = d.getDay();
-    return jsDay === 0 || jsDay === 6; // Default: weekends
-  }, []);
+    return map;
+  }, [weeks, tasks, theme.primaryBlue]);
+
+  const handleHeaderPress = useCallback(() => {
+    onResetToToday?.();
+  }, [onResetToToday]);
 
   return (
     <View style={styles.container}>
+      {/* Month nav header — integrated into the grid for compactness */}
+      <View style={styles.monthNav}>
+        <TouchableOpacity onPress={() => onMonthChange?.(-1)} style={styles.monthNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="chevron-back" size={20} color={theme.primaryText} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleHeaderPress} activeOpacity={0.7}>
+          <Text style={[styles.monthTitle, { color: theme.primaryText }]}>
+            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onMonthChange?.(1)} style={styles.monthNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="chevron-forward" size={20} color={theme.primaryText} />
+        </TouchableOpacity>
+      </View>
+
       {/* Weekday headers */}
-      <View style={styles.weekdayRow}>
+      <View style={[styles.weekdayRow, { borderBottomColor: theme.border }]}>
         {WEEKDAY_LABELS.map((label, i) => (
           <View key={label} style={styles.weekdayCell}>
-            <Text style={[styles.weekdayText, { color: i === 0 || i === 6 ? theme.secondaryText : theme.primaryText }]}>
+            <Text style={[
+              styles.weekdayText,
+              { color: i === 0 || i === 6 ? theme.secondaryText : theme.primaryText },
+            ]}>
               {label}
             </Text>
           </View>
         ))}
       </View>
 
-      {/* Week rows — flex-distributed so all weeks fit on screen without scrolling */}
-      {weeks.map((week, weekIdx) => {
-        const bars = weekBars[weekIdx];
+      {/* Week rows */}
+      {weeks.map((week, weekIdx) => (
+        <View key={weekIdx} style={[styles.weekRow, { borderBottomColor: theme.border }]}>
+          {week.map((day) => {
+            const info = dayInfo.get(day.dateStr) || { dots: [], overflow: 0, projects: [] };
+            const isToday = day.dateStr === today;
+            const isSelected = day.dateStr === selectedDate;
+            const isWknd = isWeekend(day.dateStr);
+            const nonWorking = isNonWorkingDay(day.dateStr, info.projects);
 
-        return (
-          <View key={weekIdx} style={[styles.weekRow, { borderBottomColor: theme.border }]}>
-            {/* Day number cells */}
-            <View style={styles.dayNumberRow}>
-              {week.map((day) => (
-                <TouchableOpacity
-                  key={day.dateStr}
-                  style={styles.dayCell}
-                  onPress={() => onDayPress?.(day.dateStr)}
-                  activeOpacity={0.6}
-                >
-                  <View style={[
-                    styles.dayNumber,
-                    day.isToday && { backgroundColor: theme.errorRed, borderRadius: 11 },
-                    day.isSelected && !day.isToday && { backgroundColor: theme.primaryBlue + '20', borderRadius: 11 },
+            return (
+              <TouchableOpacity
+                key={day.dateStr}
+                style={[
+                  styles.dayCell,
+                  isWknd && day.inMonth && { backgroundColor: theme.lightGray + '60' },
+                  nonWorking && !isWknd && day.inMonth && { backgroundColor: theme.lightGray + '40' },
+                ]}
+                onPress={() => onDayPress?.(day.dateStr)}
+                activeOpacity={0.6}
+                disabled={!day.inMonth}
+              >
+                <View style={[
+                  styles.dayNumber,
+                  isToday && {
+                    borderWidth: 1.5,
+                    borderColor: theme.primaryBlue,
+                    backgroundColor: 'transparent',
+                  },
+                  isSelected && !isToday && {
+                    backgroundColor: theme.primaryBlue + '20',
+                  },
+                ]}>
+                  <Text style={[
+                    styles.dayText,
+                    {
+                      color: !day.inMonth
+                        ? (theme.placeholderText || theme.secondaryText) + '70'
+                        : isToday
+                          ? theme.primaryBlue
+                          : theme.primaryText,
+                      fontWeight: isToday ? '700' : '500',
+                    },
                   ]}>
-                    <Text style={[
-                      styles.dayText,
-                      { color: !day.inMonth ? theme.secondaryText + '50' : day.isToday ? '#fff' : theme.primaryText },
-                    ]}>
-                      {day.day}
-                    </Text>
-                  </View>
-                  {isNonWorkingDay(day.dateStr) && day.inMonth && (
-                    <Text style={[styles.noWorkLabel, { color: theme.secondaryText + '60' }]}>No work</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Task bars */}
-            {bars.visible.map((bar, barIdx) => {
-              const left = bar.startCol * CELL_WIDTH + 2;
-              const width = (bar.endCol - bar.startCol + 1) * CELL_WIDTH - 4;
-              const top = DAY_HEADER_HEIGHT + barIdx * (BAR_HEIGHT + BAR_GAP);
-
-              return (
-                <TouchableOpacity
-                  key={bar.task.id || barIdx}
-                  style={[styles.taskBar, { left, width, top, backgroundColor: bar.color }]}
-                  onPress={() => onDayPress?.(week[bar.startCol].dateStr)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.taskBarText} numberOfLines={1}>
-                    {bar.title}
+                    {day.day}
                   </Text>
-                </TouchableOpacity>
-              );
-            })}
+                </View>
 
-            {/* Overflow indicator */}
-            {bars.overflow > 0 && (
-              <Text style={[styles.overflowText, {
-                top: DAY_HEADER_HEIGHT + MAX_BARS_PER_WEEK * (BAR_HEIGHT + BAR_GAP),
-                color: theme.secondaryText,
-              }]}>
-                +{bars.overflow} more
-              </Text>
-            )}
-          </View>
-        );
-      })}
+                {/* Project-colored dots */}
+                {day.inMonth && info.dots.length > 0 && (
+                  <View style={styles.dotRow}>
+                    {info.dots.map((c, i) => (
+                      <View key={i} style={[styles.dot, { backgroundColor: c }]} />
+                    ))}
+                  </View>
+                )}
+
+                {/* Overflow indicator (corner) */}
+                {day.inMonth && info.overflow > 0 && (
+                  <Text style={[styles.overflowText, { color: theme.secondaryText }]}>
+                    +{info.overflow}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -222,10 +239,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+  },
+  monthNavBtn: {
+    padding: 4,
+  },
+  monthTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
   weekdayRow: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   weekdayCell: {
     width: CELL_WIDTH,
@@ -233,59 +264,51 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   weekdayText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   weekRow: {
     flex: 1,
-    position: 'relative',
-    borderBottomWidth: 1,
-    overflow: 'hidden',
-  },
-  dayNumberRow: {
     flexDirection: 'row',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   dayCell: {
     width: CELL_WIDTH,
     alignItems: 'center',
-    paddingTop: 3,
+    paddingTop: 6,
+    paddingBottom: 4,
+    position: 'relative',
   },
   dayNumber: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayText: {
     fontSize: 12,
-    fontWeight: '500',
   },
-  noWorkLabel: {
-    fontSize: 7,
-    marginTop: 0,
-  },
-  taskBar: {
-    position: 'absolute',
-    height: BAR_HEIGHT,
-    borderRadius: 3,
-    paddingHorizontal: 5,
+  dotRow: {
+    flexDirection: 'row',
+    marginTop: 4,
+    gap: 3,
+    flexWrap: 'wrap',
     justifyContent: 'center',
-    zIndex: 1,
+    maxWidth: CELL_WIDTH - 8,
   },
-  taskBarText: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#fff',
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   overflowText: {
     position: 'absolute',
-    left: 6,
+    bottom: 3,
+    right: 4,
     fontSize: 9,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });

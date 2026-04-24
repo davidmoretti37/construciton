@@ -182,6 +182,18 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const closePhotoViewer = useCallback(() => {
     setPhotoViewerVisible(false);
   }, []);
+
+  // Stable handler for ScheduleView's add-task FAB / per-day add. Routes
+  // to the AI chat with a date-prefilled preset until a dedicated bottom
+  // sheet is wired. Memoized so AgendaView doesn't re-render every parent tick.
+  const handleScheduleAddTask = useCallback((dateStr) => {
+    try {
+      navigation.navigate('Chat', {
+        preset: `Add a task for ${dateStr}`,
+        presetSource: 'agenda-add',
+      });
+    } catch (_) { /* navigation may not have Chat in this stack */ }
+  }, [navigation]);
   // Initialize to today's date in local timezone (not UTC)
   const [selectedReportDate, setSelectedReportDate] = useState(() => {
     const today = new Date();
@@ -1367,18 +1379,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
         <ScheduleView
           navigation={navigation}
           role="owner"
-          onAddTaskForDate={(dateStr) => {
-            // Hand off to QuickActionSheet's add-task flow with the date
-            // pre-selected. Falls back to AI chat suggesting "create a task
-            // for [date]" so the agenda's + button always does something
-            // even before a dedicated bottom sheet is wired.
-            try {
-              navigation.navigate('Chat', {
-                preset: `Add a task for ${dateStr}`,
-                presetSource: 'agenda-add',
-              });
-            } catch (_) { /* navigation may not have Chat in this stack */ }
-          }}
+          onAddTaskForDate={handleScheduleAddTask}
         />
       )}
 

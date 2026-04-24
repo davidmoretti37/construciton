@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
-  Alert,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getColors, LightColors, Spacing } from '../constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getColors, LightColors, Spacing, BorderRadius, FontSizes } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { fetchTasksForWorkerDateRange, fetchTasksForDateRange, fetchProjectPhases, getCurrentUserId } from '../utils/storage';
@@ -18,18 +20,62 @@ import { getProjectColor } from '../utils/calendarUtils';
 import AgendaView from './schedule/AgendaView';
 import MonthGridView from './schedule/MonthGridView';
 
+const STORAGE_KEY_VIEW_MODE = 'schedule.viewMode.v1';
+const STORAGE_KEY_STATUS = 'schedule.statusFilter.v1';
+
+const STATUS_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'This week' },
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'done', label: 'Done' },
+];
+
 export default function ScheduleView({ navigation, role = 'worker', onAddTaskForDate }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
   const [viewMode, setViewMode] = useState('agenda'); // 'agenda' | 'month'
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null); // null = All Projects
+  const [selectedProject, setSelectedProject] = useState(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // Hydrate persisted UI state on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [savedView, savedStatus] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY_VIEW_MODE),
+          AsyncStorage.getItem(STORAGE_KEY_STATUS),
+        ]);
+        if (savedView === 'agenda' || savedView === 'month') setViewMode(savedView);
+        if (savedStatus && STATUS_FILTERS.some((s) => s.id === savedStatus)) setStatusFilter(savedStatus);
+      } catch (_) { /* AsyncStorage hydration is best-effort */ }
+    })();
+  }, []);
+
+  // Debounce search to avoid filtering on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim().toLowerCase()), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const persistViewMode = useCallback((mode) => {
+    setViewMode(mode);
+    AsyncStorage.setItem(STORAGE_KEY_VIEW_MODE, mode).catch(() => {});
+  }, []);
+
+  const persistStatus = useCallback((id) => {
+    setStatusFilter(id);
+    AsyncStorage.setItem(STORAGE_KEY_STATUS, id).catch(() => {});
+  }, []);
 
   // Load data
   const loadData = useCallback(async () => {
@@ -39,7 +85,6 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       if (!userId) return;
 
       if (role === 'worker') {
-        // Worker: get assigned projects + tasks
         const { data: worker } = await supabase
           .from('workers')
           .select('id, owner_id')
@@ -47,7 +92,6 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           .single();
 
         if (!worker) {
-          // Owner viewing as worker fallback
           await loadOwnerData(userId);
           return;
         }
@@ -59,23 +103,19 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
 
         const projectIds = (assignments || []).map((a) => a.project_id).filter(Boolean);
 
-        // Load projects for picker
         if (projectIds.length > 0) {
           const { data: projectData } = await supabase
             .from('projects')
-            .select('id, name, status')
+            .select('id, name, status, working_days, non_working_dates')
             .in('id', projectIds)
             .neq('status', 'archived');
           setProjects(projectData || []);
         }
 
-        // Load tasks for the full project window — was previously capped at
-        // 60 days which clipped the agenda. AgendaView extends through the
-        // furthest task end_date, so feed it everything within a year.
         const start = new Date();
-        start.setDate(start.getDate() - 7); // 1 week back for recently-completed
+        start.setDate(start.getDate() - 7);
         const end = new Date();
-        end.setDate(end.getDate() + 365); // 1 year forward — covers any project
+        end.setDate(end.getDate() + 365);
         const startStr = formatDate(start);
         const endStr = formatDate(end);
 
@@ -92,7 +132,6 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   }, [role]);
 
   const loadOwnerData = async (userId) => {
-    // Owner: get all projects and tasks
     const { data: projectData } = await supabase
       .from('projects')
       .select('id, name, status, start_date, end_date, working_days, non_working_dates')
@@ -101,8 +140,6 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       .order('name');
     setProjects(projectData || []);
 
-    // Owner agenda spans the full project window — was capped at 60 days
-    // which clipped tasks. AgendaView extends to the furthest task end_date.
     const start = new Date();
     start.setDate(start.getDate() - 7);
     const end = new Date();
@@ -110,7 +147,6 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     const startStr = formatDate(start);
     const endStr = formatDate(end);
 
-    // Try worker_tasks first (populated by AI distribution)
     const taskData = await fetchTasksForDateRange(startStr, endStr);
 
     if (taskData && taskData.length > 0) {
@@ -118,8 +154,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       return;
     }
 
-    // Fallback: build tasks from project_phases.tasks (JSONB)
-    // Distribute tasks across working days within each phase
+    // Fallback: synthesize tasks from project_phases.tasks JSONB
     const phaseTasks = [];
     for (const project of (projectData || [])) {
       try {
@@ -134,7 +169,6 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           const phaseEnd = phase.end_date || phase.start_date || project.start_date;
           if (!phaseStart) return;
 
-          // Collect working days within this phase
           const workingDays = project.working_days || [1, 2, 3, 4, 5];
           const nonWorking = project.non_working_dates || [];
           const availableDays = [];
@@ -151,7 +185,6 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             cursor.setDate(cursor.getDate() + 1);
           }
 
-          // Distribute tasks evenly across available days
           tasks.forEach((task, idx) => {
             const dayIndex = availableDays.length > 0
               ? Math.min(Math.floor(idx * availableDays.length / tasks.length), availableDays.length - 1)
@@ -188,37 +221,65 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     loadData();
   }, [loadData]);
 
-  // Filter tasks by selected project
+  // Compute today / week boundaries once per filter pass
   const filteredTasks = useMemo(() => {
-    if (!selectedProject) return tasks;
-    return tasks.filter((t) => t.project_id === selectedProject.id);
-  }, [tasks, selectedProject]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = formatDate(today);
+    const weekEnd = new Date(today);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const weekEndStr = formatDate(weekEnd);
 
-  // Handlers
-  const handleDayPress = (dateStr) => {
+    return tasks.filter((t) => {
+      // Project filter
+      if (selectedProject && t.project_id !== selectedProject.id) return false;
+
+      // Search filter (title, project name, description)
+      if (debouncedSearch) {
+        const hay = `${t.title || ''} ${t.projects?.name || ''} ${t.description || ''}`.toLowerCase();
+        if (!hay.includes(debouncedSearch)) return false;
+      }
+
+      // Status / range filter
+      const start = t.start_date;
+      const end = t.end_date || t.start_date;
+      if (!start) return statusFilter === 'all' || statusFilter === 'done';
+
+      const isDone = t.status === 'done' || t.status === 'completed';
+
+      switch (statusFilter) {
+        case 'today':
+          return start <= todayStr && end >= todayStr && !isDone;
+        case 'week':
+          return start <= weekEndStr && end >= todayStr && !isDone;
+        case 'overdue':
+          return end < todayStr && !isDone;
+        case 'done':
+          return isDone;
+        case 'all':
+        default:
+          return true;
+      }
+    });
+  }, [tasks, selectedProject, debouncedSearch, statusFilter]);
+
+  const handleDayPress = useCallback((dateStr) => {
     setSelectedDate(dateStr);
-    setViewMode('agenda');
-  };
+    persistViewMode('agenda');
+  }, [persistViewMode]);
 
-  const handleTaskPress = (task) => {
-    // Open TaskDetailModal via navigation or direct modal
-    if (navigation) {
-      // The parent screen handles TaskDetailModal
-    }
-  };
-
-  const handleMonthChange = (direction) => {
+  const handleMonthChange = useCallback((direction) => {
     setCurrentMonth((prev) => {
       const next = new Date(prev);
       next.setMonth(next.getMonth() + direction);
       return next;
     });
-  };
+  }, []);
 
-  const handleSelectProject = (project) => {
+  const handleSelectProject = useCallback((project) => {
     setSelectedProject(project);
     setShowProjectPicker(false);
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -230,69 +291,119 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
 
   return (
     <View style={[styles.container, { backgroundColor: Colors.background }]}>
-      {/* Project Selector */}
-      <TouchableOpacity
-        style={[styles.projectSelector, { backgroundColor: Colors.white, borderColor: Colors.border }]}
-        onPress={() => setShowProjectPicker(true)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.projectSelectorLeft}>
-          {selectedProject && (
-            <View style={[styles.projectDot, { backgroundColor: getProjectColor(selectedProject.id) }]} />
-          )}
-          <Text style={[styles.projectSelectorText, { color: Colors.primaryText }]} numberOfLines={1}>
-            {selectedProject ? selectedProject.name : 'All Projects'}
-          </Text>
-        </View>
-        <Ionicons name="chevron-down" size={18} color={Colors.secondaryText} />
-      </TouchableOpacity>
-
-      {/* View Toggle */}
-      <View style={[styles.viewToggle, { backgroundColor: Colors.lightGray }]}>
-        <TouchableOpacity
-          style={[styles.toggleButton, viewMode === 'agenda' && { backgroundColor: Colors.white }]}
-          onPress={() => setViewMode('agenda')}
-        >
-          <Text style={[styles.toggleText, { color: viewMode === 'agenda' ? Colors.primaryBlue : Colors.secondaryText }]}>
-            Agenda
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggleButton, viewMode === 'month' && { backgroundColor: Colors.white }]}
-          onPress={() => setViewMode('month')}
-        >
-          <Text style={[styles.toggleText, { color: viewMode === 'month' ? Colors.primaryBlue : Colors.secondaryText }]}>
-            Month
-          </Text>
-        </TouchableOpacity>
+      {/* Search bar */}
+      <View style={[styles.searchBar, { backgroundColor: Colors.lightGray }]}>
+        <Ionicons name="search" size={16} color={Colors.secondaryText} />
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search tasks…"
+          placeholderTextColor={Colors.placeholderText}
+          style={[styles.searchInput, { color: Colors.primaryText }]}
+          returnKeyType="search"
+          autoCorrect={false}
+        />
+        {searchQuery !== '' && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={16} color={Colors.secondaryText} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Month Navigation (only in month view) */}
-      {viewMode === 'month' && (
-        <View style={styles.monthNav}>
-          <TouchableOpacity onPress={() => handleMonthChange(-1)} style={styles.monthNavBtn}>
-            <Ionicons name="chevron-back" size={20} color={Colors.primaryText} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => {
-            setCurrentMonth(new Date());
-            setSelectedDate(formatDate(new Date()));
-          }}>
-            <Text style={[styles.monthTitle, { color: Colors.primaryText }]}>
-              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+      {/* Chip row: status filters + project chip + view toggle */}
+      <View style={styles.chipRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipScroll}
+        >
+          {STATUS_FILTERS.map((f) => {
+            const active = statusFilter === f.id;
+            return (
+              <TouchableOpacity
+                key={f.id}
+                onPress={() => persistStatus(f.id)}
+                activeOpacity={0.7}
+                style={[
+                  styles.chip,
+                  { backgroundColor: active ? Colors.primaryBlue : Colors.lightGray },
+                ]}
+              >
+                <Text style={[
+                  styles.chipText,
+                  { color: active ? Colors.white : Colors.primaryText },
+                ]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* Project picker chip */}
+          <TouchableOpacity
+            onPress={() => setShowProjectPicker(true)}
+            activeOpacity={0.7}
+            style={[
+              styles.chip,
+              styles.projectChip,
+              { backgroundColor: selectedProject ? Colors.primaryBlue + '14' : Colors.lightGray, borderColor: selectedProject ? Colors.primaryBlue + '40' : 'transparent' },
+            ]}
+          >
+            {selectedProject ? (
+              <View style={[styles.projectChipDot, { backgroundColor: getProjectColor(selectedProject.id) }]} />
+            ) : (
+              <Ionicons name="folder-open-outline" size={13} color={Colors.secondaryText} style={{ marginRight: 6 }} />
+            )}
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.chipText,
+                { color: selectedProject ? Colors.primaryBlue : Colors.primaryText, maxWidth: 110 },
+              ]}
+            >
+              {selectedProject ? selectedProject.name : 'All projects'}
             </Text>
+            <Ionicons
+              name="chevron-down"
+              size={12}
+              color={selectedProject ? Colors.primaryBlue : Colors.secondaryText}
+              style={{ marginLeft: 4 }}
+            />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleMonthChange(1)} style={styles.monthNavBtn}>
-            <Ionicons name="chevron-forward" size={20} color={Colors.primaryText} />
+        </ScrollView>
+
+        {/* View toggle — icon buttons */}
+        <View style={[styles.viewToggle, { backgroundColor: Colors.lightGray }]}>
+          <TouchableOpacity
+            onPress={() => persistViewMode('agenda')}
+            style={[styles.viewToggleBtn, viewMode === 'agenda' && { backgroundColor: Colors.white, shadowOpacity: 0.06 }]}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="list"
+              size={16}
+              color={viewMode === 'agenda' ? Colors.primaryBlue : Colors.secondaryText}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => persistViewMode('month')}
+            style={[styles.viewToggleBtn, viewMode === 'month' && { backgroundColor: Colors.white, shadowOpacity: 0.06 }]}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="grid"
+              size={15}
+              color={viewMode === 'month' ? Colors.primaryBlue : Colors.secondaryText}
+            />
           </TouchableOpacity>
         </View>
-      )}
+      </View>
 
       {/* View Content */}
       {viewMode === 'agenda' ? (
         <AgendaView
           tasks={filteredTasks}
           theme={Colors}
-          onTaskPress={handleTaskPress}
           scrollToDate={selectedDate}
           onAddTaskForDate={role !== 'worker' ? onAddTaskForDate : undefined}
         />
@@ -303,6 +414,11 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           theme={Colors}
           onDayPress={handleDayPress}
           selectedDate={selectedDate}
+          onMonthChange={handleMonthChange}
+          onResetToToday={() => {
+            setCurrentMonth(new Date());
+            setSelectedDate(formatDate(new Date()));
+          }}
         />
       )}
 
@@ -332,6 +448,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
                 <TouchableOpacity
                   style={[styles.pickerItem, isSelected && { backgroundColor: Colors.primaryBlue + '10' }]}
                   onPress={() => handleSelectProject(item.id ? item : null)}
+                  activeOpacity={0.7}
                 >
                   <View style={styles.pickerItemLeft}>
                     {item.id && (
@@ -362,8 +479,6 @@ function formatDate(date) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // Reserve space for the floating bottom tab bar so the last week row
-    // is fully visible instead of sitting under the pill.
     paddingBottom: 100,
   },
   loadingContainer: {
@@ -371,63 +486,73 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  projectSelector: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.sm,
   },
-  projectSelectorLeft: {
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    paddingVertical: 0,
+  },
+  chipRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    paddingLeft: 16,
+    paddingRight: 12,
+    marginBottom: 6,
+    gap: 8,
   },
-  projectDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 10,
+  chipScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 8,
+    gap: 6,
   },
-  projectSelectorText: {
-    fontSize: 15,
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  projectChip: {
+    paddingHorizontal: 10,
+  },
+  projectChipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  chipText: {
+    fontSize: 12,
     fontWeight: '600',
   },
   viewToggle: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 10,
-    padding: 3,
+    borderRadius: BorderRadius.sm,
+    padding: 2,
+    marginLeft: 4,
   },
-  toggleButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  toggleText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  monthNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  monthNavBtn: {
-    padding: 4,
-  },
-  monthTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+  viewToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0,
+    shadowRadius: 2,
+    elevation: 0,
   },
   pickerContainer: {
     flex: 1,
@@ -454,6 +579,12 @@ const styles = StyleSheet.create({
   pickerItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  projectDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
   },
   pickerItemText: {
     fontSize: 15,
