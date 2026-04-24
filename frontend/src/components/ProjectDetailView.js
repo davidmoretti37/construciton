@@ -680,7 +680,32 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   };
 
   const handleTaskToggle = (task, phase) => {
-    if (!task.workerTaskId) return;
+    // Missing workerTaskId means fetchProjectPhases couldn't link this
+    // phase task to a worker_tasks row across any of the 3 legacy
+    // phase_task_id formats. Don't silently no-op — the user just sees
+    // their tap do nothing. Trigger a reflow which deletes + recreates
+    // worker_tasks with phase_task_id = task.id (the canonical UUID),
+    // then re-fetch so the next tap has a valid handle.
+    if (!task.workerTaskId) {
+      Alert.alert(
+        'Syncing task',
+        'Tap again in a moment — re-syncing this task with your schedule.'
+      );
+      (async () => {
+        try {
+          const { redistributeProjectTasks } = await import('../utils/scheduling/redistributeProjectTasks');
+          await redistributeProjectTasks(project.id, { immediate: true });
+          const updated = await fetchProjectPhases(project.id);
+          if (updated) setPhases(updated);
+          const { progress } = await calculateProjectProgressFromTasks(project.id);
+          setCalculatedProgress(progress);
+        } catch (e) {
+          console.error('Task sync failed:', e?.message);
+        }
+      })();
+      return;
+    }
+
     const newCompleted = !task.completed;
 
     // Optimistic UI update — instant feedback
@@ -714,7 +739,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       return totalTasks > 0 ? Math.round((totalCompleted / totalTasks) * 100) : 0;
     });
 
-    // Sync with DB in the background
+    // Sync with DB. On success, re-fetch phases so the JSONB
+    // task.completed reflects whatever the DB has — keeps client and
+    // DB in lock-step instead of relying on optimistic state to
+    // survive a navigation away/back.
     (async () => {
       try {
         if (newCompleted) {
@@ -722,11 +750,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         } else {
           await uncompleteTask(task.workerTaskId);
         }
+        // Authoritative sync — DB is now the source of truth.
+        const updated = await fetchProjectPhases(project.id);
+        if (updated) setPhases(updated);
+        const { progress } = await calculateProjectProgressFromTasks(project.id);
+        if (progress != null) setCalculatedProgress(progress);
       } catch (error) {
         console.error('Error toggling task:', error);
         // Revert on failure
         const updated = await fetchProjectPhases(project.id);
-        setPhases(updated);
+        if (updated) setPhases(updated);
         const { progress } = await calculateProjectProgressFromTasks(project.id);
         setCalculatedProgress(progress);
       }

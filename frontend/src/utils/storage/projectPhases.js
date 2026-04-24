@@ -414,7 +414,7 @@ export const fetchProjectPhases = async (projectId) => {
     // No owner_id filter - workers need to see task completion status too
     const { data: workerTasks, error: taskError } = await supabase
       .from('worker_tasks')
-      .select('id, phase_task_id, status')
+      .select('id, phase_task_id, status, title')
       .eq('project_id', projectId)
       .not('phase_task_id', 'is', null);
 
@@ -434,7 +434,28 @@ export const fetchProjectPhases = async (projectId) => {
     }
 
     // Merge completion status into phase tasks and calculate progress
-    // Use global task index to match phase-task-X format
+    // Use global task index to match phase-task-X format.
+    //
+    // Build a secondary lookup keyed by lowercased title scoped to
+    // (project_id, phase title hint). Used as a 4th-line fallback when
+    // none of the 3 phase_task_id formats match — covers projects where
+    // worker_tasks were created with a title that still matches the
+    // phase task description but a phase_task_id that drifted.
+    const titleToWorkerTask = {};
+    if (workerTasks) {
+      for (const wt of workerTasks) {
+        const key = (wt.title || '').trim().toLowerCase();
+        if (!key) continue;
+        // Prefer the most recently-created row for a given title (latest
+        // reflow wins) — last write to the map sticks because we already
+        // streamed in insertion order.
+        titleToWorkerTask[key] = {
+          completed: wt.status === 'completed',
+          workerTaskId: wt.id,
+        };
+      }
+    }
+
     let globalTaskIndex = 0;
 
     for (const phase of phases) {
@@ -450,11 +471,28 @@ export const fetchProjectPhases = async (projectId) => {
             `${phase.name}-${localIndex}`,
           ].filter(Boolean);
 
+          let matched = false;
           for (const phaseTaskId of possibleIds) {
             if (taskStatusMap.hasOwnProperty(phaseTaskId)) {
               task.completed = taskStatusMap[phaseTaskId].completed;
               task.workerTaskId = taskStatusMap[phaseTaskId].workerTaskId;
+              matched = true;
               break;
+            }
+          }
+
+          // 4th fallback — title-match (case + whitespace insensitive).
+          // Catches projects where phase task descriptions were renamed
+          // (or whitespace tweaked) after worker_tasks were created with
+          // a now-divergent phase_task_id. Without this, the user's tap
+          // is a silent no-op.
+          if (!matched) {
+            const titleKey = (task.description || task.name || task.title || '')
+              .trim()
+              .toLowerCase();
+            if (titleKey && titleToWorkerTask[titleKey]) {
+              task.completed = titleToWorkerTask[titleKey].completed;
+              task.workerTaskId = titleToWorkerTask[titleKey].workerTaskId;
             }
           }
 
