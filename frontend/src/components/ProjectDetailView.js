@@ -1293,7 +1293,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               if (newStatus === 'completed' || newStatus === 'paused') {
                 const statusLabel = newStatus === 'completed' ? 'completed' : 'paused';
                 supabase
-                  .from('project_workers')
+                  .from('project_assignments')
                   .select('worker_id, workers(profile_id)')
                   .eq('project_id', project.id)
                   .then(({ data: pw }) => {
