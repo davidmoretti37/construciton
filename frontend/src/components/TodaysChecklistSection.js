@@ -389,6 +389,16 @@ export default function TodaysChecklistSection({
                 </TouchableOpacity>
               </View>
 
+              {/* keyboardShouldPersistTaps="handled" is the fix for the
+                  "keyboard dismisses on first tap" problem: taps on children
+                  with press handlers (the + button, × buttons, date chips,
+                  Save/Cancel) register immediately without blurring the
+                  TextInput. Without this wrapper, the first tap only
+                  dismisses the keyboard and the button needs a second tap. */}
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
               <Text style={[styles.modalLabel, { color: Colors.secondaryText }]}>TASKS</Text>
               {newTitles.map((title, i) => (
                 <View key={`task-row-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -490,6 +500,7 @@ export default function TodaysChecklistSection({
                   )}
                 </TouchableOpacity>
               </View>
+              </ScrollView>
             </View>
           </KeyboardAvoidingView>
         </View>
