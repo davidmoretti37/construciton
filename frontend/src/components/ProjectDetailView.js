@@ -200,20 +200,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           setInitialLoading(true);
         }
 
-        // Fire ALL fetches in parallel
+        // Split the open burst into TWO waves so the critical path (phases,
+        // workers, progress, supervisor) gets dedicated Supabase connection
+        // slots. Previously firing all 12 queries in parallel tripped
+        // Postgres 57014 statement_timeout on large projects — the planner
+        // tree + nested RLS couldn't finish under contention. The flattened
+        // RLS from 20260424b cuts per-query cost, and the two-wave pattern
+        // keeps us under the concurrency ceiling on real projects.
         const [
           phasesResult,
           workersResult,
           supervisorResult,
-          tasksResult,
           progressResult,
-          reportsResult,
-          estimatesResult,
-          transactionResult,
-          tradeBudgetsResult,
-          tradeExpensesResult,
-          hoursResult,
-          docsResult,
         ] = await Promise.allSettled([
           // 0: phases
           project?.hasPhases ? fetchProjectPhases(project.id) : Promise.resolve([]),
@@ -223,10 +221,28 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           (project?.assignedTo || project?.assigned_supervisor_id)
             ? supabase.from('profiles').select('business_name').eq('id', project?.assignedTo || project?.assigned_supervisor_id).single()
             : Promise.resolve({ data: null }),
+          // 3: progress
+          calculateProjectProgressFromTasks(project.id),
+        ]);
+
+        // Wave 2 — non-critical data that feeds tabs and secondary sections.
+        // Fires after the critical wave resolves so the app has a chance to
+        // render the header + phases immediately. Results use the same
+        // Promise.allSettled shape so the downstream mapping code below is
+        // unchanged. NOTE: `tasksResult` is query index 3 in the original
+        // ordering; reorder here matches old indices (3,5,6,7,8,9,10,11).
+        const [
+          tasksResult,
+          reportsResult,
+          estimatesResult,
+          transactionResult,
+          tradeBudgetsResult,
+          tradeExpensesResult,
+          hoursResult,
+          docsResult,
+        ] = await Promise.allSettled([
           // 3: manual tasks
           supabase.from('worker_tasks').select('*').eq('project_id', project.id).is('phase_task_id', null).order('start_date', { ascending: true }),
-          // 4: progress
-          calculateProjectProgressFromTasks(project.id),
           // 5: daily reports
           fetchDailyReports(project.id),
           // 6: estimates
