@@ -60,11 +60,19 @@ const AIInputWithSearch = ({
   onPopulateInput, // New prop to expose setValue to parent
   attachments = [], // Array of { uri, name, mimeType }
   onRemoveAttachment, // Callback (index) => void
+  // Optional controlled-mode props — if both are provided, the parent owns
+  // the text state. Used by ChatScreen to persist per-session drafts so
+  // switching chat sessions shows the right draft for each one.
+  value: controlledValue,
+  onChangeText: controlledOnChangeText,
 }) => {
   const { t } = useTranslation('common');
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const [value, setValue] = useState('');
+  const [internalValue, setInternalValue] = useState('');
+  const isControlled = controlledValue !== undefined && typeof controlledOnChangeText === 'function';
+  const value = isControlled ? controlledValue : internalValue;
+  const setValue = isControlled ? controlledOnChangeText : setInternalValue;
   const [inputKey, setInputKey] = useState(0); // Force re-render key
   const [showSearch, setShowSearch] = useState(false);
   const [isRecording, setIsRecording] = useState(false);

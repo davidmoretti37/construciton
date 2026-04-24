@@ -117,6 +117,12 @@ const resolveProjectId = (projects, id) => {
 export default function ChatScreen({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [conversationHistory, setConversationHistory] = useState([]);
+  // Per-session draft messages. Kept in a dict keyed by session id so
+  // switching between history entries preserves each chat's unsent text
+  // independently. Persisted to AsyncStorage on change so drafts survive
+  // app reloads. `null` key used for the "no session yet" state.
+  const [drafts, setDrafts] = useState({});
+  const DRAFTS_STORAGE_KEY = 'chat_drafts_by_session_v1';
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false); // Track actual streaming state
   const [bgOverlay, setBgOverlay] = useState(false); // Overlay to hide thinking→answer transition
@@ -452,6 +458,58 @@ export default function ChatScreen({ navigation, route }) {
   useEffect(() => {
     initializeSession();
   }, []); // Only run once on mount
+
+  // Hydrate per-session drafts from AsyncStorage on mount so drafts survive
+  // app reloads. Persist on every change with a lightweight debounce.
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(DRAFTS_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') setDrafts(parsed);
+        }
+      } catch (_) { /* best-effort */ }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      AsyncStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(drafts)).catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [drafts]);
+
+  // Controlled value + setter for the chat input. Keyed by current session
+  // so typing in one chat doesn't bleed into another; `__none` holds the
+  // pre-session draft (very first message before a session is created).
+  const draftKey = currentSessionId || '__none';
+  const draftValue = drafts[draftKey] || '';
+  const setDraftValue = useCallback((text) => {
+    setDrafts((prev) => {
+      // Drop empty-string entries to avoid accumulating junk keys in storage.
+      if (!text) {
+        if (!(draftKey in prev)) return prev;
+        const { [draftKey]: _removed, ...rest } = prev;
+        return rest;
+      }
+      if (prev[draftKey] === text) return prev;
+      return { ...prev, [draftKey]: text };
+    });
+  }, [draftKey]);
+
+  // When a session is created after the user has already typed something
+  // (draft lives under `__none`), hoist that draft onto the new session id
+  // so the in-flight text doesn't disappear.
+  useEffect(() => {
+    if (!currentSessionId) return;
+    setDrafts((prev) => {
+      if (!prev.__none) return prev;
+      if (prev[currentSessionId]) return prev; // don't clobber an existing one
+      const { __none: carried, ...rest } = prev;
+      return { ...rest, [currentSessionId]: carried };
+    });
+  }, [currentSessionId]);
 
   // Auto-save messages ONLY when streaming fully completes
   useEffect(() => {
@@ -3736,6 +3794,10 @@ export default function ChatScreen({ navigation, route }) {
             onCameraPress={handleCameraOpen}
             attachments={chatAttachments}
             onRemoveAttachment={(index) => setChatAttachments(prev => prev.filter((_, i) => i !== index))}
+            // Controlled text: parent owns per-session draft so switching
+            // sessions shows each chat's own unsent message.
+            value={draftValue}
+            onChangeText={setDraftValue}
           />
           </View>
         </View>
