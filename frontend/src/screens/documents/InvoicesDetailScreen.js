@@ -106,7 +106,7 @@ export default function InvoicesDetailScreen({ navigation }) {
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allInvoices')}</Text>
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => navigation.navigate('EditInvoiceSetup')}
+          onPress={() => navigation.navigate('InvoiceTemplate')}
         >
           <Ionicons name="create-outline" size={22} color={Colors.primaryBlue} />
         </TouchableOpacity>
@@ -128,8 +128,28 @@ export default function InvoicesDetailScreen({ navigation }) {
             </View>
           ) : (
             invoices.map((invoice) => {
-              const actualStatus = isOverdue(invoice.dueDate, invoice.status) ? 'overdue' : invoice.status;
-              const remaining = (invoice.total || 0) - (invoice.paidAmount || 0);
+              // Normalize snake_case (DB) and camelCase (AI-generated) shapes
+              // up front so the UI doesn't fall back to "N/A" everywhere.
+              const number = invoice.invoice_number || invoice.invoiceNumber;
+              const clientName = invoice.client_name || invoice.clientName || invoice.client || '';
+              const projectName = invoice.project_name || invoice.projectName;
+              const due = invoice.due_date || invoice.dueDate;
+              const totalAmt = invoice.total || invoice.total_amount || invoice.amount || 0;
+              const paid = invoice.amount_paid || invoice.paidAmount || invoice.amountPaid || 0;
+              const status = (invoice.status || 'unpaid').toLowerCase();
+              const actualStatus = isOverdue(due, status) ? 'overdue' : status;
+              const remaining = (totalAmt || 0) - (paid || 0);
+
+              const STATUS_LABELS = { unpaid: 'Unpaid', paid: 'Paid', partial: 'Partial', overdue: 'Overdue', draft: 'Draft' };
+              // Try the i18n key first; if it falls back to the key itself
+              // (missing translation), use the human label so we don't
+              // surface raw "Status.Unpaid" strings in the UI.
+              const i18nLabel = t(`status.${actualStatus}`);
+              const statusLabel = i18nLabel.startsWith('status.') ? (STATUS_LABELS[actualStatus] || 'Unpaid') : i18nLabel;
+
+              const dueLabel = due
+                ? new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : null;
 
               return (
                 <TouchableOpacity
@@ -139,14 +159,15 @@ export default function InvoicesDetailScreen({ navigation }) {
                     setSelectedInvoice(invoice);
                     setShowInvoiceModal(true);
                   }}
+                  activeOpacity={0.7}
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
-                      <Text style={[styles.clientName, { color: Colors.primaryText }]}>
-                        {invoice.clientName}
+                      <Text style={[styles.clientName, { color: Colors.primaryText }]} numberOfLines={1}>
+                        {clientName || (number ? `Invoice #${number}` : 'Invoice')}
                       </Text>
-                      <Text style={[styles.invoiceNumber, { color: Colors.secondaryText }]}>
-                        #{invoice.invoiceNumber || 'N/A'}
+                      <Text style={[styles.invoiceNumber, { color: Colors.secondaryText }]} numberOfLines={1}>
+                        {number ? `#${number}` : ''}{projectName ? ` · ${projectName}` : ''}
                       </Text>
                     </View>
                     <View
@@ -156,30 +177,32 @@ export default function InvoicesDetailScreen({ navigation }) {
                       ]}
                     >
                       <Text style={[styles.statusText, { color: getStatusColor(actualStatus) }]}>
-                        {actualStatus ? t(`status.${actualStatus}`) : t('list.unpaid')}
+                        {statusLabel}
                       </Text>
                     </View>
                   </View>
 
                   <View style={styles.cardBody}>
                     <View>
-                      <View style={styles.infoRow}>
-                        <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
-                        <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
-                          {t('list.due')} {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A'}
-                        </Text>
-                      </View>
-                      {invoice.status?.toLowerCase() === 'partial' && (
+                      {dueLabel && (
+                        <View style={styles.infoRow}>
+                          <Ionicons name="calendar-outline" size={16} color={Colors.secondaryText} />
+                          <Text style={[styles.infoText, { color: Colors.secondaryText }]}>
+                            {t('list.due')} {dueLabel}
+                          </Text>
+                        </View>
+                      )}
+                      {actualStatus === 'partial' && (
                         <Text style={[styles.paidAmount, { color: Colors.successGreen }]}>
-                          {t('list.paid')} ${invoice.paidAmount?.toLocaleString() || '0'}
+                          {t('list.paid')} ${paid.toLocaleString()}
                         </Text>
                       )}
                     </View>
                     <View style={styles.amountColumn}>
                       <Text style={[styles.amount, { color: Colors.primaryText }]}>
-                        ${invoice.total?.toLocaleString() || '0'}
+                        ${Number(totalAmt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
-                      {invoice.status?.toLowerCase() === 'partial' && (
+                      {actualStatus === 'partial' && (
                         <Text style={[styles.remaining, { color: Colors.warningOrange }]}>
                           ${remaining.toLocaleString()} {t('list.left')}
                         </Text>

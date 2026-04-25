@@ -190,7 +190,7 @@ export default function EditServiceScreen({ route, navigation }) {
 
   const handleEditPhase = (index, phase) => {
     setEditingPhaseIndex(index);
-    setEditPhaseName(phase.phase_name || '');
+    setEditPhaseName(phase.phase_name || phase.name || phase.title || '');
     setEditPhaseDays((phase.default_days || 7).toString());
     setShowPhaseModal(true);
   };
@@ -202,8 +202,12 @@ export default function EditServiceScreen({ route, navigation }) {
     }
 
     const newPhases = [...customPhases];
+    const existing = newPhases[editingPhaseIndex] || {};
+    // Drop legacy `name` / `title` keys when writing back so the row
+    // self-heals to the canonical `phase_name` shape on next save.
+    const { name: _legacyName, title: _legacyTitle, ...rest } = existing;
     newPhases[editingPhaseIndex] = {
-      ...newPhases[editingPhaseIndex],
+      ...rest,
       phase_name: editPhaseName.trim(),
       default_days: parseInt(editPhaseDays) || 7,
     };
@@ -461,7 +465,7 @@ export default function EditServiceScreen({ route, navigation }) {
                         </View>
                         <View style={styles.phaseInfo}>
                           <Text style={[styles.phaseName, { color: Colors.primaryText }]}>
-                            {phase.phase_name || 'Unnamed Phase'}
+                            {phase.phase_name || phase.name || phase.title || 'Unnamed Phase'}
                           </Text>
                           <Text style={[styles.phaseDays, { color: Colors.secondaryText }]}>
                             ~{phase.default_days || 7} {tCommon('units.days')}
