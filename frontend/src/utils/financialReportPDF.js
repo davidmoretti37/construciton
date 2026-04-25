@@ -704,3 +704,52 @@ export const shareProjectReportPDF = async (project, transactions, periodLabel) 
     Alert.alert('Error', 'Failed to export project report. Please try again.');
   }
 };
+
+// ============================================================
+// Agent → PDF bridge
+// ----------------------------------------------------------------
+// The `get_profit_loss` AI tool returns a `visualElement.data` payload
+// shaped for inline rendering. Map that payload to the existing
+// `generateFinancialReportHTML` shape and reuse the on-device PDF +
+// native share path. Keeps PDF generation co-located with the rest of
+// the financial reports — no new engine, no Storage upload.
+// ============================================================
+const _formatRangeLabel = (startStr, endStr) => {
+  if (!startStr || !endStr) return 'Profit & Loss';
+  const fmt = { month: 'short', day: 'numeric', year: 'numeric' };
+  const s = new Date(startStr + 'T12:00:00').toLocaleDateString('en-US', fmt);
+  const e = new Date(endStr + 'T12:00:00').toLocaleDateString('en-US', fmt);
+  return `${s} – ${e}`;
+};
+
+export const generatePnLPDFFromAgent = async (agentData) => {
+  const safe = agentData || {};
+  const reportData = {
+    periodLabel: `${safe.scope === 'project' && safe.projectName ? safe.projectName + ' · ' : ''}${_formatRangeLabel(safe.startDate, safe.endDate)}`,
+    totalRevenue: Number(safe.revenue) || 0,
+    totalCosts: Number(safe.costs) || 0,
+    grossProfit: Number(safe.grossProfit) || 0,
+    grossMargin: Number(safe.grossMargin) || 0,
+    totalContractValue: 0,
+    costBreakdown: safe.costBreakdown || {},
+    subcategoryBreakdown: {},
+    incomeBreakdown: {},
+    projectBreakdowns: Array.isArray(safe.projectBreakdowns)
+      ? safe.projectBreakdowns.map((p) => ({
+          id: p.id,
+          name: p.name,
+          incomeCollected: Number(p.revenue) || 0,
+          expenses: Number(p.costs) || 0,
+          grossProfit: Number(p.grossProfit) || 0,
+          grossMargin: Number(p.grossMargin) || 0,
+          costBreakdown: p.costBreakdown || {},
+          subcategoryBreakdown: {},
+          incomeBreakdown: {},
+          budgetUsed: 0,
+          contractAmount: 0,
+        }))
+      : [],
+    transactions: [],
+  };
+  return shareFinancialReportPDF(reportData);
+};

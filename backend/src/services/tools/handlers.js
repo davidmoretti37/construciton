@@ -3979,6 +3979,238 @@ async function get_cash_flow(userId, args = {}) {
   };
 }
 
+// ============================================================
+// get_profit_loss
+// ----------------------------------------------------------------
+// Returns a full P&L breakdown for a date range, optionally
+// scoped to a single project. Includes per-category cost rollups,
+// gross profit + margin, prorated overhead from recurring_expenses
+// (NOT annualized — proration matches the actual date range), and
+// outstanding receivables. Owner-only. Read-only.
+// ============================================================
+const PNL_CATEGORIES = ['labor', 'materials', 'subcontractor', 'equipment', 'permits', 'misc'];
+
+function _periodFractionFromRange(startDate, endDate) {
+  // Average month is 30.44 days. Used to prorate monthly recurring
+  // overhead across an arbitrary date range.
+  const s = new Date(startDate + 'T00:00:00Z');
+  const e = new Date(endDate + 'T00:00:00Z');
+  const days = Math.max(1, Math.round((e - s) / 86400000) + 1);
+  return days / 30.44;
+}
+
+async function get_profit_loss(userId, args = {}) {
+  const { start_date, end_date, project_id, include_projects } = args;
+
+  if (!start_date || !end_date) {
+    return { error: 'start_date and end_date are required (YYYY-MM-DD).' };
+  }
+  if (start_date > end_date) {
+    return { error: 'start_date must be on or before end_date.' };
+  }
+
+  // Owner-only — labor / margin data is sensitive
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+  if (profile?.role !== 'owner') {
+    return { error: 'Profit & loss reports are only available to business owners.' };
+  }
+
+  // Resolve project scope: single project (by id or fuzzy name) or company-wide
+  let scopedProject = null;
+  if (project_id) {
+    const resolved = await resolveProjectId(userId, project_id);
+    if (resolved.error) return resolved;
+    if (resolved.suggestions) return resolved;
+    const { data: pRow } = await supabase
+      .from('projects')
+      .select('id, name, contract_amount, status')
+      .eq('id', resolved.id)
+      .single();
+    scopedProject = pRow || { id: resolved.id, name: resolved.name };
+  }
+
+  // Pull every project the owner has so per-project breakdown can name them
+  const { data: ownerProjects } = await supabase
+    .from('projects')
+    .select('id, name, contract_amount, status')
+    .eq('user_id', userId);
+  const projectIds = scopedProject
+    ? [scopedProject.id]
+    : (ownerProjects || []).map((p) => p.id);
+
+  if (projectIds.length === 0) {
+    return {
+      error: 'No projects found for this owner. Create a project before running a P&L report.',
+    };
+  }
+
+  // Pull transactions in range, scoped to projectIds
+  const { data: rawTx, error: txError } = await supabase
+    .from('project_transactions')
+    .select('id, project_id, type, category, subcategory, amount, date, description')
+    .in('project_id', projectIds)
+    .gte('date', start_date)
+    .lte('date', end_date)
+    .order('date', { ascending: false });
+  if (txError) {
+    logger.error('get_profit_loss transactions error:', txError);
+    return { error: txError.message };
+  }
+
+  // Aggregate
+  let totalRevenue = 0;
+  let totalCosts = 0;
+  const costBreakdown = Object.fromEntries(PNL_CATEGORIES.map((c) => [c, 0]));
+
+  // Per-project rollup (only used when caller wants it OR when not scoped)
+  const projectRollup = new Map(); // id -> { id, name, revenue, costs, costBreakdown }
+  for (const p of (ownerProjects || [])) {
+    if (scopedProject && p.id !== scopedProject.id) continue;
+    projectRollup.set(p.id, {
+      id: p.id,
+      name: p.name || 'Untitled',
+      contractAmount: parseFloat(p.contract_amount || 0),
+      revenue: 0,
+      costs: 0,
+      costBreakdown: Object.fromEntries(PNL_CATEGORIES.map((c) => [c, 0])),
+    });
+  }
+
+  for (const t of (rawTx || [])) {
+    const amount = parseFloat(t.amount || 0);
+    const cat = PNL_CATEGORIES.includes(t.category) ? t.category : 'misc';
+    const slot = projectRollup.get(t.project_id);
+    if (t.type === 'income') {
+      totalRevenue += amount;
+      if (slot) slot.revenue += amount;
+    } else if (t.type === 'expense') {
+      totalCosts += amount;
+      costBreakdown[cat] += amount;
+      if (slot) {
+        slot.costs += amount;
+        slot.costBreakdown[cat] += amount;
+      }
+    }
+  }
+
+  const grossProfit = totalRevenue - totalCosts;
+  const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+
+  // Prorate recurring overhead across the requested range. Service-business
+  // overhead is treated as company-wide; when the report is project-scoped
+  // we still include overhead but flag it so the LLM can disclose.
+  const periodMonths = _periodFractionFromRange(start_date, end_date);
+  const { data: recurring } = await supabase
+    .from('recurring_expenses')
+    .select('amount, frequency, is_active, project_id')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  let overhead = 0;
+  for (const r of (recurring || [])) {
+    // If this report is project-scoped, only include recurring expenses
+    // tied to that project (or untied = company-wide is excluded for
+    // project P&L to avoid double-charging across projects).
+    if (scopedProject && r.project_id && r.project_id !== scopedProject.id) continue;
+    if (scopedProject && !r.project_id) continue;
+    const monthly = r.frequency === 'weekly'
+      ? parseFloat(r.amount) * 4.33
+      : r.frequency === 'biweekly'
+        ? parseFloat(r.amount) * 2.17
+        : r.frequency === 'quarterly'
+          ? parseFloat(r.amount) / 3
+          : parseFloat(r.amount); // monthly default
+    overhead += monthly * periodMonths;
+  }
+
+  const netProfit = grossProfit - overhead;
+  const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+  // Outstanding receivables (only when company-wide; project-scoped uses
+  // its own invoices)
+  let outstandingReceivables = 0;
+  let invoiceQuery = supabase
+    .from('invoices')
+    .select('total, amount_paid, status, project_id')
+    .eq('user_id', userId)
+    .neq('status', 'paid')
+    .neq('status', 'cancelled')
+    .neq('status', 'void');
+  if (scopedProject) invoiceQuery = invoiceQuery.eq('project_id', scopedProject.id);
+  const { data: invoices } = await invoiceQuery;
+  for (const inv of (invoices || [])) {
+    outstandingReceivables += Math.max(0, parseFloat(inv.total || 0) - parseFloat(inv.amount_paid || 0));
+  }
+
+  // Per-project breakdown (when requested or always for company-wide)
+  let projectBreakdowns = null;
+  if (include_projects || !scopedProject) {
+    projectBreakdowns = Array.from(projectRollup.values())
+      .filter((p) => p.revenue > 0 || p.costs > 0)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        revenue: parseFloat(p.revenue.toFixed(2)),
+        costs: parseFloat(p.costs.toFixed(2)),
+        costBreakdown: Object.fromEntries(
+          Object.entries(p.costBreakdown).map(([k, v]) => [k, parseFloat(v.toFixed(2))])
+        ),
+        grossProfit: parseFloat((p.revenue - p.costs).toFixed(2)),
+        grossMargin: p.revenue > 0
+          ? parseFloat((((p.revenue - p.costs) / p.revenue) * 100).toFixed(1))
+          : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }
+
+  return {
+    success: true,
+    scope: scopedProject ? 'project' : 'company',
+    project: scopedProject ? { id: scopedProject.id, name: scopedProject.name } : null,
+    dateRange: { start: start_date, end: end_date, days: Math.round(periodMonths * 30.44) },
+    summary: {
+      revenue: parseFloat(totalRevenue.toFixed(2)),
+      costs: parseFloat(totalCosts.toFixed(2)),
+      costBreakdown: Object.fromEntries(
+        Object.entries(costBreakdown).map(([k, v]) => [k, parseFloat(v.toFixed(2))])
+      ),
+      grossProfit: parseFloat(grossProfit.toFixed(2)),
+      grossMargin: parseFloat(grossMargin.toFixed(1)),
+      overhead: parseFloat(overhead.toFixed(2)),
+      netProfit: parseFloat(netProfit.toFixed(2)),
+      netMargin: parseFloat(netMargin.toFixed(1)),
+      outstandingReceivables: parseFloat(outstandingReceivables.toFixed(2)),
+      transactionCount: (rawTx || []).length,
+    },
+    projectBreakdowns,
+    visualElement: {
+      type: 'pnl-report',
+      data: {
+        scope: scopedProject ? 'project' : 'company',
+        projectName: scopedProject?.name || null,
+        startDate: start_date,
+        endDate: end_date,
+        revenue: parseFloat(totalRevenue.toFixed(2)),
+        costs: parseFloat(totalCosts.toFixed(2)),
+        costBreakdown: Object.fromEntries(
+          Object.entries(costBreakdown).map(([k, v]) => [k, parseFloat(v.toFixed(2))])
+        ),
+        grossProfit: parseFloat(grossProfit.toFixed(2)),
+        grossMargin: parseFloat(grossMargin.toFixed(1)),
+        overhead: parseFloat(overhead.toFixed(2)),
+        netProfit: parseFloat(netProfit.toFixed(2)),
+        outstandingReceivables: parseFloat(outstandingReceivables.toFixed(2)),
+        projectBreakdowns: projectBreakdowns || [],
+      },
+    },
+    hint: 'Render the visualElement as a pnl-report card so the user can review and download a PDF.',
+  };
+}
+
 async function get_recurring_expenses(userId, args = {}) {
   const activeOnly = args.active_only !== false; // default true
 
@@ -5927,6 +6159,7 @@ const TOOL_HANDLERS = {
   get_tax_summary,
   get_payroll_summary,
   get_cash_flow,
+  get_profit_loss,
   get_recurring_expenses,
   // Document management tools
   get_project_documents,

@@ -1401,6 +1401,35 @@ const toolDefinitions = [
   {
     type: 'function',
     function: {
+      name: 'get_profit_loss',
+      description: 'Generate a Profit & Loss report for a date range. Returns revenue, costs by category (labor/materials/subcontractor/equipment/permits/misc), gross profit, gross margin, prorated overhead, net profit, outstanding receivables, and per-project breakdown. Use when the user asks for a "P&L", "profit and loss", "financial report", "what we netted", or "show me the numbers" for a project or for the whole company. The response includes a `visualElement` of type pnl-report — render it so the user can review and download a PDF directly from chat.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: {
+            type: 'string',
+            description: 'Start of the reporting window (YYYY-MM-DD). Required. Parse natural language: "Q1" → 2026-01-01, "last month" → first day of previous month, "April 1" → 2026-04-01.'
+          },
+          end_date: {
+            type: 'string',
+            description: 'End of the reporting window (YYYY-MM-DD). Required. "today" → today; "Q1" → 2026-03-31; "last month" → last day of previous month.'
+          },
+          project_id: {
+            type: 'string',
+            description: 'Optional project name or UUID. If supplied, the report is scoped to that single project. Omit for company-wide P&L.'
+          },
+          include_projects: {
+            type: 'boolean',
+            description: 'If true, include the per-project breakdown array even when company-wide. Default behavior: company-wide always includes the breakdown; project-scoped does not.'
+          }
+        },
+        required: ['start_date', 'end_date']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_recurring_expenses',
       description: 'Get all recurring expenses (equipment rentals, insurance, subscriptions, etc). Shows description, amount, frequency, category, next due date, and associated project. Use when user asks about recurring costs, regular payments, subscriptions, or upcoming bills.',
       parameters: {
@@ -1779,6 +1808,7 @@ const TOOL_STATUS_MESSAGES = {
   get_tax_summary: 'Pulling tax summary...',
   get_payroll_summary: 'Calculating payroll...',
   get_cash_flow: 'Analyzing cash flow...',
+  get_profit_loss: 'Building your P&L report...',
   get_recurring_expenses: 'Checking recurring expenses...',
   // Document management tools
   get_project_documents: 'Fetching project documents...',

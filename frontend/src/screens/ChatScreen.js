@@ -38,7 +38,7 @@ import { uploadProjectDocument } from '../utils/storage/projectDocuments';
 import { supabase } from '../lib/supabase';
 import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
-import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap, ServicePlanPreview } from '../components/ChatVisuals';
+import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap, ServicePlanPreview, PnLReportCard } from '../components/ChatVisuals';
 import ChatHistorySidebar from '../components/ChatHistorySidebar';
 import { chatHistoryService } from '../services/chatHistoryService';
 import { formatEstimate } from '../utils/estimateFormatter';
@@ -3581,6 +3581,8 @@ export default function ChatScreen({ navigation, route }) {
         return <AppointmentCard key={k} data={element.data} onAction={handleAction} />;
       case 'time-tracking-map':
         return <TimeTrackingMap key={k} data={element.data} />;
+      case 'pnl-report':
+        return <PnLReportCard key={k} data={element.data} onAction={handleAction} />;
       default:
         return null;
     }

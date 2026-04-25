@@ -19,3 +19,4 @@ export { default as DailyReportList } from './DailyReportList';
 export { default as AppointmentCard } from './AppointmentCard';
 export { default as TimeTrackingMap } from './TimeTrackingMap';
 export { default as ServicePlanPreview } from './ServicePlanPreview';
+export { default as PnLReportCard } from './PnLReportCard';
