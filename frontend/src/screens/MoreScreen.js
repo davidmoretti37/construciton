@@ -19,6 +19,7 @@ import { LightColors, getColors, Spacing } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getCurrentUserId, getUserProfile, getSelectedLanguage, getAISettings, updateAISettings } from '../utils/storage';
+import { chooseEmailApp } from '../utils/emailSupport';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -523,7 +524,7 @@ export default function MoreScreen({ navigation }) {
             iconColor={Colors.primaryBlue}
             title={t('help', 'Help & Support')}
             subtitle={t('support.helpSubtitle', 'Email the team')}
-            onPress={() => Linking.openURL('mailto:support@sylkapp.ai')}
+            onPress={() => chooseEmailApp('support@sylkapp.ai')}
           />
           <MenuItem
             icon="document-text-outline"

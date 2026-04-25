@@ -30,6 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationBell from '../../components/NotificationBell';
 import { getCurrentUserId, getUserProfile, getSelectedLanguage, getAISettings, updateAISettings } from '../../utils/storage';
 import { connectService } from '../../services/subscriptionService';
+import { chooseEmailApp } from '../../utils/emailSupport';
 
 // Owner color palette - Royal Blue theme
 const OWNER_COLORS = {
@@ -631,7 +632,7 @@ export default function OwnerSettingsScreen() {
             iconColor={OWNER_COLORS.primary}
             title={t('help', 'Help & Support')}
             subtitle={t('support.helpSubtitle', 'Email the team')}
-            onPress={() => Linking.openURL('mailto:support@sylkapp.ai')}
+            onPress={() => chooseEmailApp('support@sylkapp.ai')}
           />
           <MenuItem
             icon="document-text-outline"
