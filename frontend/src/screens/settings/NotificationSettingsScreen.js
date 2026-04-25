@@ -60,7 +60,13 @@ export default function NotificationSettingsScreen({ navigation }) {
     try {
       const prefs = await getNotificationPreferences();
       if (prefs) {
-        setPreferences(prev => ({ ...prev, ...prefs }));
+        // Strip null values so they don't clobber sensible defaults
+        // (`appointment_reminder_minutes: null` was rendering as "null minutes"
+        // in the slider value label).
+        const cleaned = Object.fromEntries(
+          Object.entries(prefs).filter(([, v]) => v !== null && v !== undefined)
+        );
+        setPreferences(prev => ({ ...prev, ...cleaned }));
       }
     } catch (error) {
       console.error('Error loading preferences:', error);
@@ -72,6 +78,30 @@ export default function NotificationSettingsScreen({ navigation }) {
 
   const handleToggle = useCallback((key) => {
     setPreferences(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  // Consolidated category toggle: sets BOTH push_<x> and inapp_<x> to the
+  // same value so the UI shows one row per category instead of duplicate
+  // push + in-app toggles for the same thing. The DB keeps both fields,
+  // so power users can still split channels via API if they ever want to.
+  const handleCategoryToggle = useCallback((suffix) => {
+    setPreferences(prev => {
+      const pushKey = `push_${suffix}`;
+      const inappKey = `inapp_${suffix}`;
+      // Use whichever is currently true to determine "is the category on?";
+      // toggle BOTH to the inverse so they always stay in sync from the UI.
+      const isOn = prev[pushKey] || prev[inappKey];
+      return { ...prev, [pushKey]: !isOn, [inappKey]: !isOn };
+    });
+  }, []);
+
+  // Master "Allow notifications" toggle: flips both delivery channels at
+  // once so users have a single all-off switch.
+  const handleMasterToggle = useCallback(() => {
+    setPreferences(prev => {
+      const isOn = prev.push_enabled || prev.inapp_enabled;
+      return { ...prev, push_enabled: !isOn, inapp_enabled: !isOn };
+    });
   }, []);
 
   const handleSliderChange = useCallback((value) => {
@@ -170,27 +200,31 @@ export default function NotificationSettingsScreen({ navigation }) {
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        {/* Push Notifications Section */}
+        {/* Single consolidated NOTIFICATIONS section. Each per-category toggle
+            controls BOTH push and in-app delivery in lockstep — users
+            don't conceptually distinguish between "push reminder for X"
+            and "in-app reminder for X", so showing two rows per category
+            (the previous behavior) was just confusing duplication. */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            {t('notifications.push').toUpperCase()}
+            {t('notifications.title', 'NOTIFICATIONS').toUpperCase()}
           </Text>
           <Text style={[styles.sectionDescription, { color: Colors.secondaryText }]}>
-            {t('notificationsSettings.pushDescription')}
+            {t('notificationsSettings.allDescription', 'Choose what you want to be notified about')}
           </Text>
 
           <View style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
             <SettingRow
               icon="notifications"
               iconColor={Colors.primaryBlue}
-              title={t('notifications.push')}
+              title={t('notificationsSettings.allowAll', 'Allow notifications')}
               subtitle={t('notificationsSettings.enableAll')}
-              value={preferences.push_enabled}
-              onToggle={() => handleToggle('push_enabled')}
+              value={preferences.push_enabled || preferences.inapp_enabled}
+              onToggle={handleMasterToggle}
               Colors={Colors}
             />
 
-            {preferences.push_enabled && (
+            {(preferences.push_enabled || preferences.inapp_enabled) && (
               <>
                 <View style={[styles.divider, { backgroundColor: Colors.border }]} />
                 <SettingRow
@@ -198,8 +232,8 @@ export default function NotificationSettingsScreen({ navigation }) {
                   iconColor={Colors.primaryBlue}
                   title={t('notifications.appointments')}
                   subtitle={t('notificationsSettings.getReminded')}
-                  value={preferences.push_appointment_reminders}
-                  onToggle={() => handleToggle('push_appointment_reminders')}
+                  value={preferences.push_appointment_reminders || preferences.inapp_appointment_reminders}
+                  onToggle={() => handleCategoryToggle('appointment_reminders')}
                   Colors={Colors}
                   indent
                 />
@@ -210,8 +244,8 @@ export default function NotificationSettingsScreen({ navigation }) {
                   iconColor={Colors.success}
                   title={t('notifications.workerReports')}
                   subtitle={t('notificationsSettings.whenWorkersSubmit')}
-                  value={preferences.push_daily_reports}
-                  onToggle={() => handleToggle('push_daily_reports')}
+                  value={preferences.push_daily_reports || preferences.inapp_daily_reports}
+                  onToggle={() => handleCategoryToggle('daily_reports')}
                   Colors={Colors}
                   indent
                 />
@@ -222,8 +256,8 @@ export default function NotificationSettingsScreen({ navigation }) {
                   iconColor={Colors.warning}
                   title={t('notifications.projectUpdates')}
                   subtitle={t('notificationsSettings.behindSchedule')}
-                  value={preferences.push_project_warnings}
-                  onToggle={() => handleToggle('push_project_warnings')}
+                  value={preferences.push_project_warnings || preferences.inapp_project_warnings}
+                  onToggle={() => handleCategoryToggle('project_warnings')}
                   Colors={Colors}
                   indent
                 />
@@ -234,8 +268,8 @@ export default function NotificationSettingsScreen({ navigation }) {
                   iconColor={Colors.accent}
                   title={t('notifications.payments')}
                   subtitle={t('notificationsSettings.paymentsExpense')}
-                  value={preferences.push_financial_updates}
-                  onToggle={() => handleToggle('push_financial_updates')}
+                  value={preferences.push_financial_updates || preferences.inapp_financial_updates}
+                  onToggle={() => handleCategoryToggle('financial_updates')}
                   Colors={Colors}
                   indent
                 />
@@ -246,8 +280,8 @@ export default function NotificationSettingsScreen({ navigation }) {
                   iconColor={Colors.primaryBlue}
                   title={t('notificationsSettings.workerUpdates')}
                   subtitle={t('notificationsSettings.invitationsClockIns')}
-                  value={preferences.push_worker_updates}
-                  onToggle={() => handleToggle('push_worker_updates')}
+                  value={preferences.push_worker_updates || preferences.inapp_worker_updates}
+                  onToggle={() => handleCategoryToggle('worker_updates')}
                   Colors={Colors}
                   indent
                 />
@@ -361,91 +395,8 @@ export default function NotificationSettingsScreen({ navigation }) {
           </View>
         </View>
 
-        {/* In-App Notifications Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            {t('notificationsSettings.inAppNotifications')}
-          </Text>
-          <Text style={[styles.sectionDescription, { color: Colors.secondaryText }]}>
-            {t('notificationsSettings.inAppDescription')}
-          </Text>
-
-          <View style={[styles.card, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
-            <SettingRow
-              icon="apps"
-              iconColor={Colors.primaryBlue}
-              title={t('notificationsSettings.inAppNotificationsToggle')}
-              subtitle={t('notificationsSettings.showInNotificationCenter')}
-              value={preferences.inapp_enabled}
-              onToggle={() => handleToggle('inapp_enabled')}
-              Colors={Colors}
-            />
-
-            {preferences.inapp_enabled && (
-              <>
-                <View style={[styles.divider, { backgroundColor: Colors.border }]} />
-                <SettingRow
-                  icon="calendar"
-                  iconColor={Colors.primaryBlue}
-                  title={t('notifications.appointments')}
-                  subtitle={t('notificationsSettings.appointmentReminders')}
-                  value={preferences.inapp_appointment_reminders}
-                  onToggle={() => handleToggle('inapp_appointment_reminders')}
-                  Colors={Colors}
-                  indent
-                />
-
-                <View style={[styles.divider, { backgroundColor: Colors.border }]} />
-                <SettingRow
-                  icon="document-text"
-                  iconColor={Colors.success}
-                  title={t('notifications.workerReports')}
-                  subtitle={t('notificationsSettings.dailyReportSubmissions')}
-                  value={preferences.inapp_daily_reports}
-                  onToggle={() => handleToggle('inapp_daily_reports')}
-                  Colors={Colors}
-                  indent
-                />
-
-                <View style={[styles.divider, { backgroundColor: Colors.border }]} />
-                <SettingRow
-                  icon="warning"
-                  iconColor={Colors.warning}
-                  title={t('notifications.projectUpdates')}
-                  subtitle={t('notificationsSettings.projectWarningsAlerts')}
-                  value={preferences.inapp_project_warnings}
-                  onToggle={() => handleToggle('inapp_project_warnings')}
-                  Colors={Colors}
-                  indent
-                />
-
-                <View style={[styles.divider, { backgroundColor: Colors.border }]} />
-                <SettingRow
-                  icon="cash"
-                  iconColor={Colors.accent}
-                  title={t('notifications.payments')}
-                  subtitle={t('notificationsSettings.financialUpdates')}
-                  value={preferences.inapp_financial_updates}
-                  onToggle={() => handleToggle('inapp_financial_updates')}
-                  Colors={Colors}
-                  indent
-                />
-
-                <View style={[styles.divider, { backgroundColor: Colors.border }]} />
-                <SettingRow
-                  icon="person"
-                  iconColor={Colors.primaryBlue}
-                  title={t('notificationsSettings.workerUpdates')}
-                  subtitle={t('notificationsSettings.clockInsInvitations')}
-                  value={preferences.inapp_worker_updates}
-                  onToggle={() => handleToggle('inapp_worker_updates')}
-                  Colors={Colors}
-                  indent
-                />
-              </>
-            )}
-          </View>
-        </View>
+        {/* In-App Notifications section removed — categories above now
+            control both push and in-app delivery in one toggle. */}
 
         <View style={{ height: 100 }} />
       </ScrollView>

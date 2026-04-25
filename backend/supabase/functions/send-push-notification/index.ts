@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { shouldSendPush, shouldCreateInApp, PREFS_COLUMNS } from '../_shared/notificationGate.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -35,34 +36,58 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    // Get user's notification preferences
+    // Load the user's notification preferences. Push and in-app delivery
+    // are gated separately by the shared helper so the Settings screen
+    // toggles actually take effect — the previous heuristic
+    // `push_${type.replace(/_/g, '_')}s` accidentally worked for some types
+    // (appointment_reminder → push_appointment_reminders) but generated
+    // bogus keys for others (daily_report_submitted →
+    // push_daily_report_submitteds, which doesn't exist), letting every
+    // disabled-by-user category through.
     const { data: prefs } = await supabase
       .from('notification_preferences')
-      .select('*')
+      .select(PREFS_COLUMNS)
       .eq('user_id', notification.userId)
       .single()
 
-    // Check if push notifications are enabled
-    if (prefs && !prefs.push_enabled) {
-      console.log('Push notifications disabled for user')
-      return jsonResponse({ sent: false, reason: 'push_disabled' })
+    const pushAllowed = shouldSendPush(prefs, notification.type)
+    const inAppAllowed = shouldCreateInApp(prefs, notification.type)
+
+    if (!pushAllowed && !inAppAllowed) {
+      console.log('Both push and in-app suppressed by user prefs', { type: notification.type })
+      return jsonResponse({ sent: false, reason: 'all_disabled' })
     }
 
-    // Check if this notification type is enabled
-    const typeKey = `push_${notification.type.replace(/_/g, '_')}s`
-    if (prefs && prefs[typeKey] === false) {
-      console.log(`Notification type ${notification.type} disabled for user`)
-      return jsonResponse({ sent: false, reason: 'type_disabled' })
-    }
+    // ---- In-app notification ----
+    // Always insert when allowed by inapp_*; quiet hours don't suppress
+    // the inbox row on purpose so users see the notification next time
+    // they open the app.
+    if (inAppAllowed) {
+      const { error: insertError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: notification.userId,
+          title: notification.title,
+          body: notification.body,
+          type: notification.type,
+          icon: getIconForType(notification.type),
+          color: getColorForType(notification.type),
+          action_data: notification.data || {},
+          project_id: notification.projectId || null,
+          worker_id: notification.workerId || null,
+          schedule_event_id: notification.scheduleEventId || null,
+          daily_report_id: notification.dailyReportId || null,
+        })
 
-    // Check quiet hours
-    if (prefs?.quiet_hours_enabled) {
-      const now = new Date()
-      const currentTime = now.toTimeString().slice(0, 5) // HH:MM
-      if (isInQuietHours(currentTime, prefs.quiet_hours_start, prefs.quiet_hours_end)) {
-        console.log('Within quiet hours, not sending push')
-        return jsonResponse({ sent: false, reason: 'quiet_hours' })
+      if (insertError) {
+        console.error('Error creating in-app notification:', insertError)
       }
+    }
+
+    // ---- Push notification ----
+    if (!pushAllowed) {
+      console.log('Push suppressed by user prefs', { type: notification.type })
+      return jsonResponse({ sent: false, reason: 'push_disabled', inAppCreated: inAppAllowed })
     }
 
     // Get user's push tokens
@@ -74,7 +99,7 @@ serve(async (req) => {
 
     if (!tokens || tokens.length === 0) {
       console.log('No active push tokens found for user')
-      return jsonResponse({ sent: false, reason: 'no_tokens' })
+      return jsonResponse({ sent: false, reason: 'no_tokens', inAppCreated: inAppAllowed })
     }
 
     console.log(`Found ${tokens.length} push tokens for user`)
@@ -110,31 +135,11 @@ serve(async (req) => {
     const expoResult = await expoResponse.json()
     console.log('Expo push response:', expoResult)
 
-    // Also create an in-app notification
-    const { error: insertError } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: notification.userId,
-        title: notification.title,
-        body: notification.body,
-        type: notification.type,
-        icon: getIconForType(notification.type),
-        color: getColorForType(notification.type),
-        action_data: notification.data || {},
-        project_id: notification.projectId || null,
-        worker_id: notification.workerId || null,
-        schedule_event_id: notification.scheduleEventId || null,
-        daily_report_id: notification.dailyReportId || null,
-      })
-
-    if (insertError) {
-      console.error('Error creating in-app notification:', insertError)
-    }
-
     return jsonResponse({
       sent: true,
       tokens: tokens.length,
       expo: expoResult,
+      inAppCreated: inAppAllowed,
     })
   } catch (error) {
     console.error('Error in send-push-notification:', error)
@@ -152,17 +157,6 @@ function jsonResponse(data: any) {
       'Access-Control-Allow-Origin': '*',
     },
   })
-}
-
-function isInQuietHours(current: string, start: string, end: string): boolean {
-  // Handle overnight quiet hours (e.g., 22:00 to 07:00)
-  if (start > end) {
-    // Overnight: quiet if current >= start OR current < end
-    return current >= start || current < end
-  } else {
-    // Same day: quiet if current >= start AND current < end
-    return current >= start && current < end
-  }
 }
 
 function getAndroidChannelId(type: string): string {

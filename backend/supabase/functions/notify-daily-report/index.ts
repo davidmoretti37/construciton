@@ -1,9 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { shouldSendPush, shouldCreateInApp, PREFS_COLUMNS } from '../_shared/notificationGate.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+
+const NOTIFICATION_TYPE = 'daily_report_submitted'
 
 /**
  * This function is triggered when a daily_report is created.
@@ -73,44 +76,41 @@ serve(async (req) => {
       body += ` (${photoCount} photo${photoCount > 1 ? 's' : ''})`
     }
 
-    // Check owner's notification preferences
+    // Check owner's notification preferences using the shared gate. The
+    // previous in-line block correctly checked push_daily_reports for push,
+    // but it ALWAYS inserted the in-app row regardless of the user's
+    // inapp_* preference — so toggling "Worker Reports" off in Settings
+    // had no effect on the notifications inbox.
     const { data: prefs } = await supabase
       .from('notification_preferences')
-      .select('push_enabled, push_daily_reports, quiet_hours_enabled, quiet_hours_start, quiet_hours_end')
+      .select(PREFS_COLUMNS)
       .eq('user_id', worker.owner_id)
       .single()
 
-    let shouldSendPush = true
-    if (prefs) {
-      if (!prefs.push_enabled) shouldSendPush = false
-      if (!prefs.push_daily_reports) shouldSendPush = false
-      if (prefs.quiet_hours_enabled) {
-        const currentTime = new Date().toTimeString().slice(0, 5)
-        if (isInQuietHours(currentTime, prefs.quiet_hours_start, prefs.quiet_hours_end)) {
-          shouldSendPush = false
-        }
-      }
+    const pushAllowed = shouldSendPush(prefs, NOTIFICATION_TYPE)
+    const inAppAllowed = shouldCreateInApp(prefs, NOTIFICATION_TYPE)
+
+    // Create in-app notification only when user allows it.
+    if (inAppAllowed) {
+      await supabase.from('notifications').insert({
+        user_id: worker.owner_id,
+        title,
+        body,
+        type: NOTIFICATION_TYPE,
+        icon: 'document-text',
+        color: '#10B981',
+        action_data: {
+          screen: 'DailyReportDetail',
+          params: { reportId: report.id },
+        },
+        project_id: report.project_id,
+        worker_id: worker.id,
+        daily_report_id: report.id,
+      })
     }
 
-    // Create in-app notification
-    await supabase.from('notifications').insert({
-      user_id: worker.owner_id,
-      title,
-      body,
-      type: 'daily_report_submitted',
-      icon: 'document-text',
-      color: '#10B981',
-      action_data: {
-        screen: 'DailyReportDetail',
-        params: { reportId: report.id },
-      },
-      project_id: report.project_id,
-      worker_id: worker.id,
-      daily_report_id: report.id,
-    })
-
     // Send push notification if enabled
-    if (shouldSendPush) {
+    if (pushAllowed) {
       const { data: tokens } = await supabase
         .from('push_tokens')
         .select('expo_push_token')
@@ -155,10 +155,3 @@ serve(async (req) => {
     })
   }
 })
-
-function isInQuietHours(current: string, start: string, end: string): boolean {
-  if (start > end) {
-    return current >= start || current < end
-  }
-  return current >= start && current < end
-}

@@ -1343,7 +1343,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               await saveProject({ ...project, status: newStatus });
               onRefreshNeeded && onRefreshNeeded();
 
-              // Notify assigned workers about status change (non-blocking)
+              // Notify assigned workers about status change (non-blocking).
+              // Goes through the `send-push-notification` edge function so
+              // the central gating (push_/inapp_ prefs + quiet hours)
+              // applies — a direct insert into the `notifications` table
+              // would skip every Settings toggle the worker has set.
               if (newStatus === 'completed' || newStatus === 'paused') {
                 const statusLabel = newStatus === 'completed' ? 'completed' : 'paused';
                 supabase
@@ -1352,22 +1356,22 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   .eq('project_id', project.id)
                   .then(({ data: pw }) => {
                     if (!pw || pw.length === 0) return;
-                    const notifications = pw
-                      .filter(w => w.workers?.profile_id)
-                      .map(w => ({
-                        user_id: w.workers.profile_id,
-                        title: `Project ${statusLabel}`,
-                        body: `"${project.name}" has been marked as ${statusLabel}.`,
-                        type: 'project_status',
-                        icon: newStatus === 'completed' ? 'checkmark-circle' : 'pause-circle',
-                        color: newStatus === 'completed' ? '#10B981' : '#F59E0B',
-                        action_type: 'navigate',
-                        action_data: { screen: 'ProjectDetail', params: { projectId: project.id } },
-                        project_id: project.id,
-                      }));
-                    if (notifications.length > 0) {
-                      supabase.from('notifications').insert(notifications).then(() => {});
-                    }
+                    const recipients = (pw || []).map(w => w.workers?.profile_id).filter(Boolean);
+                    recipients.forEach((userId) => {
+                      supabase.functions.invoke('send-push-notification', {
+                        body: {
+                          userId,
+                          title: `Project ${statusLabel}`,
+                          body: `"${project.name}" has been marked as ${statusLabel}.`,
+                          // 'project_status' maps to the project_warnings
+                          // category in the shared gate, so workers who
+                          // disabled "Project Updates" won't be paged.
+                          type: 'project_status',
+                          data: { screen: 'ProjectDetail', params: { projectId: project.id } },
+                          projectId: project.id,
+                        },
+                      }).catch(() => { /* fire-and-forget */ });
+                    });
                   })
                   .catch(() => {});
               }
