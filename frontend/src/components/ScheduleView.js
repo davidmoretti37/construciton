@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
-  ScrollView,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,13 +41,16 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   const [selectedDate, setSelectedDate] = useState(null);
 
   // Add-task modal state — single entry point in the top bar (Option A in
-  // the UX plan). Opens a modal with project + title + date so users don't
-  // get a per-day "+ Add" button polluting every section header.
+  // the UX plan). Opens a modal with project + title + date range so users
+  // don't get a per-day "+ Add" button polluting every section header.
+  // A task can span multiple days by setting `newTaskEnd` later than
+  // `newTaskStart`; defaults collapse to a single-day task.
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskProjectId, setNewTaskProjectId] = useState(null);
-  const [newTaskDate, setNewTaskDate] = useState(() => formatDate(new Date()));
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [newTaskStart, setNewTaskStart] = useState(() => formatDate(new Date()));
+  const [newTaskEnd, setNewTaskEnd] = useState(() => formatDate(new Date()));
+  const [datePickerMode, setDatePickerMode] = useState(null); // 'start' | 'end' | null
   const [showTaskProjectPicker, setShowTaskProjectPicker] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
 
@@ -238,11 +241,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
 
   const openAddTask = useCallback(() => {
     // Pre-select the filtered project (if any) so it's one less tap when
-    // the user was already narrowing by project. Default date = today.
+    // the user was already narrowing by project. Default = today, single-day.
+    const today = formatDate(new Date());
     setNewTaskTitle('');
     setNewTaskProjectId(selectedProject?.id || (projects[0]?.id || null));
-    setNewTaskDate(formatDate(new Date()));
-    setShowDatePicker(false);
+    setNewTaskStart(today);
+    setNewTaskEnd(today);
+    setDatePickerMode(null);
     setShowTaskProjectPicker(false);
     setShowAddTask(true);
   }, [selectedProject, projects]);
@@ -250,9 +255,24 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   const closeAddTask = useCallback(() => {
     if (savingTask) return;
     setShowAddTask(false);
-    setShowDatePicker(false);
+    setDatePickerMode(null);
     setShowTaskProjectPicker(false);
   }, [savingTask]);
+
+  // Dismiss the on-screen keyboard BEFORE opening the date picker overlay.
+  // Without this, the iOS keyboard (still up from the title field) sits on
+  // top of the spinner and blocks the wheel from being interacted with.
+  const openDatePicker = useCallback((mode) => {
+    Keyboard.dismiss();
+    // Defer one frame so the keyboard-hide animation doesn't compete with
+    // the overlay slide-up.
+    setTimeout(() => setDatePickerMode(mode), 50);
+  }, []);
+
+  const openTaskProjectPicker = useCallback(() => {
+    Keyboard.dismiss();
+    setTimeout(() => setShowTaskProjectPicker(true), 50);
+  }, []);
 
   const handleSaveNewTask = useCallback(async () => {
     const title = newTaskTitle.trim();
@@ -264,9 +284,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       Alert.alert('Project required', 'Pick which project this task belongs to.');
       return;
     }
+    if (newTaskEnd < newTaskStart) {
+      Alert.alert('Invalid range', 'End date must be on or after start date.');
+      return;
+    }
     setSavingTask(true);
     try {
-      const created = await createAdHocDayTask(newTaskProjectId, title, newTaskDate, newTaskDate);
+      const created = await createAdHocDayTask(newTaskProjectId, title, newTaskStart, newTaskEnd);
       if (!created) {
         Alert.alert("Couldn't create task", 'Something went wrong. Try again.');
         return;
@@ -276,7 +300,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     } finally {
       setSavingTask(false);
     }
-  }, [newTaskTitle, newTaskProjectId, newTaskDate, loadData]);
+  }, [newTaskTitle, newTaskProjectId, newTaskStart, newTaskEnd, loadData]);
 
   const selectedTaskProject = useMemo(
     () => projects.find((p) => p.id === newTaskProjectId) || null,
@@ -396,122 +420,194 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
         />
       )}
 
-      {/* Add Task Modal — bottom sheet with Project + Title + Date */}
+      {/* Add Task Modal — bottom sheet with Project + Title + Date.
+          Date uses a native platform picker (spinner on iOS, default on
+          Android) opened in its own small overlay so it can never blow up
+          the sheet's layout the way an inline calendar did. */}
       <Modal
         visible={showAddTask}
         animationType="slide"
         transparent
         onRequestClose={closeAddTask}
       >
-        <View style={styles.addTaskBackdrop}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={{ width: '100%' }}
-          >
-            <View style={[styles.addTaskCard, { backgroundColor: Colors.cardBackground || Colors.white }]}>
-              <View style={styles.addTaskHeader}>
-                <Text style={[styles.addTaskTitle, { color: Colors.primaryText }]}>New Task</Text>
-                <TouchableOpacity onPress={closeAddTask} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close" size={22} color={Colors.secondaryText} />
-                </TouchableOpacity>
-              </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.addTaskBackdrop}
+        >
+          <View style={[styles.addTaskCard, { backgroundColor: Colors.cardBackground || Colors.white }]}>
+            <View style={styles.addTaskHeader}>
+              <Text style={[styles.addTaskTitle, { color: Colors.primaryText }]}>New Task</Text>
+              <TouchableOpacity onPress={closeAddTask} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            </View>
 
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
+            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>TITLE</Text>
+            <TextInput
+              value={newTaskTitle}
+              onChangeText={setNewTaskTitle}
+              placeholder="e.g. Pick up tile from supplier"
+              placeholderTextColor={Colors.secondaryText + '80'}
+              autoFocus
+              style={[styles.addTaskInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveNewTask}
+            />
+
+            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>PROJECT</Text>
+            <TouchableOpacity
+              onPress={openTaskProjectPicker}
+              activeOpacity={0.7}
+              style={[styles.addTaskRow, { borderColor: Colors.border, backgroundColor: Colors.background }]}
+            >
+              {selectedTaskProject ? (
+                <View style={[styles.projectDot, { backgroundColor: getProjectColor(selectedTaskProject.id) }]} />
+              ) : (
+                <Ionicons name="folder-outline" size={16} color={Colors.secondaryText} style={{ marginRight: 10 }} />
+              )}
+              <Text style={[styles.addTaskRowText, { color: selectedTaskProject ? Colors.primaryText : Colors.secondaryText }]}>
+                {selectedTaskProject ? selectedTaskProject.name : 'Pick a project'}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+            </TouchableOpacity>
+
+            <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>WHEN</Text>
+            <View style={styles.dateRangeRow}>
+              <TouchableOpacity
+                onPress={() => openDatePicker('start')}
+                activeOpacity={0.7}
+                style={[styles.dateChip, { borderColor: Colors.border, backgroundColor: Colors.background }]}
               >
-                <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>TITLE</Text>
-                <TextInput
-                  value={newTaskTitle}
-                  onChangeText={setNewTaskTitle}
-                  placeholder="e.g. Pick up tile from supplier"
-                  placeholderTextColor={Colors.secondaryText + '80'}
-                  autoFocus
-                  style={[styles.addTaskInput, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSaveNewTask}
-                />
-
-                <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>PROJECT</Text>
-                <TouchableOpacity
-                  onPress={() => setShowTaskProjectPicker(true)}
-                  activeOpacity={0.7}
-                  style={[styles.addTaskRow, { borderColor: Colors.border, backgroundColor: Colors.background }]}
-                >
-                  {selectedTaskProject ? (
-                    <View style={[styles.projectDot, { backgroundColor: getProjectColor(selectedTaskProject.id) }]} />
-                  ) : (
-                    <Ionicons name="folder-outline" size={16} color={Colors.secondaryText} style={{ marginRight: 10 }} />
-                  )}
-                  <Text style={[styles.addTaskRowText, { color: selectedTaskProject ? Colors.primaryText : Colors.secondaryText }]}>
-                    {selectedTaskProject ? selectedTaskProject.name : 'Pick a project'}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
-                </TouchableOpacity>
-
-                <Text style={[styles.addTaskLabel, { color: Colors.secondaryText }]}>DATE</Text>
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker((v) => !v)}
-                  activeOpacity={0.7}
-                  style={[styles.addTaskRow, { borderColor: Colors.border, backgroundColor: Colors.background }]}
-                >
-                  <Ionicons name="calendar-outline" size={16} color={Colors.primaryBlue} style={{ marginRight: 10 }} />
-                  <Text style={[styles.addTaskRowText, { color: Colors.primaryText }]}>
+                <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>Start</Text>
+                  <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>
                     {(() => {
-                      const d = new Date(newTaskDate + 'T12:00:00');
+                      const d = new Date(newTaskStart + 'T12:00:00');
                       const today = formatDate(new Date());
-                      const prefix = newTaskDate === today ? 'Today · ' : '';
-                      return `${prefix}${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`;
+                      return newTaskStart === today
+                        ? 'Today'
+                        : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
                     })()}
                   </Text>
-                  <Ionicons name="chevron-down" size={16} color={Colors.secondaryText} />
-                </TouchableOpacity>
-
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={new Date(newTaskDate + 'T12:00:00')}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    onChange={(_event, date) => {
-                      if (Platform.OS === 'android') setShowDatePicker(false);
-                      if (date) setNewTaskDate(formatDate(date));
-                    }}
-                  />
-                )}
-
-                <View style={styles.addTaskActions}>
-                  <TouchableOpacity
-                    onPress={closeAddTask}
-                    disabled={savingTask}
-                    style={[styles.addTaskBtn, { borderColor: Colors.border, borderWidth: 1 }]}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.addTaskBtnText, { color: Colors.primaryText }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSaveNewTask}
-                    disabled={savingTask || !newTaskTitle.trim() || !newTaskProjectId}
-                    style={[
-                      styles.addTaskBtn,
-                      { backgroundColor: (!newTaskTitle.trim() || !newTaskProjectId) ? Colors.primaryBlue + '60' : Colors.primaryBlue },
-                    ]}
-                    activeOpacity={0.8}
-                  >
-                    {savingTask ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={[styles.addTaskBtnText, { color: '#fff' }]}>Save</Text>
-                    )}
-                  </TouchableOpacity>
                 </View>
-              </ScrollView>
+              </TouchableOpacity>
+              <Ionicons name="arrow-forward" size={14} color={Colors.secondaryText} />
+              <TouchableOpacity
+                onPress={() => openDatePicker('end')}
+                activeOpacity={0.7}
+                style={[styles.dateChip, { borderColor: Colors.border, backgroundColor: Colors.background }]}
+              >
+                <Ionicons name="calendar-outline" size={14} color={Colors.primaryBlue} />
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={[styles.dateChipLabel, { color: Colors.secondaryText }]}>End</Text>
+                  <Text style={[styles.dateChipValue, { color: Colors.primaryText }]}>
+                    {(() => {
+                      const d = new Date(newTaskEnd + 'T12:00:00');
+                      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    })()}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
-        </View>
+            <Text style={[styles.dateRangeHint, { color: Colors.secondaryText }]}>
+              {newTaskStart === newTaskEnd
+                ? 'Single-day task. Tap End to span multiple days.'
+                : 'Multi-day task — will appear on every day in this range.'}
+            </Text>
 
-        {/* Inline project picker inside the Add-task modal. Kept separate
-            from the filter-bar project picker so it doesn't interfere
-            with the screen-level project filter. */}
+            <View style={styles.addTaskActions}>
+              <TouchableOpacity
+                onPress={closeAddTask}
+                disabled={savingTask}
+                style={[styles.addTaskBtn, { borderColor: Colors.border, borderWidth: 1 }]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.addTaskBtnText, { color: Colors.primaryText }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveNewTask}
+                disabled={savingTask || !newTaskTitle.trim() || !newTaskProjectId}
+                style={[
+                  styles.addTaskBtn,
+                  { backgroundColor: (!newTaskTitle.trim() || !newTaskProjectId) ? Colors.primaryBlue + '60' : Colors.primaryBlue },
+                ]}
+                activeOpacity={0.8}
+              >
+                {savingTask ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.addTaskBtnText, { color: '#fff' }]}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+
+        {/* Date picker overlay — separate bottom sheet. iOS renders the
+            spinner variant (compact, fits in 220px), Android uses the
+            native calendar dialog which self-dismisses on pick. The
+            `datePickerMode` state ('start' | 'end') controls which date
+            the picker writes back to. `Keyboard.dismiss()` is called in
+            openDatePicker so the wheel never sits under the keyboard. */}
+        {datePickerMode && Platform.OS === 'ios' && (
+          <View style={styles.datePickerOverlay} pointerEvents="box-none">
+            <View style={[styles.datePickerSheet, { backgroundColor: Colors.cardBackground || Colors.white }]}>
+              <View style={styles.datePickerHeader}>
+                <TouchableOpacity onPress={() => setDatePickerMode(null)}>
+                  <Text style={[styles.datePickerHeaderText, { color: Colors.secondaryText }]}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={[styles.datePickerHeaderTitle, { color: Colors.primaryText }]}>
+                  {datePickerMode === 'start' ? 'Start date' : 'End date'}
+                </Text>
+                <TouchableOpacity onPress={() => setDatePickerMode(null)}>
+                  <Text style={[styles.datePickerHeaderText, { color: Colors.primaryBlue, fontWeight: '700' }]}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={new Date((datePickerMode === 'start' ? newTaskStart : newTaskEnd) + 'T12:00:00')}
+                mode="date"
+                display="spinner"
+                minimumDate={datePickerMode === 'end' ? new Date(newTaskStart + 'T12:00:00') : undefined}
+                onChange={(_event, date) => {
+                  if (!date) return;
+                  const iso = formatDate(date);
+                  if (datePickerMode === 'start') {
+                    setNewTaskStart(iso);
+                    // Pull end forward if the user pushed start past it.
+                    if (newTaskEnd < iso) setNewTaskEnd(iso);
+                  } else {
+                    setNewTaskEnd(iso);
+                  }
+                }}
+                style={{ height: 220 }}
+                textColor={Colors.primaryText}
+              />
+            </View>
+          </View>
+        )}
+        {datePickerMode && Platform.OS === 'android' && (
+          <DateTimePicker
+            value={new Date((datePickerMode === 'start' ? newTaskStart : newTaskEnd) + 'T12:00:00')}
+            mode="date"
+            display="default"
+            minimumDate={datePickerMode === 'end' ? new Date(newTaskStart + 'T12:00:00') : undefined}
+            onChange={(_event, date) => {
+              const mode = datePickerMode;
+              setDatePickerMode(null);
+              if (!date) return;
+              const iso = formatDate(date);
+              if (mode === 'start') {
+                setNewTaskStart(iso);
+                if (newTaskEnd < iso) setNewTaskEnd(iso);
+              } else {
+                setNewTaskEnd(iso);
+              }
+            }}
+          />
+        )}
+
+        {/* Project picker for the Add-task flow */}
         <Modal
           visible={showTaskProjectPicker}
           animationType="slide"
@@ -760,6 +856,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
+  dateRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  dateChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dateChipLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  dateChipValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  dateRangeHint: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginBottom: 14,
+    marginTop: 2,
+  },
   addTaskActions: {
     flexDirection: 'row',
     gap: 10,
@@ -775,5 +902,36 @@ const styles = StyleSheet.create({
   addTaskBtnText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+
+  // ─── Date picker overlay (inside Add Task modal) ───
+  datePickerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  datePickerSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  datePickerHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  datePickerHeaderText: {
+    fontSize: 15,
   },
 });
