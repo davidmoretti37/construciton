@@ -8,13 +8,55 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const crypto = require('crypto');
 const logger = require('../../utils/logger');
 const { geocodingCache } = require('../../utils/geocodingCache');
+const { userSafeError } = require('../userSafeError');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// ==================== UPLOAD GUARDS ====================
+// Caps applied to every base64 attachment ingested by tool handlers. Without
+// these a single tool call could write a multi-GB blob into Supabase storage
+// or smuggle an executable past the chat agent.
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB after base64 decode
+const ALLOWED_UPLOAD_MIME = new Set([
+  'application/pdf',
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/msword',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'text/plain',
+]);
+
+function validateUpload(att) {
+  if (!att || typeof att.base64 !== 'string' || !att.mimeType) {
+    return { error: 'Attachment is missing data or mime type.' };
+  }
+  if (!ALLOWED_UPLOAD_MIME.has(att.mimeType)) {
+    return { error: 'File type not allowed.' };
+  }
+  // base64 expands ~4 chars per 3 bytes, so 4*N/3 ≈ original size.
+  const approxBytes = Math.floor((att.base64.length * 3) / 4);
+  if (approxBytes > MAX_UPLOAD_BYTES) {
+    return { error: 'File too large (max 25 MB).' };
+  }
+  return null;
+}
+
+function safeStorageKey(parentId, originalName) {
+  const base = (typeof originalName === 'string' ? originalName : 'file')
+    .replace(/[\\/]/g, '_')
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .slice(0, 200) || 'file';
+  return `${parentId}/${crypto.randomUUID()}-${base}`;
+}
 
 // ==================== HELPER ====================
 
@@ -199,8 +241,8 @@ async function resolveProjectId(userId, idOrName) {
   if (exact && exact.length === 1) return { id: exact[0].id };
   if (exact && exact.length > 1) {
     return {
-      suggestions: exact.map(p => ({ id: p.id, name: p.name, status: p.status })),
-      message: `Multiple projects match "${idOrName}". Which one did you mean?`
+      suggestions: exact.map(p => p.name),
+      message: 'Multiple projects match that name. Which one did you mean?',
     };
   }
 
@@ -215,8 +257,8 @@ async function resolveProjectId(userId, idOrName) {
   if (phrase && phrase.length === 1) return { id: phrase[0].id };
   if (phrase && phrase.length > 1) {
     return {
-      suggestions: phrase.map(p => ({ id: p.id, name: p.name, status: p.status })),
-      message: `Multiple projects match "${idOrName}". Which one did you mean?`
+      suggestions: phrase.map(p => p.name),
+      message: 'Multiple projects match that name. Which one did you mean?',
     };
   }
 
@@ -237,13 +279,13 @@ async function resolveProjectId(userId, idOrName) {
     if (fallback && fallback.length === 1) return { id: fallback[0].id };
     if (fallback && fallback.length > 1) {
       return {
-        suggestions: fallback.map(p => ({ id: p.id, name: p.name, status: p.status })),
-        message: `Multiple projects match "${idOrName}". Which one did you mean?`
+        suggestions: fallback.map(p => p.name),
+        message: 'Multiple projects match that name. Which one did you mean?',
       };
     }
   }
 
-  return { error: `No projects found matching "${idOrName}"` };
+  return { error: 'No projects found matching that name.' };
 }
 
 /**
@@ -281,8 +323,8 @@ async function resolveServicePlanId(userId, idOrName) {
   if (exact && exact.length === 1) return { id: exact[0].id };
   if (exact && exact.length > 1) {
     return {
-      suggestions: exact.map(p => ({ id: p.id, name: p.name, service_type: p.service_type, status: p.status })),
-      message: `Multiple service plans match "${idOrName}". Which one did you mean?`
+      suggestions: exact.map(p => p.name),
+      message: 'Multiple service plans match that name. Which one did you mean?',
     };
   }
 
@@ -297,8 +339,8 @@ async function resolveServicePlanId(userId, idOrName) {
   if (phrase && phrase.length === 1) return { id: phrase[0].id };
   if (phrase && phrase.length > 1) {
     return {
-      suggestions: phrase.map(p => ({ id: p.id, name: p.name, service_type: p.service_type, status: p.status })),
-      message: `Multiple service plans match "${idOrName}". Which one did you mean?`
+      suggestions: phrase.map(p => p.name),
+      message: 'Multiple service plans match that name. Which one did you mean?',
     };
   }
 
@@ -318,13 +360,13 @@ async function resolveServicePlanId(userId, idOrName) {
     if (fallback && fallback.length === 1) return { id: fallback[0].id };
     if (fallback && fallback.length > 1) {
       return {
-        suggestions: fallback.map(p => ({ id: p.id, name: p.name, service_type: p.service_type, status: p.status })),
-        message: `Multiple service plans match "${idOrName}". Which one did you mean?`
+        suggestions: fallback.map(p => p.name),
+        message: 'Multiple service plans match that name. Which one did you mean?',
       };
     }
   }
 
-  return { error: `No service plans found matching "${idOrName}"` };
+  return { error: 'No service plans found matching that name.' };
 }
 
 /**
@@ -360,14 +402,14 @@ async function resolveWorkerId(userId, idOrName) {
     .limit(5);
 
   if (!data || data.length === 0) {
-    return { error: `No workers found matching "${idOrName}"` };
+    return { error: 'No workers found matching that name.' };
   }
   if (data.length === 1) {
     return { id: data[0].id };
   }
   return {
-    suggestions: data.map(w => ({ id: w.id, name: w.full_name, trade: w.trade })),
-    message: `Multiple workers match "${idOrName}". Which one did you mean?`
+    suggestions: data.map(w => w.trade ? `${w.full_name} (${w.trade})` : w.full_name),
+    message: 'Multiple workers match that name. Which one did you mean?',
   };
 }
 
@@ -401,14 +443,17 @@ async function resolveEstimateId(userId, idOrName) {
     .limit(5);
 
   if (!data || data.length === 0) {
-    return { error: `No estimates found matching "${idOrName}"` };
+    return { error: 'No estimates found matching that name or number.' };
   }
   if (data.length === 1) {
     return { id: data[0].id };
   }
   return {
-    suggestions: data.map(e => ({ id: e.id, estimate_number: e.estimate_number, client: e.client_name, project: e.project_name, status: e.status })),
-    message: `Multiple estimates match "${idOrName}". Which one did you mean?`
+    suggestions: data.map(e => {
+      const parts = [e.estimate_number, e.client_name, e.project_name].filter(Boolean);
+      return parts.join(' — ') || 'estimate';
+    }),
+    message: 'Multiple estimates match. Which one did you mean?',
   };
 }
 
@@ -442,14 +487,17 @@ async function resolveInvoiceId(userId, idOrName) {
     .limit(5);
 
   if (!data || data.length === 0) {
-    return { error: `No invoices found matching "${idOrName}"` };
+    return { error: 'No invoices found matching that name or number.' };
   }
   if (data.length === 1) {
     return { id: data[0].id };
   }
   return {
-    suggestions: data.map(i => ({ id: i.id, invoice_number: i.invoice_number, client: i.client_name, project: i.project_name, status: i.status })),
-    message: `Multiple invoices match "${idOrName}". Which one did you mean?`
+    suggestions: data.map(i => {
+      const parts = [i.invoice_number, i.client_name, i.project_name].filter(Boolean);
+      return parts.join(' — ') || 'invoice';
+    }),
+    message: 'Multiple invoices match. Which one did you mean?',
   };
 }
 
@@ -717,7 +765,7 @@ async function delete_project(userId, { project_id }) {
     .eq('id', resolved.id)
     .eq('user_id', userId);
 
-  if (error) return { error: `Failed to delete: ${error.message}` };
+  if (error) return userSafeError(error, "Couldn't delete it. Try again.");
   return { success: true, deletedProject: project.name };
 }
 
@@ -2145,6 +2193,22 @@ async function assign_worker(userId, args) {
     };
   }
 
+  // Disambiguation: if a supervisor profile under the same owner also matches
+  // the requested name, surface both so the AI can ask which the user meant.
+  // This prevents silently assigning the worker when the user said the
+  // supervisor's name (e.g. "Lana Moretti" — supervisor profile vs worker "Lana").
+  const supervisorMatches = await findSupervisorMatchesForName(ownerId, args.worker_id);
+  if (supervisorMatches.length > 0) {
+    return {
+      ambiguous: true,
+      message: `"${args.worker_id}" matches both a worker and a supervisor. Which did you mean?`,
+      suggestions: [
+        { kind: 'worker', id: worker.id, name: worker.full_name, trade: worker.trade, tool: 'assign_worker' },
+        ...supervisorMatches.map(s => ({ kind: 'supervisor', id: s.id, name: s.business_name, role: 'supervisor', tool: 'assign_supervisor' })),
+      ],
+    };
+  }
+
   // Create the assignment
   const { error: assignErr } = await supabase
     .from('project_assignments')
@@ -2152,7 +2216,7 @@ async function assign_worker(userId, args) {
 
   if (assignErr) {
     logger.error('assign_worker insert error:', assignErr);
-    return { error: `Failed to assign worker: ${assignErr.message}` };
+    return userSafeError(assignErr, "Couldn't assign that worker. Try again.");
   }
 
   // Notify the worker about the new assignment
@@ -2174,6 +2238,117 @@ async function assign_worker(userId, args) {
     message: `${worker.full_name} (${worker.trade}) assigned to ${project.name}`,
     worker: { id: worker.id, name: worker.full_name, trade: worker.trade },
     project: { id: project.id, name: project.name, startDate: project.start_date, endDate: project.end_date },
+  };
+}
+
+/**
+ * Look up supervisor profiles under `ownerId` whose `business_name` matches
+ * any whole word in `idOrName`. Used to detect cross-table name collisions
+ * during worker/supervisor assignment.
+ */
+async function findSupervisorMatchesForName(ownerId, idOrName) {
+  if (!idOrName) return [];
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) return [];
+  const filter = buildWordSearch(idOrName, ['business_name']);
+  if (!filter) return [];
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, business_name')
+    .eq('owner_id', ownerId)
+    .eq('role', 'supervisor')
+    .or(filter)
+    .limit(5);
+  return data || [];
+}
+
+/**
+ * Resolve a supervisor name/UUID to a profile under the current owner.
+ */
+async function resolveSupervisorId(userId, idOrName) {
+  if (!idOrName) return { error: 'No supervisor specified' };
+  const ownerId = await resolveOwnerId(userId);
+
+  if (idOrName.match(/^[0-9a-f]{8}-/i)) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, business_name')
+      .eq('id', idOrName)
+      .eq('owner_id', ownerId)
+      .eq('role', 'supervisor')
+      .single();
+    if (!data) return { error: 'Supervisor not found or access denied' };
+    return { id: idOrName, name: data.business_name };
+  }
+
+  const matches = await findSupervisorMatchesForName(ownerId, idOrName);
+  if (matches.length === 0) return { error: `No supervisor found matching "${idOrName}"` };
+  if (matches.length === 1) return { id: matches[0].id, name: matches[0].business_name };
+  return {
+    suggestions: matches.map(s => ({ id: s.id, name: s.business_name })),
+    message: `Multiple supervisors match "${idOrName}". Which one?`,
+  };
+}
+
+/**
+ * Assign a supervisor to a project by setting projects.assigned_supervisor_id.
+ * The supervisor must be a profile with role='supervisor' under the same owner.
+ */
+async function assign_supervisor(userId, args) {
+  let { supervisor_id, project_id } = args;
+
+  const resolvedProject = await resolveProjectId(userId, project_id);
+  if (resolvedProject.error) return { error: resolvedProject.error };
+  if (resolvedProject.suggestions) return resolvedProject;
+  project_id = resolvedProject.id;
+
+  const resolvedSup = await resolveSupervisorId(userId, supervisor_id);
+  if (resolvedSup.error) return { error: resolvedSup.error };
+  if (resolvedSup.suggestions) return resolvedSup;
+  supervisor_id = resolvedSup.id;
+
+  // Owner-only — supervisors can't reassign themselves or peers.
+  const { data: project, error: projErr } = await supabase
+    .from('projects')
+    .select('id, name, assigned_supervisor_id')
+    .eq('id', project_id)
+    .eq('user_id', userId)
+    .single();
+
+  if (projErr || !project) {
+    return { error: 'Project not found, or you are not the owner. Only the owner can assign a supervisor.' };
+  }
+
+  if (project.assigned_supervisor_id === supervisor_id) {
+    return {
+      alreadyAssigned: true,
+      message: `${resolvedSup.name} is already the supervisor on ${project.name}.`,
+    };
+  }
+
+  const { error: updErr } = await supabase
+    .from('projects')
+    .update({ assigned_supervisor_id: supervisor_id, updated_at: new Date().toISOString() })
+    .eq('id', project_id);
+
+  if (updErr) {
+    logger.error('assign_supervisor update error:', updErr);
+    return userSafeError(updErr, "Couldn't assign that supervisor. Try again.");
+  }
+
+  sendNotification({
+    userId: supervisor_id,
+    title: 'New Project Assignment',
+    body: `You've been assigned as supervisor on ${project.name}`,
+    type: 'project_status',
+    data: { screen: 'ProjectDetail', projectId: project_id },
+    projectId: project_id,
+  });
+
+  return {
+    success: true,
+    message: `${resolvedSup.name} assigned as supervisor on ${project.name}.`,
+    supervisor: { id: supervisor_id, name: resolvedSup.name },
+    project: { id: project.id, name: project.name },
   };
 }
 
@@ -2371,8 +2546,9 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
       const match = (projectPhases || []).find((p) => p.id === phase_id);
       if (!match) {
         return {
-          error: `phase_id ${phase_id} does not belong to project "${entityName}". Ask the user to pick one of the phases below.`,
-          available_phases: (projectPhases || []).map((p) => ({ id: p.id, name: p.name })),
+          error: 'That phase isn\'t on this project. Ask the user which phase to use.',
+          available_phase_names: (projectPhases || []).map((p) => p.name),
+          needs_clarification: 'phase',
         };
       }
       insertData.phase_id = match.id;
@@ -2384,14 +2560,16 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
         : (projectPhases || []).filter((p) => p.name.toLowerCase().includes(needle));
       if (fuzzy.length === 0) {
         return {
-          error: `No phase matching "${phase_name}" on project "${entityName}". Ask the user to pick one of the phases below.`,
-          available_phases: (projectPhases || []).map((p) => ({ id: p.id, name: p.name })),
+          error: 'No phase matches that name on this project.',
+          available_phase_names: (projectPhases || []).map((p) => p.name),
+          needs_clarification: 'phase',
         };
       }
       if (fuzzy.length > 1) {
         return {
-          error: `"${phase_name}" matches multiple phases on "${entityName}". Ask the user which one.`,
-          matching_phases: fuzzy.map((p) => ({ id: p.id, name: p.name })),
+          error: 'That name matches multiple phases. Ask the user which one.',
+          matching_phase_names: fuzzy.map((p) => p.name),
+          needs_clarification: 'phase',
         };
       }
       insertData.phase_id = fuzzy[0].id;
@@ -2399,8 +2577,8 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
 
     if (type === 'expense' && !subcategory && !insertData.phase_id) {
       return {
-        error: 'A phase is required for this expense. Ask the user which phase to assign it to — list the phases below and let them choose.',
-        available_phases: (projectPhases || []).map((p) => ({ id: p.id, name: p.name })),
+        error: 'A phase is required for this expense. Ask the user which phase to assign it to.',
+        available_phase_names: (projectPhases || []).map((p) => p.name),
         needs_clarification: 'phase',
       };
     }
@@ -2418,7 +2596,7 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
     .select()
     .single();
 
-  if (error) return { error: `Failed to record transaction: ${error.message}` };
+  if (error) return userSafeError(error, "Couldn't record that transaction.");
 
   // Get updated totals
   const { data: transactions } = await supabase
@@ -2574,7 +2752,7 @@ async function delete_expense(userId, { transaction_id, project_id }) {
     .eq('id', resolvedId);
 
   if (deleteErr) {
-    return { error: `Failed to delete transaction: ${deleteErr.message}` };
+    return userSafeError(deleteErr, "Couldn't delete that transaction.");
   }
 
   // Get updated project totals
@@ -2748,7 +2926,7 @@ async function update_phase_progress(userId, { project_id, phase_name, percentag
     .update(updates)
     .eq('id', phase.id);
 
-  if (updateErr) return { error: `Failed to update phase: ${updateErr.message}` };
+  if (updateErr) return userSafeError(updateErr, "Couldn't update that phase.");
 
   // Notify owner/supervisor when a phase hits 100%
   if (pct >= 100) {
@@ -2812,7 +2990,7 @@ async function add_project_checklist(userId, { project_id, items }) {
     .insert(workerTasks)
     .select('id, title');
 
-  if (taskErr) return { error: `Failed to create tasks: ${taskErr.message}` };
+  if (taskErr) return userSafeError(taskErr, "Couldn't create those tasks.");
   if (!insertedTasks || insertedTasks.length === 0) {
     return { error: 'Tasks did not persist. Please try again.' };
   }
@@ -2884,7 +3062,7 @@ async function create_project_phase(userId, { project_id, phase_name, planned_da
     .select('id, name, order_index, planned_days, budget')
     .single();
 
-  if (insertErr) return { error: `Failed to create phase: ${insertErr.message}` };
+  if (insertErr) return userSafeError(insertErr, "Couldn't create that phase.");
 
   // Mark project as having phases
   await supabase
@@ -3022,7 +3200,7 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
     .select()
     .single();
 
-  if (invErr) return { error: `Failed to create invoice: ${invErr.message}` };
+  if (invErr) return userSafeError(invErr, "Couldn't create that invoice.");
 
   // Update estimate status to accepted
   await supabase
@@ -3096,7 +3274,7 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
     .select('invoice_number, status, amount_paid, total, due_date')
     .single();
 
-  if (error) return { error: `Failed to update invoice: ${error.message}` };
+  if (error) return userSafeError(error, "Couldn't update that invoice.");
 
   // Notify owner about invoice status changes (if caller is a supervisor)
   if (updates.status) {
@@ -3141,7 +3319,7 @@ async function void_invoice(userId, { invoice_id }) {
     .select('invoice_number')
     .single();
 
-  if (error) return { error: `Failed to void invoice: ${error.message}` };
+  if (error) return userSafeError(error, "Couldn't void that invoice.");
 
   return { success: true, invoice_number: data.invoice_number };
 }
@@ -3192,7 +3370,7 @@ async function create_work_schedule(userId, { worker, project, start_date, end_d
     .select()
     .single();
 
-  if (error) return { error: `Failed to create schedule: ${error.message}` };
+  if (error) return userSafeError(error, "Couldn't create that schedule.");
 
   return {
     success: true,
@@ -3238,7 +3416,7 @@ async function create_worker_task(userId, { project, title, description, start_d
     .select()
     .single();
 
-  if (error) return { error: `Failed to create task: ${error.message}` };
+  if (error) return userSafeError(error, "Couldn't create that task.");
 
   // Notify workers assigned to this project about the new task
   const { data: assignments } = await supabase
@@ -3310,7 +3488,7 @@ async function update_service_pricing(userId, { service_name, item_name, price, 
       .select('id, pricing')
       .single();
 
-    if (createErr) return { error: `Failed to create service entry: ${createErr.message}` };
+    if (createErr) return userSafeError(createErr, "Couldn't create that service entry.");
     userService = created;
   }
 
@@ -3323,7 +3501,7 @@ async function update_service_pricing(userId, { service_name, item_name, price, 
     .update({ pricing })
     .eq('id', userService.id);
 
-  if (updateErr) return { error: `Failed to update pricing: ${updateErr.message}` };
+  if (updateErr) return userSafeError(updateErr, "Couldn't update pricing.");
 
   return {
     success: true,
@@ -3485,14 +3663,14 @@ async function assign_bank_transaction(userId, args = {}) {
       .select('id, name, order_index')
       .eq('project_id', resolvedProjectId)
       .order('order_index', { ascending: true });
-    availablePhases = (projectPhases || []).map((p) => ({ id: p.id, name: p.name }));
+    availablePhases = (projectPhases || []).map((p) => p.name);
 
     if (phase_id) {
       const match = (projectPhases || []).find((p) => p.id === phase_id);
       if (!match) {
         return {
-          error: `phase_id ${phase_id} does not belong to project "${project?.name || resolvedProjectId}". Ask the user to pick one of the phases below.`,
-          available_phases: availablePhases,
+          error: 'That phase isn\'t on this project. Ask the user which phase to use.',
+          available_phase_names: availablePhases,
           needs_clarification: 'phase',
         };
       }
@@ -3505,15 +3683,15 @@ async function assign_bank_transaction(userId, args = {}) {
         : (projectPhases || []).filter((p) => p.name.toLowerCase().includes(needle));
       if (fuzzy.length === 0) {
         return {
-          error: `No phase matching "${phase_name}" on project "${project?.name || resolvedProjectId}". Ask the user to pick one of the phases below.`,
-          available_phases: availablePhases,
+          error: 'No phase matches that name on this project.',
+          available_phase_names: availablePhases,
           needs_clarification: 'phase',
         };
       }
       if (fuzzy.length > 1) {
         return {
-          error: `"${phase_name}" matches multiple phases on "${project?.name || resolvedProjectId}". Ask the user which one.`,
-          matching_phases: fuzzy.map((p) => ({ id: p.id, name: p.name })),
+          error: 'That name matches multiple phases. Ask the user which one.',
+          matching_phase_names: fuzzy.map((p) => p.name),
           needs_clarification: 'phase',
         };
       }
@@ -3523,8 +3701,8 @@ async function assign_bank_transaction(userId, args = {}) {
     // An expense must carry either a phase or a subcategory.
     if (!resolvedPhaseId && !subcategory) {
       return {
-        error: 'A phase is required to assign this bank transaction as an expense. Ask the user which phase to attach it to — list the phases below and let them choose.',
-        available_phases: availablePhases,
+        error: 'A phase is required to assign this bank transaction as an expense.',
+        available_phase_names: availablePhases,
         needs_clarification: 'phase',
       };
     }
@@ -4375,21 +4553,28 @@ async function create_daily_report(userId, args = {}) {
     for (const att of attachments) {
       const mimeType = att?.mimeType || 'image/jpeg';
       if (!att?.base64 || !mimeType.startsWith('image/')) continue;
+      const v = validateUpload({ ...att, mimeType });
+      if (v) {
+        uploadFails.push({ name: att.name || 'image', error: v.error });
+        continue;
+      }
       try {
         const ext = (mimeType.split('/')[1] || 'jpg').split('+')[0];
-        const filePath = `${userId}/${resolved.id}/daily-reports/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const filePath = safeStorageKey(`${userId}/${resolved.id}/daily-reports`, `${Date.now()}.${ext}`);
         const bytes = Buffer.from(att.base64, 'base64');
         const { error: upErr } = await supabase.storage
           .from('project-documents')
           .upload(filePath, bytes, { contentType: mimeType, upsert: false });
         if (upErr) {
-          uploadFails.push({ name: att.name || 'image', error: upErr.message });
+          logger.error('daily-report image upload error:', upErr);
+          uploadFails.push({ name: att.name || 'image', error: 'upload failed' });
           continue;
         }
         const { data: pub } = supabase.storage.from('project-documents').getPublicUrl(filePath);
         uploadedPhotos.push(pub?.publicUrl || filePath);
       } catch (e) {
-        uploadFails.push({ name: att?.name || 'image', error: e.message });
+        logger.error('daily-report image upload exception:', e);
+        uploadFails.push({ name: att?.name || 'image', error: 'upload failed' });
       }
     }
   }
@@ -4413,8 +4598,9 @@ async function create_daily_report(userId, args = {}) {
     .single();
 
   if (error) {
+    logger.error('create_daily_report error:', error);
     return {
-      error: `Failed to create daily report: ${error.message}`,
+      ...userSafeError(error, "Couldn't create that daily report."),
       uploaded_photos_count: uploadedPhotos.length,
       upload_failures: uploadFails.length ? uploadFails : undefined,
     };
@@ -4455,14 +4641,19 @@ async function upload_project_document(userId, args) {
     try {
       const fileName = att.name || `Document_${Date.now()}`;
       const fileExt = fileName.split('.').pop()?.toLowerCase() || 'bin';
-      const timestamp = Date.now();
-      const filePath = `${userId}/${resolved.id}/${timestamp}.${fileExt}`;
 
       // Determine content type and file_type
       const mimeType = att.mimeType || 'application/octet-stream';
+      const v = validateUpload({ ...att, mimeType });
+      if (v) {
+        failed.push({ fileName, error: v.error });
+        continue;
+      }
       let fileType = 'document';
       if (mimeType.startsWith('image/')) fileType = 'image';
       else if (mimeType === 'application/pdf' || fileExt === 'pdf') fileType = 'pdf';
+
+      const filePath = safeStorageKey(`${userId}/${resolved.id}`, fileName);
 
       // Decode base64 and upload to Supabase storage
       const binaryString = Buffer.from(att.base64, 'base64');
@@ -4476,7 +4667,7 @@ async function upload_project_document(userId, args) {
 
       if (uploadError) {
         logger.error('Document upload error:', uploadError);
-        failed.push({ fileName, error: uploadError.message });
+        failed.push({ fileName, error: 'upload failed' });
         continue;
       }
 
@@ -5650,7 +5841,7 @@ async function delete_service_plan(userId, args = {}) {
     .eq('id', resolved.id)
     .eq('owner_id', ownerId);
 
-  if (error) return { error: `Failed to delete: ${error.message}` };
+  if (error) return userSafeError(error, "Couldn't delete it. Try again.");
   return { success: true, deletedPlan: plan.name };
 }
 
@@ -5712,14 +5903,18 @@ async function upload_service_plan_document(userId, args = {}) {
     try {
       const fileName = att.name || `Document_${Date.now()}`;
       const fileExt = fileName.split('.').pop()?.toLowerCase() || 'bin';
-      const timestamp = Date.now();
-      const filePath = `${userId}/service-plans/${resolved.id}/${timestamp}.${fileExt}`;
 
       const mimeType = att.mimeType || 'application/octet-stream';
+      const v = validateUpload({ ...att, mimeType });
+      if (v) {
+        failed.push({ fileName, error: v.error });
+        continue;
+      }
       let fileType = 'document';
       if (mimeType.startsWith('image/')) fileType = 'image';
       else if (mimeType === 'application/pdf' || fileExt === 'pdf') fileType = 'pdf';
 
+      const filePath = safeStorageKey(`${userId}/service-plans/${resolved.id}`, fileName);
       const binaryString = Buffer.from(att.base64, 'base64');
 
       const { error: uploadError } = await supabase.storage
@@ -5727,7 +5922,8 @@ async function upload_service_plan_document(userId, args = {}) {
         .upload(filePath, binaryString, { contentType: mimeType, upsert: false });
 
       if (uploadError) {
-        failed.push({ fileName, error: uploadError.message });
+        logger.error('service-plan doc upload error:', uploadError);
+        failed.push({ fileName, error: 'upload failed' });
         continue;
       }
 
@@ -6134,6 +6330,7 @@ const TOOL_HANDLERS = {
   get_project_summary,
   suggest_pricing,
   assign_worker,
+  assign_supervisor,
   generate_summary_report,
   share_document,
   record_expense,
@@ -6203,7 +6400,7 @@ async function executeTool(toolName, args, userId) {
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) {
     logger.error(`Unknown tool: ${toolName}`);
-    return { error: `Unknown tool: ${toolName}` };
+    return userSafeError(null, 'That action isn\'t available right now.');
   }
 
   try {
@@ -6213,8 +6410,7 @@ async function executeTool(toolName, args, userId) {
     logger.info(`🔧 Tool ${toolName} executed in ${duration}ms`);
     return result;
   } catch (error) {
-    logger.error(`Tool ${toolName} error:`, error);
-    return { error: `Failed to execute ${toolName}: ${error.message}` };
+    return userSafeError(error, 'Something went wrong with that action.', { context: toolName });
   }
 }
 

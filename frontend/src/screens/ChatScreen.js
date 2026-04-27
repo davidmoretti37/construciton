@@ -35,6 +35,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { sendMessageToAI, sendMessageToAIStreaming, getProjectContext, analyzeScreenshot, analyzeDocument, formatProjectConfirmation, describeAttachments, setVoiceMode, sendAgentMessage, pollAgentJob, fetchLatestAgentJob } from '../services/aiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadProjectDocument } from '../utils/storage/projectDocuments';
+import { generatePnLPDFFromAgent } from '../utils/financialReportPDF';
 import { supabase } from '../lib/supabase';
 import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
@@ -2314,6 +2315,13 @@ export default function ChatScreen({ navigation, route }) {
       // Maps Action
       case 'open-maps':
         handleOpenMaps(action.data);
+        break;
+
+      // Profit & Loss PDF — emitted by PnLReportCard's "Download PDF"
+      // button. Reuses the existing financial-report PDF + native share
+      // path via generatePnLPDFFromAgent.
+      case 'download-pnl-pdf':
+        await generatePnLPDFFromAgent(action.data);
         break;
 
       default:

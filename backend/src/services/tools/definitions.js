@@ -1054,7 +1054,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'assign_worker',
-      description: "Assign a worker to a project for the project's entire duration. Creates a project assignment record. Simpler than creating a detailed work schedule when you just need to add someone to a project. Use when user says 'put Jose on the kitchen project' or 'assign Carlos to the Smith job'.",
+      description: "Assign a WORKER (not a supervisor) to a project for the project's entire duration. Creates a project_assignments row. Use when user says 'put Jose on the kitchen project' or 'assign Carlos to the Smith job' AND the named person is a worker. If the user says 'assign [name] as supervisor' or the name matches a supervisor profile, use `assign_supervisor` instead. If a name matches both, this tool returns an `ambiguous` result with suggestions — show the options to the user and pick the right tool on the next call.",
       parameters: {
         type: 'object',
         properties: {
@@ -1068,6 +1068,27 @@ const toolDefinitions = [
           }
         },
         required: ['worker_id', 'project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'assign_supervisor',
+      description: "Assign a SUPERVISOR to a project. Sets projects.assigned_supervisor_id, granting that supervisor full access to the project. Use when the user says 'make [name] the supervisor on X', 'assign [name] as supervisor', or names a person who is a supervisor profile (not a worker record). Owner-only — supervisors cannot call this. If the same name also exists as a worker, prefer this tool only when the user explicitly said 'supervisor'; otherwise ask the user to disambiguate.",
+      parameters: {
+        type: 'object',
+        properties: {
+          supervisor_id: {
+            type: 'string',
+            description: 'The supervisor name or profile UUID. Names like "Lana Moretti" are resolved against profiles where role=supervisor under the current owner.'
+          },
+          project_id: {
+            type: 'string',
+            description: 'The project name or UUID.'
+          }
+        },
+        required: ['supervisor_id', 'project_id']
       }
     }
   },

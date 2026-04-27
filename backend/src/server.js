@@ -110,6 +110,42 @@ app.use(express.json({ limit: '10mb' }));
 
 // Shared authentication middleware
 const { authenticateUser } = require('./middleware/authenticate');
+const { enforceMonthlyBudget } = require('./services/aiBudget');
+
+// Allow-listed shape for the free-text portions of the agent context object.
+// Anything not on this list is dropped, anything over-length is truncated.
+// The system prompt fences these values with <<USER_PROVIDED_CONTEXT>> markers,
+// but defense-in-depth: keep the raw payload bounded too.
+const STRING_CONTEXT_LIMITS = {
+  businessName: 200,
+  businessPhone: 40,
+  businessEmail: 200,
+  businessAddress: 400,
+  userName: 200,
+  userLanguage: 16,
+  userRole: 32,
+  ownerName: 200,
+  responseStyle: 1000,
+  aboutYou: 4000,
+  learnedFacts: 8000,
+  projectInstructions: 8000,
+};
+const BOOL_CONTEXT_KEYS = ['isSupervisor'];
+
+function sanitizeContextPayload(input) {
+  if (!input || typeof input !== 'object') return {};
+  const out = {};
+  for (const [k, max] of Object.entries(STRING_CONTEXT_LIMITS)) {
+    const v = input[k];
+    if (typeof v === 'string') {
+      out[k] = v.slice(0, max);
+    }
+  }
+  for (const k of BOOL_CONTEXT_KEYS) {
+    if (typeof input[k] === 'boolean') out[k] = input[k];
+  }
+  return out;
+}
 
 // Mount routes with rate limiting
 app.use('/api', servicesLimiter, geocodingRoutes);
@@ -361,7 +397,7 @@ app.get('/support', (req, res) => {
 });
 
 // Non-streaming chat endpoint (with AI rate limiting)
-app.post('/api/chat', aiLimiter, authenticateUser, async (req, res) => {
+app.post('/api/chat', aiLimiter, authenticateUser, enforceMonthlyBudget, async (req, res) => {
   const { messages, model, max_tokens = 4000, temperature = 0.3 } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
@@ -482,7 +518,7 @@ app.post('/api/documents/extract-text-docx', aiLimiter, authenticateUser, async 
   }
 });
 
-app.post('/api/chat/vision', aiLimiter, authenticateUser, async (req, res) => {
+app.post('/api/chat/vision', aiLimiter, authenticateUser, enforceMonthlyBudget, async (req, res) => {
   const { messages, model, max_tokens = 2000, temperature = 0.3 } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
@@ -531,7 +567,7 @@ app.post('/api/chat/vision', aiLimiter, authenticateUser, async (req, res) => {
 });
 
 // Streaming chat endpoint (with AI rate limiting)
-app.post('/api/chat/stream', aiLimiter, authenticateUser, async (req, res) => {
+app.post('/api/chat/stream', aiLimiter, authenticateUser, enforceMonthlyBudget, async (req, res) => {
   const { messages, model, max_tokens = 4000, temperature = 0.3 } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
@@ -628,14 +664,19 @@ app.post('/api/chat/stream', aiLimiter, authenticateUser, async (req, res) => {
 // Processes requests in the background — continues even if client disconnects
 const { processAgentRequest } = require('./services/agentService');
 
-app.post('/api/chat/agent', aiLimiter, authenticateUser, async (req, res) => {
-  const { messages, context, attachments, sessionId } = req.body;
+app.post('/api/chat/agent', aiLimiter, authenticateUser, enforceMonthlyBudget, async (req, res) => {
+  const { messages, context: rawContext, attachments, sessionId } = req.body;
   // Use authenticated user ID from JWT, ignore any user_id in body
   const user_id = req.user.id;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Invalid messages format' });
   }
+
+  // Allow-list context fields to defang prompt-injection via free-text input.
+  // The AI agent's system prompt interpolates these strings, so unbounded
+  // input here would let any client rewrite the agent's instructions.
+  const context = sanitizeContextPayload(rawContext);
 
   if (!process.env.OPENROUTER_API_KEY) {
     return res.status(500).json({ error: 'OpenRouter API key not configured' });
@@ -755,7 +796,7 @@ app.get('/api/chat/agent/:jobId', authenticateUser, async (req, res) => {
 
 // ⚡ GROQ PLANNING ENDPOINT - Ultra-fast inference for agent routing
 // Uses Groq's Llama 3.1 70B for 300+ tokens/sec planning
-app.post('/api/chat/planning', aiLimiter, authenticateUser, async (req, res) => {
+app.post('/api/chat/planning', aiLimiter, authenticateUser, enforceMonthlyBudget, async (req, res) => {
   const { messages, max_tokens = 1000, temperature = 0.1 } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
