@@ -29,7 +29,7 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
 const { executeTool } = require('./tools/handlers');
-const { runMemoryCommand } = require('./memoryTool');
+const { runMemoryCommand, prefetchMemorySnapshot } = require('./memoryTool');
 const { isDestructive, verifyDestructive, blockedToolResult } = require('./destructiveGuard');
 const { generatePlan, planToModelId } = require('./planner');
 const { verifyPlanExecution } = require('./planVerifier');
@@ -675,16 +675,22 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   // Always include the Anthropic memory tool. It's first-class — the agent
   // checks /memories at the start of every conversation and writes durable
   // facts there. Backed per-tenant by Supabase agent_memories.
+  // Memory tool: WRITE-ONLY surface. The view command is gone — memory
+  // is auto-prefetched into the system prompt at request start (see
+  // memorySnapshot below) so the agent doesn't stall calling memory.view
+  // and waiting for an empty result before progressing to action tools.
+  // Writes only fire when the user shares a durable fact ("Lana is my
+  // supervisor", "always invoice net-30").
   const memoryToolDef = {
     type: 'function',
     function: {
       name: 'memory',
-      description: 'Persistent per-user memory directory at /memories. Use commands view, create, str_replace, insert, delete, rename. ALWAYS view /memories first to check what you already know about this user before answering. Save durable facts (preferences, business details, supervisor names, default phases) for future conversations.',
+      description: 'Save / update / delete durable user-specific facts in your persistent memory. Memory CONTENTS are auto-loaded into your context at request start — you do NOT need to view it. Only call this tool when the user explicitly shares a durable fact worth remembering (a supervisor name, a default workflow, a billing preference). One write per turn maximum. Do not call speculatively.',
       parameters: {
         type: 'object',
         properties: {
-          command: { type: 'string', enum: ['view', 'create', 'str_replace', 'insert', 'delete', 'rename'] },
-          path: { type: 'string', description: 'Path under /memories (required for view, create, str_replace, insert, delete).' },
+          command: { type: 'string', enum: ['create', 'str_replace', 'insert', 'delete', 'rename'] },
+          path: { type: 'string', description: 'Path under /memories (required for create, str_replace, insert, delete).' },
           old_path: { type: 'string', description: 'Source path for rename.' },
           new_path: { type: 'string', description: 'Destination path for rename.' },
           file_text: { type: 'string', description: 'Initial content for create.' },
@@ -692,7 +698,6 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           new_str: { type: 'string', description: 'Replacement text for str_replace.' },
           insert_line: { type: 'number', description: 'Line number after which to insert (0 = top).' },
           insert_text: { type: 'string', description: 'Text to insert.' },
-          view_range: { type: 'array', items: { type: 'number' }, description: 'Optional [start, end] line range for view.' },
         },
         required: ['command'],
       },
@@ -732,8 +737,19 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     ? `planner=${plan.complexity}/${plan.recommended_model}`
     : heuristicReason;
 
-  // PHASE 4: Add memory context to system prompt
+  // PHASE 4: Add memory context to system prompt.
+  // memory.getContextForPrompt is the legacy in-process scratchpad —
+  // short-term within a single request. The Anthropic memory tool's
+  // /memories store is now AUTO-PREFETCHED here so the agent sees its
+  // contents inline without having to call memory.view (which used to
+  // stall the agent on empty memory). Per-tenant scoped by userId.
   const memoryContext = memory.getContextForPrompt(userId);
+  let memorySnapshot = '';
+  try {
+    memorySnapshot = await prefetchMemorySnapshot(userId);
+  } catch (e) {
+    logger.warn('memory prefetch failed (non-fatal):', e.message);
+  }
 
   // Persistent semantic + user-level memory recall (best-effort, non-blocking).
   // When pgvector + an embedding API key are present this surfaces past messages,
@@ -751,7 +767,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     }
   }
 
-  const systemPrompt = buildSystemPrompt(userContext) + memoryContext + recalledContext;
+  const systemPrompt = buildSystemPrompt(userContext) + memorySnapshot + memoryContext + recalledContext;
 
   // Log routing decisions
   logger.info(`🎯 Intent: ${intent} | Tools: ${toolCount}/34 | Model: ${model} (${reason})`);

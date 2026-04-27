@@ -136,13 +136,18 @@ async function runMemoryCommand(userId, input) {
   }
   try {
     switch (input.command) {
-      case 'view': return await cmdView(userId, input);
+      case 'view':
+        // Memory is auto-prefetched into the system prompt now. The agent
+        // shouldn't be calling view at all. If it does (legacy behavior),
+        // return a no-op message that nudges it to act on what it already
+        // sees in context, instead of stalling waiting for "data."
+        return 'Memory is auto-loaded into your system prompt at request start. Read the MEMORY section above; do not call view. Proceed with the user\'s actual request.';
       case 'create': return await cmdCreate(userId, input);
       case 'str_replace': return await cmdStrReplace(userId, input);
       case 'insert': return await cmdInsert(userId, input);
       case 'delete': return await cmdDelete(userId, input);
       case 'rename': return await cmdRename(userId, input);
-      default: return `Error: unknown memory command "${input.command}".`;
+      default: return `Error: unknown memory command "${input.command}". Valid commands: create, str_replace, insert, delete, rename.`;
     }
   } catch (err) {
     logger.error('[memoryTool] uncaught:', err);
@@ -301,4 +306,45 @@ async function cmdRename(userId, { old_path, new_path }) {
   return `Successfully renamed ${fromV.path} to ${toV.path}`;
 }
 
-module.exports = { runMemoryCommand };
+// Server-side prefetch: read the user's /memories at request start and
+// return a compact prompt-ready string. Lets the agent skip the
+// "view memory first" round-trip entirely — memory becomes injected
+// context, not a tool the agent has to remember to call.
+async function prefetchMemorySnapshot(userId) {
+  if (!userId) return '';
+  try {
+    // Listing under /memories — pull every file so we can include their
+    // content inline. Cap total bytes to keep the prompt tight.
+    const { data: rows } = await adminSupabase
+      .from('agent_memories')
+      .select('path, content, byte_size')
+      .eq('user_id', userId)
+      .eq('is_directory', false)
+      .order('last_accessed_at', { ascending: false })
+      .limit(50);
+    if (!rows || rows.length === 0) return '';
+    const MAX_TOTAL_BYTES = 16 * 1024;  // 16 KB cap on injected memory
+    const chunks = [];
+    let bytes = 0;
+    for (const r of rows) {
+      const piece = `\n### ${r.path}\n${(r.content || '').slice(0, 2000)}\n`;
+      const pieceBytes = Buffer.byteLength(piece, 'utf8');
+      if (bytes + pieceBytes > MAX_TOTAL_BYTES) break;
+      chunks.push(piece);
+      bytes += pieceBytes;
+      // Bump access timestamp so the most-recently-relevant files stay hot.
+      adminSupabase
+        .from('agent_memories')
+        .update({ last_accessed_at: new Date().toISOString() })
+        .eq('user_id', userId).eq('path', r.path)
+        .then(() => {}, () => {});
+    }
+    if (chunks.length === 0) return '';
+    return `\n## MEMORY (auto-loaded from prior conversations with this user)\n${chunks.join('')}\n`;
+  } catch (err) {
+    logger.warn('[memoryTool] prefetch failed:', err.message);
+    return '';
+  }
+}
+
+module.exports = { runMemoryCommand, prefetchMemorySnapshot };

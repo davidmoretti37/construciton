@@ -10,7 +10,7 @@ const logger = require('../utils/logger');
 
 const ENABLED = process.env.AGENT_PLANNER_ENABLED !== 'false';
 const MODEL = 'anthropic/claude-haiku-4.5';
-const TIMEOUT_MS = parseInt(process.env.PLAN_VERIFIER_TIMEOUT_MS, 10) || 1500;
+const TIMEOUT_MS = parseInt(process.env.PLAN_VERIFIER_TIMEOUT_MS, 10) || 2500;
 
 const SYSTEM_PROMPT = `You are the verifier stage of an AI agent. Compare the agent's PLAN with what it ACTUALLY did. Return ONLY this JSON:
 

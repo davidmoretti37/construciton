@@ -17,7 +17,7 @@ const logger = require('../utils/logger');
 
 const ENABLED = process.env.AGENT_PLANNER_ENABLED !== 'false';
 const MODEL = 'anthropic/claude-haiku-4.5';
-const TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS, 10) || 1500;
+const TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS, 10) || 2500;
 
 const SYSTEM_PROMPT = `You are the planner stage of a service-business AI agent for construction, cleaning, lawn care, pest, pool, and HVAC service businesses. Read the user's last message + recent conversation. Write a SHORT plan and return ONLY this JSON object:
 
@@ -39,11 +39,22 @@ VERIFICATION RULES (override complexity):
 - needs_verification=true when the user said "yes" / "confirm" / "go ahead" — we want the verifier to confirm we acted on the right thing.
 
 PLAN_TEXT RULES:
-- The user SEES this. Make it useful and human.
-- Bad: "Calling tool X with args Y." / "Will look up records."
-- Good: "Looking up Smith's open invoices, then summarizing what's overdue." / "Creating a project preview card for Sarah's kitchen remodel."
+- The user SEES this. Make it useful, concrete, and action-oriented.
+- Use concrete action verbs that match what the executor will do:
+  - "Emitting a project-preview card with these phases…" (creation)
+  - "Emitting a service-plan-preview card for the weekly cleaning…"
+  - "Emitting an estimate-preview card with line items…"
+  - "Calling get_profit_loss for Smith April–today and rendering the P&L card."
+  - "Asking which Smith you mean — there are three."
+  - "Looking up your unpaid invoices and summarizing what's overdue."
+  - "Recording the \\$500 Home Depot expense on the Garcia project under Materials."
+- AVOID abstract phrasing. Bad examples:
+  - "Creating a project for X." (which tool? what shape?) — say "Emitting a project-preview card for X."
+  - "Setting up the project with details." (vague) — say "Emitting a project-preview card showing the 6-week timeline, $45k contract, and Demo/Rough/Finish phases."
+  - "I'll handle that." (no value) — name the action.
+- For CREATE flows, ALWAYS use the word "emit" + the specific card type (\`project-preview\`, \`service-plan-preview\`, \`estimate-preview\`, \`invoice-preview\`). The executor reads this and knows to emit a visualElement, not stall on a search.
 - For voice transcripts with self-corrections, name the LATEST referent — "create a project for John, no Karen" → plan_text mentions Karen, NOT John.
-- For ambiguous requests, name the ambiguity: "Two clients named Smith — going to ask which one you mean."
+- For ambiguous requests, name the ambiguity: "Two clients named Smith — asking which one you mean."
 
 Return ONLY the JSON. No prose, no markdown.`;
 
