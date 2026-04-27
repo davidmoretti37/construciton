@@ -5,6 +5,16 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      eval_suite:
+        description: 'Eval suite to run (smoke or full)'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - smoke
+          - full
 
 jobs:
   # ============================================================
@@ -173,6 +183,90 @@ jobs:
           SUPABASE_URL: https://test.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: test-key
           OPENROUTER_API_KEY: test-key
+
+  # ============================================================
+  # AGENT EVALS — Behavior tests against the chat agent.
+  # PR: smoke subset (10 cases), only when agent-touching paths change.
+  # main: full suite (30 cases).
+  # workflow_dispatch: caller picks suite.
+  # Persists every run + per-case result to Supabase eval_runs / eval_results.
+  # Skipped when secrets aren't configured (forks, draft PRs).
+  # ============================================================
+  agent-evals:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        id: paths
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            CHANGED=$(git diff --name-only "$BASE" "$HEAD" || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD || true)
+          fi
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^backend/src/services/(agentService|tools/|memory/|promptSanitizer|userSafeError)'; then
+            echo "agent_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "agent_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide suite + skip
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "suite=${{ inputs.eval_suite }}" >> "$GITHUB_OUTPUT"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "suite=full" >> "$GITHUB_OUTPUT"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.paths.outputs.agent_changed }}" = "true" ]; then
+            echo "suite=smoke" >> "$GITHUB_OUTPUT"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "suite=skip" >> "$GITHUB_OUTPUT"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip notice
+        if: steps.decide.outputs.should_run != 'true'
+        run: echo "No agent-touching files changed — evals skipped."
+
+      - name: Setup Node.js
+        if: steps.decide.outputs.should_run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        if: steps.decide.outputs.should_run == 'true'
+        run: npm ci
+        working-directory: ./backend
+
+      - name: Run evals
+        if: steps.decide.outputs.should_run == 'true'
+        run: node evals/scripts/runEvals.js --suite ${{ steps.decide.outputs.suite }}
+        working-directory: ./backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          EVAL_TEST_USER_ID: ${{ secrets.EVAL_TEST_USER_ID }}
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVAL_PASS_RATE_FLOOR: '0.7'
 
   # ============================================================
   # BUILD — Requires all checks to pass

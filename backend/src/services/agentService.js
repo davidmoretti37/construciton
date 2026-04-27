@@ -158,10 +158,19 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
 
-  // Anthropic prompt caching via OpenRouter — wrap the (large, stable) system
-  // prompt in a structured content block with cache_control. The first turn pays
-  // full input tokens + ~25% to write the cache; every later turn reads from
-  // cache at ~10% the price. Tools array is also marked when present.
+  // Anthropic prompt caching via OpenRouter — two breakpoints, ordered
+  // tools → system. Anthropic caches everything up to and including each
+  // marked block, so two breakpoints means: turn-1 writes both, turn-2+
+  // reads both at ~10% input price. With a stable ~30k-token tool list
+  // and ~5k system prompt this drops per-turn input cost ~80%.
+  // Tools breakpoint goes on the *last* tool in the array.
+  const cachedTools = Array.isArray(tools) && tools.length > 0
+    ? tools.map((t, i) =>
+        i === tools.length - 1
+          ? { ...t, cache_control: { type: 'ephemeral' } }
+          : t)
+    : tools;
+
   const cachedMessages = messages.map((m, idx) => {
     if (idx === 0 && m.role === 'system' && typeof m.content === 'string') {
       return {
@@ -177,7 +186,7 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
   const requestBody = {
     model: `anthropic/${model}`,
     messages: cachedMessages,
-    tools,
+    tools: cachedTools,
     max_tokens: 8000,
     temperature: 0.3,
     stream: true,
