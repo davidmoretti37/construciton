@@ -1939,7 +1939,7 @@ export const sendAgentMessage = async (
   rawAttachments = [],
   sessionId = null
 ) => {
-  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onAbortRef } = callbacks;
+  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onRetrying, onAbortRef } = callbacks;
   const startTime = Date.now();
 
   // Build the last user message — multipart if images are attached
@@ -2117,6 +2117,13 @@ export const sendAgentMessage = async (
               break;
             case 'plan_diverged':
               onPlanDiverged?.({ severity: event.severity, reason: event.reason });
+              break;
+            case 'retrying':
+              // Self-correcting agent: the verifier caught a major
+              // divergence and the agent is retrying. Frontend should
+              // show a brief "let me try that again" indicator and
+              // expect the displayed text to be replaced.
+              onRetrying?.({ attempt: event.attempt, reason: event.reason });
               break;
             case 'done':
               streamDone = true;

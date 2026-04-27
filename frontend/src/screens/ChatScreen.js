@@ -1080,6 +1080,16 @@ export default function ChatScreen({ navigation, route }) {
             ? { ...msg, planDivergence: reason || 'Action did not match plan.' }
             : msg));
         },
+        // onRetrying — the agent self-corrected. Show transparent
+        // "retrying…" feedback so the user knows what happened and the
+        // text reset is intentional.
+        onRetrying: ({ attempt, reason }) => {
+          setStatusMessage(`Reviewing my response and trying again…`);
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages(prev => prev.map(msg => msg.id === targetId
+            ? { ...msg, text: '', retryNote: reason || 'Re-checking my work.' }
+            : msg));
+        },
         // onChunk callback - Append small drip-fed chunks from aiService animation
         onChunk: (chunk) => {
           if (!chunk) return;

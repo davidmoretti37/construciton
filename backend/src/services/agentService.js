@@ -105,6 +105,7 @@ function createJobWriter(jobId, res) {
     setDisconnected() { clientDisconnected = true; },
     isDisconnected() { return clientDisconnected; },
     hasVisualElements() { return visualElements.length > 0; },
+    getVisualElements() { return visualElements.slice(); },
 
     emit(event) {
       sendSSE(event);
@@ -848,6 +849,17 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   logger.info(`🤖 Agent processing message for user ${userId.substring(0, 8)}...`);
 
   let toolRound = 0;
+  // Replan tracking. When the verifier flags major divergence on the
+  // final response, we retry ONCE with corrective context. Caps at 1 to
+  // prevent runaway loops; if the second attempt also fails, we ship the
+  // result and surface the divergence to the user honestly.
+  let replanCount = 0;
+  const MAX_REPLANS = 1;
+
+  // Hard wall on total cycles (tool rounds + replan retries). Without
+  // this, a replan that itself triggers a verify-fail-replan could push
+  // toolRound past MAX_TOOL_ROUNDS. Replans get fresh budget but the
+  // process stays bounded by total time budget MAX_TOTAL_MS already.
   const toolCallCache = new Map(); // Prevent redundant tool calls within a request
   // Hard cap on memory writes per request. The agent has been observed
   // calling memory.create 3× in a single turn instead of progressing to
@@ -1062,25 +1074,83 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           }
         }
       }
-      const DESTRUCTIVE = new Set([
-        'delete_project', 'delete_expense', 'void_invoice',
-        'delete_service_plan', 'delete_project_document',
-      ]);
-      const firedDestructive = allToolCalls.some(tc => DESTRUCTIVE.has(tc.name));
-      if (plan?.needs_verification && plan.plan_text && firedDestructive) {
-        verifyPlanExecution({
-          plan,
-          executedToolCalls: allToolCalls,
-          finalResponseText: finalContent,
-        }).then(verdict => {
-          writer.emit({
-            type: verdict.aligned ? 'plan_verified' : 'plan_diverged',
-            severity: verdict.severity,
-            reason: verdict.divergence_reason,
+
+      // Verifier — runs synchronously now (was fire-and-forget) so we can
+      // REPLAN on major divergence. Fires when:
+      //   1. The planner flagged needs_verification, AND
+      //   2. We haven't already retried (replanCount < MAX_REPLANS)
+      // The first response always streams to the user normally; if the
+      // verifier says "major divergence" the frontend gets a `clear` event
+      // resetting the displayed text and the agent retries with corrective
+      // context. The retry response replaces the first in the UI.
+      // This is the self-correction property that separates SOTA agents
+      // from chatbots.
+      let verifierVerdict = null;
+      const shouldVerify = plan?.needs_verification && plan.plan_text && replanCount < MAX_REPLANS;
+      if (shouldVerify) {
+        try {
+          verifierVerdict = await verifyPlanExecution({
+            plan,
+            executedToolCalls: allToolCalls,
+            finalResponseText: finalContent,
+            emittedVisualElements: writer.getVisualElements ? writer.getVisualElements() : [],
           });
-        }).catch(err => {
-          logger.warn('[planVerifier] dispatch error:', err.message);
+          writer.emit({
+            type: verifierVerdict.aligned ? 'plan_verified' : 'plan_diverged',
+            severity: verifierVerdict.severity,
+            reason: verifierVerdict.divergence_reason,
+          });
+        } catch (err) {
+          logger.warn('[planVerifier] error:', err.message);
+        }
+      }
+
+      // Replan on MAJOR divergence — retry once with corrective context
+      // injected as a system note. The agent gets to see what it did
+      // wrong and fix it.
+      //
+      // Defensive guard: only replan when the agent COMPLETELY failed to
+      // act. If it emitted any visual element OR called any action tool,
+      // it took some reasonable action and a retry would be perfectionism.
+      // The verifier sometimes flags minor omissions as "major"; this
+      // guard makes the replan trigger conservative on the agent side.
+      const READ_ONLY = new Set([
+        'memory', 'get_daily_briefing', 'get_project_details', 'get_project_summary',
+        'get_project_financials', 'get_financial_overview', 'get_transactions',
+        'get_workers', 'get_worker_details', 'get_schedule_events',
+        'get_daily_reports', 'get_photos', 'get_time_records',
+        'get_business_settings', 'get_estimate_details', 'get_invoice_details',
+        'get_ar_aging', 'get_cash_flow', 'get_payroll_summary', 'get_tax_summary',
+        'get_profit_loss', 'get_project_documents', 'get_daily_checklist_report',
+        'get_daily_checklist_summary', 'search_projects', 'search_estimates',
+        'search_invoices', 'global_search', 'suggest_pricing', 'share_document',
+        'get_service_plans', 'get_service_plan_details', 'get_service_plan_summary',
+      ]);
+      const tookAction = allToolCalls.some(tc => !READ_ONLY.has(tc.name))
+        || (writer.getVisualElements?.() || []).length > 0;
+
+      if (verifierVerdict?.severity === 'major' && !tookAction && replanCount < MAX_REPLANS) {
+        replanCount += 1;
+        logger.warn(`🔁 Replan triggered (#${replanCount}): ${verifierVerdict.divergence_reason}`);
+        // Reset the frontend's displayed text so the second response
+        // overwrites the first cleanly.
+        writer.emit({ type: 'clear' });
+        writer.emit({
+          type: 'retrying',
+          attempt: replanCount + 1,
+          reason: verifierVerdict.divergence_reason || 'Plan divergence detected',
         });
+        // Append the LLM's first response + a corrective user message to
+        // the conversation. The agent sees: "you wrote X, but X didn't
+        // match the plan because Y, redo properly." We don't push the
+        // assistant's first response into messages because it would
+        // pollute the conversation; instead we add a synthetic user note.
+        messages.push({
+          role: 'user',
+          content: `[Self-check] Your previous attempt didn't match your plan. The plan was: "${plan.plan_text}". The verifier flagged: "${verifierVerdict.divergence_reason}". Please redo this turn correctly. Take the right action this time — emit the appropriate preview card, call the right action tool, or ask a clarifying question. Do not just acknowledge or repeat the previous mistake.`,
+        });
+        // Don't break — let the loop continue for a retry round.
+        continue;
       }
 
       // Build and emit condensed tool context for conversation memory

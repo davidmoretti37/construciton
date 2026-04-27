@@ -20,12 +20,23 @@ const SYSTEM_PROMPT = `You are the verifier stage of an AI agent. Compare the ag
   "divergence_reason": "<one sentence if not aligned, else empty>"
 }
 
-SEVERITY GUIDE:
-- none: actions match the plan. The plan said "look up X" and the agent looked up X.
-- minor: agent did extra context-gathering (an extra read tool), or asked a clarifying question instead of executing. Not harmful, just not what was planned.
-- major: a destructive tool (delete_*, void_*, *_delete) fired when the plan didn't mention destruction. OR the agent answered a totally different question than the plan promised. OR the agent acted on the wrong entity (planned about Karen, acted on John).
+DEFAULT TO NONE / MINOR. Major is RARE and reserved for actual harm or completely wrong outcome. The bar for "major" is HIGH because flagging it triggers a costly retry that the user sees.
 
-Only return major when there's real harm or wrong outcome. Default to none/minor when uncertain.
+SEVERITY GUIDE:
+- none: actions broadly match the plan. The agent did the right kind of thing. (Most cases.)
+- minor: agent took an extra read tool, asked a clarifying question when it could have acted, or omitted some non-essential detail from a preview card. Acceptable, not retryable.
+- major: ONE of the following must be true to qualify:
+  1. A destructive tool (delete_*, void_*) fired and the user did NOT explicitly confirm in the same turn.
+  2. The agent acted on the WRONG entity (plan said Karen, agent operated on John).
+  3. The agent COMPLETELY failed to act — no tool calls AND no visual cards emitted AND no clarifying question asked, just dead air or unrelated text.
+
+DO NOT flag major for:
+- Asking a clarifying question instead of executing (that's minor at most).
+- Emitting the right kind of visual card but missing some optional fields (phone, address). Those get filled in via the UI.
+- Doing extra tool calls beyond the plan.
+- Slight rewording of the plan's intent.
+
+When in doubt, return minor or none. False positives trigger expensive retries. False negatives just miss a small improvement.
 
 Return ONLY the JSON. No prose.`;
 
@@ -33,13 +44,22 @@ function defaultVerdict() {
   return { aligned: true, severity: 'none', divergence_reason: '', _fallback: true };
 }
 
-async function verifyPlanExecution({ plan, executedToolCalls = [], finalResponseText = '' }) {
+async function verifyPlanExecution({ plan, executedToolCalls = [], finalResponseText = '', emittedVisualElements = [] }) {
   if (!ENABLED || !plan?.plan_text) return defaultVerdict();
-  if (executedToolCalls.length === 0 && !finalResponseText) return defaultVerdict();
+  if (executedToolCalls.length === 0 && !finalResponseText && emittedVisualElements.length === 0) return defaultVerdict();
 
   const toolList = executedToolCalls.slice(0, 10).map(tc => {
     const name = tc.tool || tc.name || tc.function?.name || 'unknown';
     return `- ${name}`;
+  }).join('\n');
+
+  // Visual elements (project-preview, service-plan-preview, estimate-preview,
+  // invoice-preview cards) ARE the agent's action for creation flows. The
+  // verifier MUST see these or it incorrectly flags "no creation tool was
+  // called" when the agent correctly emitted the preview card.
+  const visualList = emittedVisualElements.slice(0, 10).map(v => {
+    const t = v?.type || 'unknown';
+    return `- ${t}`;
   }).join('\n');
 
   const userPrompt = `PLAN: ${plan.plan_text}
@@ -48,8 +68,13 @@ INTENT: ${plan.intent_summary || '(none)'}
 TOOL CALLS THE AGENT MADE:
 ${toolList || '(none)'}
 
+VISUAL CARDS THE AGENT EMITTED (these ARE the action for creation flows):
+${visualList || '(none)'}
+
 FINAL RESPONSE (first 500 chars):
 ${(finalResponseText || '').slice(0, 500)}
+
+Important: emitting a project-preview / service-plan-preview / estimate-preview / invoice-preview visual card IS the equivalent of "creating" — the user confirms the card in the UI which triggers the actual DB write. Do NOT flag "no creation tool called" if the agent emitted the appropriate card type.
 
 Did the actions match the plan? Return JSON only.`;
 
