@@ -59,6 +59,7 @@ import Animated, { FadeIn, FadeOut, FadeInDown, FadeOutDown } from 'react-native
 import NotificationBell from '../components/NotificationBell';
 import OwnerHeader from '../components/OwnerHeader';
 import { useAuth } from '../contexts/AuthContext';
+import { useSupervisorPermissions } from '../hooks/useSupervisorPermissions';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import logger from '../utils/logger';
 
@@ -151,6 +152,7 @@ export default function ChatScreen({ navigation, route }) {
   const { user, profile } = useAuth() || {};
   const isOwner = profile?.role === 'owner';
   const isSupervisor = profile?.role === 'supervisor';
+  const supervisorPerms = useSupervisorPermissions();
 
   // Chat history state
   const [currentSessionId, setCurrentSessionId] = useState(null);
@@ -1058,6 +1060,26 @@ export default function ChatScreen({ navigation, route }) {
           activeJobIdRef.current = jobId;
           AsyncStorage.setItem('activeAgentJobId', jobId);
         },
+        // onPlan callback — planner stage emits a one-line intent before
+        // tools fire. Stored on the streaming message so the UI can show
+        // it as italic "thinking" text above the response.
+        onPlan: ({ plan_text, complexity }) => {
+          if (!plan_text) return;
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages(prev => prev.map(msg => msg.id === targetId
+            ? { ...msg, planText: plan_text, planComplexity: complexity }
+            : msg));
+        },
+        // onPlanDiverged — if the verifier flags a major divergence we
+        // surface it as a small warning under the response. Minor
+        // divergences are logged but not shown.
+        onPlanDiverged: ({ severity, reason }) => {
+          if (severity !== 'major') return;
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages(prev => prev.map(msg => msg.id === targetId
+            ? { ...msg, planDivergence: reason || 'Action did not match plan.' }
+            : msg));
+        },
         // onChunk callback - Append small drip-fed chunks from aiService animation
         onChunk: (chunk) => {
           if (!chunk) return;
@@ -1697,21 +1719,34 @@ export default function ChatScreen({ navigation, route }) {
 
   const handleAction = async (action) => {
 
-    // Supervisor restrictions - block certain actions
-    const SUPERVISOR_RESTRICTED_ACTIONS = [
-      'save-estimate', 'create-estimate', 'confirm-estimate', 'generate-estimate',
-      'convert-estimate-to-invoice', 'create-invoice', 'save-invoice',
-      'create-project', 'save-project', 'confirm-project', 'configure-project-details',
-      'create-project-from-screenshot', 'create-project-from-estimate',
-      'get-worker-payment'
-    ];
+    // Supervisor restrictions — block actions the supervisor lacks permission for.
+    // Owners always pass; other roles get blocked by the underlying logic.
+    const ACTION_PERMISSION_KEY = {
+      'save-estimate': 'canCreateEstimates',
+      'create-estimate': 'canCreateEstimates',
+      'confirm-estimate': 'canCreateEstimates',
+      'generate-estimate': 'canCreateEstimates',
+      'convert-estimate-to-invoice': 'canCreateInvoices',
+      'create-invoice': 'canCreateInvoices',
+      'save-invoice': 'canCreateInvoices',
+      'create-project': 'canCreateProjects',
+      'save-project': 'canCreateProjects',
+      'confirm-project': 'canCreateProjects',
+      'configure-project-details': 'canCreateProjects',
+      'create-project-from-screenshot': 'canCreateProjects',
+      'create-project-from-estimate': 'canCreateProjects',
+      'get-worker-payment': 'canPayWorkers',
+    };
 
-    if (isSupervisor && SUPERVISOR_RESTRICTED_ACTIONS.includes(action.type)) {
-      Alert.alert(
-        t('common:alerts.restricted', 'Restricted'),
-        t('common:messages.ownerOnly', 'This action is only available to owners.')
-      );
-      return;
+    if (isSupervisor) {
+      const requiredPerm = ACTION_PERMISSION_KEY[action.type];
+      if (requiredPerm && !supervisorPerms[requiredPerm]) {
+        Alert.alert(
+          t('common:alerts.restricted', 'Restricted'),
+          t('common:messages.permissionDenied', "You don't have permission to do that. Ask the owner to enable it.")
+        );
+        return;
+      }
     }
 
     try {
@@ -3688,6 +3723,23 @@ export default function ChatScreen({ navigation, route }) {
                     </View>
                   )}
 
+                  {/* Planner stage: small italic intent line above the
+                      response. Only on assistant messages with a plan. */}
+                  {!message.isUser && message.planText ? (
+                    <Text
+                      style={{
+                        color: Colors.secondaryText,
+                        fontStyle: 'italic',
+                        fontSize: 12,
+                        marginBottom: 6,
+                        marginLeft: 4,
+                        opacity: 0.75,
+                      }}
+                      numberOfLines={3}
+                    >
+                      {message.planText}
+                    </Text>
+                  ) : null}
                   {message.text && message.text.trim() !== '' && (
                   <View>
             <TouchableOpacity

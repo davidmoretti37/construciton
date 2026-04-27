@@ -31,6 +31,8 @@ const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions')
 const { executeTool } = require('./tools/handlers');
 const { runMemoryCommand } = require('./memoryTool');
 const { isDestructive, verifyDestructive, blockedToolResult } = require('./destructiveGuard');
+const { generatePlan, planToModelId } = require('./planner');
+const { verifyPlanExecution } = require('./planVerifier');
 const { buildSystemPrompt } = require('./tools/systemPrompt');
 const { routeTools, routeToolsAsync } = require('./toolRouter');
 const { selectModel, trackUsage } = require('./modelRouter');
@@ -698,8 +700,37 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   };
   const toolsWithMemory = [memoryToolDef, ...filteredTools];
 
-  // PHASE 2: Select model based on tool count (10+ = Sonnet)
-  const { model, reason } = selectModel(toolCount, userMessages);
+  // PHASE 1.5 — Planner. Quick Haiku call that reads the user message +
+  // recent conversation and emits a structured plan (text shown to user,
+  // complexity classification, recommended model, verification flag).
+  // Falls back to a no-op plan on timeout/error so the chat never stalls
+  // on planner trouble. Set AGENT_PLANNER_ENABLED=false to bypass.
+  const plan = await generatePlan({
+    userMessage: lastUserMsg,
+    conversationHistory: userMessages,
+    toolNames: toolsWithMemory.map(t => t.function?.name).filter(Boolean),
+  });
+
+  // Surface the plan to the user immediately so they see the agent's
+  // intent before any tool fires. Frontend renders this as a small
+  // italic "thinking" line above the response.
+  if (plan?.plan_text) {
+    writer.emit({
+      type: 'plan',
+      plan_text: plan.plan_text,
+      complexity: plan.complexity,
+      recommended_model: plan.recommended_model,
+    });
+  }
+
+  // PHASE 2: Select model. Planner's recommendation wins when present;
+  // otherwise fall back to today's tool-count heuristic.
+  const planModelId = planToModelId(plan);
+  const { model: heuristicModel, reason: heuristicReason } = selectModel(toolCount, userMessages);
+  const model = planModelId || heuristicModel;
+  const reason = planModelId
+    ? `planner=${plan.complexity}/${plan.recommended_model}`
+    : heuristicReason;
 
   // PHASE 4: Add memory context to system prompt
   const memoryContext = memory.getContextForPrompt(userId);
@@ -932,6 +963,35 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       recordUsage(userId, model, estInput, estOutput).catch(() => {});
 
       logger.info(`📊 Agent: ${toolRound} rounds, model=${model.includes('haiku') ? 'haiku' : 'sonnet'}, ~${estInput}+${estOutput} tokens, ${totalTime}ms`);
+
+      // Plan verifier — when the planner flagged needs_verification (any
+      // destructive intent or any complex turn), compare actual tool
+      // calls + final response against the plan. Emit aligned/diverged
+      // SSE so the frontend can show divergence and the eval harness
+      // can score plan-vs-actual alignment over time.
+      if (plan?.needs_verification && plan.plan_text) {
+        const allToolCalls = [];
+        for (const m of messages) {
+          if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+            for (const tc of m.tool_calls) {
+              allToolCalls.push({ name: tc.function?.name, tool: tc.function?.name });
+            }
+          }
+        }
+        verifyPlanExecution({
+          plan,
+          executedToolCalls: allToolCalls,
+          finalResponseText: finalContent,
+        }).then(verdict => {
+          writer.emit({
+            type: verdict.aligned ? 'plan_verified' : 'plan_diverged',
+            severity: verdict.severity,
+            reason: verdict.divergence_reason,
+          });
+        }).catch(err => {
+          logger.warn('[planVerifier] dispatch error:', err.message);
+        });
+      }
 
       // Build and emit condensed tool context for conversation memory
       const toolContext = buildToolContext(messages);

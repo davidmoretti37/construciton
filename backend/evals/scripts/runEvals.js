@@ -137,11 +137,23 @@ function summarize(events) {
   let outputTokens = 0;
   let cacheRead = 0;
   let cacheWrite = 0;
+  let plan = null;
+  let planVerification = null;
   for (const ev of events) {
     if (ev.type === 'tool_start') toolCalls.push({ tool: ev.tool });
     else if (ev.type === 'delta' && typeof ev.content === 'string') text += ev.content;
     else if (ev.type === 'metadata') metadata = ev;
-    else if (ev.type === 'usage') {
+    else if (ev.type === 'plan') {
+      plan = {
+        plan_text: ev.plan_text,
+        complexity: ev.complexity,
+        recommended_model: ev.recommended_model,
+      };
+    } else if (ev.type === 'plan_verified') {
+      planVerification = { aligned: true, severity: ev.severity, reason: '' };
+    } else if (ev.type === 'plan_diverged') {
+      planVerification = { aligned: false, severity: ev.severity, reason: ev.reason };
+    } else if (ev.type === 'usage') {
       model = ev.model || model;
       inputTokens += ev.prompt_tokens || 0;
       outputTokens += ev.completion_tokens || 0;
@@ -156,6 +168,7 @@ function summarize(events) {
     toolCalls, text, metadata, visualElements,
     model, inputTokens, outputTokens, cacheRead, cacheWrite,
     costCents: model ? costCentsFor(model, inputTokens, outputTokens, cacheRead) : 0,
+    plan, planVerification,
   };
 }
 
@@ -253,6 +266,25 @@ function scoreCase(testCase, summary) {
       pass = false;
       reasons.push(`called forbidden tool: ${hit}`);
     }
+  }
+
+  // Plan-mention assertion — when present, the planner's plan_text must
+  // include any of the listed substrings. Catches "agent didn't even
+  // notice the user said Karen instead of John" cases.
+  if (Array.isArray(exp.plan_must_mention) && exp.plan_must_mention.length > 0) {
+    const planText = (summary.plan?.plan_text || '').toLowerCase();
+    const hit = exp.plan_must_mention.some(s => planText.includes(s.toLowerCase()));
+    if (!hit) {
+      pass = false;
+      reasons.push(`plan missing any of: ${exp.plan_must_mention.join('|')} (plan: "${summary.plan?.plan_text || 'none'}")`);
+    }
+  }
+
+  // Plan verifier — if it flagged a major divergence, the case fails
+  // even if structural checks otherwise passed. Minor + none don't fail.
+  if (summary.planVerification && summary.planVerification.severity === 'major') {
+    pass = false;
+    reasons.push(`plan verifier: ${summary.planVerification.reason || 'major divergence'}`);
   }
 
   switch (exp.kind) {
@@ -384,6 +416,8 @@ async function runOne(testCase) {
     cache_write_tokens: summary.cacheWrite,
     cost_cents: summary.costCents,
     judge: judgeVerdict,
+    plan: summary.plan,
+    plan_verification: summary.planVerification,
   };
 }
 
@@ -440,7 +474,13 @@ async function main() {
       prompt: tc.prompt,
       response_text: out.response_text?.slice(0, 4000) || null,
       expected: tc.expected || null,
-      actual: { tool_calls: out.tool_calls, errors: out.result.reasons, judge: out.judge },
+      actual: {
+        tool_calls: out.tool_calls,
+        errors: out.result.reasons,
+        judge: out.judge,
+        plan: out.plan,
+        plan_verification: out.plan_verification,
+      },
       tool_calls: out.tool_calls,
       failure_reason: out.result.pass ? null : out.result.reasons.join('; '),
     });

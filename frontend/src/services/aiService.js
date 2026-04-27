@@ -1939,7 +1939,7 @@ export const sendAgentMessage = async (
   rawAttachments = [],
   sessionId = null
 ) => {
-  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onAbortRef } = callbacks;
+  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onAbortRef } = callbacks;
   const startTime = Date.now();
 
   // Build the last user message — multipart if images are attached
@@ -2101,6 +2101,22 @@ export const sendAgentMessage = async (
               break;
             case 'tool_context':
               pendingToolContext = event.context || '';
+              break;
+            case 'plan':
+              // Planner stage: a brief intent line shown above the response
+              // ("Looking up Smith's invoices, then summarizing what's
+              // overdue."). Older clients ignore this event.
+              onPlan?.({
+                plan_text: event.plan_text,
+                complexity: event.complexity,
+                recommended_model: event.recommended_model,
+              });
+              break;
+            case 'plan_verified':
+              onPlanVerified?.({ severity: event.severity });
+              break;
+            case 'plan_diverged':
+              onPlanDiverged?.({ severity: event.severity, reason: event.reason });
               break;
             case 'done':
               streamDone = true;
