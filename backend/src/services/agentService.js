@@ -33,6 +33,123 @@ const { runMemoryCommand, prefetchMemorySnapshot } = require('./memoryTool');
 const { isDestructive, verifyDestructive, blockedToolResult } = require('./destructiveGuard');
 const { generatePlan, planToModelId } = require('./planner');
 const { verifyPlanExecution } = require('./planVerifier');
+const { annotateVoiceTranscript } = require('./voicePreprocessor');
+const { emit: emitEvent, EVENT_TYPES } = require('./eventEmitter');
+
+// Mapping from tool name → canonical domain event type. Adding a new
+// mutation tool? Add it here so the world model captures it. If a tool
+// isn't in this map, the dispatcher falls back to a generic
+// AGENT_TOOL_INVOKED event so we never lose record of agent activity.
+const TOOL_EVENT_MAP = {
+  // Projects
+  create_project: EVENT_TYPES.PROJECT_CREATED,
+  update_project: EVENT_TYPES.PROJECT_UPDATED,
+  delete_project: EVENT_TYPES.PROJECT_DELETED,
+  create_project_phase: EVENT_TYPES.PHASE_CREATED,
+  update_phase_progress: EVENT_TYPES.PHASE_PROGRESS_UPDATED,
+  update_phase_budget: EVENT_TYPES.PHASE_BUDGET_UPDATED,
+  add_project_checklist: EVENT_TYPES.PHASE_CREATED, // checklist tied to phases
+  // Financial
+  record_expense: EVENT_TYPES.EXPENSE_RECORDED,
+  record_transaction: EVENT_TYPES.EXPENSE_RECORDED,
+  update_expense: EVENT_TYPES.EXPENSE_UPDATED,
+  delete_expense: EVENT_TYPES.EXPENSE_DELETED,
+  create_estimate: EVENT_TYPES.ESTIMATE_CREATED,
+  update_estimate: EVENT_TYPES.ESTIMATE_UPDATED,
+  convert_estimate_to_invoice: EVENT_TYPES.INVOICE_CREATED,
+  create_invoice: EVENT_TYPES.INVOICE_CREATED,
+  update_invoice: EVENT_TYPES.INVOICE_UPDATED,
+  void_invoice: EVENT_TYPES.INVOICE_VOIDED,
+  assign_bank_transaction: EVENT_TYPES.EXPENSE_RECORDED,
+  // Crew
+  assign_worker: EVENT_TYPES.WORKER_ASSIGNED,
+  unassign_worker: EVENT_TYPES.WORKER_UNASSIGNED,
+  assign_supervisor: EVENT_TYPES.SUPERVISOR_ASSIGNED,
+  unassign_supervisor: EVENT_TYPES.SUPERVISOR_UNASSIGNED,
+  clock_in_worker: EVENT_TYPES.WORKER_CLOCKED_IN,
+  clock_out_worker: EVENT_TYPES.WORKER_CLOCKED_OUT,
+  create_worker_task: EVENT_TYPES.TASK_COMPLETED, // task creation tracked
+  // Scheduling
+  create_work_schedule: EVENT_TYPES.SCHEDULE_CREATED,
+  // Service plans
+  create_service_visit: EVENT_TYPES.SERVICE_VISIT_CREATED,
+  complete_visit: EVENT_TYPES.SERVICE_VISIT_COMPLETED,
+  update_service_plan: EVENT_TYPES.SERVICE_PLAN_UPDATED,
+  add_service_location: EVENT_TYPES.SERVICE_LOCATION_ADDED,
+  delete_service_plan: EVENT_TYPES.SERVICE_PLAN_UPDATED, // could add SERVICE_PLAN_DELETED
+  assign_worker_to_plan: EVENT_TYPES.WORKER_ASSIGNED,
+  // Reports & docs
+  create_daily_report: EVENT_TYPES.DAILY_REPORT_CREATED,
+  upload_project_document: EVENT_TYPES.DOCUMENT_UPLOADED,
+  upload_service_plan_document: EVENT_TYPES.DOCUMENT_UPLOADED,
+  delete_project_document: EVENT_TYPES.DOCUMENT_DELETED,
+  // Communication
+  share_document: EVENT_TYPES.MESSAGE_SENT,
+};
+
+const READ_ONLY_TOOLS_FOR_EVENTS = new Set([
+  'memory', 'search_projects', 'search_estimates', 'search_invoices', 'global_search',
+  'get_project_details', 'get_project_summary', 'get_project_financials',
+  'get_workers', 'get_worker_details', 'get_schedule_events', 'get_daily_reports',
+  'get_photos', 'get_time_records', 'get_business_settings', 'get_estimate_details',
+  'get_invoice_details', 'get_ar_aging', 'get_cash_flow', 'get_payroll_summary',
+  'get_tax_summary', 'get_profit_loss', 'get_project_documents', 'get_daily_briefing',
+  'get_daily_checklist_report', 'get_daily_checklist_summary', 'get_transactions',
+  'suggest_pricing', 'generate_summary_report', 'get_recurring_expenses',
+  'get_bank_transactions', 'get_reconciliation_summary', 'get_financial_overview',
+  'get_service_plans', 'get_service_plan_details', 'get_service_plan_summary',
+  'get_daily_route', 'get_billing_summary', 'get_service_plan_documents',
+  'calculate_service_plan_revenue',
+]);
+
+// Build a one-line summary for the event log + embedding. Best-effort —
+// the goal is "human reading the event log can tell what happened."
+function summarizeToolEvent(toolName, args, result) {
+  const success = !result?.error && !result?.blocked;
+  const label = toolName.replace(/_/g, ' ');
+  const argHint = (() => {
+    const a = args || {};
+    const fields = ['project_id', 'project', 'plan_id', 'name', 'client_name', 'amount', 'phase_name', 'worker_id', 'supervisor_id', 'invoice_id', 'estimate_id'];
+    for (const f of fields) {
+      if (a[f]) return ` ${f}=${String(a[f]).slice(0, 60)}`;
+    }
+    return '';
+  })();
+  const status = success ? '' : ` (FAILED: ${(result?.error || result?.verifier_reason || 'unknown').toString().slice(0, 80)})`;
+  return `Agent ${label}${argHint}${status}`;
+}
+
+// Best-effort entity-id extraction from tool args + result. Lets us
+// thread events to the entity they touched even when the args use a
+// fuzzy name and the resolver landed on a UUID.
+function extractEntity(toolName, args, result) {
+  const a = args || {};
+  const r = result || {};
+  // Tool result usually contains the resolved id; prefer it.
+  const resultId = r.id || r.project?.id || r.invoice?.id || r.estimate?.id
+    || r.plan?.id || r.location?.id || r.worker?.id || r.supervisor?.id
+    || r.transaction?.id || r.report?.id;
+  if (resultId && /^[0-9a-f-]{36}$/i.test(resultId)) {
+    if (toolName.includes('project') && !toolName.includes('plan')) return { type: 'project', id: resultId };
+    if (toolName.includes('phase')) return { type: 'phase', id: resultId };
+    if (toolName.includes('expense') || toolName.includes('transaction')) return { type: 'transaction', id: resultId };
+    if (toolName.includes('estimate')) return { type: 'estimate', id: resultId };
+    if (toolName.includes('invoice')) return { type: 'invoice', id: resultId };
+    if (toolName.includes('worker')) return { type: 'worker', id: resultId };
+    if (toolName.includes('supervisor')) return { type: 'supervisor', id: resultId };
+    if (toolName.includes('plan') || toolName.includes('visit') || toolName.includes('location')) return { type: 'service_plan', id: resultId };
+    if (toolName.includes('document')) return { type: 'document', id: resultId };
+    if (toolName.includes('report')) return { type: 'daily_report', id: resultId };
+    if (toolName.includes('schedule')) return { type: 'schedule', id: resultId };
+  }
+  // Fallback to whichever id-shaped arg was passed in
+  for (const key of ['project_id', 'plan_id', 'invoice_id', 'estimate_id', 'worker_id', 'supervisor_id', 'transaction_id', 'document_id']) {
+    if (a[key] && /^[0-9a-f-]{36}$/i.test(a[key])) {
+      return { type: key.replace('_id', ''), id: a[key] };
+    }
+  }
+  return { type: null, id: null };
+}
 const { buildSystemPrompt } = require('./tools/systemPrompt');
 const { routeTools, routeToolsAsync } = require('./toolRouter');
 const { selectModel, trackUsage } = require('./modelRouter');
@@ -689,6 +806,27 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     lastUserMsg = String(lastMsg.content);
   }
 
+  // Voice preprocessor — detects filler words, self-corrections, long
+  // stacked-intent transcripts, role corrections (worker vs supervisor)
+  // and prepends focused handling instructions to the message so the
+  // planner + agent know what to watch for. Free (no LLM call); high
+  // impact on the voice-driven workflows our owners use heavily.
+  const voiceAnnotation = annotateVoiceTranscript(lastUserMsg);
+  if (voiceAnnotation) {
+    logger.info('🎤 Voice transcript signals detected, prepending preprocessing notes');
+    // Modify the actual user message so both planner and main agent see
+    // the annotation. We push into userMessages directly because
+    // processAgentRequest's caller already passed the array — we're
+    // mutating the local copy used downstream.
+    if (typeof lastMsg?.content === 'string') {
+      lastMsg.content = voiceAnnotation + lastMsg.content;
+    } else if (Array.isArray(lastMsg?.content)) {
+      const textBlock = lastMsg.content.find(b => b.type === 'text');
+      if (textBlock) textBlock.text = voiceAnnotation + textBlock.text;
+    }
+    lastUserMsg = voiceAnnotation + lastUserMsg;
+  }
+
   // Strip attachment descriptions before routing — they contain words like "image"
   // that confuse intent detection (routes to "reports" instead of "financial").
   // Claude still sees the full message with descriptions.
@@ -771,6 +909,27 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       plan_text: plan.plan_text,
       complexity: plan.complexity,
       recommended_model: plan.recommended_model,
+    });
+    // Log the plan to the world model as agent-decision training data.
+    // user_feedback gets backfilled later (approve/reject/edit) so we
+    // can learn which kinds of plans actually serve the user.
+    emitEvent({
+      ownerId: userId,
+      actorId: userId,
+      actorType: 'agent',
+      eventType: EVENT_TYPES.AGENT_PLAN_GENERATED,
+      payload: {
+        plan_text: plan.plan_text,
+        complexity: plan.complexity,
+        recommended_model: plan.recommended_model,
+        needs_verification: !!plan.needs_verification,
+        intent_summary: plan.intent_summary,
+        fallback: !!plan._fallback,
+      },
+      source: 'agent_tool',
+      summary: `Plan: ${plan.plan_text}`,
+      sessionId: sessionId || null,
+      rawInput: lastUserMsg ? { user_message: String(lastUserMsg).slice(0, 1000) } : null,
     });
   }
 
@@ -966,6 +1125,25 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
               result = typeof memOut === 'string' ? memOut : JSON.stringify(memOut);
             }
             toolCallCache.set(cacheKey, result);
+          } else if (toolName === 'suggest_pricing') {
+            // suggest_pricing is for ESTIMATE line-item pricing only.
+            // Tool description already says this; the dispatch guard is
+            // belt-and-braces. If the recent user message is clearly a
+            // PROJECT creation flow (mentions project/job/remodel/build
+            // without estimate/quote), short-circuit with a nudge to
+            // emit a project-preview card directly.
+            const recentText = (lastUserMsg || '').toLowerCase();
+            const isProjectFlow = /\b(project|job|remodel|renovation|build|gut)\b/i.test(recentText)
+              && !/\b(estimate|quote|proposal|bid|line item|line-item|pricing for|charge for)\b/i.test(recentText);
+            if (isProjectFlow) {
+              logger.warn('🚫 suggest_pricing blocked on project flow — nudging to emit project-preview card');
+              result = `suggest_pricing is for ESTIMATE line-item pricing, not project creation. The user is creating a PROJECT (mentioned project/job/remodel/build). Emit a project-preview visual element directly with phases, timeline, and contract amount based on what the user told you. Do not call this tool again this turn.`;
+              toolCallCache.set(cacheKey, result);
+            } else {
+              result = await executeTool(toolName, toolArgs, userId);
+              toolCallCache.set(cacheKey, result);
+              rememberToolResult(userId, toolName, toolArgs, result);
+            }
           } else if (isDestructive(toolName)) {
             // Evaluator-Optimizer pattern: a separate Haiku call reads the
             // recent conversation and decides whether the user has truly
@@ -996,6 +1174,42 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             rememberToolResult(userId, toolName, toolArgs, result);
 
             logger.info(`📦 Tool ${toolName} returned ${JSON.stringify(result).length} chars${result?.error ? ` (ERROR: ${result.error})` : ''}`);
+          }
+
+          // Domain event log — single chokepoint for "the agent did
+          // something on behalf of this owner." Skipped for read-only
+          // tools (no state change to record). Mutations get the
+          // canonical event type from TOOL_EVENT_MAP, with a fallback
+          // to AGENT_TOOL_INVOKED so we never lose record of activity.
+          // Fire-and-forget: never blocks the chat path.
+          if (!READ_ONLY_TOOLS_FOR_EVENTS.has(toolName)) {
+            const mappedEvent = TOOL_EVENT_MAP[toolName] || EVENT_TYPES.AGENT_TOOL_INVOKED;
+            const entity = extractEntity(toolName, toolArgs, result);
+            const success = !result?.error && !result?.blocked;
+            emitEvent({
+              ownerId: userId,
+              actorId: userId,
+              actorType: 'owner', // trigger came from chat user
+              eventType: mappedEvent,
+              entityType: entity.type,
+              entityId: entity.id,
+              payload: {
+                tool: toolName,
+                args: toolArgs,
+                success,
+                result_summary: result?.error ? { error: result.error } : (result?.message ? { message: result.message } : { ok: true }),
+              },
+              source: 'agent_tool',
+              summary: summarizeToolEvent(toolName, toolArgs, result),
+              agentDecision: plan ? {
+                plan_text: plan.plan_text,
+                complexity: plan.complexity,
+                recommended_model: plan.recommended_model,
+                fallback: !!plan._fallback,
+              } : null,
+              sessionId: sessionId || null,
+              rawInput: lastUserMsg ? { user_message: String(lastUserMsg).slice(0, 2000) } : null,
+            });
           }
 
           // Send tool_end event
@@ -1073,6 +1287,32 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             allToolCalls.push({ name: tc.function?.name, tool: tc.function?.name });
           }
         }
+      }
+
+      // Memory-only-then-stop guard (bug 1). The agent sometimes writes a
+      // fact to memory and then ends the turn without taking the action
+      // the user actually asked for. Pattern: user says "Lana is my
+      // supervisor, assign her to Smith" → agent writes the fact and stops.
+      // If the user message contained an action verb AND the only tool
+      // calls this turn were memory writes (no other action tool, no
+      // visual card), inject a corrective nudge and run one more round.
+      const memoryOnly = allToolCalls.length > 0
+        && allToolCalls.every(tc => tc.name === 'memory');
+      const visualEmitted = (writer.getVisualElements?.() || []).length > 0;
+      const ACTION_VERBS_RE = /\b(create|add|assign|schedule|update|delete|remove|void|cancel|record|invoice|estimate|quote|put|move|push|pull|set|change|fix|book|start|finish|complete|approve|deny|generate|email|text|send|share)\b/i;
+      const userWantedAction = ACTION_VERBS_RE.test(lastUserMsg || '');
+      const memoryStallDetected = memoryOnly && !visualEmitted && userWantedAction && replanCount < MAX_REPLANS;
+
+      if (memoryStallDetected) {
+        logger.warn('🔁 Memory-only stall detected, nudging agent to take action');
+        replanCount += 1;
+        writer.emit({ type: 'clear' });
+        writer.emit({ type: 'retrying', attempt: replanCount + 1, reason: 'Saved the fact, now completing the action.' });
+        messages.push({
+          role: 'user',
+          content: `[Self-check] You saved a fact to memory, but the user also asked for an ACTION ("${(lastUserMsg || '').slice(0, 200)}"). Memory writes don't satisfy action requests. Now actually do what they asked — call the relevant action tool (assign_supervisor, assign_worker, create_*, record_transaction, etc.) or emit the relevant preview card (project-preview, service-plan-preview, estimate-preview). If their intent is unclear after saving the fact, ask a sharp clarifying question instead.`,
+        });
+        continue;
       }
 
       // Verifier — runs synchronously now (was fire-and-forget) so we can

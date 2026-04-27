@@ -1001,6 +1001,43 @@ const toolDefinitions = [
   {
     type: 'function',
     function: {
+      name: 'query_event_history',
+      description: "Search the owner's event history (everything that's ever happened in their business — projects created, expenses recorded, scope changes, plan generations, agent decisions). Returns past events ranked by semantic similarity to the query. Use when the user asks things like 'when did we last...?', 'how often does X happen?', 'why did we...?', 'show me every scope change on Smith bath', 'how many callbacks has Carlos had?', 'what happened with the Davis project last week?'. The event log is the world model — query it whenever the answer depends on history rather than current state.",
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Natural-language description of what to look for. Will be embedded and matched against past event summaries.'
+          },
+          entity_type: {
+            type: 'string',
+            description: "Optional filter — restrict to events about one entity type ('project', 'expense', 'invoice', 'worker', 'supervisor', 'service_plan', 'phase', 'estimate', 'daily_report', 'document')."
+          },
+          entity_id: {
+            type: 'string',
+            description: 'Optional filter — restrict to events about one specific entity (UUID).'
+          },
+          event_category: {
+            type: 'string',
+            description: "Optional filter — restrict to a category ('project', 'financial', 'crew', 'scheduling', 'service_plan', 'documentation', 'communication', 'agent')."
+          },
+          since_days: {
+            type: 'integer',
+            description: 'Optional — only return events from the last N days. Omit for all-time.'
+          },
+          limit: {
+            type: 'integer',
+            description: 'Max events to return. Default 8, max 25.'
+          }
+        },
+        required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_daily_briefing',
       description: "Generate a morning briefing for the business owner. Returns today's schedule, overdue invoices, at-risk projects, and team clock-in status. Use when user says things like 'What's happening today?', 'morning update', 'give me a rundown', or 'daily briefing'.",
       parameters: {

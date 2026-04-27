@@ -50,6 +50,27 @@ function validateUpload(att) {
   return null;
 }
 
+/**
+ * Supervisor capability gate. Owners always pass. Supervisors must have the
+ * named permission column set to true on their profile. Other roles fail.
+ * Returns null on pass, or `{ error: '<msg>' }` to bubble back as a tool result.
+ *
+ * Permission keys: can_create_projects, can_create_estimates, can_create_invoices,
+ * can_message_clients, can_pay_workers, can_manage_workers.
+ */
+async function requireSupervisorPermission(userId, permissionKey) {
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select(`role, ${permissionKey}`)
+    .eq('id', userId)
+    .single();
+
+  if (!prof) return { error: "Couldn't verify your account." };
+  if (prof.role === 'owner') return null;
+  if (prof.role === 'supervisor' && prof[permissionKey] === true) return null;
+  return { error: "You don't have permission to do that. Ask the owner to enable it." };
+}
+
 function safeStorageKey(parentId, originalName) {
   const base = (typeof originalName === 'string' ? originalName : 'file')
     .replace(/[\\/]/g, '_')
@@ -897,6 +918,8 @@ async function get_estimate_details(userId, args) {
 }
 
 async function update_estimate(userId, args = {}) {
+  const gate = await requireSupervisorPermission(userId, 'can_create_estimates');
+  if (gate) return gate;
   const { estimate_id, project_id, status } = args;
 
   if (!estimate_id) {
@@ -1726,6 +1749,106 @@ async function get_business_settings(userId, args = {}) {
  * Universal search across projects, estimates, invoices, and workers.
  * Runs all queries concurrently for performance.
  */
+/**
+ * Query the owner's event history. Combines semantic recall (cosine
+ * search over event summaries) with structured filters (entity, category,
+ * timerange). Returns past events ranked by relevance — this is how the
+ * agent reads its own world model.
+ */
+async function query_event_history(userId, args = {}) {
+  const { query, entity_type, entity_id, event_category, since_days, limit = 8 } = args || {};
+  const cap = Math.max(1, Math.min(25, parseInt(limit, 10) || 8));
+
+  const ownerId = await resolveOwnerId(userId);
+  if (!ownerId) return userSafeError(null, "Couldn't resolve your account. Try again.");
+
+  let q = supabase
+    .from('domain_events')
+    .select('id, event_type, event_category, entity_type, entity_id, summary, payload, reason, occurred_at, actor_type, source')
+    .eq('owner_id', ownerId)
+    .order('occurred_at', { ascending: false });
+
+  if (entity_type) q = q.eq('entity_type', entity_type);
+  if (entity_id && /^[0-9a-f-]{36}$/i.test(entity_id)) q = q.eq('entity_id', entity_id);
+  if (event_category) q = q.eq('event_category', event_category);
+  if (Number.isFinite(parseInt(since_days, 10))) {
+    const cutoff = new Date(Date.now() - parseInt(since_days, 10) * 86400000).toISOString();
+    q = q.gte('occurred_at', cutoff);
+  }
+
+  // Semantic ranking: embed the query, then score each row by cosine
+  // similarity to its embedding column. Done in-process because Supabase's
+  // .order('embedding <=> $1') needs a custom RPC; we keep it simple by
+  // pulling a wider set + ranking client-side. Reasonable for owners
+  // with <50k events.
+  let queryEmbedding = null;
+  try {
+    const { embedText } = require('../memory/memoryService');
+    queryEmbedding = await embedText(query);
+  } catch {}
+
+  const { data: rows, error } = await q.limit(Math.max(cap * 4, 30));
+  if (error) return userSafeError(error, "Couldn't query the event history.");
+  if (!rows || rows.length === 0) {
+    return { events: [], note: 'No matching events in your history yet.' };
+  }
+
+  let ranked = rows;
+  if (queryEmbedding) {
+    // Pull embeddings for the rows we got and score cosine similarity.
+    // This second select is needed because the first didn't include the
+    // vector column (keeps the response small).
+    const { data: vecRows } = await supabase
+      .from('domain_events')
+      .select('id, embedding')
+      .in('id', rows.map(r => r.id))
+      .not('embedding', 'is', null);
+    // Supabase returns pgvector columns as serialized JSON strings (e.g.
+    // "[0.123,-0.456,…]") not arrays. Parse defensively.
+    const parseVec = (v) => {
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') {
+        try { return JSON.parse(v); } catch { return null; }
+      }
+      return null;
+    };
+    const vecMap = new Map((vecRows || []).map(r => [r.id, parseVec(r.embedding)]));
+    const scored = rows.map(r => {
+      const v = vecMap.get(r.id);
+      let score = 0;
+      if (Array.isArray(v) && v.length === queryEmbedding.length) {
+        let dot = 0, na = 0, nb = 0;
+        for (let i = 0; i < v.length; i++) {
+          dot += v[i] * queryEmbedding[i];
+          na += v[i] * v[i];
+          nb += queryEmbedding[i] * queryEmbedding[i];
+        }
+        score = na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+      }
+      return { row: r, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    ranked = scored.slice(0, cap).map(s => ({ ...s.row, similarity: Number(s.score.toFixed(3)) }));
+  } else {
+    ranked = rows.slice(0, cap);
+  }
+
+  return {
+    events: ranked.map(r => ({
+      occurred_at: r.occurred_at,
+      event_type: r.event_type,
+      category: r.event_category,
+      entity_type: r.entity_type,
+      entity_id: r.entity_id,
+      summary: r.summary,
+      reason: r.reason,
+      similarity: r.similarity,
+    })),
+    count: ranked.length,
+    note: queryEmbedding ? null : 'Semantic ranking unavailable; results are recency-ordered.',
+  };
+}
+
 async function global_search(userId, args = {}) {
   const { query, limit = 5 } = args;
 
@@ -2353,6 +2476,153 @@ async function assign_supervisor(userId, args) {
 }
 
 /**
+ * Remove a worker from a project. Deletes the project_assignments row.
+ * Permission mirrors assign_worker: owner OR the assigned supervisor.
+ * Idempotent — returns a friendly message if the worker wasn't assigned.
+ */
+async function unassign_worker(userId, args) {
+  let { worker_id, project_id } = args;
+
+  const resolvedProject = await resolveProjectId(userId, project_id);
+  if (resolvedProject.error) return { error: resolvedProject.error };
+  if (resolvedProject.suggestions) return resolvedProject;
+  project_id = resolvedProject.id;
+
+  const resolvedWorker = await resolveWorkerId(userId, worker_id);
+  if (resolvedWorker.error) return { error: resolvedWorker.error };
+  if (resolvedWorker.suggestions) return resolvedWorker;
+  worker_id = resolvedWorker.id;
+
+  const { data: project, error: projErr } = await supabase
+    .from('projects')
+    .select('id, name, user_id')
+    .eq('id', project_id)
+    .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
+    .single();
+
+  if (projErr || !project) return { error: 'Project not found' };
+
+  const { data: worker } = await supabase
+    .from('workers')
+    .select('id, full_name, trade, user_id')
+    .eq('id', worker_id)
+    .single();
+
+  if (!worker) return { error: 'Worker not found' };
+
+  const { data: existing } = await supabase
+    .from('project_assignments')
+    .select('id')
+    .eq('project_id', project_id)
+    .eq('worker_id', worker_id)
+    .maybeSingle();
+
+  if (!existing) {
+    return {
+      alreadyUnassigned: true,
+      message: `${worker.full_name} wasn't assigned to ${project.name}.`,
+    };
+  }
+
+  const { error: delErr } = await supabase
+    .from('project_assignments')
+    .delete()
+    .eq('project_id', project_id)
+    .eq('worker_id', worker_id);
+
+  if (delErr) {
+    logger.error('unassign_worker delete error:', delErr);
+    return userSafeError(delErr, "Couldn't unassign that worker. Try again.");
+  }
+
+  if (worker.user_id) {
+    sendNotification({
+      userId: worker.user_id,
+      title: 'Project Assignment Removed',
+      body: `You've been removed from ${project.name}`,
+      type: 'worker_update',
+      data: { screen: 'Assignments' },
+      projectId: project_id,
+      workerId: worker_id,
+    });
+  }
+
+  return {
+    success: true,
+    message: `${worker.full_name} unassigned from ${project.name}.`,
+    worker: { id: worker.id, name: worker.full_name, trade: worker.trade },
+    project: { id: project.id, name: project.name },
+  };
+}
+
+/**
+ * Remove the supervisor from a project. Sets projects.assigned_supervisor_id to NULL.
+ * Owner-only — supervisors cannot unassign themselves or peers.
+ * Idempotent — returns a friendly message if no supervisor was assigned.
+ */
+async function unassign_supervisor(userId, args) {
+  let { project_id } = args;
+
+  const resolvedProject = await resolveProjectId(userId, project_id);
+  if (resolvedProject.error) return { error: resolvedProject.error };
+  if (resolvedProject.suggestions) return resolvedProject;
+  project_id = resolvedProject.id;
+
+  const { data: project, error: projErr } = await supabase
+    .from('projects')
+    .select('id, name, assigned_supervisor_id')
+    .eq('id', project_id)
+    .eq('user_id', userId)
+    .single();
+
+  if (projErr || !project) {
+    return { error: 'Project not found, or you are not the owner. Only the owner can unassign a supervisor.' };
+  }
+
+  if (!project.assigned_supervisor_id) {
+    return {
+      alreadyUnassigned: true,
+      message: `${project.name} has no supervisor assigned.`,
+    };
+  }
+
+  const previousSupervisorId = project.assigned_supervisor_id;
+
+  const { data: prevProfile } = await supabase
+    .from('profiles')
+    .select('business_name')
+    .eq('id', previousSupervisorId)
+    .single();
+  const previousName = prevProfile?.business_name || 'The supervisor';
+
+  const { error: updErr } = await supabase
+    .from('projects')
+    .update({ assigned_supervisor_id: null, updated_at: new Date().toISOString() })
+    .eq('id', project_id);
+
+  if (updErr) {
+    logger.error('unassign_supervisor update error:', updErr);
+    return userSafeError(updErr, "Couldn't unassign that supervisor. Try again.");
+  }
+
+  sendNotification({
+    userId: previousSupervisorId,
+    title: 'Project Assignment Removed',
+    body: `You've been removed as supervisor from ${project.name}`,
+    type: 'project_status',
+    data: { screen: 'ProjectDetail', projectId: project_id },
+    projectId: project_id,
+  });
+
+  return {
+    success: true,
+    message: `${previousName} unassigned as supervisor from ${project.name}.`,
+    supervisor: { id: previousSupervisorId, name: previousName },
+    project: { id: project.id, name: project.name },
+  };
+}
+
+/**
  * Generate a summary report from daily reports for a project/date range.
  * Aggregates notes and photos into a single client-ready summary.
  */
@@ -2443,6 +2713,8 @@ async function generate_summary_report(userId, args) {
  * Returns the client's contact info so the AI can suggest the send action.
  */
 async function share_document(userId, args) {
+  const gate = await requireSupervisorPermission(userId, 'can_message_clients');
+  if (gate) return gate;
   const { document_id, document_type, recipient_id, method } = args;
 
   // Fetch the document
@@ -3156,6 +3428,8 @@ async function update_phase_budget(userId, { project_id, phase_name, budget }) {
 // ==================== INVOICE MUTATIONS ====================
 
 async function convert_estimate_to_invoice(userId, { estimate_id }) {
+  const gate = await requireSupervisorPermission(userId, 'can_create_invoices');
+  if (gate) return gate;
   const resolved = await resolveEstimateId(userId, estimate_id);
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
@@ -3224,6 +3498,8 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
 }
 
 async function update_invoice(userId, { invoice_id, status, due_date, payment_terms, notes, amount_paid, payment_method }) {
+  const gate = await requireSupervisorPermission(userId, 'can_create_invoices');
+  if (gate) return gate;
   const resolved = await resolveInvoiceId(userId, invoice_id);
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
@@ -3307,6 +3583,8 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
 }
 
 async function void_invoice(userId, { invoice_id }) {
+  const gate = await requireSupervisorPermission(userId, 'can_create_invoices');
+  if (gate) return gate;
   const resolved = await resolveInvoiceId(userId, invoice_id);
   if (resolved.error) return resolved;
   if (resolved.suggestions) return resolved;
@@ -6326,11 +6604,14 @@ const TOOL_HANDLERS = {
   get_business_settings,
   // Intelligent tools
   global_search,
+  query_event_history,
   get_daily_briefing,
   get_project_summary,
   suggest_pricing,
   assign_worker,
   assign_supervisor,
+  unassign_worker,
+  unassign_supervisor,
   generate_summary_report,
   share_document,
   record_expense,

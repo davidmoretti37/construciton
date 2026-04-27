@@ -236,6 +236,8 @@ const READ_ONLY_TOOLS = new Set([
   // Memory tool: context-gathering, not user-facing action. Calling it is
   // expected and encouraged behavior on most turns.
   'memory',
+  // Event-history recall: querying the world model is read-only.
+  'query_event_history',
 ]);
 
 function isActionTool(name) {

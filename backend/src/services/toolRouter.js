@@ -63,7 +63,7 @@ const TOOL_GROUPS = {
     'get_cash_flow', 'get_ar_aging'
   ],
   search: [
-    'global_search', 'search_projects', 'search_estimates',
+    'global_search', 'query_event_history', 'search_projects', 'search_estimates',
     'search_invoices', 'get_workers', 'get_daily_briefing'
   ],
   reports: [
@@ -93,7 +93,7 @@ const TOOL_GROUPS = {
     'setup_daily_checklist', 'get_daily_checklist_report', 'get_daily_checklist_summary'
   ],
   general: [
-    'global_search', 'get_daily_briefing', 'get_project_summary',
+    'global_search', 'query_event_history', 'get_daily_briefing', 'get_project_summary',
     'suggest_pricing', 'assign_worker', 'assign_supervisor',
     'unassign_worker', 'unassign_supervisor', 'share_document',
     'search_projects', 'search_estimates', 'search_invoices', 'get_workers',
