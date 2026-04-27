@@ -29,6 +29,7 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
 const { executeTool } = require('./tools/handlers');
+const { runMemoryCommand } = require('./memoryTool');
 const { buildSystemPrompt } = require('./tools/systemPrompt');
 const { routeTools } = require('./toolRouter');
 const { selectModel, trackUsage } = require('./modelRouter');
@@ -187,9 +188,27 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
     model: `anthropic/${model}`,
     messages: cachedMessages,
     tools: cachedTools,
-    max_tokens: 8000,
+    // 4000 covers project/estimate previews (~2-3k JSON max) and most chat
+    // replies. If a future flow needs longer output (full P&L PDF, etc.)
+    // raise per-call. Halving from 8000 cuts the credit floor needed per
+    // request and stops 402s on small balances.
+    max_tokens: 4000,
     temperature: 0.3,
     stream: true,
+    // Anthropic context editing: auto-clear stale tool results when the
+    // conversation grows past the threshold. Keeps the active context
+    // focused without us having to do client-side bookkeeping. clear_at_least
+    // ensures each clear sweep frees enough tokens to make the cache
+    // invalidation worth it (each clear forces a cache rewrite).
+    context_management: {
+      edits: [
+        { type: 'clear_tool_uses_20250919', clear_at_least: { type: 'input_tokens', value: 2000 } },
+      ],
+    },
+    // OpenRouter pass-through for Anthropic-specific extensions.
+    extra_body: {
+      anthropic_beta: ['context-management-2025-06-27'],
+    },
   };
 
   // Force tool use on first round so the model always fetches fresh data
@@ -206,6 +225,7 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'HTTP-Referer': 'https://construction-manager.app',
         'X-Title': 'Construction Manager - Agent',
+        'anthropic-beta': 'context-management-2025-06-27',
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal,
@@ -646,6 +666,34 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   };
   const { intent, tools: filteredTools, toolCount } = routeTools(routingMsg || lastUserMsg, toolDefinitions, conversationHints);
 
+  // Always include the Anthropic memory tool. It's first-class — the agent
+  // checks /memories at the start of every conversation and writes durable
+  // facts there. Backed per-tenant by Supabase agent_memories.
+  const memoryToolDef = {
+    type: 'function',
+    function: {
+      name: 'memory',
+      description: 'Persistent per-user memory directory at /memories. Use commands view, create, str_replace, insert, delete, rename. ALWAYS view /memories first to check what you already know about this user before answering. Save durable facts (preferences, business details, supervisor names, default phases) for future conversations.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', enum: ['view', 'create', 'str_replace', 'insert', 'delete', 'rename'] },
+          path: { type: 'string', description: 'Path under /memories (required for view, create, str_replace, insert, delete).' },
+          old_path: { type: 'string', description: 'Source path for rename.' },
+          new_path: { type: 'string', description: 'Destination path for rename.' },
+          file_text: { type: 'string', description: 'Initial content for create.' },
+          old_str: { type: 'string', description: 'Text to find for str_replace (must be unique in file).' },
+          new_str: { type: 'string', description: 'Replacement text for str_replace.' },
+          insert_line: { type: 'number', description: 'Line number after which to insert (0 = top).' },
+          insert_text: { type: 'string', description: 'Text to insert.' },
+          view_range: { type: 'array', items: { type: 'number' }, description: 'Optional [start, end] line range for view.' },
+        },
+        required: ['command'],
+      },
+    },
+  };
+  const toolsWithMemory = [memoryToolDef, ...filteredTools];
+
   // PHASE 2: Select model based on tool count (10+ = Sonnet)
   const { model, reason } = selectModel(toolCount, userMessages);
 
@@ -732,10 +780,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       // instead of answering from stale conversation history
       const toolChoice = toolRound === 1 ? 'required' : 'auto';
 
-      // Call Claude with filtered tools and selected model
+      // Call Claude with filtered tools (+ memory tool) and selected model
       const { message, finishReason } = await callClaudeStreaming(
         messages,
-        filteredTools, // Use filtered tools (8-12 instead of 34)
+        toolsWithMemory, // Includes memory tool + the routed subset
         writer,
         model, // Use smart model selection (Haiku or Sonnet)
         toolChoice
@@ -780,6 +828,13 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           if (toolCallCache.has(cacheKey)) {
             result = toolCallCache.get(cacheKey);
             logger.info(`📦 Tool ${toolName} returned cached result (duplicate call skipped)`);
+          } else if (toolName === 'memory') {
+            // Anthropic memory tool — dispatch to the per-tenant memory store
+            // instead of the regular handlers map. Returns a plain string per
+            // the spec, not a structured object.
+            const memOut = await runMemoryCommand(userId, toolArgs);
+            result = typeof memOut === 'string' ? memOut : JSON.stringify(memOut);
+            toolCallCache.set(cacheKey, result);
           } else {
             // Inject raw attachments for upload tool
             if (toolName === 'upload_project_document' && attachments?.length > 0) {
