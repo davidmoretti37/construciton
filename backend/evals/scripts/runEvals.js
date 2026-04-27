@@ -103,6 +103,9 @@ function makeFakeRequest() {
 }
 
 // Pull all the structured info the scorer needs from the SSE event stream.
+// Visual elements matter as much as tool calls — for project/estimate
+// creation, the agent's "action" is emitting a preview card the user
+// confirms in the UI, NOT calling create_project as a tool.
 function summarize(events) {
   const toolCalls = [];
   let text = '';
@@ -112,7 +115,10 @@ function summarize(events) {
     else if (ev.type === 'delta' && typeof ev.content === 'string') text += ev.content;
     else if (ev.type === 'metadata') metadata = ev;
   }
-  return { toolCalls, text, metadata };
+  const visualElements = Array.isArray(metadata?.visualElements)
+    ? metadata.visualElements.map(v => v?.type).filter(Boolean)
+    : [];
+  return { toolCalls, text, metadata, visualElements };
 }
 
 // Read-only / context-gathering tools — calling these does NOT count as
@@ -141,10 +147,17 @@ function scoreCase(testCase, summary) {
   const exp = testCase.expected || {};
   const calledNames = summary.toolCalls.map(t => t.tool);
   const actionCalls = calledNames.filter(isActionTool);
+  const visualTypes = summary.visualElements || [];
   const lowerText = (summary.text || '').toLowerCase();
 
   const reasons = [];
   let pass = true;
+
+  // Helper: did the agent satisfy the "must call OR must emit visual" check?
+  const satisfiedByCall = (acceptable) => acceptable.some(t => calledNames.includes(t));
+  const satisfiedByVisual = () =>
+    Array.isArray(exp.acceptable_visual_elements)
+    && exp.acceptable_visual_elements.some(v => visualTypes.includes(v));
 
   // Forbidden tools — always checked, regardless of `kind`.
   if (Array.isArray(exp.forbidden_tools)) {
@@ -159,10 +172,10 @@ function scoreCase(testCase, summary) {
     case 'must_call': {
       const acceptable = exp.acceptable_tools
         || (exp.tool_name ? [exp.tool_name] : []);
-      const hit = acceptable.find(t => calledNames.includes(t));
-      if (!hit) {
+      if (!satisfiedByCall(acceptable) && !satisfiedByVisual()) {
         pass = false;
-        reasons.push(`expected tool ${acceptable.join('|')}; called ${calledNames.join(',') || 'none'}`);
+        const visExp = exp.acceptable_visual_elements ? ` or visual ${exp.acceptable_visual_elements.join('|')}` : '';
+        reasons.push(`expected tool ${acceptable.join('|')}${visExp}; called ${calledNames.join(',') || 'none'}; visuals ${visualTypes.join(',') || 'none'}`);
       }
       break;
     }
@@ -184,13 +197,13 @@ function scoreCase(testCase, summary) {
     }
     case 'must_ask_or_call': {
       const acceptable = exp.acceptable_tools || [];
-      const calledOk = acceptable.find(t => calledNames.includes(t));
+      const calledOk = satisfiedByCall(acceptable) || satisfiedByVisual();
       const askedOk = exp.must_handle_ambiguity
-        ? /\b(which|who|sure|confirm|clarify)\b/i.test(summary.text)
+        ? /\b(which|who|sure|confirm|clarify|whose|specific)\b/i.test(summary.text)
         : true;
       if (!calledOk && !askedOk) {
         pass = false;
-        reasons.push('neither asked clarifying question nor called acceptable tool');
+        reasons.push(`neither asked clarifying question nor called acceptable tool (visuals: ${visualTypes.join(',') || 'none'})`);
       }
       break;
     }
