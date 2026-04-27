@@ -12,7 +12,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'search_projects',
-      description: 'Search for projects by name, client name, or status. Use this when the user mentions a project by name, asks about their projects, or you need to find a project before updating it. Returns a list of matching projects with basic info.',
+      description: 'List/find EXISTING projects by client name, project name, or status. Returns name + status + start/end dates only — no phases or financials. Call before updating an existing project, or to answer "do I have a project for X?". **DO NOT call before creating a NEW project** — if the user said "create a project for Smith", they know it doesn\'t exist yet; emit a `project-preview` card directly. For full detail on one specific project use `get_project_details` instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -34,7 +34,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'get_project_details',
-      description: 'Get full details of a specific project including phases, tasks, budget breakdown, assigned workers, and timeline. Use this after finding a project via search to get complete information.',
+      description: 'Fetch ONE project\'s full state: phases (with progress %), tasks, budget by phase, assigned workers, supervisor, timeline. Use when the user names a specific project and you need to answer about its details ("how is the Smith bathroom going?"). For listing/searching multiple projects use `search_projects`. For just the financials use `get_project_financials`. For an executive-style summary use `get_project_summary`.',
       parameters: {
         type: 'object',
         properties: {
@@ -53,7 +53,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'delete_project',
-      description: 'Permanently delete a project. ONLY call this after the user has explicitly confirmed they want the project deleted. Returns success or error.',
+      description: 'IRREVERSIBLE. Permanently delete a project and cascade-delete its phases, tasks, transactions, and assignments. **You MUST get explicit user confirmation in the SAME TURN before calling — phrases like "yes delete it" / "confirm" / "go ahead" after you described what would be deleted.** If the user just says "delete X" without prior confirmation, do NOT call this tool — instead show what will be deleted and ask "Are you sure? This cannot be undone." Only call after explicit yes. Owner-only.',
       parameters: {
         type: 'object',
         properties: {
@@ -71,7 +71,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'update_project',
-      description: 'Update project details like contract amount, status, budget, or dates. Use when user wants to modify project information.',
+      description: 'Modify a project\'s top-level fields: contract amount, budget, status, start/end dates. Use for changes that apply to the WHOLE project, not a specific phase. For phase-level changes use `update_phase_progress` (mark a phase % done) or `update_phase_budget` (change one phase\'s budget allocation). Always include project_id; only include the fields the user actually wants changed.',
       parameters: {
         type: 'object',
         properties: {
@@ -167,7 +167,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'delete_expense',
-      description: 'Delete an expense transaction by description, amount, or UUID. OWNER-ONLY. Automatically finds and matches the transaction - just provide enough detail to identify it (e.g., "Home Depot", "$53.22", "drywall screws"). Requires explicit user confirmation before deleting. Returns updated project totals.',
+      description: 'IRREVERSIBLE. Delete a transaction (expense or income) by description, amount, or UUID. Owner-only. **You MUST get explicit confirmation in the SAME TURN before calling.** If the user says "delete the last expense" / "remove that Home Depot charge" without prior confirmation, do NOT fire this tool yet — first call `get_transactions` to find the matching row, show the user "Delete \\$X for Y on date Z?" and wait for explicit yes. Only call this tool AFTER the user confirms.',
       parameters: {
         type: 'object',
         properties: {
@@ -229,7 +229,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'update_phase_progress',
-      description: 'Update the completion percentage of a project phase. Call this when the user says things like "demo is 75% done" or "mark painting as complete". Automatically updates phase status based on percentage.',
+      description: 'Set how COMPLETE a project phase is, as a percentage (0-100). Use when user says "demo is 75% done" / "rough electrical is finished" / "mark painting complete". This is for PROGRESS, not budget — to change a phase\'s budget allocation use `update_phase_budget` instead. Phase status auto-derives from percentage (0 = not_started, 1-99 = in_progress, 100 = completed).',
       parameters: {
         type: 'object',
         properties: {
@@ -315,7 +315,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'void_invoice',
-      description: 'Void/cancel an invoice. Sets the status to cancelled. Call this when the user says "void the invoice" or "cancel invoice INV-001". ONLY call after user confirmation.',
+      description: 'Mark an invoice as voided/cancelled. Visible in invoice history (not deleted) but no longer counted toward A/R. **You MUST get explicit confirmation in the SAME TURN before calling.** If the user says "void invoice INV-001" or "cancel that invoice" without prior confirmation, first show "Void invoice INV-001 for $X to client Y? This won\'t delete it but removes it from A/R." Wait for explicit yes before firing.',
       parameters: {
         type: 'object',
         properties: {
@@ -430,7 +430,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'update_phase_budget',
-      description: "Update the budget allocated to a specific phase of a project. Use when the owner says 'set the demo phase to $3000' or 'demo phase should be $5k'.",
+      description: "Change the BUDGET allocated to one phase of a project. Use when the owner says 'set the demo phase to $3000' / 'rough electrical should be $5k' / 'bump the cabinets budget to $12k'. This changes a financial allocation — for completion progress use `update_phase_progress`. For overall project budget use `update_project`.",
       parameters: {
         type: 'object',
         properties: {
@@ -514,7 +514,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'search_estimates',
-      description: 'Search for estimates by client name, project name, or status. Use when user asks about estimates, wants to find a specific estimate, or needs estimate data.',
+      description: 'List/find EXISTING estimates by client/project name or status. Returns name + status + total only. **DO NOT call before creating a NEW estimate** — emit an `estimate-preview` card directly. For full line-item detail on one specific estimate use `get_estimate_details`.',
       parameters: {
         type: 'object',
         properties: {
@@ -540,7 +540,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'get_estimate_details',
-      description: 'Get full estimate with all line items, client info, pricing, and linked project. Use after search to get complete estimate data.',
+      description: 'Fetch ONE specific estimate with all line items, client info, pricing breakdown, status, and any linked project. Use when the user names a specific estimate (number, client, or UUID). For lists/searches use `search_estimates`.',
       parameters: {
         type: 'object',
         properties: {
@@ -585,7 +585,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'search_invoices',
-      description: 'Search for invoices by client name, status, or project. Use when user asks about invoices, payments, or billing.',
+      description: 'List/find EXISTING invoices by client name, invoice number, or status. Returns number + client + status + total only. Use for "show me unpaid invoices" / "Smith invoices" / "what\'s overdue". For one specific invoice\'s line items + payment history use `get_invoice_details`. **DO NOT call before creating a new invoice** — emit an `invoice-preview` card directly.',
       parameters: {
         type: 'object',
         properties: {
@@ -607,7 +607,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'get_invoice_details',
-      description: 'Get full invoice with line items, payment history, and linked estimate/project.',
+      description: 'Fetch ONE specific invoice with line items, payment history, status, linked estimate/project. Use when the user names one invoice (by number "INV-001", client "Smith", or UUID). For broad listings ("show me all unpaid invoices", "invoices last month"), use `search_invoices` instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -915,7 +915,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'clock_in_worker',
-      description: 'Clock in a worker to a project. Creates a new time tracking entry. Use when user says "clock in [worker] to [project]".',
+      description: 'Manually clock a worker IN to a project on the owner\'s behalf — used when the worker forgot or the owner is recording time after the fact. Creates a `time_tracking` row at the given (or current) time. Owner-only authority; the worker themselves clocks in via the app, not via this tool. To clock OUT use `clock_out_worker`.',
       parameters: {
         type: 'object',
         properties: {
@@ -940,7 +940,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'clock_out_worker',
-      description: 'Clock out a worker who is currently clocked in. Finds their active session and closes it. Use when user says "clock out [worker]".',
+      description: 'Close a worker\'s active clock-in session — finds the open `time_tracking` row and stamps the clock_out time. Use when the owner says "clock out Jose" / "Miguel forgot to clock out". If no active session exists, returns an error. Owner-only.',
       parameters: {
         type: 'object',
         properties: {
@@ -1567,7 +1567,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_service_visit',
-      description: 'Create a one-off service visit for a location. Use when owner wants to add an extra visit outside the normal schedule.',
+      description: 'Add ONE EXTRA visit to an EXISTING service plan and location, outside the normal recurring schedule. Use when the user says "add a visit for Smith next Tuesday" or "schedule an extra spray for Anderson this Friday." Requires the service plan to already exist. **DO NOT use this to create a NEW service plan** — for that, emit a `service-plan-preview` visualElement directly (no tool call needed) so the user can confirm and the frontend creates plan + locations + recurring schedule together.',
       parameters: {
         type: 'object',
         properties: {
@@ -1585,7 +1585,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'update_service_plan',
-      description: 'Update fields on an existing service plan: name, status (active/paused/cancelled), billing_cycle (per_visit/monthly), price_per_visit, monthly_rate, service_type, or notes. Only provide the fields you want to change.',
+      description: 'Modify fields on an EXISTING service plan (name, status, billing_cycle, price_per_visit, monthly_rate, service_type, notes). Only include fields you want to change. **DO NOT use to create a new plan** — emit a `service-plan-preview` visualElement for that.',
       parameters: {
         type: 'object',
         properties: {
@@ -1606,7 +1606,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'add_service_location',
-      description: 'Add a new service location (recurring service stop) to an existing service plan. Each location is a place the crew visits — house, office, building.',
+      description: 'Add a new recurring stop to an EXISTING service plan. Use when the user says "add the Joneses to my weekly cleaning route" or "include 12 Oak St in the Anderson lawn plan" — the plan already exists, the user is expanding its coverage. **DO NOT use this to create a NEW service plan** — emit a `service-plan-preview` visualElement instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -1662,7 +1662,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'delete_service_plan',
-      description: 'Permanently delete a service plan and cascade-delete its locations and visits. Owners only — supervisors are blocked. ALWAYS confirm with the user before calling.',
+      description: 'IRREVERSIBLE. Permanently delete a service plan and cascade-delete its locations + visits + history. Owner-only (supervisors are blocked). **You MUST get explicit confirmation in the SAME TURN before calling.** If the user says "delete the Smith cleaning plan" without prior confirmation, do NOT fire — first show "Delete plan X with N locations and M visits? This cannot be undone." Wait for explicit yes.',
       parameters: {
         type: 'object',
         properties: { plan_id: { type: 'string', description: 'Service plan name or UUID.' } },
