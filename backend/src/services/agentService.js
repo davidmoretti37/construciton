@@ -849,6 +849,15 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
 
   let toolRound = 0;
   const toolCallCache = new Map(); // Prevent redundant tool calls within a request
+  // Hard cap on memory writes per request. The agent has been observed
+  // calling memory.create 3× in a single turn instead of progressing to
+  // the actual user request (the Lana case in the eval suite). One write
+  // per turn is the system-prompt rule; this enforces it architecturally.
+  // Reads are allowed unlimited (they're cheap no-ops since memory is
+  // auto-prefetched), but writes >1 short-circuit with a hard nudge.
+  let memoryWritesThisRequest = 0;
+  const MAX_MEMORY_WRITES_PER_REQUEST = 1;
+  const MEMORY_WRITE_COMMANDS = new Set(['create', 'str_replace', 'insert', 'delete', 'rename']);
   const requestStart = Date.now();
 
   while (toolRound < MAX_TOOL_ROUNDS) {
@@ -928,8 +937,22 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             // Anthropic memory tool — dispatch to the per-tenant memory store
             // instead of the regular handlers map. Returns a plain string per
             // the spec, not a structured object.
-            const memOut = await runMemoryCommand(userId, toolArgs);
-            result = typeof memOut === 'string' ? memOut : JSON.stringify(memOut);
+            //
+            // Per-turn write limit: count ATTEMPTS not successes. Blocking
+            // only on success would let the agent loop forever on failed
+            // writes (e.g. file-already-exists errors), which is exactly
+            // what was happening on the Lana case.
+            const isWrite = MEMORY_WRITE_COMMANDS.has(toolArgs?.command);
+            if (isWrite) {
+              memoryWritesThisRequest += 1;
+            }
+            if (isWrite && memoryWritesThisRequest > MAX_MEMORY_WRITES_PER_REQUEST) {
+              logger.warn(`[memoryTool] blocked extra write attempt (#${memoryWritesThisRequest}) this request — pushing agent to act`);
+              result = `Memory write limit reached for this turn (you've already attempted ${memoryWritesThisRequest - 1} write${memoryWritesThisRequest - 1 === 1 ? '' : 's'}). STOP writing memory NOW. Respond to the user's actual request — call the appropriate action tool (assign_supervisor, assign_worker, create_*, record_transaction, etc.) or emit the relevant preview card. If you can't figure out what action to take, ASK the user a clarifying question.`;
+            } else {
+              const memOut = await runMemoryCommand(userId, toolArgs);
+              result = typeof memOut === 'string' ? memOut : JSON.stringify(memOut);
+            }
             toolCallCache.set(cacheKey, result);
           } else if (isDestructive(toolName)) {
             // Evaluator-Optimizer pattern: a separate Haiku call reads the
