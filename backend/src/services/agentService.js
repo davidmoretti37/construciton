@@ -30,8 +30,9 @@ const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
 const { executeTool } = require('./tools/handlers');
 const { runMemoryCommand } = require('./memoryTool');
+const { isDestructive, verifyDestructive, blockedToolResult } = require('./destructiveGuard');
 const { buildSystemPrompt } = require('./tools/systemPrompt');
-const { routeTools } = require('./toolRouter');
+const { routeTools, routeToolsAsync } = require('./toolRouter');
 const { selectModel, trackUsage } = require('./modelRouter');
 const memory = require('./requestMemory');
 const memoryService = require('./memory/memoryService');
@@ -664,7 +665,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     hasDraftProject: !!userContext?.hasDraftProject || !!userContext?.lastProjectPreview,
     hasDraftServicePlan: !!userContext?.hasDraftServicePlan || !!userContext?.lastServicePlanPreview,
   };
-  const { intent, tools: filteredTools, toolCount } = routeTools(routingMsg || lastUserMsg, toolDefinitions, conversationHints);
+  // Prefer the async router (local Ollama on Mac Mini for nuanced
+  // classification, regex fallback). Set OLLAMA_URL=disabled to force
+  // regex-only — useful for CI runs where Ollama isn't available.
+  const { intent, tools: filteredTools, toolCount } = await routeToolsAsync(routingMsg || lastUserMsg, toolDefinitions, conversationHints);
 
   // Always include the Anthropic memory tool. It's first-class — the agent
   // checks /memories at the start of every conversation and writes durable
@@ -834,6 +838,24 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             // the spec, not a structured object.
             const memOut = await runMemoryCommand(userId, toolArgs);
             result = typeof memOut === 'string' ? memOut : JSON.stringify(memOut);
+            toolCallCache.set(cacheKey, result);
+          } else if (isDestructive(toolName)) {
+            // Evaluator-Optimizer pattern: a separate Haiku call reads the
+            // recent conversation and decides whether the user has truly
+            // confirmed this destructive action in the same turn. If not,
+            // the tool is short-circuited with a "blocked" result that
+            // tells the model to ask the user first. Belt-and-braces over
+            // the tool description's "must confirm" rule.
+            const verdict = await verifyDestructive(toolName, toolArgs, messages);
+            if (verdict.verdict === 'BLOCK') {
+              writer.emit({ type: 'tool_blocked', tool: toolName, reason: verdict.reason });
+              result = blockedToolResult(toolName, verdict.reason);
+            } else {
+              if (toolName === 'upload_project_document' && attachments?.length > 0) {
+                toolArgs._attachments = attachments;
+              }
+              result = await executeTool(toolName, toolArgs, userId);
+            }
             toolCallCache.set(cacheKey, result);
           } else {
             // Inject raw attachments for upload tool

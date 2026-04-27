@@ -198,22 +198,47 @@ function routeTools(userMessage, allTools, hints = {}) {
   }
 
   const relevantTools = selectTools(intent, allTools);
-
-  const intentLabel = typeof intent === 'object'
-    ? `${intent.primary}+${intent.secondary}`
-    : intent;
-
-  logger.info(`🎯 Tool Router: intent="${intentLabel}", tools=${relevantTools.length}/${allTools.length}`);
-
   return {
-    intent: intentLabel,
+    intent: typeof intent === 'object' ? `${intent.primary}+${intent.secondary}` : intent,
     tools: relevantTools,
-    toolCount: relevantTools.length
+    toolCount: relevantTools.length,
   };
+}
+
+/**
+ * Async routing path: prefers a local LLM intent classifier (Ollama on the
+ * Mac Mini or any reachable host) for nuanced classification, falls back
+ * to the regex-based routeTools if Ollama isn't reachable / times out.
+ * Free at inference time when the local model is up; same fidelity as
+ * the regex router when it's not.
+ */
+async function routeToolsAsync(userMessage, allTools, hints = {}) {
+  // Race regex (instant) and Ollama (capped timeout). Ollama wins if it
+  // returns in time AND its intent isn't "general" (general isn't actually
+  // a useful classification — defer to the regex router which scores).
+  const { classifyIntent } = require('./localRouter');
+  let localIntent = null;
+  try {
+    localIntent = await classifyIntent(userMessage, hints);
+  } catch (e) {
+    // localRouter already logs; never let it break the request
+    localIntent = null;
+  }
+
+  if (localIntent && localIntent !== 'general' && TOOL_GROUPS[localIntent]) {
+    const tools = selectTools(localIntent, allTools);
+    logger.info(`🎯 Tool Router (local): intent="${localIntent}", tools=${tools.length}/${allTools.length}`);
+    return { intent: localIntent, tools, toolCount: tools.length };
+  }
+
+  const regexResult = routeTools(userMessage, allTools, hints);
+  logger.info(`🎯 Tool Router (regex): intent="${regexResult.intent}", tools=${regexResult.toolCount}/${allTools.length}`);
+  return regexResult;
 }
 
 module.exports = {
   routeTools,
+  routeToolsAsync,
   categorizeIntent,
-  selectTools
+  selectTools,
 };

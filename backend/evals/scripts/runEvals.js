@@ -220,6 +220,9 @@ const READ_ONLY_TOOLS = new Set([
   'get_daily_checklist_summary',
   'search_projects', 'search_estimates', 'search_invoices', 'global_search',
   'suggest_pricing', 'share_document', 'generate_summary_report',
+  // Memory tool: context-gathering, not user-facing action. Calling it is
+  // expected and encouraged behavior on most turns.
+  'memory',
 ]);
 
 function isActionTool(name) {
