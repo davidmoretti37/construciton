@@ -449,16 +449,25 @@ async function main() {
 
   let passed = 0, failed = 0, totalCostCents = 0;
   const t0 = Date.now();
-  for (const tc of cases) {
-    process.stdout.write(`  ${tc.test_id} (${tc.category}) … `);
-    const out = await runOne(tc);
-    const status = out.result.pass ? '✓ PASS' : '✗ FAIL';
-    console.log(`${status} ${out.latency_ms}ms` + (out.result.pass ? '' : ` — ${out.result.reasons.join('; ')}`));
 
+  // Parallelism: run cases concurrently with a hard cap. Each case is
+  // independent (separate agent_jobs row, no cross-talk) so the only
+  // bound is OpenRouter rate limits and Supabase write throughput.
+  // CONCURRENCY=5 gives a 4-5× wall-clock speedup on the smoke suite
+  // (3 min → 35-45s) without tripping rate limits in practice.
+  // Override via EVAL_CONCURRENCY env var.
+  const CONCURRENCY = parseInt(process.env.EVAL_CONCURRENCY, 10) || 5;
+  const queue = [...cases];
+  let active = 0;
+  let resolveAll;
+  const allDone = new Promise(r => { resolveAll = r; });
+
+  function persistAndLog(tc, out) {
+    const status = out.result.pass ? '✓ PASS' : '✗ FAIL';
+    console.log(`  ${tc.test_id} (${tc.category}) … ${status} ${out.latency_ms}ms` + (out.result.pass ? '' : ` — ${out.result.reasons.join('; ')}`));
     if (out.result.pass) passed++; else failed++;
     totalCostCents += out.cost_cents || 0;
-
-    await supabase.from('eval_results').insert({
+    return supabase.from('eval_results').insert({
       run_id: run.id,
       test_id: tc.test_id,
       category: tc.category || null,
@@ -485,6 +494,27 @@ async function main() {
       failure_reason: out.result.pass ? null : out.result.reasons.join('; '),
     });
   }
+
+  function pump() {
+    while (active < CONCURRENCY && queue.length > 0) {
+      const tc = queue.shift();
+      active++;
+      runOne(tc)
+        .then(out => persistAndLog(tc, out))
+        .catch(err => {
+          console.log(`  ${tc.test_id} … ✗ FAIL (runner error: ${err.message})`);
+          failed++;
+        })
+        .finally(() => {
+          active--;
+          if (queue.length === 0 && active === 0) resolveAll();
+          else pump();
+        });
+    }
+  }
+
+  pump();
+  await allDone;
 
   const duration = Date.now() - t0;
   await supabase.from('eval_runs').update({

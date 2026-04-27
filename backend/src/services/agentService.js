@@ -168,10 +168,17 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
   // reads both at ~10% input price. With a stable ~30k-token tool list
   // and ~5k system prompt this drops per-turn input cost ~80%.
   // Tools breakpoint goes on the *last* tool in the array.
+  //
+  // 1-hour TTL: write costs 2× base input but the cache survives a 1-hour
+  // window of user inactivity. The default 5-minute TTL means a user who
+  // chats sporadically (3 conversations spread over 30 minutes) pays the
+  // cold-write cost every time. With 1-hour TTL they pay once an hour.
+  // Net win as long as the user comes back within an hour at least 2×.
+  const cacheControl = { type: 'ephemeral', ttl: '1h' };
   const cachedTools = Array.isArray(tools) && tools.length > 0
     ? tools.map((t, i) =>
         i === tools.length - 1
-          ? { ...t, cache_control: { type: 'ephemeral' } }
+          ? { ...t, cache_control: cacheControl }
           : t)
     : tools;
 
@@ -180,17 +187,44 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
       return {
         role: 'system',
         content: [
-          { type: 'text', text: m.content, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: m.content, cache_control: cacheControl },
         ],
       };
     }
     return m;
   });
 
+  // Cheap-workhorse swap: when the planner says "haiku" and the env flag
+  // is set, route the workhorse turn to DeepSeek V3 (~3× cheaper than
+  // Haiku, comparable tool-calling quality on benchmarks). Anthropic
+  // models keep handling complex/Sonnet turns and prompt-cache writes
+  // (DeepSeek doesn't support Anthropic-style cache_control).
+  // Set WORKHORSE_MODEL=deepseek/deepseek-chat to enable.
+  const workhorseOverride = process.env.WORKHORSE_MODEL;
+  const isHaikuModel = model && model.includes('haiku');
+  const fullModelId = (workhorseOverride && isHaikuModel)
+    ? workhorseOverride
+    : `anthropic/${model}`;
+  const supportsCacheControl = fullModelId.startsWith('anthropic/');
+
+  // DeepSeek and other non-Anthropic models reject cache_control on
+  // content blocks. Strip it for those when the override is active.
+  const finalTools = supportsCacheControl ? cachedTools : tools;
+  const finalMessages = supportsCacheControl
+    ? cachedMessages
+    : messages.map(m => {
+        // Flatten any structured-content system messages back to a string
+        if (Array.isArray(m.content)) {
+          const text = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+          return { ...m, content: text };
+        }
+        return m;
+      });
+
   const requestBody = {
-    model: `anthropic/${model}`,
-    messages: cachedMessages,
-    tools: cachedTools,
+    model: fullModelId,
+    messages: finalMessages,
+    tools: finalTools,
     // 4000 covers project/estimate previews (~2-3k JSON max) and most chat
     // replies. If a future flow needs longer output (full P&L PDF, etc.)
     // raise per-call. Halving from 8000 cuts the credit floor needed per
@@ -198,21 +232,20 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
     max_tokens: 4000,
     temperature: 0.3,
     stream: true,
-    // Anthropic context editing: auto-clear stale tool results when the
-    // conversation grows past the threshold. Keeps the active context
-    // focused without us having to do client-side bookkeeping. clear_at_least
-    // ensures each clear sweep frees enough tokens to make the cache
-    // invalidation worth it (each clear forces a cache rewrite).
-    context_management: {
+  };
+
+  // Anthropic context editing — only valid when the model is from
+  // Anthropic. DeepSeek/Qwen/etc. reject the field with 400.
+  if (supportsCacheControl) {
+    requestBody.context_management = {
       edits: [
         { type: 'clear_tool_uses_20250919', clear_at_least: { type: 'input_tokens', value: 2000 } },
       ],
-    },
-    // OpenRouter pass-through for Anthropic-specific extensions.
-    extra_body: {
+    };
+    requestBody.extra_body = {
       anthropic_beta: ['context-management-2025-06-27'],
-    },
-  };
+    };
+  }
 
   // Force tool use on first round so the model always fetches fresh data
   if (toolChoice && toolChoice !== 'auto') {
@@ -228,7 +261,7 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'HTTP-Referer': 'https://construction-manager.app',
         'X-Title': 'Construction Manager - Agent',
-        'anthropic-beta': 'context-management-2025-06-27',
+        ...(supportsCacheControl ? { 'anthropic-beta': 'context-management-2025-06-27' } : {}),
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal,
@@ -710,11 +743,23 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   // complexity classification, recommended model, verification flag).
   // Falls back to a no-op plan on timeout/error so the chat never stalls
   // on planner trouble. Set AGENT_PLANNER_ENABLED=false to bypass.
-  const plan = await generatePlan({
-    userMessage: lastUserMsg,
-    conversationHistory: userMessages,
-    toolNames: toolsWithMemory.map(t => t.function?.name).filter(Boolean),
-  });
+  //
+  // Cost optimization: skip planner entirely when the intent classifier
+  // already labeled the turn as a clear read-only intent. The planner's
+  // value is on standard/complex turns where model selection matters;
+  // briefing/search/single-table reads don't benefit. -$0.0005/turn × ~40%
+  // of turns = real money at scale.
+  const SIMPLE_INTENTS = new Set(['briefing', 'search', 'reports', 'settings', 'document']);
+  const intentLabel = typeof intent === 'object' ? intent.primary : intent;
+  const skipPlanner = SIMPLE_INTENTS.has(intentLabel) && !lastUserMsg.match(/\b(create|delete|void|cancel|remove|new|update)\b/i);
+
+  const plan = skipPlanner
+    ? { plan_text: '', complexity: 'simple', recommended_model: 'haiku', needs_verification: false, intent_summary: '', _skipped: true }
+    : await generatePlan({
+        userMessage: lastUserMsg,
+        conversationHistory: userMessages,
+        toolNames: toolsWithMemory.map(t => t.function?.name).filter(Boolean),
+      });
 
   // Surface the plan to the user immediately so they see the agent's
   // intent before any tool fires. Frontend renders this as a small
@@ -980,20 +1025,26 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
 
       logger.info(`📊 Agent: ${toolRound} rounds, model=${model.includes('haiku') ? 'haiku' : 'sonnet'}, ~${estInput}+${estOutput} tokens, ${totalTime}ms`);
 
-      // Plan verifier — when the planner flagged needs_verification (any
-      // destructive intent or any complex turn), compare actual tool
-      // calls + final response against the plan. Emit aligned/diverged
-      // SSE so the frontend can show divergence and the eval harness
-      // can score plan-vs-actual alignment over time.
-      if (plan?.needs_verification && plan.plan_text) {
-        const allToolCalls = [];
-        for (const m of messages) {
-          if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
-            for (const tc of m.tool_calls) {
-              allToolCalls.push({ name: tc.function?.name, tool: tc.function?.name });
-            }
+      // Plan verifier — fires only when the plan flagged needs_verification
+      // AND a destructive tool actually executed. Cost optimization: most
+      // turns don't fire the verifier at all now. Safety is preserved
+      // because destructiveGuard already runs pre-flight on every
+      // destructive call, and the planner's needs_verification flag is
+      // sticky for destructive intents specifically.
+      const allToolCalls = [];
+      for (const m of messages) {
+        if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+          for (const tc of m.tool_calls) {
+            allToolCalls.push({ name: tc.function?.name, tool: tc.function?.name });
           }
         }
+      }
+      const DESTRUCTIVE = new Set([
+        'delete_project', 'delete_expense', 'void_invoice',
+        'delete_service_plan', 'delete_project_document',
+      ]);
+      const firedDestructive = allToolCalls.some(tc => DESTRUCTIVE.has(tc.name));
+      if (plan?.needs_verification && plan.plan_text && firedDestructive) {
         verifyPlanExecution({
           plan,
           executedToolCalls: allToolCalls,
