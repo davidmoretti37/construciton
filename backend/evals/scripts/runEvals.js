@@ -34,7 +34,12 @@ function flag(name, def) {
 }
 const SUITE = flag('suite', 'full');                                  // 'smoke' | 'full'
 const DATASET = flag('dataset', path.join(__dirname, '..', 'dataset.jsonl'));
-const SMOKE_TAGS = ['project_creation', 'edge_case_short', 'edge_case_conflict'];
+// Smoke covers the categories most prone to regression: creation flows
+// (project + service-plan), ambiguous referents, edge cases.
+const SMOKE_TAGS = [
+  'project_creation', 'service_plan_creation', 'service_plan',
+  'edge_case_short', 'edge_case_conflict', 'clarifying_question',
+];
 const PASS_RATE_FLOOR = parseFloat(process.env.EVAL_PASS_RATE_FLOOR || '0.7');
 
 const TEST_USER_ID = process.env.EVAL_TEST_USER_ID
@@ -102,6 +107,23 @@ function makeFakeRequest() {
   };
 }
 
+// Per-million-token rates for cost calc. Mirrors backend/src/services/aiBudget.js
+// Keeping it inline so the runner has no dependencies on the live cost system.
+const PRICING = {
+  'claude-haiku-4.5': { input: 0.80, output: 4.00 },
+  'claude-sonnet-4.5': { input: 3.00, output: 15.00 },
+};
+
+function costCentsFor(model, inputTokens, outputTokens, cacheReadTokens) {
+  const p = PRICING[model] || PRICING['claude-haiku-4.5'];
+  // Cache reads cost ~10% of base input. Cache writes are folded into input.
+  const billableInput = Math.max(0, inputTokens - cacheReadTokens);
+  const usd = (billableInput / 1_000_000) * p.input
+    + (cacheReadTokens / 1_000_000) * p.input * 0.1
+    + (outputTokens / 1_000_000) * p.output;
+  return Math.ceil(usd * 100);
+}
+
 // Pull all the structured info the scorer needs from the SSE event stream.
 // Visual elements matter as much as tool calls — for project/estimate
 // creation, the agent's "action" is emitting a preview card the user
@@ -110,15 +132,77 @@ function summarize(events) {
   const toolCalls = [];
   let text = '';
   let metadata = null;
+  let model = null;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheRead = 0;
+  let cacheWrite = 0;
   for (const ev of events) {
     if (ev.type === 'tool_start') toolCalls.push({ tool: ev.tool });
     else if (ev.type === 'delta' && typeof ev.content === 'string') text += ev.content;
     else if (ev.type === 'metadata') metadata = ev;
+    else if (ev.type === 'usage') {
+      model = ev.model || model;
+      inputTokens += ev.prompt_tokens || 0;
+      outputTokens += ev.completion_tokens || 0;
+      cacheRead += ev.cache_read_tokens || 0;
+      cacheWrite += ev.cache_write_tokens || 0;
+    }
   }
   const visualElements = Array.isArray(metadata?.visualElements)
     ? metadata.visualElements.map(v => v?.type).filter(Boolean)
     : [];
-  return { toolCalls, text, metadata, visualElements };
+  return {
+    toolCalls, text, metadata, visualElements,
+    model, inputTokens, outputTokens, cacheRead, cacheWrite,
+    costCents: model ? costCentsFor(model, inputTokens, outputTokens, cacheRead) : 0,
+  };
+}
+
+// LLM-as-judge: cheap content-correctness check that catches hallucinations,
+// off-topic responses, made-up data. Only runs when the case has
+// expected.must_match_intent set. Failure means the agent's RESPONSE is
+// wrong even if it called the right tool.
+async function llmJudge(prompt, response, intent) {
+  if (!intent || !response) return { score: 1, reason: 'skipped (no intent or no response)' };
+  const judgePrompt = `You are grading an AI assistant's response. Return ONLY a JSON object with two fields: {"pass": true|false, "reason": "<one sentence>"}.
+
+USER PROMPT:
+${prompt}
+
+ASSISTANT RESPONSE:
+${response.slice(0, 2000)}
+
+GRADING CRITERIA (the response must satisfy):
+${intent}
+
+Pass = response satisfies the criteria without inventing facts. Fail = hallucinations, wrong client/project/number, off-topic, or directly contradicts criteria.
+
+Return JSON only.`;
+
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-haiku-4.5',
+        messages: [{ role: 'user', content: judgePrompt }],
+        max_tokens: 200,
+        temperature: 0,
+      }),
+    });
+    const json = await resp.json();
+    const content = json.choices?.[0]?.message?.content || '';
+    const match = content.match(/\{[\s\S]*?\}/);
+    if (!match) return { score: 0.5, reason: `judge unparseable: ${content.slice(0, 100)}` };
+    const verdict = JSON.parse(match[0]);
+    return { score: verdict.pass ? 1 : 0, reason: verdict.reason || '' };
+  } catch (e) {
+    return { score: 0.5, reason: `judge error: ${e.message}` };
+  }
 }
 
 // Read-only / context-gathering tools — calling these does NOT count as
@@ -262,10 +346,22 @@ async function runOne(testCase) {
   const summary = summarize(fakeRes.events);
 
   let result;
+  let judgeVerdict = null;
   if (errorMsg) {
     result = { pass: false, reasons: [`agent threw: ${errorMsg}`] };
   } else {
     result = scoreCase(testCase, summary);
+    // Optional LLM-as-judge layer for content correctness. Only fires when
+    // the case asks for it (expected.must_match_intent). Judge failure
+    // turns a structurally-passing case into a fail with a reason so we
+    // catch hallucinations and off-topic answers, not just tool selection.
+    if (testCase.expected?.must_match_intent) {
+      judgeVerdict = await llmJudge(testCase.prompt, summary.text, testCase.expected.must_match_intent);
+      if (judgeVerdict.score < 1) {
+        result.pass = false;
+        result.reasons.push(`judge: ${judgeVerdict.reason}`);
+      }
+    }
   }
 
   // Best-effort cleanup of the synthetic agent_jobs row.
@@ -278,6 +374,13 @@ async function runOne(testCase) {
     response_text: summary.text,
     tool_calls: summary.toolCalls,
     metadata: summary.metadata,
+    model: summary.model,
+    input_tokens: summary.inputTokens,
+    output_tokens: summary.outputTokens,
+    cache_read_tokens: summary.cacheRead,
+    cache_write_tokens: summary.cacheWrite,
+    cost_cents: summary.costCents,
+    judge: judgeVerdict,
   };
 }
 
@@ -316,19 +419,25 @@ async function main() {
     console.log(`${status} ${out.latency_ms}ms` + (out.result.pass ? '' : ` — ${out.result.reasons.join('; ')}`));
 
     if (out.result.pass) passed++; else failed++;
+    totalCostCents += out.cost_cents || 0;
 
     await supabase.from('eval_results').insert({
       run_id: run.id,
       test_id: tc.test_id,
       category: tc.category || null,
       passed: out.result.pass,
-      score: out.result.pass ? 1 : 0,
-      model: null,
+      score: out.judge?.score ?? (out.result.pass ? 1 : 0),
+      model: out.model,
       latency_ms: out.latency_ms,
+      input_tokens: out.input_tokens || null,
+      output_tokens: out.output_tokens || null,
+      cache_read_tokens: out.cache_read_tokens || null,
+      cache_write_tokens: out.cache_write_tokens || null,
+      cost_cents: out.cost_cents || null,
       prompt: tc.prompt,
       response_text: out.response_text?.slice(0, 4000) || null,
       expected: tc.expected || null,
-      actual: { tool_calls: out.tool_calls, errors: out.result.reasons },
+      actual: { tool_calls: out.tool_calls, errors: out.result.reasons, judge: out.judge },
       tool_calls: out.tool_calls,
       failure_reason: out.result.pass ? null : out.result.reasons.join('; '),
     });
@@ -344,7 +453,51 @@ async function main() {
   }).eq('id', run.id);
 
   const passPct = passed / cases.length;
-  console.log(`\n▶ Run ${run.id}: ${passed}/${cases.length} passed (${(passPct * 100).toFixed(1)}%) in ${duration}ms`);
+  console.log(`\n▶ Run ${run.id}: ${passed}/${cases.length} passed (${(passPct * 100).toFixed(1)}%) in ${duration}ms — cost ${(totalCostCents / 100).toFixed(2)} USD`);
+
+  // Regression gate: compare this run to trailing 30-day P95 latency + avg
+  // cost on the same suite. Fail CI if either >2x baseline. The first few
+  // runs will have empty baselines and skip this check.
+  const { data: baseline } = await supabase
+    .from('eval_results')
+    .select('latency_ms, cost_cents')
+    .eq('passed', true)
+    .gte('created_at', new Date(Date.now() - 30 * 86400_000).toISOString())
+    .lte('created_at', new Date(Date.now() - 60_000).toISOString())  // exclude current run
+    .order('created_at', { ascending: false })
+    .limit(1000);
+
+  // Only run the regression gate if we have a real baseline — at least 30
+  // rows with non-null cost_cents and latency_ms. Skips early in eval-system
+  // life when not enough runs have populated the new columns.
+  const baselineWithCost = (baseline || []).filter(r => r.cost_cents != null);
+  if (baseline && baseline.length >= 30 && baselineWithCost.length >= 30) {
+    const sortedLat = baselineWithCost.map(r => r.latency_ms).filter(Boolean).sort((a, b) => a - b);
+    const baselineP95 = sortedLat[Math.floor(sortedLat.length * 0.95)] || 0;
+    const baselineAvgCost = baselineWithCost.reduce((s, r) => s + (r.cost_cents || 0), 0) / baselineWithCost.length;
+
+    const thisLat = []; const thisCost = [];
+    const { data: thisRunRows } = await supabase
+      .from('eval_results').select('latency_ms, cost_cents').eq('run_id', run.id);
+    for (const r of thisRunRows || []) {
+      if (r.latency_ms) thisLat.push(r.latency_ms);
+      if (r.cost_cents) thisCost.push(r.cost_cents);
+    }
+    thisLat.sort((a, b) => a - b);
+    const thisP95 = thisLat[Math.floor(thisLat.length * 0.95)] || 0;
+    const thisAvgCost = thisCost.reduce((s, c) => s + c, 0) / Math.max(1, thisCost.length);
+
+    console.log(`▶ Latency P95: ${thisP95}ms (baseline ${baselineP95}ms)  Cost avg: ${thisAvgCost.toFixed(2)}c (baseline ${baselineAvgCost.toFixed(2)}c)`);
+
+    if (baselineP95 > 0 && thisP95 > baselineP95 * 2) {
+      console.error(`\n✗ Latency regression: P95 ${thisP95}ms is >2x baseline ${baselineP95}ms`);
+      process.exit(1);
+    }
+    if (baselineAvgCost > 0 && thisAvgCost > baselineAvgCost * 2) {
+      console.error(`\n✗ Cost regression: avg ${thisAvgCost.toFixed(2)}c is >2x baseline ${baselineAvgCost.toFixed(2)}c`);
+      process.exit(1);
+    }
+  }
 
   if (passPct < PASS_RATE_FLOOR) {
     console.error(`\n✗ Pass rate ${(passPct * 100).toFixed(1)}% below floor ${(PASS_RATE_FLOOR * 100).toFixed(0)}%`);

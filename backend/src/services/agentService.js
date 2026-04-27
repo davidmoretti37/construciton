@@ -286,6 +286,17 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
             if (cacheRead || cacheWrite) {
               logger.info(`💰 cache: read=${cacheRead} write=${cacheWrite} prompt=${promptT} completion=${completionT}`);
             }
+            // Surface usage to consumers (eval runner, future cost dashboard)
+            // as a structured SSE event. Emitted per round so the runner can
+            // sum across the conversation.
+            writer.emit({
+              type: 'usage',
+              model,
+              prompt_tokens: promptT,
+              completion_tokens: completionT,
+              cache_read_tokens: cacheRead,
+              cache_write_tokens: cacheWrite,
+            });
           }
 
           // Text content — extract "text" field and stream only clean text

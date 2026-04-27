@@ -1031,7 +1031,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'suggest_pricing',
-      description: "Suggest pricing for estimate line items based on this user's historical project data and service catalog. Use when creating estimates to provide data-backed pricing instead of guessing. Returns average, high, low prices and the data source.",
+      description: "ESTIMATE LINE-ITEM PRICING ONLY. Returns historical average/high/low prices for specific services (e.g. 'install porcelain tile', 'rough plumbing for shower'). Call this AFTER you've decided to build an estimate and need to fill in per-item costs. DO NOT call this for project creation, project setup, or anything that produces a project-preview card — projects use a contract amount the user typed, not historical line-item averages. If the user says 'create a project for X' or is confirming details on a project (continuations like 'yeah the client name is Sarah, $55k, starts Monday'), DO NOT call this tool. If the user said 'create an ESTIMATE for X', this is the right tool to enrich the line items.",
       parameters: {
         type: 'object',
         properties: {
@@ -1089,6 +1089,44 @@ const toolDefinitions = [
           }
         },
         required: ['supervisor_id', 'project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'unassign_worker',
+      description: "Remove a WORKER from a project. Deletes the project_assignments row. Use when the user says 'take Jose off the kitchen project', 'unassign Carlos from the Smith job', 'remove [name] from [project]'. Idempotent — if the worker wasn't assigned, returns a friendly message instead of an error. For supervisors, use `unassign_supervisor` instead.",
+      parameters: {
+        type: 'object',
+        properties: {
+          worker_id: {
+            type: 'string',
+            description: 'The worker name or UUID. Names like "Jose" are resolved automatically.'
+          },
+          project_id: {
+            type: 'string',
+            description: 'The project name or UUID.'
+          }
+        },
+        required: ['worker_id', 'project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'unassign_supervisor',
+      description: "Remove the SUPERVISOR from a project. Clears projects.assigned_supervisor_id. Use when the user says 'remove the supervisor from X', 'unassign [name] as supervisor', 'take [name] off as supervisor of X'. Owner-only — supervisors cannot call this. Idempotent — if no supervisor was assigned, returns a friendly message instead of an error. Only one supervisor per project, so no supervisor_id is needed.",
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'The project name or UUID.'
+          }
+        },
+        required: ['project_id']
       }
     }
   },
@@ -1802,6 +1840,9 @@ const TOOL_STATUS_MESSAGES = {
   get_project_summary: 'Summarizing project status...',
   suggest_pricing: 'Analyzing your pricing history...',
   assign_worker: 'Assigning worker to project...',
+  assign_supervisor: 'Assigning supervisor to project...',
+  unassign_worker: 'Removing worker from project...',
+  unassign_supervisor: 'Removing supervisor from project...',
   generate_summary_report: 'Compiling project report...',
   share_document: 'Preparing document to share...',
   // Mutation tools

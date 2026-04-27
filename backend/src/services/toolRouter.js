@@ -11,7 +11,11 @@ const logger = require('../utils/logger');
 // Intent patterns — each keyword scores 1 point for its intent
 const INTENT_PATTERNS = {
   financial: [/invoice/g, /payment/g, /bill/g, /paid/g, /due/g, /owe/g, /collect/g, /deposit/g, /expense/g, /spent/g, /income/g, /financial/g, /profit/g, /loss/g, /receipt/g, /charge/g, /aging/g, /receivable/g, /overdue/g, /tax/g, /deduction/g, /1099/g, /payroll/g, /cash flow/g, /recurring/g],
-  project: [/project/g, /phase/g, /progress/g, /complete/g, /status/g, /behind/g, /over.*budget/g, /timeline/g, /milestone/g, /checklist/g, /task list/g],
+  // Project intent: keep keywords UNAMBIGUOUS — words that only project-based
+  // businesses use. Don't add generic room/space words like "bathroom" or
+  // "kitchen" — service businesses (cleaning, pest, HVAC) talk about those
+  // rooms too and shouldn't be misrouted away from service-plan tools.
+  project: [/project/g, /phase/g, /progress/g, /complete/g, /status/g, /behind/g, /over.*budget/g, /timeline/g, /milestone/g, /checklist/g, /task list/g, /remodel/g, /renovation/g, /\bjob\b/g, /\bgig\b/g, /\bcreate\b.*\b(project|job|remodel|renovation)/g, /\bstart\b.*\b(project|job|remodel|renovation)/g, /\bnew\b.*\b(project|job|remodel)/g],
   worker: [/worker/g, /employee/g, /crew/g, /team\b/g, /schedule/g, /assign/g, /clock/g, /shift/g, /attendance/g, /timesheet/g],
   estimate: [/estimate/g, /quote/g, /proposal/g, /bid/g, /cost/g],
   briefing: [/morning/g, /briefing/g, /today/g, /tomorrow/g, /this week/g, /overview/g, /summary/g, /rundown/g],
@@ -35,13 +39,14 @@ const TOOL_GROUPS = {
   project: [
     'search_projects', 'get_project_details', 'get_project_summary',
     'get_project_financials', 'update_phase_progress', 'delete_project',
-    'update_project', 'create_worker_task', 'assign_worker', 'global_search',
+    'update_project', 'create_worker_task', 'assign_worker', 'assign_supervisor',
+    'unassign_worker', 'unassign_supervisor', 'global_search',
     'add_project_checklist', 'create_project_phase',
     'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
     'setup_daily_checklist', 'get_daily_checklist_report', 'get_daily_checklist_summary'
   ],
   worker: [
-    'get_workers', 'get_worker_details', 'assign_worker',
+    'get_workers', 'get_worker_details', 'assign_worker', 'unassign_worker',
     'create_work_schedule', 'get_schedule_events', 'get_time_records',
     'clock_in_worker', 'clock_out_worker',
     'search_projects'
@@ -89,7 +94,8 @@ const TOOL_GROUPS = {
   ],
   general: [
     'global_search', 'get_daily_briefing', 'get_project_summary',
-    'suggest_pricing', 'assign_worker', 'share_document',
+    'suggest_pricing', 'assign_worker', 'assign_supervisor',
+    'unassign_worker', 'unassign_supervisor', 'share_document',
     'search_projects', 'search_estimates', 'search_invoices', 'get_workers',
     'get_project_details', 'get_estimate_details', 'get_invoice_details',
     'get_worker_details', 'get_time_records',
