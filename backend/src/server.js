@@ -978,7 +978,12 @@ app.post('/api/chat/sessions', chatHistoryLimiter, authenticateUser, async (req,
   }
 });
 
-// Save a message to a session
+// Save a message to a session.
+// Routes through memoryService.persistMessage so the message gets embedded
+// (1536-d via OpenRouter) and indexed for semantic recall. Without this
+// every frontend save bypassed the embedding pipeline, leaving 95% of
+// chat_messages without vectors and breaking semantic memory.
+const memoryService = require('./services/memory/memoryService');
 app.post('/api/chat/sessions/:sessionId/messages', chatHistoryLimiter, authenticateUser, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -997,33 +1002,29 @@ app.post('/api/chat/sessions/:sessionId/messages', chatHistoryLimiter, authentic
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Save message
-    const { data: message, error } = await supabase
-      .from('chat_messages')
-      .insert({
-        session_id: sessionId,
-        user_id: userId,
-        role,
-        content,
-        visual_elements: visualElements || [],
-        actions: actions || [],
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    const { messageId } = await memoryService.persistMessage({
+      sessionId,
+      userId,
+      role,
+      content: typeof content === 'string' ? content : JSON.stringify(content || ''),
+      visualElements: visualElements || [],
+      actions: actions || [],
+    });
 
-    if (error) throw error;
+    if (!messageId) {
+      return res.status(500).json({ error: 'Failed to persist message' });
+    }
 
-    // Update session's last_message_at
+    // Update session's last_message_at (persistMessage handles message_count)
     await supabase
       .from('chat_sessions')
       .update({
         last_message_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', sessionId);
 
-    res.json({ message });
+    res.json({ message: { id: messageId } });
   } catch (error) {
     logger.error('Error saving message:', error);
     res.status(500).json({ error: 'Failed to save message' });
@@ -1187,7 +1188,12 @@ app.patch('/api/supervisors/:id', authenticateUser, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { business_name, business_phone, payment_type, hourly_rate, daily_rate, weekly_salary, project_rate } = req.body;
+    const {
+      business_name, business_phone, payment_type,
+      hourly_rate, daily_rate, weekly_salary, project_rate,
+      can_create_projects, can_create_estimates, can_create_invoices,
+      can_message_clients, can_pay_workers, can_manage_workers,
+    } = req.body;
 
     // Verify the supervisor exists and belongs to this owner
     const { data: profile, error: fetchError } = await supabase
@@ -1213,6 +1219,12 @@ app.patch('/api/supervisors/:id', authenticateUser, async (req, res) => {
     if (daily_rate !== undefined) updates.daily_rate = daily_rate;
     if (weekly_salary !== undefined) updates.weekly_salary = weekly_salary;
     if (project_rate !== undefined) updates.project_rate = project_rate;
+    if (can_create_projects !== undefined) updates.can_create_projects = !!can_create_projects;
+    if (can_create_estimates !== undefined) updates.can_create_estimates = !!can_create_estimates;
+    if (can_create_invoices !== undefined) updates.can_create_invoices = !!can_create_invoices;
+    if (can_message_clients !== undefined) updates.can_message_clients = !!can_message_clients;
+    if (can_pay_workers !== undefined) updates.can_pay_workers = !!can_pay_workers;
+    if (can_manage_workers !== undefined) updates.can_manage_workers = !!can_manage_workers;
 
     const { error: updateError } = await supabase
       .from('profiles')
