@@ -93,7 +93,14 @@ Did the actions match the plan? Return JSON only.`;
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'system',
+            content: [
+              // Verifier system prompt is static — cache it. Fires on every
+              // needs_verification turn, ~700 tokens.
+              { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } },
+            ],
+          },
           { role: 'user', content: userPrompt },
         ],
         max_tokens: 200,

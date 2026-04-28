@@ -30,9 +30,20 @@ const SYSTEM_PROMPT = `You are the planner stage of a service-business AI agent 
 }
 
 COMPLEXITY RULES:
-- simple: single read tool, no decisions ("what's overdue?", "show me the Smith project", "how is X doing?"). recommended_model=haiku, needs_verification=false.
-- standard: one mutation or two-step lookup ("create a project for X", "add an expense to Y", "assign Z to job"). recommended_model=haiku unless the request mentions ambiguity. needs_verification=true if it touches money or a destructive tool.
-- complex: multi-step, voice transcript with self-corrections (filler words, "um", "no I meant"), anything irrevocable, or anything where ambiguity could cause real damage. recommended_model=sonnet. needs_verification=true.
+
+DEFAULT to haiku. Only escalate to sonnet when one of the SONNET TRIGGERS below is unambiguously true. Haiku handles the vast majority of service-business turns well — creates, updates, searches, summaries, simple confirmations.
+
+- simple: single read tool, no decisions ("what's overdue?", "show me the Smith project", "how is X doing?", "list this week's invoices"). recommended_model=haiku, needs_verification=false.
+- standard: one mutation, a two-step lookup, or a creation flow with clear inputs ("create a project for X with these phases", "add an expense to Y", "assign Z to job", "send invoice for $500"). recommended_model=haiku. needs_verification=true if it touches money or a destructive tool, otherwise false.
+- complex: ONLY when a SONNET TRIGGER fires. recommended_model=sonnet. needs_verification=true.
+
+SONNET TRIGGERS (use sonnet ONLY if one fires):
+1. Voice transcript with explicit self-correction ("create for John, no Karen", "um actually make it Tuesday, no Wednesday"). Filler words alone do NOT trigger sonnet — only an actual corrected referent.
+2. Genuine multi-entity disambiguation that needs reasoning ("the bigger Smith project — wait, which one had the kitchen remodel?"). Two clients with the same name where the user gave NO disambiguating signal is "ask which one", which is haiku.
+3. Irrevocable destructive action (delete, void, permanently cancel) — sonnet because the cost of being wrong is high, not because reasoning is needed.
+4. Three or more chained operations in one turn ("create project, add three phases, assign two workers, generate estimate"). Two operations in one turn is haiku.
+
+EVERYTHING ELSE IS HAIKU. Multi-step is fine on haiku as long as each step is straightforward. "Create project + emit preview" is one step. Ambiguity that can be resolved by asking the user one question is haiku. Voice transcripts without corrections are haiku.
 
 VERIFICATION RULES (override complexity):
 - needs_verification=true for ALL destructive intents: delete, void, remove, cancel-permanently. Always.
@@ -104,7 +115,15 @@ AVAILABLE TOOL NAMES (you don't pick the tool, just plan): ${toolNames.slice(0, 
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'system',
+            content: [
+              // Cache the static planner prompt: it never changes, fires every
+              // turn, and is ~300 tokens. Free win — saves the cost of the
+              // system block on every cached read.
+              { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } },
+            ],
+          },
           { role: 'user', content: userPrompt },
         ],
         max_tokens: 250,

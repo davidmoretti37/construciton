@@ -991,14 +991,34 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     }
   }
 
-  const systemPrompt = buildSystemPrompt(promptContext) + memorySnapshot + memoryContext + recalledContext;
+  // Split the system prompt into two halves:
+  //   1. STATIC — buildSystemPrompt() output, stable across a user's session.
+  //      Gets cache_control so prompt caching actually helps.
+  //   2. DYNAMIC — memorySnapshot + scratchpad + per-query semantic recall.
+  //      Changes every turn (different recall query → different recalled
+  //      context). Kept in a separate, *uncached* content block so the
+  //      static block stays cache-stable.
+  //
+  // Without this split the dynamic memory was being concatenated onto the
+  // cached string, which silently invalidated the prompt cache on every
+  // turn (cache key = exact text). Splitting recovers ~80% input savings
+  // on cache hits — biggest single cost lever in the agent.
+  const staticSystemPrompt = buildSystemPrompt(promptContext);
+  const dynamicMemorySection = memorySnapshot + memoryContext + recalledContext;
+
+  const systemContent = dynamicMemorySection
+    ? [
+        { type: 'text', text: staticSystemPrompt, cache_control: { type: 'ephemeral', ttl: '1h' } },
+        { type: 'text', text: dynamicMemorySection },
+      ]
+    : staticSystemPrompt;
 
   // Log routing decisions
   logger.info(`🎯 Intent: ${intent} | Tools: ${toolCount}/34 | Model: ${model} (${reason})`);
 
   // Build initial messages array
   const messages = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: systemContent },
   ];
 
   // Re-inject the top recalled IMAGES as a synthetic user message right after
