@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,11 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -19,6 +22,11 @@ import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../utils/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadLogoToStorage } from '../../utils/pdfGenerator';
+import {
+  TEMPLATE_STYLES,
+  generateHTML as generateTemplateHTML,
+  buildSampleData,
+} from '../../utils/invoiceTemplates';
 
 const PAYMENT_TERMS = [
   'Due on Receipt',
@@ -39,6 +47,9 @@ export default function InvoiceTemplateScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
 
   // Template settings
+  const [templateStyle, setTemplateStyle] = useState('modern');
+  const [previewStyle, setPreviewStyle] = useState(null); // null = closed; 'modern' | 'premium' | 'creative' = open
+  const [previewIsEstimate, setPreviewIsEstimate] = useState(false);
   const [logoUri, setLogoUri] = useState(null);
   const [businessName, setBusinessName] = useState('');
   const [businessAddress, setBusinessAddress] = useState('');
@@ -54,7 +65,22 @@ export default function InvoiceTemplateScreen({ navigation }) {
   const loadTemplate = async () => {
     try {
       setLoading(true);
-      const userId = await getCurrentUserId();
+      const authUserId = await getCurrentUserId();
+
+      // Supervisors share the owner's invoice template. Resolve to the
+      // owner's user_id so both the read and the write below target the
+      // shared row, not a stale supervisor-specific one.
+      let userId = authUserId;
+      try {
+        const { data: meProfile } = await supabase
+          .from('profiles')
+          .select('role, owner_id')
+          .eq('id', authUserId)
+          .maybeSingle();
+        if (meProfile?.role === 'supervisor' && meProfile?.owner_id) {
+          userId = meProfile.owner_id;
+        }
+      } catch { /* default to authUserId */ }
 
       // Load from profiles first for business info
       const { data: profile } = await supabase
@@ -81,6 +107,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
         setBusinessAddress(template.business_address || '');
         setPaymentTerms(template.payment_terms || 'Net 30');
         setFooterText(template.footer_text || '');
+        if (template.template_style) setTemplateStyle(template.template_style);
 
         // Override with template business info if exists
         if (template.business_name) setBusinessName(template.business_name);
@@ -121,7 +148,20 @@ export default function InvoiceTemplateScreen({ navigation }) {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const userId = await getCurrentUserId();
+      const authUserId = await getCurrentUserId();
+      // Same owner-resolution as loadTemplate so a supervisor's save
+      // writes to the shared row, not their own.
+      let userId = authUserId;
+      try {
+        const { data: meProfile } = await supabase
+          .from('profiles')
+          .select('role, owner_id')
+          .eq('id', authUserId)
+          .maybeSingle();
+        if (meProfile?.role === 'supervisor' && meProfile?.owner_id) {
+          userId = meProfile.owner_id;
+        }
+      } catch { /* default to authUserId */ }
 
       // Upload logo to Supabase storage if it's a local file
       let logoUrl = logoUri;
@@ -140,6 +180,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
         .from('invoice_template')
         .upsert({
           user_id: userId,
+          template_style: templateStyle,
           logo_url: logoUrl,
           business_name: businessName,
           business_address: businessAddress,
@@ -191,8 +232,55 @@ export default function InvoiceTemplateScreen({ navigation }) {
         <View style={[styles.infoBox, { backgroundColor: Colors.primaryBlue + '10', borderColor: Colors.primaryBlue + '30' }]}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.primaryBlue} />
           <Text style={[styles.infoText, { color: Colors.primaryBlue }]}>
-            Customize how your invoices look. This information will appear on all generated invoices.
+            Customize how your invoices and estimates look. This applies to every PDF you generate.
           </Text>
+        </View>
+
+        {/* Template Style Picker */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Template Style</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText, marginBottom: 14 }]}>
+            Pick the visual style for your invoices and estimates. Tap Preview to see it with your business info.
+          </Text>
+
+          <View style={styles.styleCardsRow}>
+            {TEMPLATE_STYLES.map((style) => {
+              const selected = templateStyle === style.id;
+              return (
+                <TouchableOpacity
+                  key={style.id}
+                  activeOpacity={0.85}
+                  onPress={() => setTemplateStyle(style.id)}
+                  style={[
+                    styles.styleCard,
+                    {
+                      backgroundColor: Colors.white,
+                      borderColor: selected ? Colors.primaryBlue : Colors.border,
+                      borderWidth: selected ? 2 : 1,
+                    },
+                  ]}
+                >
+                  {selected && (
+                    <View style={[styles.styleCardCheck, { backgroundColor: Colors.primaryBlue }]}>
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  )}
+                  <View style={[styles.styleCardSwatch, { backgroundColor: style.swatchAccent }]} />
+                  <Text style={[styles.styleCardName, { color: Colors.primaryText }]}>{style.name}</Text>
+                  <Text style={[styles.styleCardTagline, { color: Colors.secondaryText }]} numberOfLines={2}>
+                    {style.tagline}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.styleCardPreview, { borderColor: Colors.border }]}
+                    onPress={() => { setPreviewStyle(style.id); setPreviewIsEstimate(false); }}
+                  >
+                    <Ionicons name="eye-outline" size={14} color={Colors.primaryText} />
+                    <Text style={[styles.styleCardPreviewText, { color: Colors.primaryText }]}>Preview</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* Logo Section */}
@@ -384,6 +472,93 @@ export default function InvoiceTemplateScreen({ navigation }) {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Template preview modal — renders the chosen visual with the user's
+          current logo + business info + sample line items, in a WebView.
+          The user can switch invoice ↔ estimate from the toggle. "Use this
+          template" sets templateStyle and closes. */}
+      <Modal
+        visible={!!previewStyle}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setPreviewStyle(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+          <View style={[styles.previewModalHeader, { borderBottomColor: Colors.border }]}>
+            <TouchableOpacity onPress={() => setPreviewStyle(null)} style={styles.previewClose}>
+              <Ionicons name="close" size={26} color={Colors.primaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.previewModalTitle, { color: Colors.primaryText }]}>
+              {previewStyle ? (TEMPLATE_STYLES.find((s) => s.id === previewStyle)?.name || '') : ''} preview
+            </Text>
+            <View style={{ width: 36 }} />
+          </View>
+
+          <View style={[styles.previewToggleRow, { borderBottomColor: Colors.border }]}>
+            <TouchableOpacity
+              style={[styles.previewToggle, !previewIsEstimate && { backgroundColor: Colors.primaryBlue }]}
+              onPress={() => setPreviewIsEstimate(false)}
+            >
+              <Text style={[styles.previewToggleText, !previewIsEstimate && { color: '#fff' }, previewIsEstimate && { color: Colors.primaryText }]}>
+                Invoice
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.previewToggle, previewIsEstimate && { backgroundColor: Colors.primaryBlue }]}
+              onPress={() => setPreviewIsEstimate(true)}
+            >
+              <Text style={[styles.previewToggleText, previewIsEstimate && { color: '#fff' }, !previewIsEstimate && { color: Colors.primaryText }]}>
+                Estimate
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {previewStyle ? (
+            <WebView
+              originWhitelist={['*']}
+              source={{
+                html: (() => {
+                  const sample = buildSampleData({
+                    business: {
+                      name: businessName || 'Your Business',
+                      address: businessAddress,
+                      phone: businessPhone,
+                      email: businessEmail,
+                      logo_url: logoUri,
+                    },
+                    isEstimate: previewIsEstimate,
+                  });
+                  return generateTemplateHTML(
+                    previewStyle,
+                    sample.invoiceData,
+                    sample.businessInfo,
+                    { isEstimate: previewIsEstimate }
+                  );
+                })(),
+              }}
+              style={{ flex: 1, backgroundColor: '#f5f5f5' }}
+              scalesPageToFit={true}
+              automaticallyAdjustContentInsets={false}
+            />
+          ) : null}
+
+          <View style={[
+            styles.previewModalFooter,
+            { backgroundColor: Colors.background, borderTopColor: Colors.border, paddingBottom: Math.max(insets.bottom + 12, 24) },
+          ]}>
+            <TouchableOpacity
+              style={[styles.previewUseButton, { backgroundColor: Colors.primaryBlue }]}
+              onPress={() => {
+                if (previewStyle) setTemplateStyle(previewStyle);
+                setPreviewStyle(null);
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text style={styles.previewUseButtonText}>Use this template</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -553,6 +728,116 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  /* ─── Template style picker ─────────────────────────── */
+  styleCardsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  styleCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 168,
+    position: 'relative',
+  },
+  styleCardCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  styleCardSwatch: {
+    width: '100%',
+    height: 28,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  styleCardName: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  styleCardTagline: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 10,
+    minHeight: 30,
+  },
+  styleCardPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  styleCardPreviewText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  /* ─── Preview modal ─────────────────────────── */
+  previewModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  previewModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  previewClose: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewToggleRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+  },
+  previewToggle: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  previewToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  previewModalFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  previewUseButton: {
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  previewUseButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

@@ -2,15 +2,33 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
+import { generateHTML as generateFromTemplate, isValidStyle } from './invoiceTemplates';
 
 /**
- * Generates a professional HTML invoice template
- * Matching the estimate PDF design language
+ * Generates a professional HTML invoice template.
+ * If businessInfo.template_style is set to one of the new templates
+ * ('modern' | 'premium' | 'creative'), this dispatches through the
+ * templates registry. Otherwise falls back to the legacy generator
+ * (preserved below for documents created before the picker shipped).
+ *
  * @param {object} invoiceData - Invoice data
- * @param {object} businessInfo - Business information
+ * @param {object} businessInfo - Business information (may include template_style)
+ * @param {object} options - Override options (accentColor, fontStyle, isEstimate)
  * @returns {string} - HTML string
  */
 export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => {
+  // PHASE 1: dispatch to the new templates registry when the user has
+  // chosen one. Falls through to the legacy generator below when the
+  // style is missing or unrecognized — keeps every prior invoice render
+  // untouched.
+  const style = businessInfo?.template_style || businessInfo?.templateStyle;
+  if (isValidStyle(style)) {
+    return generateFromTemplate(style, invoiceData, businessInfo, {
+      ...options,
+      isEstimate: false,
+    });
+  }
+
   // Get styling options from businessInfo or options override
   const accentColor = options.accentColor || businessInfo?.accentColor || '#2563EB';
   const fontStyleId = options.fontStyle || businessInfo?.fontStyle || 'modern';
@@ -657,7 +675,12 @@ export const generateInvoiceHTML = (invoiceData, businessInfo, options = {}) => 
  */
 export const generateInvoicePDF = async (invoiceData, businessInfo) => {
   try {
-    const html = generateInvoiceHTML(invoiceData, businessInfo);
+    // Pull the user's saved template settings (style, logo, business
+    // info, payment terms, footer text) and merge into businessInfo so
+    // the renderer dispatches to the right template. Best-effort —
+    // legacy callers without this row still hit the fallback generator.
+    const enriched = await enrichBusinessInfoWithTemplate(businessInfo);
+    const html = generateInvoiceHTML(invoiceData, enriched);
 
     const { uri } = await Print.printToFileAsync({
       html,
@@ -671,6 +694,55 @@ export const generateInvoicePDF = async (invoiceData, businessInfo) => {
     throw new Error('Failed to generate PDF');
   }
 };
+
+/**
+ * Look up the current user's invoice_template row and merge its fields
+ * into the businessInfo object the renderer expects. If the row is
+ * missing or fetch fails, return the original businessInfo unchanged.
+ */
+async function enrichBusinessInfoWithTemplate(businessInfo) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return businessInfo;
+
+    // Resolve owner id (supervisors share the owner's template).
+    let templateOwnerId = user.id;
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('role, owner_id')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (prof?.role === 'supervisor' && prof?.owner_id) {
+        templateOwnerId = prof.owner_id;
+      }
+    } catch { /* fall back to user.id */ }
+
+    const { data: tpl } = await supabase
+      .from('invoice_template')
+      .select('template_style, logo_url, business_name, business_address, business_phone, business_email, payment_terms, footer_text')
+      .eq('user_id', templateOwnerId)
+      .maybeSingle();
+
+    if (!tpl) return businessInfo;
+    return {
+      ...(businessInfo || {}),
+      template_style: tpl.template_style || businessInfo?.template_style,
+      logo_url: tpl.logo_url || businessInfo?.logo_url,
+      business_name: tpl.business_name || businessInfo?.business_name,
+      business_address: tpl.business_address || businessInfo?.business_address,
+      business_phone: tpl.business_phone || businessInfo?.business_phone,
+      business_email: tpl.business_email || businessInfo?.business_email,
+      payment_terms: tpl.payment_terms || businessInfo?.payment_terms,
+      footer_text: tpl.footer_text || businessInfo?.footer_text,
+    };
+  } catch (e) {
+    return businessInfo;
+  }
+}
+
+// Exported so estimatePDF.js can reuse the same enrichment.
+export { enrichBusinessInfoWithTemplate };
 
 /**
  * Uploads PDF to Supabase storage

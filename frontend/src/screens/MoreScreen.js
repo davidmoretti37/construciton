@@ -457,7 +457,10 @@ export default function MoreScreen({ navigation }) {
           {(() => {
             const showEstimates = !isSupervisor || supervisorPerms.canCreateEstimates;
             const showInvoices = !isSupervisor || supervisorPerms.canCreateInvoices;
-            const showInvoiceTemplate = !isSupervisor; // owner-only setup
+            // Supervisors can edit the owner's invoice template too — it's
+            // shared across the business, and supervisors are allowed to
+            // pick the visual style + tweak business info shown on PDFs.
+            const showInvoiceTemplate = true;
             const lastDocsItem = showInvoiceTemplate ? 'template' : showInvoices ? 'invoices' : showEstimates ? 'estimates' : 'contracts';
             return (
               <>
