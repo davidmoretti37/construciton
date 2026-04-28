@@ -96,6 +96,18 @@ const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
  * direct OpenAI when OPENAI_API_KEY is set. Returns null on any failure
  * so callers can gracefully degrade to recency-based recall.
  */
+// Hard timeout for embedding calls. Without this, a slow OpenRouter
+// response blocked any caller — most painfully the chat-message save
+// endpoint, which surfaced as "Network request failed" on the frontend.
+const EMBED_TIMEOUT_MS = parseInt(process.env.EMBED_TIMEOUT_MS, 10) || 4000;
+
+function fetchWithTimeout(url, init, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { ...init, signal: ctrl.signal })
+    .finally(() => clearTimeout(timer));
+}
+
 async function embedText(text) {
   if (!text || typeof text !== 'string') return null;
   const cleaned = text.trim().slice(0, 8000);
@@ -104,7 +116,7 @@ async function embedText(text) {
   // Primary: OpenRouter's OpenAI-compatible /embeddings endpoint.
   if (hasOpenRouter) {
     try {
-      const res = await fetch('https://openrouter.ai/api/v1/embeddings', {
+      const res = await fetchWithTimeout('https://openrouter.ai/api/v1/embeddings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +125,7 @@ async function embedText(text) {
           'X-Title': 'Construction Manager - Memory',
         },
         body: JSON.stringify({ model: EMBED_MODEL_OPENROUTER, input: cleaned }),
-      });
+      }, EMBED_TIMEOUT_MS);
       if (res.ok) {
         const json = await res.json();
         const v = json.data?.[0]?.embedding;
@@ -123,21 +135,25 @@ async function embedText(text) {
         logger.warn(`embedText OpenRouter failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
       }
     } catch (e) {
-      logger.warn('embedText OpenRouter error:', e.message);
+      if (e.name === 'AbortError') {
+        logger.debug(`embedText OpenRouter timed out after ${EMBED_TIMEOUT_MS}ms`);
+      } else {
+        logger.warn('embedText OpenRouter error:', e.message);
+      }
     }
   }
 
   // Fallback: direct OpenAI.
   if (hasOpenAI) {
     try {
-      const res = await fetch('https://api.openai.com/v1/embeddings', {
+      const res = await fetchWithTimeout('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({ model: EMBED_MODEL_OPENAI, input: cleaned }),
-      });
+      }, EMBED_TIMEOUT_MS);
       if (!res.ok) {
         logger.warn(`embedText OpenAI failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
         return null;
@@ -145,6 +161,10 @@ async function embedText(text) {
       const json = await res.json();
       return json.data?.[0]?.embedding || null;
     } catch (e) {
+      if (e.name === 'AbortError') {
+        logger.debug(`embedText OpenAI timed out after ${EMBED_TIMEOUT_MS}ms`);
+        return null;
+      }
       logger.warn('embedText OpenAI error:', e.message);
       return null;
     }
@@ -234,16 +254,11 @@ async function persistMessage({
     actions,
   };
 
-  // Embed the message content (best-effort)
-  const vec = await vectorEnabled();
-  if (vec) {
-    const embedding = await embedText(safeContent);
-    if (embedding) {
-      insertRow.embedding = embedding;
-      insertRow.embedding_model = hasOpenRouter ? EMBED_MODEL_OPENROUTER : EMBED_MODEL_OPENAI;
-    }
-  }
-
+  // Insert FIRST without waiting for embedding. The embedding is a
+  // best-effort enrichment that calls OpenRouter — if that's slow or
+  // hangs, we previously blocked the entire save endpoint, which surfaced
+  // as "Network request failed" on the frontend. Persist now, embed
+  // async after.
   const { data: inserted, error } = await supabase
     .from('chat_messages')
     .insert(insertRow)
@@ -254,6 +269,26 @@ async function persistMessage({
     return { messageId: null, attachmentIds: [] };
   }
   const messageId = inserted.id;
+
+  // Async embedding update — fire-and-forget. Backfill script + the
+  // recall path tolerate missing embeddings (recency-based fallback).
+  (async () => {
+    try {
+      const vec = await vectorEnabled();
+      if (!vec) return;
+      const embedding = await embedText(safeContent);
+      if (!embedding) return;
+      await supabase
+        .from('chat_messages')
+        .update({
+          embedding,
+          embedding_model: hasOpenRouter ? EMBED_MODEL_OPENROUTER : EMBED_MODEL_OPENAI,
+        })
+        .eq('id', messageId);
+    } catch (e) {
+      logger.debug('persistMessage async embed failed:', e.message);
+    }
+  })();
 
   // Bump session message_count + last_message_at (best-effort)
   await supabase
