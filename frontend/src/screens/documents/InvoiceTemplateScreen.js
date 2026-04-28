@@ -404,44 +404,50 @@ export default function InvoiceTemplateScreen({ navigation }) {
           />
         </View>
 
-        {/* Preview Section */}
+        {/* Live Preview — actual rendered template using the user's
+            current inputs. Updates in real time as they type. */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Preview</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Live preview</Text>
+          <Text style={[styles.label, { color: Colors.secondaryText, marginBottom: 12 }]}>
+            This is what your invoice will actually look like with your info.
+          </Text>
 
-          <View style={[styles.previewCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
-            {logoUri && (
-              <Image source={{ uri: logoUri }} style={styles.previewLogo} resizeMode="contain" />
-            )}
-
-            <Text style={[styles.previewBusinessName, { color: Colors.primaryText }]}>
-              {businessName || 'Your Business Name'}
-            </Text>
-
-            {businessAddress && (
-              <Text style={[styles.previewText, { color: Colors.secondaryText }]}>
-                {businessAddress}
-              </Text>
-            )}
-
-            <Text style={[styles.previewText, { color: Colors.secondaryText }]}>
-              {businessPhone} • {businessEmail}
-            </Text>
-
-            <View style={[styles.previewDivider, { backgroundColor: Colors.border }]} />
-
-            <View style={styles.previewRow}>
-              <Text style={[styles.previewLabel, { color: Colors.secondaryText }]}>Payment Terms:</Text>
-              <Text style={[styles.previewValue, { color: Colors.primaryText }]}>{paymentTerms}</Text>
-            </View>
-
-            {footerText && (
-              <>
-                <View style={[styles.previewDivider, { backgroundColor: Colors.border }]} />
-                <Text style={[styles.previewFooter, { color: Colors.secondaryText }]}>
-                  {footerText}
-                </Text>
-              </>
-            )}
+          <View style={[styles.livePreviewWrap, { borderColor: Colors.border, backgroundColor: '#f5f5f5' }]}>
+            <WebView
+              key={`${templateStyle}-${logoUri || 'nologo'}-${businessName}-${businessAddress}-${businessPhone}-${businessEmail}-${paymentTerms}-${footerText}`}
+              originWhitelist={['*']}
+              source={{
+                html: (() => {
+                  const sample = buildSampleData({
+                    business: {
+                      name: businessName || 'Your Business Name',
+                      address: businessAddress,
+                      phone: businessPhone,
+                      email: businessEmail,
+                      logo_url: logoUri,
+                    },
+                    isEstimate: false,
+                  });
+                  // Stamp the user's saved payment terms + footer text into
+                  // the sample so the live preview shows them.
+                  const enrichedBusiness = {
+                    ...sample.businessInfo,
+                    payment_terms: paymentTerms,
+                    footer_text: footerText,
+                  };
+                  return generateTemplateHTML(
+                    templateStyle,
+                    sample.invoiceData,
+                    enrichedBusiness,
+                    {}
+                  );
+                })(),
+              }}
+              style={{ flex: 1, backgroundColor: '#f5f5f5' }}
+              scrollEnabled={true}
+              showsVerticalScrollIndicator={false}
+              automaticallyAdjustContentInsets={false}
+            />
           </View>
         </View>
 
@@ -785,6 +791,14 @@ const styles = StyleSheet.create({
   styleCardPreviewText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+
+  /* ─── Live preview pane (in-page WebView) ─────── */
+  livePreviewWrap: {
+    height: 720,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
 
   /* ─── Preview modal ─────────────────────────── */
