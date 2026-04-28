@@ -531,8 +531,8 @@ export default function OwnerSettingsScreen() {
           <MenuItem
             icon="color-palette-outline"
             iconColor={OWNER_COLORS.accent}
-            title={t('items.invoiceTemplate', 'Invoice Template')}
-            subtitle={t('items.invoiceTemplateSubtitle', 'Logo, business info, terms')}
+            title={t('items.invoiceTemplate', 'Invoice & Estimate Template')}
+            subtitle={t('items.invoiceTemplateSubtitle', 'Style, logo, and business info — applied to both')}
             onPress={() => navigation.navigate('InvoiceTemplate')}
             isLast
           />

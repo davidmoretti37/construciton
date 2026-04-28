@@ -316,7 +316,7 @@ export default function InvoiceSetupScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => setSetupNow(null)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice Template</Text>
+        <Text style={[styles.headerTitle, { color: '#1F2937' }]}>Invoice & Estimate Template</Text>
         <View style={{ width: 40 }} />
       </View>
 

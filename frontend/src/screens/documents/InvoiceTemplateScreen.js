@@ -223,7 +223,7 @@ export default function InvoiceTemplateScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice Template</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice & Estimate Template</Text>
         <View style={{ width: 40 }} />
       </View>
 
