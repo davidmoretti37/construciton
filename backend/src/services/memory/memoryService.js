@@ -290,14 +290,27 @@ async function persistMessage({
     }
   })();
 
-  // Bump session message_count + last_message_at (best-effort)
-  await supabase
-    .from('chat_sessions')
-    .update({ last_message_at: new Date().toISOString() })
-    .eq('id', sessionId);
-  await supabase.rpc('exec_sql', {
-    sql: `UPDATE chat_sessions SET message_count = COALESCE(message_count, 0) + 1 WHERE id = '${sessionId}'`,
-  }).catch(() => {});
+  // Bump session message_count + last_message_at — best-effort. Wrapped
+  // so a failure here NEVER causes the function to return null messageId
+  // when the chat_messages row was already saved successfully. Without
+  // this, an exec_sql RPC error would surface as a 500 to the frontend
+  // even though the message landed. The session bump is housekeeping —
+  // not load-bearing.
+  try {
+    await supabase
+      .from('chat_sessions')
+      .update({ last_message_at: new Date().toISOString() })
+      .eq('id', sessionId);
+  } catch (e) {
+    logger.debug('persistMessage session update failed (non-fatal):', e.message);
+  }
+  try {
+    await supabase.rpc('exec_sql', {
+      sql: `UPDATE chat_sessions SET message_count = COALESCE(message_count, 0) + 1 WHERE id = '${sessionId}'`,
+    });
+  } catch (e) {
+    // exec_sql RPC may not exist in all envs — don't bother logging.
+  }
 
   // Persist attachments
   const attachmentIds = [];

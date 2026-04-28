@@ -1026,8 +1026,17 @@ app.post('/api/chat/sessions/:sessionId/messages', chatHistoryLimiter, authentic
 
     res.json({ message: { id: messageId } });
   } catch (error) {
-    logger.error('Error saving message:', error);
-    res.status(500).json({ error: 'Failed to save message' });
+    // Log the full error so Railway logs surface what actually went
+    // wrong. The frontend just sees "Failed to save message" — fine —
+    // but operators need the underlying cause.
+    logger.error('Error saving message:', {
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      stack: error?.stack?.split('\n').slice(0, 5).join('\n'),
+    });
+    res.status(500).json({ error: 'Failed to save message', detail: error?.message });
   }
 });
 
