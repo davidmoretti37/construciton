@@ -2758,13 +2758,45 @@ async function share_document(userId, args) {
 // ==================== FINANCIAL MUTATIONS ====================
 
 async function record_expense(userId, { project_id, service_plan_name, type, amount, category, description, date, subcategory, phase_id, phase_name }) {
+  // Defensive normalization. The agent occasionally passes amounts as
+  // currency strings ("R$ 10.54"), wrong types, or missing descriptions —
+  // any of which would silently fail the insert with cryptic CHECK
+  // violations or NOT NULL errors. Catch each one with a clear message
+  // so the agent can recover gracefully on the next round.
+
+  // Amount: strip non-numeric chars (currency symbols, spaces, commas).
+  // Reject NaN, negative, or zero. Insert constraint requires amount >= 0
+  // but $0 expenses are nonsense anyway.
+  let amountNum = amount;
+  if (typeof amountNum === 'string') {
+    const cleaned = amountNum.replace(/[^0-9.\-]/g, '');
+    amountNum = parseFloat(cleaned);
+  } else {
+    amountNum = parseFloat(amount);
+  }
+  if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    return userSafeError(null, `Invalid amount: ${JSON.stringify(amount)}. Pass a positive number (e.g. 10.54), not a currency string.`);
+  }
+
+  // Type: must be 'expense' or 'income' per CHECK constraint.
+  const txType = (type || '').toString().trim().toLowerCase();
+  if (txType !== 'expense' && txType !== 'income') {
+    return userSafeError(null, `Invalid type: "${type}". Must be exactly "expense" or "income".`);
+  }
+
+  // Description: NOT NULL in the schema. Empty string would fail.
+  const safeDescription = (description || '').toString().trim();
+  if (!safeDescription) {
+    return userSafeError(null, 'Description is required (e.g. "Home Depot lumber" or "Client deposit"). Provide a brief description.');
+  }
+
   const transactionDate = date || new Date().toISOString().split('T')[0];
   let insertData = {
     created_by: userId,
-    type,
+    type: txType,
     category,
-    description,
-    amount: parseFloat(amount),
+    description: safeDescription,
+    amount: amountNum,
     date: transactionDate,
   };
   if (subcategory) insertData.subcategory = subcategory;
@@ -2774,11 +2806,15 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
   let entityFilterId = '';
 
   if (service_plan_name && !project_id) {
-    // Resolve service plan by name
+    // Resolve service plan by name. Use OWNER's id (not the auth user's
+    // id) because supervisors should be able to operate on their owner's
+    // plans. resolveOwnerId returns the auth user id directly when called
+    // by an owner, or the parent owner's id when called by a supervisor.
+    const ownerId = await resolveOwnerId(userId);
     const { data: plans } = await supabase
       .from('service_plans')
       .select('id, name')
-      .eq('owner_id', userId)
+      .eq('owner_id', ownerId)
       .ilike('name', `%${service_plan_name}%`);
 
     if (!plans || plans.length === 0) {
