@@ -27,7 +27,7 @@ import { supabase } from '../../lib/supabase';
 import NotificationBell from '../../components/NotificationBell';
 import SkeletonBox from '../../components/skeletons/SkeletonBox';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
-import { fetchWorkersForOwner, getSupervisorsForOwner } from '../../utils/storage/workers';
+import { fetchWorkersForOwner, getSupervisorsForOwner, getClockedInWorkersTodayForOwner } from '../../utils/storage/workers';
 import { getReconciliationSummary } from '../../services/bankService';
 import { fetchAllOwnerTransactions, calculateCashFlow } from '../../utils/financialReportUtils';
 import { fetchRecurringExpenses } from '../../utils/storage/recurringExpenses';
@@ -101,6 +101,8 @@ export default function OwnerDashboardScreen() {
   const [agingData, setAgingData] = useState({ totals: { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, total: 0 } });
   const [payrollSummary, setPayrollSummary] = useState({ grossPay: 0, workerCount: 0 });
   const [recentReports, setRecentReports] = useState([]);
+  const [allProjects, setAllProjects] = useState([]);
+  const [activeClockIns, setActiveClockIns] = useState([]);
   const [pipeline, setPipeline] = useState({ estimates: { draft: 0, sent: 0, accepted: 0 }, invoices: { unpaid: 0, partial: 0, paid: 0 } });
   const [monthlyOverhead, setMonthlyOverhead] = useState(0);
   const [businessName, setBusinessName] = useState('');
@@ -119,6 +121,35 @@ export default function OwnerDashboardScreen() {
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return { revenue, expenses, profit, margin };
   }, [stats]);
+
+  // Top-N project lists for the inline widget rows. Show every non-archived
+  // and non-completed project sorted by recency so drafts and just-created
+  // projects don't disappear from the widget — the count in the header
+  // still reflects strict "active" status.
+  const topActiveProjectsForWidget = useMemo(
+    () => [...allProjects]
+      .filter((p) => p.status !== 'archived' && p.status !== 'completed')
+      .sort((a, b) => new Date(b.updatedAt || b.updated_at || 0) - new Date(a.updatedAt || a.updated_at || 0))
+      .slice(0, 4)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        percent_complete: p.percentComplete ?? p.percent_complete ?? 0,
+      })),
+    [allProjects]
+  );
+  const topProjectsByContract = useMemo(
+    () => [...allProjects]
+      .sort((a, b) => (b.contractAmount || 0) - (a.contractAmount || 0))
+      .slice(0, 4)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        contractAmount: p.contractAmount || 0,
+      })),
+    [allProjects]
+  );
 
   const fetchDashboardData = useCallback(async () => {
     if (!user?.id) return;
@@ -156,6 +187,21 @@ export default function OwnerDashboardScreen() {
         totalExpenses,
         pendingInvites: pendingInviteCount,
       });
+      setAllProjects(projects);
+
+      // Currently clocked-in workers (cross-team list for the owner)
+      try {
+        const clocked = await getClockedInWorkersTodayForOwner();
+        setActiveClockIns(
+          (clocked || [])
+            .filter(t => !!t.workers)
+            .map(t => ({
+              id: t.workers?.id || t.worker_id,
+              name: t.workers?.full_name || t.worker_name || 'Worker',
+              projectName: t.projects?.name || t.service_plans?.name || '',
+            }))
+        );
+      } catch (e) { setActiveClockIns([]); }
 
       // Load business name
       try {
@@ -462,6 +508,10 @@ export default function OwnerDashboardScreen() {
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Projects')}
+            topProjects={topActiveProjectsForWidget}
+            onProjectPress={(projectId) =>
+              navigation.navigate('Projects', { screen: 'ProjectDetail', params: { projectId } })
+            }
           />
         );
       case 'workers':
@@ -473,6 +523,14 @@ export default function OwnerDashboardScreen() {
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Workers', { initialTab: 'team' })}
+            onsiteWorkers={activeClockIns}
+            onsiteCount={activeClockIns.length}
+            onWorkerPress={(workerId) => {
+              const w = activeClockIns.find((x) => x.id === workerId);
+              if (w) {
+                navigation.navigate('WorkerDetailHistory', { worker: { id: w.id, full_name: w.name } });
+              }
+            }}
           />
         );
       case 'supervisors':
@@ -536,6 +594,10 @@ export default function OwnerDashboardScreen() {
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('Projects')}
+            topProjects={topProjectsByContract}
+            onProjectPress={(projectId) =>
+              navigation.navigate('Projects', { screen: 'ProjectDetail', params: { projectId } })
+            }
           />
         );
       case 'pending_invites':
@@ -608,6 +670,7 @@ export default function OwnerDashboardScreen() {
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('OwnerDailyReports')}
+            onReportPress={(reportId) => navigation.navigate('DailyReportDetail', { reportId })}
           />
         );
       case 'pipeline':
@@ -623,7 +686,7 @@ export default function OwnerDashboardScreen() {
       default:
         return null;
     }
-  }, [pnl, cashFlowData, maxCashFlowVal, totalNet, alerts, stats, transactionCount, reconciliation, editMode, navigation, overdueInvoices, marginHealth, forgottenClockOuts, agingData, payrollSummary, recentReports, pipeline]);
+  }, [pnl, cashFlowData, maxCashFlowVal, totalNet, alerts, stats, transactionCount, reconciliation, editMode, navigation, overdueInvoices, marginHealth, forgottenClockOuts, agingData, payrollSummary, recentReports, pipeline, topActiveProjectsForWidget, topProjectsByContract, activeClockIns]);
 
   // ── Sized widget wrapper (view mode) ──
 
@@ -720,9 +783,16 @@ export default function OwnerDashboardScreen() {
           renderWidget={renderWidget}
           footer={
             <View>
-              <TouchableOpacity style={styles.addSlot} onPress={() => setShowAddSheet(true)}>
-                <Ionicons name="add-circle-outline" size={20} color={Colors.placeholderText} />
-                <Text style={styles.addSlotText}>Add Widget</Text>
+              <TouchableOpacity
+                style={styles.addSlot}
+                onPress={() => setShowAddSheet(true)}
+                activeOpacity={0.85}
+              >
+                <View style={styles.addSlotIconCircle}>
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.addSlotText}>Add a widget</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.85)" />
               </TouchableOpacity>
               <View style={{ height: 100 }} />
             </View>
@@ -929,25 +999,39 @@ const createStyles = (Colors, isDark) => StyleSheet.create({
     borderRadius: 11,
   },
 
-  // Add widget slot (edit mode) — dashed border at low contrast in dark
-  // mode is invisible, so bump to placeholderText (lighter mid-gray) when
-  // the page background is dark.
+  // Add widget slot (edit mode) — solid filled CTA so it stands out as the
+  // primary action while the rest of the grid is in editable disarray.
   addSlot: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: isDark ? Colors.placeholderText : Colors.border,
+    backgroundColor: ACCENT.primary,
     borderRadius: 16,
-    height: 80,
-    width: '100%',
+    height: 60,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    marginTop: 4,
+    gap: 12,
+    marginTop: 8,
+    marginHorizontal: Spacing.lg,
+    shadowColor: ACCENT.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addSlotIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addSlotText: {
-    fontSize: 13,
-    color: Colors.placeholderText,
-    marginLeft: 6,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    color: '#FFFFFF',
   },
 
   // Header right (customize + notification bell)

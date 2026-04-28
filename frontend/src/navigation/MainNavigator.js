@@ -14,6 +14,8 @@ import DocumentViewerScreen from '../screens/DocumentViewerScreen';
 import ProjectTransactionsScreen from '../screens/ProjectTransactionsScreen';
 import TransactionEntryScreen from '../screens/TransactionEntryScreen';
 import TransactionDetailScreen from '../screens/TransactionDetailScreen';
+import ManualProjectCreateScreen from '../screens/owner/ManualProjectCreateScreen';
+import ClientVisibilityScreen from '../screens/owner/ClientVisibilityScreen';
 
 const Stack = createStackNavigator();
 
@@ -117,6 +119,16 @@ export default function MainNavigator() {
         options={{
           headerShown: false,
         }}
+      />
+      <Stack.Screen
+        name="ManualProjectCreate"
+        component={ManualProjectCreateScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ClientVisibility"
+        component={ClientVisibilityScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

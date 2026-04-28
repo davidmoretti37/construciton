@@ -367,10 +367,13 @@ export const fetchEstimates = async (filters = {}) => {
       return [];
     }
 
+    // No `.eq('user_id', userId)` filter — RLS handles owner access (user_id
+     // = auth.uid()) AND the new supervisor-read policy (linked project's
+     // assigned_supervisor_id). Filtering by user_id here would block
+     // supervisors from seeing estimates the owner created on their projects.
     let query = supabase
       .from('estimates')
       .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -528,10 +531,14 @@ export const fetchEstimatesByProjectId = async (projectId) => {
       return [];
     }
 
+    // Don't filter by user_id here — RLS policies grant access to both the
+    // owner (user_id = auth.uid()) and the assigned supervisor (via the
+    // projects table's assigned_supervisor_id). Adding `.eq('user_id', userId)`
+    // would block supervisors from seeing estimates the owner created on
+    // their assigned projects.
     const { data, error } = await supabase
       .from('estimates')
       .select('id, client_name, project_name, status, total, created_at')
-      .eq('user_id', userId)
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
       .limit(50);

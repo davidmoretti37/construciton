@@ -124,32 +124,47 @@ export default function AddWidgetSheet({ visible, onClose, availableWidgets, onA
 
           {availableWidgets.length === 0 ? (
             <View style={styles.emptyWrap}>
+              <Ionicons name="checkmark-circle" size={36} color={Colors.successGreen || '#10B981'} />
               <Text style={styles.emptyText}>All widgets are on your dashboard</Text>
             </View>
           ) : (
-            <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-              {availableWidgets.map((widget) => {
-                const icon = WIDGET_ICONS[widget.id] || 'grid-outline';
-                return (
-                  <View key={widget.id} style={styles.widgetSection}>
-                    <Text style={styles.widgetLabel}>{widget.label}</Text>
-                    <Text style={styles.widgetDesc}>{widget.description}</Text>
-                    <View style={styles.shapesRow}>
-                      {widget.availableSizes.map((size) => (
-                        <TouchableOpacity
-                          key={size}
-                          onPress={() => onAdd(widget.id, size)}
-                          activeOpacity={0.7}
-                        >
-                          <GradientPreview widgetId={widget.id} size={size} icon={icon} />
-                        </TouchableOpacity>
-                      ))}
+            <>
+              <Text style={styles.sheetSubtitle}>
+                Tap a size to add it to your dashboard
+              </Text>
+              <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+                {availableWidgets.map((widget) => {
+                  const icon = WIDGET_ICONS[widget.id] || 'grid-outline';
+                  return (
+                    <View key={widget.id} style={styles.widgetSection}>
+                      <View style={styles.widgetHeaderRow}>
+                        <View style={styles.widgetIcon}>
+                          <Ionicons name={icon} size={18} color={Colors.primaryBlue} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.widgetLabel}>{widget.label}</Text>
+                          <Text style={styles.widgetDesc}>{widget.description}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.shapesRow}>
+                        {widget.availableSizes.map((size) => (
+                          <TouchableOpacity
+                            key={size}
+                            style={styles.shapeOption}
+                            onPress={() => onAdd(widget.id, size)}
+                            activeOpacity={0.75}
+                          >
+                            <GradientPreview widgetId={widget.id} size={size} icon={icon} />
+                            <Text style={styles.shapeLabel}>{size.charAt(0).toUpperCase() + size.slice(1)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                );
-              })}
-              <View style={{ height: 20 }} />
-            </ScrollView>
+                  );
+                })}
+                <View style={{ height: 20 }} />
+              </ScrollView>
+            </>
           )}
         </View>
       </View>
@@ -167,10 +182,10 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   smallCard: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
-    padding: 8,
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    padding: 10,
     justifyContent: 'space-between',
     overflow: 'hidden',
   },
@@ -186,13 +201,13 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
   mediumCard: {
-    width: 148,
-    height: 56,
-    borderRadius: 10,
-    padding: 8,
+    width: 168,
+    height: 68,
+    borderRadius: 12,
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     overflow: 'hidden',
   },
   mediumContent: {
@@ -210,10 +225,10 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
   largeCard: {
-    width: 148,
-    height: 80,
-    borderRadius: 10,
-    padding: 8,
+    width: 168,
+    height: 96,
+    borderRadius: 12,
+    padding: 10,
     justifyContent: 'space-between',
     overflow: 'hidden',
   },
@@ -248,8 +263,40 @@ const createSheetStyles = (Colors) => StyleSheet.create({
     backgroundColor: Colors.cardBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: 520,
+    maxHeight: '85%',
     paddingBottom: 32,
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: Colors.secondaryText,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  widgetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 12,
+  },
+  widgetIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: (Colors.primaryBlue || '#1E40AF') + '14',
+  },
+  shapeOption: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  shapeLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.secondaryText,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 4,
   },
   handle: {
     width: 36,
@@ -294,11 +341,13 @@ const createSheetStyles = (Colors) => StyleSheet.create({
     gap: 12,
   },
   emptyWrap: {
-    paddingVertical: 32,
+    paddingVertical: 40,
     alignItems: 'center',
+    gap: 10,
   },
   emptyText: {
     fontSize: 14,
     color: Colors.secondaryText,
+    fontWeight: '500',
   },
 });

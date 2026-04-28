@@ -19,7 +19,9 @@ import {
   Platform,
   Dimensions,
   Linking,
+  Switch,
 } from 'react-native';
+import { SUPERVISOR_PERMISSIONS, DEFAULT_SUPERVISOR_PERMISSIONS } from '../../constants/supervisorPermissions';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -302,7 +304,12 @@ export default function SupervisorsScreen() {
   const [supervisors, setSupervisors] = useState([]);
   const [pendingInvites, setPendingInvites] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ email: '', fullName: '', phone: '' });
+  const [inviteForm, setInviteForm] = useState({
+    email: '',
+    fullName: '',
+    phone: '',
+    ...DEFAULT_SUPERVISOR_PERMISSIONS,
+  });
   const [inviting, setInviting] = useState(false);
 
   const fetchSupervisors = useCallback(async () => {
@@ -374,6 +381,11 @@ export default function SupervisorsScreen() {
 
     setInviting(true);
     try {
+      const permissionPayload = SUPERVISOR_PERMISSIONS.reduce(
+        (acc, p) => ({ ...acc, [p.key]: !!inviteForm[p.key] }),
+        {}
+      );
+
       const { data, error } = await supabase
         .from('supervisor_invites')
         .insert({
@@ -382,6 +394,7 @@ export default function SupervisorsScreen() {
           full_name: inviteForm.fullName.trim() || null,
           phone: inviteForm.phone.trim() || null,
           status: 'pending',
+          ...permissionPayload,
         })
         .select()
         .single();
@@ -397,7 +410,7 @@ export default function SupervisorsScreen() {
         setShowAddModal(false);
         const invitedEmail = inviteForm.email.trim().toLowerCase();
         const invitedName = inviteForm.fullName.trim();
-        setInviteForm({ email: '', fullName: '', phone: '' });
+        setInviteForm({ email: '', fullName: '', phone: '', ...DEFAULT_SUPERVISOR_PERMISSIONS });
         fetchSupervisors();
 
         // Let user pick Gmail or Apple Mail
@@ -642,6 +655,38 @@ export default function SupervisorsScreen() {
                     keyboardType="phone-pad"
                   />
                 </View>
+              </View>
+
+              <View style={[styles.permissionsSection, { borderColor: Colors.border }]}>
+                <Text style={[styles.permissionsTitle, { color: Colors.primaryText }]}>
+                  Permissions
+                </Text>
+                <Text style={[styles.permissionsSubtitle, { color: Colors.secondaryText }]}>
+                  Choose what this supervisor can do. You can change these any time.
+                </Text>
+                {SUPERVISOR_PERMISSIONS.map((perm) => (
+                  <View
+                    key={perm.key}
+                    style={[styles.permissionRow, { borderColor: Colors.border }]}
+                  >
+                    <View style={styles.permissionIconWrap}>
+                      <Ionicons name={perm.icon} size={20} color={OWNER_COLORS.primary} />
+                    </View>
+                    <View style={styles.permissionTextWrap}>
+                      <Text style={[styles.permissionLabel, { color: Colors.primaryText }]}>
+                        {perm.label}
+                      </Text>
+                      <Text style={[styles.permissionDescription, { color: Colors.secondaryText }]}>
+                        {perm.description}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={!!inviteForm[perm.key]}
+                      onValueChange={(v) => setInviteForm({ ...inviteForm, [perm.key]: v })}
+                      trackColor={{ false: '#D1D5DB', true: OWNER_COLORS.primary }}
+                    />
+                  </View>
+                ))}
               </View>
 
               <View style={[styles.infoBox, { backgroundColor: `${OWNER_COLORS.primary}08` }]}>
@@ -987,5 +1032,41 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.small,
     lineHeight: 20,
+  },
+  permissionsSection: {
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  permissionsTitle: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  permissionsSubtitle: {
+    fontSize: FontSizes.small,
+    marginBottom: Spacing.md,
+  },
+  permissionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  permissionIconWrap: {
+    width: 32,
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  permissionTextWrap: {
+    flex: 1,
+  },
+  permissionLabel: {
+    fontSize: FontSizes.body,
+    fontWeight: '500',
+  },
+  permissionDescription: {
+    fontSize: FontSizes.small,
+    marginTop: 2,
   },
 });

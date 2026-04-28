@@ -24,6 +24,7 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { getSupervisorTimesheet, calculateSupervisorPaymentForPeriod, getActiveSupervisorClockIn, remoteClockOutSupervisor } from '../../utils/storage/timeTracking';
+import { SUPERVISOR_PERMISSIONS } from '../../constants/supervisorPermissions';
 import DateRangePicker from '../../components/DateRangePicker';
 import TimeEditModal from '../../components/TimeEditModal';
 import { formatHoursMinutes } from '../../utils/calculations';
@@ -141,7 +142,9 @@ export default function SupervisorDetailScreen() {
   const route = useRoute();
 
   const supervisorParam = route.params?.supervisor;
-  const [supervisor, setSupervisor] = useState(supervisorParam);
+  const supervisorIdParam = route.params?.supervisorId || supervisorParam?.id || null;
+  const [supervisor, setSupervisor] = useState(supervisorParam || null);
+  const [hydrationError, setHydrationError] = useState(null);
 
   // Update supervisor when params change (e.g. after editing)
   useEffect(() => {
@@ -149,6 +152,36 @@ export default function SupervisorDetailScreen() {
       setSupervisor(route.params.supervisor);
     }
   }, [route.params?.updatedAt]);
+
+  // Always (re)hydrate from profiles when this screen mounts. The upstream
+  // SupervisorsScreen passes a stub from `get_owner_supervisors` that lacks
+  // can_* permission columns and payment columns; without a refetch the
+  // permissions card and payment fields would show stale/empty values. When
+  // only an id was passed (e.g. from ProjectDetailView's supervisor card),
+  // this is also what unblocks the loading spinner.
+  useEffect(() => {
+    if (!supervisorIdParam) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supervisorIdParam)
+        .single();
+      if (cancelled) return;
+      if (error || !data) {
+        if (!supervisor) {
+          setHydrationError(error?.message || 'Supervisor not found');
+          setLoading(false);
+          setLoadingPayment(false);
+        }
+        return;
+      }
+      // Merge fresh DB data over whatever stub the param carried.
+      setSupervisor((prev) => ({ ...(prev || {}), ...data }));
+    })();
+    return () => { cancelled = true; };
+  }, [supervisorIdParam]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -225,7 +258,13 @@ export default function SupervisorDetailScreen() {
   };
 
   const fetchSupervisorData = useCallback(async () => {
-    if (!supervisor?.id) return;
+    if (!supervisor?.id) {
+      // No supervisor (and no id to hydrate from) — clear the spinner so
+      // the screen can show its empty/error state instead of hanging.
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
     try {
       // Fetch supervisor's projects (both created by AND assigned to)
@@ -237,20 +276,21 @@ export default function SupervisorDetailScreen() {
 
       if (projectError) throw projectError;
 
-      // Get worker counts for each project
-      const projectsWithWorkers = await Promise.all(
-        (projectData || []).map(async (project) => {
-          const { count } = await supabase
+      // Get worker counts for each project. Use allSettled so a single
+      // stuck/failed count query can't hang the whole screen.
+      const countResults = await Promise.allSettled(
+        (projectData || []).map((project) =>
+          supabase
             .from('project_assignments')
             .select('*', { count: 'exact', head: true })
-            .eq('project_id', project.id);
-
-          return {
-            ...project,
-            worker_count: count || 0,
-          };
-        })
+            .eq('project_id', project.id)
+        )
       );
+      const projectsWithWorkers = (projectData || []).map((project, idx) => {
+        const r = countResults[idx];
+        const count = r.status === 'fulfilled' ? (r.value?.count || 0) : 0;
+        return { ...project, worker_count: count };
+      });
 
       setJobs(projectsWithWorkers);
 
@@ -400,7 +440,29 @@ export default function SupervisorDetailScreen() {
     );
   }
 
-  const supervisorName = supervisor?.business_name || supervisor?.email?.split('@')[0] || 'Supervisor';
+  if (!supervisor) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+            Supervisor
+          </Text>
+          <View style={{ width: 30 }} />
+        </View>
+        <View style={[styles.loadingContainer, { paddingHorizontal: 24 }]}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.secondaryText} />
+          <Text style={{ color: Colors.secondaryText, textAlign: 'center', marginTop: 12 }}>
+            {hydrationError || 'Could not load supervisor details.'}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const supervisorName = supervisor?.business_name || supervisor?.business_email?.split('@')[0] || supervisor?.email?.split('@')[0] || 'Supervisor';
 
   const formatTimeLocal = (timestamp) => {
     if (!timestamp) return '--';
@@ -563,6 +625,52 @@ export default function SupervisorDetailScreen() {
             <Ionicons name="create-outline" size={15} color="#1E40AF" />
             <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit Info</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* ─── Permissions Summary ─── */}
+        <View style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="key-outline" size={20} color="#1E40AF" />
+            <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Permissions</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('EditSupervisor', { supervisor })}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ marginLeft: 'auto' }}
+            >
+              <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit</Text>
+            </TouchableOpacity>
+          </View>
+          {SUPERVISOR_PERMISSIONS.map((perm, idx) => {
+            const granted = !!supervisor?.[perm.key];
+            return (
+              <View
+                key={perm.key}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 10,
+                  borderBottomWidth: idx < SUPERVISOR_PERMISSIONS.length - 1 ? StyleSheet.hairlineWidth : 0,
+                  borderBottomColor: Colors.border,
+                }}
+              >
+                <View style={{ width: 28, alignItems: 'center', marginRight: 8 }}>
+                  <Ionicons
+                    name={granted ? 'checkmark-circle' : 'close-circle-outline'}
+                    size={20}
+                    color={granted ? '#10B981' : Colors.secondaryText}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.primaryText }}>
+                    {perm.label}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 1 }}>
+                    {granted ? 'Allowed' : 'Not allowed'}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
         </View>
 
         {/* ─── 2. Currently Clocked In ─── */}

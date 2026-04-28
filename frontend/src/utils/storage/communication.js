@@ -47,11 +47,13 @@ export const sendManualMessage = async (projectId, message) => {
       return false;
     }
 
+    // Supervisors with can_message_clients granted can also use this path —
+    // accept either the owner relationship OR the assigned-supervisor one.
     const { data: project } = await supabase
       .from('projects')
       .select('id, client_phone, profiles!inner(twilio_account_sid, twilio_auth_token, business_phone_number)')
       .eq('id', projectId)
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},assigned_supervisor_id.eq.${userId}`)
       .single();
 
     if (!project) {

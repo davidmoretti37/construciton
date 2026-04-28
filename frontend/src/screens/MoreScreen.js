@@ -10,6 +10,7 @@ import {
   Alert,
   TextInput,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSupervisorPermissions } from '../hooks/useSupervisorPermissions';
 import { getCurrentUserId, getUserProfile, getSelectedLanguage, getAISettings, updateAISettings } from '../utils/storage';
 import { chooseEmailApp } from '../utils/emailSupport';
 import { supabase } from '../lib/supabase';
@@ -34,7 +36,10 @@ export default function MoreScreen({ navigation }) {
   const { t } = useTranslation('settings');
   const { isDark = false, toggleTheme } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { isSupervisor } = useAuth() || {};
+  const { isSupervisor, ownerId } = useAuth() || {};
+  const [ownerBusinessLogo, setOwnerBusinessLogo] = useState(null);
+  const [ownerBusinessName, setOwnerBusinessName] = useState(null);
+  const supervisorPerms = useSupervisorPermissions();
 
   // Content state
   const [loading, setLoading] = useState(true);
@@ -61,6 +66,22 @@ export default function MoreScreen({ navigation }) {
       // Load user profile
       const profile = await getUserProfile();
       setUserProfile(profile);
+
+      // For supervisors, load the owner's branding (logo + business name) so
+      // the supervisor's settings header shows the company they work for —
+      // not an empty placeholder. The supervisor's own profile won't have
+      // business_logo since they don't run the business.
+      if (isSupervisor && ownerId) {
+        try {
+          const { data: ownerProfile } = await supabase
+            .from('profiles')
+            .select('business_logo, business_name')
+            .eq('id', ownerId)
+            .single();
+          if (ownerProfile?.business_logo) setOwnerBusinessLogo(ownerProfile.business_logo);
+          if (ownerProfile?.business_name) setOwnerBusinessName(ownerProfile.business_name);
+        } catch (_) { /* non-fatal — falls back to initials */ }
+      }
 
       // Load user services
       try {
@@ -221,12 +242,29 @@ export default function MoreScreen({ navigation }) {
       >
         {/* Profile Header */}
         <View style={styles.profileSection}>
-          <View style={[styles.avatar, { backgroundColor: Colors.primaryBlue }]}>
-            <Text style={styles.avatarText}>{getInitials()}</Text>
-          </View>
+          {(() => {
+            // Prefer the user's own logo; for supervisors with no logo of their
+            // own (the common case) fall back to the owner's company logo so
+            // the settings page shows the right branding.
+            const logoUrl = userProfile?.businessInfo?.logoUrl || ownerBusinessLogo || null;
+            if (logoUrl) {
+              return (
+                <Image
+                  source={{ uri: logoUrl }}
+                  style={[styles.avatar, { backgroundColor: Colors.lightGray || '#F3F4F6' }]}
+                  resizeMode="cover"
+                />
+              );
+            }
+            return (
+              <View style={[styles.avatar, { backgroundColor: Colors.primaryBlue }]}>
+                <Text style={styles.avatarText}>{getInitials()}</Text>
+              </View>
+            );
+          })()}
           <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: Colors.primaryText }]}>
-              {userProfile?.business_name || userProfile?.full_name || t('business.info')}
+              {userProfile?.businessInfo?.name || userProfile?.business_name || ownerBusinessName || userProfile?.full_name || t('business.info')}
             </Text>
             <Text style={[styles.profileEmail, { color: Colors.secondaryText }]}>
               {userProfile?.email || ''}
@@ -416,37 +454,51 @@ export default function MoreScreen({ navigation }) {
             title={t('items.pictures', 'Photos')}
             onPress={() => navigation.navigate('Pictures')}
           />
-          <MenuItem
-            icon="document-text-outline"
-            iconColor={Colors.infoBlue}
-            title={t('items.contracts', 'Contracts')}
-            onPress={() => navigation.navigate('Contracts')}
-            isLast={isSupervisor}
-          />
-          {!isSupervisor && (
-            <>
-              <MenuItem
-                icon="calculator-outline"
-                iconColor={Colors.success}
-                title={t('items.estimates', 'Estimates')}
-                onPress={() => navigation.navigate('EstimatesDetail')}
-              />
-              <MenuItem
-                icon="receipt-outline"
-                iconColor={Colors.warning}
-                title={t('items.invoices', 'Invoices')}
-                onPress={() => navigation.navigate('InvoicesDetail')}
-              />
-              <MenuItem
-                icon="color-palette-outline"
-                iconColor={Colors.accent || '#8B5CF6'}
-                title={t('items.invoiceTemplate', 'Invoice Template')}
-                subtitle={t('items.invoiceTemplateSubtitle', 'Logo, business info, terms')}
-                onPress={() => navigation.navigate('InvoiceTemplate')}
-                isLast
-              />
-            </>
-          )}
+          {(() => {
+            const showEstimates = !isSupervisor || supervisorPerms.canCreateEstimates;
+            const showInvoices = !isSupervisor || supervisorPerms.canCreateInvoices;
+            const showInvoiceTemplate = !isSupervisor; // owner-only setup
+            const lastDocsItem = showInvoiceTemplate ? 'template' : showInvoices ? 'invoices' : showEstimates ? 'estimates' : 'contracts';
+            return (
+              <>
+                <MenuItem
+                  icon="document-text-outline"
+                  iconColor={Colors.infoBlue}
+                  title={t('items.contracts', 'Contracts')}
+                  onPress={() => navigation.navigate('Contracts')}
+                  isLast={lastDocsItem === 'contracts'}
+                />
+                {showEstimates && (
+                  <MenuItem
+                    icon="calculator-outline"
+                    iconColor={Colors.success}
+                    title={t('items.estimates', 'Estimates')}
+                    onPress={() => navigation.navigate('EstimatesDetail')}
+                    isLast={lastDocsItem === 'estimates'}
+                  />
+                )}
+                {showInvoices && (
+                  <MenuItem
+                    icon="receipt-outline"
+                    iconColor={Colors.warning}
+                    title={t('items.invoices', 'Invoices')}
+                    onPress={() => navigation.navigate('InvoicesDetail')}
+                    isLast={lastDocsItem === 'invoices'}
+                  />
+                )}
+                {showInvoiceTemplate && (
+                  <MenuItem
+                    icon="color-palette-outline"
+                    iconColor={Colors.accent || '#8B5CF6'}
+                    title={t('items.invoiceTemplate', 'Invoice Template')}
+                    subtitle={t('items.invoiceTemplateSubtitle', 'Logo, business info, terms')}
+                    onPress={() => navigation.navigate('InvoiceTemplate')}
+                    isLast
+                  />
+                )}
+              </>
+            );
+          })()}
         </View>
 
         {/* ────────────────── MONEY ────────────────── */}

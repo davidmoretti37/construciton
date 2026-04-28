@@ -24,15 +24,19 @@ export default function OwnerDailyReportsScreen({ navigation }) {
 
   const fetchReports = useCallback(async () => {
     const currentUserId = await getCurrentUserId();
+    // Match `fetchDailyReportsWithFilters` scoping: include reports the user
+    // owns AND reports for projects they're assigned to as supervisor.
+    // Without the .or(...) here, supervisors see "No Reports Yet" even when
+    // the home-screen widget shows real reports.
     const { data, error } = await supabase
       .from('daily_reports')
       .select(`
         *,
-        projects!inner (id, name, user_id),
+        projects!inner (id, name, user_id, assigned_supervisor_id),
         project_phases (id, name),
         workers (id, full_name, trade)
       `)
-      .eq('projects.user_id', currentUserId)
+      .or(`user_id.eq.${currentUserId},assigned_supervisor_id.eq.${currentUserId}`, { foreignTable: 'projects' })
       .order('report_date', { ascending: false })
       .order('created_at', { ascending: false });
     if (error) throw error;

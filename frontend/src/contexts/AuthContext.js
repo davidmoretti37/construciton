@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { AppState } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import { supabase } from '../lib/supabase';
 import { memoryService } from '../services/agents/core/MemoryService';
@@ -113,6 +114,47 @@ export const AuthProvider = ({ children }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Realtime: when the user's own profile row is updated (e.g. owner toggles
+  // a supervisor permission column), reload it so the in-memory profile and
+  // the AsyncStorage cache both pick up the change without requiring sign-out.
+  // Requires `public.profiles` in the supabase_realtime publication
+  // (migration 20260427_profiles_realtime.sql).
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`profile-self:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`,
+        },
+        () => {
+          loadUserProfile(user.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Backstop: refresh profile whenever the app returns to the foreground.
+  // Covers the case where the realtime websocket dropped while the app was
+  // backgrounded, so a permission toggled while the supervisor was away
+  // still propagates within ~1s of them reopening the app.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && user?.id) {
+        loadUserProfile(user.id);
+      }
+    });
+    return () => sub.remove();
+  }, [user?.id]);
 
   const loadUserProfile = async (userId, retryCount = 0) => {
     const MAX_RETRIES = 2;

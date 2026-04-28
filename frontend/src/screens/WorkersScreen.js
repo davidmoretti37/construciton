@@ -28,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSupervisorPermissions } from '../hooks/useSupervisorPermissions';
 import {
   fetchWorkers,
   createWorker,
@@ -82,6 +83,9 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
   const { isSupervisor, profile } = useAuth() || {};
+  const supervisorPerms = useSupervisorPermissions();
+  const hidePay = isSupervisor && !supervisorPerms.canPayWorkers;
+  const hideManage = isSupervisor && !supervisorPerms.canManageWorkers;
   const { isOnline } = useNetwork();
 
   const openEmailPicker = (toEmail, subject, body) => {
@@ -1359,7 +1363,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
           )}
 
           {/* Add Worker Button (only for Workers tab) */}
-          {activeTab === 'workers' && (
+          {activeTab === 'workers' && !hideManage && (
             <View style={styles.addWorkerButtonContainer}>
               <TouchableOpacity
                 style={[styles.addWorkerButton, { backgroundColor: Colors.primaryBlue }]}
@@ -2059,7 +2063,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                     worker={worker}
                     isClocked={isClockedIn}
                     onPress={() => openDetailModal(worker)}
-                    hidePayment={isSupervisor}
+                    hidePayment={hidePay}
                   />
                 );
               })}
@@ -2192,8 +2196,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               </View>
             </View>
 
-            {/* Payment Details Section - Hidden for supervisors */}
-            {!isSupervisor && (
+            {/* Payment Details Section - gated by can_pay_workers */}
+            {!hidePay && (
             <View style={[styles.formCard, { backgroundColor: Colors.white }]}>
               <View style={styles.formCardHeader}>
                 <Ionicons name="wallet-outline" size={20} color={Colors.primaryBlue} />
@@ -2491,8 +2495,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
               </View>
             </View>
 
-            {/* Payment Details Section - Hidden for supervisors */}
-            {!isSupervisor && (
+            {/* Payment Details Section - gated by can_pay_workers */}
+            {!hidePay && (
             <View style={[styles.formCard, { backgroundColor: Colors.white }]}>
               <View style={styles.formCardHeader}>
                 <Ionicons name="wallet-outline" size={20} color={Colors.primaryBlue} />
@@ -2860,8 +2864,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   </View>
                 )}
 
-                {/* Payment Card - Hidden for supervisors */}
-                {!isSupervisor && (selectedWorker.hourly_rate > 0 || selectedWorker.daily_rate > 0 || selectedWorker.weekly_salary > 0 || selectedWorker.project_rate > 0) && (
+                {/* Payment Card - gated by can_pay_workers */}
+                {!hidePay && (selectedWorker.hourly_rate > 0 || selectedWorker.daily_rate > 0 || selectedWorker.weekly_salary > 0 || selectedWorker.project_rate > 0) && (
                   <View style={[styles.paymentCard, { backgroundColor: Colors.white }]}>
                     <View style={styles.paymentHeader}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -2920,8 +2924,8 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
                   </View>
                 )}
 
-                {/* View Payment History Button - Hidden for supervisors */}
-                {!isSupervisor && (
+                {/* View Payment History Button - gated by can_pay_workers */}
+                {!hidePay && (
                   <TouchableOpacity
                     style={[styles.viewHistoryButton, { backgroundColor: Colors.primaryBlue }]}
                     onPress={() => {

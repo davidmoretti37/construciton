@@ -94,10 +94,11 @@ export const fetchInvoices = async (filters = {}) => {
       return [];
     }
 
+    // No `.eq('user_id', userId)` filter — RLS handles both the owner path
+     // and the supervisor path (invoices_supervisor_read via assigned project).
     let query = supabase
       .from('invoices')
       .select('id, invoice_number, client_name, project_name, status, due_date, items, total, amount_paid, created_at, user_id')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (filters.status) {

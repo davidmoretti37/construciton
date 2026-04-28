@@ -19,7 +19,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, BorderRadius, FontSizes } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { fetchTasksForWorkerDateRange, fetchTasksForDateRange, fetchProjectPhases, getCurrentUserId } from '../utils/storage';
+import { fetchTasksForWorkerDateRange, fetchTasksForDateRange, fetchProjectPhases, getCurrentUserId, completeTask, uncompleteTask, fetchTodayChecklist, toggleChecklistEntry } from '../utils/storage';
 import { createAdHocDayTask } from '../utils/storage/workerTasks';
 import { getProjectColor } from '../utils/calendarUtils';
 import AgendaView from './schedule/AgendaView';
@@ -34,6 +34,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   const [viewMode, setViewMode] = useState('agenda'); // 'agenda' | 'month'
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [dailyChecklist, setDailyChecklist] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,13 +96,15 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
 
         const projectIds = (assignments || []).map((a) => a.project_id).filter(Boolean);
 
+        let workerProjects = [];
         if (projectIds.length > 0) {
           const { data: projectData } = await supabase
             .from('projects')
             .select('id, name, status, working_days, non_working_dates')
             .in('id', projectIds)
             .neq('status', 'archived');
-          setProjects(projectData || []);
+          workerProjects = projectData || [];
+          setProjects(workerProjects);
         }
 
         const start = new Date();
@@ -113,6 +116,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
 
         const taskData = await fetchTasksForWorkerDateRange(worker.owner_id, startStr, endStr, projectIds);
         setTasks(taskData || []);
+
+        try {
+          const checklist = await fetchTodayChecklist(workerProjects, worker.owner_id, userId);
+          setDailyChecklist(checklist || []);
+        } catch (_) {
+          setDailyChecklist([]);
+        }
       } else {
         await loadOwnerData(userId);
       }
@@ -124,12 +134,29 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   }, [role]);
 
   const loadOwnerData = async (userId) => {
-    const { data: projectData } = await supabase
+    // The same `role="owner"` path is used by both owners and supervisors
+    // (WorkersScreen passes "owner" regardless). Detect supervisor here and
+    // re-scope the queries to their parent owner's projects/tasks, filtered
+    // to only the projects they're assigned to.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, owner_id')
+      .eq('id', userId)
+      .single();
+    const isSupervisor = profile?.role === 'supervisor' && !!profile?.owner_id;
+    const ownerId = isSupervisor ? profile.owner_id : userId;
+
+    let projectsQuery = supabase
       .from('projects')
       .select('id, name, status, start_date, end_date, working_days, non_working_dates')
-      .eq('user_id', userId)
       .neq('status', 'archived')
       .order('name');
+    if (isSupervisor) {
+      projectsQuery = projectsQuery.eq('assigned_supervisor_id', userId);
+    } else {
+      projectsQuery = projectsQuery.eq('user_id', userId);
+    }
+    const { data: projectData } = await projectsQuery;
     setProjects(projectData || []);
 
     const start = new Date();
@@ -138,6 +165,26 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     end.setDate(end.getDate() + 365);
     const startStr = formatDate(start);
     const endStr = formatDate(end);
+
+    // Tasks live on the owner's row (`worker_tasks.owner_id = ownerId`).
+    // Supervisors must query against the owner id, scoped to their assigned
+    // project ids — same shape as the worker path above.
+    // Today's daily checklist injection — loaded for both owner and supervisor.
+    try {
+      const checklist = await fetchTodayChecklist(projectData || [], ownerId, userId);
+      setDailyChecklist(checklist || []);
+    } catch (_) {
+      setDailyChecklist([]);
+    }
+
+    if (isSupervisor) {
+      const projectIds = (projectData || []).map((p) => p.id).filter(Boolean);
+      const taskData = projectIds.length > 0
+        ? await fetchTasksForWorkerDateRange(ownerId, startStr, endStr, projectIds)
+        : [];
+      setTasks(taskData || []);
+      return;
+    }
 
     const taskData = await fetchTasksForDateRange(startStr, endStr);
 
@@ -401,9 +448,53 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           tasks={filteredTasks}
           theme={Colors}
           scrollToDate={selectedDate}
+          dailyChecklist={selectedProject ? dailyChecklist.filter(c => c.project_id === selectedProject.id) : dailyChecklist}
+          onToggleDailyChecklistItem={async (item) => {
+            // Optimistic flip
+            setDailyChecklist((prev) =>
+              prev.map((c) =>
+                c.template_id === item.template_id ? { ...c, completed: !c.completed } : c
+              )
+            );
+            try {
+              const userId = await getCurrentUserId();
+              const updated = await toggleChecklistEntry(item, userId);
+              // Replace with the canonical updated row (carries new entry_id/report_id)
+              setDailyChecklist((prev) =>
+                prev.map((c) => (c.template_id === item.template_id ? updated : c))
+              );
+            } catch (err) {
+              // Roll back on failure
+              setDailyChecklist((prev) =>
+                prev.map((c) => (c.template_id === item.template_id ? item : c))
+              );
+            }
+          }}
           // onAddTaskForDate intentionally omitted — the top-bar "+" button
           // (openAddTask) is now the single entry point for creating tasks,
           // so the in-agenda FAB would be redundant.
+          onToggleComplete={async (item) => {
+            const isDone = item.status === 'completed' || item.status === 'done';
+            // Optimistic update — flip status locally so the checkbox feels instant.
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === item.id
+                  ? { ...t, status: isDone ? 'pending' : 'completed', completed_at: isDone ? null : new Date().toISOString() }
+                  : t
+              )
+            );
+            try {
+              if (isDone) {
+                await uncompleteTask(item.id);
+              } else {
+                const userId = await getCurrentUserId();
+                await completeTask(item.id, userId);
+              }
+            } catch (err) {
+              // Rollback on failure
+              setTasks((prev) => prev.map((t) => (t.id === item.id ? item : t)));
+            }
+          }}
         />
       ) : (
         <MonthGridView

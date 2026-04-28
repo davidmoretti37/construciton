@@ -164,13 +164,17 @@ export const fetchTasksForDate = async (date) => {
     const userId = await getCurrentUserId();
     if (!userId) return [];
 
+    // Don't filter by owner_id — RLS (`worker_tasks_read` →
+    // user_can_access_project) already grants access to both the owner and
+    // the assigned supervisor. An explicit `.eq('owner_id', userId)` would
+    // block supervisors since worker_tasks.owner_id is the owner's user id,
+    // not theirs.
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
         id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
-      .eq('owner_id', userId)
       .lte('start_date', date)
       .gte('end_date', date)
       .order('created_at', { ascending: true });
@@ -224,13 +228,14 @@ export const fetchTasksForDateRange = async (startDate, endDate) => {
     const userId = await getCurrentUserId();
     if (!userId) return [];
 
+    // RLS scopes by project access (owner OR assigned supervisor); don't
+    // filter by owner_id here since that would exclude supervisors.
     const { data, error } = await supabase
       .from('worker_tasks')
       .select(`
         id, owner_id, project_id, title, description, start_date, end_date, status, color, completed_at, completed_by, incomplete_reason, incomplete_reported_by, incomplete_reported_at, original_date, phase_task_id, created_at,
         projects:project_id (id, name, working_days, non_working_dates)
       `)
-      .eq('owner_id', userId)
       .lte('start_date', endDate)
       .gte('end_date', startDate)
       .order('created_at', { ascending: true })

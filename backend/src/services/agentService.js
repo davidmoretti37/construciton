@@ -972,7 +972,26 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     }
   }
 
-  const systemPrompt = buildSystemPrompt(userContext) + memorySnapshot + memoryContext + recalledContext;
+  // For supervisors, attach the live capability flags so the prompt's
+  // "SUPERVISOR RESTRICTIONS" block reflects what the owner has actually
+  // granted — not the old hardcoded "supervisors can't do anything" list.
+  let promptContext = userContext;
+  if (userContext?.isSupervisor) {
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('can_create_projects, can_create_estimates, can_create_invoices, can_message_clients, can_pay_workers, can_manage_workers')
+        .eq('id', userId)
+        .single();
+      if (prof) {
+        promptContext = { ...userContext, supervisorPermissions: prof };
+      }
+    } catch (e) {
+      logger.warn('Could not fetch supervisor permissions for prompt:', e?.message);
+    }
+  }
+
+  const systemPrompt = buildSystemPrompt(promptContext) + memorySnapshot + memoryContext + recalledContext;
 
   // Log routing decisions
   logger.info(`🎯 Intent: ${intent} | Tools: ${toolCount}/34 | Model: ${model} (${reason})`);

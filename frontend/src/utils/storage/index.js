@@ -24,6 +24,9 @@
 // Authentication
 export { getCurrentUserId, DEFAULT_PROFILE, getCurrentUserContext } from './auth';
 
+// Daily checklist (today injection in agenda; toggle helper)
+export { fetchTodayChecklist, toggleChecklistEntry } from './dailyChecklist';
+
 // User Profile & Services
 export {
   getUserProfile,

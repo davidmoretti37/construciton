@@ -990,6 +990,10 @@ export default function ProjectsScreen({ navigation, route }) {
         planTier={subscriptionInfo?.plan_tier}
       />
 
+      {/* "New Project" entry point lives in the bottom-tab QuickActionFAB
+          (visible to supervisors when can_create_projects is on). Keeping a
+          second FAB here would stack two "+" buttons in the same corner. */}
+
     </SafeAreaView>
   );
 }

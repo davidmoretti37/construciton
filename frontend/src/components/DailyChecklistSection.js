@@ -440,10 +440,6 @@ export default function DailyChecklistSection({
     setEditedRoles(prev => [...prev, { _isNew: true, role_name: '', default_quantity: 1 }]);
   };
 
-  // Don't render if nothing to show and user isn't owner
-  if (!loading && templates.length === 0 && laborRoles.length === 0 && !isOwner) {
-    return null;
-  }
   // Hide empty state for owners too if visit tasks are the only content (they're managed elsewhere)
   const hasOwnTemplates = templates.some(t => !t._isVisitTask);
 
@@ -453,11 +449,19 @@ export default function DailyChecklistSection({
 
   // Surface counts to an interested parent (e.g. TodaysWorkScreen merges
   // this into the card header so users see one combined total).
+  // NOTE: this hook MUST run before the early-return below — moving it
+  // after the conditional `return null` violates the rules-of-hooks and
+  // crashes the renderer when the early-return flips between renders.
   useEffect(() => {
     if (typeof onCountsChange === 'function') {
       onCountsChange(completedCount, totalCount);
     }
   }, [completedCount, totalCount, onCountsChange]);
+
+  // Don't render if nothing to show and user isn't owner
+  if (!loading && templates.length === 0 && laborRoles.length === 0 && !isOwner) {
+    return null;
+  }
 
   // Today's date label — shown as a sub-header above the live checklist
   // to make it crystal clear these items are for TODAY (workers tick them

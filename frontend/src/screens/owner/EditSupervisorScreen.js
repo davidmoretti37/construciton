@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,8 @@ import { getColors, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { updateSupervisorProfile, removeSupervisor } from '../../utils/storage';
 import { CommonActions } from '@react-navigation/native';
+import { SUPERVISOR_PERMISSIONS } from '../../constants/supervisorPermissions';
+import { supabase } from '../../lib/supabase';
 
 export default function EditSupervisorScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
@@ -32,8 +35,43 @@ export default function EditSupervisorScreen({ navigation, route }) {
   const [dailyRate, setDailyRate] = useState(supervisor?.daily_rate?.toString() || '');
   const [weeklySalary, setWeeklySalary] = useState(supervisor?.weekly_salary?.toString() || '');
   const [projectRate, setProjectRate] = useState(supervisor?.project_rate?.toString() || '');
+  const [permissions, setPermissions] = useState(
+    SUPERVISOR_PERMISSIONS.reduce(
+      (acc, p) => ({ ...acc, [p.key]: !!supervisor?.[p.key] }),
+      {}
+    )
+  );
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+
+  // The `supervisor` route param is often a stub from `get_owner_supervisors`
+  // (no payment columns, no can_* columns). Hydrate from profiles on mount so
+  // the toggles + payment fields reflect actual DB state — otherwise saving
+  // appears to "not stick" because each re-open seeds from the stale stub.
+  useEffect(() => {
+    if (!supervisor?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supervisor.id)
+        .single();
+      if (cancelled || error || !data) return;
+      setPaymentType(data.payment_type || 'hourly');
+      setHourlyRate(data.hourly_rate != null ? String(data.hourly_rate) : '');
+      setDailyRate(data.daily_rate != null ? String(data.daily_rate) : '');
+      setWeeklySalary(data.weekly_salary != null ? String(data.weekly_salary) : '');
+      setProjectRate(data.project_rate != null ? String(data.project_rate) : '');
+      setPermissions(
+        SUPERVISOR_PERMISSIONS.reduce(
+          (acc, p) => ({ ...acc, [p.key]: !!data[p.key] }),
+          {}
+        )
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [supervisor?.id]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -44,6 +82,11 @@ export default function EditSupervisorScreen({ navigation, route }) {
     try {
       setSaving(true);
 
+      const permissionPayload = SUPERVISOR_PERMISSIONS.reduce(
+        (acc, p) => ({ ...acc, [p.key]: !!permissions[p.key] }),
+        {}
+      );
+
       const updates = {
         business_name: name.trim(),
         business_phone: phone.trim(),
@@ -52,9 +95,28 @@ export default function EditSupervisorScreen({ navigation, route }) {
         daily_rate: paymentType === 'daily' ? parseFloat(dailyRate) || 0 : (supervisor?.daily_rate || 0),
         weekly_salary: paymentType === 'weekly' ? parseFloat(weeklySalary) || 0 : (supervisor?.weekly_salary || 0),
         project_rate: paymentType === 'project_based' ? parseFloat(projectRate) || 0 : (supervisor?.project_rate || 0),
+        ...permissionPayload,
       };
 
       const success = await updateSupervisorProfile(supervisor.id, updates);
+
+      // The shared backend route silently drops the can_* fields on any
+      // pre-deploy server, so always also write permissions through the
+      // SECURITY DEFINER RPC. The RPC is idempotent and authoritative.
+      const { data: permResult, error: permError } = await supabase.rpc('update_supervisor_permissions', {
+        p_supervisor_id: supervisor.id,
+        p_can_create_projects: !!permissions.can_create_projects,
+        p_can_create_estimates: !!permissions.can_create_estimates,
+        p_can_create_invoices: !!permissions.can_create_invoices,
+        p_can_message_clients: !!permissions.can_message_clients,
+        p_can_pay_workers: !!permissions.can_pay_workers,
+        p_can_manage_workers: !!permissions.can_manage_workers,
+      });
+      if (permError || (permResult && permResult.success === false)) {
+        console.error('Permission update failed:', permError || permResult);
+        Alert.alert('Error', (permResult && permResult.error) || 'Failed to save permissions.');
+        return;
+      }
 
       if (success) {
         // Set updated params on the existing SupervisorDetail screen before going back
@@ -262,6 +324,41 @@ export default function EditSupervisorScreen({ navigation, route }) {
             </View>
           </View>
 
+          {/* Permissions */}
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="key-outline" size={20} color="#1E40AF" />
+              <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Permissions</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: Colors.secondaryText, lineHeight: 18, marginBottom: 14 }}>
+              Choose what this supervisor can do. Changes apply on their next sign-in.
+            </Text>
+            {SUPERVISOR_PERMISSIONS.map((perm, idx) => (
+              <View
+                key={perm.key}
+                style={[
+                  styles.permRow,
+                  idx < SUPERVISOR_PERMISSIONS.length - 1 && { borderBottomColor: Colors.border, borderBottomWidth: StyleSheet.hairlineWidth },
+                ]}
+              >
+                <View style={styles.permIconWrap}>
+                  <Ionicons name={perm.icon} size={20} color="#1E40AF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.permLabel, { color: Colors.primaryText }]}>{perm.label}</Text>
+                  <Text style={[styles.permDescription, { color: Colors.secondaryText }]}>
+                    {perm.description}
+                  </Text>
+                </View>
+                <Switch
+                  value={!!permissions[perm.key]}
+                  onValueChange={(v) => setPermissions({ ...permissions, [perm.key]: v })}
+                  trackColor={{ false: '#D1D5DB', true: '#1E40AF' }}
+                />
+              </View>
+            ))}
+          </View>
+
           {/* Danger Zone */}
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
@@ -380,4 +477,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   deleteButtonText: { color: '#FFF', fontSize: 15, fontWeight: '600' },
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  permIconWrap: {
+    width: 32,
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  permLabel: { fontSize: 15, fontWeight: '500' },
+  permDescription: { fontSize: 12, marginTop: 2 },
 });

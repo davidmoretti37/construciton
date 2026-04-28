@@ -636,7 +636,7 @@ export const generateProjectReportHTML = (project, transactions = [], periodLabe
 
   <div class="report-footer">
     <span>${transactions.length} transactions | Contract: ${formatCurrency(contractAmount)}</span>
-    <span>Construction Manager &bull; ${generatedDate}</span>
+    <span>Sylk &bull; ${generatedDate}</span>
   </div>
 </body>
 </html>

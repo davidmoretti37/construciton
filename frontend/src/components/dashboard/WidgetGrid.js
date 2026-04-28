@@ -11,10 +11,12 @@ export function getWidgetSize(size) {
     case 'small':
       return { width: colWidth, height: 130 };
     case 'medium':
-      return { width: screenWidth - Spacing.lg * 2, height: 110 };
+      // 110 was too tight for header + 2 content rows; widgets felt cramped
+      // (percent labels wrapping, rows clipping). 144 fits comfortably.
+      return { width: screenWidth - Spacing.lg * 2, height: 144 };
     case 'large':
     default:
-      return { width: screenWidth - Spacing.lg * 2, height: 200 };
+      return { width: screenWidth - Spacing.lg * 2, height: 220 };
   }
 }
 

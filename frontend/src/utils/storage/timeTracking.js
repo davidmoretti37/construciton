@@ -665,10 +665,13 @@ export const getTodaysWorkersSchedule = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // No owner_id filter — RLS already restricts the workers table to the
+    // current owner's team OR (via the supervisor read policy) the parent
+    // owner's team for supervisors. Filtering by `owner_id = user.id` here
+    // would zero out the list for supervisors.
     const { data: allWorkers, error: workersError } = await supabase
       .from('workers')
       .select('id, full_name, trade, payment_type, daily_rate, hourly_rate, status')
-      .eq('owner_id', user.id)
       .eq('status', 'active');
 
     if (workersError) throw workersError;

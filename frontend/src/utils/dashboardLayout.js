@@ -6,14 +6,14 @@ export const WIDGET_DEFINITIONS = [
   { id: 'pnl',              label: 'P&L Summary',      description: 'Revenue, expenses, and profit',          defaultSize: 'large',  availableSizes: ['large'] },
   { id: 'cashflow',         label: 'Cash Flow',         description: '3-month cash in vs out chart',           defaultSize: 'large',  availableSizes: ['large'] },
   { id: 'alerts',           label: 'Needs Attention',   description: 'Alerts and items needing action',        defaultSize: 'medium', availableSizes: ['medium'] },
-  { id: 'active_projects',  label: 'Active Projects',   description: 'Number of currently active projects',    defaultSize: 'small',  availableSizes: ['small', 'medium'] },
-  { id: 'workers',          label: 'Workers',           description: 'Total workers on your account',          defaultSize: 'small',  availableSizes: ['small', 'medium'] },
+  { id: 'active_projects',  label: 'Active Projects',   description: 'Top projects with progress at a glance',  defaultSize: 'medium', availableSizes: ['small', 'medium', 'large'] },
+  { id: 'workers',          label: 'Workers',           description: 'Workers on your team & on-site now',     defaultSize: 'medium', availableSizes: ['small', 'medium', 'large'] },
   { id: 'supervisors',      label: 'Supervisors',       description: 'Total supervisors on your account',      defaultSize: 'small',  availableSizes: ['small', 'medium'] },
   { id: 'transactions',     label: 'Transactions',      description: 'Total recorded transactions',            defaultSize: 'small',  availableSizes: ['small', 'medium'] },
   // Lightweight stat widgets (use existing data)
   { id: 'overdue_invoices',    label: 'Overdue Invoices',     description: 'Unpaid invoices needing attention',     defaultSize: 'small',  availableSizes: ['small', 'medium'] },
   { id: 'profit_margin',       label: 'Profit Margin',        description: 'Current profit margin percentage',      defaultSize: 'small',  availableSizes: ['small', 'medium'] },
-  { id: 'contract_value',      label: 'Contract Value',       description: 'Total value of all contracts',           defaultSize: 'small',  availableSizes: ['small', 'medium'] },
+  { id: 'contract_value',      label: 'Contract Value',       description: 'Top projects and contract totals',        defaultSize: 'medium', availableSizes: ['small', 'medium', 'large'] },
   { id: 'pending_invites',     label: 'Pending Invites',      description: 'Supervisor invites awaiting response',   defaultSize: 'small',  availableSizes: ['small', 'medium'] },
   { id: 'forgotten_clockouts', label: 'Forgotten Clock-outs', description: 'Team members still clocked in',          defaultSize: 'small',  availableSizes: ['small', 'medium'] },
   // (unmatched_txns removed — duplicate of `transactions` which already

@@ -27,13 +27,14 @@ import * as DocumentPicker from 'expo-document-picker';
 import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask, addTaskToPhase } from '../utils/storage';
+import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask, addTaskToPhase, assignProjectToSupervisor, removeWorkerFromProject } from '../utils/storage';
 import { SkeletonBox, SkeletonCard } from './SkeletonLoader';
 import PhaseTimeline from './PhaseTimeline';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
 import SupervisorAssignmentModal from './SupervisorAssignmentModal';
 import WorkingDaysSelector from './WorkingDaysSelector';
 import { useAuth } from '../contexts/AuthContext';
+import { useSupervisorPermissions } from '../hooks/useSupervisorPermissions';
 import BulkTaskShiftModal from './BulkTaskShiftModal';
 import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
@@ -111,6 +112,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const { profile, ownerHidesContract, refreshProfile } = useAuth() || {};
   const isOwner = profile?.role === 'owner';
   const isSupervisor = profile?.role === 'supervisor';
+  const supervisorPerms = useSupervisorPermissions();
   const [localHideContract, setLocalHideContract] = useState(profile?.hide_contract_from_supervisors || false);
   const isOwnProject = project?.createdBy === profile?.id || project?.user_id === profile?.id;
   const canAssignToSupervisor = isOwner && isOwnProject && !isDemo;
@@ -1592,7 +1594,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <View style={{ flexDirection: 'row' }}>
               {/* Income */}
               <TouchableOpacity
-                style={{ flex: 1, alignItems: 'center' }}
+                style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6 }}
                 onPress={() => {
                   if (navigation) {
                     wasNavigatingRef.current = true;
@@ -1603,16 +1605,23 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Income</Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${incomeCollected.toLocaleString()}</Text>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginTop: 2 }}
+                >
+                  ${incomeCollected.toLocaleString()}
+                </Text>
                 <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{contractAmount > 0 ? Math.round((incomeCollected / contractAmount) * 100) : 0}% collected</Text>
               </TouchableOpacity>
 
               {/* Divider */}
-              <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
+              <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: '#E2E8F0', height: 48, alignSelf: 'center', marginHorizontal: 4 }} />
 
               {/* Expenses */}
               <TouchableOpacity
-                style={{ flex: 1, alignItems: 'center' }}
+                style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6 }}
                 onPress={() => {
                   if (navigation) {
                     wasNavigatingRef.current = true;
@@ -1623,17 +1632,31 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Expenses</Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${expenses.toLocaleString()}</Text>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginTop: 2 }}
+                >
+                  ${expenses.toLocaleString()}
+                </Text>
                 <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>of contract</Text>
               </TouchableOpacity>
 
               {/* Divider */}
-              <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
+              <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: '#E2E8F0', height: 48, alignSelf: 'center', marginHorizontal: 4 }} />
 
               {/* Profit */}
-              <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6 }}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Profit</Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>${Math.abs(profit).toLocaleString()}</Text>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  style={{ fontSize: 17, fontWeight: '700', color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}
+                >
+                  ${Math.abs(profit).toLocaleString()}
+                </Text>
                 <Text style={{ fontSize: 11, color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>{profit >= 0 ? 'Healthy ✓' : 'Review ↗'}</Text>
               </View>
             </View>
@@ -1809,8 +1832,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     );
                   })()}
 
-                  {/* Add Trade Budget */}
-                  {isOwner && !isDemo && (
+                  {/* Add Trade Budget — owners always; supervisors on their
+                      assigned projects can also add (RLS allows the insert). */}
+                  {(isOwner || isSupervisor) && !isDemo && (
                     <View style={{ marginTop: tradeBudgets.length > 0 ? 12 : 0 }}>
                       <TouchableOpacity
                         onPress={() => setShowAddTrade(true)}
@@ -2030,6 +2054,38 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     Supervisor
                   </Text>
                 </View>
+                {canAssignToSupervisor && (
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Alert.alert(
+                        'Unassign supervisor',
+                        `Remove ${supervisorName} from ${project?.name || 'this project'}?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Unassign',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await assignProjectToSupervisor(project.id, null);
+                                setSupervisorName(null);
+                                projectDetailCache.delete(project.id);
+                                if (onRefreshNeeded) onRefreshNeeded();
+                              } catch (err) {
+                                Alert.alert('Error', err?.message || 'Could not unassign supervisor.');
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ padding: 6, marginRight: 4 }}
+                  >
+                    <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+                  </TouchableOpacity>
+                )}
                 <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
               </TouchableOpacity>
             )}
@@ -2070,6 +2126,38 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         </Text>
                       )}
                     </View>
+                    {(isOwner || isSupervisor) && !isDemo && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          Alert.alert(
+                            'Unassign worker',
+                            `Remove ${worker.full_name} from ${project?.name || 'this project'}?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Unassign',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  try {
+                                    await removeWorkerFromProject(worker.id, project.id);
+                                    setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
+                                    projectDetailCache.delete(project.id);
+                                    if (onRefreshNeeded) onRefreshNeeded();
+                                  } catch (err) {
+                                    Alert.alert('Error', err?.message || 'Could not unassign worker.');
+                                  }
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ padding: 6, marginRight: 4 }}
+                      >
+                        <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+                      </TouchableOpacity>
+                    )}
                     <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
                   </TouchableOpacity>
                 ))}
@@ -2293,20 +2381,20 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             )}
           </View>
 
-          {/* Client Portal Card - Owner only */}
-          {!isSupervisor && !isDemo && (
+          {/* Client Portal Card - gated by can_message_clients */}
+          {(!isSupervisor || supervisorPerms.canMessageClients) && !isDemo && (
             <ClientPortalCard project={project} navigation={navigation} />
           )}
 
-          {/* Estimates Section - Hidden for supervisors */}
-          {!isSupervisor && (
+          {/* Estimates Section - gated by can_create_estimates */}
+          {(!isSupervisor || supervisorPerms.canCreateEstimates) && (
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="document-text-outline" size={20} color={Colors.primaryBlue} />
               <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
                 {t('labels.estimatesCount', { count: projectEstimates.length })}
               </Text>
-              {!isSupervisor && (
+              {(!isSupervisor || supervisorPerms.canCreateEstimates) && (
                 <TouchableOpacity
                   style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
                   onPress={() => {

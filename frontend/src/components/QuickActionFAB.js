@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSupervisorPermissions } from '../hooks/useSupervisorPermissions';
 
 // Quick actions configuration - order is bottom to top when expanded
 const QUICK_ACTIONS = [
@@ -31,6 +32,7 @@ const QuickActionFAB = forwardRef(({ onActionPress, primaryColor = '#3B82F6', va
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation('common');
+  const supervisorPerms = useSupervisorPermissions();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const expanded = useSharedValue(0);
@@ -50,10 +52,15 @@ const QuickActionFAB = forwardRef(({ onActionPress, primaryColor = '#3B82F6', va
   // Use owner blue for owner variant
   const fabColor = variant === 'owner' ? '#1E40AF' : primaryColor;
 
-  // Supervisors can only access expense and report - no estimates or projects
-  // Owners see "Add Worker" instead of "Assign Worker"
+  // Supervisors see estimate/project quick actions only when the owner has
+  // granted those permissions. Owners always see everything and get the
+  // "Add Worker" label (vs supervisors' "Assign Worker").
   const availableActions = variant === 'supervisor'
-    ? QUICK_ACTIONS.filter(a => !['estimate', 'project'].includes(a.id))
+    ? QUICK_ACTIONS.filter(a => {
+        if (a.id === 'estimate') return supervisorPerms.canCreateEstimates;
+        if (a.id === 'project') return supervisorPerms.canCreateProjects;
+        return true;
+      })
     : QUICK_ACTIONS.map(a => a.id === 'assign-worker' ? { ...a, labelKey: 'quickActions.addWorker' } : a);
 
   const toggleExpand = () => {

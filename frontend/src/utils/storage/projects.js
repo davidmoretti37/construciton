@@ -153,6 +153,31 @@ export const saveProject = async (projectData) => {
       return null;
     }
 
+    // If the current user is a supervisor, the project belongs to their owner
+    // (user_id) and they're set as the assigned supervisor. RLS policy
+    // `supervisor_can_create_projects` enforces this server-side.
+    let projectOwnerId = userId;
+    let supervisorAssignmentOverride = null;
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('role, owner_id, can_create_projects')
+        .eq('id', userId)
+        .single();
+      if (prof?.role === 'supervisor') {
+        if (!prof.can_create_projects) {
+          return { error: 'permission_denied', reason: "You don't have permission to create projects." };
+        }
+        if (!prof.owner_id) {
+          return { error: 'permission_denied', reason: 'Your supervisor account is not linked to an owner.' };
+        }
+        projectOwnerId = prof.owner_id;
+        supervisorAssignmentOverride = userId;
+      }
+    } catch (e) {
+      // Fall through with original userId — RLS will reject if invalid.
+    }
+
     const startDate = projectData.startDate || projectData.schedule?.startDate || null;
     const endDate = projectData.endDate || projectData.schedule?.estimatedEndDate || null;
     const autoPercentComplete = calculateTimeBasedCompletion(startDate, endDate);
@@ -175,7 +200,7 @@ export const saveProject = async (projectData) => {
     }
 
     const dbProject = {
-      user_id: userId,
+      user_id: projectOwnerId,
       name: projectData.projectName || projectData.name || `${projectData.client || 'New'} - Project`,
       client_name: projectData.client || projectData.clientName || null,
       client_phone: projectData.phone || projectData.clientPhone || null,
@@ -203,7 +228,7 @@ export const saveProject = async (projectData) => {
       has_phases: !!(projectData.phases && projectData.phases.length > 0),
       working_days: validateWorkingDays(projectData.workingDays),
       non_working_dates: projectData.nonWorkingDates || [],
-      assigned_supervisor_id: projectData.assignedSupervisorId || null,
+      assigned_supervisor_id: supervisorAssignmentOverride || projectData.assignedSupervisorId || null,
       linked_estimate_id: projectData.linkedEstimateId !== undefined
         ? projectData.linkedEstimateId
         : (projectData.linked_estimate_id !== undefined ? projectData.linked_estimate_id : null),

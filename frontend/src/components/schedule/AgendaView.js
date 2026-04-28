@@ -51,8 +51,18 @@ const formatDivider = (startStr, endStr) => {
   return `${left} – ${right}`;
 };
 
-export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, onAddTaskForDate }) {
+export default function AgendaView({
+  tasks,
+  theme,
+  onTaskPress,
+  scrollToDate,
+  onAddTaskForDate,
+  onToggleComplete,
+  dailyChecklist = [],
+  onToggleDailyChecklistItem,
+}) {
   const sectionListRef = useRef(null);
+  const didInitialScrollRef = useRef(false);
   const fabScale = useRef(new Animated.Value(0)).current;
 
   // Build sections: only days that have tasks, plus today as anchor.
@@ -126,20 +136,33 @@ export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, on
       }
 
       const labels = formatSectionDate(dateStr);
+      const isToday = dateStr === today;
+
+      // Synthetic daily-checklist rows go into TODAY only (templates reset
+      // each day so they're only meaningful for the current date).
+      const checklistRows = isToday
+        ? (dailyChecklist || []).map((c) => ({
+            _isChecklist: true,
+            _key: `dc-${c.template_id}`,
+            ...c,
+          }))
+        : [];
+
+      const dataRows = [...checklistRows, ...dayTasks];
       out.push({
         kind: 'day',
         key: dateStr,
         title: dateStr,
         primary: labels.primary,
         meta: labels.meta,
-        isToday: dateStr === today,
-        data: dayTasks.length > 0 ? dayTasks : [{ _empty: true, _date: dateStr }],
-        count: dayTasks.length,
+        isToday,
+        data: dataRows.length > 0 ? dataRows : [{ _empty: true, _date: dateStr }],
+        count: dayTasks.length + checklistRows.length,
       });
     }
 
     return out;
-  }, [tasks]);
+  }, [tasks, dailyChecklist]);
 
   // Scroll to a specific date when requested by parent (e.g. from month tap)
   useEffect(() => {
@@ -160,6 +183,28 @@ export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, on
     return () => clearTimeout(t);
   }, [scrollToDate, sections]);
 
+  // First-mount anchor: jump to today's section so past days sit *above*
+  // (swipe up to view) and the user lands on today instead of 7 days back.
+  useEffect(() => {
+    if (didInitialScrollRef.current) return;
+    if (!sectionListRef.current || sections.length === 0) return;
+    const today = todayStr();
+    const idx = sections.findIndex((s) => s.kind === 'day' && s.title === today);
+    if (idx < 0) return;
+    didInitialScrollRef.current = true;
+    const t = setTimeout(() => {
+      try {
+        sectionListRef.current.scrollToLocation({
+          sectionIndex: idx,
+          itemIndex: 0,
+          viewPosition: 0,
+          animated: false,
+        });
+      } catch (_) { /* not yet measured — try again on next render */ didInitialScrollRef.current = false; }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [sections]);
+
   // FAB entrance animation (owner only)
   useEffect(() => {
     if (!onAddTaskForDate) return;
@@ -174,23 +219,39 @@ export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, on
   const renderSectionHeader = useCallback(({ section }) => {
     if (section.kind === 'gap') return null;
 
+    // Big day-of-month badge so users can tell what day they're scrolling
+    // through at a glance — the previous single-line header relied only on
+    // color for "today" which was easy to miss.
+    const date = new Date(section.title + 'T12:00:00');
+    const dayNum = date.getDate();
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    const monthLabel = date.toLocaleDateString('en-US', { month: 'long' });
+
+    const accent = section.isToday ? theme.primaryBlue : theme.secondaryText;
+    const badgeBg = section.isToday ? theme.primaryBlue : (theme.cardBackground || theme.white);
+    const badgeText = section.isToday ? '#FFFFFF' : theme.primaryText;
+    const badgeBorder = section.isToday ? theme.primaryBlue : theme.border;
+
     return (
-      <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
-        <View style={styles.sectionHeaderLeft}>
-          <Text style={[
-            styles.sectionPrimary,
-            { color: section.isToday ? theme.primaryBlue : theme.primaryText },
-          ]}>
+      <View style={[styles.sectionHeader, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
+        <View style={[styles.dayBadge, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
+          <Text style={[styles.dayBadgeNumber, { color: badgeText }]}>{dayNum}</Text>
+          <Text style={[styles.dayBadgeWeekday, { color: badgeText, opacity: 0.85 }]}>{weekday}</Text>
+        </View>
+        <View style={styles.dayHeaderText}>
+          <Text style={[styles.dayHeaderPrimary, { color: theme.primaryText }]}>
             {section.primary}
           </Text>
-          <Text style={[styles.sectionMeta, { color: theme.secondaryText }]}>
-            · {section.meta}
+          <Text style={[styles.dayHeaderMeta, { color: theme.secondaryText }]}>
+            {monthLabel} {dayNum}
           </Text>
         </View>
         {section.count > 0 && (
-          <Text style={[styles.sectionCount, { color: theme.secondaryText }]}>
-            {section.count} {section.count === 1 ? 'task' : 'tasks'}
-          </Text>
+          <View style={[styles.dayCountBadge, { backgroundColor: accent + '14' }]}>
+            <Text style={[styles.dayCountText, { color: accent }]}>
+              {section.count}
+            </Text>
+          </View>
         )}
       </View>
     );
@@ -217,10 +278,60 @@ export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, on
       );
     }
 
+    if (item._isChecklist) {
+      const projectColor = item.project_id ? getProjectColor(item.project_id) : theme.primaryBlue;
+      return (
+        <View style={[styles.taskCard, { backgroundColor: theme.cardBackground || theme.white, borderColor: theme.border }]}>
+          <View style={[styles.statusStripe, { backgroundColor: projectColor }]} />
+
+          <TouchableOpacity
+            style={styles.checkbox}
+            onPress={() => onToggleDailyChecklistItem && onToggleDailyChecklistItem(item)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+            disabled={!onToggleDailyChecklistItem}
+          >
+            <Ionicons
+              name={item.completed ? 'checkmark-circle' : 'ellipse-outline'}
+              size={24}
+              color={item.completed ? '#10B981' : theme.secondaryText}
+            />
+          </TouchableOpacity>
+
+          <View style={styles.taskContent}>
+            <View style={styles.taskHeader}>
+              <Text
+                style={[
+                  styles.taskTitle,
+                  { color: theme.primaryText },
+                  item.completed && { textDecorationLine: 'line-through', color: theme.secondaryText },
+                ]}
+                numberOfLines={1}
+              >
+                {item.title}
+              </Text>
+              <View style={[styles.dailyBadge, { backgroundColor: '#8B5CF618' }]}>
+                <Text style={[styles.dailyBadgeText, { color: '#7C3AED' }]}>DAILY</Text>
+              </View>
+            </View>
+            {!!item.project_name && (
+              <View style={styles.taskMeta}>
+                <Text style={[styles.projectName, { color: theme.secondaryText }]} numberOfLines={1}>
+                  {item.project_name}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    }
+
     const statusKey = getStatusKey(item);
     const statusDef = TASK_STATUSES[statusKey] || TASK_STATUSES.not_started;
     const isMultiDay = item.start_date !== (item.end_date || item.start_date);
     const projectColor = item.project_id ? getProjectColor(item.project_id) : statusDef.color;
+
+    const isDone = item.status === 'completed' || item.status === 'done';
 
     return (
       <TouchableOpacity
@@ -230,9 +341,34 @@ export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, on
       >
         <View style={[styles.statusStripe, { backgroundColor: projectColor }]} />
 
+        {onToggleComplete && (
+          <TouchableOpacity
+            style={styles.checkbox}
+            onPress={(e) => {
+              e.stopPropagation();
+              onToggleComplete(item);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={isDone ? 'checkmark-circle' : 'ellipse-outline'}
+              size={24}
+              color={isDone ? '#10B981' : theme.secondaryText}
+            />
+          </TouchableOpacity>
+        )}
+
         <View style={styles.taskContent}>
           <View style={styles.taskHeader}>
-            <Text style={[styles.taskTitle, { color: theme.primaryText }]} numberOfLines={1}>
+            <Text
+              style={[
+                styles.taskTitle,
+                { color: theme.primaryText },
+                isDone && { textDecorationLine: 'line-through', color: theme.secondaryText },
+              ]}
+              numberOfLines={1}
+            >
               {item.title}
             </Text>
             <View style={[styles.statusBadge, { backgroundColor: statusDef.color + '18' }]}>
@@ -262,7 +398,7 @@ export default function AgendaView({ tasks, theme, onTaskPress, scrollToDate, on
         </View>
       </TouchableOpacity>
     );
-  }, [theme, onTaskPress]);
+  }, [theme, onTaskPress, onToggleComplete, onToggleDailyChecklistItem]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -321,32 +457,71 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 8,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 10,
+    gap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+  dayBadge: {
+    width: 52,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayBadgeNumber: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 26,
+  },
+  dayBadgeWeekday: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    marginTop: 2,
+  },
+  dayHeaderText: {
     flex: 1,
   },
-  sectionPrimary: {
-    fontSize: 16,
+  dayHeaderPrimary: {
+    fontSize: 17,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
-  sectionMeta: {
+  dayHeaderMeta: {
     fontSize: 12,
     fontWeight: '500',
-    marginLeft: 6,
+    marginTop: 2,
   },
-  sectionCount: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+  todayPill: {
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  todayPillText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  dayCountBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayCountText: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   emptyDay: {
     fontSize: 12,
@@ -379,6 +554,23 @@ const styles = StyleSheet.create({
   },
   statusStripe: {
     width: 4,
+  },
+  checkbox: {
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dailyBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  dailyBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   taskContent: {
     flex: 1,

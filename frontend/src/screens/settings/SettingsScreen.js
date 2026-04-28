@@ -274,7 +274,7 @@ export default function SettingsScreen({ navigation }) {
               <Ionicons name="construct-outline" size={24} color={Colors.secondaryText} />
             </View>
             <View style={styles.itemContent}>
-              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>Construction Manager</Text>
+              <Text style={[styles.itemTitle, { color: Colors.primaryText }]}>Sylk</Text>
               <Text style={[styles.itemSubtitle, { color: Colors.secondaryText }]}>
                 AI-powered estimates
               </Text>

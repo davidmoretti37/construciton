@@ -21,22 +21,43 @@ import ProjectDetailView from '../components/ProjectDetailView';
 import { useCachedFetch } from '../hooks/useCachedFetch';
 import NotificationBell from '../components/NotificationBell';
 import TrialBanner from '../components/TrialBanner';
-import { fetchProjects as fetchProjectsFromStorage, fetchDailyReportsWithFilters, getProject } from '../utils/storage';
+import { fetchProjects as fetchProjectsFromStorage, fetchDailyReportsWithFilters, getProject, fetchWorkers } from '../utils/storage';
 import { supabase } from '../lib/supabase';
-import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet, checkForgottenClockOuts, remoteClockOutWorker } from '../utils/storage/timeTracking';
+import { supervisorClockIn, supervisorClockOut, getActiveSupervisorClockIn, getSupervisorTimesheet, checkForgottenClockOuts, remoteClockOutWorker, getClockedInWorkersToday } from '../utils/storage/timeTracking';
 import TimeEditModal from '../components/TimeEditModal';
 import logger from '../utils/logger';
 import { formatHoursMinutes } from '../utils/calculations';
 import SkeletonBox from '../components/skeletons/SkeletonBox';
 import SkeletonCard from '../components/skeletons/SkeletonCard';
 import { Alert } from 'react-native';
+import { useSupervisorPermissions } from '../hooks/useSupervisorPermissions';
+import {
+  SUPERVISOR_WIDGET_DEFINITIONS,
+  SUPERVISOR_DEFAULT_LAYOUT,
+  loadSupervisorLayout,
+  saveSupervisorLayout,
+  resetSupervisorLayout,
+  getAvailableSupervisorWidgets,
+} from '../utils/supervisorDashboardLayout';
+import { getWidgetSize } from '../components/dashboard/WidgetGrid';
+import DraggableWidgetGrid from '../components/dashboard/DraggableWidgetGrid';
+import AddWidgetSheet from '../components/dashboard/AddWidgetSheet';
+import WidgetSizeSheet from '../components/dashboard/WidgetSizeSheet';
+import ActiveProjectsWidget from '../components/dashboard/widgets/ActiveProjectsWidget';
+import WorkersWidget from '../components/dashboard/widgets/WorkersWidget';
+import RecentReportsWidget from '../components/dashboard/widgets/RecentReportsWidget';
+import ContractValueWidget from '../components/dashboard/widgets/ContractValueWidget';
+import PnLWidget from '../components/dashboard/widgets/PnLWidget';
+import ProfitMarginWidget from '../components/dashboard/widgets/ProfitMarginWidget';
+import ClockInOutWidget from '../components/dashboard/widgets/ClockInOutWidget';
+import TimeHistoryWidget from '../components/dashboard/widgets/TimeHistoryWidget';
 
 export default function HomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
   const { t } = useTranslation('home');
-  const { user, profile, ownerHidesContract } = useAuth();
+  const { user, profile, ownerHidesContract, refreshProfile } = useAuth();
 
   // Cache-first loading for projects
   const fetchProjectsFn = useCallback(() => fetchProjectsFromStorage(), []);
@@ -89,6 +110,27 @@ export default function HomeScreen({ navigation }) {
   const [forgottenClockOuts, setForgottenClockOuts] = useState({ workers: [], supervisors: [] });
   const [loadError, setLoadError] = useState(false);
 
+  // ── Widget dashboard state ──
+  const supervisorPerms = useSupervisorPermissions();
+  const [widgetLayout, setWidgetLayout] = useState(SUPERVISOR_DEFAULT_LAYOUT);
+  const [editMode, setEditMode] = useState(false);
+  const [pendingLayout, setPendingLayout] = useState(null);
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [resizingWidget, setResizingWidget] = useState(null);
+  const [workerCount, setWorkerCount] = useState(0);
+  const [recentReportsForWidget, setRecentReportsForWidget] = useState([]);
+  const [activeClockIns, setActiveClockIns] = useState([]);
+
+  // Load saved layout on mount
+  useEffect(() => {
+    let cancelled = false;
+    loadSupervisorLayout().then((saved) => {
+      if (cancelled) return;
+      setWidgetLayout(saved || SUPERVISOR_DEFAULT_LAYOUT);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // Load projects and service plans immediately on mount
   const loadServicePlans = useCallback(async () => {
     try {
@@ -108,9 +150,9 @@ export default function HomeScreen({ navigation }) {
   // On focus: show cached data instantly, refresh stale data in background
   useFocusEffect(
     useCallback(() => {
-      const loads = [reloadProjects(), reloadDailyReports(), loadSupervisorTimeData()];
+      const loads = [reloadProjects(), reloadDailyReports(), loadSupervisorTimeData(), loadWidgetData()];
       Promise.all(loads).then(() => setLoadError(false)).catch(() => setLoadError(true));
-    }, [reloadProjects, reloadDailyReports, loadSupervisorTimeData])
+    }, [reloadProjects, reloadDailyReports, loadSupervisorTimeData, loadWidgetData])
   );
 
   // Check for active supervisor clock-in session
@@ -220,6 +262,72 @@ export default function HomeScreen({ navigation }) {
     }
   }, [user?.id]);
 
+  // ── Widget data fetches ──
+  const loadWidgetData = useCallback(async () => {
+    try {
+      const [workers, reports, clocked] = await Promise.all([
+        fetchWorkers().catch(() => []),
+        fetchDailyReportsWithFilters({ limit: 5 }).catch(() => []),
+        getClockedInWorkersToday().catch(() => []),
+      ]);
+      setWorkerCount((workers || []).length);
+      setRecentReportsForWidget(reports || []);
+      // Normalize the time_tracking rows to the shape WorkersWidget expects
+      setActiveClockIns(
+        (clocked || [])
+          .filter(t => !!t.workers)
+          .map(t => ({
+            id: t.workers?.id || t.worker_id,
+            name: t.workers?.full_name || 'Worker',
+            projectName: t.projects?.name || t.service_plans?.name || '',
+          }))
+      );
+    } catch (e) {
+      // non-fatal — widgets render with stale/empty data
+    }
+  }, []);
+
+  // ── Edit-mode handlers ──
+  const enterEditMode = useCallback(() => {
+    setPendingLayout([...widgetLayout]);
+    setEditMode(true);
+  }, [widgetLayout]);
+
+  const exitEditMode = useCallback(async () => {
+    if (pendingLayout) {
+      await saveSupervisorLayout(pendingLayout);
+      setWidgetLayout(pendingLayout);
+    }
+    setEditMode(false);
+    setPendingLayout(null);
+  }, [pendingLayout]);
+
+  const handleResetLayout = useCallback(async () => {
+    const fresh = await resetSupervisorLayout();
+    setPendingLayout([...fresh]);
+  }, []);
+
+  const handleRemoveWidget = useCallback((widgetId) => {
+    setPendingLayout((prev) => (prev || []).filter((w) => w.id !== widgetId));
+  }, []);
+
+  const handleAddWidget = useCallback((widgetId, size) => {
+    setPendingLayout((prev) => {
+      const arr = prev || [];
+      const maxPos = arr.reduce((m, w) => Math.max(m, w.position), -1);
+      return [...arr, { id: widgetId, size, position: maxPos + 1 }];
+    });
+    setShowAddSheet(false);
+  }, []);
+
+  const handleResizeWidget = useCallback((newSize) => {
+    if (!resizingWidget) return;
+    setPendingLayout((prev) =>
+      (prev || []).map((w) => (w.id === resizingWidget.id ? { ...w, size: newSize } : w))
+    );
+    setResizingWidget(null);
+  }, [resizingWidget]);
+
   // Format date for history display
   const formatHistoryDate = (dateString) => {
     const date = new Date(dateString);
@@ -234,9 +342,15 @@ export default function HomeScreen({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refreshProjects(), refreshDailyReports()]);
+    // Manual recovery path for stale supervisor permissions: pull-to-refresh
+    // also reloads the profile so newly-flipped capability toggles propagate.
+    await Promise.all([
+      refreshProjects(),
+      refreshDailyReports(),
+      refreshProfile ? refreshProfile() : Promise.resolve(),
+    ]);
     setRefreshing(false);
-  }, [refreshProjects, refreshDailyReports]);
+  }, [refreshProjects, refreshDailyReports, refreshProfile]);
 
   // Refresh project data when modal opens to get latest progress
   useEffect(() => {
@@ -352,6 +466,223 @@ export default function HomeScreen({ navigation }) {
     }).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   }, [projects]);
 
+  // ── Widget-derived stats ──
+  const totalContractValue = useMemo(
+    () => projects.reduce((s, p) => s + (p.contractAmount || 0), 0),
+    [projects]
+  );
+  // Top-N project lists for inline widget rows. Show ALL non-archived
+  // projects (including drafts) sorted by recency so a brand-new draft
+  // doesn't leave the widget mysteriously empty when it's the user's only
+  // project. The "active" count in the header still uses the strict status
+  // list — that's correct semantically.
+  const topActiveProjectsForWidget = useMemo(
+    () => [...projects]
+      .filter(p => p.status !== 'archived' && p.status !== 'completed')
+      .sort((a, b) => new Date(b.updatedAt || b.updated_at || 0) - new Date(a.updatedAt || a.updated_at || 0))
+      .slice(0, 4)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        percent_complete: p.percentComplete ?? p.percent_complete ?? 0,
+      })),
+    [projects]
+  );
+  const topProjectsByContract = useMemo(
+    () => [...projects]
+      .sort((a, b) => (b.contractAmount || 0) - (a.contractAmount || 0))
+      .slice(0, 4)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        contractAmount: p.contractAmount || 0,
+      })),
+    [projects]
+  );
+  const totalIncomeCollected = useMemo(
+    () => projects.reduce((s, p) => s + (p.incomeCollected || 0), 0),
+    [projects]
+  );
+  const totalExpenses = useMemo(
+    () => projects.reduce((s, p) => s + (p.expenses || p.spent || 0), 0),
+    [projects]
+  );
+  const pnl = useMemo(() => {
+    const revenue = totalIncomeCollected;
+    const expenses = totalExpenses;
+    const profit = revenue - expenses;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    return { revenue, expenses, profit, margin };
+  }, [totalIncomeCollected, totalExpenses]);
+  const marginHealthText = pnl.margin >= 20 ? 'Healthy' : pnl.margin >= 10 ? 'Moderate' : 'At risk';
+
+  // Filter the layout: drop any widget the supervisor no longer has
+  // permission for (so a granted-then-revoked toggle silently hides the
+  // widget instead of crashing on missing data).
+  const activeLayout = useMemo(() => {
+    const base = (editMode ? pendingLayout : widgetLayout) || [];
+    return base.filter((w) => {
+      const def = SUPERVISOR_WIDGET_DEFINITIONS.find((d) => d.id === w.id);
+      if (!def) return false;
+      if (!def.requires) return true;
+      return !!supervisorPerms?.[def.requires];
+    });
+  }, [editMode, pendingLayout, widgetLayout, supervisorPerms]);
+
+  // Catalog of widgets the supervisor can ADD — gated by permissions, and
+  // exclude any already placed in the layout.
+  const availableWidgets = useMemo(() => {
+    const allowed = getAvailableSupervisorWidgets(supervisorPerms);
+    const placed = new Set(activeLayout.map((w) => w.id));
+    return allowed.filter((w) => !placed.has(w.id));
+  }, [supervisorPerms, activeLayout]);
+
+  const resizingWidgetDef = useMemo(() => {
+    if (!resizingWidget) return null;
+    return SUPERVISOR_WIDGET_DEFINITIONS.find((w) => w.id === resizingWidget.id) || null;
+  }, [resizingWidget]);
+
+  // Per-widget render — mirrors OwnerDashboardScreen's switch but scoped to
+  // the supervisor's own data set.
+  const handleClockInPress = useCallback(() => {
+    if (projects.length === 0) {
+      Alert.alert('No Projects', 'You need to have at least one project to clock in.');
+      return;
+    }
+    setShowProjectPicker(true);
+  }, [projects.length]);
+
+  const renderWidget = useCallback((item) => {
+    switch (item.id) {
+      case 'clock_in_out':
+        return (
+          <ClockInOutWidget
+            activeSession={activeSession}
+            elapsedTime={elapsedTime}
+            clockLoading={clockLoading}
+            supervisorTodayHours={supervisorTodayHours}
+            onClockInPress={handleClockInPress}
+            onClockOutPress={handleClockOut}
+            editMode={editMode}
+            Colors={Colors}
+            formatHoursMinutes={formatHoursMinutes}
+          />
+        );
+      case 'time_history':
+        return (
+          <TimeHistoryWidget
+            entries={supervisorTimeHistory}
+            size={item.size}
+            editMode={editMode}
+            onEntryPress={(entry) => {
+              setEditingRecord(entry);
+              setEditModalVisible(true);
+            }}
+            Colors={Colors}
+            formatHistoryDate={formatHistoryDate}
+            formatHoursMinutes={formatHoursMinutes}
+          />
+        );
+      case 'active_projects':
+        return (
+          <ActiveProjectsWidget
+            activeProjects={activeProjects.length}
+            totalProjects={projects.length}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Projects')}
+            topProjects={topActiveProjectsForWidget}
+            onProjectPress={(projectId) =>
+              navigation.navigate('Projects', { screen: 'ProjectDetail', params: { projectId } })
+            }
+          />
+        );
+      case 'workers':
+        return (
+          <WorkersWidget
+            totalWorkers={workerCount}
+            totalSupervisors={0}
+            totalProjects={projects.length}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Workers' })}
+            onsiteWorkers={activeClockIns}
+            onsiteCount={activeClockIns.length}
+            onWorkerPress={(workerId) => {
+              const w = activeClockIns.find((x) => x.id === workerId);
+              if (w) {
+                navigation.navigate('WorkerDetailHistory', { worker: { id: w.id, full_name: w.name } });
+              }
+            }}
+          />
+        );
+      case 'recent_reports':
+        return (
+          <RecentReportsWidget
+            reports={recentReportsForWidget}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('OwnerDailyReports')}
+            onReportPress={(reportId) => navigation.navigate('DailyReportDetail', { reportId })}
+          />
+        );
+      case 'contract_value':
+        return (
+          <ContractValueWidget
+            totalContractValue={totalContractValue}
+            totalRevenue={pnl.revenue}
+            totalProjects={projects.length}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Projects')}
+            topProjects={topProjectsByContract}
+            onProjectPress={(projectId) =>
+              navigation.navigate('Projects', { screen: 'ProjectDetail', params: { projectId } })
+            }
+          />
+        );
+      case 'pnl':
+        return (
+          <PnLWidget
+            pnl={pnl}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Projects')}
+          />
+        );
+      case 'profit_margin':
+        return (
+          <ProfitMarginWidget
+            margin={pnl.margin}
+            healthText={marginHealthText}
+            revenue={pnl.revenue}
+            expenses={pnl.expenses}
+            size={item.size}
+            editMode={editMode}
+            onPress={() => navigation.navigate('Projects')}
+          />
+        );
+      default:
+        return null;
+    }
+  }, [activeProjects.length, projects.length, workerCount, recentReportsForWidget, totalContractValue, pnl, marginHealthText, editMode, navigation, activeSession, elapsedTime, clockLoading, supervisorTodayHours, handleClockInPress, Colors, supervisorTimeHistory, topActiveProjectsForWidget, topProjectsByContract, activeClockIns]);
+
+  const renderSizedWidget = useCallback((item) => {
+    const { width, height } = getWidgetSize(item.size);
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={{ width, height }}
+        onLongPress={enterEditMode}
+        activeOpacity={0.9}
+        delayLongPress={500}
+      >
+        {renderWidget(item)}
+      </TouchableOpacity>
+    );
+  }, [renderWidget, enterEditMode]);
+
   const handleStatCardPress = useCallback((type) => {
     let filteredProjects = [];
     let title = '';
@@ -411,7 +742,12 @@ export default function HomeScreen({ navigation }) {
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]}>
         <View style={styles.topBarLeft} />
-        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <TouchableOpacity onPress={enterEditMode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="grid-outline" size={22} color={Colors.secondaryText} />
+          </TouchableOpacity>
+          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        </View>
       </View>
 
       {/* Trial Banner - shows when user is on trial */}
@@ -439,113 +775,9 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
         </View>
 
-        {/* Supervisor Clock Section - Worker Style */}
-        <View style={[styles.clockCard, { backgroundColor: Colors.white || Colors.cardBackground }]}>
-          {/* Status Display */}
-          <View style={styles.clockStatusSection}>
-            <View style={[styles.clockStatusDot, { backgroundColor: activeSession ? (Colors.successGreen || '#10B981') : Colors.secondaryText }]} />
-            <Text style={[styles.clockStatusLabel, { color: Colors.secondaryText }]}>
-              {activeSession ? 'Active' : 'Offline'}
-            </Text>
-          </View>
+        {/* Clock-in lives in the widget grid below — see ClockInOutWidget. */}
 
-          {/* Large Timer Display */}
-          <View style={styles.clockTimerContainer}>
-            <Text style={[styles.clockTimerText, { color: Colors.primaryText }]}>
-              {activeSession ? elapsedTime : '--:--:--'}
-            </Text>
-            {activeSession?.projects?.name && (
-              <Text style={[styles.clockProjectText, { color: Colors.secondaryText }]}>
-                {activeSession.projects.name}
-              </Text>
-            )}
-          </View>
-
-          {/* Action Button */}
-          <TouchableOpacity
-            style={[styles.clockActionButton, { backgroundColor: Colors.primaryBlue }]}
-            onPress={() => {
-              if (activeSession) {
-                handleClockOut();
-              } else if (projects.length === 0) {
-                Alert.alert('No Projects', 'You need to have at least one project to clock in.');
-              } else {
-                setShowProjectPicker(true);
-              }
-            }}
-            disabled={clockLoading}
-            activeOpacity={0.7}
-          >
-            {clockLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.clockActionButtonText}>
-                {activeSession ? 'Clock Out' : 'Clock In'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={[styles.clockDivider, { backgroundColor: Colors.border }]} />
-
-          {/* Today's Hours */}
-          <View style={styles.clockTodayHoursSection}>
-            <Text style={[styles.clockTodayHoursLabel, { color: Colors.secondaryText }]}>Today's Hours</Text>
-            <Text style={[styles.clockTodayHoursValue, { color: Colors.primaryText }]}>{formatHoursMinutes(supervisorTodayHours)}</Text>
-          </View>
-        </View>
-
-        {/* Collapsible Time History */}
-        <TouchableOpacity
-          style={[styles.timeHistoryHeader, { backgroundColor: Colors.white || Colors.cardBackground }]}
-          onPress={() => setShowTimeHistory(!showTimeHistory)}
-        >
-          <Text style={[styles.timeHistoryTitle, { color: Colors.primaryText }]}>
-            Recent Time History
-          </Text>
-          <Ionicons
-            name={showTimeHistory ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color={Colors.secondaryText}
-          />
-        </TouchableOpacity>
-
-        {showTimeHistory && (
-          <View style={[styles.timeHistoryContent, { backgroundColor: Colors.white || Colors.cardBackground }]}>
-            {supervisorTimeHistory.length === 0 ? (
-              <Text style={[styles.noHistoryText, { color: Colors.secondaryText }]}>
-                No time records yet
-              </Text>
-            ) : (
-              supervisorTimeHistory.map((entry) => (
-                <View key={entry.id} style={styles.timeHistoryItem}>
-                  <View style={styles.timeHistoryLeft}>
-                    <Text style={[styles.timeHistoryDate, { color: Colors.primaryText }]}>
-                      {formatHistoryDate(entry.clock_in)}
-                    </Text>
-                    <Text style={[styles.timeHistoryProject, { color: Colors.secondaryText }]}>
-                      {entry.projects?.name || entry.service_plans?.name || 'Unknown Project'}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={[styles.timeHistoryHours, { color: Colors.primaryBlue }]}>
-                      {formatHoursMinutes(entry.hours)}
-                    </Text>
-                    <TouchableOpacity
-                      style={{ padding: 4 }}
-                      onPress={() => {
-                        setEditingRecord(entry);
-                        setEditModalVisible(true);
-                      }}
-                    >
-                      <Ionicons name="create-outline" size={16} color={Colors.secondaryText} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        )}
+        {/* Time history is now a widget (TimeHistoryWidget) — see grid below. */}
 
         {/* Forgotten Clock-Out Alert */}
         {forgottenClockOuts.workers.length > 0 && (
@@ -592,185 +824,88 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
+        {/* ─── Widget Dashboard ─── */}
         {loading ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            {/* Stats row skeleton */}
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-              {[1,2,3].map(i => (
-                <View key={i} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 14 }}>
-                  <SkeletonBox width={36} height={26} borderRadius={4} />
-                  <SkeletonBox width="70%" height={11} borderRadius={4} style={{ marginTop: 8 }} />
-                </View>
+            <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+              {[1,2,3,4].map(i => (
+                <SkeletonBox key={i} width={86} height={110} borderRadius={16} />
               ))}
             </View>
-            {/* Section skeleton */}
-            <SkeletonBox width="45%" height={18} borderRadius={4} style={{ marginBottom: 12 }} />
-            <SkeletonCard lines={3} style={{ marginBottom: 8 }} />
-            <SkeletonCard lines={3} style={{ marginBottom: 8 }} />
-            <SkeletonBox width="40%" height={18} borderRadius={4} style={{ marginTop: 8, marginBottom: 12 }} />
-            <SkeletonCard lines={2} />
+            <SkeletonBox width="100%" height={140} borderRadius={16} style={{ marginTop: 16 }} />
           </View>
-        ) : (
+        ) : editMode ? (
           <>
-            {/* Quick Stats Cards */}
-            <View style={styles.statsRow}>
-              <TouchableOpacity
-                style={[styles.statCard, { borderLeftColor: Colors.primaryBlue }]}
-                onPress={() => handleStatCardPress('active')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.statNumber}>{activeProjects.length}</Text>
-                <Text style={styles.statLabel}>{t('stats.activeProjects')}</Text>
+            <View style={styles.editBar}>
+              <TouchableOpacity onPress={handleResetLayout}>
+                <Text style={styles.editBarReset}>Reset</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.statCard, { borderLeftColor: Colors.successGreen }]}
-                onPress={() => handleStatCardPress('onsite')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.statNumber}>{onSiteProjects.length}</Text>
-                <Text style={styles.statLabel}>{t('stats.onSite')}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.statCard, { borderLeftColor: Colors.warningOrange }]}
-                onPress={() => handleStatCardPress('attention')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.statNumber}>{needAttentionProjects.length}</Text>
-                <Text style={styles.statLabel}>{t('stats.needAttention')}</Text>
+              <Text style={styles.editBarTitle}>Editing Dashboard</Text>
+              <TouchableOpacity onPress={exitEditMode}>
+                <Text style={styles.editBarDone}>Done</Text>
               </TouchableOpacity>
             </View>
-          </>
-        )}
-
-        {!loading && (
-          <>
-            {/* Income This Month */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💰 {t('sections.thisMonth')}</Text>
-              <View style={styles.card}>
-                <Text style={[styles.incomeAmount, { color: monthlyStats.profit >= 0 ? Colors.successGreen : Colors.errorRed }]}>${monthlyStats.profit.toLocaleString()} {t('financial.profit')}</Text>
-                <Text style={styles.budgetText}>${monthlyStats.budgeted.toLocaleString()} {t('financial.budgeted')}</Text>
-                <View style={styles.progressBarContainer}>
-                  <View style={[styles.progressBar, { width: `${Math.min(monthlyStats.percentage, 100)}%` }]} />
-                </View>
-                <Text style={styles.percentageText}>{monthlyStats.percentage}%</Text>
-              </View>
-            </View>
-
-            {/* Quick Stats List */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📊 {t('sections.quickStats')}</Text>
-              <View style={styles.card}>
-                <View style={styles.statsGrid}>
-                  <View style={styles.statRow}>
-                    <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalProjects')}</Text>
-                    <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>{projects.length}</Text>
-                  </View>
-                  {!(profile?.role === 'supervisor' && ownerHidesContract) && (
-                    <View style={styles.statRow}>
-                      <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalContractValue')}</Text>
-                      <Text style={[styles.statRowValue, { color: Colors.primaryText }]}>
-                        ${projects.reduce((sum, p) => sum + (p.contractAmount || 0), 0).toLocaleString()}
-                      </Text>
+            <DraggableWidgetGrid
+              items={activeLayout}
+              onReorder={(data) =>
+                setPendingLayout(data.map((item, i) => ({ ...item, position: i })))
+              }
+              onRemove={handleRemoveWidget}
+              onResize={(item) => {
+                const def = SUPERVISOR_WIDGET_DEFINITIONS.find((w) => w.id === item.id);
+                if (def && def.availableSizes.length > 1) {
+                  setResizingWidget({ ...item, ...def });
+                }
+              }}
+              renderWidget={renderWidget}
+              footer={
+                <View>
+                  <TouchableOpacity
+                    style={styles.addSlot}
+                    onPress={() => setShowAddSheet(true)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.addSlotIconCircle}>
+                      <Ionicons name="add" size={20} color="#FFFFFF" />
                     </View>
-                  )}
-                  <View style={styles.statRow}>
-                    <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalIncomeCollected')}</Text>
-                    <Text style={[styles.statRowValue, { color: Colors.successGreen }]}>
-                      ${projects.reduce((sum, p) => sum + (p.incomeCollected || 0), 0).toLocaleString()}
-                    </Text>
-                  </View>
-                  <View style={styles.statRow}>
-                    <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalExpenses')}</Text>
-                    <Text style={[styles.statRowValue, { color: Colors.errorRed }]}>
-                      ${projects.reduce((sum, p) => sum + (p.expenses || 0), 0).toLocaleString()}
-                    </Text>
-                  </View>
-                  <View style={styles.statRow}>
-                    <Text style={[styles.statRowLabel, { color: Colors.secondaryText }]}>{t('financial.totalProfit')}</Text>
-                    <Text style={[styles.statRowValue, { color: Colors.primaryText, fontWeight: '700' }]}>
-                      ${projects.reduce((sum, p) => sum + ((p.incomeCollected || 0) - (p.expenses || 0)), 0).toLocaleString()}
-                    </Text>
-                  </View>
+                    <Text style={styles.addSlotText}>Add a widget</Text>
+                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.85)" />
+                  </TouchableOpacity>
+                  <View style={{ height: 60 }} />
                 </View>
-              </View>
-            </View>
-
-            {/* Today's Activity */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🔔 {t('sections.todaysActivity')}</Text>
-              {todaysDailyReports.length === 0 && todaysActivity.length === 0 ? (
-                <View style={styles.card}>
-                  <Text style={styles.emptyText}>{t('activity.noActivity')}</Text>
-                </View>
-              ) : (
-                <View style={styles.card}>
-                  {/* Daily Reports */}
-                  {todaysDailyReports.map((report, index) => (
-                    <TouchableOpacity
-                      key={`report-${report.id}`}
-                      style={[
-                        styles.activityItem,
-                        { backgroundColor: Colors.lightGray },
-                        (index < todaysDailyReports.length - 1 || todaysActivity.length > 0) && { marginBottom: Spacing.md }
-                      ]}
-                      onPress={() => navigation.navigate('DailyReportDetail', { reportId: report.id })}
-                    >
-                      <View style={[styles.activityIcon, { backgroundColor: Colors.successGreen + '20' }]}>
-                        <Ionicons name="document-text" size={20} color={Colors.successGreen} />
-                      </View>
-                      <View style={styles.activityContent}>
-                        <Text style={[styles.activityTitle, { color: Colors.primaryText }]}>
-                          {t('activity.dailyReport')}
-                        </Text>
-                        <Text style={[styles.activityProject, { color: Colors.secondaryText }]} numberOfLines={1}>
-                          {report.workers?.full_name || t('fallbacks.worker')} • {report.projects?.name || t('fallbacks.project')}
-                        </Text>
-                        <Text style={[styles.activityTime, { color: Colors.placeholderText }]} numberOfLines={1}>
-                          {report.work_performed ? report.work_performed.substring(0, 50) + (report.work_performed.length > 50 ? '...' : '') : t('fallbacks.noDescription')}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-                    </TouchableOpacity>
-                  ))}
-
-                  {/* Project Updates */}
-                  {todaysActivity.map((project, index) => (
-                    <TouchableOpacity
-                      key={`project-${project.id}`}
-                      style={[
-                        styles.activityItem,
-                        { backgroundColor: Colors.lightGray },
-                        index < todaysActivity.length - 1 && { marginBottom: Spacing.md }
-                      ]}
-                      onPress={() => navigation.navigate('Projects')}
-                    >
-                      <View style={[styles.activityIcon, { backgroundColor: Colors.primaryBlue + '20' }]}>
-                        <Ionicons name="construct" size={20} color={Colors.primaryBlue} />
-                      </View>
-                      <View style={styles.activityContent}>
-                        <Text style={[styles.activityTitle, { color: Colors.primaryText }]}>
-                          {project.name}
-                        </Text>
-                        <Text style={[styles.activityProject, { color: Colors.secondaryText }]}>
-                          {project.client}
-                        </Text>
-                        <Text style={[styles.activityTime, { color: Colors.placeholderText }]}>
-                          {t('fallbacks.updated')} {formatTimeAgo(project.updatedAt)}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-
+              }
+            />
           </>
+        ) : (
+          <View style={styles.widgetGrid}>
+            {activeLayout.length === 0 ? (
+              <TouchableOpacity style={styles.emptyDash} onPress={enterEditMode}>
+                <Ionicons name="grid-outline" size={28} color={Colors.placeholderText} />
+                <Text style={[styles.emptyDashText, { color: Colors.placeholderText }]}>
+                  Tap to add widgets to your dashboard
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              activeLayout.map((item) => renderSizedWidget(item))
+            )}
+          </View>
         )}
       </ScrollView>
+
+      {/* Widget management sheets */}
+      <AddWidgetSheet
+        visible={showAddSheet}
+        onClose={() => setShowAddSheet(false)}
+        availableWidgets={availableWidgets}
+        onAdd={handleAddWidget}
+      />
+      <WidgetSizeSheet
+        visible={!!resizingWidget}
+        onClose={() => setResizingWidget(null)}
+        widget={resizingWidgetDef}
+        currentSize={resizingWidget?.size}
+        onResize={handleResizeWidget}
+      />
 
       {/* Projects Modal */}
       <Modal
@@ -1411,5 +1546,83 @@ const createStyles = (Colors) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#FCD34D',
+  },
+  // ── Widget dashboard ──
+  // gap MUST equal the GAP constant in WidgetGrid.js (12) so two `small`
+  // widgets pack two-per-row without overflow / awkward wrapping.
+  widgetGrid: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  emptyDash: {
+    width: '100%',
+    paddingVertical: 32,
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.border,
+  },
+  emptyDashText: {
+    marginTop: 8,
+    fontSize: 13,
+  },
+  editBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
+    backgroundColor: Colors.cardBackground,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  editBarTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primaryText,
+  },
+  editBarReset: {
+    fontSize: 14,
+    color: '#EF4444',
+  },
+  editBarDone: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
+  addSlot: {
+    backgroundColor: '#1E40AF',
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    height: 60,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 16,
+    shadowColor: '#1E40AF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addSlotIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addSlotText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    color: '#FFFFFF',
   },
 });
