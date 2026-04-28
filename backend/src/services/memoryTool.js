@@ -1,16 +1,44 @@
 // Anthropic memory tool backend.
 // Implements the 6 commands Claude calls (view, create, str_replace, insert,
-// delete, rename) backed by Supabase. Per-tenant scoped — every user has their
-// own /memories namespace, enforced server-side regardless of the path Claude
-// claims to be writing to.
+// delete, rename) backed by Supabase.
 //
-// Why this exists: the agent now has persistent file-based memory across
-// sessions, replacing the `learnedFacts` blob hack. Claude views /memories
-// at the start of every conversation and updates files as it learns. Future
-// sessions for the same user see the accumulated knowledge automatically.
+// Scoping: memory is owned by the BUSINESS (the owner_id), not the
+// individual auth user. Owner + their supervisors share the same
+// /memories namespace because memory holds facts about how the
+// business operates ("Lana is the supervisor", "default phases are
+// demo/rough/finish") — facts that should be available to anyone
+// working in that business. Each memory op resolves the auth user
+// to their owner_id and operates on that namespace.
+//
+// Why this exists: the agent has persistent file-based memory across
+// sessions, replacing the `learnedFacts` blob hack. Memory is
+// auto-prefetched into the system prompt at request start, so the
+// agent only writes to memory; reads happen via the prefetch.
 
 const { adminSupabase } = require('./userSupabaseClient');
 const logger = require('../utils/logger');
+
+// Resolve auth user → owner of the business that user works for.
+// Supervisor returns their parent owner; owner returns themselves.
+// Cached briefly to avoid hammering profiles on every memory op.
+const _ownerCache = new Map();
+const _OWNER_CACHE_TTL_MS = 60_000;
+
+async function resolveOwnerForMemory(authUserId) {
+  if (!authUserId) return null;
+  const cached = _ownerCache.get(authUserId);
+  if (cached && Date.now() - cached.t < _OWNER_CACHE_TTL_MS) return cached.id;
+  const { data: profile } = await adminSupabase
+    .from('profiles')
+    .select('id, role, owner_id')
+    .eq('id', authUserId)
+    .maybeSingle();
+  const ownerId = profile?.role === 'supervisor' && profile?.owner_id
+    ? profile.owner_id
+    : authUserId;
+  _ownerCache.set(authUserId, { id: ownerId, t: Date.now() });
+  return ownerId;
+}
 
 const MEMORY_ROOT = '/memories';
 const MAX_FILE_BYTES = 64 * 1024;        // 64 KB per file — keeps things lean
@@ -69,24 +97,24 @@ function fmtFileContents(path, content, range = null) {
   return `${header}\n${body}`;
 }
 
-async function viewDirectory(userId, path) {
-  // List immediate children + grandchildren (2 levels), excluding hidden.
+// All helpers below operate on owner_id, NOT auth user_id. The dispatcher
+// resolves the auth user → owner before calling. This is what lets owner
+// + supervisors share the same memory namespace.
+async function viewDirectory(ownerId, path) {
   const prefix = path === MEMORY_ROOT ? `${MEMORY_ROOT}/` : `${path}/`;
   const { data: rows } = await adminSupabase
     .from('agent_memories')
     .select('path, byte_size, is_directory')
-    .eq('user_id', userId)
+    .eq('owner_id', ownerId)
     .or(`path.eq.${path},path.like.${prefix}%`)
     .order('path', { ascending: true })
     .limit(500);
   if (!rows || rows.length === 0) {
     if (path === MEMORY_ROOT) {
-      // Root always exists conceptually. Empty memory.
       return `Here're the files and directories up to 2 levels deep in ${MEMORY_ROOT}, excluding hidden items and node_modules:\n0B\t${MEMORY_ROOT}`;
     }
     return `The path ${path} does not exist. Please provide a valid path.`;
   }
-  // Filter to depth 2 max relative to path.
   const baseDepth = path.split('/').filter(Boolean).length;
   const visible = rows.filter(r => {
     const d = r.path.split('/').filter(Boolean).length;
@@ -103,50 +131,53 @@ async function viewDirectory(userId, path) {
   return lines.join('\n');
 }
 
-async function getFile(userId, path) {
+async function getFile(ownerId, path) {
   const { data: row } = await adminSupabase
     .from('agent_memories')
     .select('path, content, is_directory')
-    .eq('user_id', userId)
+    .eq('owner_id', ownerId)
     .eq('path', path)
     .maybeSingle();
   return row || null;
 }
 
-async function bumpAccessed(userId, path) {
+async function bumpAccessed(ownerId, path) {
   await adminSupabase
     .from('agent_memories')
     .update({ last_accessed_at: new Date().toISOString() })
-    .eq('user_id', userId)
+    .eq('owner_id', ownerId)
     .eq('path', path);
 }
 
-async function userFileCount(userId) {
+async function ownerFileCount(ownerId) {
   const { count } = await adminSupabase
     .from('agent_memories')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId);
+    .eq('owner_id', ownerId);
   return count || 0;
 }
 
 // Public command dispatcher. `input` is the parsed `tool_use.input`.
-async function runMemoryCommand(userId, input) {
-  if (!userId || !input || typeof input !== 'object') {
+// authUserId is the auth user id from the chat session — could be the
+// owner OR a supervisor under that owner. We resolve to ownerId once
+// here and every helper operates on that shared business namespace.
+async function runMemoryCommand(authUserId, input) {
+  if (!authUserId || !input || typeof input !== 'object') {
     return 'Error: invalid memory tool invocation.';
   }
   try {
+    const ownerId = await resolveOwnerForMemory(authUserId);
+    if (!ownerId) return 'Error: could not resolve business owner.';
+    // Track WHICH auth user wrote each row in the user_id column so we
+    // can audit who taught the agent what (owner vs supervisor).
     switch (input.command) {
       case 'view':
-        // Memory is auto-prefetched into the system prompt now. The agent
-        // shouldn't be calling view at all. If it does (legacy behavior),
-        // return a no-op message that nudges it to act on what it already
-        // sees in context, instead of stalling waiting for "data."
         return 'Memory is auto-loaded into your system prompt at request start. Read the MEMORY section above; do not call view. Proceed with the user\'s actual request.';
-      case 'create': return await cmdCreate(userId, input);
-      case 'str_replace': return await cmdStrReplace(userId, input);
-      case 'insert': return await cmdInsert(userId, input);
-      case 'delete': return await cmdDelete(userId, input);
-      case 'rename': return await cmdRename(userId, input);
+      case 'create': return await cmdCreate(ownerId, authUserId, input);
+      case 'str_replace': return await cmdStrReplace(ownerId, input);
+      case 'insert': return await cmdInsert(ownerId, input);
+      case 'delete': return await cmdDelete(ownerId, input);
+      case 'rename': return await cmdRename(ownerId, input);
       default: return `Error: unknown memory command "${input.command}". Valid commands: create, str_replace, insert, delete, rename.`;
     }
   } catch (err) {
@@ -155,19 +186,18 @@ async function runMemoryCommand(userId, input) {
   }
 }
 
-async function cmdView(userId, { path, view_range }) {
+async function cmdView(ownerId, { path, view_range }) {
   const v = normalizeAndValidatePath(path);
   if (v.error) return `Error: ${v.error}`;
-  // Try as file first; if absent, treat as directory listing.
-  const row = await getFile(userId, v.path);
+  const row = await getFile(ownerId, v.path);
   if (row && !row.is_directory) {
-    bumpAccessed(userId, v.path).catch(() => {});
+    bumpAccessed(ownerId, v.path).catch(() => {});
     return fmtFileContents(v.path, row.content, view_range);
   }
-  return viewDirectory(userId, v.path);
+  return viewDirectory(ownerId, v.path);
 }
 
-async function cmdCreate(userId, { path, file_text }) {
+async function cmdCreate(ownerId, authorUserId, { path, file_text }) {
   const v = normalizeAndValidatePath(path);
   if (v.error) return `Error: ${v.error}`;
   if (typeof file_text !== 'string') {
@@ -176,14 +206,18 @@ async function cmdCreate(userId, { path, file_text }) {
   if (Buffer.byteLength(file_text, 'utf8') > MAX_FILE_BYTES) {
     return `Error: file exceeds maximum size of ${MAX_FILE_BYTES} bytes.`;
   }
-  const existing = await getFile(userId, v.path);
+  const existing = await getFile(ownerId, v.path);
   if (existing) return `Error: File ${v.path} already exists`;
-  const count = await userFileCount(userId);
+  const count = await ownerFileCount(ownerId);
   if (count >= MAX_FILES_PER_USER) {
     return `Error: maximum number of memory files reached (${MAX_FILES_PER_USER}). Delete or consolidate before creating more.`;
   }
   const { error } = await adminSupabase.from('agent_memories').insert({
-    user_id: userId, path: v.path, content: file_text, is_directory: false,
+    owner_id: ownerId,
+    user_id: authorUserId,  // audit: which user authored this row
+    path: v.path,
+    content: file_text,
+    is_directory: false,
   });
   if (error) {
     logger.error('[memoryTool] create error:', error);
@@ -192,10 +226,10 @@ async function cmdCreate(userId, { path, file_text }) {
   return `File created successfully at: ${v.path}`;
 }
 
-async function cmdStrReplace(userId, { path, old_str, new_str }) {
+async function cmdStrReplace(ownerId, { path, old_str, new_str }) {
   const v = normalizeAndValidatePath(path);
   if (v.error) return `Error: ${v.error}`;
-  const row = await getFile(userId, v.path);
+  const row = await getFile(ownerId, v.path);
   if (!row || row.is_directory) {
     return `Error: The path ${v.path} does not exist. Please provide a valid path.`;
   }
@@ -219,7 +253,7 @@ async function cmdStrReplace(userId, { path, old_str, new_str }) {
   const { error } = await adminSupabase
     .from('agent_memories')
     .update({ content: newContent, updated_at: new Date().toISOString() })
-    .eq('user_id', userId).eq('path', v.path);
+    .eq('owner_id', ownerId).eq('path', v.path);
   if (error) {
     logger.error('[memoryTool] str_replace error:', error);
     return 'Error: could not edit file.';
@@ -234,10 +268,10 @@ async function cmdStrReplace(userId, { path, old_str, new_str }) {
   return `The memory file has been edited.\n${snippet}`;
 }
 
-async function cmdInsert(userId, { path, insert_line, insert_text }) {
+async function cmdInsert(ownerId, { path, insert_line, insert_text }) {
   const v = normalizeAndValidatePath(path);
   if (v.error) return `Error: ${v.error}`;
-  const row = await getFile(userId, v.path);
+  const row = await getFile(ownerId, v.path);
   if (!row || row.is_directory) {
     return `Error: The path ${v.path} does not exist`;
   }
@@ -258,7 +292,7 @@ async function cmdInsert(userId, { path, insert_line, insert_text }) {
   const { error } = await adminSupabase
     .from('agent_memories')
     .update({ content: newContent, updated_at: new Date().toISOString() })
-    .eq('user_id', userId).eq('path', v.path);
+    .eq('owner_id', ownerId).eq('path', v.path);
   if (error) {
     logger.error('[memoryTool] insert error:', error);
     return 'Error: could not edit file.';
@@ -266,18 +300,17 @@ async function cmdInsert(userId, { path, insert_line, insert_text }) {
   return `The file ${v.path} has been edited.`;
 }
 
-async function cmdDelete(userId, { path }) {
+async function cmdDelete(ownerId, { path }) {
   const v = normalizeAndValidatePath(path);
   if (v.error) return `Error: ${v.error}`;
   if (v.path === MEMORY_ROOT) {
     return 'Error: cannot delete the memory root.';
   }
-  // Cascade: delete the file itself and any descendants.
   const prefix = `${v.path}/`;
   const { error } = await adminSupabase
     .from('agent_memories')
     .delete()
-    .eq('user_id', userId)
+    .eq('owner_id', ownerId)
     .or(`path.eq.${v.path},path.like.${prefix}%`);
   if (error) {
     logger.error('[memoryTool] delete error:', error);
@@ -286,19 +319,19 @@ async function cmdDelete(userId, { path }) {
   return `Successfully deleted ${v.path}`;
 }
 
-async function cmdRename(userId, { old_path, new_path }) {
+async function cmdRename(ownerId, { old_path, new_path }) {
   const fromV = normalizeAndValidatePath(old_path);
   if (fromV.error) return `Error: ${fromV.error}`;
   const toV = normalizeAndValidatePath(new_path);
   if (toV.error) return `Error: ${toV.error}`;
-  const existing = await getFile(userId, fromV.path);
+  const existing = await getFile(ownerId, fromV.path);
   if (!existing) return `Error: The path ${fromV.path} does not exist`;
-  const dest = await getFile(userId, toV.path);
+  const dest = await getFile(ownerId, toV.path);
   if (dest) return `Error: The destination ${toV.path} already exists`;
   const { error } = await adminSupabase
     .from('agent_memories')
     .update({ path: toV.path, updated_at: new Date().toISOString() })
-    .eq('user_id', userId).eq('path', fromV.path);
+    .eq('owner_id', ownerId).eq('path', fromV.path);
   if (error) {
     logger.error('[memoryTool] rename error:', error);
     return 'Error: could not rename.';
@@ -306,24 +339,24 @@ async function cmdRename(userId, { old_path, new_path }) {
   return `Successfully renamed ${fromV.path} to ${toV.path}`;
 }
 
-// Server-side prefetch: read the user's /memories at request start and
-// return a compact prompt-ready string. Lets the agent skip the
-// "view memory first" round-trip entirely — memory becomes injected
-// context, not a tool the agent has to remember to call.
-async function prefetchMemorySnapshot(userId) {
-  if (!userId) return '';
+// Server-side prefetch: read the BUSINESS's /memories (owner + all
+// supervisors share) and return a compact prompt-ready string. Lets the
+// agent skip the "view memory first" round-trip entirely — memory
+// becomes injected context, not a tool the agent has to remember to call.
+async function prefetchMemorySnapshot(authUserId) {
+  if (!authUserId) return '';
   try {
-    // Listing under /memories — pull every file so we can include their
-    // content inline. Cap total bytes to keep the prompt tight.
+    const ownerId = await resolveOwnerForMemory(authUserId);
+    if (!ownerId) return '';
     const { data: rows } = await adminSupabase
       .from('agent_memories')
       .select('path, content, byte_size')
-      .eq('user_id', userId)
+      .eq('owner_id', ownerId)
       .eq('is_directory', false)
       .order('last_accessed_at', { ascending: false })
       .limit(50);
     if (!rows || rows.length === 0) return '';
-    const MAX_TOTAL_BYTES = 16 * 1024;  // 16 KB cap on injected memory
+    const MAX_TOTAL_BYTES = 16 * 1024;
     const chunks = [];
     let bytes = 0;
     for (const r of rows) {
@@ -332,11 +365,10 @@ async function prefetchMemorySnapshot(userId) {
       if (bytes + pieceBytes > MAX_TOTAL_BYTES) break;
       chunks.push(piece);
       bytes += pieceBytes;
-      // Bump access timestamp so the most-recently-relevant files stay hot.
       adminSupabase
         .from('agent_memories')
         .update({ last_accessed_at: new Date().toISOString() })
-        .eq('user_id', userId).eq('path', r.path)
+        .eq('owner_id', ownerId).eq('path', r.path)
         .then(() => {}, () => {});
     }
     if (chunks.length === 0) return '';
