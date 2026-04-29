@@ -2332,6 +2332,40 @@ export default function ChatScreen({ navigation, route }) {
       case 'send-estimate-whatsapp':
         await estimateActions.handleSendEstimate(action);
         break;
+      case 'send-estimate-to-client':
+        await estimateActions.handleSendEstimateToClient(action.data);
+        break;
+      case 'send-contract-to-client': {
+        // Inline handler — small + isolated, no need for a new actions hook
+        try {
+          if (!action.data?.id) {
+            Alert.alert('Save First', 'Please save the contract before sending to client.');
+            break;
+          }
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            Alert.alert('Error', 'Not authenticated');
+            break;
+          }
+          const { API_URL } = require('../config/api');
+          const res = await fetch(`${API_URL}/api/portal-admin/contracts/${action.data.id}/send`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          const result = await res.json();
+          if (result.sent) {
+            Alert.alert('Sent!', `Contract sent to ${result.email} and available in client portal.`);
+          } else {
+            Alert.alert('Send Failed', result.error || 'Could not send contract.');
+          }
+        } catch (e) {
+          Alert.alert('Error', e.message || 'Failed to send contract.');
+        }
+        break;
+      }
       case 'delete-all-estimates':
         await estimateActions.handleDeleteAllEstimates(action.data);
         break;

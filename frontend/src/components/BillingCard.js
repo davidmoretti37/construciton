@@ -138,7 +138,7 @@ function ctaTextStyleFor(_action) {
   return { color: '#fff' };
 }
 
-export default function BillingCard({ project, navigation, onRefresh }) {
+export default function BillingCard({ project, navigation, onRefresh, onOpenEstimate }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -205,17 +205,17 @@ export default function BillingCard({ project, navigation, onRefresh }) {
   };
 
   const handleOpen = (event) => {
-    if (!navigation) return;
-    if (event.source === 'change_order') {
-      navigation.navigate('ChangeOrdersList', { project, projectId });
-    } else if (event.source === 'invoice') {
-      // Could deep-link to an invoice screen — for now navigate to chat with context
-      navigation.navigate('Chat', { prefill: `Show me invoice ${event.label}` });
-    } else if (event.source === 'draw') {
-      // Drill into draws via the project builder edit flow OR just stay in card
-    } else if (event.source === 'estimate') {
-      navigation.navigate('Chat', { prefill: `Show me estimate ${event.label}` });
+    if (event.source === 'estimate') {
+      onOpenEstimate?.(event.source_id);
+      return;
     }
+    if (event.source === 'change_order' && navigation) {
+      navigation.navigate('ChangeOrdersList', { project, projectId });
+      return;
+    }
+    // For invoices / draws there's no inline detail today — leave the row tap
+    // as a no-op so we don't yank the user out of the project. Inline action
+    // buttons (Send / Nudge) on the right of each row still fire normally.
   };
 
   if (loading) {

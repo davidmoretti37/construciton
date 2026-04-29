@@ -447,44 +447,56 @@ export default function EstimatePreview({ data, onAction }) {
       // Get enriched data with business info
       const enrichedData = await getEnrichedEstimateData();
 
+      // Estimate must already be saved to send via portal (needs an id)
+      const canSendToPortal = !!data?.id;
+      const sendToPortal = async () => {
+        if (!data?.id) {
+          Alert.alert('Save first', 'Save the estimate before sending it to the client.');
+          return;
+        }
+        if (onAction) {
+          onAction({ type: 'send-estimate-to-client', data: { ...data, ...enrichedData } });
+        }
+      };
+
       if (Platform.OS === 'ios') {
-        // iOS: Show action sheet with options
+        const options = canSendToPortal
+          ? ['Cancel', 'Send to Client Portal', 'Share PDF', 'Email PDF']
+          : ['Cancel', 'Share PDF', 'Email PDF'];
         ActionSheetIOS.showActionSheetWithOptions(
-          {
-            options: ['Cancel', 'Share PDF', 'Email PDF'],
-            cancelButtonIndex: 0,
-          },
+          { options, cancelButtonIndex: 0 },
           async (buttonIndex) => {
-            if (buttonIndex === 1) {
-              // Share PDF
-              await shareEstimatePDF(enrichedData);
-            } else if (buttonIndex === 2) {
-              // Email PDF
-              const clientEmail = typeof client === 'object' ? client?.email : null;
-              await emailEstimatePDF(enrichedData, clientEmail);
+            if (canSendToPortal) {
+              if (buttonIndex === 1) await sendToPortal();
+              else if (buttonIndex === 2) await shareEstimatePDF(enrichedData);
+              else if (buttonIndex === 3) {
+                const clientEmail = typeof client === 'object' ? client?.email : null;
+                await emailEstimatePDF(enrichedData, clientEmail);
+              }
+            } else {
+              if (buttonIndex === 1) await shareEstimatePDF(enrichedData);
+              else if (buttonIndex === 2) {
+                const clientEmail = typeof client === 'object' ? client?.email : null;
+                await emailEstimatePDF(enrichedData, clientEmail);
+              }
             }
           }
         );
       } else {
-        // Android: Show alert with options
-        Alert.alert(
-          'Share Estimate',
-          'How would you like to send this estimate?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Share PDF',
-              onPress: async () => await shareEstimatePDF(enrichedData)
-            },
-            {
-              text: 'Email PDF',
-              onPress: async () => {
-                const clientEmail = typeof client === 'object' ? client?.email : null;
-                await emailEstimatePDF(enrichedData, clientEmail);
-              }
-            },
-          ]
-        );
+        // Android: alert with options
+        const buttons = [{ text: 'Cancel', style: 'cancel' }];
+        if (canSendToPortal) {
+          buttons.push({ text: 'Send to Client Portal', onPress: sendToPortal });
+        }
+        buttons.push({ text: 'Share PDF', onPress: async () => await shareEstimatePDF(enrichedData) });
+        buttons.push({
+          text: 'Email PDF',
+          onPress: async () => {
+            const clientEmail = typeof client === 'object' ? client?.email : null;
+            await emailEstimatePDF(enrichedData, clientEmail);
+          },
+        });
+        Alert.alert('Share Estimate', 'How would you like to send this estimate?', buttons);
       }
     } catch (error) {
       console.error('Error sharing estimate:', error);

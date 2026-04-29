@@ -44,42 +44,51 @@ export default function ContractPreview({ data, onAction }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const sendToClientPortal = async () => {
+    if (!data?.id) {
+      Alert.alert('Save First', 'Please save the contract before sending to client.');
+      return;
+    }
+    if (onAction) {
+      onAction({ type: 'send-contract-to-client', data });
+    }
+  };
+
   const handleShare = async () => {
     try {
+      const canSendToPortal = !!data?.id;
+
       if (Platform.OS === 'ios') {
-        // iOS: Show action sheet with options
+        const options = canSendToPortal
+          ? ['Cancel', 'Send to Client Portal', 'Share Document', 'Copy Link']
+          : ['Cancel', 'Share Document', 'Copy Link'];
         ActionSheetIOS.showActionSheetWithOptions(
-          {
-            options: ['Cancel', 'Share Document', 'Copy Link'],
-            cancelButtonIndex: 0,
-          },
+          { options, cancelButtonIndex: 0 },
           async (buttonIndex) => {
-            if (buttonIndex === 1) {
-              // Share document
-              await shareDocument();
-            } else if (buttonIndex === 2) {
-              // Copy link
-              await copyLink();
+            if (canSendToPortal) {
+              if (buttonIndex === 1) await sendToClientPortal();
+              else if (buttonIndex === 2) await shareDocument();
+              else if (buttonIndex === 3) await copyLink();
+            } else {
+              if (buttonIndex === 1) await shareDocument();
+              else if (buttonIndex === 2) await copyLink();
             }
           }
         );
       } else {
-        // Android: Show alert with options
-        Alert.alert(
-          t('contract.shareContract'),
-          t('contract.sharePrompt'),
-          [
-            { text: tCommon('buttons.cancel'), style: 'cancel' },
-            {
-              text: t('contract.shareDocument'),
-              onPress: async () => await shareDocument()
-            },
-            {
-              text: t('contract.copyLink'),
-              onPress: async () => await copyLink()
-            },
-          ]
-        );
+        const buttons = [{ text: tCommon('buttons.cancel'), style: 'cancel' }];
+        if (canSendToPortal) {
+          buttons.push({ text: 'Send to Client Portal', onPress: sendToClientPortal });
+        }
+        buttons.push({
+          text: t('contract.shareDocument'),
+          onPress: async () => await shareDocument(),
+        });
+        buttons.push({
+          text: t('contract.copyLink'),
+          onPress: async () => await copyLink(),
+        });
+        Alert.alert(t('contract.shareContract'), t('contract.sharePrompt'), buttons);
       }
     } catch (error) {
       console.error('Error sharing contract:', error);

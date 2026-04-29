@@ -350,10 +350,53 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
     }
   }, [addMessage, setMessages]);
 
+  // Send estimate to client portal — emails the client + creates portal
+  // notification + flips status draft → sent. Mirror of handleSendToClient
+  // for invoices.
+  const handleSendEstimateToClient = useCallback(async (data) => {
+    try {
+      if (!data?.id) {
+        Alert.alert('Save First', 'Please save the estimate before sending to client.');
+        return false;
+      }
+      const { supabase } = require('../../lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        Alert.alert('Error', 'Not authenticated');
+        return false;
+      }
+      const { API_URL } = require('../../config/api');
+      const res = await fetch(`${API_URL}/api/portal-admin/estimates/${data.id}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      const result = await res.json();
+      if (result.sent) {
+        Alert.alert('Sent!', `Estimate sent to ${result.email} and available in client portal.`);
+        addMessage(`📧 Estimate ${data.estimateNumber || data.estimate_number || ''} sent to ${result.email}`);
+        return true;
+      } else if (result.error === 'no_api_key' || result.reason === 'no_email_or_key') {
+        Alert.alert('Email Not Configured', 'Email service is not set up yet.');
+        return false;
+      } else {
+        Alert.alert('Send Failed', result.error || 'Could not send estimate.');
+        return false;
+      }
+    } catch (error) {
+      logger.error('Error sending estimate to client:', error);
+      Alert.alert('Error', 'Failed to send estimate. Please try again.');
+      return false;
+    }
+  }, [addMessage]);
+
   return {
     handleSaveEstimate,
     handleUpdateEstimate,
     handleSendEstimate,
+    handleSendEstimateToClient,
     handleDeleteAllEstimates,
   };
 }

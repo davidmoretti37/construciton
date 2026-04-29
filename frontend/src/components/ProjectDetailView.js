@@ -1929,6 +1929,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               project={project}
               navigation={navigation}
               onRefresh={refreshDrawSchedule}
+              onOpenEstimate={async (estimateId) => {
+                const fullEstimate = await getEstimate(estimateId);
+                if (fullEstimate) {
+                  setSelectedEstimate(fullEstimate);
+                  setShowEstimateModal(true);
+                }
+              }}
             />
           )}
 
