@@ -1,7 +1,37 @@
 const { Resend } = require('resend');
 const logger = require('../utils/logger');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-init so the module is safe to require at boot when RESEND_API_KEY is
+// missing (CI / local dev without prod email creds). Same pattern as twilioService.
+let _resend = null;
+function getResend() {
+  if (_resend) return _resend;
+  if (!process.env.RESEND_API_KEY) {
+    logger.warn('[email] RESEND_API_KEY not set — outbound emails are no-ops');
+    return null;
+  }
+  _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+}
+
+// Read-time proxy so legacy `resend.emails.send(...)` call sites keep working
+// without sprinkling getResend() everywhere. Methods on the proxy throw a
+// clear error if no key is set, instead of an obscure SDK constructor error.
+const resend = new Proxy({}, {
+  get(_target, prop) {
+    const r = getResend();
+    if (!r) {
+      // Return a chainable no-op so consumer-side `await resend.emails.send(...)`
+      // resolves to a sentinel rather than crashing the request.
+      const noop = new Proxy(function () {}, {
+        get: () => noop,
+        apply: () => Promise.resolve({ id: null, mocked: true, reason: 'RESEND_API_KEY missing' }),
+      });
+      return noop;
+    }
+    return r[prop];
+  },
+});
 
 /** Escape user-supplied values before embedding in HTML emails */
 function esc(str) {
