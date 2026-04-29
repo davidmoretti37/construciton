@@ -24,6 +24,7 @@ export default function SubHomeTab() {
   const [subOrg, setSubOrg] = useState(null);
   const [docs, setDocs] = useState([]);
   const [bids, setBids] = useState({ open_invitations: [], my_bids: [] });
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -39,6 +40,7 @@ export default function SubHomeTab() {
         } catch (_) { setDocs([]); }
       }
       try { setBids(await api.listMyBids()); } catch (_) {}
+      try { setPendingRequests(await api.listPendingRequests()); } catch (_) { setPendingRequests([]); }
     } catch (e) {
       console.warn('[SubHomeTab] load:', e.message);
     } finally {
@@ -57,8 +59,47 @@ export default function SubHomeTab() {
     );
   }
 
-  // Pending action items
+  // Pending action items — inbound requests first, then expiring docs, then bids
+  const DOC_LABEL = {
+    w9: 'W-9', coi_gl: 'General Liability COI', coi_wc: 'Workers Comp COI',
+    coi_auto: 'Auto COI', coi_umbrella: 'Umbrella COI',
+    ai_endorsement: 'Additional Insured Endorsement', license_state: 'State License',
+    license_business: 'Business License', drug_policy: 'Drug Testing Policy',
+  };
   const pending = [];
+
+  for (const r of pendingRequests) {
+    if (r.scope === 'upload_doc') {
+      const docName = DOC_LABEL[r.doc_type_requested] || (r.doc_type_requested || '').toUpperCase();
+      pending.push({
+        key: `req-${r.id}`,
+        kind: 'doc_request',
+        title: r.sender_name ? `${r.sender_name} requested your ${docName}` : `Document requested: ${docName}`,
+        body: 'Tap to upload — snap a photo or pick a PDF.',
+        icon: 'document-attach-outline',
+        color: Colors.primaryBlue,
+      });
+    } else if (r.scope === 'sign_contract') {
+      pending.push({
+        key: `req-${r.id}`,
+        kind: 'sign_contract',
+        title: r.sender_name ? `${r.sender_name} sent a contract to sign` : 'Contract awaiting your signature',
+        body: 'Tap to review and sign.',
+        icon: 'create-outline',
+        color: Colors.accent || '#8B5CF6',
+      });
+    } else if (r.scope === 'submit_bid') {
+      pending.push({
+        key: `req-${r.id}`,
+        kind: 'submit_bid',
+        title: r.sender_name ? `${r.sender_name} invited you to bid` : 'New bid invitation',
+        body: 'Tap to view scope and submit.',
+        icon: 'mail-outline',
+        color: Colors.primaryBlue,
+      });
+    }
+  }
+
   const now = new Date();
   for (const d of docs) {
     if (!d.expires_at) continue;
@@ -67,14 +108,16 @@ export default function SubHomeTab() {
       pending.push({
         key: `doc-${d.id}`,
         kind: days < 0 ? 'expired' : 'expiring',
-        title: `${d.doc_type.toUpperCase()} ${days < 0 ? 'expired' : `expires in ${days}d`}`,
+        title: `${(DOC_LABEL[d.doc_type] || d.doc_type.toUpperCase())} ${days < 0 ? 'expired' : `expires in ${days}d`}`,
         body: 'Tap to upload renewed copy.',
         icon: days < 0 ? 'close-circle-outline' : 'alert-circle-outline',
         color: days < 0 ? Colors.errorRed : Colors.warningOrange,
       });
     }
   }
+
   for (const inv of (bids.open_invitations || [])) {
+    if (pending.some((p) => p.kind === 'submit_bid' && p.key.endsWith(inv.id))) continue;
     pending.push({
       key: `bid-${inv.id}`,
       kind: 'bid_invite',

@@ -15,6 +15,28 @@ const express = require('express');
 const { authenticateUser } = require('../middleware/authenticate');
 const subOrgService = require('../services/subOrgService');
 const logger = require('../utils/logger');
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+);
+
+// Doc-type display labels — used in notification titles and the
+// sub-portal pending-requests listing.
+const DOC_TYPE_LABELS = {
+  w9: 'IRS Form W-9',
+  coi_gl: 'General Liability COI',
+  coi_wc: 'Workers Comp COI',
+  coi_auto: 'Commercial Auto COI',
+  coi_umbrella: 'Umbrella COI',
+  ai_endorsement: 'Additional Insured Endorsement',
+  waiver_subrogation: 'Waiver of Subrogation',
+  license_state: 'State Contractor License',
+  license_business: 'Business License',
+  drug_policy: 'Drug Testing Policy',
+  msa: 'Master Subcontract Agreement',
+};
 
 const router = express.Router();
 
@@ -124,7 +146,7 @@ router.patch('/:id', authenticateUser, async (req, res) => {
 
 router.post('/:id/request-doc', authenticateUser, async (req, res) => {
   try {
-    const { doc_type } = req.body;
+    const { doc_type, message = null } = req.body;
     if (!doc_type) {
       return res.status(400).json({ error: 'doc_type required' });
     }
@@ -143,14 +165,52 @@ router.post('/:id/request-doc', authenticateUser, async (req, res) => {
       createdBy: req.user.id,
     });
 
+    const { data: gcProfile } = await supabase
+      .from('profiles')
+      .select('business_name')
+      .eq('id', req.user.id)
+      .maybeSingle();
+
+    const docLabel = DOC_TYPE_LABELS[doc_type] || doc_type.toUpperCase();
+    const senderName = gcProfile?.business_name || 'Your contractor';
+
+    // No email — push the request straight to the sub's app via a
+    // notification row that the sub portal will surface as a pending
+    // action. Sub taps → upload page (token is in action_data).
+    let delivered = false;
+    if (sub.auth_user_id) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: sub.auth_user_id,
+          title: `${senderName} requested ${docLabel}`,
+          body: message || 'Tap to upload — snap a photo or pick a PDF.',
+          type: 'sub_doc_requested',
+          icon: 'document-attach-outline',
+          color: '#3B82F6',
+          action_data: {
+            screen: 'SubUpload',
+            sub_organization_id: sub.id,
+            doc_type,
+            action_token: token.raw,
+            action_token_id: token.id,
+          },
+        });
+        delivered = true;
+      } catch (e) { logger.warn('[subs] notification insert:', e.message); }
+    }
+
     return res.json({
+      sent_to_sub_id: sub.id,
+      doc_type,
+      doc_label: docLabel,
+      delivered_in_app: delivered,
+      sub_has_account: !!sub.auth_user_id,
       action_token_id: token.id,
-      action_token_raw: token.raw,
       expires_at: token.expires_at,
     });
   } catch (err) {
     logger.error('[subs] request-doc error:', err);
-    return res.status(500).json({ error: 'Failed to issue doc-request token' });
+    return res.status(500).json({ error: 'Failed to send doc request' });
   }
 });
 

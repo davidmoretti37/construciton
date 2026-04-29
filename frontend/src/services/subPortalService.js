@@ -64,6 +64,11 @@ export const listMyEngagements = async () => {
   return json.engagements || [];
 };
 
+export const listPendingRequests = async () => {
+  const json = await authedFetch('/api/sub-portal/pending-requests');
+  return json.pending || [];
+};
+
 export const listMyBids = async () => {
   const json = await authedFetch('/api/sub-portal/bids');
   return json;

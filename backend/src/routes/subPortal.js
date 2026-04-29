@@ -255,6 +255,62 @@ router.post('/bids', authenticateUser, async (req, res) => {
 });
 
 // =============================================================================
+// GET /api/sub-portal/pending-requests — inbound action items
+// =============================================================================
+// Returns un-redeemed action tokens scoped to upload_doc / sign_contract /
+// submit_bid for the authenticated sub. This is the sub portal's inbox
+// feed — what the GC has asked the sub to do.
+
+router.get('/pending-requests', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.json({ pending: [] });
+
+    const { data, error } = await supabase
+      .from('sub_action_tokens')
+      .select(`
+        id, scope, doc_type_requested, engagement_id, subcontract_id,
+        bid_request_id, expires_at, created_at, created_by
+      `)
+      .eq('sub_organization_id', sub.id)
+      .is('used_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .in('scope', ['upload_doc', 'sign_contract', 'submit_bid'])
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Resolve sender business names so the UI can show "Davis requested..."
+    const senderIds = [...new Set((data || []).map((r) => r.created_by).filter(Boolean))];
+    let senderNames = {};
+    if (senderIds.length) {
+      const { data: senders } = await supabase
+        .from('profiles')
+        .select('id, business_name')
+        .in('id', senderIds);
+      for (const s of (senders || [])) senderNames[s.id] = s.business_name;
+    }
+
+    const pending = (data || []).map((row) => ({
+      id: row.id,
+      scope: row.scope,
+      doc_type_requested: row.doc_type_requested,
+      engagement_id: row.engagement_id,
+      subcontract_id: row.subcontract_id,
+      bid_request_id: row.bid_request_id,
+      expires_at: row.expires_at,
+      created_at: row.created_at,
+      sender_name: senderNames[row.created_by] || null,
+    }));
+
+    return res.json({ pending });
+  } catch (err) {
+    logger.error('[subPortal] GET /pending-requests error:', err);
+    return res.status(500).json({ error: 'Failed to load pending requests' });
+  }
+});
+
+// =============================================================================
 // GET /api/sub-portal/engagements — sub's engagements across all GCs
 // =============================================================================
 
