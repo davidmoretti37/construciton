@@ -411,6 +411,13 @@ export default function MoreScreen({ navigation }) {
                 subtitle={t('items.manageClientsSubtitle', 'View and manage your clients')}
                 onPress={() => navigation.navigate('Clients')}
               />
+              <MenuItem
+                icon="construct-outline"
+                iconColor={Colors.accent || '#8B5CF6'}
+                title={t('items.subcontractors', 'Subcontractors')}
+                subtitle={t('items.subcontractorsSubtitle', 'Manage subs, compliance, and bids')}
+                onPress={() => navigation.navigate('Subcontractors')}
+              />
               {userServices && userServices.length > 0
                 ? userServices.map((userService) => {
                     const service = userService.service_categories;

@@ -375,6 +375,12 @@ export default function OwnerMainNavigator() {
         name="Integrations"
         component={IntegrationsScreen}
       />
+
+      {/* Subcontractor module */}
+      <Stack.Screen name="Subcontractors"        component={require('../screens/SubcontractorsScreen').default} />
+      <Stack.Screen name="SubcontractorDetail"   component={require('../screens/SubcontractorDetailScreen').default} />
+      <Stack.Screen name="AddSubcontractor"      component={require('../screens/AddSubcontractorScreen').default} />
+      <Stack.Screen name="EngagementDetail"      component={require('../screens/EngagementDetailScreen').default} />
     </Stack.Navigator>
   );
 }

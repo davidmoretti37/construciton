@@ -2167,6 +2167,347 @@ const toolDefinitions = [
         }
       }
     }
+  },
+
+  // ==================== ONBOARDING IMPORTS ====================
+  // High-level orchestrators that combine MCP reads (QBO/Monday) with our
+  // Supabase upserts. ALL accept dry_run:true to preview without writing.
+  {
+    type: 'function',
+    function: {
+      name: 'qbo_onboarding_summary',
+      description: 'STARTING POINT for any QuickBooks import. Fetches counts (customers, vendors, employees, items, classes, projects), 1099-vendor count, last 12 months revenue, and a small sample of each entity. Use this BEFORE any import_qbo_* call so you can present the user with "I see X customers, Y vendors, $Z in revenue — want to import?". Returns company name and verifies connection works.',
+      parameters: { type: 'object', properties: {} },
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'import_qbo_clients',
+      description: 'Import QuickBooks Customers into our clients table. Idempotent — re-runs match by qbo_id then email then name+phone, never creates duplicates. Sub-customers are skipped (use import_qbo_projects with mapping=sub_customers if the user organizes jobs that way). Always preview with dry_run:true first.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dry_run: { type: 'boolean', description: 'If true, return counts without writing.' },
+          include_inactive: { type: 'boolean', description: 'Include archived customers. Default false.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'import_qbo_subcontractors',
+      description: 'Import QuickBooks Vendors marked 1099 into our workers table with is_subcontractor=true. Use only_1099:false to import ALL vendors (suppliers + subs).',
+      parameters: {
+        type: 'object',
+        properties: {
+          dry_run: { type: 'boolean', description: 'Preview without writing.' },
+          only_1099: { type: 'boolean', description: 'Filter to 1099 vendors only. Default true (recommended).' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'import_qbo_employees',
+      description: 'Import QuickBooks Employees (W-2) into our workers table with is_subcontractor=false.',
+      parameters: { type: 'object', properties: { dry_run: { type: 'boolean' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'import_qbo_service_catalog',
+      description: 'Import QuickBooks Items (services + products with prices) into user_services. Catches the contractor up so estimate line items match what their CPA already sees.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dry_run: { type: 'boolean' },
+          type: { type: 'string', enum: ['Service', 'Inventory', 'NonInventory'], description: 'Filter to one item type. Default Service.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'import_qbo_projects',
+      description: 'Import QuickBooks projects/jobs into our projects table. Three mappings: "projects" (QB native Projects entity), "classes" (Classes used as project codes), or "sub_customers" (sub-customers under a parent). Ask the user which one applies before calling — different contractors organize differently.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dry_run: { type: 'boolean' },
+          mapping: { type: 'string', enum: ['projects', 'classes', 'sub_customers'], description: 'Which QB structure to import from.' }
+        },
+        required: ['mapping']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'import_qbo_invoice_history',
+      description: 'Import historical QuickBooks invoices into our invoices table. Populates AR aging on day one. Default last 12 months.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dry_run: { type: 'boolean' },
+          months_back: { type: 'integer', description: 'How far back. Default 12, max 60.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'preview_monday_board',
+      description: 'Preview a Monday board: schema (column titles + types), sample items, and a suggested column→field mapping (name/client/budget/address/dates). Call before import_monday_projects so the user can confirm or correct the mapping.',
+      parameters: {
+        type: 'object',
+        properties: { board_id: { type: 'string', description: 'Monday board id, from monday__list_boards.' } },
+        required: ['board_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'import_monday_projects',
+      description: 'Import items from a Monday board as projects. Caller supplies a mapping that ties Monday column ids to our project fields. Idempotent — items are matched by monday_id.',
+      parameters: {
+        type: 'object',
+        properties: {
+          board_id: { type: 'string' },
+          mapping: {
+            type: 'object',
+            description: 'Map of project field → Monday column_id. Keys: name, client, budget, address, start_date, end_date.',
+            properties: {
+              name: { type: 'string' }, client: { type: 'string' }, budget: { type: 'string' },
+              address: { type: 'string' }, start_date: { type: 'string' }, end_date: { type: 'string' }
+            }
+          },
+          dry_run: { type: 'boolean' }
+        },
+        required: ['board_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'csv_preview',
+      description: 'Parse pasted CSV/Excel-export text and return headers + a sample + a suggested column mapping. Use when the user has data in a spreadsheet rather than QB or Monday. Targets: clients, workers, projects.',
+      parameters: {
+        type: 'object',
+        properties: {
+          csv_text: { type: 'string', description: 'Raw CSV. First row must be headers.' },
+          target: { type: 'string', enum: ['clients', 'workers', 'projects'] }
+        },
+        required: ['csv_text', 'target']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'csv_import',
+      description: 'Import a CSV after the user has confirmed the column mapping (from csv_preview). Always run with dry_run:true first to show the count.',
+      parameters: {
+        type: 'object',
+        properties: {
+          csv_text: { type: 'string' },
+          target: { type: 'string', enum: ['clients', 'workers', 'projects'] },
+          mapping: { type: 'object', description: 'Map of our_field → csv_header_name.' },
+          dry_run: { type: 'boolean' }
+        },
+        required: ['csv_text', 'target', 'mapping']
+      }
+    }
+  },
+
+  // ───── Subcontractors (Phase J) ─────
+  {
+    type: 'function',
+    function: {
+      name: 'list_subs',
+      description: 'List subcontractors the user has worked with or invited. Use to answer "what subs do I have", "show me my subs", etc.',
+      parameters: { type: 'object', properties: { limit: { type: 'integer', description: 'Max rows (default 25)' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_sub',
+      description: 'Get full profile for a specific subcontractor by ID.',
+      parameters: { type: 'object', required: ['sub_organization_id'], properties: { sub_organization_id: { type: 'string' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_sub_compliance',
+      description: "Get a sub's current compliance documents (COI, W9, license, etc.) with expiry status.",
+      parameters: { type: 'object', required: ['sub_organization_id'], properties: { sub_organization_id: { type: 'string' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_engagements',
+      description: 'List subcontractor engagements (sub × project work units). Filter by project_id or status.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string' },
+          status: { type: 'string', enum: ['invited','bidding','awarded','contracted','mobilized','in_progress','substantially_complete','closed_out','cancelled'] }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_engagement',
+      description: 'Get a specific engagement with computed compliance status (passes/blockers/warnings).',
+      parameters: { type: 'object', required: ['engagement_id'], properties: { engagement_id: { type: 'string' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_expiring_compliance',
+      description: 'List compliance documents (COI/license/W9) expiring within N days across all subs the GC works with. Use for daily briefings.',
+      parameters: { type: 'object', properties: { within_days: { type: 'integer', description: 'Default 30' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_open_bids',
+      description: 'List open bid requests (the GC sent out, not yet awarded).',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_recent_invoices',
+      description: 'List recent invoices submitted by subcontractors against the GC’s engagements.',
+      parameters: { type: 'object', properties: { limit: { type: 'integer', description: 'Default 25' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_sub_to_project',
+      description: 'Create a sub_engagement linking an existing sub to a project. The sub must already exist (use list_subs to find).',
+      parameters: {
+        type: 'object',
+        required: ['sub_organization_id', 'project_id', 'trade'],
+        properties: {
+          sub_organization_id: { type: 'string' },
+          project_id: { type: 'string' },
+          trade: { type: 'string', description: 'e.g., plumbing, electrical, HVAC' },
+          scope_summary: { type: 'string' },
+          contract_amount: { type: 'number' },
+          payment_terms: { type: 'string', enum: ['fifty_fifty','milestones','net_30','custom'], description: 'Default net_30' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'record_compliance_doc',
+      description: 'Manually record a compliance doc for a sub (when GC has the file in hand and types in metadata).',
+      parameters: {
+        type: 'object',
+        required: ['sub_organization_id','doc_type'],
+        properties: {
+          sub_organization_id: { type: 'string' },
+          doc_type: { type: 'string', description: "e.g., 'coi_gl', 'w9', 'license_state'" },
+          doc_subtype: { type: 'string' },
+          file_url: { type: 'string' },
+          issuer: { type: 'string' },
+          policy_number: { type: 'string' },
+          expires_at: { type: 'string', description: 'YYYY-MM-DD' },
+          coverage_limits: { type: 'object' },
+          endorsements: { type: 'array', items: { type: 'string' } },
+          notes: { type: 'string' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'record_payment',
+      description: 'Record a manual payment from GC to sub against an engagement. Notifies the sub.',
+      parameters: {
+        type: 'object',
+        required: ['engagement_id','amount','paid_at','method'],
+        properties: {
+          engagement_id: { type: 'string' },
+          amount: { type: 'number' },
+          paid_at: { type: 'string', description: 'YYYY-MM-DD' },
+          method: { type: 'string', enum: ['check','ach','zelle','venmo','wire','cash','other'] },
+          reference: { type: 'string', description: 'Check #, ACH ID, etc.' },
+          sub_invoice_id: { type: 'string' },
+          notes: { type: 'string' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'request_compliance_doc_from_sub',
+      description: 'EXTERNAL_WRITE — emails sub a magic link to upload a specific compliance doc. Requires user approval.',
+      parameters: {
+        type: 'object',
+        required: ['sub_organization_id','doc_type'],
+        properties: {
+          sub_organization_id: { type: 'string' },
+          doc_type: { type: 'string', description: "e.g., 'coi_gl' for general liability COI" }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'request_msa_signature',
+      description: 'EXTERNAL_WRITE — generates an MSA subcontract for an engagement and emails sub for signature. Requires user approval.',
+      parameters: {
+        type: 'object',
+        required: ['engagement_id'],
+        properties: {
+          engagement_id: { type: 'string' },
+          title: { type: 'string', description: 'Default: Master Subcontract Agreement' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_bid_invitation',
+      description: 'EXTERNAL_WRITE — creates a bid request and invites multiple subs to bid. Requires user approval.',
+      parameters: {
+        type: 'object',
+        required: ['project_id','trade','scope_summary','sub_organization_ids'],
+        properties: {
+          project_id: { type: 'string' },
+          trade: { type: 'string' },
+          scope_summary: { type: 'string' },
+          sub_organization_ids: { type: 'array', items: { type: 'string' } },
+          due_at: { type: 'string' },
+          payment_terms: { type: 'string', enum: ['fifty_fifty','milestones','net_30','custom'] }
+        }
+      }
+    }
   }
 ];
 
@@ -2174,6 +2515,21 @@ const toolDefinitions = [
  * Status messages shown to user during tool execution
  */
 const TOOL_STATUS_MESSAGES = {
+  // Subcontractor module
+  list_subs: 'Listing your subcontractors...',
+  get_sub: 'Loading subcontractor profile...',
+  get_sub_compliance: 'Checking compliance docs...',
+  list_engagements: 'Listing engagements...',
+  get_engagement: 'Loading engagement details...',
+  list_expiring_compliance: 'Scanning expiring compliance docs...',
+  list_open_bids: 'Listing open bids...',
+  list_recent_invoices: 'Loading recent invoices...',
+  add_sub_to_project: 'Adding sub to project...',
+  record_compliance_doc: 'Recording compliance doc...',
+  record_payment: 'Recording payment...',
+  request_compliance_doc_from_sub: 'Sending document request...',
+  request_msa_signature: 'Sending MSA for signature...',
+  send_bid_invitation: 'Sending bid invitations...',
   // Granular tools
   search_projects: 'Looking up your projects...',
   get_project_details: 'Getting project details...',
@@ -2217,6 +2573,18 @@ const TOOL_STATUS_MESSAGES = {
   generate_draw_invoice: 'Generating draw invoice...',
   get_draw_schedule: 'Loading draw schedule...',
   get_ready_draws: 'Checking for draws ready to send...',
+  // Onboarding imports
+  qbo_onboarding_summary: 'Scanning your QuickBooks account...',
+  import_qbo_clients: 'Importing customers from QuickBooks...',
+  import_qbo_subcontractors: 'Importing subcontractors from QuickBooks...',
+  import_qbo_employees: 'Importing employees from QuickBooks...',
+  import_qbo_service_catalog: 'Importing your service catalog...',
+  import_qbo_projects: 'Importing projects from QuickBooks...',
+  import_qbo_invoice_history: 'Pulling invoice history...',
+  preview_monday_board: 'Previewing Monday board...',
+  import_monday_projects: 'Importing projects from Monday...',
+  csv_preview: 'Previewing your spreadsheet...',
+  csv_import: 'Importing your spreadsheet...',
   get_project_billing: 'Loading billing summary for the project...',
   create_work_schedule: 'Creating work schedule...',
   create_worker_task: 'Creating task...',

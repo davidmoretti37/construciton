@@ -63,6 +63,19 @@ const TOOL_METADATA = Object.freeze({
   update_invoice:            { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   void_invoice:              { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
 
+  // ───── Onboarding imports (QBO / Monday / CSV) ─────
+  qbo_onboarding_summary:    { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'qbo'] },
+  import_qbo_clients:        { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
+  import_qbo_subcontractors: { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
+  import_qbo_employees:      { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
+  import_qbo_service_catalog:{ category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
+  import_qbo_projects:       { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
+  import_qbo_invoice_history:{ category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
+  preview_monday_board:      { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'monday'] },
+  import_monday_projects:    { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'monday'] },
+  csv_preview:               { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'csv'] },
+  csv_import:                { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'csv'] },
+
   // ───── Draws (progress billing) ─────
   create_draw_schedule:      { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial'] },
   generate_draw_invoice:     { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial', 'crosscutting'] },
@@ -180,6 +193,24 @@ const TOOL_METADATA = Object.freeze({
   // invoke_skill is the orchestration tool that runs a named recipe.
   // Gates are applied to the underlying sub-agent's calls, not here.
   invoke_skill:              { category: CATEGORIES.MEMORY, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['system', 'orchestration', 'skill'] },
+
+  // ───── Subcontractors ─────
+  list_subs:                       { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs'] },
+  get_sub:                         { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs'] },
+  get_sub_compliance:              { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'compliance'] },
+  list_engagements:                { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs'] },
+  get_engagement:                  { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs'] },
+  list_expiring_compliance:        { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'compliance', 'briefing'] },
+  list_open_bids:                  { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'bidding'] },
+  list_recent_invoices:            { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'financial'] },
+
+  add_sub_to_project:              { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'mutation'] },
+  record_compliance_doc:           { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'compliance', 'mutation'] },
+  record_payment:                  { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'financial', 'mutation'] },
+
+  request_compliance_doc_from_sub: { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'communication', 'external'] },
+  request_msa_signature:           { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'communication', 'external', 'esign'] },
+  send_bid_invitation:             { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'communication', 'external', 'bidding'] },
 });
 
 // ─────────────────────────────────────────────────────────────────

@@ -39,6 +39,8 @@ const CATEGORIES = Object.freeze({
   SEARCH: 'search',
   BRIEFING: 'briefing',
   MEMORY: 'memory',
+  SUBS: 'subs',
+  IMPORTS: 'imports',
   // Reserved for future MCP-namespaced categories.
   // External MCP servers should register tools under categories of the
   // form `mcp_<provider>` (e.g. `mcp_quickbooks`).

@@ -40,22 +40,19 @@ const WARNING_DEFAULT_DAYS = 30;
 async function computeForEngagement(engagementId) {
   if (!engagementId) throw new Error('engagementId required');
 
-  // 1. Load engagement + project state
+  // 1. Load engagement (project state is deferred to v2 — state-statutory
+  //    waiver/notice work isn't shipping in v1, so we don't need to
+  //    surface project location here).
   const { data: engagement, error: engErr } = await supabase
     .from('sub_engagements')
-    .select(`
-      id, sub_organization_id, gc_user_id, project_id, status,
-      project:projects (id, state, location_state)
-    `)
+    .select('id, sub_organization_id, gc_user_id, project_id, status')
     .eq('id', engagementId)
     .maybeSingle();
 
   if (engErr) throw engErr;
   if (!engagement) throw new Error('Engagement not found');
 
-  const projectState = engagement.project?.state
-    || engagement.project?.location_state
-    || null;
+  const projectState = null;
 
   // 2. Load policies for this GC
   const { data: policies, error: polErr } = await supabase
