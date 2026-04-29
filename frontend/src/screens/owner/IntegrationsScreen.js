@@ -121,8 +121,34 @@ export default function IntegrationsScreen({ navigation }) {
         // our callback URL which writes the credentials, then the
         // result page deep-links back via sylk:// (or the user closes
         // the browser manually).
-        await WebBrowser.openAuthSessionAsync(data.authorize_url, 'sylk://integrations/connected');
+        const result = await WebBrowser.openAuthSessionAsync(data.authorize_url, 'sylk://integrations/connected');
         await load();
+
+        // Verify the connection actually succeeded server-side before
+        // bouncing to chat. Otherwise a cancelled/declined OAuth would
+        // still trigger the import prompt.
+        const succeeded = result?.type === 'success'
+          && (result.url || '').includes('integrations/connected');
+        if (!succeeded) return;
+
+        // Auto-prompt the agent for import-capable integrations so the
+        // user doesn't have to know to type "import my data" — they just
+        // confirm/decline an offer. Other integrations (Google Calendar,
+        // Echo) drop them back here, which is fine since they don't have
+        // an import flow.
+        const importPrompts = {
+          qbo: 'I just connected QuickBooks. Run qbo_onboarding_summary and tell me what you found, then ask if I want to import everything (clients, subcontractors, service catalog, projects, invoices).',
+          monday: 'I just connected Monday.com. List my boards and ask which one has my projects so we can import them.',
+        };
+        const prompt = importPrompts[integration.type];
+        if (prompt && navigation?.navigate) {
+          // Brief delay so the integrations list visibly flips to
+          // "Connected" before we navigate away — feels more grounded
+          // than the screen vanishing the instant OAuth closes.
+          setTimeout(() => {
+            navigation.navigate('Chat', { initialMessage: prompt });
+          }, 600);
+        }
         return;
       }
       throw new Error('Unexpected connect response');
