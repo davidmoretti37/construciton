@@ -30,12 +30,15 @@ const supabase = createClient(
 const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
 const STORAGE_BUCKET = 'documents';
 const TOKEN_TTL_DAYS = 7;
-const VALID_DOC_TYPES = new Set(['estimate', 'invoice', 'contract']);
+const VALID_DOC_TYPES = new Set(['estimate', 'invoice', 'contract', 'change_order']);
 
+// ownerField defaults to 'user_id' across estimates/invoices/contract_documents.
+// change_orders uses `owner_id` instead — explicit override here.
 const DOC_TABLES = {
-  estimate: { table: 'estimates', titleField: 'estimate_number', nameField: 'project_name' },
-  invoice: { table: 'invoices', titleField: 'invoice_number', nameField: 'project_name' },
-  contract: { table: 'contract_documents', titleField: 'file_name', nameField: 'file_name' },
+  estimate:     { table: 'estimates',          titleField: 'estimate_number', nameField: 'project_name', ownerField: 'user_id' },
+  invoice:      { table: 'invoices',           titleField: 'invoice_number',  nameField: 'project_name', ownerField: 'user_id' },
+  contract:     { table: 'contract_documents', titleField: 'file_name',       nameField: 'file_name',    ownerField: 'user_id' },
+  change_order: { table: 'change_orders',      titleField: 'title',           nameField: 'title',        ownerField: 'owner_id' },
 };
 
 // =============================================================================
@@ -47,8 +50,8 @@ function sha256Hex(bytes) {
 }
 
 /**
- * Render a basic branded PDF for an estimate or invoice when no source PDF
- * exists. Intentionally plain — the goal is a stable, hashable artifact.
+ * Render a basic branded PDF for an estimate, invoice, or change order when no
+ * source PDF exists. Intentionally plain — the goal is a stable, hashable artifact.
  */
 async function renderDocumentPdf(documentType, doc) {
   const pdfDoc = await PDFDocument.create();
@@ -59,9 +62,17 @@ async function renderDocumentPdf(documentType, doc) {
   let y = 740;
   const left = 56;
 
-  page.drawText(documentType.toUpperCase(), { x: left, y, size: 22, font: bold, color: rgb(0.06, 0.09, 0.16) });
+  // Header line: e.g. "CHANGE ORDER" / "ESTIMATE" / "INVOICE"
+  const headerLabel = documentType === 'change_order' ? 'CHANGE ORDER' : documentType.toUpperCase();
+  page.drawText(headerLabel, { x: left, y, size: 22, font: bold, color: rgb(0.06, 0.09, 0.16) });
   y -= 28;
-  page.drawText(doc.estimate_number || doc.invoice_number || '', { x: left, y, size: 12, font, color: rgb(0.4, 0.45, 0.55) });
+  // Sub-header: doc number / title
+  let subHeader = doc.estimate_number || doc.invoice_number || '';
+  if (documentType === 'change_order') {
+    const num = `CO-${String(doc.co_number || 0).padStart(3, '0')}`;
+    subHeader = doc.title ? `${num} — ${doc.title}` : num;
+  }
+  page.drawText(subHeader, { x: left, y, size: 12, font, color: rgb(0.4, 0.45, 0.55) });
   y -= 36;
 
   const writeRow = (label, value) => {
@@ -75,13 +86,47 @@ async function renderDocumentPdf(documentType, doc) {
   if (doc.project_name) writeRow('Project', doc.project_name);
   if (doc.due_date) writeRow('Due', new Date(doc.due_date).toLocaleDateString());
   if (doc.valid_until) writeRow('Valid until', new Date(doc.valid_until).toLocaleDateString());
+
+  // Change-order specific fields: description and schedule impact
+  if (documentType === 'change_order') {
+    if (doc.description) {
+      y -= 4;
+      page.drawText('Scope of change', { x: left, y, size: 11, font: bold, color: rgb(0.2, 0.25, 0.35) });
+      y -= 14;
+      const descLines = String(doc.description).match(/.{1,86}(\s|$)/g) || [];
+      for (const line of descLines.slice(0, 6)) {
+        page.drawText(line.trim(), { x: left, y, size: 10, font });
+        y -= 13;
+      }
+    }
+    if (Number(doc.schedule_impact_days || 0) !== 0) {
+      const days = Number(doc.schedule_impact_days);
+      writeRow('Schedule impact', `${days > 0 ? '+' : ''}${days} day${Math.abs(days) === 1 ? '' : 's'}`);
+    }
+  }
   y -= 8;
 
   page.drawText('Line items', { x: left, y, size: 12, font: bold });
   y -= 16;
 
-  const items = Array.isArray(doc.items) ? doc.items : [];
-  for (const it of items.slice(0, 25)) {
+  // For COs the line items live in change_order_line_items (already joined in
+  // loadOwnedDocument); estimates/invoices keep them on the row as `items`.
+  let rawItems;
+  if (documentType === 'change_order') {
+    rawItems = (doc.change_order_line_items || [])
+      .slice()
+      .sort((a, b) => (a.position || 0) - (b.position || 0))
+      .map(li => ({
+        description: li.description,
+        quantity: li.quantity,
+        unit: li.unit,
+        pricePerUnit: li.unit_price,
+        total: li.amount,
+      }));
+  } else {
+    rawItems = Array.isArray(doc.items) ? doc.items : [];
+  }
+  for (const it of rawItems.slice(0, 25)) {
     if (y < 120) break;
     const desc = (it.description || '').slice(0, 60);
     const qty = it.quantity != null ? `${it.quantity}` : '';
@@ -97,12 +142,15 @@ async function renderDocumentPdf(documentType, doc) {
 
   y -= 12;
   const subtotal = Number(doc.subtotal || 0).toFixed(2);
-  const tax = Number(doc.tax_amount || 0).toFixed(2);
-  const total = Number(doc.total || 0).toFixed(2);
+  const taxAmt = Number(doc.tax_amount || 0).toFixed(2);
+  const totalAmt = Number(doc.total_amount || doc.total || 0).toFixed(2);
+  const taxRateLabel = documentType === 'change_order'
+    ? `${(Number(doc.tax_rate || 0) * 100).toFixed(2)}%`
+    : `${doc.tax_rate || 0}%`;
   writeRow('Subtotal', `$${subtotal}`);
-  if (Number(tax) > 0) writeRow(`Tax (${doc.tax_rate || 0}%)`, `$${tax}`);
+  if (Number(taxAmt) > 0) writeRow(`Tax (${taxRateLabel})`, `$${taxAmt}`);
   page.drawText('Total:', { x: left, y, size: 14, font: bold });
-  page.drawText(`$${total}`, { x: left + 110, y, size: 14, font: bold, color: rgb(0.12, 0.25, 0.69) });
+  page.drawText(`$${totalAmt}`, { x: left + 110, y, size: 14, font: bold, color: rgb(0.12, 0.25, 0.69) });
   y -= 28;
 
   if (doc.notes) {
@@ -252,12 +300,13 @@ async function signedUrlForDocuments(path, ttlSec = 60 * 60 * 24 * 30) {
 async function loadOwnedDocument(documentType, documentId, ownerId) {
   const cfg = DOC_TABLES[documentType];
   if (!cfg) throw new Error('Invalid document_type');
-  const { data, error } = await supabase
-    .from(cfg.table)
-    .select('*')
-    .eq('id', documentId)
-    .eq('user_id', ownerId)
-    .single();
+  const ownerField = cfg.ownerField || 'user_id';
+  let query = supabase.from(cfg.table).select('*').eq('id', documentId).eq(ownerField, ownerId);
+  // Change orders also pull line items so the rendered PDF has data
+  if (documentType === 'change_order') {
+    query = supabase.from(cfg.table).select('*, change_order_line_items(*)').eq('id', documentId).eq(ownerField, ownerId);
+  }
+  const { data, error } = await query.single();
   if (error || !data) throw new Error('Document not found or not owned by caller');
   return data;
 }
@@ -488,8 +537,9 @@ async function recordSignature({ token, signaturePngBase64, signerName, ip, user
     .update({ current_signature_id: sig.id, signed_at: ts })
     .eq('id', sig.document_id);
 
-  // Approval audit row (entity_type maps directly for estimate/invoice; contracts use 'estimate' as fallback since enum doesn't include it — skip for contract)
-  if (sig.document_type === 'estimate' || sig.document_type === 'invoice') {
+  // Approval audit row (entity_type maps directly for estimate/invoice/change_order;
+  // contracts have no project link in approval_events.entity_type CHECK, so we skip them)
+  if (['estimate', 'invoice', 'change_order'].includes(sig.document_type)) {
     const { data: doc } = await supabase
       .from(cfg.table)
       .select('project_id')
@@ -506,6 +556,29 @@ async function recordSignature({ token, signaturePngBase64, signerName, ip, user
         notes: `Signed by ${finalSignerName}`,
         metadata: { signature_id: sig.id, ip, user_agent: userAgent },
       });
+    }
+  }
+
+  // Change-order specific: signing a CO is also an approval. Fire the
+  // Postgres approve_change_order RPC so the projects.extras + end_date
+  // cascade runs atomically. Idempotent — if the CO is already approved
+  // (e.g. signature retried), the RPC returns the existing row.
+  if (sig.document_type === 'change_order') {
+    try {
+      const { error: approveErr } = await supabase.rpc('approve_change_order', {
+        p_co_id: sig.document_id,
+        p_approver_name: finalSignerName,
+        p_signature_id: sig.id,
+        p_actor_type: 'client',
+        p_actor_id: null,
+      });
+      if (approveErr) {
+        // Don't fail the signing — the signature is captured; the cascade
+        // can be re-run by the owner if needed. Log loudly.
+        logger.error('[eSign] approve_change_order RPC failed after sign:', approveErr.message);
+      }
+    } catch (err) {
+      logger.error('[eSign] approve_change_order threw after sign:', err.message);
     }
   }
 

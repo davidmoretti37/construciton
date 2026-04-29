@@ -245,6 +245,13 @@ export {
   redistributeAllTasksWithAI,
 } from './projectPhases';
 
+// Draws (progress billing)
+export {
+  fetchDrawSchedule,
+  upsertDrawSchedule,
+  generateDrawInvoice,
+} from './projectDraws';
+
 // Schedules, Events, Crews
 export {
   createScheduleEvent,

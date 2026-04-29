@@ -217,6 +217,28 @@ app.use('/api/integrations', servicesLimiter, integrationsRoutes);
 const esignRoutes = require('./routes/esign');
 app.use('/api/esign', portalLimiter, express.json({ limit: '15mb' }), esignRoutes);
 
+// Subcontractor module — GC-side CRUD, sub-portal auth, public token-gated actions
+const subsRoutes = require('./routes/subs');
+app.use('/api/subs', servicesLimiter, subsRoutes);
+
+const subPortalRoutes = require('./routes/subPortal');
+app.use('/api/sub-portal', servicesLimiter, subPortalRoutes);
+
+const subActionRoutes = require('./routes/subAction');
+app.use('/api/sub-action', portalLimiter, subActionRoutes);
+
+const complianceRoutes = require('./routes/compliance');
+app.use('/api/compliance', express.json({ limit: '30mb' }), servicesLimiter, complianceRoutes);
+
+const internalRoutes = require('./routes/internal');
+app.use('/api/internal', internalRoutes);
+
+const engagementsRoutes = require('./routes/engagements');
+app.use('/api/engagements', servicesLimiter, engagementsRoutes);
+
+const bidRequestsRoutes = require('./routes/bidRequests');
+app.use('/api/bid-requests', servicesLimiter, bidRequestsRoutes);
+
 
 // ============================================================
 // HEALTH & READINESS CHECKS
@@ -1386,6 +1408,15 @@ if (require.main === module) {
   // Run cleanup on startup and periodically
   cleanupAgentJobs();
   setInterval(cleanupAgentJobs, 6 * 60 * 60 * 1000); // Every 6 hours
+
+  // Daily billing nudge — emits stale-action notifications for draws,
+  // invoices, and COs that need owner attention. Idempotent server-side.
+  try {
+    const { startBillingNudgeJob } = require('./services/billingNudgeJob');
+    startBillingNudgeJob();
+  } catch (e) {
+    logger.warn('Billing nudge job failed to start:', e.message);
+  }
 
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);

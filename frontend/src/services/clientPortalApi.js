@@ -63,6 +63,7 @@ export const respondToChangeOrder = (coId, action, name, reason) =>
 // Invoices
 export const fetchProjectInvoices = (projectId) => portalFetch(`/projects/${projectId}/invoices`);
 export const fetchProjectMilestones = (projectId) => portalFetch(`/projects/${projectId}/milestones`);
+export const fetchProjectDraws = (projectId) => portalFetch(`/projects/${projectId}/draws`);
 export const payInvoice = (invoiceId) => portalFetch(`/invoices/${invoiceId}/pay`, { method: 'POST' });
 export const createPaymentIntent = (invoiceId) => portalFetch(`/invoices/${invoiceId}/create-payment-intent`, { method: 'POST' });
 

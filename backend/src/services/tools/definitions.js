@@ -329,6 +329,114 @@ const toolDefinitions = [
     }
   },
 
+  // ==================== DRAWS (PROGRESS BILLING) ====================
+  {
+    type: 'function',
+    function: {
+      name: 'create_draw_schedule',
+      description: 'Set up a progress billing (draw) schedule on a project — used when a job is too large for one-shot invoicing (new construction, $50K+ remodels). Define the milestones the contractor will bill against (e.g. "25% deposit, 25% rough-in, 25% drywall, 25% final"). Replaces any existing schedule on the project. Call when the user says things like "set up a draw schedule", "bill this in draws", or "this is a $200K job, let\'s do progress draws".',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project name, address, or UUID. Names are resolved automatically.'
+          },
+          retainage_percent: {
+            type: 'number',
+            description: 'Percent held back per draw (typical: 10). Range 0–20. Defaults to 0 if omitted.'
+          },
+          items: {
+            type: 'array',
+            description: 'Ordered list of draws. Each draw must have either percent_of_contract OR fixed_amount (not both), AND a trigger_type that decides when the draw auto-flips to "ready to send".',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string', description: 'Milestone description, e.g. "Deposit at signing", "Foundation complete", "Rough-in (frame/electrical/plumbing)".' },
+                percent_of_contract: { type: 'number', description: 'Percent of project contract_amount (1–100). Use this for %-based draws. Floats with the contract so change orders flow through.' },
+                fixed_amount: { type: 'number', description: 'Fixed dollar amount for this draw. Use for flat-amount draws like a $5,000 deposit.' },
+                trigger_type: {
+                  type: 'string',
+                  enum: ['phase_completion', 'project_start', 'manual'],
+                  description: 'When should this draw auto-flip to ready? phase_completion = when the linked phase completes (default for milestone draws, requires phase_id). project_start = when the project becomes active (use for deposits). manual = owner flips it themselves (last resort — needs daily-briefing reminders).'
+                },
+                phase_id: { type: 'string', description: 'UUID of the project phase this draw is tied to. REQUIRED when trigger_type = phase_completion.' }
+              },
+              required: ['description', 'trigger_type']
+            }
+          }
+        },
+        required: ['project_id', 'items']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_draw_invoice',
+      description: 'Convert ONE pending draw schedule item into a real invoice. Computes the gross amount (percent_of_contract × current contract, or fixed_amount), applies retainage hold-back, marks the draw as "invoiced", and links the new invoice. Call when the user says things like "send draw 2", "bill the foundation draw", or "the rough-in is done, generate the invoice". For listing what draws exist, use get_draw_schedule first.',
+      parameters: {
+        type: 'object',
+        properties: {
+          schedule_item_id: {
+            type: 'string',
+            description: 'UUID of the draw_schedule_items row to invoice.'
+          },
+          due_in_days: {
+            type: 'number',
+            description: 'Days until invoice due date. Defaults to 30. Use 14 for bank-funded jobs.'
+          }
+        },
+        required: ['schedule_item_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_draw_schedule',
+      description: 'Show a project\'s draw schedule with the status of each item, total drawn vs contract, retainage held, and linked invoices. Use for "where are we on draws for the Smith job", "show me the draw schedule", or as a precursor to generate_draw_invoice.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project name, address, or UUID. Names are resolved automatically.'
+          }
+        },
+        required: ['project_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_ready_draws',
+      description: 'List ALL draws across ALL projects that are ready to send (status = "ready" — i.e. their linked phase has completed or the project just went active). Use this as the first call when the owner asks "what do I need to bill?", "anything ready to invoice?", or as part of a morning briefing. Returns one row per ready draw with project name, description, computed amount, and the schedule_item_id you would pass to generate_draw_invoice.',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_project_billing',
+      description: 'Get the unified billing rollup for ONE project — every billable event (estimates, draws, change orders, invoices) normalized into a single feed with status/amount/zone (action/upcoming/history). Use when the owner asks "what\'s the billing situation on the Smith project?", "what do I need to bill on Henderson?", or "show me everything money-related on this project". Returns project totals (contract, drawn, collected, outstanding) plus categorized event lists with concrete CTAs (send_draw, nudge_invoice, resend_co).',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'Project UUID or name (resolved automatically).'
+          }
+        },
+        required: ['project_id']
+      }
+    }
+  },
+
   // ==================== SCHEDULE MUTATIONS ====================
   {
     type: 'function',
@@ -2105,6 +2213,11 @@ const TOOL_STATUS_MESSAGES = {
   convert_estimate_to_invoice: 'Creating invoice from estimate...',
   update_invoice: 'Updating invoice...',
   void_invoice: 'Voiding invoice...',
+  create_draw_schedule: 'Setting up draw schedule...',
+  generate_draw_invoice: 'Generating draw invoice...',
+  get_draw_schedule: 'Loading draw schedule...',
+  get_ready_draws: 'Checking for draws ready to send...',
+  get_project_billing: 'Loading billing summary for the project...',
   create_work_schedule: 'Creating work schedule...',
   create_worker_task: 'Creating task...',
   add_project_checklist: 'Adding tasks...',

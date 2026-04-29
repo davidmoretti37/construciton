@@ -7,6 +7,7 @@ export { default as PhotoGallery } from './PhotoGallery';
 export { default as EstimatePreview } from './EstimatePreview';
 export { default as EstimateList } from './EstimateList';
 export { default as InvoicePreview } from './InvoicePreview';
+export { default as ChangeOrderPreview } from './ChangeOrderPreview';
 export { default as InvoiceList } from './InvoiceList';
 export { default as ProjectSelector } from './ProjectSelector';
 export { default as ExpenseCard } from './ExpenseCard';

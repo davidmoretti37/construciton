@@ -47,6 +47,11 @@ const EVENT_TYPES = {
   INVOICE_PAID: { type: 'invoice.paid', category: 'financial' },
   PAYMENT_RECEIVED: { type: 'payment.received', category: 'financial' },
   CHANGE_ORDER_DRAFTED: { type: 'change_order.drafted', category: 'financial' },
+  CHANGE_ORDER_SENT: { type: 'change_order.sent', category: 'financial' },
+  CHANGE_ORDER_VIEWED: { type: 'change_order.viewed', category: 'financial' },
+  CHANGE_ORDER_APPROVED: { type: 'change_order.approved', category: 'financial' },
+  CHANGE_ORDER_REJECTED: { type: 'change_order.rejected', category: 'financial' },
+  CHANGE_ORDER_VOIDED: { type: 'change_order.voided', category: 'financial' },
 
   // Crew
   WORKER_ASSIGNED: { type: 'worker.assigned', category: 'crew' },

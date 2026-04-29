@@ -39,7 +39,7 @@ import { generatePnLPDFFromAgent } from '../utils/financialReportPDF';
 import { supabase } from '../lib/supabase';
 import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
-import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap, ServicePlanPreview, PnLReportCard } from '../components/ChatVisuals';
+import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ChangeOrderPreview, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap, ServicePlanPreview, PnLReportCard } from '../components/ChatVisuals';
 import ChatHistorySidebar from '../components/ChatHistorySidebar';
 import { chatHistoryService } from '../services/chatHistoryService';
 import { formatEstimate } from '../utils/estimateFormatter';
@@ -1821,6 +1821,9 @@ export default function ChatScreen({ navigation, route }) {
       'convert-estimate-to-invoice': 'canCreateInvoices',
       'create-invoice': 'canCreateInvoices',
       'save-invoice': 'canCreateInvoices',
+      'save-change-order': 'canCreateInvoices',
+      'update-change-order': 'canCreateInvoices',
+      'send-change-order': 'canCreateInvoices',
       'create-project': 'canCreateProjects',
       'save-project': 'canCreateProjects',
       'confirm-project': 'canCreateProjects',
@@ -2361,6 +2364,42 @@ export default function ChatScreen({ navigation, route }) {
       case 'void-invoice':
         await invoiceActions.handleVoidInvoice(action.data);
         break;
+
+      // Change Order Actions — return the API response so the preview card can
+      // chain (e.g. tap Send right after Save uses the new id without a re-render).
+      case 'save-change-order': {
+        const { saveChangeOrder, updateChangeOrder } = await import('../utils/storage/changeOrders');
+        try {
+          const payload = action.data || {};
+          if (payload.id) {
+            return await updateChangeOrder(payload.id, payload);
+          }
+          return await saveChangeOrder(payload);
+        } catch (e) {
+          Alert.alert('Save failed', e.message || 'Could not save the change order.');
+          return null;
+        }
+      }
+      case 'update-change-order': {
+        const { updateChangeOrder } = await import('../utils/storage/changeOrders');
+        try {
+          if (!action.data?.id) throw new Error('Missing change order id');
+          return await updateChangeOrder(action.data.id, action.data);
+        } catch (e) {
+          Alert.alert('Update failed', e.message || 'Could not update the change order.');
+          return null;
+        }
+      }
+      case 'send-change-order': {
+        const { sendChangeOrder } = await import('../utils/storage/changeOrders');
+        try {
+          if (!action.data?.id) throw new Error('Missing change order id');
+          return await sendChangeOrder(action.data.id);
+        } catch (e) {
+          Alert.alert('Send failed', e.message || 'Could not send the change order.');
+          return null;
+        }
+      }
 
       // Report Actions (from useReportActions)
       case 'save-daily-report':
@@ -3696,6 +3735,8 @@ export default function ChatScreen({ navigation, route }) {
         return <EstimateList key={k} data={element.data} onAction={handleAction} />;
       case 'invoice-preview':
         return <InvoicePreview key={k} data={element.data} onAction={handleAction} />;
+      case 'change-order-preview':
+        return <ChangeOrderPreview key={k} data={element.data} onAction={handleAction} />;
       case 'invoice-list':
         return <InvoiceList key={k} data={element.data} onAction={handleAction} />;
       case 'contract-preview':

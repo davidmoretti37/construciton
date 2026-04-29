@@ -151,6 +151,55 @@ export default function NotificationsScreen({ navigation }) {
     await removeNotification(notificationId);
   }, [removeNotification]);
 
+  // One-tap inline action: dispatch billing actions without leaving the
+  // notifications screen. Marks the notification as read on success so the
+  // CTA disappears (the unread state controls visibility).
+  const handleNotificationAction = useCallback(async (notification) => {
+    const action = notification.action_type;
+    const data = notification.action_data || {};
+    try {
+      const billing = await import('../utils/storage/projectBilling');
+      let result;
+      switch (action) {
+        case 'send_draw': {
+          // Confirm before generating an invoice
+          const ok = await new Promise((resolve) => {
+            Alert.alert(
+              'Send invoice?',
+              `Generate the invoice for $${(data.net || data.gross || 0).toLocaleString()}?`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Send', onPress: () => resolve(true) },
+              ]
+            );
+          });
+          if (!ok) return;
+          result = await billing.sendDrawNow(data.draw_item_id);
+          break;
+        }
+        case 'nudge_invoice':
+          result = await billing.nudgeInvoice(data.invoice_id);
+          break;
+        case 'resend_co':
+          result = await billing.resendChangeOrder(data.change_order_id);
+          break;
+        case 'bill_co_now':
+          result = await billing.billChangeOrderNow(data.change_order_id);
+          break;
+        default:
+          return;
+      }
+      if (result?.error) {
+        Alert.alert('Action failed', result.error);
+        return;
+      }
+      // Mark notification as read so the CTA disappears
+      await markNotificationAsRead(notification.id);
+    } catch (e) {
+      Alert.alert('Action failed', e.message || 'Could not complete the action');
+    }
+  }, [markNotificationAsRead]);
+
   // Appointment popup handlers
   const handleReschedule = useCallback(async (eventId, updates) => {
     const success = await updateScheduleEvent(eventId, updates);
@@ -245,6 +294,7 @@ export default function NotificationsScreen({ navigation }) {
       notification={item}
       onPress={handleNotificationPress}
       onDelete={handleDelete}
+      onAction={handleNotificationAction}
     />
   );
 

@@ -356,6 +356,20 @@ export const saveProject = async (projectData) => {
       }
     }
 
+    // Persist the progress-draw schedule (if the builder included one).
+    // Treated like phases: separate upsert, non-fatal on failure.
+    if (projectData.draws !== undefined) {
+      try {
+        const { upsertDrawSchedule } = await import('./projectDraws');
+        const drawResult = await upsertDrawSchedule(result.id, projectData.draws);
+        if (drawResult && drawResult.ok === false) {
+          console.warn('[saveProject] draws persist failed:', drawResult.error);
+        }
+      } catch (e) {
+        console.warn('[saveProject] draws persist threw:', e?.message);
+      }
+    }
+
     // Record pricing to history when project is completed
     if (result.status === 'completed' && (result.contract_amount || result.base_contract)) {
       try {

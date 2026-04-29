@@ -597,6 +597,32 @@ If user already mentioned logging in their message → extract items directly, d
 If only a total contract amount is provided (not per-phase), distribute it proportionally across phases by planned days. Every phase object MUST include a \`budget\` field (number, ≥ 0). The sum of all phase budgets MUST equal the \`contractAmount\`.
 When the owner updates a project via the \`create_project_phase\` tool, ALWAYS include the \`budget\` argument (dollar amount for that phase).
 
+**PROGRESS DRAWS (optional):** If the user describes a billing schedule — phrases like "bill in draws", "progress draws", "25/25/25/25", "deposit then 3 progress payments", "10% retainage" — populate a \`draws\` array AND a \`retainage_percent\` number on the data. Each draw must have either \`percent_of_contract\` (number 1-100) OR \`fixed_amount\` (number), not both. % rows should sum to 100. If the user does not mention progress billing, OMIT \`draws\` entirely — small jobs use one-shot invoices.
+
+**EVERY draw needs a \`trigger_type\`** so the system can auto-flip it to "ready to send" without the contractor having to remember:
+
+- \`"phase_completion"\` — fires when the linked phase completes. **Default for milestone draws.** Requires \`phase_name\` matching one of the phases you're emitting in the same response. Use this for foundation, rough-in, drywall, cabinets, final, etc.
+- \`"project_start"\` — fires the moment the project goes active. **Use for deposits.** Anything described as "deposit", "down payment", "at signing", "upfront" should get this trigger. No phase needed.
+- \`"manual"\` — owner flips it themselves. **Avoid unless absolutely necessary** (e.g. bank inspection draws not tied to phases). Manual draws rely on daily briefing reminders.
+
+Map each draw to a phase using \`phase_name\` (the human name) — the app resolves it to the phase's UUID at save time.
+
+Example with proper triggers:
+\`\`\`
+"retainage_percent": 10,
+"phases": [
+  { "name": "Foundation", "plannedDays": 7, "budget": 0 },
+  { "name": "Rough-in",   "plannedDays": 14, "budget": 0 },
+  { "name": "Finish",     "plannedDays": 21, "budget": 0 }
+],
+"draws": [
+  { "description": "Deposit at signing",   "percent_of_contract": 25, "trigger_type": "project_start" },
+  { "description": "Foundation complete",  "percent_of_contract": 25, "trigger_type": "phase_completion", "phase_name": "Foundation" },
+  { "description": "Rough-in complete",    "percent_of_contract": 25, "trigger_type": "phase_completion", "phase_name": "Rough-in" },
+  { "description": "Final / punch list",   "percent_of_contract": 25, "trigger_type": "phase_completion", "phase_name": "Finish" }
+]
+\`\`\`
+
 ## Step 4: Present Project
 
 Show complete project with project-preview visual element.

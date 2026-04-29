@@ -63,6 +63,13 @@ const TOOL_METADATA = Object.freeze({
   update_invoice:            { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   void_invoice:              { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
 
+  // ───── Draws (progress billing) ─────
+  create_draw_schedule:      { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial'] },
+  generate_draw_invoice:     { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial', 'crosscutting'] },
+  get_draw_schedule:         { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['financial'] },
+  get_ready_draws:           { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['financial', 'briefing'] },
+  get_project_billing:       { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['financial', 'briefing'] },
+
   // ───── Expenses (transactional) ─────
   record_expense:            { category: CATEGORIES.EXPENSES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   update_expense:            { category: CATEGORIES.EXPENSES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },

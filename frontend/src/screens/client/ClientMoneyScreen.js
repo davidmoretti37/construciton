@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
-import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
+import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -36,6 +36,8 @@ export default function ClientMoneyScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState(null);
   const [changeOrders, setChangeOrders] = useState([]);
+  const [activeProject, setActiveProject] = useState(null);
+  const [draws, setDraws] = useState(null);
   const [paying, setPaying] = useState(null);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
@@ -44,12 +46,15 @@ export default function ClientMoneyScreen({ navigation }) {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const [data, cos] = await Promise.all([
+        const [data, cos, drawsData] = await Promise.all([
           fetchMoneySummary(projects[0].id),
           fetchChangeOrders(projects[0].id).catch(() => []),
+          fetchProjectDraws(projects[0].id).catch(() => null),
         ]);
         setSummary(data);
         setChangeOrders(cos || []);
+        setActiveProject(projects[0]);
+        setDraws(drawsData?.has_schedule ? drawsData : null);
       }
     } catch (e) {
       console.error('Money load error:', e);
@@ -178,13 +183,90 @@ export default function ClientMoneyScreen({ navigation }) {
           </View>
         )}
 
+        {/* Payment Progress (draw schedule) */}
+        {draws && draws.items?.length > 0 && (
+          <View style={styles.budgetCard}>
+            <View style={styles.budgetHeader}>
+              <Text style={styles.budgetLabel}>Payment Progress</Text>
+              <Ionicons name="trending-up" size={18} color={C.amber} />
+            </View>
+            <Text style={{ fontSize: 13, color: C.textSec, marginTop: 6 }}>
+              You're {draws.draws_billed} of {draws.draws_total} draws in
+            </Text>
+            <View style={[styles.progressTrack, { marginTop: 8 }]}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${draws.contract_amount > 0
+                      ? Math.min(100, (draws.drawn_to_date / draws.contract_amount) * 100)
+                      : 0}%`,
+                    backgroundColor: C.green,
+                  },
+                ]}
+              />
+            </View>
+            <View style={styles.progressLabels}>
+              <Text style={styles.progressPercent}>
+                ${Math.round(draws.drawn_to_date).toLocaleString()} drawn
+              </Text>
+              <Text style={styles.progressRemaining}>
+                of ${Math.round(draws.contract_amount).toLocaleString()}
+              </Text>
+            </View>
+
+            <View style={{ marginTop: 12 }}>
+              {draws.items.map((it, i) => {
+                const isPaid = it.status === 'paid';
+                const isInvoiced = it.status === 'invoiced';
+                const dot = isPaid ? '✓' : isInvoiced ? '→' : '○';
+                const dotColor = isPaid ? C.green : isInvoiced ? C.amberDark : C.textMuted;
+                return (
+                  <View
+                    key={it.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 8,
+                      borderTopWidth: i === 0 ? 0 : 1,
+                      borderTopColor: C.border,
+                    }}
+                  >
+                    <Text style={{ width: 22, color: dotColor, fontWeight: '700', fontSize: 16 }}>{dot}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }} numberOfLines={1}>
+                        {it.description}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: C.textSec, marginTop: 2 }}>
+                        ${Math.round(it.amount).toLocaleString()}
+                        {it.invoice?.invoice_number ? `  •  ${it.invoice.invoice_number}` : ''}
+                      </Text>
+                    </View>
+                    {isPaid ? (
+                      <View style={[styles.statusBadge, { backgroundColor: C.greenBg }]}>
+                        <Text style={[styles.statusText, { color: C.greenText }]}>PAID</Text>
+                      </View>
+                    ) : isInvoiced ? (
+                      <View style={[styles.statusBadge, { backgroundColor: C.amberLight }]}>
+                        <Text style={[styles.statusText, { color: C.amberText }]}>DUE</Text>
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: 11, color: C.textMuted, fontWeight: '600' }}>upcoming</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         {/* Change Orders */}
-        {changeOrders.filter(co => co.status === 'pending_client').length > 0 && (
+        {changeOrders.filter(co => ['pending_client', 'viewed'].includes(co.status)).length > 0 && (
           <View style={styles.coBanner}>
             <Ionicons name="alert-circle" size={20} color={C.amberDark} />
             <View style={{ flex: 1 }}>
               <Text style={styles.coBannerTitle}>
-                {changeOrders.filter(co => co.status === 'pending_client').length} Change Order{changeOrders.filter(co => co.status === 'pending_client').length !== 1 ? 's' : ''} Pending
+                {changeOrders.filter(co => ['pending_client', 'viewed'].includes(co.status)).length} Change Order{changeOrders.filter(co => ['pending_client', 'viewed'].includes(co.status)).length !== 1 ? 's' : ''} Pending
               </Text>
               <Text style={styles.coBannerSub}>Tap to review and approve</Text>
             </View>
@@ -195,13 +277,13 @@ export default function ClientMoneyScreen({ navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>CHANGE ORDERS</Text>
             {changeOrders.map((co) => {
-              const isPending = co.status === 'pending_client';
+              const isPending = ['pending_client', 'viewed'].includes(co.status);
               const isApproved = co.status === 'approved';
               return (
                 <TouchableOpacity
                   key={co.id}
                   style={[styles.coCard, isPending && styles.coCardPending]}
-                  onPress={() => navigation.getParent()?.navigate('ClientChangeOrderDetail', { changeOrder: co })}
+                  onPress={() => navigation.getParent()?.navigate('ClientChangeOrderDetail', { changeOrder: co, project: activeProject })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.invoiceRow}>

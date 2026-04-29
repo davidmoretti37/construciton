@@ -26,15 +26,17 @@ const C = {
 const STATUS_MAP = {
   draft: { bg: C.border, text: C.textSec, label: 'DRAFT' },
   pending_client: { bg: C.amberLight, text: C.amberText, label: 'AWAITING APPROVAL' },
+  viewed: { bg: C.amberLight, text: C.amberText, label: 'AWAITING APPROVAL' },
   approved: { bg: C.greenBg, text: C.greenText, label: 'APPROVED' },
   rejected: { bg: C.redBg, text: C.redText, label: 'DECLINED' },
+  void: { bg: C.border, text: C.textMuted, label: 'VOIDED' },
   voided: { bg: C.border, text: C.textMuted, label: 'VOIDED' },
 };
 
 const REASON_CHIPS = ['Too expensive', 'Need more info', 'Out of scope', 'Discuss first', 'Other'];
 
 export default function ClientChangeOrderDetailScreen({ route, navigation }) {
-  const { changeOrder } = route.params;
+  const { changeOrder, project } = route.params;
   const { profile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [showDecline, setShowDecline] = useState(false);
@@ -42,14 +44,31 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
   const [declineReason, setDeclineReason] = useState('');
   const [selectedChip, setSelectedChip] = useState(null);
   const [approvalName, setApprovalName] = useState(profile?.full_name || '');
-  const [responded, setResponded] = useState(changeOrder.status !== 'pending_client');
+  const [responded, setResponded] = useState(!['pending_client', 'viewed'].includes(changeOrder.status));
 
   const co = changeOrder;
   const status = STATUS_MAP[co.status] || STATUS_MAP.draft;
-  const lineItems = co.line_items || [];
-  const isPending = co.status === 'pending_client' && !responded;
+  // Server now joins line items under `change_order_line_items`. Tolerate either
+  // shape so old cached data and the new server response both render.
+  const lineItems = co.change_order_line_items || co.line_items || [];
+  const isPending = ['pending_client', 'viewed'].includes(co.status) && !responded;
+  const scheduleDays = Number(co.schedule_impact_days ?? co.days_added ?? 0);
+  const requiresSignature = !!co.signature_required;
+  // Compute new end date for the schedule callout
+  const newEndDate = (project?.end_date && scheduleDays)
+    ? new Date(new Date(project.end_date).getTime() + scheduleDays * 86400000)
+    : null;
 
   const handleApprove = async () => {
+    // Signature-required COs cannot be approved by typed name — server enforces.
+    // Tell the client the contractor will email a signing link.
+    if (requiresSignature) {
+      Alert.alert(
+        'Signature required',
+        'This change order needs your signature. Check your email for the signing link the contractor sent, or ask them to resend it.'
+      );
+      return;
+    }
     if (!approvalName.trim()) {
       Alert.alert('Name Required', 'Please type your name to approve.');
       return;
@@ -130,22 +149,61 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           <Text style={styles.costAmount}>
             {co.total_amount >= 0 ? '+' : ''}${Math.abs(parseFloat(co.total_amount || 0)).toLocaleString()}
           </Text>
-          {co.days_added > 0 && (
-            <Text style={styles.costDays}>+{co.days_added} day{co.days_added !== 1 ? 's' : ''} to schedule</Text>
+          {scheduleDays !== 0 && (
+            <Text style={styles.costDays}>
+              {scheduleDays > 0 ? '+' : ''}{scheduleDays} day{Math.abs(scheduleDays) !== 1 ? 's' : ''} to schedule
+            </Text>
           )}
         </View>
+
+        {/* Schedule Impact Callout — clients absorb price better when they see end-date impact */}
+        {scheduleDays !== 0 && newEndDate && (
+          <View style={styles.scheduleCallout}>
+            <Ionicons name="calendar-outline" size={16} color={C.amberDark} />
+            <Text style={styles.scheduleCalloutText}>
+              {scheduleDays > 0 ? 'Adds' : 'Reduces'} {Math.abs(scheduleDays)} day{Math.abs(scheduleDays) !== 1 ? 's' : ''} —
+              new estimated completion: <Text style={{ fontWeight: '700' }}>
+                {newEndDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </Text>
+            </Text>
+          </View>
+        )}
+
+        {/* Signature requirement banner */}
+        {isPending && requiresSignature && (
+          <View style={styles.signatureNotice}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={C.blue} />
+            <Text style={styles.signatureNoticeText}>
+              Your contractor requested a signature. Check your email for the signing link.
+            </Text>
+          </View>
+        )}
 
         {/* Line Items */}
         {lineItems.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>LINE ITEMS</Text>
             <View style={styles.lineItemsCard}>
-              {lineItems.map((item, i) => (
-                <View key={i} style={[styles.lineItem, i < lineItems.length - 1 && styles.lineItemBorder]}>
-                  <Text style={styles.lineItemDesc}>{item.description}</Text>
-                  <Text style={styles.lineItemAmount}>${parseFloat(item.total || item.unit_price || 0).toLocaleString()}</Text>
-                </View>
-              ))}
+              {lineItems.map((item, i) => {
+                const qty = item.quantity != null ? Number(item.quantity) : null;
+                const unit = item.unit || '';
+                const unitPrice = item.unit_price != null ? Number(item.unit_price) : null;
+                const itemAmount = parseFloat(item.amount ?? item.total ?? (qty != null && unitPrice != null ? qty * unitPrice : 0));
+                const showQtyLine = qty != null && qty !== 1;
+                return (
+                  <View key={item.id || i} style={[styles.lineItem, i < lineItems.length - 1 && styles.lineItemBorder]}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={styles.lineItemDesc}>{item.description}</Text>
+                      {showQtyLine && (
+                        <Text style={styles.lineItemMeta}>
+                          {qty}{unit ? ` ${unit}` : ''}{unitPrice != null ? ` × $${unitPrice.toLocaleString()}` : ''}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={styles.lineItemAmount}>${itemAmount.toLocaleString()}</Text>
+                  </View>
+                );
+              })}
               <View style={[styles.lineItem, styles.lineItemTotal]}>
                 <Text style={styles.lineItemTotalLabel}>Total</Text>
                 <Text style={styles.lineItemTotalAmount}>${parseFloat(co.total_amount || 0).toLocaleString()}</Text>
@@ -291,6 +349,19 @@ const styles = StyleSheet.create({
   },
   expiryText: { fontSize: 13, fontWeight: '600', color: C.amberDark },
 
+  scheduleCallout: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: C.amberLight, borderLeftWidth: 3, borderLeftColor: C.amber,
+    borderRadius: 8, padding: 12, marginBottom: 16,
+  },
+  scheduleCalloutText: { fontSize: 13, color: C.amberText, flex: 1, lineHeight: 18 },
+
+  signatureNotice: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.blueBg, borderRadius: 10, padding: 12, marginBottom: 16,
+  },
+  signatureNoticeText: { fontSize: 13, color: '#1E40AF', flex: 1, lineHeight: 18 },
+
   costCard: {
     backgroundColor: C.surface, borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 20,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 4,
@@ -305,7 +376,8 @@ const styles = StyleSheet.create({
   lineItemsCard: { backgroundColor: C.surface, borderRadius: 12, overflow: 'hidden' },
   lineItem: { flexDirection: 'row', justifyContent: 'space-between', padding: 14 },
   lineItemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  lineItemDesc: { fontSize: 14, color: C.text, flex: 1, marginRight: 12 },
+  lineItemDesc: { fontSize: 14, color: C.text },
+  lineItemMeta: { fontSize: 12, color: C.textMuted, marginTop: 2 },
   lineItemAmount: { fontSize: 14, fontWeight: '600', color: C.text, fontVariant: ['tabular-nums'] },
   lineItemTotal: { borderTopWidth: 1.5, borderTopColor: C.border, backgroundColor: '#FAFAFA' },
   lineItemTotalLabel: { fontSize: 14, fontWeight: '700', color: C.text },

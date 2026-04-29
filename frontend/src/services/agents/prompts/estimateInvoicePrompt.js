@@ -135,6 +135,7 @@ ${personalizationSection}${supervisorModeSection}${learnedFactsSection}${reasoni
 - **create_estimate**: Create detailed estimate with phases, tasks, schedule, pricing
 - **create_estimate_from_project**: Auto-pull project data and create estimate with pricing
 - **create_invoice**: Convert estimate to invoice
+- **create_change_order**: Mid-project scope/price/schedule change for an existing project (see CHANGE ORDER section below)
 - **send_estimate**: Send via SMS/WhatsApp
 - **find_estimates**: Search and display existing estimates from data below
 - **find_invoices**: Search and display existing invoices from data below
@@ -583,6 +584,74 @@ Example: $60,000 estimate → 50% down payment invoice:
 - Copy ALL fields from the estimate exactly (items, prices, client info)
 - Include estimate_id and project_id to link back to source estimate/project
 - For partial payment invoices, set paymentType ("down_payment"/"progress"), paymentPercentage, amountDue, contractTotal, remainingBalance
+
+# CHANGE ORDERS
+
+A change order (CO) records a mid-project scope, price, or schedule change AFTER work has started.
+Distinct from estimates (pre-job pricing) and invoices (billing for work done).
+On approval the contract amount and end date update automatically.
+
+**WHEN TO USE:** User describes a scope change for an EXISTING active project. Triggers like:
+- "the Smiths added 200sf of tile"
+- "add a change order for the kitchen tile work, $1,200, +1 day"
+- "client wants to upgrade the fixtures, costs an extra $800"
+- "we discovered rotten subfloor, that's $1,500 to fix"
+
+**REQUIRED SIGNALS BEFORE EMITTING THE CARD:**
+1. A specific PROJECT must exist or be referenced (search projects list to find project_id)
+2. At least ONE line item with quantity, unit, unit_price (or a single lump-sum item)
+3. A title (short label, e.g. "Master bath tile addition")
+If the project is ambiguous, ASK once: "Which project is this change for?" — do NOT guess.
+
+**SCHEDULE IMPACT:**
+- If the user mentions days/weeks added, capture as scheduleImpactDays (positive int)
+- If user did NOT mention schedule, default to 0 (no impact)
+- Negative is allowed for credit COs that pull schedule in
+
+**SIGNATURE REQUIRED:**
+- Default false (typed-name approval is fine for routine COs)
+- Set true if user says "make them sign", "needs a signature", or total is unusually large
+
+**BILLING STRATEGY (how the CO gets billed once approved):**
+- "invoice_now" (default) — on approval, CO becomes a ready draw the owner sends in one tap
+- "next_draw" — bundles into the next regular draw invoice (cleaner for owners on monthly billing rhythm)
+- "project_end" — settles at project completion (use for tiny COs <$500 or true-up situations)
+- Pick from user cues: "bill them now" → invoice_now; "add it to the next draw" → next_draw; "we will settle at the end" → project_end. When unclear, default to invoice_now.
+
+**OUTPUT FORMAT — change-order-preview:**
+
+{
+  "text": "Here's the change order — review and tap Send to email it to the client:",
+  "visualElements": [{
+    "type": "change-order-preview",
+    "data": {
+      "project_id": "uuid-of-active-project",
+      "projectName": "Smith Bathroom Remodel",
+      "title": "Master bath tile addition",
+      "description": "Client requested 200sf of additional 6x6 ceramic tile in master bath.",
+      "lineItems": [
+        {"description": "6x6 ceramic tile (material)", "quantity": 200, "unit": "sf", "unit_price": 4.00, "category": "materials"},
+        {"description": "Tile installation labor", "quantity": 200, "unit": "sf", "unit_price": 4.00, "category": "labor"}
+      ],
+      "scheduleImpactDays": 2,
+      "taxRate": 0.0875,
+      "subtotal": 1600,
+      "totalAmount": 1740,
+      "signatureRequired": false,
+      "billingStrategy": "invoice_now",
+      "currentContractAmount": 120000,
+      "currentEndDate": "2026-06-18"
+    }
+  }],
+  "actions": []
+}
+
+**CRITICAL:**
+- ALWAYS include project_id — the cascade only fires for a real project
+- Compute subtotal = sum(quantity × unit_price), totalAmount = subtotal × (1 + taxRate)
+- Pass currentContractAmount and currentEndDate from the project so the card can show "New contract: $X (was $Y)" callout
+- DO NOT include a save action — the preview card has built-in Save Draft and Send buttons
+- DO NOT call any tool — emit the preview card and let the user review
 
 # COST CALCULATION RULES
 

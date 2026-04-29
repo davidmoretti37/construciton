@@ -36,17 +36,72 @@ const NOTIFICATION_CONFIG = {
     color: '#6B7280', // gray
     label: 'System',
   },
+  // ─── Billing types ───
+  draw_ready: {
+    icon: 'cash-outline',
+    color: '#10B981', // green
+    label: 'Draw ready',
+  },
+  draw_stale: {
+    icon: 'time-outline',
+    color: '#F59E0B', // amber
+    label: 'Draw waiting',
+  },
+  invoice_overdue: {
+    icon: 'alert-circle-outline',
+    color: '#EF4444', // red
+    label: 'Overdue',
+  },
+  co_response_received: {
+    icon: 'checkmark-circle-outline',
+    color: '#10B981', // green
+    label: 'Change order',
+  },
+  co_pending_response: {
+    icon: 'mail-unread-outline',
+    color: '#F59E0B', // amber
+    label: 'Awaiting client',
+  },
+  bank_reconciliation: {
+    icon: 'wallet-outline',
+    color: '#8B5CF6',
+    label: 'Reconciliation',
+  },
+  task_update: {
+    icon: 'list-outline',
+    color: '#6366F1',
+    label: 'Task',
+  },
+};
+
+// Map action_type → CTA label + visual style. Drives the inline one-tap button.
+const CTA_CONFIG = {
+  send_draw:     { label: 'Send invoice', bg: '#1E40AF' },
+  nudge_invoice: { label: 'Nudge client', bg: '#D97706' },
+  resend_co:     { label: 'Resend',       bg: '#F59E0B' },
+  bill_co_now:   { label: 'Bill now',     bg: '#1E40AF' },
 };
 
 export default function NotificationItem({
   notification,
   onPress,
   onDelete,
+  onAction,
   showSwipeHint = false,
 }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const config = NOTIFICATION_CONFIG[notification.type] || NOTIFICATION_CONFIG.system;
+  const ctaCfg = !notification.read && CTA_CONFIG[notification.action_type];
+  const [busy, setBusy] = React.useState(false);
+
+  const handleCta = async (e) => {
+    e.stopPropagation?.();
+    if (busy) return;
+    setBusy(true);
+    try { await onAction?.(notification); }
+    finally { setBusy(false); }
+  };
 
   const formatTime = (dateString) => {
     const date = new Date(dateString);
@@ -117,7 +172,7 @@ export default function NotificationItem({
           {notification.body}
         </Text>
 
-        {/* Type label */}
+        {/* Type label + inline CTA for actionable billing notifications */}
         <View style={styles.footer}>
           <View style={[styles.typeLabel, { backgroundColor: config.color + '15' }]}>
             <Text style={[styles.typeLabelText, { color: config.color }]}>
@@ -126,6 +181,18 @@ export default function NotificationItem({
           </View>
 
           {!notification.read && <View style={styles.unreadDot} />}
+
+          {ctaCfg && onAction && (
+            <TouchableOpacity
+              style={[styles.cta, { backgroundColor: busy ? '#94A3B8' : ctaCfg.bg }]}
+              onPress={handleCta}
+              disabled={busy}
+              activeOpacity={0.8}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Text style={styles.ctaText}>{busy ? '…' : ctaCfg.label}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -184,7 +251,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
   },
   typeLabel: {
     paddingHorizontal: 8,
@@ -200,6 +267,13 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#3B82F6',
+  },
+  cta: {
+    marginLeft: 'auto',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+  },
+  ctaText: {
+    color: '#fff', fontSize: 12, fontWeight: '700',
   },
   deleteButton: {
     padding: 4,

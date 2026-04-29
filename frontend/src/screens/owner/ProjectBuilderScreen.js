@@ -39,6 +39,7 @@ import {
   AppState,
   Linking,
   FlatList,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -154,6 +155,44 @@ const hydrateFromChatData = (data) => {
         )
       : [],
     trades: [],
+    // Progress draws extracted from chat (e.g. "$200K, bill in 4 draws of 25% with 10% retainage").
+    // billInDraws is on iff the agent supplied a non-empty draws list.
+    // The agent emits phase_name (human label) — we keep it on the draw and
+    // resolve to phase_id once phases get persisted (in handleAddDraw flow
+    // or after upsertProjectPhases runs). For now, draws with phase_name
+    // and trigger_type=phase_completion are stored with phase_id=null and
+    // get resolved in the save flow.
+    billInDraws: Array.isArray(data.draws) && data.draws.length > 0,
+    retainagePercent: String(
+      data.retainage_percent != null
+        ? data.retainage_percent
+        : data.retainagePercent != null
+          ? data.retainagePercent
+          : 0
+    ),
+    draws: Array.isArray(data.draws)
+      ? data.draws.map((d, i) => {
+          const trigger = d.trigger_type
+            || (d.phase_name || d.phase_id ? 'phase_completion'
+              : (i === 0 && /deposit|down\s*payment|signing|upfront/i.test(d.description || '')
+                  ? 'project_start'
+                  : 'manual'));
+          return {
+            description: d.description || d.name || `Draw ${i + 1}`,
+            percent_of_contract:
+              d.percent_of_contract != null
+                ? String(d.percent_of_contract)
+                : d.percent != null
+                  ? String(d.percent)
+                  : '',
+            fixed_amount: d.fixed_amount != null ? String(d.fixed_amount) : null,
+            trigger_type: trigger,
+            phase_id: d.phase_id || null,
+            phase_name: d.phase_name || null, // resolved → phase_id in the save flow
+            status: 'pending',
+          };
+        })
+      : [],
     assignedSupervisorId: data.assignedSupervisorId || null,
     workers: Array.isArray(data.workers) ? data.workers : [],
     aiConfidence: data.aiConfidence || {}, // map of fieldName => 'high' | 'low'
@@ -297,6 +336,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const [contractAmount, setContractAmount] = useState(initial.contractAmount || '');
   const [services, setServices] = useState(initial.services || []);
   const [phases, setPhases] = useState(initial.phases || []);
+  // Progress draws (optional billing structure for larger jobs).
+  // billInDraws toggles the section; draws is the editable list.
+  // Pre-populated from chat extraction when present.
+  const [billInDraws, setBillInDraws] = useState(!!initial.billInDraws);
+  const [retainagePercent, setRetainagePercent] = useState(initial.retainagePercent || '0');
+  const [draws, setDraws] = useState(initial.draws || []);
   const [startDate, setStartDate] = useState(initial.startDate || null);
   const [endDate, setEndDate] = useState(initial.endDate || null);
   const [workingDays, setWorkingDays] = useState(initial.workingDays || [1, 2, 3, 4, 5]);
@@ -336,6 +381,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     basics: true,
     timeline: false,
     phases: false,
+    draws: false,
     team: false,
     checklist: false,
     documents: false,
@@ -443,6 +489,29 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             }))
           );
         }
+
+        // Hydrate any saved draw schedule
+        try {
+          const { fetchDrawSchedule } = await import('../../utils/storage/projectDraws');
+          const drawData = await fetchDrawSchedule(initialProjectId);
+          if (drawData?.schedule) {
+            setBillInDraws(true);
+            setRetainagePercent(String(drawData.schedule.retainage_percent ?? 0));
+            setDraws(
+              (drawData.items || []).map((it) => ({
+                id: it.id,
+                description: it.description,
+                percent_of_contract: it.percent_of_contract != null ? String(it.percent_of_contract) : '',
+                fixed_amount: it.fixed_amount != null ? String(it.fixed_amount) : '',
+                phase_id: it.phase_id || null,
+                status: it.status,
+                invoice_number: it.invoice?.invoice_number || null,
+              }))
+            );
+          }
+        } catch (e) {
+          console.warn('[ProjectBuilder] draw schedule load failed', e);
+        }
       } catch (e) {
         console.warn('[ProjectBuilder] resume load failed', e);
       }
@@ -525,95 +594,16 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   // but tight enough that a long-abandoned draft from last week doesn't get
   // hijacked by an unrelated new chat about a different project of the same
   // name.
-  // Guard against concurrent draft-create calls. The effect below watches
-  // every form field, so rapid typing could otherwise fire multiple creates
-  // before the first completes.
-  const creatingDraftRef = useRef(false);
-  useEffect(() => {
-    if (initialProjectId) return;
-    if (projectIdRef.current) return;
-    if (creatingDraftRef.current) return;
-    // Fire the draft create as soon as ANY field has content. Previously
-    // this only triggered on name/client from chat data — if the user
-    // opened ProjectBuilder without chat data and started typing email or
-    // phone first, no draft was ever created and nothing saved.
-    const hasAnyData =
-      (name && name.trim()) ||
-      (client && client.trim()) ||
-      (clientPhone && clientPhone.trim()) ||
-      (clientEmail && clientEmail.trim()) ||
-      (location && location.trim()) ||
-      (contractAmount && String(contractAmount).trim());
-    if (!hasAnyData) return;
-
-    creatingDraftRef.current = true;
-    (async () => {
-      try {
-        // 1. Look for an existing in-progress draft for this user that
-        //    matches the current name + client. Use the most recently
-        //    updated one so resuming feels predictable.
-        const userId = await getCurrentUserId();
-        if (userId) {
-          try {
-            const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const nameKey = (name || '').trim();
-            const clientKey = (client || '').trim();
-            let q = supabase
-              .from('projects')
-              .select('id, name, client_name, updated_at')
-              .eq('user_id', userId)
-              .eq('status', 'draft')
-              .gte('updated_at', since)
-              .order('updated_at', { ascending: false })
-              .limit(5);
-            if (nameKey) q = q.ilike('name', nameKey);
-            if (clientKey) q = q.ilike('client_name', clientKey);
-            const { data: existingDrafts } = await q;
-            const match = (existingDrafts || []).find(d =>
-              (d.name || '').trim().toLowerCase() === nameKey.toLowerCase() &&
-              (d.client_name || '').trim().toLowerCase() === clientKey.toLowerCase()
-            );
-            if (match?.id) {
-              setProjectId(match.id);
-              projectIdRef.current = match.id;
-              return;
-            }
-          } catch (lookupErr) {
-            // Lookup failure shouldn't block draft creation
-            console.warn('[ProjectBuilder] draft lookup failed', lookupErr?.message);
-          }
-        }
-
-        // 2. No existing draft → insert one with whatever the user has
-        //    typed so far. Subsequent autosaves will update this row.
-        const draft = await saveProject({
-          ...chatExtractedData,
-          projectName: name,
-          name,
-          client,
-          clientPhone,
-          email: clientEmail,
-          location,
-          contractAmount: parseFloat(contractAmount) || 0,
-          status: 'draft',
-          startDate: toISODate(startDate),
-          endDate: toISODate(endDate),
-          workingDays,
-          services: services && services.length > 0 ? services : undefined,
-          phases: undefined, // phases saved in separate upsert pass
-        });
-        if (draft?.id) {
-          setProjectId(draft.id);
-          projectIdRef.current = draft.id;
-        }
-      } catch (e) {
-        console.warn('[ProjectBuilder] draft create failed', e);
-      } finally {
-        creatingDraftRef.current = false;
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, client, clientPhone, clientEmail, location, contractAmount]);
+  // Auto-draft creation is intentionally disabled. The builder no longer
+  // persists a project until the user explicitly taps Create Project at the
+  // bottom — this prevents orphan drafts in the Projects list when someone
+  // opens "Configure Details" from chat and then taps Back without confirming.
+  // The deduplication / resume-existing-draft logic that used to live here
+  // moved to a no-op; if we ever want crash-safety back, store form state in
+  // AsyncStorage instead of writing to the projects table.
+  // (Auto-draft creation deliberately removed. The project is only persisted
+  // when the user taps Create Project at the bottom — no orphan rows when
+  // someone opens Configure Details from chat and taps Back.)
 
   // ---- Auto-save (debounced 2s) ----
   const buildSavePayload = useCallback((overrideStatus) => {
@@ -699,6 +689,113 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     }));
   }, [phases]);
 
+  const buildDrawsPayload = useCallback(() => {
+    if (!billInDraws) return { enabled: false, items: [] };
+    return {
+      enabled: true,
+      retainage_percent: parseFloat(retainagePercent) || 0,
+      // Only persist rows that have a description AND either a real percent
+      // or a real fixed amount. In-progress rows the user is still typing
+      // don't generate validation errors during autosave.
+      items: draws
+        .map((d) => {
+          const pct = d.percent_of_contract;
+          const fixed = d.fixed_amount;
+          const hasPct = pct !== '' && pct != null && !Number.isNaN(parseFloat(pct)) && parseFloat(pct) > 0;
+          const hasFixed = fixed !== '' && fixed != null && !Number.isNaN(parseFloat(fixed)) && parseFloat(fixed) > 0;
+          // Default trigger_type if missing: phase_completion when a phase
+          // is linked, otherwise manual. Avoid surfacing this drift to the
+          // user — the picker keeps it explicit going forward.
+          const trigger = d.trigger_type
+            || (d.phase_id ? 'phase_completion' : 'manual');
+          return {
+            id: d.id || undefined,
+            description: (d.description || '').trim(),
+            percent_of_contract: hasPct ? parseFloat(pct) : null,
+            fixed_amount: hasFixed ? parseFloat(fixed) : null,
+            // Only attach phase_id when it's actually used.
+            phase_id: trigger === 'phase_completion' ? (d.phase_id || null) : null,
+            trigger_type: trigger,
+            _hasValue: hasPct || hasFixed,
+            _validTrigger: trigger !== 'phase_completion' || !!d.phase_id,
+          };
+        })
+        .filter((d) => d.description && d._hasValue && d._validTrigger)
+        .map(({ _hasValue, _validTrigger, ...row }) => row),
+    };
+  }, [billInDraws, retainagePercent, draws]);
+
+  // After phases get persisted (and gain real UUIDs), resolve any draws
+  // that came in from chat with phase_name but no phase_id. Also re-runs
+  // when the user renames a phase so the link stays attached.
+  useEffect(() => {
+    if (!billInDraws || draws.length === 0) return;
+    const resolvable = draws.some(
+      (d) =>
+        d.trigger_type === 'phase_completion' &&
+        !d.phase_id &&
+        d.phase_name &&
+        phases.some(
+          (p) =>
+            p.id &&
+            typeof p.id === 'string' &&
+            !String(p.id).startsWith('draft-') &&
+            p.name &&
+            p.name.toLowerCase() === d.phase_name.toLowerCase()
+        )
+    );
+    if (!resolvable) return;
+    setDraws((prev) =>
+      prev.map((d) => {
+        if (d.trigger_type !== 'phase_completion' || d.phase_id || !d.phase_name) return d;
+        const match = phases.find(
+          (p) =>
+            p.id &&
+            !String(p.id).startsWith('draft-') &&
+            p.name &&
+            p.name.toLowerCase() === d.phase_name.toLowerCase()
+        );
+        return match ? { ...d, phase_id: match.id, phase_name: null } : d;
+      })
+    );
+  }, [phases, billInDraws, draws]);
+
+  // Draw row helpers (mirror handleAddPhase / updatePhase / removePhase).
+  // New rows start in % mode with empty values so the user can tap and type
+  // (no leading 0 to delete first).
+  // Smart defaults for trigger_type:
+  //   - first draw on a fresh project → project_start (deposit pattern)
+  //   - subsequent draws → phase_completion + auto-pick the next phase
+  //     that nothing else is linked to, so there's always a real signal
+  const handleAddDraw = useCallback(() => {
+    setDraws((prev) => {
+      const isFirst = prev.length === 0;
+      const taken = new Set(prev.map((d) => d.phase_id).filter(Boolean));
+      const persistedPhases = phases.filter(
+        (p) => p.id && typeof p.id === 'string' && !p.id.startsWith('draft-')
+      );
+      const nextPhase = persistedPhases.find((p) => !taken.has(p.id));
+      const triggerType = isFirst ? 'project_start' : (nextPhase ? 'phase_completion' : 'manual');
+      return [
+        ...prev,
+        {
+          description: isFirst ? 'Deposit at signing' : '',
+          percent_of_contract: '',
+          fixed_amount: null,
+          trigger_type: triggerType,
+          phase_id: triggerType === 'phase_completion' ? nextPhase?.id || null : null,
+          status: 'pending',
+        },
+      ];
+    });
+  }, [phases]);
+  const updateDraw = useCallback((index, patch) => {
+    setDraws((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  }, []);
+  const removeDraw = useCallback((index) => {
+    setDraws((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   const flushSave = useCallback(async () => {
     if (!projectIdRef.current) return;
     // In-flight guard: if an earlier flushSave is still awaiting Supabase,
@@ -717,6 +814,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       // path runs. Using the non-destructive upsert there means a failed phase
       // save won't wipe previously-persisted phases.
       payload.phases = buildPhasesPayload();
+      payload.draws = buildDrawsPayload();
       const saved = await saveProject(payload);
       if (saved === null) {
         hadError = true;
@@ -781,7 +879,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         setTimeout(() => flushSaveRef.current?.(), 0);
       }
     }
-  }, [buildSavePayload, buildPhasesPayload, startDate, endDate, workingDays]);
+  }, [buildSavePayload, buildPhasesPayload, buildDrawsPayload, startDate, endDate, workingDays]);
 
   // Keep the mirror ref pointed at the latest flushSave. The AppState/unmount
   // effect below runs with [] deps so without this it would call the very
@@ -826,6 +924,9 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     linkedEstimateId,
     checklistItems,
     laborRoles,
+    billInDraws,
+    retainagePercent,
+    draws,
   ]);
 
   // Force-flush on unmount or app background.
@@ -870,6 +971,30 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         if (anyNoBudget) return { kind: 'amber', label: '⚠' };
         return { kind: 'green', label: '✓' };
       }
+      case 'draws': {
+        if (!billInDraws) return { kind: 'grey', label: '○' };
+        if (draws.length === 0) return { kind: 'red', label: '!' };
+        const anyEmpty = draws.some(
+          (d) => !(d.description || '').trim() ||
+            (
+              !(parseFloat(d.percent_of_contract) > 0) &&
+              !(parseFloat(d.fixed_amount) > 0)
+            )
+        );
+        if (anyEmpty) return { kind: 'amber', label: '⚠' };
+        // Trigger must be valid: phase_completion needs a phase, others don't.
+        const anyBadTrigger = draws.some((d) => {
+          const t = d.trigger_type || (d.phase_id ? 'phase_completion' : 'manual');
+          return t === 'phase_completion' && !d.phase_id;
+        });
+        if (anyBadTrigger) return { kind: 'amber', label: '⚠' };
+        const pctSum = draws
+          .filter((d) => d.percent_of_contract !== '' && d.percent_of_contract != null)
+          .reduce((s, d) => s + (parseFloat(d.percent_of_contract) || 0), 0);
+        // % rows must total 100 if there are any. Mixed (% + fixed) is allowed.
+        if (pctSum > 0 && Math.abs(pctSum - 100) > 0.01) return { kind: 'amber', label: '⚠' };
+        return { kind: 'green', label: '✓' };
+      }
       case 'team': {
         if (!selectedSupervisor && selectedWorkerIds.length === 0) return { kind: 'grey', label: '○' };
         return { kind: 'green', label: '✓' };
@@ -893,7 +1018,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       default:
         return { kind: 'grey', label: '○' };
     }
-  }, [name, client, startDate, endDate, phases, contractAmount, selectedSupervisor, selectedWorkerIds, checklistItems, laborRoles, documents.length, linkedEstimateId]);
+  }, [name, client, startDate, endDate, phases, contractAmount, selectedSupervisor, selectedWorkerIds, checklistItems, laborRoles, documents.length, linkedEstimateId, billInDraws, draws]);
 
   const toggleSection = useCallback(
     (k) => setExpandedSections((s) => ({ ...s, [k]: !s[k] })),
@@ -1178,6 +1303,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
         const payload = buildSavePayload('active');
         payload.phases = buildPhasesPayload();
+        payload.draws = buildDrawsPayload();
         // saveProject now handles checklist_items + labor_roles directly.
         const saved = await saveProject(payload);
         if (saved?.error === 'limit_reached') {
@@ -1187,7 +1313,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         if (!saved?.id) {
           Alert.alert(
             'Save failed',
-            "Couldn't save the project — check your connection and try again. Your draft is still here.",
+            "Couldn't create the project — check your connection and try again. Your work on this screen is preserved.",
           );
           return;
         }
@@ -1601,6 +1727,340 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           {/* Financial section removed — Contract Amount now lives at the top
               of the Phases section; trade budgets are entered per-phase via
               Add Phase. */}
+
+          {/* ============ 4. PROGRESS DRAWS ============ */}
+          <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+            <SectionHeader
+              title="Progress Draws"
+              icon="cash-outline"
+              sectionKey="draws"
+              expanded={expandedSections.draws}
+              chip={sectionChip('draws')}
+              onToggle={toggleSection}
+              Colors={Colors}
+            />
+            {expandedSections.draws && (
+              <View style={styles.sectionBody}>
+                <Text style={{ color: Colors.secondaryText, fontSize: 12, marginBottom: 4, lineHeight: 18 }}>
+                  Big jobs aren't paid all at once. Instead you bill the homeowner in
+                  chunks ("draws") as you finish milestones — deposit, foundation, rough-in,
+                  drywall, final, and so on. Skip this for small jobs you'd bill with one
+                  invoice.
+                </Text>
+                <Text style={{ color: Colors.secondaryText, fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
+                  Once turned on, you'll get a "Send draw" button on the project page for
+                  each milestone — tap it when the work is done and an invoice goes out.
+                </Text>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+                  <Text style={{ color: Colors.primaryText, fontSize: 14, fontWeight: '600' }}>
+                    Bill this project in draws?
+                  </Text>
+                  <Switch
+                    value={billInDraws}
+                    onValueChange={setBillInDraws}
+                    trackColor={{ false: Colors.border, true: Colors.primaryBlue }}
+                  />
+                </View>
+
+                {billInDraws && (
+                  <>
+                    <View style={{ marginTop: 12 }}>
+                      <LabelRow label="Retainage (%)" Colors={Colors} />
+                      <Text style={{ color: Colors.secondaryText, fontSize: 11, marginBottom: 6, lineHeight: 16 }}>
+                        The homeowner holds back this percent from every draw payment until
+                        the project is fully done — a safety deposit so contractors don't
+                        skip the punchlist. Industry standard: 10%. Set 0 if you don't want any.
+                      </Text>
+                      <ThemedInput
+                        value={String(retainagePercent)}
+                        onChangeText={(v) => setRetainagePercent(sanitizeNumeric(v))}
+                        placeholder="10"
+                        keyboardType="decimal-pad"
+                        Colors={Colors}
+                      />
+                    </View>
+
+                    {/* Live totals */}
+                    {(() => {
+                      const contract = parseFloat(contractAmount) || 0;
+                      const pctSum = draws
+                        .filter((d) => d.percent_of_contract !== '' && d.percent_of_contract != null)
+                        .reduce((s, d) => s + (parseFloat(d.percent_of_contract) || 0), 0);
+                      const fixedSum = draws
+                        .filter((d) => d.fixed_amount !== '' && d.fixed_amount != null)
+                        .reduce((s, d) => s + (parseFloat(d.fixed_amount) || 0), 0);
+                      const dollarTotal = (contract * pctSum / 100) + fixedSum;
+                      const pctClose = pctSum > 0 && Math.abs(pctSum - 100) <= 0.01;
+                      const allFixed = pctSum === 0 && fixedSum > 0;
+                      return (
+                        <View style={[styles.allocBar, {
+                          backgroundColor: pctClose || allFixed ? '#EFF6FF' : '#FEF3C7',
+                          borderColor: pctClose || allFixed ? Colors.primaryBlue + '30' : '#F59E0B',
+                          marginTop: 12,
+                        }]}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryText }}>
+                            {pctSum > 0 ? `${pctSum.toFixed(1)}% of contract allocated` : 'Fixed-amount draws'}
+                            {fixedSum > 0 && pctSum > 0 ? `  •  + $${fixedSum.toLocaleString()} fixed` : ''}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
+                            Total ${dollarTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} across {draws.length} draw{draws.length === 1 ? '' : 's'}
+                            {pctSum > 0 && !pctClose ? '  •  % rows should sum to 100' : ''}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+
+                    {draws.map((draw, i) => {
+                      // null = "this mode is inactive", '' or value = "this mode is selected".
+                      // Default new rows are percent with empty value.
+                      const isFixedMode = draw.fixed_amount != null;
+                      const mode = isFixedMode ? 'fixed' : 'percent';
+                      const contract = parseFloat(contractAmount) || 0;
+                      const computed = mode === 'percent'
+                        ? contract * (parseFloat(draw.percent_of_contract) || 0) / 100
+                        : parseFloat(draw.fixed_amount) || 0;
+                      const locked = draw.status && draw.status !== 'pending';
+
+                      return (
+                        <View key={`draw-${i}`} style={[styles.phaseCard, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                            <Text style={{ color: Colors.secondaryText, fontWeight: '700', marginRight: 8 }}>#{i + 1}</Text>
+                            <TextInput
+                              style={[styles.phaseName, { color: Colors.primaryText, flex: 1 }]}
+                              value={draw.description}
+                              onChangeText={(v) => updateDraw(i, { description: v })}
+                              placeholder={`Draw ${i + 1} (e.g. "Foundation complete")`}
+                              placeholderTextColor={Colors.placeholderText}
+                              editable={!locked}
+                            />
+                            {!locked && (
+                              <TouchableOpacity onPress={() => removeDraw(i)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+
+                          {locked && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                              <View style={{ backgroundColor: draw.status === 'paid' ? '#D1FAE5' : '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                                <Text style={{ color: draw.status === 'paid' ? '#065F46' : '#92400E', fontSize: 11, fontWeight: '700' }}>
+                                  {draw.status.toUpperCase()}{draw.invoice_number ? ` • ${draw.invoice_number}` : ''}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Mode toggle: % vs fixed. null = mode inactive, '' or
+                              value = mode selected. */}
+                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                            <TouchableOpacity
+                              disabled={locked}
+                              onPress={() => updateDraw(i, {
+                                percent_of_contract: draw.percent_of_contract != null ? draw.percent_of_contract : '',
+                                fixed_amount: null,
+                              })}
+                              style={[styles.chipButton, {
+                                backgroundColor: mode === 'percent' ? Colors.primaryBlue : Colors.white,
+                                borderColor: Colors.border,
+                                opacity: locked ? 0.5 : 1,
+                              }]}
+                            >
+                              <Text style={{ color: mode === 'percent' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>% of contract</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              disabled={locked}
+                              onPress={() => updateDraw(i, {
+                                fixed_amount: draw.fixed_amount != null ? draw.fixed_amount : '',
+                                percent_of_contract: null,
+                              })}
+                              style={[styles.chipButton, {
+                                backgroundColor: mode === 'fixed' ? Colors.primaryBlue : Colors.white,
+                                borderColor: Colors.border,
+                                opacity: locked ? 0.5 : 1,
+                              }]}
+                            >
+                              <Text style={{ color: mode === 'fixed' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>Fixed $</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={{ color: Colors.secondaryText, fontSize: 11, marginBottom: 6 }}>
+                            {mode === 'percent'
+                              ? 'Scales with the contract — change orders flow through automatically.'
+                              : 'Flat dollar amount, ignores contract changes. Good for fixed deposits.'}
+                          </Text>
+
+                          {mode === 'percent' ? (
+                            <View>
+                              <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>% of contract</Text>
+                              <TextInput
+                                style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                                value={draw.percent_of_contract == null ? '' : String(draw.percent_of_contract)}
+                                onChangeText={(v) => updateDraw(i, { percent_of_contract: sanitizeNumeric(v) })}
+                                placeholder="e.g. 25"
+                                placeholderTextColor={Colors.placeholderText}
+                                keyboardType="decimal-pad"
+                                editable={!locked}
+                              />
+                            </View>
+                          ) : (
+                            <View>
+                              <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>Fixed amount ($)</Text>
+                              <TextInput
+                                style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
+                                value={draw.fixed_amount == null ? '' : String(draw.fixed_amount)}
+                                onChangeText={(v) => updateDraw(i, { fixed_amount: sanitizeNumeric(v) })}
+                                placeholder="e.g. 5000"
+                                placeholderTextColor={Colors.placeholderText}
+                                keyboardType="decimal-pad"
+                                editable={!locked}
+                              />
+                            </View>
+                          )}
+
+                          {computed > 0 && (
+                            <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 6 }}>
+                              ≈ ${computed.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </Text>
+                          )}
+
+                          {/* Trigger picker — when does this draw flip to "ready to send"?
+                              The whole point is that the contractor never has to remember;
+                              every draw needs a real signal. */}
+                          <View style={{ marginTop: 12, padding: 10, borderRadius: 8, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border }}>
+                            <Text style={[styles.miniLabel, { color: Colors.secondaryText, marginBottom: 6 }]}>
+                              Send draw automatically when…
+                            </Text>
+
+                            {/* phase_completion */}
+                            <TouchableOpacity
+                              disabled={locked}
+                              onPress={() => {
+                                const persisted = phases.filter(
+                                  (p) => p.id && typeof p.id === 'string' && !String(p.id).startsWith('draft-')
+                                );
+                                const taken = new Set(
+                                  draws.map((d, idx) => (idx !== i ? d.phase_id : null)).filter(Boolean)
+                                );
+                                const nextPhase = draw.phase_id
+                                  ? null
+                                  : (persisted.find((p) => !taken.has(p.id)) || persisted[0]);
+                                updateDraw(i, {
+                                  trigger_type: 'phase_completion',
+                                  phase_id: draw.phase_id || nextPhase?.id || null,
+                                });
+                              }}
+                              style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
+                            >
+                              <View style={{
+                                width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+                                borderColor: (draw.trigger_type === 'phase_completion') ? Colors.primaryBlue : Colors.border,
+                                alignItems: 'center', justifyContent: 'center', marginTop: 2,
+                              }}>
+                                {draw.trigger_type === 'phase_completion' && (
+                                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primaryBlue }} />
+                                )}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>A phase completes</Text>
+                                <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>
+                                  When you mark a phase as done, this draw auto-flags as ready and you get a notification.
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+
+                            {/* phase dropdown (only when phase_completion is selected) */}
+                            {draw.trigger_type === 'phase_completion' && (
+                              <View style={{ marginLeft: 28, marginBottom: 8 }}>
+                                {phases.filter((p) => p.id && !String(p.id).startsWith('draft-')).length === 0 ? (
+                                  <Text style={{ color: '#DC2626', fontSize: 11, marginTop: 4 }}>
+                                    Add a phase in the Phases section first, then come back here.
+                                  </Text>
+                                ) : (
+                                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                    {phases
+                                      .filter((p) => p.id && !String(p.id).startsWith('draft-'))
+                                      .map((p) => (
+                                        <TouchableOpacity
+                                          key={p.id}
+                                          disabled={locked}
+                                          onPress={() => updateDraw(i, { phase_id: p.id })}
+                                          style={[styles.chipButton, {
+                                            backgroundColor: draw.phase_id === p.id ? Colors.primaryBlue : Colors.lightGray,
+                                            borderColor: Colors.border,
+                                          }]}
+                                        >
+                                          <Text style={{ color: draw.phase_id === p.id ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>
+                                            {p.name}
+                                          </Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                  </ScrollView>
+                                )}
+                              </View>
+                            )}
+
+                            {/* project_start */}
+                            <TouchableOpacity
+                              disabled={locked}
+                              onPress={() => updateDraw(i, { trigger_type: 'project_start', phase_id: null })}
+                              style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
+                            >
+                              <View style={{
+                                width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+                                borderColor: (draw.trigger_type === 'project_start') ? Colors.primaryBlue : Colors.border,
+                                alignItems: 'center', justifyContent: 'center', marginTop: 2,
+                              }}>
+                                {draw.trigger_type === 'project_start' && (
+                                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primaryBlue }} />
+                                )}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>The project starts</Text>
+                                <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>
+                                  Use this for deposits — fires the moment the project becomes active.
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+
+                            {/* manual */}
+                            <TouchableOpacity
+                              disabled={locked}
+                              onPress={() => updateDraw(i, { trigger_type: 'manual', phase_id: null })}
+                              style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
+                            >
+                              <View style={{
+                                width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+                                borderColor: (draw.trigger_type === 'manual') ? Colors.primaryBlue : Colors.border,
+                                alignItems: 'center', justifyContent: 'center', marginTop: 2,
+                              }}>
+                                {draw.trigger_type === 'manual' && (
+                                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primaryBlue }} />
+                                )}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>I'll decide manually</Text>
+                                <Text style={{ color: Colors.secondaryText, fontSize: 11, marginTop: 2 }}>
+                                  Use only for unusual cases (bank-driven inspections, etc.). Your daily briefing will list it so you don't forget.
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })}
+
+                    <TouchableOpacity
+                      style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]}
+                      onPress={handleAddDraw}
+                    >
+                      <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
+                      <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Draw</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
+          </View>
 
           {/* ============ 5. TEAM ============ */}
           <View style={[styles.section, { backgroundColor: Colors.white, borderColor: Colors.border }]}>

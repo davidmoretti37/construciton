@@ -17,6 +17,7 @@ import TransactionDetailScreen from '../screens/TransactionDetailScreen';
 import ManualProjectCreateScreen from '../screens/owner/ManualProjectCreateScreen';
 import ClientVisibilityScreen from '../screens/owner/ClientVisibilityScreen';
 import SignDocumentScreen from '../screens/shared/SignDocumentScreen';
+import ChangeOrdersListScreen from '../screens/owner/ChangeOrdersListScreen';
 
 const Stack = createStackNavigator();
 
@@ -135,6 +136,11 @@ export default function MainNavigator() {
         name="SignDocument"
         component={SignDocumentScreen}
         options={{ headerShown: false, presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="ChangeOrdersList"
+        component={ChangeOrdersListScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

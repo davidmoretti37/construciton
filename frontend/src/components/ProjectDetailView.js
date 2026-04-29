@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ import BulkTaskShiftModal from './BulkTaskShiftModal';
 import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
+import BillingCard from './BillingCard';
 import DailyChecklistSection from './DailyChecklistSection';
 import TodaysChecklistSection from './TodaysChecklistSection';
 import { formatHoursMinutes } from '../utils/calculations';
@@ -161,6 +162,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   // Financials collapsible + trade budgets
   const [financialsExpanded, setFinancialsExpanded] = useState(true);
   const [tradeBudgets, setTradeBudgets] = useState(cachedDetail?.tradeBudgets || []);
+
+  // Progress draws (loaded lazily after project mounts)
+  const [drawSchedule, setDrawSchedule] = useState(null); // { schedule, items, summary } or null
+  const [drawSending, setDrawSending] = useState(null); // schedule_item_id while in flight
   // Map of lowercased name → total spent. Keyed by both phase name and trade
   // name so the merged Budget Breakdown card can show "Spent X of Y" per phase
   // and per orphan trade. Computed from project_transactions.subcategory.
@@ -440,6 +445,65 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       wasNavigatingRef.current = false;
     }
   }, [visible]);
+
+  // Lazy-load the draw schedule (separate from the main fetch wave to keep
+  // initial render fast — most projects don't have one).
+  const refreshDrawSchedule = useCallback(async () => {
+    if (!project?.id || isDemo) return;
+    try {
+      const { fetchDrawSchedule } = await import('../utils/storage/projectDraws');
+      const data = await fetchDrawSchedule(project.id);
+      setDrawSchedule(data);
+    } catch (e) {
+      console.warn('[ProjectDetailView] draw schedule load failed', e);
+    }
+  }, [project?.id, isDemo]);
+
+  useEffect(() => {
+    if (modalVisible) refreshDrawSchedule();
+  }, [modalVisible, refreshDrawSchedule]);
+
+  const handleSendDraw = useCallback(async (drawItem) => {
+    if (!drawItem?.id || drawSending) return;
+    const contract = parseFloat(project?.contract_amount || 0);
+    const retainagePct = parseFloat(drawSchedule?.schedule?.retainage_percent || 0);
+    const gross = drawItem.percent_of_contract != null
+      ? contract * (drawItem.percent_of_contract || 0) / 100
+      : (drawItem.fixed_amount || 0);
+    const retainage = gross * retainagePct / 100;
+    const net = gross - retainage;
+
+    Alert.alert(
+      'Send draw invoice',
+      `Generate $${net.toLocaleString(undefined, { maximumFractionDigits: 2 })} invoice for "${drawItem.description}"?` +
+      (retainage > 0 ? `\n\nGross $${gross.toFixed(2)} − retainage $${retainage.toFixed(2)} = net $${net.toFixed(2)}.` : ''),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: async () => {
+            setDrawSending(drawItem.id);
+            try {
+              const { generateDrawInvoice } = await import('../utils/storage/projectDraws');
+              const result = await generateDrawInvoice(drawItem.id, 30);
+              if (result?.ok) {
+                Alert.alert('Invoice created', `Invoice ${result.invoice.invoice_number} for $${result.invoice.total.toFixed(2)} is ready.`);
+                await refreshDrawSchedule();
+                onRefreshNeeded?.();
+              } else {
+                Alert.alert('Could not send draw', result?.error || 'Unknown error');
+              }
+            } catch (e) {
+              console.error('[handleSendDraw]', e);
+              Alert.alert('Could not send draw', e.message || 'Unknown error');
+            } finally {
+              setDrawSending(null);
+            }
+          },
+        },
+      ]
+    );
+  }, [project?.contract_amount, drawSchedule?.schedule?.retainage_percent, drawSending, refreshDrawSchedule, onRefreshNeeded]);
 
   // Listen for navigation state to hide/show modal appropriately
   useEffect(() => {
@@ -1684,6 +1748,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </View>
           )}
 
+          {/* Change Orders entry row removed — Change Orders now live inside
+              the unified BillingCard below the Budget Breakdown section. */}
+
           {/* Budget & Trade Budgets — Collapsible Card */}
           {(contractAmount > 0 || tradeBudgets.length > 0 || phases.some(p => (parseFloat(p.budget) || 0) > 0)) && (
             <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3, overflow: 'hidden' }}>
@@ -1849,6 +1916,20 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 </View>
               )}
             </View>
+          )}
+
+          {/* ─────── UNIFIED BILLING ────────────────────────────────────
+              Replaces the legacy standalone Draws card, the Estimates
+              section, and the Change Orders entry row. Renders three
+              zones: ACTION REQUIRED / UPCOMING / HISTORY (collapsed).
+              All money-related events (estimates, draws, COs, invoices)
+              live here. */}
+          {!isDemo && (
+            <BillingCard
+              project={project}
+              navigation={navigation}
+              onRefresh={refreshDrawSchedule}
+            />
           )}
 
           {/* Project Status Actions */}
@@ -2387,105 +2468,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <ClientPortalCard project={project} navigation={navigation} />
           )}
 
-          {/* Estimates Section - gated by can_create_estimates */}
-          {(!isSupervisor || supervisorPerms.canCreateEstimates) && (
-          <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="document-text-outline" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
-                {t('labels.estimatesCount', { count: projectEstimates.length })}
-              </Text>
-              {(!isSupervisor || supervisorPerms.canCreateEstimates) && (
-                <TouchableOpacity
-                  style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
-                  onPress={() => {
-                    // Navigate to chat with context to create estimate
-                    if (navigation) {
-                      onClose();
-                      navigation.navigate('MainTabs', {
-                        screen: 'Chat',
-                        params: {
-                          initialMessage: `Create estimate for ${project.name}`,
-                          projectIdForEstimate: project.id
-                        }
-                      });
-                    }
-                  }}
-                >
-                  <Ionicons name="add" size={16} color="#FFFFFF" />
-                  <Text style={styles.assignButtonText}>{t('buttons.create')}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {loadingEstimates ? (
-              <View style={styles.photosLoading}>
-                <ActivityIndicator size="small" color={Colors.primaryBlue} />
-                <Text style={[styles.photosLoadingText, { color: Colors.secondaryText }]}>{t('labels.loadingEstimates')}</Text>
-              </View>
-            ) : projectEstimates.length === 0 ? (
-              <View style={styles.emptyPhotos}>
-                <Ionicons name="document-text-outline" size={40} color={Colors.secondaryText} />
-                <Text style={[styles.emptyPhotosText, { color: Colors.secondaryText }]}>
-                  {t('emptyStates.noEstimatesYet')}
-                </Text>
-                <Text style={[styles.emptyPhotosSubtext, { color: Colors.secondaryText }]}>
-                  {t('emptyStates.createEstimate')}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.estimatesList}>
-                {projectEstimates.map((estimate) => (
-                  <TouchableOpacity
-                    key={estimate.id}
-                    style={[styles.estimateCard, { backgroundColor: Colors.lightGray }]}
-                    onPress={async () => {
-                      // Fetch full estimate data (list only has summary fields)
-                      const fullEstimate = await getEstimate(estimate.id);
-                      if (fullEstimate) {
-                        setSelectedEstimate(fullEstimate);
-                        setShowEstimateModal(true);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.estimateCardContent}>
-                      <View style={styles.estimateCardHeader}>
-                        <Text style={[styles.estimateCardTitle, { color: Colors.primaryText }]} numberOfLines={1}>
-                          {estimate.projectName || 'Estimate'}
-                        </Text>
-                        <View style={[
-                          styles.estimateStatusBadge,
-                          { backgroundColor: estimate.status === 'sent' ? '#10B981' + '20' : estimate.status === 'accepted' ? '#3B82F6' + '20' : '#F59E0B' + '20' }
-                        ]}>
-                          <Text style={[
-                            styles.estimateStatusText,
-                            { color: estimate.status === 'sent' ? '#10B981' : estimate.status === 'accepted' ? '#3B82F6' : '#F59E0B' }
-                          ]}>
-                            {estimate.status || 'Draft'}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.estimateCardDetails}>
-                        <Text style={[styles.estimateCardTotal, { color: Colors.primaryText }]}>
-                          ${(estimate.total || 0).toLocaleString()}
-                        </Text>
-                        <Text style={[styles.estimateCardDate, { color: Colors.secondaryText }]}>
-                          {estimate.createdAt ? new Date(estimate.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          }) : ''}
-                        </Text>
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-          )}
+          {/* Estimates section removed — all estimates now appear inside the
+              unified BillingCard above (in the HISTORY zone after acceptance,
+              or ACTION zone while pending). The full-fidelity estimate detail
+              modal is still reachable from chat. */}
 
           {/* Timeline Section */}
           {(project.startDate || project.endDate || isEditing) && (

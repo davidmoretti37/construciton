@@ -24,6 +24,7 @@ const CATEGORIES = Object.freeze({
   PROJECTS: 'projects',
   ESTIMATES: 'estimates',
   INVOICES: 'invoices',
+  DRAWS: 'draws',
   EXPENSES: 'expenses',
   TRANSACTIONS: 'transactions',
   FINANCIAL_REPORTS: 'financial_reports',

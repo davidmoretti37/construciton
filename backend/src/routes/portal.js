@@ -827,6 +827,89 @@ router.get('/projects/:projectId/milestones', verifyProjectAccess, async (req, r
 });
 
 /**
+ * GET /projects/:projectId/draws
+ * Returns the project's draw schedule + per-item status, with computed
+ * dollar amounts (percent draws scale against current contract_amount)
+ * and any linked invoice info. Used by the client portal "Payment
+ * progress" card.
+ */
+router.get('/projects/:projectId/draws', verifyProjectAccess, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const { data: schedule } = await supabase
+      .from('draw_schedules')
+      .select('id, retainage_percent')
+      .eq('project_id', projectId)
+      .maybeSingle();
+
+    if (!schedule) {
+      return res.json({ has_schedule: false, items: [] });
+    }
+
+    const [{ data: items }, { data: progress }, { data: project }] = await Promise.all([
+      supabase
+        .from('draw_schedule_items')
+        .select('id, order_index, description, percent_of_contract, fixed_amount, status, invoice_id, phase_id, trigger_type')
+        .eq('schedule_id', schedule.id)
+        .order('order_index'),
+      supabase
+        .from('draw_schedule_progress')
+        .select('contract_amount, drawn_to_date, paid_to_date, draws_billed, draws_total')
+        .eq('schedule_id', schedule.id)
+        .single(),
+      supabase
+        .from('projects')
+        .select('contract_amount')
+        .eq('id', projectId)
+        .single(),
+    ]);
+
+    const invoiceIds = (items || []).map((i) => i.invoice_id).filter(Boolean);
+    let invoiceMap = {};
+    if (invoiceIds.length > 0) {
+      const { data: invs } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, status, total, amount_paid, amount_due, due_date, paid_date')
+        .in('id', invoiceIds);
+      (invs || []).forEach((inv) => { invoiceMap[inv.id] = inv; });
+    }
+
+    const contract = parseFloat(progress?.contract_amount ?? project?.contract_amount ?? 0);
+
+    const enriched = (items || []).map((it) => {
+      const pct = it.percent_of_contract != null ? parseFloat(it.percent_of_contract) : null;
+      const fixed = it.fixed_amount != null ? parseFloat(it.fixed_amount) : null;
+      const computed = pct != null ? contract * pct / 100 : (fixed || 0);
+      return {
+        id: it.id,
+        order: it.order_index,
+        description: it.description,
+        percent_of_contract: pct,
+        fixed_amount: fixed,
+        amount: Number(computed.toFixed(2)),
+        status: it.status,
+        invoice: it.invoice_id ? (invoiceMap[it.invoice_id] || null) : null,
+      };
+    });
+
+    res.json({
+      has_schedule: true,
+      contract_amount: contract,
+      retainage_percent: parseFloat(schedule.retainage_percent || 0),
+      drawn_to_date: parseFloat(progress?.drawn_to_date || 0),
+      paid_to_date: parseFloat(progress?.paid_to_date || 0),
+      draws_billed: progress?.draws_billed || 0,
+      draws_total: progress?.draws_total || 0,
+      items: enriched,
+    });
+  } catch (error) {
+    logger.error('[Portal] Draws error:', error.message);
+    res.status(500).json({ error: 'Failed to load draw schedule' });
+  }
+});
+
+/**
  * POST /invoices/:invoiceId/pay
  * Creates a Stripe checkout session for invoice payment.
  */
@@ -1570,17 +1653,32 @@ router.get('/projects/:projectId/change-orders', verifyProjectAccess, async (req
 
     const { data, error } = await supabase
       .from('change_orders')
-      .select('*')
+      .select('*, change_order_line_items(*)')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    // Mark as viewed by client
+    // First-view side effect: pending_client → viewed + stamp client_viewed_at
     const unviewed = (data || []).filter(co => !co.client_viewed_at && co.status === 'pending_client');
     if (unviewed.length > 0) {
+      const now = new Date().toISOString();
       await Promise.all(unviewed.map(co =>
-        supabase.from('change_orders').update({ client_viewed_at: new Date().toISOString() }).eq('id', co.id)
+        supabase.from('change_orders')
+          .update({ client_viewed_at: now, status: 'viewed' })
+          .eq('id', co.id)
+          .eq('status', 'pending_client')  // race guard: skip if owner recalled or client approved elsewhere
+      ));
+      // Audit one 'viewed' event per CO that flipped
+      await Promise.all(unviewed.map(co =>
+        supabase.from('approval_events').insert({
+          project_id: co.project_id,
+          entity_type: 'change_order',
+          entity_id: co.id,
+          action: 'viewed',
+          actor_type: 'client',
+          actor_id: req.client.id,
+        })
       ));
     }
 
@@ -1606,10 +1704,10 @@ router.post('/change-orders/:coId/respond', async (req, res) => {
       return res.status(400).json({ error: 'Action must be approve or reject' });
     }
 
-    // Fetch the CO
+    // Fetch the CO to verify project access
     const { data: co, error: coError } = await supabase
       .from('change_orders')
-      .select('id, project_id, status, total_amount')
+      .select('id, project_id, status, total_amount, signature_required')
       .eq('id', coId)
       .single();
 
@@ -1617,7 +1715,6 @@ router.post('/change-orders/:coId/respond', async (req, res) => {
       return res.status(404).json({ error: 'Change order not found' });
     }
 
-    // Verify client has access to this project
     const { data: access } = await supabase
       .from('project_clients')
       .select('id')
@@ -1629,46 +1726,45 @@ router.post('/change-orders/:coId/respond', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Must be in pending_client state
-    if (co.status !== 'pending_client') {
-      return res.status(400).json({ error: `Cannot respond — status is ${co.status}` });
+    // If signature required and approving, do not allow typed-name approval —
+    // client must complete the e-signature flow which calls approve_change_order
+    // server-side after stamping the PDF.
+    if (action === 'approve' && co.signature_required) {
+      return res.status(400).json({
+        error: 'This change order requires an e-signature. Please use the signing link.',
+      });
     }
 
-    const newStatus = action === 'approve' ? 'approved' : 'rejected';
-    const now = new Date().toISOString();
-
-    // Update the change order
-    const updateData = {
-      status: newStatus,
-      client_responded_at: now,
-    };
+    // Defer to Postgres functions so the cascade (projects.extras append,
+    // end_date shift, audit row) fires atomically and is idempotent.
+    const approverName = name || req.client.full_name;
 
     if (action === 'approve') {
-      updateData.approved_by_name = name || req.client.full_name;
-      updateData.approved_at = now;
-    } else {
-      updateData.client_response_reason = reason || '';
+      const { data: updated, error: rpcError } = await supabase.rpc('approve_change_order', {
+        p_co_id: coId,
+        p_approver_name: approverName,
+        p_signature_id: null,
+        p_actor_type: 'client',
+        p_actor_id: clientId,
+      });
+      if (rpcError) {
+        logger.error('[Portal] approve_change_order RPC failed:', rpcError.message);
+        return res.status(400).json({ error: rpcError.message });
+      }
+      return res.json({ success: true, status: 'approved', change_order: updated });
     }
 
-    const { error: updateError } = await supabase
-      .from('change_orders')
-      .update(updateData)
-      .eq('id', coId);
-
-    if (updateError) throw updateError;
-
-    // Write to approval_events audit trail
-    await supabase.from('approval_events').insert({
-      project_id: co.project_id,
-      entity_type: 'change_order',
-      entity_id: coId,
-      action: newStatus,
-      actor_type: 'client',
-      actor_id: clientId,
-      notes: action === 'approve' ? `Approved by ${name || req.client.full_name}` : `Rejected: ${reason || 'No reason given'}`,
+    const { data: updated, error: rpcError } = await supabase.rpc('reject_change_order', {
+      p_co_id: coId,
+      p_reason: reason || '',
+      p_actor_type: 'client',
+      p_actor_id: clientId,
     });
-
-    res.json({ success: true, status: newStatus });
+    if (rpcError) {
+      logger.error('[Portal] reject_change_order RPC failed:', rpcError.message);
+      return res.status(400).json({ error: rpcError.message });
+    }
+    res.json({ success: true, status: 'rejected', change_order: updated });
   } catch (error) {
     logger.error('[Portal] Change order respond error:', error.message);
     res.status(500).json({ error: 'Failed to respond to change order' });

@@ -1038,4 +1038,552 @@ router.post('/service-plans/generate-recurring', authenticateUser, async (req, r
   }
 });
 
+// ============================================================
+// CHANGE ORDERS (owner-facing)
+// ============================================================
+//
+// Owner CRUD + send + recall + void. All routes scoped to req.user.id via the
+// owner_id column on change_orders + the projects.user_id check on writes.
+// Approve/reject for clients lives in portal.js (uses Postgres RPCs that
+// fire the projects.extras + end_date cascade atomically).
+
+/**
+ * GET /change-orders?project_id=...
+ * List COs for a project (or all the owner's COs if no filter).
+ */
+router.get('/change-orders', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { project_id, status } = req.query;
+
+    let query = supabase
+      .from('change_orders')
+      .select('*, change_order_line_items(*)')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false });
+
+    if (project_id) query = query.eq('project_id', project_id);
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    logger.error('[PortalAdmin] List COs error:', error.message);
+    res.status(500).json({ error: 'Failed to load change orders' });
+  }
+});
+
+/**
+ * GET /change-orders/:id
+ */
+router.get('/change-orders/:id', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { data, error } = await supabase
+      .from('change_orders')
+      .select('*, change_order_line_items(*), change_order_attachments(*)')
+      .eq('id', req.params.id)
+      .eq('owner_id', ownerId)
+      .single();
+    if (error) return res.status(404).json({ error: 'Change order not found' });
+    res.json(data);
+  } catch (error) {
+    logger.error('[PortalAdmin] Get CO error:', error.message);
+    res.status(500).json({ error: 'Failed to load change order' });
+  }
+});
+
+/**
+ * POST /change-orders
+ * Create a draft CO. Body: { project_id, title, description, line_items[], schedule_impact_days, tax_rate, signature_required }
+ * Always created with status='draft' — separate /send endpoint dispatches.
+ */
+router.post('/change-orders', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const {
+      project_id,
+      title,
+      description,
+      line_items = [],
+      schedule_impact_days = 0,
+      tax_rate = 0,
+      signature_required = false,
+      billing_strategy = 'invoice_now',
+    } = req.body;
+
+    if (!project_id || !title) {
+      return res.status(400).json({ error: 'project_id and title are required' });
+    }
+
+    // Verify ownership of the project
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, user_id')
+      .eq('id', project_id)
+      .eq('user_id', ownerId)
+      .single();
+    if (!project) return res.status(403).json({ error: 'Project not found or access denied' });
+
+    // Compute totals from line items (DB will also store generated `amount` column)
+    const subtotal = line_items.reduce((sum, li) =>
+      sum + (Number(li.quantity || 0) * Number(li.unit_price || 0)), 0);
+    const totalAmount = subtotal * (1 + Number(tax_rate || 0));
+
+    const { data: co, error: coError } = await supabase
+      .from('change_orders')
+      .insert({
+        project_id,
+        owner_id: ownerId,
+        title,
+        description: description || null,
+        subtotal,
+        tax_rate,
+        total_amount: totalAmount,
+        schedule_impact_days,
+        signature_required,
+        billing_strategy,
+        status: 'draft',
+      })
+      .select()
+      .single();
+
+    if (coError) {
+      logger.error('[PortalAdmin] CO insert failed:', coError.message);
+      return res.status(500).json({ error: coError.message });
+    }
+
+    // Insert line items
+    if (line_items.length > 0) {
+      const rows = line_items.map((li, idx) => ({
+        change_order_id: co.id,
+        position: idx + 1,
+        description: li.description || '',
+        quantity: Number(li.quantity || 1),
+        unit: li.unit || null,
+        unit_price: Number(li.unit_price || 0),
+        category: li.category || null,
+      }));
+      const { error: liError } = await supabase
+        .from('change_order_line_items')
+        .insert(rows);
+      if (liError) logger.warn('[PortalAdmin] CO line items insert failed:', liError.message);
+    }
+
+    // Domain event (best-effort)
+    try {
+      const { emit, EVENT_TYPES } = require('../services/eventEmitter');
+      emit({
+        ownerId, eventType: EVENT_TYPES.CHANGE_ORDER_DRAFTED,
+        actorId: ownerId, actorType: 'owner', source: 'manual',
+        entityType: 'change_order', entityId: co.id,
+        payload: { co_number: co.co_number, project_id, total_amount: totalAmount },
+        summary: `Drafted change order CO-${String(co.co_number).padStart(3, '0')} on project ${project_id}`,
+      });
+    } catch {}
+
+    // Re-fetch with line items
+    const { data: full } = await supabase
+      .from('change_orders')
+      .select('*, change_order_line_items(*)')
+      .eq('id', co.id)
+      .single();
+
+    res.status(201).json(full || co);
+  } catch (error) {
+    logger.error('[PortalAdmin] Create CO error:', error.message);
+    res.status(500).json({ error: 'Failed to create change order' });
+  }
+});
+
+/**
+ * PATCH /change-orders/:id
+ * Edit a draft CO (only allowed when status='draft').
+ */
+router.patch('/change-orders/:id', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { id } = req.params;
+    const { title, description, line_items, schedule_impact_days, tax_rate, signature_required, billing_strategy } = req.body;
+
+    // Verify CO is draft + owned
+    const { data: existing } = await supabase
+      .from('change_orders')
+      .select('id, status, owner_id')
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .single();
+    if (!existing) return res.status(404).json({ error: 'Change order not found' });
+    if (existing.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot edit CO in status ${existing.status}. Recall first.` });
+    }
+
+    const update = { updated_at: new Date().toISOString() };
+    if (title !== undefined) update.title = title;
+    if (description !== undefined) update.description = description;
+    if (schedule_impact_days !== undefined) update.schedule_impact_days = schedule_impact_days;
+    if (tax_rate !== undefined) update.tax_rate = tax_rate;
+    if (signature_required !== undefined) update.signature_required = signature_required;
+    if (billing_strategy !== undefined) update.billing_strategy = billing_strategy;
+
+    // Recompute totals if line items provided
+    if (Array.isArray(line_items)) {
+      const subtotal = line_items.reduce((sum, li) =>
+        sum + (Number(li.quantity || 0) * Number(li.unit_price || 0)), 0);
+      const effectiveTaxRate = tax_rate !== undefined ? Number(tax_rate) : Number(req.body.tax_rate ?? 0);
+      update.subtotal = subtotal;
+      update.total_amount = subtotal * (1 + (Number.isFinite(effectiveTaxRate) ? effectiveTaxRate : 0));
+    }
+
+    const { error: updErr } = await supabase
+      .from('change_orders')
+      .update(update)
+      .eq('id', id);
+    if (updErr) return res.status(500).json({ error: updErr.message });
+
+    // Replace line items if provided
+    if (Array.isArray(line_items)) {
+      await supabase.from('change_order_line_items').delete().eq('change_order_id', id);
+      if (line_items.length > 0) {
+        const rows = line_items.map((li, idx) => ({
+          change_order_id: id,
+          position: idx + 1,
+          description: li.description || '',
+          quantity: Number(li.quantity || 1),
+          unit: li.unit || null,
+          unit_price: Number(li.unit_price || 0),
+          category: li.category || null,
+        }));
+        await supabase.from('change_order_line_items').insert(rows);
+      }
+    }
+
+    const { data: full } = await supabase
+      .from('change_orders')
+      .select('*, change_order_line_items(*)')
+      .eq('id', id)
+      .single();
+    res.json(full);
+  } catch (error) {
+    logger.error('[PortalAdmin] Update CO error:', error.message);
+    res.status(500).json({ error: 'Failed to update change order' });
+  }
+});
+
+/**
+ * POST /change-orders/:id/send
+ * Flip status draft → pending_client, fire email, optionally request signature.
+ */
+router.post('/change-orders/:id/send', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { id } = req.params;
+
+    // Fetch CO + line items + project
+    const { data: co } = await supabase
+      .from('change_orders')
+      .select('*, change_order_line_items(*)')
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .single();
+    if (!co) return res.status(404).json({ error: 'Change order not found' });
+    if (co.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot send CO in status ${co.status}` });
+    }
+
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, name, user_id, client_email, client_name, contract_amount, end_date')
+      .eq('id', co.project_id)
+      .single();
+    if (!project) return res.status(400).json({ error: 'Project missing for change order' });
+
+    // Resolve client email — explicit client record wins, then project fallback
+    let clientEmail = project.client_email || null;
+    const { data: pc } = await supabase
+      .from('project_clients')
+      .select('clients(email, full_name)')
+      .eq('project_id', co.project_id)
+      .limit(1)
+      .single();
+    if (pc?.clients?.email) clientEmail = pc.clients.email;
+
+    if (!clientEmail) {
+      return res.status(400).json({ error: 'No client email on project. Add one before sending.' });
+    }
+
+    // Flip status FIRST so the email link lands on a sendable record
+    const now = new Date().toISOString();
+    const { error: updErr } = await supabase
+      .from('change_orders')
+      .update({ status: 'pending_client', sent_at: now })
+      .eq('id', id)
+      .eq('status', 'draft');
+    if (updErr) return res.status(500).json({ error: updErr.message });
+
+    // Get business name (mirror invoice send path)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, business_name')
+      .eq('id', ownerId)
+      .single();
+    const { data: branding } = await supabase
+      .from('client_portal_branding')
+      .select('business_name')
+      .eq('owner_id', ownerId)
+      .single();
+    const businessName = branding?.business_name || profile?.business_name || profile?.full_name || '';
+
+    // Send email
+    const { sendChangeOrderEmail } = require('../services/emailService');
+    const emailResult = await sendChangeOrderEmail({
+      changeOrder: co,
+      lineItems: co.change_order_line_items || [],
+      project,
+      businessName,
+      clientEmail,
+    });
+
+    // Optional: kick off e-signature request
+    let signature = null;
+    if (co.signature_required) {
+      try {
+        const eSign = require('../services/eSignService');
+        signature = await eSign.createSignatureRequest({
+          ownerId,
+          documentType: 'change_order',
+          documentId: id,
+          signerName: pc?.clients?.full_name || project.client_name || 'Client',
+          signerEmail: clientEmail,
+        });
+      } catch (sigErr) {
+        logger.error('[PortalAdmin] CO signature request failed:', sigErr.message);
+        // non-fatal — owner can resend; CO is still in pending_client state
+      }
+    }
+
+    // Audit + domain event
+    await supabase.from('approval_events').insert({
+      project_id: co.project_id,
+      entity_type: 'change_order',
+      entity_id: id,
+      action: 'sent',
+      actor_type: 'owner',
+      actor_id: ownerId,
+      notes: emailResult.sent ? `Emailed to ${clientEmail}` : `Send failed: ${emailResult.error || 'unknown'}`,
+    });
+    try {
+      const { emit, EVENT_TYPES } = require('../services/eventEmitter');
+      emit({
+        ownerId, eventType: EVENT_TYPES.CHANGE_ORDER_SENT,
+        actorId: ownerId, actorType: 'owner', source: 'manual',
+        entityType: 'change_order', entityId: id,
+        payload: { co_number: co.co_number, total_amount: co.total_amount, signature_required: !!co.signature_required },
+        summary: `Sent change order CO-${String(co.co_number).padStart(3, '0')} to ${clientEmail}`,
+      });
+    } catch {}
+
+    // Notify client in-app if they have a portal account
+    try {
+      if (pc?.clients) {
+        const { data: client } = await supabase
+          .from('clients').select('id, user_id').eq('email', clientEmail).eq('owner_id', ownerId).single();
+        if (client?.user_id) {
+          await supabase.from('notifications').insert({
+            user_id: client.user_id,
+            title: 'New Change Order',
+            body: `CO-${String(co.co_number).padStart(3, '0')} for $${parseFloat(co.total_amount).toLocaleString()} ready for review.`,
+            type: 'change_order',
+            data: { changeOrderId: id, projectId: co.project_id },
+          });
+        }
+      }
+    } catch {}
+
+    res.json({
+      sent: emailResult.sent,
+      email: clientEmail,
+      signature_request: signature ? { signing_url: signature.signingUrl, expires_at: signature.expiresAt } : null,
+      error: emailResult.error,
+    });
+  } catch (error) {
+    logger.error('[PortalAdmin] Send CO error:', error.message);
+    res.status(500).json({ error: 'Failed to send change order' });
+  }
+});
+
+/**
+ * POST /change-orders/:id/recall
+ * Pull a sent CO back to draft (allowed from pending_client | viewed).
+ */
+router.post('/change-orders/:id/recall', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { id } = req.params;
+    const { data: co } = await supabase
+      .from('change_orders')
+      .select('id, status, project_id, co_number')
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .single();
+    if (!co) return res.status(404).json({ error: 'Change order not found' });
+    if (!['pending_client', 'viewed'].includes(co.status)) {
+      return res.status(400).json({ error: `Cannot recall CO in status ${co.status}` });
+    }
+
+    const { error } = await supabase
+      .from('change_orders')
+      .update({ status: 'draft', sent_at: null, client_viewed_at: null })
+      .eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.json({ status: 'draft' });
+  } catch (error) {
+    logger.error('[PortalAdmin] Recall CO error:', error.message);
+    res.status(500).json({ error: 'Failed to recall change order' });
+  }
+});
+
+/**
+ * POST /change-orders/:id/void
+ * Mark a CO as voided (terminal). Allowed from any non-approved status.
+ */
+router.post('/change-orders/:id/void', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const { data: co } = await supabase
+      .from('change_orders')
+      .select('id, status, project_id, co_number')
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .single();
+    if (!co) return res.status(404).json({ error: 'Change order not found' });
+    if (co.status === 'approved') {
+      return res.status(400).json({ error: 'Cannot void an approved CO. Create a reversing CO instead.' });
+    }
+
+    const { error } = await supabase
+      .from('change_orders')
+      .update({ status: 'void', client_response_reason: reason || null })
+      .eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    await supabase.from('approval_events').insert({
+      project_id: co.project_id,
+      entity_type: 'change_order',
+      entity_id: id,
+      action: 'rejected',  // closest enum value — no 'voided' in CHECK
+      actor_type: 'owner',
+      actor_id: ownerId,
+      notes: `Voided: ${reason || 'No reason'}`,
+    });
+    try {
+      const { emit, EVENT_TYPES } = require('../services/eventEmitter');
+      emit({
+        ownerId, eventType: EVENT_TYPES.CHANGE_ORDER_VOIDED,
+        actorId: ownerId, actorType: 'owner', source: 'manual',
+        entityType: 'change_order', entityId: id,
+        payload: { co_number: co.co_number, reason: reason || null },
+        summary: `Voided change order CO-${String(co.co_number).padStart(3, '0')}`,
+      });
+    } catch {}
+
+    res.json({ status: 'void' });
+  } catch (error) {
+    logger.error('[PortalAdmin] Void CO error:', error.message);
+    res.status(500).json({ error: 'Failed to void change order' });
+  }
+});
+
+// ============================================================
+// UNIFIED PROJECT BILLING (BillingCard data source)
+// ============================================================
+
+/**
+ * GET /projects/:projectId/billing
+ * Returns the unified billing rollup — every billable event for the project
+ * (estimates, draws, change orders, invoices) normalized into action/upcoming/
+ * history zones for the BillingCard UI.
+ */
+router.get('/projects/:projectId/billing', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { projectId } = req.params;
+
+    // Reuse the agent tool handler — same logic, single source of truth
+    const { TOOL_HANDLERS } = require('../services/tools/handlers');
+    const result = await TOOL_HANDLERS.get_project_billing(ownerId, { project_id: projectId });
+    if (result?.error) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (error) {
+    logger.error('[PortalAdmin] Project billing error:', error.message);
+    res.status(500).json({ error: 'Failed to load project billing' });
+  }
+});
+
+/**
+ * POST /invoices/:invoiceId/nudge
+ * Sends a polite reminder email to the client about an unpaid invoice.
+ * Used by the one-tap [Nudge client] button on overdue notifications + BillingCard.
+ */
+router.post('/invoices/:invoiceId/nudge', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { invoiceId } = req.params;
+
+    const { data: invoice, error: invErr } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .eq('user_id', ownerId)
+      .single();
+    if (invErr || !invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (!invoice.client_email) return res.status(400).json({ error: 'No client email on invoice' });
+    if (parseFloat(invoice.amount_due || 0) <= 0) {
+      return res.status(400).json({ error: 'Invoice has no outstanding balance' });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, business_name')
+      .eq('id', ownerId)
+      .single();
+    const businessName = profile?.business_name || profile?.full_name || 'Your contractor';
+
+    // Reuse invoice email template (same content, different subject prefix)
+    const { sendInvoiceEmail } = require('../services/emailService');
+    const result = await sendInvoiceEmail({
+      invoice: { ...invoice, _isReminder: true },
+      businessName,
+      pdfUrl: invoice.pdf_url,
+    });
+
+    // Audit
+    await supabase.from('approval_events').insert({
+      project_id: invoice.project_id,
+      entity_type: 'invoice',
+      entity_id: invoiceId,
+      action: 'sent',
+      actor_type: 'owner',
+      actor_id: ownerId,
+      notes: `Nudge sent to ${invoice.client_email}`,
+    });
+
+    // Mark any matching invoice_overdue notification as read so it dismisses
+    await supabase.from('notifications')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('user_id', ownerId)
+      .eq('type', 'invoice_overdue')
+      .eq('action_data->>invoice_id', invoiceId);
+
+    res.json({ sent: result.sent, email: invoice.client_email, error: result.error });
+  } catch (error) {
+    logger.error('[PortalAdmin] Invoice nudge error:', error.message);
+    res.status(500).json({ error: 'Failed to send invoice reminder' });
+  }
+});
+
 module.exports = router;
