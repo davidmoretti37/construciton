@@ -74,10 +74,15 @@ app.use((req, res, next) => {
 // Middleware
 const cookieParser = require('cookie-parser');
 app.use(cookieParser());
+// CORS: support comma-separated CORS_ORIGINS env var for additional allowed
+// origins (e.g. Tailscale dev IPs). Falls back to PORTAL_URL or local dev.
+const corsExtra = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+const corsBase = process.env.PORTAL_URL
+  ? [process.env.PORTAL_URL.replace(/\/portal$/, '')]
+  : ['http://localhost:3000', 'http://localhost:3001'];
+const corsAllowed = [...new Set([...corsBase, ...corsExtra, 'http://100.97.31.74:3000', 'http://100.97.31.74:3001'])];
 app.use(cors({
-  origin: process.env.PORTAL_URL
-    ? [process.env.PORTAL_URL.replace(/\/portal$/, '')]
-    : ['http://localhost:3000', 'http://localhost:3001'],
+  origin: corsAllowed,
   credentials: true,
 }));
 app.use(helmet({
