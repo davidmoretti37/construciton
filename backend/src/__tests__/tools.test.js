@@ -255,7 +255,11 @@ describe('executeTool', () => {
   test('returns error for unknown tool', async () => {
     const result = await executeTool('nonexistent_tool', {}, fakeUserId);
     expect(result).toHaveProperty('error');
-    expect(result.error).toContain('Unknown tool');
+    // executeTool returns a userSafeError for unknown tools — surface a
+    // generic, user-friendly message rather than leaking the internal
+    // "Unknown tool: <name>" string. Match either form so this test
+    // survives future copy tweaks.
+    expect(result.error).toMatch(/(Unknown tool|isn'?t available right now)/i);
   });
 
   test('all handlers are callable functions', () => {

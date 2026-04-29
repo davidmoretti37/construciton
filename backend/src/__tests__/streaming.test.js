@@ -182,7 +182,11 @@ describe('SSE Event Protocol', () => {
     const agentServicePath = path.join(__dirname, '..', 'services', 'agentService.js');
     const source = fs.readFileSync(agentServicePath, 'utf-8');
 
-    // The sendSSE function should write in SSE format
-    expect(source).toContain('`data: ${JSON.stringify(data)}\\n\\n`');
+    // The sendSSE function should write in SSE format. P6 introduced
+    // a `tagged` local that gets JSON.stringify'd (auto-applies trace
+    // ids), so accept either the raw `data` or `tagged` form.
+    const matchesRaw = source.includes('`data: ${JSON.stringify(data)}\\n\\n`');
+    const matchesTagged = source.includes('`data: ${JSON.stringify(tagged)}\\n\\n`');
+    expect(matchesRaw || matchesTagged).toBe(true);
   });
 });

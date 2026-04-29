@@ -25,6 +25,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import NotificationBell from '../../components/NotificationBell';
+import InboxBell from '../../components/InboxBell';
+import MorningBriefCard from '../../components/MorningBriefCard';
 import SkeletonBox from '../../components/skeletons/SkeletonBox';
 import { fetchProjectsForOwner } from '../../utils/storage/projects';
 import { fetchWorkersForOwner, getSupervisorsForOwner, getClockedInWorkersTodayForOwner } from '../../utils/storage/workers';
@@ -749,6 +751,7 @@ export default function OwnerDashboardScreen() {
           <TouchableOpacity onPress={enterEditMode} style={styles.customizeIconBtn}>
             <Ionicons name="grid-outline" size={22} color={Colors.secondaryText} />
           </TouchableOpacity>
+          {/* <InboxBell onPress={() => navigation.navigate('Inbox')} /> */}
           <NotificationBell onPress={() => navigation.navigate('Notifications')} />
         </View>
       </View>
@@ -805,6 +808,9 @@ export default function OwnerDashboardScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryBlue} />}
         >
+          {/* Phase-3 Morning Brief — surfaces the nightly anomaly snapshot */}
+          <MorningBriefCard />
+
           {/* Company Info Card */}
           <TouchableOpacity
             ref={walkthrough?.overheadRef}

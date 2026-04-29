@@ -20,6 +20,8 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../utils/storage';
+import SignatureSection from '../../components/SignatureSection';
+import { Modal as RNModal } from 'react-native';
 
 export default function ContractsScreen({ navigation }) {
   const { t } = useTranslation('common');
@@ -32,6 +34,7 @@ export default function ContractsScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [signatureContract, setSignatureContract] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -468,6 +471,14 @@ export default function ContractsScreen({ navigation }) {
                       </Text>
                     </View>
                   </TouchableOpacity>
+                  {/* E-signature button disabled — re-enable when backend is deployed.
+                  <TouchableOpacity
+                    style={styles.deleteDocButton}
+                    onPress={() => setSignatureContract(doc)}
+                  >
+                    <Ionicons name="create-outline" size={20} color={Colors.primaryBlue} />
+                  </TouchableOpacity>
+                  */}
                   <TouchableOpacity
                     style={styles.deleteDocButton}
                     onPress={() => handleDeleteDocument(doc.id, doc.file_path)}
@@ -481,6 +492,34 @@ export default function ContractsScreen({ navigation }) {
 
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* E-signature modal disabled — re-enable when backend is deployed.
+      <RNModal
+        visible={!!signatureContract}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSignatureContract(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: Colors.background || '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: Colors.primaryText, flex: 1 }} numberOfLines={1}>
+                {signatureContract?.file_name || 'Contract'}
+              </Text>
+              <TouchableOpacity onPress={() => setSignatureContract(null)}>
+                <Ionicons name="close" size={22} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            </View>
+            {signatureContract?.id && (
+              <SignatureSection
+                documentType="contract"
+                documentId={signatureContract.id}
+              />
+            )}
+          </View>
+        </SafeAreaView>
+      </RNModal>
+      */}
     </SafeAreaView>
   );
 }

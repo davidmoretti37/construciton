@@ -10,12 +10,12 @@ describe('selectModel', () => {
   test('selects sonnet at threshold (>= 10)', () => {
     expect(TOOL_THRESHOLD).toBe(10);
     const result = selectModel(10, []);
-    expect(result.model).toBe('claude-sonnet-4.5');
+    expect(result.model).toBe('claude-sonnet-4.6');
   });
 
   test('selects sonnet above threshold', () => {
     const result = selectModel(12, []);
-    expect(result.model).toBe('claude-sonnet-4.5');
+    expect(result.model).toBe('claude-sonnet-4.6');
     expect(result.toolCount).toBe(12);
   });
 
@@ -28,7 +28,7 @@ describe('selectModel', () => {
       { role: 'assistant', content: 'I was unable to process that' },
     ];
     const result = selectModel(3, errorHistory);
-    expect(result.model).toBe('claude-sonnet-4.5');
+    expect(result.model).toBe('claude-sonnet-4.6');
     expect(result.reason).toContain('error');
   });
 
@@ -82,7 +82,7 @@ describe('trackUsage and getUsageStats', () => {
 
   test('trackUsage tracks sonnet separately', () => {
     const before = getUsageStats();
-    trackUsage('claude-sonnet-4.5', 200, 100);
+    trackUsage('claude-sonnet-4.6', 200, 100);
     const after = getUsageStats();
     expect(after.sonnetRequests).toBe(before.sonnetRequests + 1);
   });
@@ -107,7 +107,7 @@ describe('getModelStats', () => {
     const history = [
       { model: 'claude-haiku-4.5', toolCount: 5 },
       { model: 'claude-haiku-4.5', toolCount: 3 },
-      { model: 'claude-sonnet-4.5', toolCount: 12 },
+      { model: 'claude-sonnet-4.6', toolCount: 12 },
     ];
     const stats = getModelStats(history);
     expect(stats.haikuCount).toBe(2);
@@ -119,7 +119,7 @@ describe('getModelStats', () => {
     const history = [
       { model: 'claude-haiku-4.5', toolCount: 5 },
       { model: 'claude-haiku-4.5', toolCount: 3 },
-      { model: 'claude-sonnet-4.5', toolCount: 15 },
+      { model: 'claude-sonnet-4.6', toolCount: 15 },
       { model: 'claude-haiku-4.5', toolCount: 4 },
     ];
     const stats = getModelStats(history);

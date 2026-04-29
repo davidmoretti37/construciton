@@ -14,8 +14,26 @@ const supabase = createClient(
 );
 
 const { authenticateUser } = require('../middleware/authenticate');
+const { auditLog } = require('../middleware/auditLog');
 
 router.use(authenticateUser);
+
+// Audit middleware — short-hand factories for the entities this router writes.
+const auditPlan = auditLog({ entityType: 'service_plan', table: 'service_plans' });
+const auditLocation = auditLog({
+  entityType: 'service_location',
+  table: 'service_locations',
+  // Routes use /:planId/locations/:id — entity id is the location id.
+  getEntityId: (req) => req.params.id || req.params.locationId,
+});
+const auditChecklistTemplate = auditLog({
+  entityType: 'visit_checklist_template',
+  table: 'visit_checklist_templates',
+});
+const auditLocationSchedule = auditLog({
+  entityType: 'location_schedule',
+  table: 'location_schedules',
+});
 
 // ============================================================
 // PLANS CRUD
@@ -69,7 +87,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST / — Create plan
-router.post('/', async (req, res) => {
+router.post('/', auditPlan, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { name, service_type, client_id, description, billing_cycle, price_per_visit, monthly_rate, notes, assigned_supervisor_id } = req.body;
@@ -445,7 +463,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PATCH /:id — Update plan
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', auditPlan, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -481,7 +499,7 @@ router.patch('/:id', async (req, res) => {
 });
 
 // DELETE /:id — Soft delete (set status='cancelled')
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auditPlan, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -580,7 +598,7 @@ router.get('/:id/locations', async (req, res) => {
 });
 
 // POST /:id/locations — Add location to plan
-router.post('/:id/locations', async (req, res) => {
+router.post('/:id/locations', auditLocation, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -632,7 +650,7 @@ router.post('/:id/locations', async (req, res) => {
 });
 
 // PATCH /:planId/locations/:id — Update location
-router.patch('/:planId/locations/:id', async (req, res) => {
+router.patch('/:planId/locations/:id', auditLocation, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -667,7 +685,7 @@ router.patch('/:planId/locations/:id', async (req, res) => {
 });
 
 // DELETE /:planId/locations/:id — Soft delete location
-router.delete('/:planId/locations/:id', async (req, res) => {
+router.delete('/:planId/locations/:id', auditLocation, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -722,7 +740,7 @@ router.get('/:planId/locations/:locationId/schedule', async (req, res) => {
 });
 
 // POST /:planId/locations/:locationId/schedule — Set new schedule
-router.post('/:planId/locations/:locationId/schedule', async (req, res) => {
+router.post('/:planId/locations/:locationId/schedule', auditLocationSchedule, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { locationId } = req.params;
@@ -809,7 +827,7 @@ router.get('/:planId/locations/:locationId/checklist-templates', async (req, res
 });
 
 // POST /:planId/locations/:locationId/checklist-templates
-router.post('/:planId/locations/:locationId/checklist-templates', async (req, res) => {
+router.post('/:planId/locations/:locationId/checklist-templates', auditChecklistTemplate, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { locationId } = req.params;
@@ -855,7 +873,7 @@ router.post('/:planId/locations/:locationId/checklist-templates', async (req, re
 });
 
 // PATCH /:planId/locations/:locationId/checklist-templates/:id
-router.patch('/:planId/locations/:locationId/checklist-templates/:id', async (req, res) => {
+router.patch('/:planId/locations/:locationId/checklist-templates/:id', auditChecklistTemplate, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -889,7 +907,7 @@ router.patch('/:planId/locations/:locationId/checklist-templates/:id', async (re
 });
 
 // DELETE /:planId/locations/:locationId/checklist-templates/:id
-router.delete('/:planId/locations/:locationId/checklist-templates/:id', async (req, res) => {
+router.delete('/:planId/locations/:locationId/checklist-templates/:id', auditChecklistTemplate, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;

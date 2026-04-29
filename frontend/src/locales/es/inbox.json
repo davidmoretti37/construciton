@@ -1,0 +1,37 @@
+{
+  "title": "Bandeja de entrada",
+  "empty": "Aún no hay mensajes. Las respuestas de los clientes aparecerán aquí.",
+  "send": "Enviar",
+  "send_placeholder": "Escribe un mensaje…",
+  "unread_count": "{{count}} sin leer",
+  "unread_count_one": "1 sin leer",
+  "unread_count_zero": "Todo al día",
+  "search_placeholder": "Buscar por nombre o número",
+  "ask_foreman": "Preguntar al Foreman sobre este hilo",
+  "no_phone": "Este cliente no tiene teléfono registrado",
+  "send_failed": "No se pudo enviar. Inténtalo de nuevo.",
+  "load_failed": "No se pudieron cargar los mensajes.",
+  "message_status": {
+    "queued": "En cola",
+    "sent": "Enviado",
+    "delivered": "Entregado",
+    "failed": "Falló",
+    "mock": "Simulado (sin Twilio)",
+    "received": "Recibido"
+  },
+  "you": "Tú",
+  "unknown_sender": "Número desconocido",
+  "thread_header": "Mensajes con {{name}}",
+  "tab_label": "Mensajes",
+  "setup": {
+    "title": "Obtén tu número SMS para tu negocio",
+    "subtitle": "Aprovisionaremos un número de Twilio para tu empresa para que los clientes puedan enviarte SMS. Enviarás y recibirás respuestas aquí mismo.",
+    "area_code_label": "Código de área preferido (opcional)",
+    "area_code_placeholder": "415",
+    "cta": "Obtener un número",
+    "provisioning": "Aprovisionando…",
+    "success": "Tu número está activo: {{phone}}",
+    "failed": "No se pudo aprovisionar: {{error}}",
+    "current_number": "Tu número: {{phone}}"
+  }
+}

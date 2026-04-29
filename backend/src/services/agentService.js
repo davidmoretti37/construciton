@@ -30,8 +30,12 @@ const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
 const { executeTool } = require('./tools/handlers');
 const { runMemoryCommand, prefetchMemorySnapshot } = require('./memoryTool');
-const { isDestructive, verifyDestructive, blockedToolResult } = require('./destructiveGuard');
+// destructiveGuard is still used internally by approvalGate; it's no
+// longer called directly from this file.
+const approvalGate = require('./approvalGate');
+const toolRegistry = require('./tools/registry');
 const { generatePlan, planToModelId } = require('./planner');
+const { createStepTracker } = require('./stepTracker');
 const { verifyPlanExecution } = require('./planVerifier');
 const { annotateVoiceTranscript } = require('./voicePreprocessor');
 const { emit: emitEvent, EVENT_TYPES } = require('./eventEmitter');
@@ -104,6 +108,31 @@ const READ_ONLY_TOOLS_FOR_EVENTS = new Set([
 
 // Build a one-line summary for the event log + embedding. Best-effort —
 // the goal is "human reading the event log can tell what happened."
+/**
+ * One-line summary of a tool call's args, suitable for an inline
+ * "Foreman → search_projects(query=Smith)" breadcrumb. Caps total
+ * length at 80 chars; skips the synthetic _attachments key.
+ */
+function summarizeArgs(args) {
+  if (!args || typeof args !== 'object') return '';
+  const parts = [];
+  for (const [k, v] of Object.entries(args)) {
+    if (k === '_attachments') continue;
+    if (v == null || v === '') continue;
+    let s;
+    if (typeof v === 'string') s = v.length > 24 ? v.slice(0, 21) + '…' : v;
+    else if (typeof v === 'number' || typeof v === 'boolean') s = String(v);
+    else { try { s = JSON.stringify(v).slice(0, 24); } catch { s = '?'; } }
+    parts.push(`${k}=${s}`);
+    const draft = parts.join(', ');
+    if (draft.length >= 80) break;
+  }
+  // Hard ceiling so a malicious / pathological input can't blow past 80
+  // chars regardless of segment count.
+  const out = parts.join(', ');
+  return out.length > 80 ? out.slice(0, 79) + '…' : out;
+}
+
 function summarizeToolEvent(toolName, args, result) {
   const success = !result?.error && !result?.blocked;
   const label = toolName.replace(/_/g, ' ');
@@ -179,17 +208,25 @@ const DB_FLUSH_INTERVAL = 500; // Debounce DB writes to every 500ms
  * silently dropped but DB writes continue, so the frontend can poll
  * for results on app resume.
  */
-function createJobWriter(jobId, res) {
+function createJobWriter(jobId, res, traceCtx = null) {
   let clientDisconnected = false;
   let accumulatedText = '';
   let visualElements = [];
   let actions = [];
   let flushTimer = null;
+  // P6: trace context — every emitted SSE event gets tagged with
+  // { trace_id, turn_id } automatically so downstream replay tools and
+  // log search work without each call site having to remember to pass them.
+  let trace = traceCtx;
 
   function sendSSE(data) {
     if (clientDisconnected) return;
     try {
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
+      // Auto-tag with trace + turn ids when we have a trace context.
+      const tagged = trace && data && typeof data === 'object' && !data.trace_id
+        ? { ...data, trace_id: trace.trace_id, turn_id: trace.turn_id }
+        : data;
+      res.write(`data: ${JSON.stringify(tagged)}\n\n`);
       // Force flush so SSE events reach the client immediately
       // Without this, Railway/Node.js may buffer events indefinitely
       if (typeof res.flush === 'function') res.flush();
@@ -223,6 +260,10 @@ function createJobWriter(jobId, res) {
     isDisconnected() { return clientDisconnected; },
     hasVisualElements() { return visualElements.length > 0; },
     getVisualElements() { return visualElements.slice(); },
+    // P6: lets the agent loop swap in a fresh turn_id mid-request
+    // (e.g. after a verifier-triggered replan) without stale tagging.
+    setTraceContext(ctx) { trace = ctx; },
+    getTraceContext() { return trace; },
 
     emit(event) {
       sendSSE(event);
@@ -276,7 +317,346 @@ function createJobWriter(jobId, res) {
  *
  * @returns {{ message: { content, tool_calls }, finishReason: string }}
  */
+/**
+ * Main streaming agent loop. Decides between two paths:
+ *
+ *  1) SDK path (P7) — when ANTHROPIC_API_KEY is set AND we're using an
+ *     Anthropic model AND no DeepSeek workhorse override. Uses
+ *     `@anthropic-ai/sdk`'s `messages.stream()` for cleaner structured
+ *     events and unlocks future `agent_thinking` block support.
+ *
+ *  2) OpenRouter path — original implementation. Used when SDK key is
+ *     missing, when DeepSeek workhorse is overriding, or as a
+ *     fallback if the SDK path errors. Untouched by Phase 7.
+ *
+ * Both paths produce IDENTICAL writer.emit() calls and return shape:
+ *     { message: { content, tool_calls }, finishReason }
+ */
 async function callClaudeStreaming(messages, tools, writer, model = 'claude-haiku-4.5', toolChoice = 'auto') {
+  const workhorseOverride = process.env.WORKHORSE_MODEL;
+  const isHaikuModel = model && model.includes('haiku');
+  const usingWorkhorseOverride = !!(workhorseOverride && isHaikuModel);
+  const sdkAvailable = !!process.env.ANTHROPIC_API_KEY;
+
+  // SDK path conditions: SDK key set + we'd be hitting Anthropic anyway.
+  if (sdkAvailable && !usingWorkhorseOverride) {
+    try {
+      return await callClaudeStreamingSDK(messages, tools, writer, model, toolChoice);
+    } catch (err) {
+      // Don't fall back on actual errors that indicate config problems
+      // (auth, malformed request) — those should surface. Only fall
+      // back on transient errors so the chat keeps working.
+      const transient = err?.status === 429 || err?.status === 503 || err?.status === 504
+        || err?.name === 'AbortError' || /timeout|network|ECONN/i.test(err?.message || '');
+      if (transient) {
+        logger.warn(`[callClaudeStreaming] SDK path transient error, falling back to OpenRouter: ${err.message}`);
+      } else {
+        // Non-transient — re-throw so the caller sees the real problem
+        // (e.g., bad model id, schema mismatch) instead of silently
+        // double-billing across both paths.
+        throw err;
+      }
+    }
+  }
+
+  // OpenRouter path (original).
+  return callClaudeStreamingOpenRouter(messages, tools, writer, model, toolChoice);
+}
+
+/**
+ * P7: SDK-native streaming. Mirrors the OpenRouter behavior — emits
+ * the same SSE events to writer, returns the same shape — but uses
+ * the official @anthropic-ai/sdk for cleaner structured streaming.
+ *
+ * Differences from the OpenRouter version, for reference:
+ *  - System message is extracted to a top-level `system` field (SDK
+ *    requires this; messages array contains only user/assistant turns).
+ *  - Tool calls arrive as structured `tool_use` content blocks instead
+ *    of OpenRouter's accumulated tool_calls deltas. We convert back to
+ *    OpenAI-format on the way out so the rest of agentService is unchanged.
+ *  - Cache control is applied via the system block + last tool entry,
+ *    same as before but using SDK shape.
+ *  - Streaming events are typed: 'content_block_delta' for text/json,
+ *    'message_delta' carries usage on the final chunk.
+ */
+async function callClaudeStreamingSDK(messages, tools, writer, model, toolChoice) {
+  const SDK = require('@anthropic-ai/sdk');
+  const Anthropic = SDK.default || SDK.Anthropic || SDK;
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  const cacheControl = { type: 'ephemeral', ttl: '1h' };
+
+  // Split out the system message — SDK takes it as a top-level field.
+  let systemBlocks = [];
+  const convoMessages = [];
+  for (const m of messages) {
+    if (m.role === 'system') {
+      // Existing code may pass system content as a string OR as an
+      // already-structured array. Normalize to an array of blocks
+      // with cache_control on the first one (the static prompt).
+      if (typeof m.content === 'string') {
+        systemBlocks.push({ type: 'text', text: m.content, cache_control: cacheControl });
+      } else if (Array.isArray(m.content)) {
+        // The agentService already builds a multi-block system content
+        // array (static prompt + dynamic memory). Preserve cache_control
+        // on whichever block it was set on.
+        systemBlocks = m.content.map(b => ({
+          type: b.type || 'text',
+          text: b.text || '',
+          ...(b.cache_control ? { cache_control: b.cache_control } : {}),
+        }));
+      }
+      continue;
+    }
+    // User / assistant / tool messages. The SDK accepts the same shape
+    // as OpenAI's chat-completions for these (string content or
+    // structured blocks). Tool result messages must use role:'user' with
+    // tool_result content blocks per Anthropic's API.
+    if (m.role === 'tool') {
+      convoMessages.push({
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: m.tool_call_id,
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        }],
+      });
+    } else if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
+      // Convert OpenAI tool_calls back to Anthropic tool_use content blocks
+      const blocks = [];
+      if (m.content) blocks.push({ type: 'text', text: m.content });
+      for (const tc of m.tool_calls) {
+        let parsedArgs = {};
+        try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch (_) { /* keep empty */ }
+        blocks.push({
+          type: 'tool_use',
+          id: tc.id,
+          name: tc.function?.name,
+          input: parsedArgs,
+        });
+      }
+      convoMessages.push({ role: 'assistant', content: blocks });
+    } else {
+      convoMessages.push({ role: m.role, content: m.content });
+    }
+  }
+
+  // Tool definitions — SDK takes them in OpenAI-compatible shape but
+  // wants the input_schema as `input_schema` instead of nested under
+  // `function.parameters`. Convert. Also apply cache_control to the
+  // last tool to maximize cache reuse.
+  const sdkTools = (tools || []).map((t, i) => {
+    const fn = t.function || t;
+    return {
+      name: fn.name,
+      description: fn.description,
+      input_schema: fn.parameters || fn.input_schema || { type: 'object', properties: {} },
+      ...(i === (tools.length - 1) ? { cache_control: cacheControl } : {}),
+    };
+  });
+
+  // Single chokepoint that handles both the 'anthropic/' prefix and the
+  // dotted-vs-hyphenated id translation between OpenRouter and Anthropic.
+  const sdkModel = require('./anthropicClient').normalizeModelForSDK(model);
+
+  const params = {
+    model: sdkModel,
+    max_tokens: 4000,
+    temperature: 0.3,
+    system: systemBlocks,
+    messages: convoMessages,
+    tools: sdkTools.length > 0 ? sdkTools : undefined,
+  };
+
+  if (toolChoice && toolChoice !== 'auto') {
+    // SDK shape: { type: 'tool', name: '<name>' } | { type: 'any' } | { type: 'auto' }.
+    // OpenAI-style 'required' (model MUST call SOME tool) maps to Anthropic 'any'.
+    if (toolChoice === 'required' || toolChoice === 'any') {
+      params.tool_choice = { type: 'any' };
+    } else if (typeof toolChoice === 'string') {
+      params.tool_choice = { type: 'tool', name: toolChoice };
+    } else if (toolChoice && typeof toolChoice === 'object') {
+      params.tool_choice = toolChoice;
+    }
+  }
+
+  // Heartbeat for keepalive — same cadence as the OpenRouter path.
+  const keepaliveId = setInterval(() => {
+    try { writer.emit({ type: 'heartbeat' }); } catch (_) { /* writer gone */ }
+  }, 5000);
+
+  // Streaming state, same shape as OpenRouter path so resolve() output
+  // is identical.
+  let contentBuffer = '';
+  let lastExtractedLength = 0;
+  const toolCallBuffers = {}; // index → { id, name, arguments_str }
+  let finishReason = null;
+
+  function unescapeJSON(s) {
+    return s
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\\\/g, '\\');
+  }
+
+  try {
+    const stream = client.messages.stream(params, {
+      headers: { 'anthropic-beta': 'context-management-2025-06-27' },
+    });
+
+    // Track which content_block index → which tool we're populating.
+    const blockIndexToToolIdx = {};
+    let nextToolIdx = 0;
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_start') {
+        const block = event.content_block;
+        if (block?.type === 'tool_use') {
+          const idx = nextToolIdx++;
+          blockIndexToToolIdx[event.index] = idx;
+          toolCallBuffers[idx] = {
+            id: block.id,
+            name: block.name,
+            arguments: '',
+          };
+        }
+      } else if (event.type === 'content_block_delta') {
+        const delta = event.delta;
+        if (delta?.type === 'text_delta') {
+          contentBuffer += delta.text;
+          // Match the OpenRouter behavior: the model is instructed to
+          // emit JSON with a `"text"` field; we extract and stream
+          // just the text-field value to the user, not the JSON wrapper.
+          const match = contentBuffer.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)/);
+          if (match) {
+            const extracted = unescapeJSON(match[1]);
+            if (extracted.length > lastExtractedLength) {
+              writer.emit({ type: 'delta', content: extracted.substring(lastExtractedLength) });
+              lastExtractedLength = extracted.length;
+            }
+          }
+        } else if (delta?.type === 'input_json_delta') {
+          // Tool argument JSON streaming in.
+          const idx = blockIndexToToolIdx[event.index];
+          if (idx !== undefined && toolCallBuffers[idx]) {
+            toolCallBuffers[idx].arguments += delta.partial_json || '';
+          }
+        }
+        // Future: thinking_delta blocks → emit { type: 'agent_thinking' } here
+      } else if (event.type === 'message_delta') {
+        if (event.delta?.stop_reason) {
+          finishReason = event.delta.stop_reason;
+        }
+        if (event.usage) {
+          const u = event.usage;
+          const promptT = u.input_tokens ?? 0;
+          const completionT = u.output_tokens ?? 0;
+          const cacheRead = u.cache_read_input_tokens ?? 0;
+          const cacheWrite = u.cache_creation_input_tokens ?? 0;
+          if (cacheRead || cacheWrite) {
+            logger.info(`💰 cache (sdk): read=${cacheRead} write=${cacheWrite} prompt=${promptT} completion=${completionT}`);
+          }
+          writer.emit({
+            type: 'usage',
+            model,
+            prompt_tokens: promptT,
+            completion_tokens: completionT,
+            cache_read_tokens: cacheRead,
+            cache_write_tokens: cacheWrite,
+          });
+        }
+      }
+      // Other event types (message_start, content_block_stop, message_stop)
+      // are no-ops for our purposes; the final state is captured via
+      // contentBuffer + toolCallBuffers + finishReason.
+    }
+  } finally {
+    clearInterval(keepaliveId);
+  }
+
+  // Build the OpenAI-format tool_calls array the rest of agentService expects.
+  const toolCallEntries = Object.values(toolCallBuffers);
+  const tool_calls = toolCallEntries.length > 0
+    ? toolCallEntries.map(tc => ({
+        id: tc.id,
+        type: 'function',
+        function: { name: tc.name, arguments: tc.arguments || '{}' },
+      }))
+    : undefined;
+
+  // Same final-content metadata extraction as OpenRouter path. The
+  // model emits its visualElements + actions inside the JSON-string
+  // text content; we parse and re-emit as a structured metadata SSE.
+  if (!tool_calls && contentBuffer) {
+    let visualElements = [];
+    let actions = [];
+    try {
+      let jsonStr = contentBuffer;
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
+      const firstBrace = jsonStr.indexOf('{');
+      const lastBrace = jsonStr.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        const fullParsed = JSON.parse(jsonStr.substring(firstBrace, lastBrace + 1));
+        visualElements = Array.isArray(fullParsed.visualElements) ? fullParsed.visualElements : [];
+        actions = Array.isArray(fullParsed.actions) ? fullParsed.actions : [];
+      }
+    } catch (_) { /* keep going to fallback strategies */ }
+
+    if (visualElements.length === 0 && contentBuffer.includes('"visualElements"')) {
+      try {
+        const veStart = contentBuffer.indexOf('"visualElements"');
+        const arrStart = contentBuffer.indexOf('[', veStart);
+        if (arrStart !== -1) {
+          let depth = 0;
+          let arrEnd = -1;
+          for (let i = arrStart; i < contentBuffer.length; i++) {
+            if (contentBuffer[i] === '[') depth++;
+            else if (contentBuffer[i] === ']') {
+              depth--;
+              if (depth === 0) { arrEnd = i; break; }
+            }
+          }
+          if (arrEnd !== -1) {
+            visualElements = JSON.parse(contentBuffer.substring(arrStart, arrEnd + 1));
+          }
+        }
+      } catch (_) { /* fall through */ }
+    }
+
+    if (visualElements.length > 0 || actions.length > 0) {
+      writer.emit({ type: 'metadata', visualElements, actions });
+      logger.info(`📦 Emitted metadata (sdk): ${visualElements.length} visualElements, ${actions.length} actions`);
+    }
+
+    // Fallback: if no text streamed at all, dump the cleaned buffer.
+    if (lastExtractedLength === 0 && contentBuffer.trim()) {
+      let fallbackText = contentBuffer.trim().replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+      const textMatch = fallbackText.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (textMatch) {
+        writer.emit({ type: 'delta', content: unescapeJSON(textMatch[1]) });
+      } else if (!fallbackText.startsWith('{')) {
+        writer.emit({ type: 'delta', content: fallbackText });
+      }
+    }
+  }
+
+  return {
+    message: {
+      content: contentBuffer || null,
+      tool_calls,
+    },
+    finishReason,
+  };
+}
+
+/**
+ * Original OpenRouter-based streaming. Untouched by Phase 7. Kept as
+ * the fallback when ANTHROPIC_API_KEY isn't set, when the workhorse
+ * model override is active, or when the SDK path errors transiently.
+ */
+async function callClaudeStreamingOpenRouter(messages, tools, writer, model, toolChoice) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
 
@@ -747,6 +1127,32 @@ function condenseTool(toolName, result) {
  * @param {Array} messages - The full messages array including tool calls and results
  * @returns {string} Condensed tool context string, or empty string if no tools were called
  */
+/**
+ * Build the CURRENT PLAN section appended to the dynamic system prompt
+ * for complex turns. Tells the orchestrator the structured plan it's
+ * supposed to execute. Empty string when the plan has no steps.
+ */
+function buildPlanContextSection(plan) {
+  if (!plan?.steps?.length) return '';
+  const lines = plan.steps.map(s => {
+    const tools = s.tools_likely?.length ? ` [tools: ${s.tools_likely.join(', ')}]` : '';
+    const deps = s.depends_on?.length ? ` (after step ${s.depends_on.join(', ')})` : '';
+    return `${s.id}. ${s.action}${tools}${deps}`;
+  });
+  return [
+    '',
+    '',
+    '# CURRENT PLAN',
+    plan.plan_text || '',
+    '',
+    'Steps:',
+    ...lines,
+    '',
+    'Follow the steps in order. If a step needs data you don\'t have, gather it first or ask the user. Mention progress in your reply text — short ("Step 2 done, working on step 3 now") not verbose.',
+    '',
+  ].join('\n');
+}
+
 function buildToolContext(messages) {
   const entries = [];
   for (let i = 0; i < messages.length; i++) {
@@ -785,7 +1191,12 @@ function buildToolContext(messages) {
  */
 async function processAgentRequest(userMessages, userId, userContext, res, req, jobId, attachments, sessionId) {
   const startTime = Date.now();
-  const writer = createJobWriter(jobId, res);
+  // P6: mint a trace context up front. Writer auto-tags every SSE event
+  // with { trace_id, turn_id }. trace_id is stable for the request;
+  // turn_id rotates on replan via writer.setTraceContext(nextTurn(...)).
+  const { newTraceContext } = require('./traceContext');
+  const traceCtx = newTraceContext({ jobId });
+  const writer = createJobWriter(jobId, res, traceCtx);
 
   // Track client disconnection — writer continues but stops SSE writes
   if (req) {
@@ -875,7 +1286,76 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       },
     },
   };
-  const toolsWithMemory = [memoryToolDef, ...filteredTools];
+  // P5: dispatch_subagent — orchestration tool injected at runtime.
+  // Lets the orchestrator delegate complex sub-tasks to a specialist
+  // (Researcher / Builder / Bookkeeper / Communicator) with a
+  // restricted tool set + dedicated prompt + iteration cap. Same
+  // injection pattern as the memory tool above.
+  //
+  // P6: extended to accept an array of dispatches for parallel
+  // execution. Single-dispatch and multi-dispatch shapes are both
+  // valid — pass `kind` + `task` for one, or `dispatches: [...]` for
+  // many. The runner fans them out via Promise.all and the orchestrator
+  // gets all summaries back at once.
+  const dispatchSubagentDef = {
+    type: 'function',
+    function: {
+      name: 'dispatch_subagent',
+      description: 'Delegate one or more focused sub-tasks to specialist sub-agents. Use for genuinely complex multi-step requests where specialists with restricted tool sets outperform a single big agent. Specialists: `researcher` (read-only synthesis, audits, summaries), `builder` (creates projects + service plans + estimates), `bookkeeper` (financial mutations, reconciliation), `communicator` (share documents, request signatures). \n\nSingle dispatch: pass `kind` and `task`. Parallel dispatch: pass `dispatches: [{kind, task, context?}, ...]` and the orchestrator runs them concurrently. Use parallel dispatch when sub-tasks are INDEPENDENT (e.g., Researcher pulls Davis data + Researcher pulls Smith data), single dispatch when one. DO NOT dispatch for simple single-tool requests; the overhead is wasted. If a sub-agent hits a pending_approval, you\'ll see a `pending_approval` SSE event — ask the user to confirm in your response.',
+      parameters: {
+        type: 'object',
+        properties: {
+          kind: {
+            type: 'string',
+            enum: ['researcher', 'builder', 'bookkeeper', 'communicator'],
+            description: 'Single dispatch: which specialist to dispatch. Omit if using `dispatches`.',
+          },
+          task: {
+            type: 'string',
+            description: 'Single dispatch: plain-language brief. Omit if using `dispatches`.',
+          },
+          context: {
+            type: 'object',
+            description: 'Single dispatch: optional structured context. Omit if using `dispatches`.',
+          },
+          dispatches: {
+            type: 'array',
+            description: 'Parallel dispatch: array of { kind, task, context? } entries. Up to 4 in parallel. Use this when the sub-tasks are independent and you want them all executed at once.',
+            items: {
+              type: 'object',
+              properties: {
+                kind: { type: 'string', enum: ['researcher', 'builder', 'bookkeeper', 'communicator'] },
+                task: { type: 'string' },
+                context: { type: 'object' },
+              },
+              required: ['kind', 'task'],
+            },
+            maxItems: 4,
+          },
+        },
+      },
+    },
+  };
+  // P6: Skills — deterministic capability bundles. Lazy-required to
+  // avoid bloating module load on workers that don't need agent.
+  const { buildSkillToolDef, runSkill } = require('./skills');
+  const skillToolDef = buildSkillToolDef();
+
+  // P12: MCP integrations — pull the tools the user has connected
+  // (Gmail, Calendar, etc.) and register their handlers. Per-user, so
+  // userA's Gmail tools never appear in userB's tool surface. Registers
+  // runtime handlers in the central tool registry so executeTool's
+  // dispatch path finds them.
+  let mcpTools = [];
+  try {
+    const mcpClient = require('./mcp/mcpClient');
+    await mcpClient.registerHandlers(userId);
+    mcpTools = await mcpClient.getToolsForUser(userId);
+  } catch (e) {
+    logger.warn('[agentService] MCP integration load failed (proceeding without):', e?.message);
+  }
+
+  const toolsWithMemory = [memoryToolDef, dispatchSubagentDef, skillToolDef, ...mcpTools, ...filteredTools];
 
   // PHASE 1.5 — Planner. Quick Haiku call that reads the user message +
   // recent conversation and emits a structured plan (text shown to user,
@@ -909,6 +1389,12 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       plan_text: plan.plan_text,
       complexity: plan.complexity,
       recommended_model: plan.recommended_model,
+      // P2: complex plans now carry a structured step list. Older
+      // clients ignore unrecognized fields.
+      ...(plan.steps?.length ? { steps: plan.steps } : {}),
+      // P6: surface plan cache hits so observability tooling and the UI
+      // can mark cheap-replay turns. Missing field == cache miss.
+      ...(plan._cached ? { cached: true } : {}),
     });
     // Log the plan to the world model as agent-decision training data.
     // user_feedback gets backfilled later (approve/reject/edit) so we
@@ -991,6 +1477,27 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     }
   }
 
+  // P10: pull the auto-generated business profile so the prompt's
+  // "ABOUT THIS BUSINESS" section can lead with it. Resolves to the
+  // owner's profile when called by a supervisor, so supervisors see
+  // their owner's business context.
+  try {
+    const ownerForProfile = userContext?.isSupervisor
+      ? (userContext?.ownerId || userId)
+      : userId;
+    const { data: bizProf } = await supabase
+      .from('profiles')
+      .select('auto_business_profile')
+      .eq('id', ownerForProfile)
+      .maybeSingle();
+    if (bizProf?.auto_business_profile) {
+      promptContext = { ...promptContext, autoBusinessProfile: bizProf.auto_business_profile };
+    }
+  } catch (e) {
+    // Soft-fail: missing profile context shouldn't block the chat.
+    logger.warn('Could not fetch business profile for prompt:', e?.message);
+  }
+
   // Split the system prompt into two halves:
   //   1. STATIC — buildSystemPrompt() output, stable across a user's session.
   //      Gets cache_control so prompt caching actually helps.
@@ -1006,12 +1513,25 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   const staticSystemPrompt = buildSystemPrompt(promptContext);
   const dynamicMemorySection = memorySnapshot + memoryContext + recalledContext;
 
-  const systemContent = dynamicMemorySection
+  // P2: complex plans inject a CURRENT PLAN section so the orchestrator
+  // sees its own checklist and follows step order. Concatenated into the
+  // dynamic (non-cached) block — keeps the static cache stable.
+  const planContextSection = plan?.steps?.length
+    ? buildPlanContextSection(plan)
+    : '';
+
+  const dynamicBlock = dynamicMemorySection + planContextSection;
+
+  const systemContent = dynamicBlock
     ? [
         { type: 'text', text: staticSystemPrompt, cache_control: { type: 'ephemeral', ttl: '1h' } },
-        { type: 'text', text: dynamicMemorySection },
+        { type: 'text', text: dynamicBlock },
       ]
     : staticSystemPrompt;
+
+  // Step tracker for complex plans. Null otherwise — simple/standard
+  // turns short-circuit so there's zero overhead.
+  const stepTracker = createStepTracker(plan?.steps, writer);
 
   // Log routing decisions
   logger.info(`🎯 Intent: ${intent} | Tools: ${toolCount}/34 | Model: ${model} (${reason})`);
@@ -1130,11 +1650,19 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             logger.error(`Failed to parse tool args for ${toolName}:`, toolCall.function.arguments);
           }
 
-          // Send tool_start event
+          // Send tool_start event with P3 enrichments — registry metadata
+          // (category + risk_level) so the frontend can render the right
+          // icon and tint. args_summary is a 1-line debug string the
+          // reasoning trail can show on long-press for power users.
+          const _toolMeta = toolRegistry.getMetadata(toolName);
+          const _toolStartedAt = Date.now();
           writer.emit({
             type: 'tool_start',
             tool: toolName,
             message: getToolStatusMessage(toolName),
+            category: _toolMeta?.category || null,
+            risk_level: _toolMeta?.risk_level || null,
+            args_summary: summarizeArgs(toolArgs),
           });
 
           // Execute the tool (with duplicate detection)
@@ -1143,6 +1671,102 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           if (toolCallCache.has(cacheKey)) {
             result = toolCallCache.get(cacheKey);
             logger.info(`📦 Tool ${toolName} returned cached result (duplicate call skipped)`);
+          } else if (toolName === 'dispatch_subagent') {
+            // P5: orchestrator delegates a focused sub-task to a
+            // specialist. The runner spawns an isolated agent loop
+            // with a restricted tool set, executes, and returns a
+            // summary. Blocked approval-gate calls bubble up to the
+            // parent thread for the user-confirm UX.
+            //
+            // P6: also supports parallel dispatch via `dispatches: []`.
+            // Up to 4 specialists fan out via Promise.all. Result is
+            // an array of summaries the orchestrator can integrate.
+            try {
+              const { runSubAgent } = require('./subAgents/runner');
+              const dispatches = Array.isArray(toolArgs.dispatches) && toolArgs.dispatches.length > 0
+                ? toolArgs.dispatches.slice(0, 4) // hard cap on parallelism
+                : (toolArgs.kind && toolArgs.task ? [{ kind: toolArgs.kind, task: toolArgs.task, context: toolArgs.context || {} }] : []);
+              if (dispatches.length === 0) {
+                result = { error: 'dispatch_subagent requires either { kind, task } or { dispatches: [...] }' };
+              } else if (dispatches.length === 1) {
+                // Single-dispatch path — same shape as P5.
+                const d = dispatches[0];
+                result = await runSubAgent({
+                  kind: d.kind,
+                  task: d.task,
+                  parentContext: d.context || {},
+                  userId,
+                  writer,
+                });
+              } else {
+                // P6: parallel dispatch. Promise.all so the slowest
+                // specialist gates the round; emits started events
+                // for each so the UI can render them in parallel.
+                writer.emit({ type: 'parallel_dispatch', count: dispatches.length, kinds: dispatches.map(d => d.kind) });
+                const results = await Promise.all(dispatches.map(d => runSubAgent({
+                  kind: d.kind,
+                  task: d.task,
+                  parentContext: d.context || {},
+                  userId,
+                  writer,
+                })));
+                result = { parallel: true, results };
+              }
+              // Forward any blocked approvals (single or parallel) as
+              // pending_approval events in the parent thread.
+              const collected = result.parallel ? result.results : [result];
+              for (const sub of collected) {
+                if (!sub?.blockedApprovals?.length) continue;
+                for (const block of sub.blockedApprovals) {
+                  writer.emit({
+                    type: 'pending_approval',
+                    tool: block.tool,
+                    args: block.args,
+                    action_summary: block.action_summary,
+                    risk_level: block.risk_level,
+                    reason: block.reason,
+                    via_subagent: sub.kind,
+                  });
+                }
+              }
+            } catch (err) {
+              result = { error: `Sub-agent dispatch failed: ${err?.message || err}` };
+            }
+            toolCallCache.set(cacheKey, result);
+          } else if (toolName === 'invoke_skill') {
+            // P6: Skills — named, deterministic capability bundles. The
+            // skill defers to a sub-agent under the hood (Researcher
+            // for audits/reviews; Builder for drafting). Keeps recipes
+            // in code instead of asking the LLM to re-derive them.
+            try {
+              const { runSubAgent } = require('./subAgents/runner');
+              const skillResult = await runSkill({
+                name: toolArgs.name,
+                args: toolArgs.args || {},
+                userId,
+                runSubAgent,
+                writer,
+              });
+              result = skillResult;
+              // Forward sub-agent blocked approvals (skills can produce
+              // these too via the Builder/Communicator they call).
+              if (skillResult?.blockedApprovals?.length) {
+                for (const block of skillResult.blockedApprovals) {
+                  writer.emit({
+                    type: 'pending_approval',
+                    tool: block.tool,
+                    args: block.args,
+                    action_summary: block.action_summary,
+                    risk_level: block.risk_level,
+                    reason: block.reason,
+                    via_skill: toolArgs.name,
+                  });
+                }
+              }
+            } catch (err) {
+              result = { error: `Skill invocation failed: ${err?.message || err}` };
+            }
+            toolCallCache.set(cacheKey, result);
           } else if (toolName === 'memory') {
             // Anthropic memory tool — dispatch to the per-tenant memory store
             // instead of the regular handlers map. Returns a plain string per
@@ -1183,36 +1807,51 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
               toolCallCache.set(cacheKey, result);
               rememberToolResult(userId, toolName, toolArgs, result);
             }
-          } else if (isDestructive(toolName)) {
-            // Evaluator-Optimizer pattern: a separate Haiku call reads the
-            // recent conversation and decides whether the user has truly
-            // confirmed this destructive action in the same turn. If not,
-            // the tool is short-circuited with a "blocked" result that
-            // tells the model to ask the user first. Belt-and-braces over
-            // the tool description's "must confirm" rule.
-            const verdict = await verifyDestructive(toolName, toolArgs, messages);
-            if (verdict.verdict === 'BLOCK') {
-              writer.emit({ type: 'tool_blocked', tool: toolName, reason: verdict.reason });
-              result = blockedToolResult(toolName, verdict.reason);
-            } else {
-              if (toolName === 'upload_project_document' && attachments?.length > 0) {
-                toolArgs._attachments = attachments;
-              }
-              result = await executeTool(toolName, toolArgs, userId);
-            }
-            toolCallCache.set(cacheKey, result);
           } else {
-            // Inject raw attachments for upload tool
-            if (toolName === 'upload_project_document' && attachments?.length > 0) {
-              toolArgs._attachments = attachments;
+            // Approval gate (Phase-1 generalization of the old
+            // destructiveGuard). Branches by tool registry metadata:
+            //   read / write_safe → PROCEED
+            //   write_destructive → Haiku verifier with strict
+            //     same-turn-confirmation rubric (legacy behavior)
+            //   external_write    → same rubric, plus a
+            //     pending_approval SSE event so the UI can render an
+            //     inline confirm card for SMS / e-sign / share_document
+            const gate = await approvalGate.check({
+              toolName,
+              toolArgs,
+              messages,
+            });
+
+            if (gate.verdict === 'BLOCK') {
+              writer.emit({ type: 'tool_blocked', tool: toolName, reason: gate.reason });
+              writer.emit(approvalGate.pendingApprovalEvent(toolName, toolArgs, gate));
+              result = approvalGate.blockedToolResult(toolName, gate);
+            } else {
+              // Inject raw attachments for upload tools — current message
+              // first, then fall back to recent session attachments.
+              if (toolName === 'upload_project_document' || toolName === 'upload_service_plan_document') {
+                if (attachments?.length > 0) {
+                  toolArgs._attachments = attachments;
+                } else if (sessionId) {
+                  toolArgs._attachments = await memoryService.fetchSessionAttachmentsForUpload(sessionId, userId);
+                }
+              }
+
+              result = await executeTool(toolName, toolArgs, userId);
+
+              // Remember tool results for read / write_safe only — the
+              // legacy code skipped destructive tools, and we extend
+              // that exclusion to external_write too (an outbound SMS
+              // result isn't a useful thing to recall in a later turn).
+              const meta = toolRegistry.getMetadata(toolName);
+              const remember = !meta || meta.risk_level === 'read' || meta.risk_level === 'write_safe';
+              if (remember) {
+                rememberToolResult(userId, toolName, toolArgs, result);
+              }
+
+              logger.info(`📦 Tool ${toolName} returned ${JSON.stringify(result).length} chars${result?.error ? ` (ERROR: ${result.error})` : ''}`);
             }
-            result = await executeTool(toolName, toolArgs, userId);
             toolCallCache.set(cacheKey, result);
-
-            // PHASE 4: Remember important results for future queries
-            rememberToolResult(userId, toolName, toolArgs, result);
-
-            logger.info(`📦 Tool ${toolName} returned ${JSON.stringify(result).length} chars${result?.error ? ` (ERROR: ${result.error})` : ''}`);
           }
 
           // Domain event log — single chokepoint for "the agent did
@@ -1251,8 +1890,15 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             });
           }
 
-          // Send tool_end event
-          writer.emit({ type: 'tool_end', tool: toolName });
+          // Send tool_end event with P3 enrichments: duration_ms + ok
+          // flag so the reasoning trail can show "✓ in 240ms" or
+          // "✗ failed in 3.4s" without inferring from result shape.
+          writer.emit({
+            type: 'tool_end',
+            tool: toolName,
+            duration_ms: Date.now() - _toolStartedAt,
+            ok: !result?.error && !result?.blocked,
+          });
 
           return { toolCall, result };
         }));
@@ -1277,6 +1923,49 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           });
         }
 
+        // P2: advance the step tracker after the round so step_started /
+        // step_completed events stream during the turn. Heuristic: each
+        // tool name attributes to the earliest unfinished step whose
+        // tools_likely contains it (or has empty tools_likely).
+        if (stepTracker) {
+          const callsThisRound = message.tool_calls.map(tc => ({ name: tc.function?.name }));
+          stepTracker.onToolRound(callsThisRound);
+
+          // If a tool result errored AND that tool was attributed to a
+          // currently-active step, mark the step failed. Best-effort —
+          // a failed tool call doesn't always mean the step can't recover.
+          const failedThisRound = [];
+          for (const entry of toolResults) {
+            if (!entry?.result?.error) continue;
+            const activeId = stepTracker.getActiveStepId();
+            if (activeId) {
+              stepTracker.markFailed(activeId, entry.result.error);
+              failedThisRound.push({ id: activeId, error: entry.result.error });
+            }
+          }
+
+          // P6: step-targeted retry. If a step just failed, inject a
+          // single corrective system note BEFORE the next loop round
+          // so the agent knows specifically which step to re-attempt
+          // (and why). Capped at one retry-note per step to avoid
+          // ping-ponging when a tool keeps erroring.
+          if (failedThisRound.length > 0) {
+            for (const f of failedThisRound) {
+              const stepRow = (plan.steps || []).find(s => s.id === f.id);
+              if (!stepRow) continue;
+              const note = `Step ${f.id} ("${stepRow.action}") just failed: ${String(f.error).slice(0, 200)}. Try ONCE MORE with a different tool or different arguments. If it fails again, surface the issue to the user — do not loop.`;
+              messages.push({
+                role: 'system',
+                content: `[step_retry] ${note}`,
+              });
+            }
+            writer.emit({
+              type: 'step_retry_hint',
+              step_ids: failedThisRound.map(f => f.id),
+            });
+          }
+        }
+
         // Continue the loop — let Claude process tool results
         logger.info(`⏱️ Round ${toolRound} completed in ${Date.now() - roundStart}ms`);
         continue;
@@ -1291,12 +1980,22 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       }
 
       if (!finalContent) {
-        // Empty response — send fallback
-        logger.warn('Agent returned empty response');
-        writer.emit({
-          type: 'delta',
-          content: "I apologize, but I wasn't able to process that request. Could you try rephrasing it?",
-        });
+        // Empty response — model returned no tool calls AND no text. The
+        // system prompt forbids this, but if the model still does it we
+        // surface what it was looking at so the user gets actionable context
+        // instead of a generic apology.
+        logger.warn('Agent returned empty response — composing context-aware fallback');
+        const lastToolCalls = messages
+          .filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls))
+          .flatMap(m => m.tool_calls.map(tc => tc.function?.name))
+          .filter(Boolean);
+        const lastToolName = lastToolCalls.length > 0 ? lastToolCalls[lastToolCalls.length - 1] : null;
+
+        const fallback = lastToolName
+          ? `I started looking that up (using ${lastToolName.replace(/_/g, ' ')}) but couldn't compose a final answer. Try being more specific — e.g., name the worker, project, or date range explicitly.`
+          : "I'm not sure how to respond to that — try rephrasing or being more specific about what you want.";
+
+        writer.emit({ type: 'delta', content: fallback });
       }
 
       const totalTime = Date.now() - startTime;
@@ -1345,6 +2044,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       if (memoryStallDetected) {
         logger.warn('🔁 Memory-only stall detected, nudging agent to take action');
         replanCount += 1;
+        // P6: rotate turn_id so replay tooling can distinguish the
+        // pre-replan and post-replan event groups under the same trace.
+        const { nextTurn } = require('./traceContext');
+        writer.setTraceContext(nextTurn(traceCtx));
         writer.emit({ type: 'clear' });
         writer.emit({ type: 'retrying', attempt: replanCount + 1, reason: 'Saved the fact, now completing the action.' });
         messages.push({
@@ -1365,6 +2068,37 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       // This is the self-correction property that separates SOTA agents
       // from chatbots.
       let verifierVerdict = null;
+      // P6: constitution layer — runs before the verifier. Catches
+      // hard-rule violations (claims an SMS was sent when SMS is off,
+      // claims a destructive op completed when none did, leaks tool
+      // names). Violations are logged as warnings; if a rule is
+      // severity='block' we substitute the response with the rule's
+      // fix text. The verifier still runs after — these are layered
+      // checks, not alternatives.
+      try {
+        const constitution = require('./constitution');
+        const verdict = constitution.evaluate({
+          responseText: finalContent,
+          executedToolCalls: allToolCalls,
+          plan,
+        });
+        if (!verdict.ok) {
+          for (const v of verdict.results) {
+            logger.warn(`[constitution] ${v.rule} (${v.severity}): ${v.reason}`);
+            writer.emit({ type: 'constitution_warning', rule: v.rule, severity: v.severity, reason: v.reason });
+          }
+          if (verdict.blocked) {
+            // Substitute the response stream with the safe fix.
+            writer.emit({ type: 'clear' });
+            for (const ch of (verdict.blocked.fix || 'I can\'t do that in this build.').split('')) {
+              writer.emit({ type: 'delta', content: ch });
+            }
+          }
+        }
+      } catch (err) {
+        logger.warn('[constitution] evaluation error:', err.message);
+      }
+
       const shouldVerify = plan?.needs_verification && plan.plan_text && replanCount < MAX_REPLANS;
       if (shouldVerify) {
         try {
@@ -1373,6 +2107,9 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             executedToolCalls: allToolCalls,
             finalResponseText: finalContent,
             emittedVisualElements: writer.getVisualElements ? writer.getVisualElements() : [],
+            // P2: hand the verifier the live step state so divergence
+            // checks can see "step 2 failed, step 3 never started".
+            stepSummary: stepTracker?.summary?.() || null,
           });
           writer.emit({
             type: verifierVerdict.aligned ? 'plan_verified' : 'plan_diverged',
@@ -1411,6 +2148,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       if (verifierVerdict?.severity === 'major' && !tookAction && replanCount < MAX_REPLANS) {
         replanCount += 1;
         logger.warn(`🔁 Replan triggered (#${replanCount}): ${verifierVerdict.divergence_reason}`);
+        // P6: rotate turn_id so replay tooling can distinguish the
+        // verifier-pre and verifier-post event groups.
+        const { nextTurn } = require('./traceContext');
+        writer.setTraceContext(nextTurn(traceCtx));
         // Reset the frontend's displayed text so the second response
         // overwrites the first cleanly.
         writer.emit({ type: 'clear' });

@@ -15,6 +15,7 @@ import enHome from '../locales/en/home.json';
 import enNavigation from '../locales/en/navigation.json';
 import enSchedule from '../locales/en/schedule.json';
 import enOwner from '../locales/en/owner.json';
+import enInbox from '../locales/en/inbox.json';
 
 // Import Spanish translations
 import esCommon from '../locales/es/common.json';
@@ -29,6 +30,7 @@ import esHome from '../locales/es/home.json';
 import esNavigation from '../locales/es/navigation.json';
 import esSchedule from '../locales/es/schedule.json';
 import esOwner from '../locales/es/owner.json';
+import esInbox from '../locales/es/inbox.json';
 
 // Import Portuguese (Brazil) translations
 import ptBRCommon from '../locales/pt-BR/common.json';
@@ -43,6 +45,7 @@ import ptBRHome from '../locales/pt-BR/home.json';
 import ptBRNavigation from '../locales/pt-BR/navigation.json';
 import ptBRSchedule from '../locales/pt-BR/schedule.json';
 import ptBROwner from '../locales/pt-BR/owner.json';
+import ptBRInbox from '../locales/pt-BR/inbox.json';
 
 const resources = {
   en: {
@@ -58,6 +61,7 @@ const resources = {
     navigation: enNavigation,
     schedule: enSchedule,
     owner: enOwner,
+    inbox: enInbox,
   },
   es: {
     common: esCommon,
@@ -72,6 +76,7 @@ const resources = {
     navigation: esNavigation,
     schedule: esSchedule,
     owner: esOwner,
+    inbox: esInbox,
   },
   'pt-BR': {
     common: ptBRCommon,
@@ -86,6 +91,7 @@ const resources = {
     navigation: ptBRNavigation,
     schedule: ptBRSchedule,
     owner: ptBROwner,
+    inbox: ptBRInbox,
   },
 };
 
@@ -111,7 +117,7 @@ i18n.use(initReactI18next).init({
   resources,
   lng: 'en', // Default to English, will be updated by user preference
   fallbackLng: 'en',
-  ns: ['common', 'auth', 'onboarding', 'projects', 'workers', 'invoices', 'settings', 'chat', 'home', 'navigation', 'schedule', 'owner'],
+  ns: ['common', 'auth', 'onboarding', 'projects', 'workers', 'invoices', 'settings', 'chat', 'home', 'navigation', 'schedule', 'owner', 'inbox'],
   defaultNS: 'common',
   interpolation: {
     escapeValue: false, // React already handles escaping

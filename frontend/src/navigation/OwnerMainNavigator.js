@@ -85,6 +85,16 @@ import GoogleDriveScreen from '../screens/owner/GoogleDriveScreen';
 import ClientVisibilityScreen from '../screens/owner/ClientVisibilityScreen';
 import ClientsScreen from '../screens/owner/ClientsScreen';
 
+// Audit log
+import AuditLogScreen from '../screens/owner/AuditLogScreen';
+
+// Import SMS inbox screens
+import InboxScreen from '../screens/owner/InboxScreen';
+import ThreadScreen from '../screens/owner/ThreadScreen';
+
+// Import MCP integrations
+import IntegrationsScreen from '../screens/owner/IntegrationsScreen';
+
 // Import manual project creation
 import ManualProjectCreateScreen from '../screens/owner/ManualProjectCreateScreen';
 
@@ -151,6 +161,10 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="Clients"
         component={ClientsScreen}
+      />
+      <Stack.Screen
+        name="AuditLog"
+        component={AuditLogScreen}
       />
       <Stack.Screen
         name="ProjectTransactions"
@@ -344,6 +358,22 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="GoogleDrive"
         component={GoogleDriveScreen}
+      />
+
+      {/* SMS Inbox + Thread (two-way Twilio messaging) */}
+      <Stack.Screen
+        name="Inbox"
+        component={InboxScreen}
+      />
+      <Stack.Screen
+        name="Thread"
+        component={ThreadScreen}
+      />
+
+      {/* MCP integrations (Settings → Integrations) */}
+      <Stack.Screen
+        name="Integrations"
+        component={IntegrationsScreen}
       />
     </Stack.Navigator>
   );

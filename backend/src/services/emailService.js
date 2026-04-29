@@ -150,4 +150,73 @@ async function sendEstimateEmail({ estimate, businessName, pdfUrl }) {
   }
 }
 
-module.exports = { sendInvoiceEmail, sendEstimateEmail };
+/**
+ * Send a signature-request email with a signing link.
+ */
+async function sendSignatureRequestEmail({ documentType, documentTitle, signerName, signerEmail, businessName, signingUrl, expiresAt }) {
+  if (!signerEmail || !process.env.RESEND_API_KEY) {
+    return { sent: false, reason: 'no_email_or_key' };
+  }
+  const expires = expiresAt ? new Date(expiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : null;
+  const docLabel = { estimate: 'Estimate', invoice: 'Invoice', contract: 'Contract' }[documentType] || 'Document';
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [signerEmail],
+      subject: `Please sign: ${docLabel} ${esc(documentTitle || '')} from ${esc(businessName || 'Your Contractor')}`,
+      html: `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:40px 20px;background:#F8FAFC;">
+          <div style="background:#fff;border-radius:16px;padding:32px;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
+            <div style="font-size:14px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;text-align:center;">${esc(businessName || 'Your Contractor')}</div>
+            <h2 style="margin:8px 0 0;color:#0F172A;text-align:center;">Signature requested</h2>
+            <p style="color:#64748B;text-align:center;font-size:14px;margin-top:6px;">${esc(docLabel)} ${esc(documentTitle || '')}</p>
+            <p style="color:#0F172A;font-size:15px;line-height:1.5;margin-top:24px;">Hi ${esc(signerName || 'there')},</p>
+            <p style="color:#0F172A;font-size:15px;line-height:1.5;">Please review and sign the ${docLabel.toLowerCase()} below.${expires ? ` This link expires on ${expires}.` : ''}</p>
+            <a href="${signingUrl}" style="display:block;background:#1E40AF;color:#fff;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:600;margin-top:24px;font-size:16px;">Review & Sign</a>
+            <p style="color:#94A3B8;font-size:12px;margin-top:24px;text-align:center;">If the button doesn't work, copy this link into your browser:<br><span style="color:#475569;word-break:break-all;">${signingUrl}</span></p>
+          </div>
+          <div style="text-align:center;margin-top:24px;font-size:12px;color:#94A3B8;">Sent via <strong>Sylk</strong></div>
+        </div>`,
+    });
+    if (error) return { sent: false, error: error.message };
+    return { sent: true, emailId: data?.id };
+  } catch (err) {
+    return { sent: false, error: err.message };
+  }
+}
+
+/**
+ * Notify the owner that their document was signed.
+ */
+async function sendSignatureCompletedEmail({ ownerEmail, documentTitle, signerName, signedPdfUrl }) {
+  if (!ownerEmail || !process.env.RESEND_API_KEY) {
+    return { sent: false, reason: 'no_email_or_key' };
+  }
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [ownerEmail],
+      subject: `Signed: ${esc(documentTitle || '')}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:40px 20px;">
+          <div style="background:#fff;border-radius:16px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+            <h2 style="margin:0;color:#0F172A;">Document signed</h2>
+            <p style="color:#64748B;">${esc(signerName || 'The signer')} signed ${esc(documentTitle || 'your document')}.</p>
+            ${signedPdfUrl ? `<a href="${signedPdfUrl}" style="display:block;background:#1E40AF;color:#fff;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:600;margin-top:24px;">View signed PDF</a>` : ''}
+          </div>
+        </div>`,
+    });
+    if (error) return { sent: false, error: error.message };
+    return { sent: true, emailId: data?.id };
+  } catch (err) {
+    return { sent: false, error: err.message };
+  }
+}
+
+module.exports = {
+  sendInvoiceEmail,
+  sendEstimateEmail,
+  sendSignatureRequestEmail,
+  sendSignatureCompletedEmail,
+};

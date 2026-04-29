@@ -115,6 +115,29 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Sync the device's IANA timezone to profiles.timezone so the nightly
+  // morning-brief cron fires at 6am LOCAL time for each user. The cron runs
+  // hourly and only processes users whose current local hour matches their
+  // briefing_hour, so the timezone column drives the schedule. We only write
+  // when the device tz actually differs from what's stored, to avoid noisy
+  // upserts on every app open.
+  useEffect(() => {
+    if (!user?.id || !profile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!deviceTz || deviceTz === profile.timezone) return;
+        if (cancelled) return;
+        await supabase
+          .from('profiles')
+          .update({ timezone: deviceTz })
+          .eq('id', user.id);
+      } catch { /* non-fatal — keeps default tz on profile */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, profile?.timezone]);
+
   // Realtime: when the user's own profile row is updated (e.g. owner toggles
   // a supervisor permission column), reload it so the in-memory profile and
   // the AsyncStorage cache both pick up the change without requiring sign-out.

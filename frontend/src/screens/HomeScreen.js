@@ -51,6 +51,7 @@ import PnLWidget from '../components/dashboard/widgets/PnLWidget';
 import ProfitMarginWidget from '../components/dashboard/widgets/ProfitMarginWidget';
 import ClockInOutWidget from '../components/dashboard/widgets/ClockInOutWidget';
 import TimeHistoryWidget from '../components/dashboard/widgets/TimeHistoryWidget';
+import MorningBriefCard from '../components/MorningBriefCard';
 
 export default function HomeScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
@@ -774,6 +775,9 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.welcomeText}>{t('welcome')} 👋</Text>
           <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
         </View>
+
+        {/* Phase-3 Morning Brief — surfaces the nightly anomaly snapshot */}
+        <MorningBriefCard />
 
         {/* Clock-in lives in the widget grid below — see ClockInOutWidget. */}
 

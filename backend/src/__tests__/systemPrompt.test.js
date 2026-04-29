@@ -62,6 +62,18 @@ describe('buildSystemPrompt', () => {
       learnedFacts: 'Jose is certified for electrical work',
     });
 
+    // Current code uses an h3 "Known facts about this user / business"
+    // section for learnedFacts; the h2 "KNOWN FACTS ABOUT THIS USER"
+    // is gated on `userName` being set.
+    expect(prompt).toContain('Known facts about this user');
+    expect(prompt).toContain('Jose is certified for electrical work');
+  });
+
+  test('learnedFacts + userName produces the h2 header too', () => {
+    const prompt = buildSystemPrompt({
+      userName: 'David',
+      learnedFacts: 'Jose is certified for electrical work',
+    });
     expect(prompt).toContain('KNOWN FACTS ABOUT THIS USER');
     expect(prompt).toContain('Jose is certified for electrical work');
   });

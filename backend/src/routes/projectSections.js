@@ -16,6 +16,7 @@ const supabase = createClient(
 );
 
 const { authenticateUser } = require('../middleware/authenticate');
+const { recordAudit } = require('../middleware/auditLog');
 
 router.use(authenticateUser);
 
@@ -258,6 +259,35 @@ router.post('/move-task', async (req, res) => {
 
     logger.info(`[Sections] Moved task ${task_id} from ${source_phase_id} to ${target_phase_id}`);
     res.json({ success: true });
+
+    // Audit: chained two-phase write — log both phases as updates so
+    // entity-history reads on either phase show the move.
+    recordAudit({
+      companyId: userId,
+      actorUserId: userId,
+      actorType: 'user',
+      action: 'update',
+      entityType: 'phase',
+      entityId: source_phase_id,
+      beforeJson: { tasks: sourcePhase.tasks },
+      afterJson: { tasks: sourceTasks },
+      ip: req.ip,
+      userAgent: req.headers?.['user-agent'],
+      source: req.headers?.['x-client'] || 'api',
+    });
+    recordAudit({
+      companyId: userId,
+      actorUserId: userId,
+      actorType: 'user',
+      action: 'update',
+      entityType: 'phase',
+      entityId: target_phase_id,
+      beforeJson: { tasks: targetPhase.tasks },
+      afterJson: { tasks: targetTasks },
+      ip: req.ip,
+      userAgent: req.headers?.['user-agent'],
+      source: req.headers?.['x-client'] || 'api',
+    });
   } catch (error) {
     logger.error('[Sections] Move task error:', error.message);
     res.status(500).json({ error: error.message || 'Failed to move task' });
@@ -316,6 +346,20 @@ router.patch('/reorder-tasks', async (req, res) => {
     if (error) throw error;
 
     res.json({ success: true, tasks: reordered });
+
+    recordAudit({
+      companyId: userId,
+      actorUserId: userId,
+      actorType: 'user',
+      action: 'update',
+      entityType: 'phase',
+      entityId: phase_id,
+      beforeJson: { tasks },
+      afterJson: { tasks: reordered },
+      ip: req.ip,
+      userAgent: req.headers?.['user-agent'],
+      source: req.headers?.['x-client'] || 'api',
+    });
   } catch (error) {
     logger.error('[Sections] Reorder error:', error.message);
     res.status(500).json({ error: 'Failed to reorder tasks' });

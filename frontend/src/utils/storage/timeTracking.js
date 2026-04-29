@@ -8,6 +8,31 @@ import { cacheData, getCachedData } from '../../services/offlineCache';
 // Time Tracking Functions
 // ============================================================
 
+// Returns assigned_supervisor_id IFF the project has a supervisor distinct
+// from ownerId AND the owner has granted that supervisor the required
+// permission. Returns null otherwise so callers can skip the fanout.
+const resolveSupervisorRecipient = async (projectId, ownerId, requiredPermission) => {
+  if (!projectId) return null;
+  try {
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('assigned_supervisor_id')
+      .eq('id', projectId)
+      .single();
+    const supId = proj?.assigned_supervisor_id;
+    if (!supId || supId === ownerId) return null;
+    if (!requiredPermission) return supId;
+    const { data: sup } = await supabase
+      .from('profiles')
+      .select(requiredPermission)
+      .eq('id', supId)
+      .single();
+    return sup?.[requiredPermission] ? supId : null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Clock in a worker
  * @param {string} workerId - Worker ID
@@ -101,22 +126,19 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
             workerId,
           },
         });
-        // Also notify assigned supervisor if different from owner
-        if (projectId) {
-          const { data: proj } = await supabase.from('projects')
-            .select('assigned_supervisor_id').eq('id', projectId).single();
-          if (proj?.assigned_supervisor_id && proj.assigned_supervisor_id !== workerInfo.owner_id) {
-            supabase.functions.invoke('send-push-notification', {
-              body: {
-                userId: proj.assigned_supervisor_id,
-                title: 'Worker Clocked In',
-                body: `${workerInfo.full_name} clocked in${projectName ? ` on ${projectName}` : ''}`,
-                type: 'worker_update',
-                data: { screen: 'Workers' },
-                workerId,
-              },
-            });
-          }
+        // Also notify assigned supervisor if owner granted can_manage_workers
+        const supId = await resolveSupervisorRecipient(projectId, workerInfo.owner_id, 'can_manage_workers');
+        if (supId) {
+          supabase.functions.invoke('send-push-notification', {
+            body: {
+              userId: supId,
+              title: 'Worker Clocked In',
+              body: `${workerInfo.full_name} clocked in${projectName ? ` on ${projectName}` : ''}`,
+              type: 'worker_update',
+              data: { screen: 'Workers' },
+              workerId,
+            },
+          });
         }
       }
     } catch (e) { /* fire and forget */ }
@@ -269,21 +291,18 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
             workerId: timeEntry.worker_id,
           },
         });
-        if (timeEntry.project_id) {
-          const { data: proj } = await supabase.from('projects')
-            .select('assigned_supervisor_id').eq('id', timeEntry.project_id).single();
-          if (proj?.assigned_supervisor_id && proj.assigned_supervisor_id !== workerInfo.owner_id) {
-            supabase.functions.invoke('send-push-notification', {
-              body: {
-                userId: proj.assigned_supervisor_id,
-                title: 'Worker Clocked Out',
-                body: `${workerInfo.full_name} clocked out${projectName ? ` from ${projectName}` : ''} (${formatHoursMinutes(hoursWorked)})`,
-                type: 'worker_update',
-                data: { screen: 'Workers' },
-                workerId: timeEntry.worker_id,
-              },
-            });
-          }
+        const supId = await resolveSupervisorRecipient(timeEntry.project_id, workerInfo.owner_id, 'can_manage_workers');
+        if (supId) {
+          supabase.functions.invoke('send-push-notification', {
+            body: {
+              userId: supId,
+              title: 'Worker Clocked Out',
+              body: `${workerInfo.full_name} clocked out${projectName ? ` from ${projectName}` : ''} (${formatHoursMinutes(hoursWorked)})`,
+              type: 'worker_update',
+              data: { screen: 'Workers' },
+              workerId: timeEntry.worker_id,
+            },
+          });
         }
       }
     } catch (e) { /* fire and forget */ }
@@ -1606,24 +1625,35 @@ export const sendForgottenClockOutNotifications = async (thresholdHours = 10) =>
     const forgotten = await checkForgottenClockOuts(thresholdHours);
     let notifCount = 0;
 
-    // Dedup: check which workers already got a notification in the last 24h
+    // Per-recipient 24h dedup, lazy-loaded the first time we hit a recipient.
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: recentNotifs } = await supabase
-      .from('notifications')
-      .select('body')
-      .eq('user_id', user.id)
-      .eq('title', 'Forgotten Clock-Out')
-      .gte('created_at', oneDayAgo);
-    const alreadyNotified = new Set((recentNotifs || []).map(n => n.body));
+    const dedupCache = new Map();
+    const getDedupSet = async (recipientId) => {
+      if (dedupCache.has(recipientId)) return dedupCache.get(recipientId);
+      const { data: recentNotifs } = await supabase
+        .from('notifications')
+        .select('body')
+        .eq('user_id', recipientId)
+        .eq('title', 'Forgotten Clock-Out')
+        .gte('created_at', oneDayAgo);
+      const set = new Set((recentNotifs || []).map(n => n.body));
+      dedupCache.set(recipientId, set);
+      return set;
+    };
 
     for (const worker of forgotten.workers) {
+      // Route to the project's assigned supervisor (if granted can_manage_workers);
+      // otherwise fall back to the current user (typically the owner).
+      const supId = await resolveSupervisorRecipient(worker.project_id, user.id, 'can_manage_workers');
+      const recipientId = supId || user.id;
+
       const body = `${worker.worker_name} has been clocked in for ${worker.hoursElapsed}h on ${worker.project_name}. Did they forget to clock out?`;
-      // Skip if a similar notification was already sent (check worker name match)
-      if (alreadyNotified.size > 0 && [...alreadyNotified].some(b => b?.includes(worker.worker_name))) continue;
+      const dedup = await getDedupSet(recipientId);
+      if (dedup.size > 0 && [...dedup].some(b => b?.includes(worker.worker_name))) continue;
 
       await supabase.functions.invoke('send-push-notification', {
         body: {
-          userId: user.id,
+          userId: recipientId,
           title: 'Forgotten Clock-Out',
           body,
           type: 'worker_update',
@@ -1631,12 +1661,16 @@ export const sendForgottenClockOutNotifications = async (thresholdHours = 10) =>
           workerId: worker.worker_id,
         },
       });
+      dedup.add(body);
       notifCount++;
     }
 
+    // Forgotten-supervisor alerts always go to the current user (owner).
+    // Supervisors don't supervise other supervisors.
     for (const sup of forgotten.supervisors) {
       const body = `${sup.supervisor_name} has been clocked in for ${sup.hoursElapsed}h on ${sup.project_name}. Did they forget to clock out?`;
-      if (alreadyNotified.size > 0 && [...alreadyNotified].some(b => b?.includes(sup.supervisor_name))) continue;
+      const dedup = await getDedupSet(user.id);
+      if (dedup.size > 0 && [...dedup].some(b => b?.includes(sup.supervisor_name))) continue;
 
       await supabase.functions.invoke('send-push-notification', {
         body: {
@@ -1647,6 +1681,7 @@ export const sendForgottenClockOutNotifications = async (thresholdHours = 10) =>
           data: { screen: 'Workers' },
         },
       });
+      dedup.add(body);
       notifCount++;
     }
 

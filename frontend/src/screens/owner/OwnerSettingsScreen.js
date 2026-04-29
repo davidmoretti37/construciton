@@ -575,6 +575,21 @@ export default function OwnerSettingsScreen() {
           />
         </View>
 
+        {/* ────────────────── INTEGRATIONS (P12) ────────────────── */}
+        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+          {t('sections.integrations', 'INTEGRATIONS')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+          <MenuItem
+            icon="extension-puzzle-outline"
+            iconColor={OWNER_COLORS.accent}
+            title={t('items.integrations', 'Integrations')}
+            subtitle={t('items.integrationsSubtitle', 'Connect Gmail, QuickBooks, Calendar, and more')}
+            onPress={() => navigation.navigate('Integrations')}
+            isLast
+          />
+        </View>
+
         {/* ────────────────── APP ────────────────── */}
         {/* How the app itself behaves — alerts, language, theme. iOS
             Settings and Jobber both keep these in a dedicated group

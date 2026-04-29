@@ -14,8 +14,11 @@ const supabase = createClient(
 );
 
 const { authenticateUser } = require('../middleware/authenticate');
+const { auditLog } = require('../middleware/auditLog');
 
 router.use(authenticateUser);
+
+const auditVisit = auditLog({ entityType: 'visit', table: 'service_visits' });
 
 // ============================================================
 // HELPERS
@@ -394,7 +397,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST / — Create single visit
-router.post('/', async (req, res) => {
+router.post('/', auditVisit, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { service_plan_id, service_location_id, scheduled_date, scheduled_time,
@@ -442,7 +445,7 @@ router.post('/', async (req, res) => {
 });
 
 // PATCH /:id — Update visit
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', auditVisit, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -485,7 +488,7 @@ router.patch('/:id', async (req, res) => {
 });
 
 // DELETE /:id — Cancel visit
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auditVisit, async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
@@ -676,7 +679,7 @@ router.post('/generate', async (req, res) => {
 // ============================================================
 
 // POST /:id/start — Start a visit
-router.post('/:id/start', async (req, res) => {
+router.post('/:id/start', auditLog({ entityType: 'visit', table: 'service_visits', action: 'update' }), async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
@@ -717,7 +720,7 @@ router.post('/:id/start', async (req, res) => {
 });
 
 // POST /:id/complete — Complete a visit
-router.post('/:id/complete', async (req, res) => {
+router.post('/:id/complete', auditLog({ entityType: 'visit', table: 'service_visits', action: 'update' }), async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;

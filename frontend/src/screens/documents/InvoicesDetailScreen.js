@@ -18,6 +18,8 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchInvoices, deleteInvoice } from '../../utils/storage';
 import InvoicePreview from '../../components/ChatVisuals/InvoicePreview';
+import AuditTrail from '../../components/AuditTrail';
+import SignatureSection from '../../components/SignatureSection';
 
 export default function InvoicesDetailScreen({ navigation }) {
   const { t: tCommon } = useTranslation('common');
@@ -284,6 +286,20 @@ export default function InvoicesDetailScreen({ navigation }) {
                   }
                 }}
               />
+            )}
+            {/* E-signature UI disabled — re-enable when backend is deployed.
+            {selectedInvoice?.id && (
+              <SignatureSection
+                documentType="invoice"
+                documentId={selectedInvoice.id}
+                defaultSignerName={selectedInvoice.client_name || selectedInvoice.clientName}
+                defaultSignerEmail={selectedInvoice.client_email || selectedInvoice.clientEmail}
+                defaultSignerPhone={selectedInvoice.client_phone || selectedInvoice.clientPhone}
+              />
+            )}
+            */}
+            {selectedInvoice?.id && (
+              <AuditTrail entityType="invoice" entityId={selectedInvoice.id} />
             )}
             <View style={{ height: 40 }} />
           </ScrollView>

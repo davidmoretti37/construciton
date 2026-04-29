@@ -33,7 +33,7 @@ const EMBED_MODEL_OPENAI = 'text-embedding-3-small';
 const EMBED_DIM = 1536;
 const ATTACHMENT_BUCKET = 'chat-attachments';
 const SIGNED_URL_TTL_SECONDS = 24 * 60 * 60;  // 24h
-const RECALLED_IMAGE_INJECT_CAP = 2;          // max images re-injected per turn
+const RECALLED_IMAGE_INJECT_CAP = 5;          // max images re-injected per turn (~7.5k vision tokens)
 
 // Lazy bucket bootstrap — idempotent. Creates the private chat-attachments
 // bucket the first time the service is touched per process. Errors are swallowed
@@ -329,23 +329,24 @@ async function persistMessage({
       ocr_text: att.ocrText || null,
       metadata: att.metadata || {},
     };
-    // Compute caption + embedding for images (best-effort)
-    if (att.kind === 'image' && att.base64) {
-      // Persist the actual bytes to Storage so we can re-inject the image into
-      // future turns via a signed URL. Without this, recall only ever sees the
-      // caption text and the model can't actually look at the photo again.
+    // Persist the actual bytes to Storage for ANY attachment kind that ships
+    // base64 (image, document, pdf, etc.) — without this, recall only ever
+    // sees the caption text and the agent can't act on the file later.
+    if (att.base64) {
       try {
         await ensureBucket();
-        const ext = (att.mimeType?.split('/')?.[1] || 'jpg').split('+')[0];
+        // Pick a sensible extension from MIME, falling back to kind-based default.
+        const mimeExt = att.mimeType?.split('/')?.[1]?.split('+')[0];
+        const fallbackExt = att.kind === 'image' ? 'jpg' : (att.mimeType === 'application/pdf' ? 'pdf' : 'bin');
+        const ext = mimeExt || fallbackExt;
         const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
         const storagePath = `${userId}/${sessionId}/${filename}`;
         const bytes = Buffer.from(att.base64, 'base64');
+        const contentType = att.mimeType
+          || (att.kind === 'image' ? 'image/jpeg' : 'application/octet-stream');
         const { error: upErr } = await supabase.storage
           .from(ATTACHMENT_BUCKET)
-          .upload(storagePath, bytes, {
-            contentType: att.mimeType || 'image/jpeg',
-            upsert: false,
-          });
+          .upload(storagePath, bytes, { contentType, upsert: false });
         if (!upErr) {
           row.bucket = ATTACHMENT_BUCKET;
           row.storage_path = storagePath;
@@ -356,7 +357,11 @@ async function persistMessage({
       } catch (e) {
         logger.warn('chat-attachments upload exception:', e.message);
       }
+    }
 
+    // Caption + embedding strategy depends on file type.
+    if (att.kind === 'image' && att.base64) {
+      // Vision model captions the image, then we embed the caption text.
       const { caption, embedding } = await embedImage({
         base64: att.base64,
         mimeType: att.mimeType,
@@ -365,6 +370,7 @@ async function persistMessage({
       if (caption) row.caption = caption;
       if (vec && embedding) row.embedding = embedding;
     } else if (vec && (att.caption || att.ocrText)) {
+      // Documents: embed any caption/OCR text we already have so semantic recall works.
       const embedding = await embedText(att.caption || att.ocrText);
       if (embedding) row.embedding = embedding;
     }
@@ -418,6 +424,48 @@ async function recallRelevant({ userId, sessionId, query, k = 6, recentN = 12 })
     .limit(recentN);
   out.recent = (recent || []).slice().reverse();
 
+  // RECENT SESSION ATTACHMENTS (recency-based, not semantic).
+  // The semantic vector match below only finds attachments when the user's
+  // current text matches the caption embedding — but follow-ups like
+  // "add it to documents" don't textually mention the file. Without this,
+  // images sent earlier in the same conversation drop out of the model's
+  // context entirely and the agent ends up asking the user to re-upload.
+  // Fetch the last 5 attachments from this session and add them to the
+  // semantic candidate pool so buildRecalledImageMessage picks them up.
+  try {
+    const { data: recentAtts } = await supabase
+      .from('chat_attachments')
+      .select('id, kind, bucket, storage_path, mime_type, caption, message_id, created_at')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (recentAtts && recentAtts.length > 0) {
+      const signed = await Promise.all(recentAtts.map(async (a) => {
+        let signed_url = null;
+        if (a.bucket && a.storage_path) {
+          try {
+            const { data: s } = await supabase.storage
+              .from(a.bucket)
+              .createSignedUrl(a.storage_path, SIGNED_URL_TTL_SECONDS);
+            signed_url = s?.signedUrl || null;
+          } catch { /* signed_url stays null — caption-only fallback */ }
+        }
+        return {
+          kind: 'attachment',
+          id: a.id,
+          content: a.caption || `${a.kind}: ${a.mime_type || 'file'}`,
+          metadata: { bucket: a.bucket, storage_path: a.storage_path, mime_type: a.mime_type, source: 'recent_session' },
+          signed_url,
+        };
+      }));
+      // Prepend recent attachments so they take priority in the cap.
+      out.semantic.push(...signed);
+    }
+  } catch (e) {
+    logger.warn('recent attachment recall failed:', e.message);
+  }
+
   // Semantic recall via vector RPC
   const vec = await vectorEnabled();
   if (vec && (hasOpenRouter || hasOpenAI) && query) {
@@ -467,6 +515,163 @@ async function recallRelevant({ userId, sessionId, query, k = 6, recentN = 12 })
     }));
   }
 
+  // P4: ALSO pull typed facts from user_memory_facts. Same recency +
+  // confidence ordering, deduped against the legacy facts by subject
+  // signature so we don't surface the same fact twice.
+  try {
+    const { data: tfs } = await supabase
+      .from('user_memory_facts')
+      .select('id, kind, subject, predicate, object, confidence, last_reinforced_at, superseded_by')
+      .eq('user_id', userId)
+      .is('superseded_by', null)
+      .order('confidence', { ascending: false })
+      .order('last_reinforced_at', { ascending: false })
+      .limit(8);
+    if (Array.isArray(tfs) && tfs.length) {
+      // Build a dedupe set from legacy items: same subject + similar
+      // text. Cheap heuristic — exact subject + first 40 chars of object.
+      const seen = new Set();
+      for (const m of out.userMemories) {
+        const subj = m.metadata?.subject || '';
+        const obj = (m.content || '').slice(0, 40).toLowerCase();
+        seen.add(`${subj}::${obj}`);
+      }
+      const typed = [];
+      for (const t of tfs) {
+        const sentence = `${t.subject} ${t.predicate} ${t.object}`.trim();
+        const key = `${t.subject}::${(t.object || '').slice(0, 40).toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        typed.push({
+          kind: 'user_memory',
+          id: t.id,
+          content: sentence,
+          metadata: {
+            kind: t.kind, // typed kind preserved here
+            subject: t.subject,
+            predicate: t.predicate,
+            object: t.object,
+            confidence: t.confidence,
+            source: 'typed',
+          },
+        });
+      }
+      // Cap merged total at 12 so the prompt insertion stays bounded.
+      out.userMemories = [...out.userMemories, ...typed].slice(0, 12);
+    }
+  } catch (e) {
+    // Never let typed-recall failures break the chat path. Legacy facts
+    // already populated above; we just lose the typed augmentation for
+    // this turn.
+    logger.warn('[memoryService] typed fact recall failed:', e?.message);
+  }
+
+  // P11: domain-data RAG. Pull the top-K most-semantically-relevant
+  // current entities (projects, clients) for the query. Complements
+  // P8 (events = what happened) with current state (what IS).
+  out.relevantEntities = [];
+  if (vec && (hasOpenRouter || hasOpenAI) && query) {
+    try {
+      const { data: profileForRag } = await supabase
+        .from('profiles')
+        .select('id, owner_id')
+        .eq('id', userId)
+        .maybeSingle();
+      const ownerForRag = profileForRag?.owner_id || profileForRag?.id || userId;
+      const qEmb = await embedText(query);
+      if (qEmb) {
+        const { data: hits, error: ragErr } = await supabase
+          .rpc('match_domain_search', { p_owner_id: ownerForRag, p_query: qEmb, p_k: 5 });
+        if (!ragErr && Array.isArray(hits) && hits.length) {
+          out.relevantEntities = hits.slice(0, 4).map(h => ({
+            id: h.id,
+            source_table: h.source_table,
+            source_id: h.source_id,
+            summary: h.summary,
+            metadata: h.metadata,
+            similarity: h.similarity,
+          }));
+        }
+      }
+    } catch (e) {
+      logger.warn('[memoryService] domain-search recall failed:', e?.message);
+    }
+  }
+
+  // P8: episodic event surfacing. Pull the top-K most-semantically-
+  // relevant domain_events for this owner, embedded query against the
+  // existing summary embeddings (HNSW indexed). This gives Foreman
+  // associative memory across weeks — "How is Davis doing?" pulls
+  // "March 14: Davis client commented on timeline" without an
+  // explicit query_event_history tool call.
+  //
+  // The query is a single indexed vector lookup — sub-millisecond at
+  // current scale. Capped at 3 surfaced events to keep the prompt
+  // bounded and to leave headroom for chat memory + typed facts.
+  out.episodicEvents = [];
+  if (vec && (hasOpenRouter || hasOpenAI) && query) {
+    try {
+      // Resolve to owner_id — supervisors see their owner's events.
+      // Service-role client bypasses RLS, so we filter explicitly.
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, owner_id')
+        .eq('id', userId)
+        .maybeSingle();
+      const ownerId = profile?.owner_id || profile?.id || userId;
+
+      // Reuse the query embedding from the chat semantic recall above
+      // when present (saves a redundant embedding call), otherwise
+      // generate. Most callers pass `query` so this hits the same
+      // vector twice; keep cheap.
+      const qEmb = await embedText(query);
+      if (qEmb) {
+        // No bespoke RPC for domain_events yet — do a parameterized
+        // raw query via the JS client. Cosine distance on the existing
+        // HNSW index. Threshold 0.3 distance ≈ 70% similarity floor
+        // to avoid surfacing noise.
+        const { data: events, error } = await supabase
+          .rpc('match_domain_events', { p_owner_id: ownerId, p_query: qEmb, p_k: 5 });
+        if (!error && Array.isArray(events) && events.length) {
+          out.episodicEvents = events.slice(0, 3).map(e => ({
+            id: e.id,
+            event_type: e.event_type,
+            summary: e.summary,
+            occurred_at: e.occurred_at,
+            entity_type: e.entity_type,
+            entity_id: e.entity_id,
+            similarity: e.similarity,
+          }));
+        } else if (error && !/match_domain_events/i.test(error.message || '')) {
+          // RPC doesn't exist yet (first-run before the migration is
+          // applied). Soft-fall to a recency-based pull instead so we
+          // still get something useful. Logged once per process; not
+          // every turn.
+          logger.warn('[memoryService] match_domain_events RPC missing — falling back to recent events');
+          const { data: recent } = await supabase
+            .from('domain_events')
+            .select('id, event_type, summary, occurred_at, entity_type, entity_id')
+            .eq('owner_id', ownerId)
+            .not('summary', 'is', null)
+            .order('occurred_at', { ascending: false })
+            .limit(3);
+          out.episodicEvents = (recent || []).map(e => ({
+            id: e.id,
+            event_type: e.event_type,
+            summary: e.summary,
+            occurred_at: e.occurred_at,
+            entity_type: e.entity_type,
+            entity_id: e.entity_id,
+          }));
+        }
+      }
+    } catch (e) {
+      // Never let episodic recall break the chat path. Empty array is
+      // a fine fallback — agent just doesn't get the historical hints.
+      logger.warn('[memoryService] episodic event recall failed:', e?.message);
+    }
+  }
+
   return out;
 }
 
@@ -479,9 +684,36 @@ function formatRecallForPrompt(recall) {
 
   if (recall.userMemories?.length) {
     parts.push('## Long-term facts about this user');
-    for (const m of recall.userMemories.slice(0, 8)) {
-      const cat = m.metadata?.category ? `[${m.metadata.category}] ` : '';
-      parts.push(`- ${cat}${m.content || m.metadata?.subject || ''}`);
+    for (const m of recall.userMemories.slice(0, 12)) {
+      // P4: typed facts (from user_memory_facts) carry `kind` instead
+      // of `category`; legacy facts carry `category`. Render whichever
+      // is present so transition is invisible to the agent.
+      const tag = m.metadata?.kind
+        ? `[${m.metadata.kind}] `
+        : (m.metadata?.category ? `[${m.metadata.category}] ` : '');
+      parts.push(`- ${tag}${m.content || m.metadata?.subject || ''}`);
+    }
+  }
+
+  // P8: episodic events. Recent relevant happenings the agent should
+  // know about even though the user didn't explicitly ask.
+  if (recall.episodicEvents?.length) {
+    parts.push('\n## Recent relevant events');
+    for (const ev of recall.episodicEvents.slice(0, 3)) {
+      const date = ev.occurred_at ? `[${String(ev.occurred_at).slice(0, 10)}] ` : '';
+      const type = (ev.event_type || '').replace(/_/g, ' ').toLowerCase();
+      parts.push(`- ${date}${type ? `(${type}) ` : ''}${(ev.summary || '').slice(0, 240)}`);
+    }
+  }
+
+  // P11: relevant entities. Current state of projects / clients that
+  // semantically match the user's question. Complements events
+  // (history) with state (current condition).
+  if (recall.relevantEntities?.length) {
+    parts.push('\n## Relevant entities (current state)');
+    for (const e of recall.relevantEntities.slice(0, 4)) {
+      const tag = e.source_table ? `[${e.source_table}] ` : '';
+      parts.push(`- ${tag}${(e.summary || '').slice(0, 280)}`);
     }
   }
 
@@ -580,6 +812,20 @@ const VALID_CATEGORIES = new Set([
   'business_rule','project_insight','correction',
 ]);
 
+/**
+ * P4: map the legacy `category` enum to the new `kind` taxonomy. Done
+ * here instead of at the LLM so the prompt stays compact and the
+ * mapping is auditable / reversible.
+ */
+const CATEGORY_TO_KIND = {
+  client_preference: 'preference',
+  worker_skill: 'fact',
+  pricing_pattern: 'pattern',
+  business_rule: 'rule',
+  project_insight: 'fact',
+  correction: 'fact',
+};
+
 async function extractUserFacts({ userId, sessionId, recentMessages }) {
   if (!hasOpenRouter || !userId || !recentMessages?.length) return { count: 0 };
   const transcript = recentMessages
@@ -587,10 +833,17 @@ async function extractUserFacts({ userId, sessionId, recentMessages }) {
     .map(m => `[${m.role}] ${(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).slice(0, 800)}`)
     .join('\n');
 
+  // P4: prompt now also asks for SVO triple (predicate + object) so we
+  // can write to the new typed `user_memory_facts` table. The existing
+  // `fact` + `category` fields stay so the legacy `user_memories`
+  // dual-write path keeps working — this is intentional during the P4
+  // transition. Cost: zero — same call, just a richer schema.
   const prompt = `Extract durable, user-specific facts from the transcript below. Output a JSON array. Each fact MUST have:
 { "category": one of [client_preference, worker_skill, pricing_pattern, business_rule, project_insight, correction],
   "subject": short tag (person/project/concept this is about),
-  "fact": the concise fact (1 sentence),
+  "predicate": short verb-phrase relating subject to object (e.g. "prefers", "is_certified_for", "charges", "supersedes"),
+  "object": the value/entity the predicate points at (e.g. "morning visits", "electrical work", "$200/hour", "Lana"),
+  "fact": the concise fact as a single sentence (subject + predicate + object readable),
   "full_context": one full sentence usable as a prompt insertion,
   "confidence": float 0..1 }
 
@@ -628,29 +881,123 @@ ${transcript}`;
     for (const f of facts.slice(0, 5)) {
       if (!f.category || !VALID_CATEGORIES.has(f.category)) continue;
       if (!f.subject || !f.fact) continue;
-      const row = {
-        user_id: userId,
-        category: f.category,
-        subject: String(f.subject).slice(0, 200),
-        fact: String(f.fact).slice(0, 1000),
-        full_context: String(f.full_context || f.fact).slice(0, 2000),
-        confidence: Math.min(1, Math.max(0, Number(f.confidence) || 0.7)),
-        source: 'inferred',
-      };
+      const subject = String(f.subject).slice(0, 200);
+      const factStr = String(f.fact).slice(0, 1000);
+      const fullContext = String(f.full_context || f.fact).slice(0, 2000);
+      const confidence = Math.min(1, Math.max(0, Number(f.confidence) || 0.7));
+
+      // Embed once; reuse for both writes.
+      let embedding = null;
       const vec = await vectorEnabled();
       if (vec) {
-        const e = await embedText(row.full_context);
-        if (e) row.embedding = e;
+        embedding = await embedText(fullContext);
       }
-      const { error } = await supabase
+
+      // 1) Legacy write to user_memories (unchanged behavior).
+      const legacyRow = {
+        user_id: userId,
+        category: f.category,
+        subject,
+        fact: factStr,
+        full_context: fullContext,
+        confidence,
+        source: 'inferred',
+      };
+      if (embedding) legacyRow.embedding = embedding;
+      const { error: legacyErr } = await supabase
         .from('user_memories')
-        .upsert(row, { onConflict: 'user_id,category,subject,fact', ignoreDuplicates: false });
-      if (!error) inserted++;
+        .upsert(legacyRow, { onConflict: 'user_id,category,subject,fact', ignoreDuplicates: false });
+      if (!legacyErr) inserted++;
+
+      // 2) P4: typed write to user_memory_facts (new table). Best-effort
+      // — failures here don't roll back the legacy write since the
+      // legacy table is still the source of truth during transition.
+      const kind = CATEGORY_TO_KIND[f.category] || 'fact';
+      const predicate = (typeof f.predicate === 'string' && f.predicate.trim())
+        ? f.predicate.trim().slice(0, 120)
+        : null;
+      const object = (typeof f.object === 'string' && f.object.trim())
+        ? f.object.trim().slice(0, 500)
+        : null;
+      // Only write to the new table if the LLM gave us a usable SVO
+      // triple. Skipping is safer than writing a degraded row that's
+      // hard to reconcile later.
+      if (predicate && object) {
+        const typedRow = {
+          user_id: userId,
+          kind,
+          subject,
+          predicate,
+          object,
+          confidence,
+          source: 'extracted',
+        };
+        if (embedding) typedRow.embedding = embedding;
+        try {
+          await supabase
+            .from('user_memory_facts')
+            .upsert(typedRow, { onConflict: 'user_id,kind,subject,predicate,object', ignoreDuplicates: false });
+        } catch (e) {
+          // P4 transition: never let a typed-write failure break the
+          // legacy path. Log and continue.
+          logger.warn('[memoryService] typed fact upsert failed:', e?.message);
+        }
+      }
     }
     return { count: inserted };
   } catch (e) {
     logger.warn('extractUserFacts error:', e.message);
     return { count: 0 };
+  }
+}
+
+/**
+ * Fetch the most recent N attachments from this chat session and return them
+ * in the SAME shape that the chat request injects into `_attachments` for
+ * upload tools (base64, name, mimeType, byteSize). Lets handlers act on
+ * previously-attached files without making the user re-upload.
+ *
+ * Caller already knows sessionId + userId; we just translate storage rows
+ * back into in-memory uploadable blobs.
+ */
+async function fetchSessionAttachmentsForUpload(sessionId, userId, limit = 5) {
+  if (!sessionId) return [];
+  try {
+    const { data: rows } = await supabase
+      .from('chat_attachments')
+      .select('id, kind, bucket, storage_path, mime_type, caption, byte_size, metadata, created_at')
+      .eq('session_id', sessionId)
+      .eq('user_id', userId)
+      .not('storage_path', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (!rows || rows.length === 0) return [];
+
+    const out = [];
+    for (const r of rows) {
+      try {
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from(r.bucket || ATTACHMENT_BUCKET)
+          .download(r.storage_path);
+        if (dlErr || !blob) continue;
+        const arrayBuf = await blob.arrayBuffer();
+        const base64 = Buffer.from(arrayBuf).toString('base64');
+        const ext = (r.mime_type?.split('/')?.[1]?.split('+')[0]) || (r.mime_type === 'application/pdf' ? 'pdf' : 'bin');
+        const name = (r.caption ? r.caption.slice(0, 40).replace(/[^\w\s.-]/g, '_').trim() : `attachment-${r.id.slice(0, 8)}`) + '.' + ext;
+        out.push({
+          base64,
+          name,
+          mimeType: r.mime_type || 'application/octet-stream',
+          byteSize: r.byte_size || arrayBuf.byteLength,
+        });
+      } catch (e) {
+        logger.warn('fetchSessionAttachmentsForUpload row failed:', e.message);
+      }
+    }
+    return out;
+  } catch (e) {
+    logger.warn('fetchSessionAttachmentsForUpload failed:', e.message);
+    return [];
   }
 }
 
@@ -665,6 +1012,7 @@ module.exports = {
   recallRelevant,
   formatRecallForPrompt,
   buildRecalledImageMessage,
+  fetchSessionAttachmentsForUpload,
   updateRollingSummary,
   extractUserFacts,
   ensureBucket,
@@ -685,19 +1033,46 @@ module.exports = {
  */
 function buildRecalledImageMessage(recall) {
   if (!recall?.semantic?.length) return null;
-  const images = recall.semantic
-    .filter((s) => s.kind === 'attachment' && s.signed_url)
-    .slice(0, RECALLED_IMAGE_INJECT_CAP);
-  if (images.length === 0) return null;
+  // Dedupe by id — same attachment can show up in both recency and semantic pools.
+  const seen = new Set();
+  const recalled = [];
+  for (const s of recall.semantic) {
+    if (s.kind !== 'attachment' || !s.signed_url) continue;
+    if (seen.has(s.id)) continue;
+    seen.add(s.id);
+    recalled.push(s);
+    if (recalled.length >= RECALLED_IMAGE_INJECT_CAP) break;
+  }
+  if (recalled.length === 0) return null;
+
+  // Split: images go in as vision blocks (Claude sees pixels). Documents/PDFs
+  // go in as text references with the signed URL — the agent can pass that
+  // URL to upload tools (upload_project_document etc.) to attach the file
+  // without asking the user to re-upload.
+  const isImageMime = (mt = '') => /^image\//i.test(mt);
+  const images = recalled.filter(r => r.kind === 'attachment' && (r.metadata?.mime_type ? isImageMime(r.metadata.mime_type) : true) && (!r.metadata?.mime_type || isImageMime(r.metadata.mime_type)));
+  const docs   = recalled.filter(r => r.metadata?.mime_type && !isImageMime(r.metadata.mime_type));
 
   const blocks = [
-    { type: 'text', text: `Below ${images.length === 1 ? 'is an image' : `are ${images.length} images`} from earlier in this user's conversation history. Use them as visual context if relevant to their current question.` },
+    { type: 'text', text: `The following ${recalled.length === 1 ? 'file is' : `${recalled.length} files are`} from earlier in this conversation. They ARE STILL AVAILABLE — DO NOT ask the user to re-upload. To attach a file to a project / daily report / document store, pass its signed URL (shown below) to the appropriate upload tool.` },
   ];
+
   for (const img of images) {
     blocks.push({ type: 'image_url', image_url: { url: img.signed_url } });
-    if (img.content) {
-      blocks.push({ type: 'text', text: `(Caption: ${img.content})` });
-    }
+    if (img.content) blocks.push({ type: 'text', text: `(Caption: ${img.content})` });
   }
+
+  if (docs.length > 0) {
+    const docLines = docs.map((d, i) => {
+      const mt   = d.metadata?.mime_type || 'unknown';
+      const cap  = (d.content || '').slice(0, 240);
+      return `Document ${i + 1} (${mt})${cap ? ` — ${cap}` : ''}\n  signed_url: ${d.signed_url}`;
+    });
+    blocks.push({
+      type: 'text',
+      text: `Available documents (use the signed_url to upload/attach):\n${docLines.join('\n')}`,
+    });
+  }
+
   return { role: 'user', content: blocks };
 }

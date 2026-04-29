@@ -10,7 +10,7 @@ const logger = require('../utils/logger');
 
 const ENABLED = process.env.AGENT_PLANNER_ENABLED !== 'false';
 const MODEL = 'anthropic/claude-haiku-4.5';
-const TIMEOUT_MS = parseInt(process.env.PLAN_VERIFIER_TIMEOUT_MS, 10) || 2500;
+const TIMEOUT_MS = parseInt(process.env.PLAN_VERIFIER_TIMEOUT_MS, 10) || 5000;
 
 const SYSTEM_PROMPT = `You are the verifier stage of an AI agent. Compare the agent's PLAN with what it ACTUALLY did. Return ONLY this JSON:
 
@@ -47,7 +47,7 @@ function defaultVerdict() {
   return { aligned: true, severity: 'none', divergence_reason: '', _fallback: true };
 }
 
-async function verifyPlanExecution({ plan, executedToolCalls = [], finalResponseText = '', emittedVisualElements = [] }) {
+async function verifyPlanExecution({ plan, executedToolCalls = [], finalResponseText = '', emittedVisualElements = [], stepSummary = null }) {
   if (!ENABLED || !plan?.plan_text) return defaultVerdict();
   if (executedToolCalls.length === 0 && !finalResponseText && emittedVisualElements.length === 0) return defaultVerdict();
 
@@ -65,9 +65,20 @@ async function verifyPlanExecution({ plan, executedToolCalls = [], finalResponse
     return `- ${t}`;
   }).join('\n');
 
+  // P2: for complex plans, the planner emits a step list and the agent
+  // loop tracks per-step status. Surface that to the verifier so a turn
+  // where steps 1-2 ran but step 3 silently went missing is catchable.
+  // Empty / null when the plan didn't have steps.
+  const stepLines = Array.isArray(stepSummary) && stepSummary.length
+    ? stepSummary.map(s => `- ${s.id}. ${s.action} → ${s.status}`).join('\n')
+    : '';
+  const planStepsLines = Array.isArray(plan.steps) && plan.steps.length
+    ? plan.steps.map(s => `- ${s.id}. ${s.action}`).join('\n')
+    : '';
+
   const userPrompt = `PLAN: ${plan.plan_text}
 INTENT: ${plan.intent_summary || '(none)'}
-
+${planStepsLines ? `\nPLAN STEPS:\n${planStepsLines}\n` : ''}${stepLines ? `\nACTUAL STEP STATUS (from runtime tracking):\n${stepLines}\n` : ''}
 TOOL CALLS THE AGENT MADE:
 ${toolList || '(none)'}
 
@@ -81,40 +92,61 @@ Important: emitting a project-preview / service-plan-preview / estimate-preview 
 
 Did the actions match the plan? Return JSON only.`;
 
+  // P7: SDK-first with OpenRouter fallback. Same pattern as planner.js.
+  const anthropicClient = require('./anthropicClient');
+  let content = '';
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: [
-              // Verifier system prompt is static — cache it. Fires on every
-              // needs_verification turn, ~700 tokens.
-              { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } },
-            ],
-          },
-          { role: 'user', content: userPrompt },
-        ],
-        max_tokens: 200,
-        temperature: 0,
-      }),
-      signal: ctrl.signal,
-    });
-    clearTimeout(timer);
-    if (!resp.ok) {
-      logger.warn(`[planVerifier] non-200 ${resp.status}, defaulting to aligned`);
-      return defaultVerdict();
+    if (anthropicClient.isAvailable()) {
+      try {
+        const out = await anthropicClient.callMessages({
+          model: MODEL,
+          systemPrompt: SYSTEM_PROMPT,
+          userPrompt,
+          max_tokens: 200,
+          temperature: 0,
+          timeout_ms: TIMEOUT_MS,
+        });
+        content = out.text || '';
+      } catch (e) {
+        logger.warn(`[planVerifier] SDK path failed (${e.message}), falling back to OpenRouter`);
+        content = '';
+      }
     }
-    const json = await resp.json();
-    const content = json.choices?.[0]?.message?.content || '';
+    if (!content) {
+      const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: [
+                { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } },
+              ],
+            },
+            { role: 'user', content: userPrompt },
+          ],
+          max_tokens: 200,
+          temperature: 0,
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!resp.ok) {
+        logger.warn(`[planVerifier] non-200 ${resp.status}, defaulting to aligned`);
+        return defaultVerdict();
+      }
+      const json = await resp.json();
+      content = json.choices?.[0]?.message?.content || '';
+    } else {
+      clearTimeout(timer);
+    }
     const match = content.match(/\{[\s\S]*\}/);
     if (!match) {
       logger.warn(`[planVerifier] unparseable, defaulting to aligned: ${content.slice(0, 100)}`);

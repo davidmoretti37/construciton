@@ -30,6 +30,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask, addTaskToPhase, assignProjectToSupervisor, removeWorkerFromProject } from '../utils/storage';
 import { SkeletonBox, SkeletonCard } from './SkeletonLoader';
 import PhaseTimeline from './PhaseTimeline';
+import AuditTrail from './AuditTrail';
 import WorkerAssignmentModal from './WorkerAssignmentModal';
 import SupervisorAssignmentModal from './SupervisorAssignmentModal';
 import WorkingDaysSelector from './WorkingDaysSelector';
@@ -2704,6 +2705,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 />
               </View>
             </View>
+          )}
+
+          {/* Audit history — collapsed by default. Lives below the Timeline section. */}
+          {!isDemo && project?.id && (
+            <AuditTrail entityType="project" entityId={project.id} />
           )}
 
           {/* Client Portal Settings */}

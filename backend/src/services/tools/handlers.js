@@ -159,6 +159,32 @@ async function sendNotification({ userId, title, body, type, data, projectId, wo
   }
 }
 
+// Returns assigned_supervisor_id IFF the project has a supervisor distinct from
+// the owner AND the owner has granted that supervisor the required permission.
+// Returns null otherwise so the caller can skip the fanout cleanly.
+async function resolveSupervisorRecipient(projectId, ownerId, requiredPermission) {
+  if (!projectId) return null;
+  try {
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('assigned_supervisor_id')
+      .eq('id', projectId)
+      .single();
+    const supId = proj?.assigned_supervisor_id;
+    if (!supId || supId === ownerId) return null;
+    if (!requiredPermission) return supId;
+    const { data: sup } = await supabase
+      .from('profiles')
+      .select(requiredPermission)
+      .eq('id', supId)
+      .single();
+    return sup?.[requiredPermission] ? supId : null;
+  } catch (err) {
+    logger.error('resolveSupervisorRecipient failed:', err.message);
+    return null;
+  }
+}
+
 /**
  * Recalculates phase completion percentage from worker_tasks.
  * The project_phases.tasks JSONB field may be stale when worker_tasks.status changes,
@@ -1911,6 +1937,58 @@ async function global_search(userId, args = {}) {
 /**
  * Morning briefing — today's schedule, overdue invoices, at-risk projects, worker status.
  */
+// ============================================================
+// Phase-3 metrics layer: thin wrappers over the worker_metrics_v /
+// project_health_v / client_health_v views and compute_business_briefing()
+// RPC. Views use security_invoker so RLS on the underlying tables already
+// scopes per-caller — no extra owner_id filter needed on top.
+// ============================================================
+async function get_worker_metrics(userId, args = {}) {
+  const { worker_id, limit = 25 } = args || {};
+  let q = supabase
+    .from('worker_metrics_v')
+    .select('worker_id, worker_name, status, hours_30d, days_clocked_30d, reports_30d, reports_per_day_30d, last_clock_in, last_report, days_since_last_clock_in')
+    .order('hours_30d', { ascending: false })
+    .limit(Math.min(limit, 100));
+  if (worker_id) q = q.eq('worker_id', worker_id);
+  const { data, error } = await q;
+  if (error) return userSafeError(error, "Couldn't load worker metrics.");
+  return { workers: data || [] };
+}
+
+async function get_project_health(userId, args = {}) {
+  const { project_id, status, limit = 25 } = args || {};
+  let q = supabase
+    .from('project_health_v')
+    .select('project_id, project_name, status, contract_amount, total_expenses, total_income, budget_used_pct, last_activity, days_since_activity')
+    .order('budget_used_pct', { ascending: false, nullsFirst: false })
+    .limit(Math.min(limit, 100));
+  if (project_id) q = q.eq('project_id', project_id);
+  if (status) q = q.eq('status', status);
+  const { data, error } = await q;
+  if (error) return userSafeError(error, "Couldn't load project health.");
+  return { projects: data || [] };
+}
+
+async function get_client_health(userId, args = {}) {
+  const { client_name, limit = 25 } = args || {};
+  let q = supabase
+    .from('client_health_v')
+    .select('client_name, invoice_count, total_billed, total_paid, total_outstanding, overdue_count, oldest_overdue_days, avg_days_late_to_pay')
+    .order('total_outstanding', { ascending: false, nullsFirst: false })
+    .limit(Math.min(limit, 100));
+  if (client_name) q = q.ilike('client_name', `%${client_name}%`);
+  const { data, error } = await q;
+  if (error) return userSafeError(error, "Couldn't load client health.");
+  return { clients: data || [] };
+}
+
+async function get_business_briefing(userId, args = {}) {
+  const { data, error } = await supabase.rpc('compute_business_briefing');
+  if (error) return userSafeError(error, "Couldn't generate the briefing.");
+  return data || { items: [], item_count: 0 };
+}
+
 async function get_daily_briefing(userId, args = {}) {
   const todayStr = today();
   const todayStart = `${todayStr}T00:00:00`;
@@ -2919,18 +2997,33 @@ async function record_expense(userId, { project_id, service_plan_name, type, amo
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
-  // Notify project owner if a supervisor recorded the expense (project only)
+  // Notify project owner (when a supervisor recorded it) and any assigned
+  // supervisor with can_pay_workers (when they aren't the recorder themselves).
   if (insertData.project_id) {
     const { data: proj } = await supabase.from('projects').select('user_id, name').eq('id', insertData.project_id).single();
-    if (proj && proj.user_id !== userId) {
-      sendNotification({
-        userId: proj.user_id,
-        title: 'New Expense Recorded',
-        body: `$${parseFloat(amount).toFixed(2)} ${category || ''} expense on ${proj.name}`,
-        type: 'financial_update',
-        data: { screen: 'Projects' },
-        projectId: insertData.project_id,
-      });
+    if (proj) {
+      const expenseBody = `$${parseFloat(amount).toFixed(2)} ${category || ''} expense on ${proj.name}`;
+      if (proj.user_id !== userId) {
+        sendNotification({
+          userId: proj.user_id,
+          title: 'New Expense Recorded',
+          body: expenseBody,
+          type: 'financial_update',
+          data: { screen: 'Projects' },
+          projectId: insertData.project_id,
+        });
+      }
+      const supId = await resolveSupervisorRecipient(insertData.project_id, proj.user_id, 'can_pay_workers');
+      if (supId && supId !== userId) {
+        sendNotification({
+          userId: supId,
+          title: 'New Expense Recorded',
+          body: expenseBody,
+          type: 'financial_update',
+          data: { screen: 'Projects' },
+          projectId: insertData.project_id,
+        });
+      }
     }
   }
 
@@ -3588,20 +3681,35 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
 
   if (error) return userSafeError(error, "Couldn't update that invoice.");
 
-  // Notify owner about invoice status changes (if caller is a supervisor)
+  // Notify owner about invoice status changes (if caller is a supervisor) AND
+  // any assigned supervisor with can_pay_workers (if they aren't the actor).
   if (updates.status) {
     const { data: inv } = await supabase.from('invoices').select('project_id').eq('id', resolved.id).single();
     if (inv?.project_id) {
       const { data: proj } = await supabase.from('projects').select('user_id, name').eq('id', inv.project_id).single();
-      if (proj && proj.user_id !== userId) {
-        sendNotification({
-          userId: proj.user_id,
-          title: 'Invoice Updated',
-          body: `Invoice #${data.invoice_number} marked as ${data.status} on ${proj.name}`,
-          type: 'financial_update',
-          data: { screen: 'Projects' },
-          projectId: inv.project_id,
-        });
+      if (proj) {
+        const invoiceBody = `Invoice #${data.invoice_number} marked as ${data.status} on ${proj.name}`;
+        if (proj.user_id !== userId) {
+          sendNotification({
+            userId: proj.user_id,
+            title: 'Invoice Updated',
+            body: invoiceBody,
+            type: 'financial_update',
+            data: { screen: 'Projects' },
+            projectId: inv.project_id,
+          });
+        }
+        const supId = await resolveSupervisorRecipient(inv.project_id, proj.user_id, 'can_pay_workers');
+        if (supId && supId !== userId) {
+          sendNotification({
+            userId: supId,
+            title: 'Invoice Updated',
+            body: invoiceBody,
+            type: 'financial_update',
+            data: { screen: 'Projects' },
+            projectId: inv.project_id,
+          });
+        }
       }
     }
   }
@@ -5200,14 +5308,26 @@ async function clock_in_worker(userId, args) {
   }
 
   // Send notification (fire and forget)
+  const clockInBody = `${worker.full_name} clocked in on ${project.name}`;
   sendNotification({
     userId: ownerId,
     title: 'Worker Clocked In',
-    body: `${worker.full_name} clocked in on ${project.name}`,
+    body: clockInBody,
     type: 'worker_update',
     data: { screen: 'Workers' },
     workerId: worker_id,
   });
+  const clockInSupId = await resolveSupervisorRecipient(project_id, ownerId, 'can_manage_workers');
+  if (clockInSupId && clockInSupId !== userId) {
+    sendNotification({
+      userId: clockInSupId,
+      title: 'Worker Clocked In',
+      body: clockInBody,
+      type: 'worker_update',
+      data: { screen: 'Workers' },
+      workerId: worker_id,
+    });
+  }
 
   return {
     success: true,
@@ -5322,14 +5442,26 @@ async function clock_out_worker(userId, args) {
   const projectName = activeSession.projects?.name || '';
 
   // Send notification (fire and forget)
+  const clockOutBody = `${worker.full_name} clocked out from ${projectName} (${formatHoursMinutes(hoursWorked)})`;
   sendNotification({
     userId: ownerId,
     title: 'Worker Clocked Out',
-    body: `${worker.full_name} clocked out from ${projectName} (${formatHoursMinutes(hoursWorked)})`,
+    body: clockOutBody,
     type: 'worker_update',
     data: { screen: 'Workers' },
     workerId: worker_id,
   });
+  const clockOutSupId = await resolveSupervisorRecipient(activeSession.project_id, ownerId, 'can_manage_workers');
+  if (clockOutSupId && clockOutSupId !== userId) {
+    sendNotification({
+      userId: clockOutSupId,
+      title: 'Worker Clocked Out',
+      body: clockOutBody,
+      type: 'worker_update',
+      data: { screen: 'Workers' },
+      workerId: worker_id,
+    });
+  }
 
   return {
     success: true,
@@ -6616,6 +6748,384 @@ async function get_daily_checklist_summary(userId, { project_id, service_plan_id
   };
 }
 
+// ==================== SMS / TWO-WAY MESSAGING ====================
+const twilioService = require('../twilioService');
+
+async function list_unread_sms(userId, args = {}) {
+  const limit = Math.min(Math.max(Number(args.limit) || 20, 1), 100);
+  const companyId = await twilioService.resolveCompanyId(userId);
+  const all = await twilioService.listThreads(companyId, { limit: 200 });
+  const unread = all.filter(t => t.unread_count > 0).slice(0, limit);
+  return {
+    unread_count_total: unread.reduce((s, t) => s + t.unread_count, 0),
+    threads: unread.map(t => ({
+      customer_id: t.customer_id,
+      customer_name: t.customer?.full_name || null,
+      contact_phone: t.contact_phone,
+      unread_count: t.unread_count,
+      message_count: t.message_count,
+      last_message: t.last_message?.body?.slice(0, 240) || '',
+      last_message_at: t.last_message?.created_at,
+      last_direction: t.last_message?.direction,
+    })),
+  };
+}
+
+async function read_sms_thread(userId, args = {}) {
+  const companyId = await twilioService.resolveCompanyId(userId);
+  let customerId = args.customer_id;
+
+  if (!customerId && args.customer_name) {
+    const { data: matches } = await supabase
+      .from('clients')
+      .select('id, full_name')
+      .eq('owner_id', companyId)
+      .ilike('full_name', `%${args.customer_name}%`)
+      .limit(5);
+    if (!matches || matches.length === 0) {
+      return { error: `No customer found matching "${args.customer_name}"` };
+    }
+    if (matches.length > 1) {
+      return {
+        error: 'Multiple customers matched — please specify customer_id',
+        candidates: matches.map(m => ({ id: m.id, name: m.full_name })),
+      };
+    }
+    customerId = matches[0].id;
+  }
+
+  if (!customerId) {
+    return { error: 'customer_id or customer_name is required' };
+  }
+
+  const limit = Math.min(Math.max(Number(args.limit) || 50, 1), 200);
+  const messages = await twilioService.getThread(companyId, customerId, { limit });
+  // Side effect: mark thread read since the agent just surfaced it.
+  await twilioService.markThreadRead(companyId, customerId);
+
+  const { data: customer } = await supabase
+    .from('clients')
+    .select('id, full_name, phone, sms_phone, email')
+    .eq('id', customerId)
+    .single();
+
+  return {
+    customer,
+    message_count: messages.length,
+    messages: messages.map(m => ({
+      id: m.id,
+      direction: m.direction,
+      body: m.body,
+      from: m.from_number,
+      to: m.to_number,
+      status: m.status,
+      created_at: m.created_at,
+      read_at: m.read_at,
+    })),
+  };
+}
+
+async function send_sms(userId, args = {}) {
+  const { customer_id, to_number, body } = args;
+  if (!body || !String(body).trim()) {
+    return { error: 'body is required' };
+  }
+  if (!customer_id && !to_number) {
+    return { error: 'customer_id or to_number is required' };
+  }
+
+  const companyId = await twilioService.resolveCompanyId(userId);
+
+  let toNumber = to_number;
+  let resolvedCustomerId = customer_id || null;
+  if (resolvedCustomerId && !toNumber) {
+    const { data: client } = await supabase
+      .from('clients')
+      .select('id, owner_id, phone, sms_phone')
+      .eq('id', resolvedCustomerId)
+      .single();
+    if (!client || client.owner_id !== companyId) {
+      return { error: 'Customer not found in this company' };
+    }
+    toNumber = client.sms_phone || client.phone;
+    if (!toNumber) return { error: 'Customer has no phone on file' };
+  }
+
+  try {
+    const row = await twilioService.sendSms(companyId, toNumber, body, {
+      customerId: resolvedCustomerId,
+      sentBy: userId,
+    });
+    return {
+      id: row.id,
+      to: row.to_number,
+      body: row.body,
+      status: row.status,
+      mock: !twilioService.isLive(),
+      sent_at: row.created_at,
+    };
+  } catch (err) {
+    logger.error('[send_sms tool] failed:', err.message);
+    return { error: err.message };
+  }
+}
+
+// ==================== AUDIT LOG ====================
+
+/**
+ * Compute a readable diff between two row snapshots. Returns an
+ * array of `{ field, before, after }` for fields that actually
+ * changed. Used by all three audit handlers and exported via the
+ * agent so Claude can render "total: $4,200 → $4,800" naturally.
+ */
+function computeDiff(beforeJson, afterJson) {
+  if (!beforeJson && !afterJson) return [];
+  if (!beforeJson) return Object.entries(afterJson || {}).map(([k, v]) => ({ field: k, before: null, after: v }));
+  if (!afterJson) return Object.entries(beforeJson || {}).map(([k, v]) => ({ field: k, before: v, after: null }));
+
+  const keys = new Set([...Object.keys(beforeJson), ...Object.keys(afterJson)]);
+  const changes = [];
+  for (const k of keys) {
+    // Skip noise fields that change on every write.
+    if (k === 'updated_at' || k === 'created_at' || k === 'last_seen_at') continue;
+    const a = beforeJson[k];
+    const b = afterJson[k];
+    // Cheap deep-equality via JSON for primitives + nested objects.
+    if (JSON.stringify(a) !== JSON.stringify(b)) {
+      changes.push({ field: k, before: a ?? null, after: b ?? null });
+    }
+  }
+  return changes;
+}
+
+async function get_entity_history(userId, args = {}) {
+  const { entity_type, entity_id, limit = 50 } = args;
+  if (!entity_type || !entity_id) {
+    return { error: 'entity_type and entity_id required' };
+  }
+
+  const ownerId = await resolveOwnerId(userId);
+  const cap = Math.min(parseInt(limit, 10) || 50, 200);
+
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('*')
+    .eq('company_id', ownerId)
+    .eq('entity_type', entity_type)
+    .eq('entity_id', entity_id)
+    .order('created_at', { ascending: false })
+    .limit(cap);
+
+  if (error) {
+    logger.error('get_entity_history error:', error);
+    return { error: error.message };
+  }
+
+  // Hydrate actor names so Claude can say "Joe edited" not "user UUID edited".
+  const actorIds = [...new Set((data || []).map(r => r.actor_user_id).filter(Boolean))];
+  const actorMap = {};
+  if (actorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .in('id', actorIds);
+    (profiles || []).forEach(p => { actorMap[p.id] = p; });
+  }
+
+  return (data || []).map(row => ({
+    id: row.id,
+    actor_user_id: row.actor_user_id,
+    actor_name: actorMap[row.actor_user_id]?.full_name || null,
+    actor_role: actorMap[row.actor_user_id]?.role || row.actor_type,
+    action: row.action,
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    changes: computeDiff(row.before_json, row.after_json),
+    source: row.source,
+    created_at: row.created_at,
+  }));
+}
+
+async function who_changed(userId, args = {}) {
+  const { entity_type, entity_id, limit = 5 } = args;
+  if (!entity_type || !entity_id) {
+    return { error: 'entity_type and entity_id required' };
+  }
+
+  const ownerId = await resolveOwnerId(userId);
+  const cap = Math.min(parseInt(limit, 10) || 5, 50);
+
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('actor_user_id, actor_type, action, created_at')
+    .eq('company_id', ownerId)
+    .eq('entity_type', entity_type)
+    .eq('entity_id', entity_id)
+    .order('created_at', { ascending: false })
+    .limit(cap);
+
+  if (error) {
+    logger.error('who_changed error:', error);
+    return { error: error.message };
+  }
+
+  const actorIds = [...new Set((data || []).map(r => r.actor_user_id).filter(Boolean))];
+  const actorMap = {};
+  if (actorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .in('id', actorIds);
+    (profiles || []).forEach(p => { actorMap[p.id] = p; });
+  }
+
+  return (data || []).map(row => ({
+    actor_name: actorMap[row.actor_user_id]?.full_name || 'Unknown',
+    actor_role: actorMap[row.actor_user_id]?.role || row.actor_type,
+    action: row.action,
+    at: row.created_at,
+  }));
+}
+
+async function recent_activity(userId, args = {}) {
+  const { actor_user_id, entity_type, action, start_date, end_date, limit = 50 } = args;
+  const ownerId = await resolveOwnerId(userId);
+  const cap = Math.min(parseInt(limit, 10) || 50, 200);
+
+  let q = supabase
+    .from('audit_log')
+    .select('*')
+    .eq('company_id', ownerId)
+    .order('created_at', { ascending: false })
+    .limit(cap);
+
+  if (actor_user_id) q = q.eq('actor_user_id', actor_user_id);
+  if (entity_type) q = q.eq('entity_type', entity_type);
+  if (action) q = q.eq('action', action);
+  if (start_date) q = q.gte('created_at', start_date);
+  if (end_date) q = q.lte('created_at', end_date);
+
+  const { data, error } = await q;
+  if (error) {
+    logger.error('recent_activity error:', error);
+    return { error: error.message };
+  }
+
+  const actorIds = [...new Set((data || []).map(r => r.actor_user_id).filter(Boolean))];
+  const actorMap = {};
+  if (actorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .in('id', actorIds);
+    (profiles || []).forEach(p => { actorMap[p.id] = p; });
+  }
+
+  return (data || []).map(row => ({
+    id: row.id,
+    actor_name: actorMap[row.actor_user_id]?.full_name || 'System',
+    actor_role: actorMap[row.actor_user_id]?.role || row.actor_type,
+    action: row.action,
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    changes: computeDiff(row.before_json, row.after_json).slice(0, 5),
+    source: row.source,
+    created_at: row.created_at,
+  }));
+}
+
+// ==================== E-SIGNATURE TOOLS ====================
+
+const eSignService = require('../eSignService');
+
+const SIG_PERMISSION_BY_TYPE = {
+  estimate: 'can_create_estimates',
+  invoice: 'can_create_invoices',
+  contract: null, // owner-only — no supervisor permission yet
+};
+
+/**
+ * Request a customer signature on an estimate, invoice, or contract.
+ * Sends an email with a single-use signing link to the signer.
+ */
+async function request_signature(userId, args = {}) {
+  const { document_type, document_id, signer_name, signer_email, signer_phone } = args;
+  if (!document_type || !document_id) {
+    return { error: 'document_type and document_id are required.' };
+  }
+  if (!['estimate', 'invoice', 'contract'].includes(document_type)) {
+    return { error: 'document_type must be estimate, invoice, or contract.' };
+  }
+
+  const permKey = SIG_PERMISSION_BY_TYPE[document_type];
+  if (permKey) {
+    const perm = await requireSupervisorPermission(userId, permKey);
+    if (perm) return perm;
+  } else {
+    // Contracts: owner only
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', userId).single();
+    if (prof?.role !== 'owner') {
+      return { error: 'Only the owner can request contract signatures.' };
+    }
+  }
+
+  const ownerId = await resolveOwnerId(userId);
+  try {
+    const result = await eSignService.createSignatureRequest({
+      ownerId,
+      documentType: document_type,
+      documentId: document_id,
+      signerName: signer_name,
+      signerEmail: signer_email,
+      signerPhone: signer_phone,
+    });
+    return {
+      success: true,
+      signature_id: result.signatureId,
+      signing_url: result.signingUrl,
+      expires_at: result.expiresAt,
+      document_title: result.documentTitle,
+      message: `Sent a signing link${signer_email ? ` to ${signer_email}` : ''}.`,
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Check the latest signature status for a document.
+ */
+async function check_signature_status(userId, args = {}) {
+  const { document_type, document_id } = args;
+  if (!document_type || !document_id) {
+    return { error: 'document_type and document_id are required.' };
+  }
+  const ownerId = await resolveOwnerId(userId);
+  try {
+    return await eSignService.getSignatureStatus({
+      documentType: document_type,
+      documentId: document_id,
+      ownerId,
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Cancel a pending signature request.
+ */
+async function cancel_signature_request(userId, args = {}) {
+  const { signature_id } = args;
+  if (!signature_id) return { error: 'signature_id is required.' };
+  const ownerId = await resolveOwnerId(userId);
+  try {
+    return await eSignService.cancelSignatureRequest({ signatureId: signature_id, ownerId });
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 const TOOL_HANDLERS = {
   // Granular tools
   search_projects,
@@ -6642,6 +7152,11 @@ const TOOL_HANDLERS = {
   global_search,
   query_event_history,
   get_daily_briefing,
+  // Phase-3 metrics layer
+  get_worker_metrics,
+  get_project_health,
+  get_client_health,
+  get_business_briefing,
   get_project_summary,
   suggest_pricing,
   assign_worker,
@@ -6704,6 +7219,19 @@ const TOOL_HANDLERS = {
   setup_daily_checklist,
   get_daily_checklist_report,
   get_daily_checklist_summary,
+  // SMS tools — disabled at the product level for now. The handler
+  // functions still exist above so re-enabling is a one-line restore.
+  // list_unread_sms,
+  // read_sms_thread,
+  // send_sms,
+  // Audit log tools
+  get_entity_history,
+  who_changed,
+  recent_activity,
+  // E-signature tools
+  request_signature,
+  check_signature_status,
+  cancel_signature_request,
 };
 
 /**
@@ -6714,7 +7242,21 @@ const TOOL_HANDLERS = {
  * @returns {object} Tool result
  */
 async function executeTool(toolName, args, userId) {
-  const handler = TOOL_HANDLERS[toolName];
+  // First check the static (compile-time) handlers map.
+  let handler = TOOL_HANDLERS[toolName];
+
+  // P12: fall through to runtime-registered handlers (MCP integrations
+  // register theirs via tools/registry.register() at request start).
+  // The registry's runtime handler closure already knows how to route
+  // to the right adapter + user credential.
+  if (!handler) {
+    try {
+      const registry = require('./registry');
+      const runtime = registry.getRuntimeHandler && registry.getRuntimeHandler(toolName);
+      if (runtime) handler = runtime;
+    } catch (_) { /* ignore; falls to userSafeError below */ }
+  }
+
   if (!handler) {
     logger.error(`Unknown tool: ${toolName}`);
     return userSafeError(null, 'That action isn\'t available right now.');
@@ -6731,4 +7273,4 @@ async function executeTool(toolName, args, userId) {
   }
 }
 
-module.exports = { executeTool, TOOL_HANDLERS };
+module.exports = { executeTool, TOOL_HANDLERS, computeDiff };
