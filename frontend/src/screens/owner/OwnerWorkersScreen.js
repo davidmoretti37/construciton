@@ -266,6 +266,11 @@ export default function OwnerWorkersScreen() {
   const [supervisorsLoading, setSupervisorsLoading] = useState(true);
   const [workersLoading, setWorkersLoading] = useState(true);
   const [subcontractorsLoading, setSubcontractorsLoading] = useState(true);
+  // Filter + search for the Team tab
+  const [teamFilter, setTeamFilter] = useState('all'); // all|supervisors|workers|subcontractors
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRolePicker, setShowRolePicker] = useState(false);
@@ -712,21 +717,116 @@ export default function OwnerWorkersScreen() {
         </View>
       </View>
 
-      {/* Add Team Member Button - only on Team tab */}
+      {/* Add Team Member + Filter + Search row - only on Team tab */}
       {activeTab === 'team' && (
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => {
-              setShowRolePicker(true);
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add-circle-outline" size={20} color="#fff" />
-            <Text style={styles.addButtonText}>Add Team Member</Text>
-          </TouchableOpacity>
+        <View style={styles.teamHeaderRow}>
+          {searchOpen ? (
+            <View style={[styles.searchBar, { backgroundColor: Colors.cardBackground || '#fff', borderColor: Colors.border }]}>
+              <Ionicons name="search-outline" size={18} color={Colors.secondaryText} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search team..."
+                placeholderTextColor={Colors.secondaryText}
+                style={[styles.searchInput, { color: Colors.primaryText }]}
+                autoFocus
+              />
+              <TouchableOpacity onPress={() => { setSearchOpen(false); setSearchQuery(''); }}>
+                <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setShowRolePicker(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                <Text style={styles.addButtonText}>Add Team Member</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowFilterMenu(true)}
+                style={[
+                  styles.iconBtn,
+                  { backgroundColor: Colors.cardBackground || '#fff', borderColor: Colors.border },
+                  teamFilter !== 'all' && { backgroundColor: OWNER_COLORS.primary, borderColor: OWNER_COLORS.primary },
+                ]}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={teamFilter === 'all' ? 'funnel-outline' : 'funnel'}
+                  size={18}
+                  color={teamFilter === 'all' ? Colors.primaryText : '#fff'}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setSearchOpen(true)}
+                style={[styles.iconBtn, { backgroundColor: Colors.cardBackground || '#fff', borderColor: Colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="search-outline" size={18} color={Colors.primaryText} />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
+
+      {/* Team filter menu */}
+      <Modal
+        visible={showFilterMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFilterMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterMenuOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFilterMenu(false)}
+        >
+          <View style={[styles.filterMenuContainer, { backgroundColor: Colors.cardBackground || '#fff' }]}>
+            <Text style={[styles.filterMenuTitle, { color: Colors.secondaryText }]}>FILTER TEAM</Text>
+            {[
+              { key: 'all', label: 'All', icon: 'people-outline' },
+              { key: 'supervisors', label: 'Supervisors', icon: 'shield-checkmark-outline' },
+              { key: 'workers', label: 'Workers', icon: 'person-outline' },
+              { key: 'subcontractors', label: 'Subcontractors', icon: 'construct-outline' },
+            ].map((opt) => {
+              const isActive = teamFilter === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    styles.filterMenuRow,
+                    isActive && { backgroundColor: `${OWNER_COLORS.primary}10` },
+                  ]}
+                  onPress={() => {
+                    setTeamFilter(opt.key);
+                    setShowFilterMenu(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={opt.icon}
+                    size={20}
+                    color={isActive ? OWNER_COLORS.primary : Colors.primaryText}
+                  />
+                  <Text
+                    style={[
+                      styles.filterMenuLabel,
+                      { color: isActive ? OWNER_COLORS.primary : Colors.primaryText },
+                      isActive && { fontWeight: '700' },
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                  {isActive && <Ionicons name="checkmark" size={20} color={OWNER_COLORS.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Content based on active tab */}
       {/* Schedule/Reports tabs - render WorkersScreen without header */}
@@ -768,118 +868,131 @@ export default function OwnerWorkersScreen() {
           </View>
         )}
 
-        {/* Supervisors Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            {tOwner('supervisors.title').toUpperCase()}
-          </Text>
-          {supervisorsLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
-            </View>
-          ) : supervisors.length > 0 ? (
-            supervisors.map((supervisor, index) => (
-              <SupervisorCard
-                key={supervisor.id}
-                supervisor={supervisor}
-                onPress={() => handleSupervisorPress(supervisor)}
-                Colors={Colors}
-                index={index}
-                tOwner={tOwner}
-              />
-            ))
-          ) : (
-            <View style={styles.emptySection}>
-              <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
-                {tOwner('supervisors.emptyTitle')}
-              </Text>
-            </View>
-          )}
-        </View>
+        {/* Filter + search applied to each section */}
+        {(() => {
+          const term = searchQuery.trim().toLowerCase();
+          const matchesSearch = (label) => !term || (label || '').toLowerCase().includes(term);
+          const showSupervisors    = teamFilter === 'all' || teamFilter === 'supervisors';
+          const showWorkers        = teamFilter === 'all' || teamFilter === 'workers';
+          const showSubcontractors = teamFilter === 'all' || teamFilter === 'subcontractors';
 
-        {/* Workers Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            {t('title').toUpperCase()}
-          </Text>
-          {workersLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
-            </View>
-          ) : workers.length > 0 ? (
-            workers.map((worker) => (
-              <WorkerCardHorizontal
-                key={worker.id}
-                worker={worker}
-                onPress={() => navigation.navigate('WorkerDetailHistory', { worker })}
-                Colors={Colors}
-                t={t}
-              />
-            ))
-          ) : (
-            <View style={styles.emptySection}>
-              <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
-                {t('noWorkers')}
-              </Text>
-            </View>
-          )}
-        </View>
+          const filteredSupervisors = supervisors.filter((s) =>
+            matchesSearch(s.business_name) || matchesSearch(s.email));
+          const filteredWorkers = workers.filter((w) =>
+            matchesSearch(w.full_name) || matchesSearch(w.trade));
+          const filteredSubs = subcontractors.filter((sub) =>
+            matchesSearch(sub.legal_name) || matchesSearch(sub.dba) || matchesSearch((sub.trades || []).join(' ')));
 
-        {/* Subcontractors Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
-            SUBCONTRACTORS
-          </Text>
-          {subcontractorsLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
-            </View>
-          ) : subcontractors.length > 0 ? (
+          return (
             <>
-              {subcontractors.map((sub) => (
-                <TouchableOpacity
-                  key={sub.id}
-                  onPress={() => navigation.navigate('SubcontractorDetail', { sub_organization_id: sub.id })}
-                  style={[styles.subRow, { backgroundColor: Colors.cardBackground || '#fff' }]}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.subAvatar, { backgroundColor: '#8B5CF6' }]}>
-                    <Text style={styles.subAvatarText}>
-                      {(sub.legal_name || 'S').slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[styles.subName, { color: Colors.primaryText }]}>{sub.legal_name}</Text>
-                    <Text style={[styles.subMeta, { color: Colors.secondaryText }]}>
-                      {(sub.trades || []).join(', ') || '—'}
-                      {sub.engagements?.length ? ` · ${sub.engagements.length} engagement${sub.engagements.length === 1 ? '' : 's'}` : ''}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Subcontractors')}
-                style={styles.viewAllSubsBtn}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.viewAllSubsText, { color: '#8B5CF6' }]}>View all subcontractors</Text>
-                <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
-              </TouchableOpacity>
+              {showSupervisors && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
+                    {tOwner('supervisors.title').toUpperCase()}
+                  </Text>
+                  {supervisorsLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
+                    </View>
+                  ) : filteredSupervisors.length > 0 ? (
+                    filteredSupervisors.map((supervisor, index) => (
+                      <SupervisorCard
+                        key={supervisor.id}
+                        supervisor={supervisor}
+                        onPress={() => handleSupervisorPress(supervisor)}
+                        Colors={Colors}
+                        index={index}
+                        tOwner={tOwner}
+                      />
+                    ))
+                  ) : (
+                    <View style={styles.emptySection}>
+                      <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
+                        {term ? 'No supervisors match.' : tOwner('supervisors.emptyTitle')}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {showWorkers && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
+                    {t('title').toUpperCase()}
+                  </Text>
+                  {workersLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
+                    </View>
+                  ) : filteredWorkers.length > 0 ? (
+                    filteredWorkers.map((worker) => (
+                      <WorkerCardHorizontal
+                        key={worker.id}
+                        worker={worker}
+                        onPress={() => navigation.navigate('WorkerDetailHistory', { worker })}
+                        Colors={Colors}
+                        t={t}
+                      />
+                    ))
+                  ) : (
+                    <View style={styles.emptySection}>
+                      <Text style={[styles.emptySectionText, { color: Colors.secondaryText }]}>
+                        {term ? 'No workers match.' : t('noWorkers')}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {showSubcontractors && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
+                    SUBCONTRACTORS
+                  </Text>
+                  {subcontractorsLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
+                    </View>
+                  ) : filteredSubs.length > 0 ? (
+                    filteredSubs.map((sub) => (
+                      <TouchableOpacity
+                        key={sub.id}
+                        onPress={() => navigation.navigate('SubcontractorDetail', { sub_organization_id: sub.id })}
+                        style={[styles.subRow, { backgroundColor: Colors.cardBackground || '#fff' }]}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.subAvatar, { backgroundColor: '#8B5CF6' }]}>
+                          <Text style={styles.subAvatarText}>
+                            {(sub.legal_name || 'S').slice(0, 1).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[styles.subName, { color: Colors.primaryText }]}>{sub.legal_name}</Text>
+                          <Text style={[styles.subMeta, { color: Colors.secondaryText }]}>
+                            {(sub.trades || []).join(', ') || '—'}
+                            {sub.engagements?.length ? ` · ${sub.engagements.length} engagement${sub.engagements.length === 1 ? '' : 's'}` : ''}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.emptySection, { borderColor: '#8B5CF640', borderWidth: 1, borderStyle: 'dashed', borderRadius: 10 }]}
+                      onPress={() => navigation.navigate('AddSubcontractor')}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="construct-outline" size={20} color="#8B5CF6" />
+                      <Text style={[styles.emptySectionText, { color: Colors.secondaryText, marginTop: 6 }]}>
+                        {term ? 'No subcontractors match.' : 'No subcontractors yet. Tap to add your first one.'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </>
-          ) : (
-            <TouchableOpacity
-              style={[styles.emptySection, { borderColor: '#8B5CF640', borderWidth: 1, borderStyle: 'dashed', borderRadius: 10 }]}
-              onPress={() => navigation.navigate('AddSubcontractor')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="construct-outline" size={20} color="#8B5CF6" />
-              <Text style={[styles.emptySectionText, { color: Colors.secondaryText, marginTop: 6 }]}>
-                No subcontractors yet. Tap to add your first one.
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+          );
+        })()}
         </ScrollView>
       )}
 
@@ -1611,17 +1724,74 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     marginTop: 2,
   },
-  viewAllSubsBtn: {
+  // Team header (Add + funnel + search) — replaces the old single-button bar
+  teamHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    marginTop: 4,
+    gap: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
-  viewAllSubsText: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBar: {
+    flex: 1,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FontSizes.body,
+    padding: 0,
+  },
+  filterMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  filterMenuContainer: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 16,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  filterMenuTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  filterMenuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  filterMenuLabel: {
+    flex: 1,
+    fontSize: 15,
   },
   // Modal styles
   modalContainer: {
@@ -1715,12 +1885,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   addButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
     backgroundColor: OWNER_COLORS.primary,
-    paddingVertical: Spacing.md,
+    height: 40,
     borderRadius: BorderRadius.lg,
   },
   addButtonText: {
