@@ -22,13 +22,35 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../../lib/supabase';
 import { getColors, LightColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+// Render an integration icon. Accepts:
+//   - a string (Ionicon name, legacy)
+//   - { lib: 'fa5-brand'|'fa5'|'ionicon', name, color }
+// When forceColor is set (e.g. white-on-green for the connected state) it
+// overrides any brand color so the icon stays legible.
+function IntegrationIcon({ icon, size = 22, fallbackColor = '#666', forceColor = null }) {
+  if (typeof icon === 'string') {
+    return <Ionicons name={icon} size={size} color={forceColor || fallbackColor} />;
+  }
+  if (!icon || typeof icon !== 'object') {
+    return <Ionicons name="cube-outline" size={size} color={forceColor || fallbackColor} />;
+  }
+  const color = forceColor || icon.color || fallbackColor;
+  if (icon.lib === 'fa5-brand') {
+    return <FontAwesome5 name={icon.name} size={size} color={color} brand />;
+  }
+  if (icon.lib === 'fa5') {
+    return <FontAwesome5 name={icon.name} size={size} color={color} solid />;
+  }
+  return <Ionicons name={icon.name || 'cube-outline'} size={size} color={color} />;
+}
 
 function relativeTime(iso) {
   if (!iso) return '';
@@ -189,10 +211,11 @@ export default function IntegrationsScreen({ navigation }) {
             <View key={intg.type} style={[styles.card, intg.coming_soon && styles.cardMuted]}>
               <View style={styles.cardHeader}>
                 <View style={[styles.iconCircle, isConnected && styles.iconCircleActive]}>
-                  <Ionicons
-                    name={intg.icon || 'cube-outline'}
+                  <IntegrationIcon
+                    icon={intg.icon}
                     size={20}
-                    color={isConnected ? '#fff' : Colors.primaryText}
+                    fallbackColor={Colors.primaryText}
+                    forceColor={isConnected ? '#fff' : null}
                   />
                 </View>
                 <View style={styles.cardBody}>

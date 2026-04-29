@@ -22,11 +22,17 @@
  * (P1) so MCP tools surface in their natural domain.
  */
 
+// Icon spec contract:
+//   icon: 'name'                                    → Ionicon (legacy / fallback)
+//   icon: { lib: 'fa5-brand', name, color? }        → FontAwesome5 brand glyph
+//   icon: { lib: 'fa5', name, color? }              → FontAwesome5 solid glyph
+//   icon: { lib: 'ionicon', name, color? }          → Ionicon (explicit)
+// Frontend IntegrationsScreen renders all of these.
 const ECHO = {
   type: 'echo',
   name: 'Echo (test)',
   description: 'Test integration that exposes a single tool which echoes back its input. Used during development to verify the MCP framework end-to-end without needing real OAuth.',
-  icon: 'flash-outline',          // Ionicon
+  icon: { lib: 'ionicon', name: 'flash-outline' },
   category: 'mcp_echo',
   oauth: false,                    // doesn't need credentials
   enabled: process.env.MCP_ECHO_ENABLED !== 'false', // default on; flip off in prod
@@ -38,7 +44,7 @@ const GOOGLE_CALENDAR = {
   type: 'google_calendar',
   name: 'Google Calendar',
   description: 'Read your calendar so Foreman can answer "what\'s on my schedule?" and "when am I free?".',
-  icon: 'calendar-outline',
+  icon: { lib: 'fa5-brand', name: 'google', color: '#4285F4' },
   category: 'mcp_google_calendar',
   oauth: true,
   // Live when both env vars are set; otherwise hidden from the available list.
@@ -54,7 +60,7 @@ const PLANNED = {
     type: 'gmail',
     name: 'Gmail',
     description: 'Read client email threads — Foreman remembers what was said, drafts responses, surfaces context from past conversations.',
-    icon: 'mail-outline',
+    icon: { lib: 'fa5-brand', name: 'google', color: '#EA4335' },
     category: 'mcp_gmail',
     oauth: true,
     scopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
@@ -64,7 +70,7 @@ const PLANNED = {
     type: 'stripe',
     name: 'Stripe',
     description: 'Pull live payment data — Foreman tracks charges, subscriptions, and disputes alongside your project P&L.',
-    icon: 'card-outline',
+    icon: { lib: 'fa5-brand', name: 'stripe-s', color: '#635BFF' },
     category: 'mcp_stripe',
     oauth: true,
     scopes: ['read_only'],
@@ -74,7 +80,7 @@ const PLANNED = {
     type: 'qbo',
     name: 'QuickBooks Online',
     description: 'Sync your books — Foreman cross-references QB invoices, vendors, and expense categorization.',
-    icon: 'briefcase-outline',
+    icon: { lib: 'fa5', name: 'book', color: '#2CA01C' }, // QBO green
     category: 'mcp_qbo',
     oauth: true,
     scopes: ['com.intuit.quickbooks.accounting'],
@@ -84,7 +90,7 @@ const PLANNED = {
     type: 'monday',
     name: 'Monday.com',
     description: 'Read project boards — Foreman keeps Sylk and Monday in sync.',
-    icon: 'grid-outline',
+    icon: { lib: 'fa5', name: 'th-large', color: '#FF3D57' }, // Monday red
     category: 'mcp_monday',
     oauth: true,
     scopes: ['boards:read', 'me:read'],
