@@ -33,20 +33,23 @@ const ECHO = {
   scopes: [],
 };
 
+// Active OAuth integrations.
+const GOOGLE_CALENDAR = {
+  type: 'google_calendar',
+  name: 'Google Calendar',
+  description: 'Read your calendar so Foreman can answer "what\'s on my schedule?" and "when am I free?".',
+  icon: 'calendar-outline',
+  category: 'mcp_google_calendar',
+  oauth: true,
+  // Live when both env vars are set; otherwise hidden from the available list.
+  enabled: !!(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET),
+  scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+};
+
 // Future entries — placeholders, not active until their adapters ship.
 // Keeping them here documents the roadmap and lets the registry render
 // "Coming soon" tiles in the UI.
 const PLANNED = {
-  google_calendar: {
-    type: 'google_calendar',
-    name: 'Google Calendar',
-    description: 'Read your calendar so Foreman can answer "what\'s on my schedule?" and "when am I free?".',
-    icon: 'calendar-outline',
-    category: 'mcp_google_calendar',
-    oauth: true,
-    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-    coming_soon: true,
-  },
   gmail: {
     type: 'gmail',
     name: 'Gmail',
@@ -91,6 +94,7 @@ const PLANNED = {
 
 const REGISTRY = {
   echo: ECHO,
+  google_calendar: GOOGLE_CALENDAR,
   ...PLANNED,
 };
 
