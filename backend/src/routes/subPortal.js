@@ -1,0 +1,262 @@
+/**
+ * Sub Free Portal Routes
+ *
+ * Mounted at /api/sub-portal — requires authenticateUser (standard Supabase auth)
+ * with profiles.role='sub'. Existing owner accounts that have a paired
+ * sub_organizations row also have access (so a hybrid Mike-the-plumber can
+ * view his sub side from his owner login).
+ *
+ * - POST /api/sub-portal/auth/signup    create a new Sub Free account
+ *                                        (token-gated; piggybacks on
+ *                                         sub-action redemption)
+ * - GET  /api/sub-portal/me             sub's own profile + linked sub_organization
+ * - PATCH /api/sub-portal/me            update profile
+ */
+
+const express = require('express');
+const { authenticateUser } = require('../middleware/authenticate');
+const subOrgService = require('../services/subOrgService');
+const biddingService = require('../services/biddingService');
+const engagementService = require('../services/engagementService');
+const invoiceService = require('../services/invoiceService');
+const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
+const router = express.Router();
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+);
+
+// =============================================================================
+// POST /api/sub-portal/auth/signup
+// =============================================================================
+// Body: { token (signup_invite or first_claim), email, password }
+
+router.post('/auth/signup', async (req, res) => {
+  try {
+    const { token, email, password } = req.body || {};
+    if (!token || !email || !password) {
+      return res.status(400).json({ error: 'token, email, and password required' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'password must be at least 8 characters' });
+    }
+
+    const row = await subOrgService.lookupActionToken(token);
+    if (!row) return res.status(401).json({ error: 'Invalid or expired token' });
+    if (row.scope !== 'signup_invite' && row.scope !== 'first_claim') {
+      return res.status(403).json({ error: 'token scope does not allow signup' });
+    }
+    if (row.sub_organization.auth_user_id) {
+      return res.status(409).json({ error: 'this sub_organization already has an account' });
+    }
+
+    const result = await subOrgService.claimSubAccount({
+      subOrganizationId: row.sub_organization_id,
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    await subOrgService.consumeActionToken(row.id);
+
+    return res.json({
+      user_id: result.user.id,
+      sub_organization: result.sub_organization,
+      next_step: 'login',
+    });
+  } catch (err) {
+    logger.error('[subPortal] signup error:', err);
+    return res.status(500).json({ error: err.message || 'Signup failed' });
+  }
+});
+
+// =============================================================================
+// Helper: load sub_organization for the authenticated user
+// =============================================================================
+
+async function loadSubOrgForUser(userId) {
+  const { data, error } = await supabase
+    .from('sub_organizations')
+    .select('*')
+    .eq('auth_user_id', userId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// =============================================================================
+// GET /api/sub-portal/me
+// =============================================================================
+
+router.get('/me', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(404).json({ error: 'No sub_organization linked to your account' });
+
+    // Also load profile to show subscription_tier
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role, subscription_tier, business_email, business_phone')
+      .eq('id', req.user.id)
+      .maybeSingle();
+
+    return res.json({
+      sub_organization: sub,
+      profile,
+    });
+  } catch (err) {
+    logger.error('[subPortal] GET /me error:', err);
+    return res.status(500).json({ error: 'Failed to load profile' });
+  }
+});
+
+// =============================================================================
+// PATCH /api/sub-portal/me
+// =============================================================================
+
+router.patch('/me', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(404).json({ error: 'No sub_organization linked to your account' });
+
+    const allowed = [
+      'legal_name', 'dba', 'primary_email', 'primary_phone', 'website',
+      'address_line1', 'address_line2', 'city', 'state_code', 'postal_code',
+      'trades', 'service_states', 'tax_id', 'tax_id_type', 'country_code',
+      'entity_type', 'year_founded', 'crew_size',
+    ];
+    const cleaned = {};
+    for (const k of allowed) {
+      if (k in req.body) cleaned[k] = req.body[k];
+    }
+
+    const { data, error } = await supabase
+      .from('sub_organizations')
+      .update(cleaned)
+      .eq('id', sub.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return res.json({ sub_organization: data });
+  } catch (err) {
+    logger.error('[subPortal] PATCH /me error:', err);
+    return res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// =============================================================================
+// GET /api/sub-portal/bids — open invitations + my submissions
+// =============================================================================
+
+router.get('/bids', authenticateUser, async (req, res) => {
+  try {
+    const open = await biddingService.listOpenBidsForSub(req.user.id);
+    const sub = await loadSubOrgForUser(req.user.id);
+    let mine = [];
+    if (sub) {
+      const { data } = await supabase
+        .from('sub_bids')
+        .select('*, bid_request:bid_requests(id, project_id, trade, scope_summary, status)')
+        .eq('sub_organization_id', sub.id)
+        .order('submitted_at', { ascending: false });
+      mine = data || [];
+    }
+    return res.json({ open_invitations: open, my_bids: mine });
+  } catch (err) {
+    logger.error('[subPortal] GET /bids error:', err);
+    return res.status(500).json({ error: 'Failed to load bids' });
+  }
+});
+
+// =============================================================================
+// POST /api/sub-portal/bids — submit a bid for an invited request
+// =============================================================================
+
+router.post('/bids', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(403).json({ error: 'No sub_organization linked' });
+
+    const { bid_request_id, amount, timeline_days, exclusions, alternates, notes } = req.body || {};
+    const bid = await biddingService.submitBid({
+      bidRequestId: bid_request_id,
+      subOrganizationId: sub.id,
+      amount,
+      timelineDays: timeline_days,
+      exclusions,
+      alternates,
+      notes,
+    });
+    return res.json({ bid });
+  } catch (err) {
+    logger.error('[subPortal] POST /bids error:', err);
+    return res.status(400).json({ error: err.message || 'Failed to submit bid' });
+  }
+});
+
+// =============================================================================
+// GET /api/sub-portal/engagements — sub's engagements across all GCs
+// =============================================================================
+
+router.get('/engagements', authenticateUser, async (req, res) => {
+  try {
+    const list = await engagementService.listEngagementsForSub(req.user.id);
+    return res.json({ engagements: list });
+  } catch (err) {
+    logger.error('[subPortal] GET /engagements error:', err);
+    return res.status(500).json({ error: 'Failed to load engagements' });
+  }
+});
+
+// =============================================================================
+// Invoices
+// =============================================================================
+
+router.get('/invoices', authenticateUser, async (req, res) => {
+  try {
+    const list = await invoiceService.listInvoicesForSub(req.user.id);
+    return res.json({ invoices: list });
+  } catch (err) {
+    logger.error('[subPortal] GET /invoices error:', err);
+    return res.status(500).json({ error: 'Failed to load invoices' });
+  }
+});
+
+router.post('/invoices', authenticateUser, async (req, res) => {
+  try {
+    const inv = await invoiceService.createInvoice({
+      engagementId: req.body.engagement_id,
+      subAuthUserId: req.user.id,
+      invoiceNumber: req.body.invoice_number,
+      totalAmount: req.body.total_amount,
+      retentionAmount: req.body.retention_amount,
+      periodStart: req.body.period_start,
+      periodEnd: req.body.period_end,
+      dueAt: req.body.due_at,
+      notes: req.body.notes,
+      lines: req.body.lines || [],
+    });
+    return res.json({ invoice: inv });
+  } catch (err) {
+    logger.error('[subPortal] POST /invoices error:', err);
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/invoices/:id/send', authenticateUser, async (req, res) => {
+  try {
+    const inv = await invoiceService.sendInvoice({
+      invoiceId: req.params.id,
+      subAuthUserId: req.user.id,
+    });
+    return res.json({ invoice: inv });
+  } catch (err) {
+    logger.error('[subPortal] POST /invoices/:id/send error:', err);
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+module.exports = router;

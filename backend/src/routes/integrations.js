@@ -163,7 +163,10 @@ router.get('/:type/callback', async (req, res) => {
     }
     const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
     const redirectUri = `${baseUrl}/api/integrations/${type}/callback`;
-    const exchanged = await adapter.oauthExchangeCode(code, redirectUri);
+    // Some providers (Intuit/QBO) attach extra params on the redirect
+    // (e.g. realmId). Forward the entire query map so adapters can pick
+    // out provider-specific bits without a special-case branch here.
+    const exchanged = await adapter.oauthExchangeCode(code, redirectUri, req.query || {});
 
     await credentialStore.saveCredential({
       userId: verified.userId,
