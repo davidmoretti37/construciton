@@ -247,18 +247,39 @@ export const AuthProvider = ({ children }) => {
                   .eq('id', userId);
                 data.role = 'worker';
               } else {
-                // Check clients table for pending client invite
+                // Check clients table for pending client invite. We can READ
+                // (RLS allows the new user to see their own pending row), but
+                // we cannot WRITE clients.user_id from the frontend — RLS
+                // blocks updates on a row owned by another contractor. So we
+                // hand off to the backend, which uses the service role to
+                // link clients.user_id + profiles.role + profiles.owner_id
+                // atomically.
                 const { data: pendingClient } = await supabase
                   .from('clients')
-                  .select('id')
+                  .select('id, owner_id')
                   .is('user_id', null)
                   .ilike('email', userEmail)
                   .limit(1);
 
                 if (pendingClient && pendingClient.length > 0) {
-                  await supabase.from('clients').update({ user_id: userId }).eq('id', pendingClient[0].id);
-                  await supabase.from('profiles').update({ role: 'client' }).eq('id', userId);
-                  data.role = 'client';
+                  try {
+                    const { API_URL } = require('../config/api');
+                    const session = (await supabase.auth.getSession())?.data?.session;
+                    const res = await fetch(`${API_URL}/api/portal-admin/claim-client-link`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session?.access_token || ''}`,
+                      },
+                    });
+                    const claim = await res.json().catch(() => ({}));
+                    if (claim?.linked || claim?.alreadyLinked) {
+                      data.role = 'client';
+                      data.owner_id = claim.ownerId || pendingClient[0].owner_id;
+                    }
+                  } catch (claimErr) {
+                    console.warn('🔐 AuthContext - claim-client-link failed:', claimErr);
+                  }
                 }
               }
             }
@@ -267,20 +288,22 @@ export const AuthProvider = ({ children }) => {
           console.warn('🔐 AuthContext - Could not check for invites:', inviteCheckError);
         }
 
-        // For existing client users, ensure their clients record is linked
+        // For existing client users, ensure their clients + owner_id are linked.
+        // Frontend can't write clients.user_id under RLS — call the backend.
         if (data?.role === 'client') {
           try {
-            const userEmail = (await supabase.auth.getUser())?.data?.user?.email;
-            if (userEmail) {
-              const { data: unlinkedClient } = await supabase
-                .from('clients')
-                .select('id')
-                .is('user_id', null)
-                .ilike('email', userEmail)
-                .limit(1);
-              if (unlinkedClient?.length > 0) {
-                await supabase.from('clients').update({ user_id: userId }).eq('id', unlinkedClient[0].id);
-              }
+            const { API_URL } = require('../config/api');
+            const session = (await supabase.auth.getSession())?.data?.session;
+            const res = await fetch(`${API_URL}/api/portal-admin/claim-client-link`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session?.access_token || ''}`,
+              },
+            });
+            const claim = await res.json().catch(() => ({}));
+            if ((claim?.linked || claim?.alreadyLinked) && claim?.ownerId && !data.owner_id) {
+              data.owner_id = claim.ownerId;
             }
           } catch (e) { /* non-critical */ }
         }

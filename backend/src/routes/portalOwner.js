@@ -1499,6 +1499,70 @@ router.post('/change-orders/:id/void', async (req, res) => {
 });
 
 // ============================================================
+// CLAIM CLIENT INVITE (auto-link new signup to owner)
+// ============================================================
+//
+// When a client signs up with an email that matches a pending `clients` row
+// (where user_id IS NULL), this route uses the service role to:
+//   1. Set clients.user_id to the new auth user
+//   2. Set profiles.role = 'client'
+//   3. Set profiles.owner_id = clients.owner_id
+//
+// The frontend AuthContext can't do this directly because RLS on `clients`
+// blocks the new user from updating a row owned by the contractor.
+//
+// Idempotent: safe to call repeatedly.
+router.post('/claim-client-link', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userEmail = req.user.email;
+    if (!userEmail) return res.status(400).json({ error: 'No email on user' });
+
+    // Find any pending client row for this email (case-insensitive)
+    const { data: pendingClients } = await supabase
+      .from('clients')
+      .select('id, owner_id, full_name, email')
+      .ilike('email', userEmail)
+      .is('user_id', null)
+      .limit(1);
+
+    // If none pending, but there's an already-linked client for this user,
+    // still return success + the owner_id so the client gets routed correctly.
+    if (!pendingClients || pendingClients.length === 0) {
+      const { data: existing } = await supabase
+        .from('clients')
+        .select('id, owner_id')
+        .eq('user_id', userId)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        return res.json({ linked: false, alreadyLinked: true, ownerId: existing[0].owner_id });
+      }
+      return res.json({ linked: false, alreadyLinked: false });
+    }
+
+    const client = pendingClients[0];
+
+    // 1) Link clients.user_id
+    await supabase.from('clients').update({ user_id: userId }).eq('id', client.id);
+    // 2) Set profile role + owner_id
+    await supabase
+      .from('profiles')
+      .update({ role: 'client', owner_id: client.owner_id })
+      .eq('id', userId);
+
+    res.json({
+      linked: true,
+      ownerId: client.owner_id,
+      clientId: client.id,
+      clientName: client.full_name,
+    });
+  } catch (error) {
+    logger.error('[PortalAdmin] Claim client link error:', error.message);
+    res.status(500).json({ error: 'Failed to link client account' });
+  }
+});
+
+// ============================================================
 // SEND ESTIMATE TO CLIENT (portal share)
 // ============================================================
 //
