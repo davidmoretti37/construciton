@@ -14,7 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
-import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
+import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, fetchProjectBilling, fetchProjectEstimates, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
+import ClientHeader from '../../components/ClientHeader';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -38,6 +39,8 @@ export default function ClientMoneyScreen({ navigation }) {
   const [changeOrders, setChangeOrders] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
   const [draws, setDraws] = useState(null);
+  const [billing, setBilling] = useState(null);  // unified estimates+draws+COs+invoices
+  const [estimatesDirect, setEstimatesDirect] = useState([]);  // fallback when billing endpoint unavailable
   const [paying, setPaying] = useState(null);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
@@ -46,15 +49,19 @@ export default function ClientMoneyScreen({ navigation }) {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const [data, cos, drawsData] = await Promise.all([
+        const [data, cos, drawsData, billingData, estsDirect] = await Promise.all([
           fetchMoneySummary(projects[0].id),
           fetchChangeOrders(projects[0].id).catch(() => []),
           fetchProjectDraws(projects[0].id).catch(() => null),
+          fetchProjectBilling(projects[0].id).catch(() => null),
+          fetchProjectEstimates(projects[0].id).catch(() => []),
         ]);
         setSummary(data);
         setChangeOrders(cos || []);
         setActiveProject(projects[0]);
         setDraws(drawsData?.has_schedule ? drawsData : null);
+        setBilling(billingData);
+        setEstimatesDirect(Array.isArray(estsDirect) ? estsDirect : []);
       }
     } catch (e) {
       console.error('Money load error:', e);
@@ -121,9 +128,10 @@ export default function ClientMoneyScreen({ navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
+        <ClientHeader title="Money" subtitle={activeProject?.name} navigation={navigation} />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 100 }} />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -135,11 +143,39 @@ export default function ClientMoneyScreen({ navigation }) {
   const unpaidInvoices = invoices.filter(i => i.status !== 'paid');
   const paidInvoices = invoices.filter(i => i.status === 'paid');
 
+  // Pull estimates from the unified billing payload, OR fall back to the direct
+  // estimates endpoint so we still show something while Railway hasn't deployed
+  // the new /billing route yet.
+  const billingEstimates = (billing?.history || [])
+    .concat(billing?.action || [])
+    .filter(e => e.source === 'estimate');
+  const estimates = billingEstimates.length > 0
+    ? billingEstimates
+    : estimatesDirect.map(est => ({
+        id: 'est-' + est.id,
+        source: 'estimate',
+        source_id: est.id,
+        label: est.estimate_number || 'Estimate',
+        amount: parseFloat(est.total || 0),
+        status: est.status || 'sent',
+        occurred_at: est.accepted_date || est.sent_date || est.created_at,
+      }));
+  const recentActivity = [
+    ...(billing?.history || []),
+    ...(billing?.action || []),
+    ...(billing?.upcoming || []),
+  ]
+    .filter(e => e.source === 'invoice' || e.source === 'change_order')
+    .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))
+    .slice(0, 12);
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Money</Text>
-      </View>
+    <View style={styles.container}>
+      <ClientHeader
+        title="Money"
+        subtitle={activeProject?.name}
+        navigation={navigation}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -390,9 +426,61 @@ export default function ClientMoneyScreen({ navigation }) {
           </View>
         )}
 
+        {/* Estimates */}
+        {estimates.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>ESTIMATES</Text>
+            {estimates.map((est) => (
+              <View key={est.id} style={styles.activityRow}>
+                <View style={[styles.activityIcon, { backgroundColor: '#E0E7FF' }]}>
+                  <Ionicons name="document-text-outline" size={16} color="#3730A3" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle}>{est.label}</Text>
+                  <Text style={styles.activitySub}>
+                    {est.status?.charAt(0).toUpperCase() + est.status?.slice(1)} · {new Date(est.occurred_at).toLocaleDateString()}
+                  </Text>
+                </View>
+                <Text style={styles.activityAmount}>${(est.amount || 0).toLocaleString()}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Recent activity timeline */}
+        {recentActivity.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
+            {recentActivity.map((evt) => {
+              const icon = evt.source === 'invoice' ? 'receipt-outline' : 'swap-horizontal-outline';
+              const iconBg = evt.source === 'invoice' ? '#DBEAFE' : '#FEF3C7';
+              const iconColor = evt.source === 'invoice' ? '#1E40AF' : C.amberDark;
+              const subText = evt.source === 'invoice'
+                ? `${evt.status?.toUpperCase() || ''} · ${new Date(evt.occurred_at).toLocaleDateString()}`
+                : `Change order · ${(evt.raw_status || evt.status || '').replace(/_/g, ' ')} · ${new Date(evt.occurred_at).toLocaleDateString()}`;
+              return (
+                <View key={evt.id} style={styles.activityRow}>
+                  <View style={[styles.activityIcon, { backgroundColor: iconBg }]}>
+                    <Ionicons name={icon} size={16} color={iconColor} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.activityTitle} numberOfLines={1}>
+                      {evt.label}{evt.description && evt.label !== evt.description ? ` — ${evt.description}` : ''}
+                    </Text>
+                    <Text style={styles.activitySub}>{subText}</Text>
+                  </View>
+                  <Text style={styles.activityAmount}>
+                    ${parseFloat(evt.amount || 0).toLocaleString()}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         <View style={{ height: 120 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -460,4 +548,18 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 80 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: '#374151', marginTop: 12 },
   emptySub: { fontSize: 14, color: C.textMuted, marginTop: 4 },
+
+  // Activity / estimate rows (timeline)
+  activityRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: C.surface, borderRadius: 12, padding: 12, marginBottom: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4,
+  },
+  activityIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  activityTitle: { fontSize: 14, fontWeight: '600', color: C.text },
+  activitySub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+  activityAmount: { fontSize: 14, fontWeight: '700', color: C.text, fontVariant: ['tabular-nums'] },
 });

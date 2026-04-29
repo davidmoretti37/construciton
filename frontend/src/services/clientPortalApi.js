@@ -52,6 +52,9 @@ export const fetchProjectSummaries = (projectId) => portalFetch(`/projects/${pro
 // Money
 export const fetchMoneySummary = (projectId) => portalFetch(`/projects/${projectId}/money-summary`);
 
+// Unified billing rollup (estimates + draws + COs + invoices)
+export const fetchProjectBilling = (projectId) => portalFetch(`/projects/${projectId}/billing`);
+
 // Change Orders
 export const fetchChangeOrders = (projectId) => portalFetch(`/projects/${projectId}/change-orders`);
 export const respondToChangeOrder = (coId, action, name, reason) =>

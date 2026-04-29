@@ -16,7 +16,7 @@ import { useTheme } from '../contexts/ThemeContext';
 const items = [
   { id: 0, icon: 'home', label: 'Home', routeName: 'Home', routeIndex: 0 },
   { id: 1, icon: 'calendar', label: 'Timeline', routeName: 'Timeline', routeIndex: 1 },
-  { id: 2, icon: 'chatbubbles', label: 'Messages', routeName: 'Messages', routeIndex: 2 },
+  { id: 2, icon: 'folder-open', label: 'Documents', routeName: 'Documents', routeIndex: 2 },
   { id: 3, icon: 'card', label: 'Money', routeName: 'Money', routeIndex: 3 },
   { id: 4, icon: 'grid', label: 'More', routeName: 'More', routeIndex: 4 },
 ];

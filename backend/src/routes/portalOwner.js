@@ -201,12 +201,22 @@ router.post('/share', async (req, res) => {
 
     if (pcError) throw pcError;
 
-    // Create default portal settings
+    // Create default portal settings — default to SHOWING things so the
+    // client lands on a populated portal. Owner can toggle off later.
     await supabase
       .from('client_portal_settings')
       .upsert({
         project_id: projectId,
         owner_id: ownerId,
+        show_phases: true,
+        show_photos: true,
+        show_budget: true,
+        show_daily_logs: true,
+        show_documents: true,
+        show_messages: true,
+        show_site_activity: true,
+        weekly_summary_enabled: true,
+        invoice_reminders: true,
       }, { onConflict: 'project_id' });
 
     const portalUrl = `${process.env.PORTAL_URL || 'https://sylkapp.ai/portal'}/login?token=${projectClient.access_token}`;
@@ -295,17 +305,18 @@ router.get('/settings/:projectId', async (req, res) => {
       .single();
 
     if (error || !data) {
-      // Return defaults if no settings exist yet
+      // Return defaults if no settings exist yet (default to ALL ON so the
+      // client portal is useful out of the box).
       return res.json({
         project_id: projectId,
-        show_phases: false,
-        show_photos: false,
-        show_budget: false,
-        show_daily_logs: false,
-        show_documents: false,
+        show_phases: true,
+        show_photos: true,
+        show_budget: true,
+        show_daily_logs: true,
+        show_documents: true,
         show_messages: true,
-        show_site_activity: false,
-        weekly_summary_enabled: false,
+        show_site_activity: true,
+        weekly_summary_enabled: true,
         invoice_reminders: true,
       });
     }
@@ -1582,51 +1593,10 @@ router.post('/estimates/:estimateId/send', authenticateUser, async (req, res) =>
       .eq('user_id', userId)
       .single();
     if (estErr || !estimate) return res.status(404).json({ error: 'Estimate not found' });
-    if (!estimate.client_email) return res.status(400).json({ error: 'No client email on estimate' });
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, business_name')
-      .eq('id', userId)
-      .single();
-    const { data: branding } = await supabase
-      .from('client_portal_branding')
-      .select('business_name')
-      .eq('owner_id', userId)
-      .single();
-    const businessName = branding?.business_name || profile?.business_name || profile?.full_name || '';
-
-    const { sendEstimateEmail } = require('../services/emailService');
-    const emailResult = await sendEstimateEmail({
-      estimate,
-      businessName,
-      pdfUrl: estimate.pdf_url,
-    });
-
-    // Notify client in-app if they have a portal account linked to this email
-    try {
-      const { data: client } = await supabase
-        .from('clients')
-        .select('id, user_id')
-        .eq('email', estimate.client_email)
-        .eq('owner_id', userId)
-        .single();
-      if (client?.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: client.user_id,
-          title: 'New Estimate',
-          body: `Estimate ${estimate.estimate_number} for $${parseFloat(estimate.total || 0).toLocaleString()} is ready to review.`,
-          type: 'financial_update',
-          project_id: estimate.project_id || null,
-          action_type: 'navigate',
-          action_data: { estimateId, projectId: estimate.project_id, screen: 'ClientProjectDetail' },
-        });
-      }
-    } catch {
-      // Best-effort
-    }
-
-    // Flip status draft → sent (mirror invoice draft → unpaid pattern)
+    // Portal is the primary destination — flip status FIRST so the estimate
+    // is immediately visible in the client portal even if email/notification
+    // delivery has issues. Email is a best-effort secondary channel.
     if (estimate.status === 'draft') {
       await supabase
         .from('estimates')
@@ -1634,8 +1604,78 @@ router.post('/estimates/:estimateId/send', authenticateUser, async (req, res) =>
         .eq('id', estimateId);
     }
 
+    // ─── In-portal notification (works even when no email exists) ───
+    // Try to find the client linked to this estimate's project. We prefer
+    // the project_clients link (any client shared on the project), and
+    // fall back to matching by client_email on the estimate.
+    let notifiedClient = null;
+    try {
+      let candidates = [];
+      if (estimate.project_id) {
+        const { data: pc } = await supabase
+          .from('project_clients')
+          .select('clients(id, user_id, email, full_name)')
+          .eq('project_id', estimate.project_id);
+        candidates = (pc || []).map(p => p.clients).filter(Boolean);
+      }
+      if (candidates.length === 0 && estimate.client_email) {
+        const { data: byEmail } = await supabase
+          .from('clients')
+          .select('id, user_id, email, full_name')
+          .eq('owner_id', userId)
+          .ilike('email', estimate.client_email);
+        candidates = byEmail || [];
+      }
+      // Notify every linked client account
+      for (const c of candidates) {
+        if (!c?.user_id) continue;
+        await supabase.from('notifications').insert({
+          user_id: c.user_id,
+          title: 'New Estimate',
+          body: `Estimate ${estimate.estimate_number || ''} for $${parseFloat(estimate.total || 0).toLocaleString()} is ready to review.`,
+          type: 'financial_update',
+          project_id: estimate.project_id || null,
+          action_type: 'navigate',
+          action_data: { estimateId, projectId: estimate.project_id, screen: 'ClientProjectDetail' },
+        });
+        notifiedClient = c;
+      }
+    } catch (notifErr) {
+      logger.warn('[PortalAdmin] Estimate portal notification failed:', notifErr.message);
+    }
+
+    // ─── Optional: email delivery (only when address present + key set) ───
+    let emailResult = { sent: false, reason: 'no_email' };
+    if (estimate.client_email && process.env.RESEND_API_KEY) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, business_name')
+          .eq('id', userId)
+          .single();
+        const { data: branding } = await supabase
+          .from('client_portal_branding')
+          .select('business_name')
+          .eq('owner_id', userId)
+          .single();
+        const businessName = branding?.business_name || profile?.business_name || profile?.full_name || '';
+        const { sendEstimateEmail } = require('../services/emailService');
+        emailResult = await sendEstimateEmail({
+          estimate,
+          businessName,
+          pdfUrl: estimate.pdf_url,
+        });
+      } catch (emailErr) {
+        logger.warn('[PortalAdmin] Estimate email send failed:', emailErr.message);
+        emailResult = { sent: false, error: emailErr.message };
+      }
+    }
+
     // Audit
     if (estimate.project_id) {
+      const auditNote = notifiedClient
+        ? `Shared to portal for ${notifiedClient.full_name || notifiedClient.email || 'client'}${emailResult.sent ? ` + emailed ${estimate.client_email}` : ''}`
+        : (emailResult.sent ? `Emailed ${estimate.client_email}` : 'Marked as sent (no portal recipient or email)');
       await supabase.from('approval_events').insert({
         project_id: estimate.project_id,
         entity_type: 'estimate',
@@ -1643,15 +1683,16 @@ router.post('/estimates/:estimateId/send', authenticateUser, async (req, res) =>
         action: 'sent',
         actor_type: 'owner',
         actor_id: userId,
-        notes: emailResult.sent ? `Sent to ${estimate.client_email}` : `Send failed: ${emailResult.error || 'unknown'}`,
+        notes: auditNote,
       });
     }
 
     res.json({
-      sent: emailResult.sent,
-      email: estimate.client_email,
-      emailId: emailResult.emailId,
-      error: emailResult.error,
+      sent: true,
+      portal_notified: !!notifiedClient,
+      portal_recipient: notifiedClient?.full_name || notifiedClient?.email || null,
+      email_sent: !!emailResult.sent,
+      email_recipient: emailResult.sent ? estimate.client_email : null,
     });
   } catch (error) {
     logger.error('[PortalAdmin] Send estimate error:', error.message);
@@ -1675,7 +1716,44 @@ router.post('/contracts/:contractId/send', authenticateUser, async (req, res) =>
       .single();
     if (cErr || !contract) return res.status(404).json({ error: 'Contract not found' });
 
-    // If contract has no client_email, fall back to project's
+    // Notify clients in the portal
+    let notifiedClient = null;
+    try {
+      let candidates = [];
+      if (contract.project_id) {
+        const { data: pc } = await supabase
+          .from('project_clients')
+          .select('clients(id, user_id, email, full_name)')
+          .eq('project_id', contract.project_id);
+        candidates = (pc || []).map(p => p.clients).filter(Boolean);
+      }
+      if (candidates.length === 0 && contract.client_email) {
+        const { data: byEmail } = await supabase
+          .from('clients')
+          .select('id, user_id, email, full_name')
+          .eq('owner_id', userId)
+          .ilike('email', contract.client_email);
+        candidates = byEmail || [];
+      }
+      for (const c of candidates) {
+        if (!c?.user_id) continue;
+        await supabase.from('notifications').insert({
+          user_id: c.user_id,
+          title: 'New Contract',
+          body: `${contract.file_name || 'A contract'} is ready to review in your portal.`,
+          type: 'financial_update',
+          project_id: contract.project_id || null,
+          action_type: 'navigate',
+          action_data: { contractId, projectId: contract.project_id, screen: 'ClientDocuments' },
+        });
+        notifiedClient = c;
+      }
+    } catch (notifErr) {
+      logger.warn('[PortalAdmin] Contract portal notification failed:', notifErr.message);
+    }
+
+    // Optional email delivery (resolved from contract or project)
+    let emailResult = { sent: false, reason: 'no_email' };
     let clientEmail = contract.client_email;
     if (!clientEmail && contract.project_id) {
       const { data: proj } = await supabase
@@ -1685,43 +1763,54 @@ router.post('/contracts/:contractId/send', authenticateUser, async (req, res) =>
         .single();
       clientEmail = proj?.client_email;
     }
-    if (!clientEmail) return res.status(400).json({ error: 'No client email available' });
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, business_name')
-      .eq('id', userId)
-      .single();
-    const businessName = profile?.business_name || profile?.full_name || 'Your contractor';
-
-    // Reuse the e-sign style notification email — clean, branded, has CTA.
-    // For non-signature share we just want the client to know there's a contract waiting.
-    const { sendSignatureRequestEmail } = require('../services/emailService');
-    const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
-    const emailResult = await sendSignatureRequestEmail({
-      documentType: 'contract',
-      documentTitle: contract.file_name || 'Contract',
-      signerName: '',
-      signerEmail: clientEmail,
-      businessName,
-      signingUrl: PORTAL_URL,
-      expiresAt: null,
-    });
+    if (clientEmail && process.env.RESEND_API_KEY) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, business_name')
+          .eq('id', userId)
+          .single();
+        const businessName = profile?.business_name || profile?.full_name || 'Your contractor';
+        const { sendSignatureRequestEmail } = require('../services/emailService');
+        const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
+        emailResult = await sendSignatureRequestEmail({
+          documentType: 'contract',
+          documentTitle: contract.file_name || 'Contract',
+          signerName: '',
+          signerEmail: clientEmail,
+          businessName,
+          signingUrl: PORTAL_URL,
+          expiresAt: null,
+        });
+      } catch (emailErr) {
+        logger.warn('[PortalAdmin] Contract email failed:', emailErr.message);
+        emailResult = { sent: false, error: emailErr.message };
+      }
+    }
 
     // Audit
     if (contract.project_id) {
+      const note = notifiedClient
+        ? `Contract shared to portal for ${notifiedClient.full_name || notifiedClient.email}${emailResult.sent ? ` + emailed ${clientEmail}` : ''}`
+        : (emailResult.sent ? `Contract emailed to ${clientEmail}` : 'Contract marked sent (no portal recipient or email)');
       await supabase.from('approval_events').insert({
         project_id: contract.project_id,
-        entity_type: 'estimate', // approval_events doesn't have 'contract' enum value, log under estimate as a workaround
+        entity_type: 'estimate', // approval_events doesn't allow 'contract'
         entity_id: contractId,
         action: 'sent',
         actor_type: 'owner',
         actor_id: userId,
-        notes: `Contract shared with ${clientEmail}`,
+        notes: note,
       });
     }
 
-    res.json({ sent: emailResult.sent, email: clientEmail, error: emailResult.error });
+    res.json({
+      sent: true,
+      portal_notified: !!notifiedClient,
+      portal_recipient: notifiedClient?.full_name || notifiedClient?.email || null,
+      email_sent: !!emailResult.sent,
+      email_recipient: emailResult.sent ? clientEmail : null,
+    });
   } catch (error) {
     logger.error('[PortalAdmin] Send contract error:', error.message);
     res.status(500).json({ error: 'Failed to send contract' });

@@ -14,6 +14,7 @@ import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDashboard, fetchProject, fetchProjectCalendar } from '../../services/clientPortalApi';
 import AppleCalendarMonth from '../../components/AppleCalendarMonth';
+import ClientHeader from '../../components/ClientHeader';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7',
@@ -36,7 +37,7 @@ const getMonthRange = (date) => {
   return { start, end };
 };
 
-export default function ClientTimelineScreen() {
+export default function ClientTimelineScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
 
@@ -147,9 +148,10 @@ export default function ClientTimelineScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: Colors.background }]}>
+        <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 100 }} />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -158,10 +160,10 @@ export default function ClientTimelineScreen() {
   const hasAnything = dayPhases.length > 0 || dayEvents.length > 0;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: Colors.background }]}>
+      <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Timeline</Text>
-        {projectName ? <Text style={[styles.headerSub, { color: Colors.secondaryText }]}>{projectName}</Text> : null}
+        {/* Empty - title moved to ClientHeader, but keep wrapper for spacing */}
       </View>
 
       <ScrollView
@@ -286,14 +288,36 @@ export default function ClientTimelineScreen() {
                   )}
                   <View style={styles.phaseListContent}>
                     <Text style={[styles.phaseListName, isActive && { color: C.amber, fontWeight: '700' }]}>{phase.name}</Text>
-                    {phase.start_date ? (
-                      <Text style={styles.phaseListDate}>
-                        {new Date(phase.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        {phase.end_date && ` – ${new Date(phase.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                      </Text>
-                    ) : (
-                      <Text style={styles.phaseListDate}>Not scheduled</Text>
-                    )}
+                    {(() => {
+                      // Prefer real dates; otherwise fall back to status + task progress
+                      if (phase.start_date) {
+                        return (
+                          <Text style={styles.phaseListDate}>
+                            {new Date(phase.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {phase.end_date && ` – ${new Date(phase.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                          </Text>
+                        );
+                      }
+                      const tasks = Array.isArray(phase.tasks) ? phase.tasks : [];
+                      const total = tasks.length;
+                      const done = tasks.filter(t => t?.completed === true || t?.status === 'done').length;
+                      const statusLabel = isComplete
+                        ? 'Completed'
+                        : isActive
+                        ? `In progress${total ? ` · ${done}/${total} tasks` : ''}`
+                        : total > 0
+                        ? `Upcoming · ${total} task${total !== 1 ? 's' : ''}`
+                        : 'Upcoming';
+                      return (
+                        <Text style={[
+                          styles.phaseListDate,
+                          isComplete && { color: C.green, fontWeight: '600' },
+                          isActive && { color: C.amber, fontWeight: '600' },
+                        ]}>
+                          {statusLabel}
+                        </Text>
+                      );
+                    })()}
                   </View>
                   <Text style={[
                     styles.phaseListPercent,
@@ -308,7 +332,7 @@ export default function ClientTimelineScreen() {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

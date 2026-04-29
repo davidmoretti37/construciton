@@ -1640,6 +1640,192 @@ router.get('/projects/:projectId/documents', verifyProjectAccess, async (req, re
 });
 
 // ============================================================
+// BILLING ROLLUP (client-facing)
+// ============================================================
+//
+// Returns the same shape as the owner's get_project_billing handler so the
+// client Money screen can render the unified view (estimates / draws / COs /
+// invoices) with action/upcoming/history zones. Read-only — clients can't
+// take actions from this endpoint, but the data shape includes status info.
+router.get('/projects/:projectId/billing', verifyProjectAccess, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const todayDate = new Date().toISOString().split('T')[0];
+
+    const [
+      projectRes, estimatesRes, drawScheduleRes, drawItemsRes,
+      invoicesRes, changeOrdersRes,
+    ] = await Promise.all([
+      supabase
+        .from('projects')
+        .select('id, name, contract_amount, base_contract, end_date, status')
+        .eq('id', projectId)
+        .single(),
+      supabase
+        .from('estimates')
+        .select('id, estimate_number, total, status, created_at, accepted_date')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('draw_schedules')
+        .select('id, retainage_percent')
+        .eq('project_id', projectId)
+        .maybeSingle(),
+      supabase
+        .from('draw_schedule_items')
+        .select(`
+          id, order_index, description, percent_of_contract, fixed_amount,
+          status, trigger_type, invoice_id, co_id, updated_at, created_at,
+          invoice:invoices(id, invoice_number, status, total, amount_paid, amount_due, due_date, paid_date)
+        `)
+        .eq('project_id', projectId)
+        .order('order_index', { ascending: true }),
+      supabase
+        .from('invoices')
+        .select('id, invoice_number, status, total, amount_paid, amount_due, due_date, paid_date, created_at, sent_date')
+        .eq('project_id', projectId)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('change_orders')
+        .select(`
+          id, co_number, title, status, total_amount, schedule_impact_days,
+          billing_strategy, sent_at, approved_at, rejected_at, client_responded_at,
+          client_response_reason, signature_required, created_at,
+          change_order_line_items(id, description, quantity, unit, unit_price, amount)
+        `)
+        .eq('project_id', projectId)
+        .order('co_number', { ascending: true }),
+    ]);
+
+    const project = projectRes.data;
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const contract = parseFloat(project.contract_amount || 0);
+    const baseContract = parseFloat(project.base_contract || contract);
+    const drawSchedule = drawScheduleRes.data || null;
+    const retainagePct = parseFloat(drawSchedule?.retainage_percent || 0);
+
+    const events = [];
+
+    for (const est of (estimatesRes.data || [])) {
+      events.push({
+        id: 'est-' + est.id, source: 'estimate', source_id: est.id,
+        label: est.estimate_number || 'Estimate', description: 'Estimate',
+        amount: parseFloat(est.total || 0),
+        status: est.status === 'accepted' ? 'accepted' : (est.status || 'draft'),
+        zone: ['accepted', 'rejected'].includes(est.status) ? 'history' : 'action',
+        occurred_at: est.accepted_date || est.created_at,
+      });
+    }
+
+    for (const dsi of (drawItemsRes.data || [])) {
+      const gross = dsi.percent_of_contract != null
+        ? contract * parseFloat(dsi.percent_of_contract) / 100
+        : parseFloat(dsi.fixed_amount || 0);
+      const retainage = gross * retainagePct / 100;
+      const net = gross - retainage;
+      let zone = 'upcoming';
+      if (dsi.status === 'ready') zone = 'action';
+      else if (['paid', 'invoiced', 'skipped'].includes(dsi.status)) zone = 'history';
+      events.push({
+        id: 'draw-' + dsi.id, source: 'draw', source_id: dsi.id,
+        co_id: dsi.co_id || null,
+        label: dsi.co_id ? 'CO Draw' : ('Draw #' + (dsi.order_index || '?')),
+        description: dsi.description,
+        amount: Number(net.toFixed(2)),
+        gross: Number(gross.toFixed(2)),
+        retainage_held: Number(retainage.toFixed(2)),
+        status: dsi.status, trigger_type: dsi.trigger_type, zone,
+        occurred_at: dsi.updated_at || dsi.created_at,
+        invoice: dsi.invoice ? {
+          id: dsi.invoice.id, invoice_number: dsi.invoice.invoice_number,
+          status: dsi.invoice.status, amount_due: parseFloat(dsi.invoice.amount_due || 0),
+          paid_date: dsi.invoice.paid_date, due_date: dsi.invoice.due_date,
+        } : null,
+      });
+    }
+
+    const linkedInvoiceIds = new Set(
+      (drawItemsRes.data || []).map(d => d.invoice_id).filter(Boolean)
+    );
+    for (const inv of (invoicesRes.data || [])) {
+      if (linkedInvoiceIds.has(inv.id)) continue;
+      const amountDue = parseFloat(inv.amount_due || 0);
+      const isOverdue = amountDue > 0 && inv.due_date && inv.due_date < todayDate;
+      let zone = 'history';
+      if (inv.status === 'paid') zone = 'history';
+      else if (isOverdue || amountDue > 0) zone = isOverdue ? 'action' : 'upcoming';
+      events.push({
+        id: 'inv-' + inv.id, source: 'invoice', source_id: inv.id,
+        label: inv.invoice_number, description: inv.invoice_number,
+        amount: parseFloat(inv.total || 0), amount_due: amountDue,
+        status: isOverdue ? 'overdue' : (inv.status || 'unpaid'),
+        due_date: inv.due_date,
+        days_overdue: isOverdue ? Math.floor((Date.now() - new Date(inv.due_date).getTime()) / 86400000) : 0,
+        zone, occurred_at: inv.paid_date || inv.sent_date || inv.created_at,
+      });
+    }
+
+    for (const co of (changeOrdersRes.data || [])) {
+      const coLabel = 'CO-' + String(co.co_number || 0).padStart(3, '0');
+      let zone = 'history';
+      if (['pending_client', 'viewed'].includes(co.status)) zone = 'action';
+      else if (co.status === 'draft') zone = 'upcoming';
+      events.push({
+        id: 'co-' + co.id, source: 'change_order', source_id: co.id,
+        label: coLabel, description: co.title,
+        amount: parseFloat(co.total_amount || 0),
+        schedule_impact_days: co.schedule_impact_days,
+        status: co.status, raw_status: co.status,
+        zone,
+        occurred_at: co.approved_at || co.sent_at || co.created_at,
+        line_items: (co.change_order_line_items || []).map(li => ({
+          description: li.description, quantity: parseFloat(li.quantity || 0),
+          unit: li.unit, unit_price: parseFloat(li.unit_price || 0),
+          amount: parseFloat(li.amount || 0),
+        })),
+      });
+    }
+
+    const drawnToDate = events
+      .filter(e => e.source === 'draw' && (e.status === 'invoiced' || e.status === 'paid'))
+      .reduce((s, e) => s + (e.gross || 0), 0);
+    const collected = events
+      .filter(e => (e.source === 'draw' && e.invoice?.status === 'paid')
+        || (e.source === 'invoice' && e.status === 'paid'))
+      .reduce((s, e) => s + (e.gross || e.amount || 0), 0);
+
+    const action = events.filter(e => e.zone === 'action')
+      .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));
+    const upcoming = events.filter(e => e.zone === 'upcoming')
+      .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at));
+    const history = events.filter(e => e.zone === 'history')
+      .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));
+
+    res.json({
+      project: {
+        id: project.id, name: project.name,
+        contract_amount: contract,
+        base_contract: baseContract,
+        contract_delta_from_cos: contract - baseContract,
+        end_date: project.end_date,
+        retainage_percent: retainagePct,
+        drawn_to_date: Number(drawnToDate.toFixed(2)),
+        collected: Number(collected.toFixed(2)),
+        outstanding: Number((contract - collected).toFixed(2)),
+        has_draw_schedule: !!drawSchedule,
+      },
+      counts: { action: action.length, upcoming: upcoming.length, history: history.length },
+      action, upcoming, history,
+    });
+  } catch (error) {
+    logger.error('[Portal] Billing rollup error:', error.message);
+    res.status(500).json({ error: 'Failed to load billing' });
+  }
+});
+
+// ============================================================
 // CHANGE ORDERS
 // ============================================================
 

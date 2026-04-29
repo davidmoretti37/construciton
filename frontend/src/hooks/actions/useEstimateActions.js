@@ -375,12 +375,13 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
       });
       const result = await res.json();
       if (result.sent) {
-        Alert.alert('Sent!', `Estimate sent to ${result.email} and available in client portal.`);
-        addMessage(`📧 Estimate ${data.estimateNumber || data.estimate_number || ''} sent to ${result.email}`);
+        const lines = ['Estimate is now available in the client portal.'];
+        if (result.portal_notified) lines.push(`In-app notification sent to ${result.portal_recipient}.`);
+        if (result.email_sent) lines.push(`Also emailed to ${result.email_recipient}.`);
+        Alert.alert('Shared to portal', lines.join('\n\n'));
+        const num = data.estimateNumber || data.estimate_number || '';
+        addMessage(`✅ Estimate ${num} shared to client portal${result.email_sent ? ` (also emailed)` : ''}`);
         return true;
-      } else if (result.error === 'no_api_key' || result.reason === 'no_email_or_key') {
-        Alert.alert('Email Not Configured', 'Email service is not set up yet.');
-        return false;
       } else {
         Alert.alert('Send Failed', result.error || 'Could not send estimate.');
         return false;

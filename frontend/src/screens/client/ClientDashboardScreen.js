@@ -13,7 +13,7 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,6 +30,7 @@ const shadowSm = { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, s
 const shadowMd = { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 4 };
 
 export default function ClientDashboardScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
@@ -357,14 +358,18 @@ export default function ClientDashboardScreen({ navigation }) {
               </View>
             )}
           />
-          <View style={styles.viewerOverlay}>
-            <SafeAreaView edges={['top']} style={styles.viewerHeader}>
-              <TouchableOpacity onPress={() => setShowViewer(false)} style={styles.viewerClose}>
+          <View style={[styles.viewerOverlay, { paddingTop: Math.max(insets.top, 20) }]}>
+            <View style={styles.viewerHeader}>
+              <TouchableOpacity
+                onPress={() => setShowViewer(false)}
+                style={styles.viewerClose}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
               <Text style={styles.viewerCount}>{viewerIndex + 1} / {photoUrls.length}</Text>
               <View style={{ width: 44 }} />
-            </SafeAreaView>
+            </View>
           </View>
         </View>
       </Modal>

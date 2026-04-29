@@ -1392,10 +1392,51 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     });
   };
 
+  // Picker for the project status badge — shows the full list of valid
+  // statuses so the owner can flip Draft → Active in one tap.
+  const showStatusPicker = () => {
+    if (isDemo) return;
+    const options = [
+      { value: 'draft',       label: 'Draft' },
+      { value: 'active',      label: 'Active' },
+      { value: 'on-track',    label: 'On Track' },
+      { value: 'behind',      label: 'Behind' },
+      { value: 'over-budget', label: 'Over Budget' },
+      { value: 'completed',   label: 'Completed' },
+      { value: 'archived',    label: 'Archived' },
+    ];
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Change Project Status',
+          options: [...options.map(o => o.label), 'Cancel'],
+          cancelButtonIndex: options.length,
+        },
+        (idx) => {
+          if (idx >= 0 && idx < options.length) {
+            const next = options[idx].value;
+            if (next !== project.status) handleStatusChange(next);
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Change Project Status', 'Pick a new status',
+        [
+          ...options.map(o => ({
+            text: o.label,
+            onPress: () => o.value !== project.status && handleStatusChange(o.value),
+          })),
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
   const handleStatusChange = (newStatus) => {
-    const labels = { completed: 'Complete', paused: 'Pause', active: 'Reopen', archived: 'Archive' };
+    const labels = { completed: 'Complete', paused: 'Pause', active: 'Reopen', archived: 'Archive', draft: 'Draft', 'on-track': 'On Track', behind: 'Behind', 'over-budget': 'Over Budget' };
     Alert.alert(
-      `${labels[newStatus]} Project?`,
+      `Change to ${labels[newStatus] || newStatus}?`,
       newStatus === 'completed'
         ? 'This will mark the project as completed and notify assigned workers.'
         : newStatus === 'archived'
@@ -1404,7 +1445,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: labels[newStatus],
+          text: labels[newStatus] || newStatus,
           onPress: async () => {
             try {
               await saveProject({ ...project, status: newStatus });
@@ -1576,10 +1617,23 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           {/* Project Identity — Static */}
           <View style={styles.heroContent}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 20 }}>
-              <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity
+                onPress={showStatusPicker}
+                disabled={isDemo}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                }}
+              >
                 <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>{project.status?.replace(/-/g, ' ') || 'Active'}</Text>
-              </View>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>
+                  {project.status?.replace(/-/g, ' ') || 'Active'}
+                </Text>
+                {!isDemo && <Ionicons name="chevron-down" size={12} color="#FFFFFF" />}
+              </TouchableOpacity>
             </View>
             {isEditing ? (
               <View style={{ paddingHorizontal: 20 }}>
@@ -2992,7 +3046,53 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   total: selectedEstimate.total || 0,
                   status: selectedEstimate.status,
                 }}
-                onAction={(action) => {
+                onAction={async (action) => {
+                  // Route share-menu actions to the same backend the chat
+                  // flow uses. Without this the modal would swallow them.
+                  if (action?.type === 'send-estimate-to-client') {
+                    try {
+                      if (!action.data?.id) {
+                        Alert.alert('Save First', 'Please save the estimate before sending to client.');
+                        return;
+                      }
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session?.access_token) {
+                        Alert.alert('Error', 'Not authenticated');
+                        return;
+                      }
+                      const { API_URL } = require('../config/api');
+                      const res = await fetch(
+                        `${API_URL}/api/portal-admin/estimates/${action.data.id}/send`,
+                        {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${session.access_token}`,
+                          },
+                        }
+                      );
+                      const result = await res.json().catch(() => ({}));
+                      if (result.sent) {
+                        const lines = ['Estimate is now available in the client portal.'];
+                        if (result.portal_notified) {
+                          lines.push(`In-app notification sent to ${result.portal_recipient}.`);
+                        }
+                        if (result.email_sent) {
+                          lines.push(`Also emailed to ${result.email_recipient}.`);
+                        } else if (!result.portal_notified) {
+                          lines.push('No client account is linked to this project yet — they\'ll see it when they sign in.');
+                        }
+                        Alert.alert('Shared to portal', lines.join('\n\n'));
+                        setShowEstimateModal(false);
+                      } else {
+                        Alert.alert('Send Failed', result.error || 'Could not send estimate.');
+                      }
+                    } catch (e) {
+                      Alert.alert('Error', e.message || 'Failed to send estimate.');
+                    }
+                    return;
+                  }
+                  // Default: close the modal for unhandled actions
                   setShowEstimateModal(false);
                 }}
               />

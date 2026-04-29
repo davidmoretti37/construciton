@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import ClientDashboardScreen from '../screens/client/ClientDashboardScreen';
-import ClientMessagesListScreen from '../screens/client/ClientMessagesListScreen';
+import ClientDocumentsTabScreen from '../screens/client/ClientDocumentsTabScreen';
 import ClientTimelineScreen from '../screens/client/ClientTimelineScreen';
 import ClientMoneyScreen from '../screens/client/ClientMoneyScreen';
 import ClientMoreScreen from '../screens/client/ClientMoreScreen';
@@ -29,7 +29,7 @@ export default function ClientTabNavigator() {
     >
       <Tab.Screen name="Home" component={ClientDashboardScreen} />
       <Tab.Screen name="Timeline" component={ClientTimelineScreen} />
-      <Tab.Screen name="Messages" component={ClientMessagesListScreen} />
+      <Tab.Screen name="Documents" component={ClientDocumentsTabScreen} />
       <Tab.Screen name="Money" component={ClientMoneyScreen} />
       <Tab.Screen name="More" component={ClientMoreScreen} />
     </Tab.Navigator>
