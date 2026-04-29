@@ -487,8 +487,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               if (isDone) {
                 await uncompleteTask(item.id);
               } else {
-                const userId = await getCurrentUserId();
-                await completeTask(item.id, userId);
+                // Don't pass the auth user id as completed_by — that column is
+                // an FK to workers.id, not auth.users.id. ScheduleView is used
+                // by both owners (no workers row) and workers (workers.id !=
+                // auth uid), so the previous code violated the FK in both
+                // cases. Worker attribution still flows through TimeClockScreen
+                // / WorkerScheduleScreen which look up workers.id properly.
+                await completeTask(item.id, null);
               }
             } catch (err) {
               // Rollback on failure

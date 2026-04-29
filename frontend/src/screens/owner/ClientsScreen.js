@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+import AuditTrail from '../../components/AuditTrail';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -190,6 +191,8 @@ export default function ClientsScreen({ navigation }) {
                   </TouchableOpacity>
                 )}
               </View>
+
+              <AuditTrail entityType="customer" entityId={client.id} />
             </View>
           ))
         )}

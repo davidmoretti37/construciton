@@ -57,6 +57,8 @@ import SkeletonCard from '../components/skeletons/SkeletonCard';
 import SkeletonBox from '../components/skeletons/SkeletonBox';
 import Animated, { FadeIn, FadeOut, FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import NotificationBell from '../components/NotificationBell';
+import InboxBell from '../components/InboxBell';
+import ReasoningTrail from '../components/ReasoningTrail';
 import OwnerHeader from '../components/OwnerHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { useSupervisorPermissions } from '../hooks/useSupervisorPermissions';
@@ -1078,6 +1080,86 @@ export default function ChatScreen({ navigation, route }) {
           const targetId = streamingMessageIdRef.current || aiMessageId;
           setMessages(prev => prev.map(msg => msg.id === targetId
             ? { ...msg, planDivergence: reason || 'Action did not match plan.' }
+            : msg));
+        },
+        // onTool — P3 streaming reasoning. Backend now ships enriched
+        // tool_start (category, risk_level, args_summary) and tool_end
+        // (duration_ms, ok). We append a running trail entry on
+        // streamed message so the chat bubble can render an inline
+        // "Foreman is doing X" list that collapses after the turn.
+        onTool: ({ event, tool, message, category, risk_level, args_summary, duration_ms, ok }) => {
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages(prev => prev.map(msg => {
+            if (msg.id !== targetId) return msg;
+            const trail = Array.isArray(msg.toolTrail) ? msg.toolTrail.slice() : [];
+            if (event === 'started') {
+              trail.push({
+                tool,
+                message,
+                category,
+                risk_level,
+                args_summary,
+                status: 'running',
+                started_at: Date.now(),
+              });
+            } else if (event === 'ended') {
+              // Find the most recent matching tool entry that's still running.
+              // Default to 'completed' when `ok` is missing/undefined — the
+              // backend used to default-emit success, and treating absent
+              // info as failure produced spurious red error indicators
+              // (the red-X bug). Only mark failed when ok === false.
+              for (let i = trail.length - 1; i >= 0; i--) {
+                if (trail[i].tool === tool && trail[i].status === 'running') {
+                  const finalStatus = ok === false ? 'failed' : 'completed';
+                  trail[i] = { ...trail[i], status: finalStatus, duration_ms };
+                  break;
+                }
+              }
+            }
+            return { ...msg, toolTrail: trail };
+          }));
+        },
+        // onStep — P2 multi-step planner events (started/completed/failed).
+        // Captured on the streaming message so the assistant bubble can
+        // render the checklist if the plan emitted steps. Phase-3
+        // ReasoningTrail renders these alongside the toolTrail.
+        onStep: ({ event, step_id, action, reason }) => {
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages(prev => prev.map(msg => {
+            if (msg.id !== targetId) return msg;
+            const steps = Array.isArray(msg.planSteps) ? msg.planSteps.slice() : [];
+            const idx = steps.findIndex(s => s.id === step_id);
+            const status = event === 'step_started' ? 'in_progress'
+              : event === 'step_completed' ? 'completed'
+              : event === 'step_failed' ? 'failed'
+              : 'pending';
+            if (idx >= 0) {
+              steps[idx] = { ...steps[idx], status, ...(reason ? { reason } : {}) };
+            } else {
+              steps.push({ id: step_id, action: action || `Step ${step_id}`, status, ...(reason ? { reason } : {}) });
+            }
+            return { ...msg, planSteps: steps };
+          }));
+        },
+        // onPendingApproval — the approval gate blocked an irreversible
+        // tool call (delete, void, send SMS, share document, etc.). The
+        // agent will follow up with an "Are you sure?" message; we attach
+        // the structured payload to the streaming message so the chat
+        // bubble can render an inline Approve / Cancel card with the
+        // exact action_summary the gate generated.
+        onPendingApproval: ({ tool, args, action_summary, risk_level, reason }) => {
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages(prev => prev.map(msg => msg.id === targetId
+            ? {
+                ...msg,
+                pendingApproval: {
+                  tool,
+                  args: args || {},
+                  action_summary: action_summary || `Run ${tool}`,
+                  risk_level: risk_level || 'write_destructive',
+                  reason: reason || '',
+                },
+              }
             : msg));
         },
         // onRetrying — the agent self-corrected. Show transparent
@@ -3650,6 +3732,7 @@ export default function ChatScreen({ navigation, route }) {
           <Ionicons name="time-outline" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
+        {/* <InboxBell onPress={() => navigation.navigate('Inbox')} /> */}
         <NotificationBell onPress={() => navigation.navigate('Notifications')} />
       </View>
 
@@ -3748,6 +3831,87 @@ export default function ChatScreen({ navigation, route }) {
                       numberOfLines={3}
                     >
                       {message.planText}
+                    </Text>
+                  ) : null}
+
+                  {/* P3: ReasoningTrail — live tool calls + step
+                      checklist. Auto-collapses 4s after the turn ends.
+                      Hidden via EXPO_PUBLIC_FOREMAN_TRANSPARENT_REASONING=false. */}
+                  {!message.isUser && (Array.isArray(message.toolTrail) || Array.isArray(message.planSteps)) ? (
+                    <ReasoningTrail
+                      toolTrail={message.toolTrail || []}
+                      planSteps={message.planSteps || []}
+                      isStreaming={message.id === streamingMessageIdRef.current}
+                      colors={Colors}
+                    />
+                  ) : null}
+
+                  {/* Approval gate: inline confirm card. Rendered when the
+                      backend's pending_approval SSE event arrived with a
+                      blocked destructive / external-write tool call. The
+                      assistant's response will explain in prose; this
+                      card gives a one-tap approve/cancel affordance. */}
+                  {!message.isUser && message.pendingApproval && !message.approvalResolved ? (
+                    <View
+                      style={{
+                        marginBottom: 8,
+                        marginLeft: 4,
+                        padding: 12,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: message.pendingApproval.risk_level === 'external_write'
+                          ? '#F59E0B'
+                          : '#EF4444',
+                        backgroundColor: message.pendingApproval.risk_level === 'external_write'
+                          ? 'rgba(245, 158, 11, 0.08)'
+                          : 'rgba(239, 68, 68, 0.08)',
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                        {message.pendingApproval.risk_level === 'external_write' ? 'Confirm send' : 'Confirm action'}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: Colors.primaryText, marginBottom: 10, lineHeight: 19 }} numberOfLines={4}>
+                        {message.pendingApproval.action_summary}
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setMessages(prev => prev.map(m => m.id === message.id ? { ...m, approvalResolved: 'cancel' } : m));
+                            handleSend('No, cancel that.');
+                          }}
+                          style={{
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            borderRadius: 18,
+                            backgroundColor: Colors.cardBackground,
+                            borderWidth: 1,
+                            borderColor: Colors.border,
+                          }}
+                        >
+                          <Text style={{ color: Colors.primaryText, fontSize: 13, fontWeight: '600' }}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setMessages(prev => prev.map(m => m.id === message.id ? { ...m, approvalResolved: 'approve' } : m));
+                            handleSend('Yes, confirm. Go ahead.');
+                          }}
+                          style={{
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            borderRadius: 18,
+                            backgroundColor: message.pendingApproval.risk_level === 'external_write' ? '#F59E0B' : '#EF4444',
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                            {message.pendingApproval.risk_level === 'external_write' ? 'Send it' : 'Confirm'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : null}
+                  {!message.isUser && message.pendingApproval && message.approvalResolved ? (
+                    <Text style={{ color: Colors.secondaryText, fontSize: 11, marginBottom: 6, marginLeft: 4, fontStyle: 'italic' }}>
+                      {message.approvalResolved === 'approve' ? '✓ Confirmed' : '✗ Cancelled'}
                     </Text>
                   ) : null}
                   {message.text && message.text.trim() !== '' && (

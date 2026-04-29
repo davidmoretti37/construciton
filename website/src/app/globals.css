@@ -1,17 +1,72 @@
 @import "tailwindcss";
 
+/* Clean Minimal design tokens — see DESIGN.md */
+:root {
+  /* Backgrounds */
+  --bg-canvas: #fafafa;
+  --bg-surface: #f5f5f5;
+  --bg-elevated: #efefef;
+
+  /* Text */
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --text-muted: #a3a3a3;
+  --text-disabled: #d4d4d4;
+
+  /* Accent */
+  --accent: #0071e3;
+  --accent-hover: #005bb5;
+  --accent-light: rgba(0, 113, 227, 0.08);
+
+  /* Borders (shadow-as-border technique) */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-standard: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.15);
+
+  /* Radii */
+  --radius-input: 8px;   /* rounded-lg */
+  --radius-card: 12px;   /* rounded-xl */
+  --radius-image: 16px;  /* rounded-2xl */
+
+  /* Shadows */
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-elevated: 0 2px 4px rgba(0, 0, 0, 0.04), 0 4px 8px rgba(0, 0, 0, 0.06), 0 8px 16px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 4px 6px rgba(0, 0, 0, 0.02), 0 12px 24px rgba(0, 0, 0, 0.06), 0 24px 48px rgba(0, 0, 0, 0.08);
+
+  /* Legacy aliases (do not use in new code — kept so existing components compile) */
+  --surface: #ffffff;
+  --surface-hover: var(--bg-surface);
+  --border: var(--border-subtle);
+  --shadow-card: var(--shadow-subtle);
+}
+
 @theme inline {
-  --color-background: #FFFFFF;
-  --color-foreground: #1F2937;
+  /* Foundation tokens mapped to Tailwind v4 theme */
+  --color-canvas: #fafafa;
+  --color-surface: #f5f5f5;
+  --color-elevated: #efefef;
+  --color-card: #ffffff;
+
+  --color-background: #fafafa;
+  --color-foreground: #171717;
+
+  --color-text-primary: #171717;
+  --color-text-secondary: #525252;
+  --color-text-muted: #a3a3a3;
+  --color-text-disabled: #d4d4d4;
+
+  --color-accent: #0071e3;
+  --color-accent-hover: #005bb5;
+
+  --color-border: rgba(0, 0, 0, 0.06);
+
+  /* Legacy color aliases retained for back-compat with existing landing/portal code */
   --color-primary: #2563EB;
   --color-cyan-accent: #06B6D4;
-  --color-surface: #F9FAFB;
   --color-surface-2: #F3F4F6;
-  --color-border: #E5E7EB;
-  --color-text-secondary: #6B7280;
-  --color-text-muted: #9CA3AF;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
 }
 
 html {
@@ -19,15 +74,18 @@ html {
 }
 
 body {
-  background: var(--color-background);
-  color: var(--color-foreground);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 ::selection {
-  background: rgba(37, 99, 235, 0.15);
-  color: #1F2937;
+  background: var(--accent-light);
+  color: var(--text-primary);
 }
+
+/* Tabular numerals for money / metrics */
+.tabular-nums { font-variant-numeric: tabular-nums; }
 
 .gradient-text {
   background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
@@ -104,6 +162,16 @@ body {
 
 .animate-fade-in-up {
   animation: fade-in-up 0.5s ease-out both;
+}
+
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes beam-rotate {
+  to { --beam-angle: 360deg; }
 }
 
 .glow-blue {

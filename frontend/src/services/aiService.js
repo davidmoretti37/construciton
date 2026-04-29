@@ -1939,7 +1939,7 @@ export const sendAgentMessage = async (
   rawAttachments = [],
   sessionId = null
 ) => {
-  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onRetrying, onAbortRef } = callbacks;
+  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onPendingApproval, onStep, onTool, onRetrying, onAbortRef } = callbacks;
   const startTime = Date.now();
 
   // Build the last user message — multipart if images are attached
@@ -1986,6 +1986,8 @@ export const sendAgentMessage = async (
     let pendingVisualElements = [];   // From backend metadata event
     let pendingActions = [];          // From backend metadata event
     let pendingToolContext = '';       // Condensed tool context for conversation memory
+    let serverError = '';              // Last error event from backend, surfaced if no text streamed
+    let toolsAttempted = [];           // Names of tools the agent ran — used for a context-aware empty fallback
 
     /**
      * Drip-feed text to UI at a smooth pace (adaptive 3-15 chars per 20ms tick).
@@ -2064,8 +2066,28 @@ export const sendAgentMessage = async (
               break;
             case 'tool_start':
               onStatus?.(event.message || `Using ${event.tool}...`);
+              if (event.tool) toolsAttempted.push(event.tool);
+              // P3: forward enriched tool start (category, risk_level,
+              // args_summary) so the reasoning trail UI can render the
+              // tool with the right icon + tint as it fires.
+              onTool?.({
+                event: 'started',
+                tool: event.tool,
+                message: event.message,
+                category: event.category,
+                risk_level: event.risk_level,
+                args_summary: event.args_summary,
+              });
               break;
             case 'tool_end':
+              // P3: forward duration + ok flag so the trail can show
+              // "✓ in 240ms" / "✗ failed in 3.4s" without inferring.
+              onTool?.({
+                event: 'ended',
+                tool: event.tool,
+                duration_ms: event.duration_ms,
+                ok: event.ok,
+              });
               break;
             case 'clear':
               // Backend says: discard text from tool call round, it's not the final response
@@ -2118,6 +2140,40 @@ export const sendAgentMessage = async (
             case 'plan_diverged':
               onPlanDiverged?.({ severity: event.severity, reason: event.reason });
               break;
+            case 'tool_blocked':
+              // Approval gate refused the tool call. The agent will
+              // respond with an "ask the user to confirm" message; we
+              // surface a status hint so the chat UI can render a small
+              // pending-confirm indicator while the assistant text streams.
+              onStatus?.('Awaiting your confirmation…');
+              break;
+            case 'pending_approval':
+              // Inline confirm card payload: tool, args, action_summary,
+              // risk_level. Frontend renders an "Approve / Cancel" card
+              // above the assistant's response. Tap-Approve sends
+              // "yes, confirm" as the next user message; tap-Cancel
+              // sends "no, cancel that".
+              onPendingApproval?.({
+                tool: event.tool,
+                args: event.args,
+                action_summary: event.action_summary,
+                risk_level: event.risk_level,
+                reason: event.reason,
+              });
+              break;
+            case 'step_started':
+            case 'step_completed':
+            case 'step_failed':
+              // P2: step lifecycle events for complex multi-step plans.
+              // Frontend rendering is deferred to P3 — capture only here
+              // so the wire format is stable and history can record state.
+              onStep?.({
+                event: event.type,
+                step_id: event.step_id,
+                action: event.action,
+                reason: event.reason,
+              });
+              break;
             case 'retrying':
               // Self-correcting agent: the verifier caught a major
               // divergence and the agent is retrying. Frontend should
@@ -2130,6 +2186,7 @@ export const sendAgentMessage = async (
               break;
             case 'error':
               logger.error('🤖 [Agent] Server error:', event.message);
+              if (event.message) serverError = event.message;
               break;
             case 'status':
               onStatus?.(event.message);
@@ -2163,8 +2220,21 @@ export const sendAgentMessage = async (
       const totalTime = Date.now() - startTime;
       logger.debug(`✅ [Agent] Complete in ${totalTime}ms`);
 
+      // Pick a fallback message that actually tells the user what happened
+      // when the model streamed no visible text. Generic "Unable to process
+      // response" was useless — see screenshot 2026-04-28.
+      const fallbackText = (() => {
+        if (displayedText) return displayedText;
+        if (serverError) return `I hit an error: ${serverError}. Try again or rephrase.`;
+        if (toolsAttempted.length > 0) {
+          const lastTool = toolsAttempted[toolsAttempted.length - 1];
+          return `I started looking that up (using ${lastTool}) but didn't finish composing a response. Try asking again, or break the request into smaller parts.`;
+        }
+        return "I didn't get a response back. Could be a connection hiccup — try resending.";
+      })();
+
       completionData = {
-        text: displayedText || 'Unable to process response',
+        text: fallbackText,
         visualElements: pendingVisualElements,
         actions: pendingActions,
         toolContext: pendingToolContext,

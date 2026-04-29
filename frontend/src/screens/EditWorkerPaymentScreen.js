@@ -132,36 +132,32 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           onPress: async () => {
             try {
               setSaving(true);
-              // Update the worker's profile role to supervisor
-              if (worker.user_id) {
-                const { error: profileError } = await supabase
-                  .from('profiles')
-                  .update({ role: 'supervisor' })
-                  .eq('id', worker.user_id);
+              // Use the SECURITY DEFINER RPC — RLS otherwise blocks the
+              // owner from updating someone else's profile, which is why
+              // the previous client-side update silently no-op'd.
+              const { data, error } = await supabase.rpc(
+                'promote_worker_to_supervisor',
+                { p_worker_id: worker.id }
+              );
 
-                if (profileError) {
-                  // Profile might not exist — try upsert
-                  const { error: upsertError } = await supabase
-                    .from('profiles')
-                    .upsert({
-                      id: worker.user_id,
-                      role: 'supervisor',
-                      owner_id: worker.owner_id,
-                      full_name: fullName,
-                      email: email,
-                    });
-                  if (upsertError) throw upsertError;
-                }
+              if (error) {
+                const msg = error.message || 'Failed to promote worker.';
+                Alert.alert('Error', msg);
+                return;
+              }
 
-                Alert.alert('Promoted', `${fullName} is now a supervisor. They'll see the supervisor view next time they open the app.`, [
-                  { text: 'OK', onPress: () => navigation.goBack() }
-                ]);
+              if (data?.success) {
+                Alert.alert(
+                  'Promoted',
+                  `${fullName} is now a supervisor. They'll see the supervisor view next time they open the app.`,
+                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                );
               } else {
-                Alert.alert('Error', 'This worker doesn\'t have a linked account yet. They need to accept their invite first.');
+                Alert.alert('Error', 'Promotion did not complete.');
               }
             } catch (e) {
               console.error('Promote error:', e);
-              Alert.alert('Error', 'Failed to promote worker.');
+              Alert.alert('Error', e?.message || 'Failed to promote worker.');
             } finally {
               setSaving(false);
             }

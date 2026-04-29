@@ -132,7 +132,7 @@ export const fetchWorkers = async () => {
 
     const { data, error } = await supabase
       .from('workers')
-      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at')
+      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at, promoted_to_supervisor')
       .in('owner_id', ownerIds)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -144,7 +144,9 @@ export const fetchWorkers = async () => {
       return [];
     }
 
-    const result = data || [];
+    // Client-side filter so this still works on DBs where the migration
+    // hasn't been applied yet (column missing → property is undefined).
+    const result = (data || []).filter(w => w.promoted_to_supervisor !== true);
     cacheData('workers', result);
     return result;
   } catch (error) {
@@ -1228,7 +1230,7 @@ export const fetchWorkersForOwner = async () => {
 
     const { data, error } = await supabase
       .from('workers')
-      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at')
+      .select('id, full_name, trade, phone, email, hourly_rate, payment_type, daily_rate, weekly_salary, project_rate, status, user_id, owner_id, is_onboarded, created_at, updated_at, promoted_to_supervisor')
       .in('owner_id', allIds)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -1240,14 +1242,17 @@ export const fetchWorkersForOwner = async () => {
       return [];
     }
 
-    // Add supervisor name to each worker for attribution
-    const result = (data || []).map(w => ({
-      ...w,
-      supervisor_name: w.owner_id === context.userId
-        ? 'You (Owner)'
-        : (supervisorNames[w.owner_id] || 'Unknown Supervisor'),
-      supervisor_id: w.owner_id,
-    }));
+    // Filter out promoted workers client-side so this works even if the
+    // migration that added promoted_to_supervisor isn't applied yet.
+    const result = (data || [])
+      .filter(w => w.promoted_to_supervisor !== true)
+      .map(w => ({
+        ...w,
+        supervisor_name: w.owner_id === context.userId
+          ? 'You (Owner)'
+          : (supervisorNames[w.owner_id] || 'Unknown Supervisor'),
+        supervisor_id: w.owner_id,
+      }));
     cacheData('workers_owner', result);
     return result;
   } catch (error) {

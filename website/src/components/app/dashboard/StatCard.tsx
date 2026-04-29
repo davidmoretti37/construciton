@@ -1,35 +1,63 @@
+import { cn } from "@/lib/cn";
+
+type DeltaTone = "positive" | "negative" | "neutral";
+
 interface Props {
   label: string;
-  value: string;
-  color?: string;
-  sub?: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  delta?: { value: string; tone?: DeltaTone };
+  children?: React.ReactNode;
+  className?: string;
+  href?: string;
 }
 
-const colorMap: Record<string, string> = {
-  green: "text-emerald-500",
-  red: "text-red-500",
-  blue: "text-[#1E40AF]",
-  gray: "text-gray-900",
+const deltaStyles: Record<DeltaTone, string> = {
+  positive: "bg-[#34c759]/10 text-[#1d8a3a]",
+  negative: "bg-[#ff3b30]/10 text-[#c5251c]",
+  neutral: "bg-[#f5f5f7] text-[#6e6e73]",
 };
 
-const dotMap: Record<string, string> = {
-  green: "bg-emerald-500",
-  red: "bg-red-500",
-  blue: "bg-[#1E40AF]",
-  gray: "bg-gray-400",
-};
-
-export default function StatCard({ label, value, color = "gray", sub }: Props) {
+export default function StatCard({
+  label,
+  value,
+  sub,
+  delta,
+  children,
+  className = "",
+}: Props) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5">
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`w-2 h-2 rounded-full ${dotMap[color] || dotMap.gray}`} />
-        <span className="text-[11px] text-gray-400 uppercase tracking-wider font-medium">{label}</span>
+    <div
+      className={cn(
+        "bg-white ring-1 ring-[#e5e5ea] rounded-2xl p-5",
+        "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_1px_3px_rgba(0,0,0,0.06)]",
+        "hover:shadow-[0_2px_4px_rgba(0,0,0,0.04),0_4px_8px_rgba(0,0,0,0.06),0_8px_16px_rgba(0,0,0,0.04)]",
+        "transition-shadow duration-200",
+        className
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868b]">
+          {label}
+        </span>
+        {delta && (
+          <span
+            className={cn(
+              "inline-flex items-center h-5 px-1.5 rounded-full text-[10px] font-medium font-mono tabular-nums",
+              deltaStyles[delta.tone ?? "neutral"]
+            )}
+          >
+            {delta.value}
+          </span>
+        )}
       </div>
-      <p className={`text-[28px] font-bold leading-tight ${colorMap[color] || colorMap.gray}`}>
+      <p className="mt-2 font-mono text-[32px] font-semibold tabular-nums leading-none text-[#1d1d1f]">
         {value}
       </p>
-      {sub && <p className="text-[11px] text-gray-400 mt-1">{sub}</p>}
+      {sub && (
+        <p className="mt-1.5 text-[12px] text-[#6e6e73]">{sub}</p>
+      )}
+      {children && <div className="mt-3">{children}</div>}
     </div>
   );
 }

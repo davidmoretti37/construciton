@@ -18,6 +18,7 @@ import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../con
 import { useTheme } from '../contexts/ThemeContext';
 import { getWorkerClockInHistory, getWorkerStats, getActiveClockIn, calculateWorkerPaymentForPeriod } from '../utils/storage';
 import { remoteClockOutWorker } from '../utils/storage/timeTracking';
+import { getCurrentUserContext } from '../utils/storage/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import DateRangePicker from '../components/DateRangePicker';
@@ -79,6 +80,45 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const [clockOutLoading, setClockOutLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+
+  // Supervisors only see payment info when the owner has granted
+  // can_pay_workers; can_manage_workers controls whether the in-line
+  // edit/clock-out controls show. Owners see everything.
+  const [viewer, setViewer] = useState({
+    isOwner: true,
+    canPay: true,
+    canManage: true,
+    loaded: false,
+  });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const ctx = await getCurrentUserContext();
+        if (!ctx) { setViewer(v => ({ ...v, loaded: true })); return; }
+        if (ctx.isOwner) {
+          setViewer({ isOwner: true, canPay: true, canManage: true, loaded: true });
+          return;
+        }
+        const { data: perms } = await supabase
+          .from('profiles')
+          .select('can_pay_workers, can_manage_workers')
+          .eq('id', ctx.userId)
+          .single();
+        setViewer({
+          isOwner: false,
+          canPay: !!perms?.can_pay_workers,
+          canManage: !!perms?.can_manage_workers,
+          loaded: true,
+        });
+      } catch {
+        setViewer(v => ({ ...v, loaded: true }));
+      }
+    })();
+  }, []);
+
+  const canSeePayment = viewer.isOwner || viewer.canPay;
+  const canEditTime = viewer.isOwner || viewer.canManage;
 
   const handleClockOutWorker = () => {
     Alert.alert(
@@ -326,12 +366,16 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{worker.full_name}</Text>
-        <TouchableOpacity
-          style={{ padding: 4 }}
-          onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
-        >
-          <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
-        </TouchableOpacity>
+        {canEditTime ? (
+          <TouchableOpacity
+            style={{ padding: 4 }}
+            onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
+          >
+            <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 30 }} />
+        )}
       </View>
 
       <ScrollView
@@ -399,37 +443,41 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Payment Details */}
+          {/* Stats / Payment Details — rate fields are payment-gated */}
           <View style={{ backgroundColor: Colors.lightGray, borderRadius: 12, padding: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Ionicons name="wallet-outline" size={18} color={Colors.primaryBlue} />
+              <Ionicons name={canSeePayment ? 'wallet-outline' : 'time-outline'} size={18} color={Colors.primaryBlue} />
               <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.primaryText, marginLeft: 6 }}>
-                {t('history.paymentInfo')}
+                {canSeePayment ? t('history.paymentInfo') : t('history.workSummary', 'Work Summary')}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {/* Payment Type */}
-              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
-                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.type')}</Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
-                  {worker.payment_type === 'hourly' ? t('history.hourly') :
-                   worker.payment_type === 'daily' ? t('history.daily') :
-                   worker.payment_type === 'weekly' ? t('history.weekly') :
-                   worker.payment_type === 'project_based' ? t('history.perProject') : t('history.notSet')}
-                </Text>
-              </View>
+              {canSeePayment && (
+                <>
+                  {/* Payment Type */}
+                  <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                    <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.type')}</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                      {worker.payment_type === 'hourly' ? t('history.hourly') :
+                       worker.payment_type === 'daily' ? t('history.daily') :
+                       worker.payment_type === 'weekly' ? t('history.weekly') :
+                       worker.payment_type === 'project_based' ? t('history.perProject') : t('history.notSet')}
+                    </Text>
+                  </View>
 
-              {/* Rate */}
-              <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
-                <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.rate')}</Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryBlue }}>
-                  {worker.payment_type === 'hourly' && worker.hourly_rate ? `$${Number(worker.hourly_rate).toFixed(2)}${t('workerDetails.perHour')}` :
-                   worker.payment_type === 'daily' && worker.daily_rate ? `$${Number(worker.daily_rate).toFixed(2)}${t('workerDetails.perDay')}` :
-                   worker.payment_type === 'weekly' && worker.weekly_salary ? `$${Number(worker.weekly_salary).toFixed(2)}${t('workerDetails.perWeek')}` :
-                   worker.payment_type === 'project_based' && worker.project_rate ? `$${Number(worker.project_rate).toFixed(2)}${t('workerDetails.perProject')}` :
-                   t('history.notSet')}
-                </Text>
-              </View>
+                  {/* Rate */}
+                  <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
+                    <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.rate')}</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryBlue }}>
+                      {worker.payment_type === 'hourly' && worker.hourly_rate ? `$${Number(worker.hourly_rate).toFixed(2)}${t('workerDetails.perHour')}` :
+                       worker.payment_type === 'daily' && worker.daily_rate ? `$${Number(worker.daily_rate).toFixed(2)}${t('workerDetails.perDay')}` :
+                       worker.payment_type === 'weekly' && worker.weekly_salary ? `$${Number(worker.weekly_salary).toFixed(2)}${t('workerDetails.perWeek')}` :
+                       worker.payment_type === 'project_based' && worker.project_rate ? `$${Number(worker.project_rate).toFixed(2)}${t('workerDetails.perProject')}` :
+                       t('history.notSet')}
+                    </Text>
+                  </View>
+                </>
+              )}
 
               {/* Hours This Week */}
               <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
@@ -456,23 +504,25 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
             </Text>
           )}
 
-          {/* Edit Worker Button */}
-          <TouchableOpacity
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#1E40AF15',
-              borderRadius: 8,
-              paddingVertical: 8,
-              marginTop: 12,
-              gap: 6,
-            }}
-            onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
-          >
-            <Ionicons name="create-outline" size={15} color="#1E40AF" />
-            <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit Info</Text>
-          </TouchableOpacity>
+          {/* Edit Worker Button — owner or supervisor with can_manage_workers */}
+          {canEditTime && (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#1E40AF15',
+                borderRadius: 8,
+                paddingVertical: 8,
+                marginTop: 12,
+                gap: 6,
+              }}
+              onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
+            >
+              <Ionicons name="create-outline" size={15} color="#1E40AF" />
+              <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>Edit Info</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Active Session */}
@@ -529,21 +579,23 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                   </Text>
                 </View>
               )}
-              {/* Clock Out Button */}
-              <TouchableOpacity
-                style={styles.clockOutButton}
-                onPress={handleClockOutWorker}
-                disabled={clockOutLoading}
-              >
-                {clockOutLoading ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <>
-                    <Ionicons name="log-out-outline" size={18} color="#FFF" />
-                    <Text style={styles.clockOutButtonText}>Clock Out</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {/* Clock Out Button — owner or supervisor with can_manage_workers */}
+              {canEditTime && (
+                <TouchableOpacity
+                  style={styles.clockOutButton}
+                  onPress={handleClockOutWorker}
+                  disabled={clockOutLoading}
+                >
+                  {clockOutLoading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="log-out-outline" size={18} color="#FFF" />
+                      <Text style={styles.clockOutButtonText}>Clock Out</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -555,8 +607,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           onRangeChange={handleRangeChange}
         />
 
-        {/* Payment Summary */}
-        {loadingPayment ? (
+        {/* Payment Summary — only shown when viewer can see payment info */}
+        {!canSeePayment ? null : loadingPayment ? (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <ActivityIndicator size="small" color={Colors.primaryBlue} />
           </View>
@@ -753,8 +805,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                               <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>{t('history.active')}</Text>
                             </View>
                           )}
-                          {/* Edit button for completed entries */}
-                          {session.clock_out && (
+                          {/* Edit button for completed entries — owner or supervisor with can_manage_workers */}
+                          {session.clock_out && canEditTime && (
                             <TouchableOpacity
                               style={{ padding: 2 }}
                               onPress={() => handleEditTimeRecord(session)}
@@ -810,7 +862,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           loadPaymentData();
         }}
         record={editingRecord}
-        isSupervisor={false}
+        isSupervisor={!viewer.isOwner}
       />
     </SafeAreaView>
   );

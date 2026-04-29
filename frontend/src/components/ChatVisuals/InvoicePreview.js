@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
-import { generateInvoiceHTML } from '../../utils/pdfGenerator';
+import { generateInvoiceHTML, enrichBusinessInfoWithTemplate } from '../../utils/pdfGenerator';
 import { getUserProfile } from '../../utils/storage';
 
 export default function InvoicePreview({ data, onAction }) {
@@ -107,7 +107,10 @@ export default function InvoicePreview({ data, onAction }) {
   const handlePreviewPDF = useCallback(async () => {
     try {
       const userProfile = await getUserProfile();
-      const html = generateInvoiceHTML(data, userProfile?.businessInfo || {});
+      // Merge in the user's chosen invoice_template (style, logo, etc.) so
+      // the preview matches what the actual PDF will render.
+      const enriched = await enrichBusinessInfoWithTemplate(userProfile?.businessInfo || {});
+      const html = generateInvoiceHTML(data, enriched);
       setPreviewHTML(html);
       setShowPreview(true);
     } catch (error) {

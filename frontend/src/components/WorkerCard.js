@@ -72,7 +72,7 @@ export default function WorkerCard({ worker, onPress, isClocked = false, hidePay
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: Colors.white }]}
+      style={[styles.card, { backgroundColor: Colors.white, borderColor: Colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -136,11 +136,12 @@ const createStyles = (Colors) => StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     overflow: 'hidden',
-    elevation: 2,
+    borderWidth: 1,
+    elevation: 1,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
   content: {
     flex: 1,

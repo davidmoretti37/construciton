@@ -119,3 +119,62 @@ export const showSendOptions = (phoneNumber, estimateText) => {
     { cancelable: true }
   );
 };
+
+/**
+ * Open native SMS composer with the signing URL pre-filled.
+ */
+export const sendSignatureLinkViaSMS = async (phoneNumber, signingUrl, documentTitle = '') => {
+  const body = documentTitle
+    ? `Please sign the ${documentTitle}: ${signingUrl}`
+    : `Please review and sign: ${signingUrl}`;
+  return sendEstimateViaSMS(phoneNumber, body);
+};
+
+/**
+ * Open WhatsApp with the signing URL pre-filled.
+ */
+export const sendSignatureLinkViaWhatsApp = async (phoneNumber, signingUrl, documentTitle = '') => {
+  const body = documentTitle
+    ? `Please sign the ${documentTitle}: ${signingUrl}`
+    : `Please review and sign: ${signingUrl}`;
+  return sendEstimateViaWhatsApp(phoneNumber, body);
+};
+
+/**
+ * Show send-options sheet for a signature link.
+ * If no phone is provided, only Copy/Cancel are offered.
+ */
+export const showSignatureSendOptions = (phoneNumber, signingUrl, documentTitle = '') => {
+  const buttons = [];
+  if (phoneNumber && isValidPhoneNumber(phoneNumber)) {
+    buttons.push({
+      text: 'SMS',
+      onPress: () => sendSignatureLinkViaSMS(phoneNumber, signingUrl, documentTitle),
+    });
+    buttons.push({
+      text: 'WhatsApp',
+      onPress: () => sendSignatureLinkViaWhatsApp(phoneNumber, signingUrl, documentTitle),
+    });
+  }
+  buttons.push({
+    text: 'Copy link',
+    onPress: () => {
+      try {
+        // eslint-disable-next-line global-require
+        const { Clipboard } = require('react-native');
+        Clipboard.setString?.(signingUrl);
+        Alert.alert('Link copied', 'Paste it anywhere to share.');
+      } catch (_) {
+        Alert.alert('Signing link', signingUrl);
+      }
+    },
+  });
+  buttons.push({ text: 'Cancel', style: 'cancel' });
+
+  Alert.alert(
+    'Send signing link',
+    documentTitle ? `Share the link to sign ${documentTitle}.` : 'Share the link with the signer.',
+    buttons,
+    { cancelable: true }
+  );
+};

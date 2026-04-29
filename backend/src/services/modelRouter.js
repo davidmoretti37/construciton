@@ -30,7 +30,7 @@ const usageStats = {
 // Approximate pricing per 1M tokens (OpenRouter rates)
 const PRICING = {
   'claude-haiku-4.5': { input: 0.80, output: 4.00 },
-  'claude-sonnet-4.5': { input: 3.00, output: 15.00 },
+  'claude-sonnet-4.6': { input: 3.00, output: 15.00 },
 };
 
 /**
@@ -76,7 +76,7 @@ function selectModel(toolCount, conversationHistory = []) {
   if (toolCount >= TOOL_THRESHOLD) {
     logger.info(`🧠 Selecting Sonnet: ${toolCount} tools needed (threshold: ${TOOL_THRESHOLD})`);
     return {
-      model: 'claude-sonnet-4.5',
+      model: 'claude-sonnet-4.6',
       reason: `Complex query (${toolCount} tools, threshold: ${TOOL_THRESHOLD})`,
       toolCount
     };
@@ -99,7 +99,7 @@ function selectModel(toolCount, conversationHistory = []) {
   if (recentErrors.length >= ERROR_THRESHOLD) {
     logger.info(`🔄 Switching to Sonnet: ${recentErrors.length} recent errors detected`);
     return {
-      model: 'claude-sonnet-4.5',
+      model: 'claude-sonnet-4.6',
       reason: `Fallback after ${recentErrors.length} errors`,
       toolCount
     };

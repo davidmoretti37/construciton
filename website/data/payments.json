@@ -1,0 +1,11 @@
+[
+  {
+    "id": "evt_test",
+    "type": "checkout.session.completed",
+    "amount": 2000,
+    "currency": "usd",
+    "customerEmail": "a@b.com",
+    "status": "complete",
+    "receivedAt": "2026-04-28T20:17:01.550Z"
+  }
+]

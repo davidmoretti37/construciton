@@ -20,6 +20,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { fetchEstimates, updateEstimate } from '../../utils/storage';
 import { createProjectFromEstimate } from '../../utils/storage/estimates';
 import EstimatePreview from '../../components/ChatVisuals/EstimatePreview';
+import AuditTrail from '../../components/AuditTrail';
+import SignatureSection from '../../components/SignatureSection';
 import { supabase } from '../../lib/supabase';
 
 export default function EstimatesDetailScreen({ navigation, route }) {
@@ -345,6 +347,20 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                   }
                 }}
               />
+            )}
+            {/* E-signature UI disabled — re-enable when backend is deployed.
+            {selectedEstimate?.id && (
+              <SignatureSection
+                documentType="estimate"
+                documentId={selectedEstimate.id}
+                defaultSignerName={selectedEstimate.client_name || selectedEstimate.clientName}
+                defaultSignerEmail={selectedEstimate.client_email || selectedEstimate.clientEmail}
+                defaultSignerPhone={selectedEstimate.client_phone || selectedEstimate.clientPhone}
+              />
+            )}
+            */}
+            {selectedEstimate?.id && (
+              <AuditTrail entityType="estimate" entityId={selectedEstimate.id} />
             )}
             <View style={{ height: 40 }} />
           </ScrollView>

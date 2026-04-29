@@ -531,8 +531,8 @@ export default function OwnerSettingsScreen() {
           <MenuItem
             icon="color-palette-outline"
             iconColor={OWNER_COLORS.accent}
-            title={t('items.invoiceTemplate', 'Invoice Template')}
-            subtitle={t('items.invoiceTemplateSubtitle', 'Logo, business info, terms')}
+            title={t('items.invoiceTemplate', 'Invoice & Estimate Template')}
+            subtitle={t('items.invoiceTemplateSubtitle', 'Style, logo, and business info — applied to both')}
             onPress={() => navigation.navigate('InvoiceTemplate')}
             isLast
           />
@@ -571,6 +571,21 @@ export default function OwnerSettingsScreen() {
             title={t('items.trackTransactions', 'Bank & Transactions')}
             subtitle={t('items.trackTransactionsSubtitle', 'Connect your bank or card')}
             onPress={() => navigation.navigate('BankConnection')}
+            isLast
+          />
+        </View>
+
+        {/* ────────────────── INTEGRATIONS (P12) ────────────────── */}
+        <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+          {t('sections.integrations', 'INTEGRATIONS')}
+        </Text>
+        <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
+          <MenuItem
+            icon="extension-puzzle-outline"
+            iconColor={OWNER_COLORS.accent}
+            title={t('items.integrations', 'Integrations')}
+            subtitle={t('items.integrationsSubtitle', 'Connect Gmail, QuickBooks, Calendar, and more')}
+            onPress={() => navigation.navigate('Integrations')}
             isLast
           />
         </View>

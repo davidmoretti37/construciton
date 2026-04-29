@@ -76,69 +76,88 @@ serve(async (req) => {
       body += ` (${photoCount} photo${photoCount > 1 ? 's' : ''})`
     }
 
-    // Check owner's notification preferences using the shared gate. The
-    // previous in-line block correctly checked push_daily_reports for push,
-    // but it ALWAYS inserted the in-app row regardless of the user's
-    // inapp_* preference — so toggling "Worker Reports" off in Settings
-    // had no effect on the notifications inbox.
-    const { data: prefs } = await supabase
-      .from('notification_preferences')
-      .select(PREFS_COLUMNS)
-      .eq('user_id', worker.owner_id)
-      .single()
+    // Send to one recipient: respects their notification_preferences row for
+    // both push and in-app, and falls back to safe defaults if none exists.
+    const notifyUser = async (recipientId: string) => {
+      const { data: prefs } = await supabase
+        .from('notification_preferences')
+        .select(PREFS_COLUMNS)
+        .eq('user_id', recipientId)
+        .single()
 
-    const pushAllowed = shouldSendPush(prefs, NOTIFICATION_TYPE)
-    const inAppAllowed = shouldCreateInApp(prefs, NOTIFICATION_TYPE)
+      const pushAllowed = shouldSendPush(prefs, NOTIFICATION_TYPE)
+      const inAppAllowed = shouldCreateInApp(prefs, NOTIFICATION_TYPE)
 
-    // Create in-app notification only when user allows it.
-    if (inAppAllowed) {
-      await supabase.from('notifications').insert({
-        user_id: worker.owner_id,
-        title,
-        body,
-        type: NOTIFICATION_TYPE,
-        icon: 'document-text',
-        color: '#10B981',
-        action_data: {
-          screen: 'DailyReportDetail',
-          params: { reportId: report.id },
-        },
-        project_id: report.project_id,
-        worker_id: worker.id,
-        daily_report_id: report.id,
-      })
-    }
-
-    // Send push notification if enabled
-    if (pushAllowed) {
-      const { data: tokens } = await supabase
-        .from('push_tokens')
-        .select('expo_push_token')
-        .eq('user_id', worker.owner_id)
-        .eq('is_active', true)
-
-      if (tokens && tokens.length > 0) {
-        const messages = tokens.map(t => ({
-          to: t.expo_push_token,
+      if (inAppAllowed) {
+        await supabase.from('notifications').insert({
+          user_id: recipientId,
           title,
           body,
-          sound: 'default',
-          data: {
-            type: 'daily_report_submitted',
+          type: NOTIFICATION_TYPE,
+          icon: 'document-text',
+          color: '#10B981',
+          action_data: {
             screen: 'DailyReportDetail',
             params: { reportId: report.id },
           },
-          channelId: 'workers',
-        }))
-
-        await fetch(EXPO_PUSH_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify(messages),
+          project_id: report.project_id,
+          worker_id: worker.id,
+          daily_report_id: report.id,
         })
+      }
+
+      if (pushAllowed) {
+        const { data: tokens } = await supabase
+          .from('push_tokens')
+          .select('expo_push_token')
+          .eq('user_id', recipientId)
+          .eq('is_active', true)
+
+        if (tokens && tokens.length > 0) {
+          const messages = tokens.map(t => ({
+            to: t.expo_push_token,
+            title,
+            body,
+            sound: 'default',
+            data: {
+              type: 'daily_report_submitted',
+              screen: 'DailyReportDetail',
+              params: { reportId: report.id },
+            },
+            channelId: 'workers',
+          }))
+
+          await fetch(EXPO_PUSH_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(messages),
+          })
+        }
+      }
+    }
+
+    // Owner always gets notified.
+    await notifyUser(worker.owner_id)
+
+    // Fan out to assigned supervisor when present, distinct from owner, and
+    // granted can_manage_workers by the owner.
+    const { data: projWithSup } = await supabase
+      .from('projects')
+      .select('assigned_supervisor_id')
+      .eq('id', report.project_id)
+      .single()
+    const supId = projWithSup?.assigned_supervisor_id
+    if (supId && supId !== worker.owner_id) {
+      const { data: sup } = await supabase
+        .from('profiles')
+        .select('can_manage_workers')
+        .eq('id', supId)
+        .single()
+      if (sup?.can_manage_workers) {
+        await notifyUser(supId)
       }
     }
 

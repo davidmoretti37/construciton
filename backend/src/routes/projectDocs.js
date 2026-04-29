@@ -17,6 +17,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { authenticateUser } = require('../middleware/authenticate');
+const { auditLog } = require('../middleware/auditLog');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -26,6 +27,8 @@ const supabase = createClient(
 const BUCKET = 'project-docs';
 
 router.use(authenticateUser);
+
+const auditDocument = auditLog({ entityType: 'document', table: 'project_documents' });
 
 async function userOwnsProject(userId, projectId) {
   const { data, error } = await supabase
@@ -49,7 +52,7 @@ async function userCanAccessDocument(userId, documentId) {
   return null;
 }
 
-router.post('/upload', async (req, res) => {
+router.post('/upload', auditLog({ entityType: 'document', table: 'project_documents', action: 'create', skipBefore: true }), async (req, res) => {
   try {
     const userId = req.user.id;
     const { projectId, fileName, mimeType, base64, kind } = req.body || {};
@@ -179,7 +182,7 @@ router.get('/:id/signed-url', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auditDocument, async (req, res) => {
   try {
     const userId = req.user.id;
     const doc = await userCanAccessDocument(userId, req.params.id);

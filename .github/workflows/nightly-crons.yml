@@ -1,0 +1,75 @@
+name: Nightly crons
+
+on:
+  schedule:
+    # 06:00 UTC = ~02:00 EST. After most owners' day ends, before they wake up.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Which script to run (or "all")'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - patterns
+          - business-profile
+          - domain-search
+
+jobs:
+  crons:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: ./backend
+
+      # P9 — patterns. Reads each owner's data, computes 6 business
+      # patterns (margin, duration, payment days, busiest day, top
+      # category, active workers), upserts to user_memory_facts.
+      - name: P9 — compute patterns
+        if: ${{ github.event.inputs.script == '' || github.event.inputs.script == 'all' || github.event.inputs.script == 'patterns' }}
+        run: node scripts/compute-patterns.js
+        working-directory: ./backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # P10 — auto business profile. Aggregates business signals
+      # (team, projects, patterns) and asks Haiku for a 4-6 sentence
+      # paragraph. Stored on profiles.auto_business_profile, injected
+      # into Foreman's system prompt next chat.
+      - name: P10 — compute business profile
+        if: ${{ github.event.inputs.script == '' || github.event.inputs.script == 'all' || github.event.inputs.script == 'business-profile' }}
+        run: node scripts/compute-business-profile.js
+        working-directory: ./backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      # P11 — domain search index. Walks projects + clients, embeds
+      # compact summaries to domain_search_index. Foreman recalls
+      # relevant entities every turn alongside chat memory + facts.
+      - name: P11 — index domain search
+        if: ${{ github.event.inputs.script == '' || github.event.inputs.script == 'all' || github.event.inputs.script == 'domain-search' }}
+        run: node scripts/index-domain-search.js
+        working-directory: ./backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

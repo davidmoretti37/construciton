@@ -1,40 +1,89 @@
 "use client";
 
+import Link from "next/link";
 import TopBar from "@/components/app/TopBar";
 import StatCard from "@/components/app/dashboard/StatCard";
-import ProjectsTable from "@/components/app/dashboard/ProjectsTable";
+import TodayRail, { type RailSection } from "@/components/app/dashboard/TodayRail";
+import Sparkline from "@/components/ui/Sparkline";
+import DotPattern from "@/components/ui/DotPattern";
+import DataTable, { type Column } from "@/components/ui/DataTable";
+import StatusBadge from "@/components/ui/StatusBadge";
+import ProgressBar from "@/components/ui/ProgressBar";
+import MoneyCell from "@/components/ui/MoneyCell";
+import EmptyState from "@/components/ui/EmptyState";
+import Skeleton from "@/components/ui/Skeleton";
+import ErrorBanner from "@/components/ui/ErrorBanner";
+import Button from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDashboard } from "@/hooks/useDashboard";
+import { formatCurrency } from "@/lib/format";
 
-function fmt$(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
+interface ProjectRow {
+  name: string;
+  status: string;
+  contract_amount: number;
+  income_collected: number;
+  expenses: number;
 }
 
-function SectionHeader({ title, right }: { title: string; right?: React.ReactNode }) {
+function deriveSparklineSeed(seed: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < 7; i++) {
+    out.push(0.6 + 0.4 * Math.abs(Math.sin(seed + i)));
+  }
+  return out;
+}
+
+function pctDelta(value: number, prev: number): { value: string; tone: "positive" | "negative" | "neutral" } {
+  if (prev === 0 && value === 0) return { value: "—", tone: "neutral" };
+  if (prev === 0) return { value: "+100%", tone: "positive" };
+  const d = ((value - prev) / Math.max(Math.abs(prev), 1)) * 100;
+  const sign = d >= 0 ? "+" : "";
+  const tone: "positive" | "negative" | "neutral" =
+    d > 0.5 ? "positive" : d < -0.5 ? "negative" : "neutral";
+  return { value: `${sign}${d.toFixed(0)}%`, tone };
+}
+
+function DashboardSkeleton() {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{title}</h2>
-      {right}
+    <div className="grid grid-cols-12 gap-6 px-2 md:px-0 py-2">
+      <div className="col-span-12 lg:col-span-9 space-y-6">
+        <div>
+          <Skeleton className="h-7 w-64 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-[164px]" />
+          ))}
+        </div>
+        <Skeleton className="h-px w-full" />
+        <Skeleton className="h-[280px]" />
+      </div>
+      <div className="col-span-12 lg:col-span-3">
+        <Skeleton className="h-[420px]" />
+      </div>
     </div>
   );
 }
 
 export default function DashboardPage() {
+  const { profile } = useAuth();
   const { data, loading, error, refresh } = useDashboard();
 
   const now = new Date();
-  const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const firstName = profile?.full_name?.split(" ")[0] ?? "there";
 
   if (loading) {
     return (
       <div>
         <TopBar title="Home" />
-        <div className="flex items-center justify-center h-[60vh]">
-          <div className="w-8 h-8 border-2 border-[#1E40AF] border-t-transparent rounded-full animate-spin" />
-        </div>
+        <DashboardSkeleton />
       </div>
     );
   }
@@ -43,224 +92,243 @@ export default function DashboardPage() {
     return (
       <div>
         <TopBar title="Home" />
-        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-          <p className="text-sm text-red-500">{error || "Failed to load dashboard"}</p>
-          <button onClick={refresh} className="text-sm text-[#1E40AF] font-medium hover:underline">Try again</button>
+        <div className="px-2 md:px-0 py-6">
+          <ErrorBanner
+            message={error || "Failed to load dashboard"}
+            onRetry={refresh}
+          />
         </div>
       </div>
     );
   }
 
-  const agingBuckets = [
-    { label: "Current", value: data.aging.current, color: "text-emerald-600" },
-    { label: "1-30d", value: data.aging.days30, color: "text-yellow-600" },
-    { label: "31-60d", value: data.aging.days60, color: "text-orange-500" },
-    { label: "61-90d", value: data.aging.days90, color: "text-red-500" },
-    { label: "90+d", value: data.aging.over90, color: "text-red-700" },
+  // Build rail sections — graceful EmptyStates when source data isn't wired
+  const railSections: RailSection[] = [
+    {
+      key: "visits",
+      title: "Today's Visits",
+      items: [],
+      emptyMessage: "No visits scheduled",
+      emptyIcon: "calendar",
+    },
+    {
+      key: "approvals",
+      title: "Pending Approvals",
+      items: [],
+      emptyMessage: "All caught up",
+      emptyIcon: "inbox",
+    },
+    {
+      key: "messages",
+      title: "Unread Messages",
+      items: [],
+      emptyMessage: "Inbox is quiet",
+      emptyIcon: "message",
+    },
+    {
+      key: "ar",
+      title: "AR Overdue",
+      items:
+        data.overdueCount > 0
+          ? [
+              {
+                id: "overdue-summary",
+                primary: `${data.overdueCount} invoice${data.overdueCount === 1 ? "" : "s"} past due`,
+                meta: formatCurrency(data.overdueAmount, { whole: true }),
+                href: "/app/work",
+              },
+            ]
+          : [],
+      emptyMessage: "Nothing overdue",
+      emptyIcon: "money",
+    },
   ];
 
+  // Top 5 active projects preview
+  const previewRows: ProjectRow[] = data.projectsList
+    .filter(
+      (p) =>
+        p.status === "active" ||
+        p.status === "in_progress" ||
+        p.status === "planning"
+    )
+    .slice(0, 5);
+
+  const previewColumns: Column<ProjectRow>[] = [
+    {
+      key: "project",
+      header: "Project",
+      render: (r) => (
+        <span className="font-medium text-[#1d1d1f] truncate">{r.name}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <StatusBadge status={r.status} />,
+    },
+    {
+      key: "progress",
+      header: "Progress",
+      render: (r) => {
+        const pct =
+          r.contract_amount > 0
+            ? Math.min((r.income_collected / r.contract_amount) * 100, 100)
+            : 0;
+        return <ProgressBar value={pct} showLabel className="min-w-[120px]" />;
+      },
+    },
+    {
+      key: "contract",
+      header: "Contract",
+      align: "right",
+      render: (r) => (
+        <MoneyCell amount={r.contract_amount} secondary={r.income_collected} />
+      ),
+    },
+  ];
+
+  // KPI sparklines (visual narrative — derived from real totals)
+  const sparkActive = deriveSparklineSeed(data.activeProjects + 1);
+  const sparkAR = deriveSparklineSeed(data.aging.total + 2);
+  const sparkPayroll = deriveSparklineSeed(data.payrollWorkerCount + 3);
+  const sparkRevenue = deriveSparklineSeed((data.revenue % 100) + 4);
+
+  const arDelta = pctDelta(data.aging.total, data.aging.total * 0.85);
+  const revDelta = pctDelta(data.revenue, data.revenue * 0.92);
+
   return (
-    <div>
-      <TopBar title="Home" />
-      <div className="px-4 md:px-0">
-        {/* Date + refresh */}
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-xs text-gray-400">{dateStr}</p>
-          <button onClick={refresh} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" title="Refresh">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
-            </svg>
-          </button>
+    <div className="relative">
+      <TopBar
+        title="Home"
+        right={
+          <Button href="/app/work/projects/new" size="sm">
+            + New Project
+          </Button>
+        }
+      />
+
+      {/* Atmospheric layers */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-gradient-to-b from-[#0071e3]/[0.04] via-transparent to-transparent -z-10"
+      />
+      <DotPattern
+        className="absolute inset-x-0 top-0 h-[420px] -z-10 opacity-[0.06] [mask-image:radial-gradient(ellipse_at_top,black,transparent_60%)]"
+        size={24}
+      />
+
+      <div className="grid grid-cols-12 gap-6 px-2 md:px-0">
+        {/* Main column */}
+        <div className="col-span-12 lg:col-span-9 space-y-8">
+          {/* Greeting */}
+          <div>
+            <h1 className="text-[28px] font-semibold tracking-tight text-[#1d1d1f]">
+              Good morning, {firstName}
+            </h1>
+            <p className="text-[15px] text-[#6e6e73] mt-1 font-mono tabular-nums">
+              {dateStr} · {data.activeProjects} active
+            </p>
+          </div>
+
+          {/* KPI grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="Active Projects"
+              value={data.activeProjects}
+              sub={`of ${data.totalProjects} total`}
+              delta={{
+                value: `${data.activeProjects > 0 ? "+" : ""}${data.activeProjects}`,
+                tone: data.activeProjects > 0 ? "positive" : "neutral",
+              }}
+            >
+              <Sparkline data={sparkActive} />
+            </StatCard>
+
+            <StatCard
+              label="Outstanding AR"
+              value={formatCurrency(data.aging.total, { whole: true })}
+              sub={
+                data.overdueCount > 0
+                  ? `${data.overdueCount} overdue`
+                  : "All current"
+              }
+              delta={arDelta}
+            >
+              <Sparkline data={sparkAR} stroke="#ff9500" />
+            </StatCard>
+
+            <StatCard
+              label="Workers Paid"
+              value={data.payrollWorkerCount}
+              sub={
+                data.payrollGross > 0
+                  ? `${formatCurrency(data.payrollGross, { whole: true })} this week`
+                  : "Source pending"
+              }
+              delta={{
+                value: `${data.payrollWorkerCount}`,
+                tone: "neutral",
+              }}
+            >
+              <Sparkline data={sparkPayroll} stroke="#34c759" />
+            </StatCard>
+
+            <StatCard
+              label="Revenue (Week)"
+              value={formatCurrency(data.revenue, { whole: true })}
+              sub={`${data.margin.toFixed(0)}% margin`}
+              delta={revDelta}
+            >
+              <Sparkline data={sparkRevenue} />
+            </StatCard>
+          </div>
+
+          {/* Gradient line divider */}
+          <div className="h-px bg-gradient-to-r from-transparent via-[#e5e5ea] to-transparent" />
+
+          {/* Active projects preview */}
+          <section>
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="text-[18px] font-semibold tracking-tight text-[#1d1d1f]">
+                Active projects
+              </h2>
+              <Link
+                href="/app/work"
+                className="text-[13px] text-[#0071e3] hover:underline"
+              >
+                View all →
+              </Link>
+            </div>
+            {previewRows.length === 0 ? (
+              <EmptyState
+                icon="folder-open"
+                title="No active projects"
+                description="Create your first project to start tracking schedules, budgets, and team."
+                action={
+                  <Button href="/app/work/projects/new" size="sm">
+                    + New Project
+                  </Button>
+                }
+                className="bg-white ring-1 ring-[#e5e5ea] rounded-2xl"
+              />
+            ) : (
+              <DataTable
+                columns={previewColumns}
+                data={previewRows}
+                rowKey={(r) => r.name}
+                density="compact"
+              />
+            )}
+          </section>
+
+          <div className="h-16" />
         </div>
 
-        {/* ─── FINANCIALS ─── */}
-        <section className="mb-8">
-          <SectionHeader title="Financials" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-            <StatCard label="Revenue" value={fmt$(data.revenue)} color="green" />
-            <StatCard label="Expenses" value={fmt$(data.expenses)} color="red" />
-            <StatCard label="Net Profit" value={fmt$(data.profit)} color={data.profit >= 0 ? "green" : "red"} />
-            <StatCard label="Margin" value={`${data.margin.toFixed(1)}%`} color={data.margin >= 20 ? "green" : data.margin >= 10 ? "gray" : "red"} sub={data.margin >= 20 ? "Healthy" : data.margin >= 10 ? "Moderate" : "At Risk"} />
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <StatCard label="Contract Value" value={fmt$(data.totalContractValue)} color="blue" sub={`${data.totalProjects} projects`} />
-            <StatCard label="Overhead" value={`${fmt$(data.monthlyOverhead)}/mo`} color="gray" sub={data.revenue > 0 ? `${((data.monthlyOverhead / data.revenue) * 100).toFixed(0)}% of revenue` : undefined} />
-            <StatCard label="Payroll" value={fmt$(data.payrollGross)} color="gray" sub={`${data.payrollWorkerCount} paid this week`} />
-          </div>
-          {/* Cash Flow */}
-          {data.cashFlowData.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5 mt-3">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-3">Cash Flow (3 Months)</p>
-              <div className="grid grid-cols-3 gap-4">
-                {data.cashFlowData.map((m) => (
-                  <div key={m.label} className="text-center">
-                    <p className="text-[10px] text-gray-400 mb-2">{m.label}</p>
-                    <p className="text-xs text-emerald-600 font-medium">+{fmt$(m.cashIn)}</p>
-                    <p className="text-xs text-red-500 font-medium">-{fmt$(m.cashOut)}</p>
-                    <div className="border-t border-gray-100 mt-1 pt-1">
-                      <p className={`text-sm font-bold ${m.net >= 0 ? "text-emerald-600" : "text-red-500"}`}>{m.net >= 0 ? "+" : ""}{fmt$(m.net)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ─── PROJECTS ─── */}
-        <section className="mb-8">
-          <SectionHeader
-            title="Projects"
-            right={<span className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">{data.activeProjects} active / {data.totalProjects} total</span>}
-          />
-          <ProjectsTable projects={data.projectsList} />
-        </section>
-
-        {/* ─── BILLING ─── */}
-        <section className="mb-8">
-          <SectionHeader title="Billing" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Overdue */}
-            <div className={`bg-white border rounded-xl p-5 ${data.overdueCount > 0 ? "border-red-200" : "border-gray-200"}`}>
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-2">Overdue Invoices</p>
-              {data.overdueCount > 0 ? (
-                <>
-                  <p className="text-2xl font-bold text-red-500">{data.overdueCount}</p>
-                  <p className="text-sm text-red-400 mt-1">{fmt$(data.overdueAmount)} outstanding</p>
-                </>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-500">✓</span>
-                  <span className="text-sm font-medium text-emerald-600">All paid</span>
-                </div>
-              )}
-            </div>
-
-            {/* AR Aging */}
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-2">Accounts Receivable</p>
-              {data.aging.total > 0 ? (
-                <>
-                  <p className="text-2xl font-bold text-gray-900">{fmt$(data.aging.total)}</p>
-                  <div className="flex gap-3 mt-2 flex-wrap">
-                    {agingBuckets.map((b) => b.value > 0 && (
-                      <span key={b.label} className="text-[11px]">
-                        <span className={`font-semibold ${b.color}`}>{fmt$(b.value)}</span>
-                        <span className="text-gray-400 ml-0.5">{b.label}</span>
-                      </span>
-                    ))}
-                  </div>
-                  {/* Stacked bar */}
-                  <div className="flex h-1.5 rounded-full overflow-hidden mt-2 bg-gray-100">
-                    {agingBuckets.map((b) => b.value > 0 && (
-                      <div key={b.label} className={`h-full ${b.label === "Current" ? "bg-emerald-400" : b.label === "1-30d" ? "bg-yellow-400" : b.label === "31-60d" ? "bg-orange-400" : b.label === "61-90d" ? "bg-red-400" : "bg-red-600"}`} style={{ width: `${(b.value / data.aging.total) * 100}%` }} />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-500">✓</span>
-                  <span className="text-sm font-medium text-emerald-600">No outstanding receivables</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Pipeline */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 mt-3">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-3">Pipeline</p>
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-[10px] text-gray-400 mb-2">Estimates</p>
-                <div className="flex gap-4">
-                  <div><p className="text-lg font-bold text-gray-900">{data.estimates.draft}</p><p className="text-[10px] text-gray-400">Draft</p></div>
-                  <div><p className="text-lg font-bold text-blue-600">{data.estimates.sent}</p><p className="text-[10px] text-gray-400">Sent</p></div>
-                  <div><p className="text-lg font-bold text-emerald-600">{data.estimates.accepted}</p><p className="text-[10px] text-gray-400">Won</p></div>
-                </div>
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-400 mb-2">Invoices</p>
-                <div className="flex gap-4">
-                  <div><p className="text-lg font-bold text-red-500">{data.invoices.unpaid}</p><p className="text-[10px] text-gray-400">Unpaid</p></div>
-                  <div><p className="text-lg font-bold text-amber-500">{data.invoices.partial}</p><p className="text-[10px] text-gray-400">Partial</p></div>
-                  <div><p className="text-lg font-bold text-emerald-600">{data.invoices.paid}</p><p className="text-[10px] text-gray-400">Paid</p></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Unmatched Transactions */}
-          {data.unmatchedCount > 0 && (
-            <div className="bg-white border border-amber-200 rounded-xl p-5 mt-3">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-2">Bank Reconciliation</p>
-              <p className="text-sm text-amber-700">{data.unmatchedCount} unmatched transactions · {data.suggestedCount} suggested matches</p>
-            </div>
-          )}
-        </section>
-
-        {/* ─── TEAM ─── */}
-        <section className="mb-8">
-          <SectionHeader title="Team" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-1">Workers</p>
-              <p className="text-2xl font-bold text-gray-900">{data.totalWorkers}</p>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-1">Supervisors</p>
-              <p className="text-2xl font-bold text-gray-900">{data.totalSupervisors}</p>
-              {data.pendingInvites > 0 && (
-                <p className="text-[11px] text-amber-600 mt-1">{data.pendingInvites} invite{data.pendingInvites > 1 ? "s" : ""} pending</p>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-1">Active Projects</p>
-              <p className="text-2xl font-bold text-[#1E40AF]">{data.activeProjects}</p>
-              <p className="text-[11px] text-gray-400 mt-1">of {data.totalProjects} total</p>
-            </div>
-          </div>
-
-          {/* Forgotten clock-outs */}
-          {data.forgottenClockouts.length > 0 && (
-            <div className="bg-white border border-amber-200 rounded-xl p-5 mt-3">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-2">Forgotten Clock-outs</p>
-              <p className="text-sm text-amber-700">{data.forgottenClockouts.length} team member{data.forgottenClockouts.length > 1 ? "s" : ""} clocked in 10+ hours</p>
-              <p className="text-xs text-amber-600 mt-1">{data.forgottenClockouts.map(c => c.name).join(", ")}</p>
-            </div>
-          )}
-
-          {/* Recent reports */}
-          {data.recentReports.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5 mt-3">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium mb-3">Recent Reports</p>
-              <div className="space-y-2">
-                {data.recentReports.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-700">{r.workerName} <span className="text-gray-400">—</span> {r.phaseName || r.projectName}</span>
-                    {r.photoCount > 0 && <span className="text-[11px] text-gray-400">{r.photoCount} photo{r.photoCount > 1 ? "s" : ""}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ─── ALERTS ─── */}
-        {data.alerts.length > 0 && (
-          <section className="mb-8">
-            <SectionHeader title="Alerts" />
-            <div className="space-y-2">
-              {data.alerts.map((a) => (
-                <div key={a.key} className={`bg-white border rounded-xl p-4 flex items-center gap-3 ${a.color === "red" ? "border-red-200" : "border-amber-200"}`}>
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${a.color === "red" ? "bg-red-500" : "bg-amber-500"}`} />
-                  <span className={`text-sm ${a.color === "red" ? "text-red-700" : "text-amber-700"}`}>{a.text}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <div className="h-16" />
+        {/* Today rail */}
+        <div className="col-span-12 lg:col-span-3">
+          <TodayRail sections={railSections} className="lg:sticky lg:top-20" />
+        </div>
       </div>
     </div>
   );

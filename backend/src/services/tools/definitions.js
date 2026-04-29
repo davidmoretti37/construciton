@@ -1526,6 +1526,64 @@ const toolDefinitions = [
   {
     type: 'function',
     function: {
+      name: 'get_worker_metrics',
+      description: 'Pre-computed rolling 30-day metrics per worker: hours worked, days clocked, daily reports submitted, reports-per-day ratio, last clock-in, last report. Use this when the user asks "which worker is most efficient", "who has been working the most", "who hasn\'t submitted reports", or anything comparing workers. Much faster than fetching raw time_tracking + daily_reports and computing yourself.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worker_id: { type: 'string', description: 'Optional. Filter to one worker\'s metrics.' },
+          limit: { type: 'integer', description: 'Max rows to return (default 25, max 100).' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_project_health',
+      description: 'Pre-computed health snapshot per project: total expenses, total income, budget burn %, days since last activity, contract amount. Use when user asks "which projects are over budget", "projects sitting idle", "where are we burning money", or anything ranking/comparing projects. Faster than computing from project_transactions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'Optional. Filter to one project.' },
+          status: { type: 'string', description: 'Optional project status filter (e.g. "active").' },
+          limit: { type: 'integer', description: 'Max rows (default 25, max 100).' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_client_health',
+      description: 'Pre-computed receivables and payment behavior per client: total billed, total paid, outstanding, overdue invoice count, oldest overdue days, average days late to pay. Use when user asks "which clients owe me money", "who pays late", "biggest receivables", or anything about client payment behavior.',
+      parameters: {
+        type: 'object',
+        properties: {
+          client_name: { type: 'string', description: 'Optional. Fuzzy-match a client name.' },
+          limit: { type: 'integer', description: 'Max rows (default 25, max 100).' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_business_briefing',
+      description: 'Anomaly briefing — returns the top issues across the business right now: forgotten clock-outs (>12h), workers who haven\'t submitted reports recently, projects past 80% budget burn, stale projects with no activity 7+ days, clients with invoices 14+ days overdue. Use this proactively at the start of a conversation when the user says "what\'s up", "what should I look at", "anything I need to know", or when you want to surface what needs attention. Items are sorted high → medium severity.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_recurring_expenses',
       description: 'Get all recurring expenses (equipment rentals, insurance, subscriptions, etc). Shows description, amount, frequency, category, next due date, and associated project. Use when user asks about recurring costs, regular payments, subscriptions, or upcoming bills.',
       parameters: {
@@ -1846,6 +1904,161 @@ const toolDefinitions = [
         }
       }
     }
+  },
+
+  // SMS tools (list_unread_sms / read_sms_thread / send_sms) are
+  // intentionally omitted — SMS messaging is disabled at the product
+  // level for now. Re-enable by restoring the three function entries
+  // here, the registry rows, the systemPrompt guidance, and the
+  // matching exports in handlers.js.
+
+  // SUB-AGENT DISPATCH (P5) — `dispatch_subagent` is injected at
+  // runtime in agentService.js (same pattern as `memory`) rather than
+  // statically listed here. Reason: it's an orchestration tool that
+  // doesn't have a handler in the TOOL_HANDLERS map, and the
+  // tools.test.js coverage assertion expects 1:1 def↔handler parity.
+  // The runtime injection is in agentService's toolsWithMemory builder.
+
+  // ==================== AUDIT LOG ====================
+  {
+    type: 'function',
+    function: {
+      name: 'get_entity_history',
+      description: 'Show every change to one specific entity (project, estimate, invoice, customer, worker, etc.). Use when the user asks "what happened to the Smith estimate?", "show the history of project X", "when did this invoice change?". Returns a chronological list of audit entries with actor, action, before/after diff, and timestamp.',
+      parameters: {
+        type: 'object',
+        properties: {
+          entity_type: {
+            type: 'string',
+            description: 'Canonical entity name: project, estimate, invoice, change_order, customer, worker, transaction, time_entry, service_plan, visit, phase, document.'
+          },
+          entity_id: {
+            type: 'string',
+            description: 'UUID of the entity. If the user said a name, resolve it via search_projects/search_estimates first.'
+          },
+          limit: { type: 'integer', description: 'Max entries to return (default 50, max 200).' }
+        },
+        required: ['entity_type', 'entity_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'who_changed',
+      description: 'Answer "who edited the Smith estimate?" or "who deleted that invoice?". Returns the most recent actors who modified a specific entity, in reverse-chronological order. Use this for accountability/blame queries before falling back to get_entity_history.',
+      parameters: {
+        type: 'object',
+        properties: {
+          entity_type: {
+            type: 'string',
+            description: 'Canonical entity name (project, estimate, invoice, etc.)'
+          },
+          entity_id: {
+            type: 'string',
+            description: 'UUID of the entity'
+          },
+          limit: { type: 'integer', description: 'How many recent actors to surface (default 5).' }
+        },
+        required: ['entity_type', 'entity_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'recent_activity',
+      description: 'Show the most recent write operations across the whole company. Use when the user asks "what changed today?", "show recent activity", "what did Joe do this week?". Optional filters narrow by user, entity type, action, or date range.',
+      parameters: {
+        type: 'object',
+        properties: {
+          actor_user_id: {
+            type: 'string',
+            description: 'Filter to one user (e.g. "what did Joe do?"). Omit for all users.'
+          },
+          entity_type: {
+            type: 'string',
+            description: 'Filter to one entity kind (e.g. "estimates only").'
+          },
+          action: {
+            type: 'string',
+            enum: ['create', 'update', 'delete', 'bulk_create', 'bulk_update', 'bulk_delete', 'restore', 'archive', 'void'],
+            description: 'Filter to one action verb.'
+          },
+          start_date: { type: 'string', description: 'ISO 8601 date — only return entries after this.' },
+          end_date: { type: 'string', description: 'ISO 8601 date — only return entries before this.' },
+          limit: { type: 'integer', description: 'Max entries to return (default 50, max 200).' }
+        }
+      }
+    }
+  },
+
+  // ==================== E-SIGNATURE ====================
+  {
+    type: 'function',
+    function: {
+      name: 'request_signature',
+      description: 'Send a customer signature request for an estimate, invoice, or contract. Generates a single-use signing link, emails it to the signer, and returns the link so the user can also share it via SMS/WhatsApp from their phone. Use phrases like "send the Smith estimate for signature", "get the Johnson invoice signed", "have the customer sign the contract".',
+      parameters: {
+        type: 'object',
+        required: ['document_type', 'document_id', 'signer_email'],
+        properties: {
+          document_type: {
+            type: 'string',
+            enum: ['estimate', 'invoice', 'contract'],
+            description: 'Which type of document is being signed.'
+          },
+          document_id: {
+            type: 'string',
+            description: 'UUID of the estimate, invoice, or contract document.'
+          },
+          signer_name: {
+            type: 'string',
+            description: 'Name of the person who will sign (e.g. customer or client).'
+          },
+          signer_email: {
+            type: 'string',
+            description: 'Email address to send the signing link to. Required.'
+          },
+          signer_phone: {
+            type: 'string',
+            description: 'Optional phone for the user to text the link from their device.'
+          }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_signature_status',
+      description: 'Check the latest signature status (pending / signed / declined / expired) for an estimate, invoice, or contract. Returns the signed PDF URL if signed.',
+      parameters: {
+        type: 'object',
+        required: ['document_type', 'document_id'],
+        properties: {
+          document_type: {
+            type: 'string',
+            enum: ['estimate', 'invoice', 'contract']
+          },
+          document_id: { type: 'string' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancel_signature_request',
+      description: 'Cancel a pending signature request. Invalidates the signing link so the customer can no longer sign.',
+      parameters: {
+        type: 'object',
+        required: ['signature_id'],
+        properties: {
+          signature_id: { type: 'string', description: 'UUID of the signature request to cancel.' }
+        }
+      }
+    }
   }
 ];
 
@@ -1938,6 +2151,21 @@ const TOOL_STATUS_MESSAGES = {
   setup_daily_checklist: 'Setting up daily checklist...',
   get_daily_checklist_report: 'Pulling daily reports...',
   get_daily_checklist_summary: 'Summarizing daily data...',
+  // SMS tools — disabled at the product level for now.
+  // list_unread_sms: 'Checking the inbox...',
+  // read_sms_thread: 'Loading the thread...',
+  // send_sms: 'Sending text...',
+  // Sub-agent dispatch (P5) — status message used by the runtime-
+  // injected dispatch_subagent tool in agentService.
+  dispatch_subagent: 'Delegating to specialist...',
+  // Audit log tools
+  get_entity_history: 'Pulling change history...',
+  who_changed: 'Checking who made changes...',
+  recent_activity: 'Looking at recent activity...',
+  // E-signature tools
+  request_signature: 'Sending signature request...',
+  check_signature_status: 'Checking signature status...',
+  cancel_signature_request: 'Cancelling signature request...',
 };
 
 function getToolStatusMessage(toolName) {

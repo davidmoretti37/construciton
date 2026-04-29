@@ -15,6 +15,7 @@ import {
   getNotificationPreferences,
 } from '../utils/notificationStorage';
 import logger from '../utils/logger';
+import { navigate } from '../lib/navigationRef';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
@@ -206,11 +207,14 @@ export const NotificationProvider = ({ children }) => {
       logger.debug('Notification tapped:', response);
       const data = response.notification.request.content.data;
 
-      // Handle navigation based on notification data
+      // Handle navigation based on notification data. Inbound SMS pushes
+      // come in with { screen: 'Thread', params: { customerId, ... } }.
       if (data?.screen) {
-        // Navigation will be handled by the app's navigation system
-        // The data object contains the screen and params to navigate to
-        logger.debug('Navigate to:', data.screen, data.params);
+        try {
+          navigate(data.screen, data.params || {});
+        } catch (e) {
+          logger.warn('Notification navigate failed:', e?.message);
+        }
       }
     });
 

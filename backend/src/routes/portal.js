@@ -9,7 +9,20 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { authenticatePortalClient, verifyProjectAccess } = require('../middleware/portalAuth');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+// Lazy-init: instantiating Stripe at module load throws when STRIPE_SECRET_KEY
+// is missing (CI / local dev without prod creds). Same pattern as routes/stripe.js.
+const _StripeCtor = require('stripe');
+let _stripe = null;
+function getStripe() {
+  if (_stripe) return _stripe;
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY not set — payment routes are disabled.');
+  }
+  _stripe = _StripeCtor(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+  return _stripe;
+}
+// Keep `stripe.foo.bar(...)` call sites working by proxying lookups through getStripe().
+const stripe = new Proxy({}, { get: (_t, prop) => getStripe()[prop] });
 
 const supabase = createClient(
   process.env.SUPABASE_URL,

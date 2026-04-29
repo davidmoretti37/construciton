@@ -58,7 +58,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
 
   return (
     <TouchableOpacity
-      style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white }]}
+      style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white, borderColor: Colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -121,7 +121,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
 
   return (
     <TouchableOpacity
-      style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white }]}
+      style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white, borderColor: Colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -1285,11 +1285,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 16,
     marginBottom: 10,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
   },
   avatarGradient: {
     width: 42,

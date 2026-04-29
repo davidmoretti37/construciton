@@ -39,6 +39,7 @@ import { NetworkProvider } from './src/contexts/NetworkContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { isOnboarded, saveLanguage, checkAndStartScheduledProjects } from './src/utils/storage';
 import { supabase } from './src/lib/supabase';
+import { navigationRef } from './src/lib/navigationRef';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import logger from './src/utils/logger';
 import './src/i18n'; // Initialize i18n
@@ -58,7 +59,8 @@ LogBox.ignoreLogs([
 ]);
 
 function AppContent() {
-  const navigationRef = React.useRef(null);
+  // Shared navigationRef from src/lib/navigationRef so push handlers etc.
+  // can navigate without prop drilling.
   const { isDark = false } = useTheme() || {};
   const {
     user,

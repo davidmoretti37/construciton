@@ -86,8 +86,8 @@ jest.mock('../services/tools/systemPrompt', () => ({
   buildSystemPrompt: jest.fn(() => 'You are a helpful construction assistant.'),
 }));
 
-jest.mock('../services/toolRouter', () => ({
-  routeTools: jest.fn(() => ({
+jest.mock('../services/toolRouter', () => {
+  const routedResult = {
     intent: 'project',
     tools: [
       {
@@ -100,8 +100,14 @@ jest.mock('../services/toolRouter', () => ({
       },
     ],
     toolCount: 1,
-  })),
-}));
+  };
+  return {
+    routeTools: jest.fn(() => routedResult),
+    routeToolsAsync: jest.fn(async () => routedResult),
+    categorizeIntent: jest.fn(() => 'project'),
+    selectTools: jest.fn(() => routedResult.tools),
+  };
+});
 
 jest.mock('../services/modelRouter', () => ({
   selectModel: jest.fn(() => ({ model: 'claude-haiku-4.5', reason: 'low tool count', toolCount: 1 })),
@@ -329,7 +335,10 @@ describe('processAgentRequest — text response (no tool calls)', () => {
 
     const deltas = events.filter(e => e.type === 'delta');
     const allDeltaText = deltas.map(d => d.content).join('');
-    expect(allDeltaText).toContain("wasn't able to process");
+    // Fallback copy was reworded — the agent now offers a recovery
+    // suggestion rather than only "wasn't able to process". Match the
+    // characteristic phrase from the current implementation.
+    expect(allDeltaText).toMatch(/(wasn'?t able to process|couldn'?t compose|started looking that up)/i);
   });
 });
 

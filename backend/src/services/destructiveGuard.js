@@ -61,22 +61,49 @@ When in doubt, BLOCK. False blocks are recoverable (assistant asks again); false
 Return ONLY a JSON object:
 {"verdict":"PROCEED","reason":""} OR {"verdict":"BLOCK","reason":"<one sentence why>"}`;
 
+  // P7: SDK-first with OpenRouter fallback. Different from planner /
+  // verifier because this prompt has no separate system block — it's
+  // all in the user message. Both paths still get the same content.
+  const anthropicClient = require('./anthropicClient');
+  let content = '';
   try {
-    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-haiku-4.5',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0,
-      }),
-    });
-    const json = await resp.json();
-    const content = json.choices?.[0]?.message?.content || '';
+    if (anthropicClient.isAvailable()) {
+      try {
+        const SDK = require('@anthropic-ai/sdk');
+        const Anthropic = SDK.default || SDK.Anthropic || SDK;
+        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const resp = await client.messages.create({
+          model: 'claude-haiku-4.5',
+          max_tokens: 200,
+          temperature: 0,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        content = (resp.content || [])
+          .filter(b => b?.type === 'text')
+          .map(b => b.text || '')
+          .join('');
+      } catch (e) {
+        logger.warn(`[destructiveGuard] SDK path failed (${e.message}), falling back to OpenRouter`);
+        content = '';
+      }
+    }
+    if (!content) {
+      const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'anthropic/claude-haiku-4.5',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 200,
+          temperature: 0,
+        }),
+      });
+      const json = await resp.json();
+      content = json.choices?.[0]?.message?.content || '';
+    }
     const match = content.match(/\{[\s\S]*?\}/);
     if (!match) {
       logger.warn(`[destructiveGuard] unparseable verdict for ${toolName}, defaulting to BLOCK`);

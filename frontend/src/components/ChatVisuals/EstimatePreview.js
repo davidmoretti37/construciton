@@ -8,6 +8,7 @@ import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../
 import { useTheme } from '../../contexts/ThemeContext';
 import { WebView } from 'react-native-webview';
 import { shareEstimatePDF, emailEstimatePDF, generateEstimateHTML } from '../../utils/estimatePDF';
+import { enrichBusinessInfoWithTemplate } from '../../utils/pdfGenerator';
 import { getUserProfile, getAverageWorkerRate } from '../../utils/storage';
 import { recordPricingCorrection, extractServiceType } from '../../services/pricingIntelligence';
 
@@ -494,7 +495,10 @@ export default function EstimatePreview({ data, onAction }) {
   const handlePreview = async () => {
     try {
       const enrichedData = await getEnrichedEstimateData();
-      const html = generateEstimateHTML(enrichedData);
+      // Pull the user's invoice_template (style + logo + business info)
+      // so the chat-rendered preview matches the saved PDF template.
+      const enrichedBusiness = await enrichBusinessInfoWithTemplate({});
+      const html = generateEstimateHTML(enrichedData, enrichedBusiness);
       setPreviewHTML(html);
       setShowPreview(true);
     } catch (error) {

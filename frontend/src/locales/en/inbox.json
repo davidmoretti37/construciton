@@ -1,0 +1,37 @@
+{
+  "title": "Inbox",
+  "empty": "No messages yet. Replies from customers will show up here.",
+  "send": "Send",
+  "send_placeholder": "Type a message…",
+  "unread_count": "{{count}} unread",
+  "unread_count_one": "1 unread",
+  "unread_count_zero": "All caught up",
+  "search_placeholder": "Search by name or number",
+  "ask_foreman": "Ask Foreman about this thread",
+  "no_phone": "No phone on file for this customer",
+  "send_failed": "Couldn't send. Please try again.",
+  "load_failed": "Couldn't load messages.",
+  "message_status": {
+    "queued": "Queued",
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "failed": "Failed",
+    "mock": "Mock (no Twilio creds)",
+    "received": "Received"
+  },
+  "you": "You",
+  "unknown_sender": "Unknown number",
+  "thread_header": "Texts with {{name}}",
+  "tab_label": "Inbox",
+  "setup": {
+    "title": "Get your business SMS number",
+    "subtitle": "We'll provision a Twilio number for your company so customers can text you. You'll send and receive replies right here.",
+    "area_code_label": "Preferred area code (optional)",
+    "area_code_placeholder": "415",
+    "cta": "Get a number",
+    "provisioning": "Provisioning…",
+    "success": "Your number is live: {{phone}}",
+    "failed": "Couldn't provision a number: {{error}}",
+    "current_number": "Your number: {{phone}}"
+  }
+}

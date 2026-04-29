@@ -2,12 +2,29 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 import { Alert, Platform } from 'react-native';
+import { generateHTML as generateFromTemplate, isValidStyle } from './invoiceTemplates';
+import { enrichBusinessInfoWithTemplate } from './pdfGenerator';
 
 /**
  * Generate HTML for estimate PDF - Professional minimalist design
- * Matching Atrium Construction style
+ * Matching Atrium Construction style.
+ *
+ * Optional second argument lets callers pass a pre-enriched businessInfo
+ * (with template_style, logo_url, etc) so the new templates registry
+ * dispatches to the chosen visual. When omitted we fall through to the
+ * legacy generator.
  */
-export const generateEstimateHTML = (estimateData) => {
+export const generateEstimateHTML = (estimateData, businessInfo) => {
+  const style = businessInfo?.template_style || businessInfo?.templateStyle;
+  if (isValidStyle(style)) {
+    return generateFromTemplate(style, { ...estimateData, type: 'estimate' }, businessInfo, {
+      isEstimate: true,
+    });
+  }
+  return generateLegacyEstimateHTML(estimateData);
+};
+
+const generateLegacyEstimateHTML = (estimateData) => {
   const {
     estimateNumber = '',
     businessName = '',
@@ -529,7 +546,11 @@ export const generateEstimateHTML = (estimateData) => {
  */
 export const generateEstimatePDF = async (estimateData) => {
   try {
-    const html = generateEstimateHTML(estimateData);
+    // Enrich businessInfo with the user's chosen template style so the
+    // estimate dispatches through the new templates registry. The legacy
+    // path stays available when no row exists yet.
+    const businessInfo = await enrichBusinessInfoWithTemplate({});
+    const html = generateEstimateHTML(estimateData, businessInfo);
 
     const { uri } = await Print.printToFileAsync({
       html,

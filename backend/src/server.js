@@ -104,12 +104,20 @@ app.use('/api/teller/connect-page', (req, res, next) => {
 // Stripe webhook needs raw body - MUST be before express.json()
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
+// Twilio webhooks come in as application/x-www-form-urlencoded with the
+// signature computed over the canonicalized form params. Mounted at
+// `/webhooks/twilio` (outside /api) so it bypasses the per-router auth
+// middleware that applies to /api/* — Twilio is unauthenticated and we
+// validate via X-Twilio-Signature instead.
+app.use('/webhooks/twilio', express.urlencoded({ extended: false }));
+
 // Document extraction can receive large PDF base64 payloads
 app.use('/api/documents', express.json({ limit: '50mb' }));
 app.use(express.json({ limit: '10mb' }));
 
 // Shared authentication middleware
 const { authenticateUser } = require('./middleware/authenticate');
+const { auditLog, recordAudit } = require('./middleware/auditLog');
 const { enforceMonthlyBudget } = require('./services/aiBudget');
 
 // Allow-listed shape for the free-text portions of the agent context object.
@@ -186,6 +194,23 @@ app.use('/api/portal', portalLimiter, portalRoutes);
 // Portal admin (owner-facing portal management)
 const portalOwnerRoutes = require('./routes/portalOwner');
 app.use('/api/portal-admin', portalLimiter, portalOwnerRoutes);
+
+// Audit log (read-only history of write operations)
+const auditRoutes = require('./routes/audit');
+app.use('/api/audit', servicesLimiter, auditRoutes);
+
+// SMS — two-way Twilio messaging (own router handles its own rate limiters)
+const { smsApiRouter, smsWebhookRouter } = require('./routes/sms');
+app.use('/api/sms', smsApiRouter);
+app.use('/webhooks/twilio', smsWebhookRouter);
+
+// MCP integrations — OAuth flows, connect/disconnect, runtime tool registration
+const integrationsRoutes = require('./routes/integrations');
+app.use('/api/integrations', servicesLimiter, integrationsRoutes);
+
+// E-signature — owner request flow + public token-protected signing
+const esignRoutes = require('./routes/esign');
+app.use('/api/esign', portalLimiter, express.json({ limit: '15mb' }), esignRoutes);
 
 
 // ============================================================
@@ -1111,6 +1136,13 @@ app.patch('/api/time-entries/:id', authenticateUser, async (req, res) => {
     const tableName = table === 'supervisor' ? 'supervisor_time_tracking' : 'time_tracking';
     const ownerField = table === 'supervisor' ? 'supervisor_id' : 'worker_id';
 
+    // Capture before-state for audit (full row, not just owner field).
+    const { data: beforeRow } = await supabase
+      .from(tableName)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
     // Verify the record exists
     const { data: record, error: fetchError } = await supabase
       .from(tableName)
@@ -1183,6 +1215,29 @@ app.patch('/api/time-entries/:id', authenticateUser, async (req, res) => {
     }
 
     res.json({ success: true, hours_worked: hoursWorked });
+
+    // Audit (fire-and-forget, after response).
+    (async () => {
+      const { data: afterRow } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      const ownerId = beforeRow?.owner_id || beforeRow?.user_id || userId;
+      recordAudit({
+        companyId: ownerId,
+        actorUserId: userId,
+        actorType: 'user',
+        action: 'update',
+        entityType: 'time_entry',
+        entityId: id,
+        beforeJson: beforeRow,
+        afterJson: afterRow,
+        ip: req.ip,
+        userAgent: req.headers?.['user-agent'],
+        source: req.headers?.['x-client'] || 'api',
+      });
+    })().catch(e => logger.error('[Audit] time-entry write failed:', e.message));
   } catch (error) {
     logger.error('Error in time entry edit:', error);
     res.status(500).json({ error: 'Failed to update time entry' });
@@ -1193,7 +1248,11 @@ app.patch('/api/time-entries/:id', authenticateUser, async (req, res) => {
 // SUPERVISOR PROFILE - Update supervisor (uses service role to bypass RLS)
 // ============================================================
 
-app.patch('/api/supervisors/:id', authenticateUser, async (req, res) => {
+app.patch('/api/supervisors/:id', authenticateUser, auditLog({
+  entityType: 'supervisor',
+  table: 'profiles',
+  getCompanyId: (req, beforeRow) => beforeRow?.owner_id || req?.user?.id,
+}), async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -1252,7 +1311,12 @@ app.patch('/api/supervisors/:id', authenticateUser, async (req, res) => {
   }
 });
 
-app.delete('/api/supervisors/:id', authenticateUser, async (req, res) => {
+app.delete('/api/supervisors/:id', authenticateUser, auditLog({
+  entityType: 'supervisor',
+  table: 'profiles',
+  action: 'update', // soft "unlink" (sets owner_id=null), not a hard delete
+  getCompanyId: (req, beforeRow) => beforeRow?.owner_id || req?.user?.id,
+}), async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
