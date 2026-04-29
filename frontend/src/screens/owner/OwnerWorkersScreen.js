@@ -258,12 +258,14 @@ export default function OwnerWorkersScreen() {
   // Tab state - 3 tabs for owner (Schedule, Reports, Team)
   const [activeTab, setActiveTab] = useState('schedule'); // 'schedule' | 'reports' | 'team'
 
-  // Team tab state (supervisors + workers)
+  // Team tab state (supervisors + workers + subcontractors)
   const [supervisors, setSupervisors] = useState([]);
   const [pendingInvites, setPendingInvites] = useState([]);
   const [workers, setWorkers] = useState([]);
+  const [subcontractors, setSubcontractors] = useState([]);
   const [supervisorsLoading, setSupervisorsLoading] = useState(true);
   const [workersLoading, setWorkersLoading] = useState(true);
+  const [subcontractorsLoading, setSubcontractorsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRolePicker, setShowRolePicker] = useState(false);
@@ -428,18 +430,43 @@ export default function OwnerWorkersScreen() {
     }
   }, []);
 
+  // Fetch subcontractors for the Team tab
+  const fetchSubcontractors = useCallback(async () => {
+    try {
+      setSubcontractorsLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const apiUrl = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_BACKEND_URL) || 'http://localhost:3000';
+      const resp = await fetch(`${apiUrl}/api/subs`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        setSubcontractors(json.subs || []);
+      } else {
+        setSubcontractors([]);
+      }
+    } catch (e) {
+      setSubcontractors([]);
+    } finally {
+      setSubcontractorsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'team') {
       fetchSupervisors();
       fetchWorkers();
+      fetchSubcontractors();
     }
-  }, [activeTab, fetchSupervisors, fetchWorkers]);
+  }, [activeTab, fetchSupervisors, fetchWorkers, fetchSubcontractors]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchSupervisors();
     fetchWorkers();
-  }, [fetchSupervisors, fetchWorkers]);
+    fetchSubcontractors();
+  }, [fetchSupervisors, fetchWorkers, fetchSubcontractors]);
 
   const handleAddSupervisor = async () => {
     if (!inviteForm.email.trim()) {
@@ -797,6 +824,62 @@ export default function OwnerWorkersScreen() {
             </View>
           )}
         </View>
+
+        {/* Subcontractors Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
+            SUBCONTRACTORS
+          </Text>
+          {subcontractorsLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
+            </View>
+          ) : subcontractors.length > 0 ? (
+            <>
+              {subcontractors.map((sub) => (
+                <TouchableOpacity
+                  key={sub.id}
+                  onPress={() => navigation.navigate('SubcontractorDetail', { sub_organization_id: sub.id })}
+                  style={[styles.subRow, { backgroundColor: Colors.cardBackground || '#fff' }]}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.subAvatar, { backgroundColor: '#8B5CF6' }]}>
+                    <Text style={styles.subAvatarText}>
+                      {(sub.legal_name || 'S').slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.subName, { color: Colors.primaryText }]}>{sub.legal_name}</Text>
+                    <Text style={[styles.subMeta, { color: Colors.secondaryText }]}>
+                      {(sub.trades || []).join(', ') || '—'}
+                      {sub.engagements?.length ? ` · ${sub.engagements.length} engagement${sub.engagements.length === 1 ? '' : 's'}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Subcontractors')}
+                style={styles.viewAllSubsBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.viewAllSubsText, { color: '#8B5CF6' }]}>View all subcontractors</Text>
+                <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={[styles.emptySection, { borderColor: '#8B5CF640', borderWidth: 1, borderStyle: 'dashed', borderRadius: 10 }]}
+              onPress={() => navigation.navigate('AddSubcontractor')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="construct-outline" size={20} color="#8B5CF6" />
+              <Text style={[styles.emptySectionText, { color: Colors.secondaryText, marginTop: 6 }]}>
+                No subcontractors yet. Tap to add your first one.
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
         </ScrollView>
       )}
 
@@ -852,6 +935,26 @@ export default function OwnerWorkersScreen() {
                 <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>{tOwner('teamPicker.addWorker')}</Text>
                 <Text style={[styles.roleDescription, { color: Colors.secondaryText }]}>
                   {tOwner('teamPicker.workerDesc')}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.roleOption, { backgroundColor: '#8B5CF608' }]}
+              onPress={() => {
+                setShowRolePicker(false);
+                navigation.navigate('AddSubcontractor');
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.roleIconContainer, { backgroundColor: '#8B5CF6' }]}>
+                <Ionicons name="construct-outline" size={24} color="#fff" />
+              </View>
+              <View style={styles.roleInfo}>
+                <Text style={[styles.roleTitle, { color: Colors.primaryText }]}>Add Subcontractor</Text>
+                <Text style={[styles.roleDescription, { color: Colors.secondaryText }]}>
+                  Outside contractor hired for specific work
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
@@ -1473,6 +1576,52 @@ const styles = StyleSheet.create({
   emptySectionText: {
     fontSize: FontSizes.body,
     textAlign: 'center',
+  },
+  // Subcontractor row styles
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginBottom: 8,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  subAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subAvatarText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  subName: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+  },
+  subMeta: {
+    fontSize: FontSizes.small,
+    marginTop: 2,
+  },
+  viewAllSubsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  viewAllSubsText: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
   },
   // Modal styles
   modalContainer: {
