@@ -12,11 +12,15 @@ const supabaseAdmin = createClient(
 
 const { authenticateUser } = require('../middleware/authenticate');
 
-// Apply auth to all geocoding routes
-router.use(authenticateUser);
+// Auth applied per-route below — DO NOT add `router.use(authenticateUser)`
+// at the router level. The geocoding router is mounted at `/api` (no
+// sub-path), so router-level middleware here would auth-block EVERY
+// `/api/*` request (including downstream routers' webhooks like
+// /api/integrations/qbo/webhook) by rejecting before the request can
+// fall through to the next mount. Keep auth per-route.
 
 // Geocode an address
-router.get('/geocode', async (req, res) => {
+router.get('/geocode', authenticateUser, async (req, res) => {
   try {
     const { address } = req.query;
 
@@ -56,7 +60,7 @@ router.get('/geocode', async (req, res) => {
 });
 
 // Distance matrix between origins and destinations
-router.get('/distance', async (req, res) => {
+router.get('/distance', authenticateUser, async (req, res) => {
   try {
     const { origins, destinations, mode = 'driving', departure_time } = req.query;
 
@@ -104,7 +108,7 @@ router.get('/distance', async (req, res) => {
 });
 
 // Reverse geocode (coordinates to address)
-router.get('/reverse', async (req, res) => {
+router.get('/reverse', authenticateUser, async (req, res) => {
   try {
     const { lat, lng } = req.query;
 
