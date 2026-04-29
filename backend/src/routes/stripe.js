@@ -776,6 +776,77 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     logger.error('Failed to record payment event:', auditError?.message);
   }
 
+  // ─── Notify the owner that money came in ───
+  // In-app row + best-effort push. The contractor needs to know within
+  // seconds — this is the whole point of the system.
+  try {
+    const isFullyPaid = newStatus === 'paid';
+    const title = isFullyPaid ? 'Invoice paid in full' : 'Partial payment received';
+    const body = isFullyPaid
+      ? `${invoice.invoice_number || 'Invoice'} — $${amountPaidDollars.toLocaleString('en-US', { minimumFractionDigits: 2 })} paid`
+      : `${invoice.invoice_number || 'Invoice'} — $${amountPaidDollars.toLocaleString('en-US', { minimumFractionDigits: 2 })} received (still $${(parseFloat(invoice.total) - newAmountPaid).toLocaleString('en-US', { minimumFractionDigits: 2 })} due)`;
+
+    await supabaseAdmin.from('notifications').insert({
+      user_id: invoice.user_id,
+      type: isFullyPaid ? 'invoice_paid' : 'invoice_partial_payment',
+      title,
+      body,
+      icon: 'cash-outline',
+      color: '#10B981',
+      project_id: invoice.project_id,
+      action_type: 'navigate',
+      action_data: {
+        invoiceId: invoice_id,
+        invoiceNumber: invoice.invoice_number,
+        projectId: invoice.project_id,
+        amount: amountPaidDollars,
+        screen: 'ProjectDetail',
+      },
+    });
+
+    // Best-effort push notification through gating edge function
+    supabaseAdmin.functions.invoke('send-push-notification', {
+      body: {
+        userId: invoice.user_id,
+        title,
+        body,
+        type: 'financial_update',
+        data: {
+          invoiceId: invoice_id,
+          projectId: invoice.project_id,
+          screen: 'ProjectDetail',
+        },
+        projectId: invoice.project_id,
+      },
+    }).catch(() => { /* fire-and-forget */ });
+  } catch (notifyErr) {
+    logger.warn('[Stripe] Owner payment notification failed:', notifyErr?.message);
+  }
+
+  // ─── Draw cascade ───
+  // If this invoice was generated from a draw_schedule_item, flip the draw
+  // to 'paid' so the unified Billing surface reflects reality. The agent
+  // tool update_invoice already does this, but it only fires when the
+  // owner manually flips the invoice status — Stripe webhooks bypass it.
+  if (newStatus === 'paid') {
+    try {
+      const { data: linkedDraw } = await supabaseAdmin
+        .from('draw_schedule_items')
+        .select('id')
+        .eq('invoice_id', invoice_id)
+        .maybeSingle();
+      if (linkedDraw?.id) {
+        await supabaseAdmin
+          .from('draw_schedule_items')
+          .update({ status: 'paid' })
+          .eq('id', linkedDraw.id);
+        logger.info(`[Stripe] Cascaded draw ${linkedDraw.id} to paid`);
+      }
+    } catch (cascadeErr) {
+      logger.warn('[Stripe] Draw cascade failed:', cascadeErr?.message);
+    }
+  }
+
   logger.info(`Invoice ${invoice_id} updated: ${newStatus}, paid: $${newAmountPaid}`);
 }
 
@@ -806,13 +877,16 @@ async function handleAccountUpdated(account) {
     if (!error) {
       logger.info(`[Connect] Onboarding complete for user ${userId}, account ${account.id}`);
 
-      // Create in-app notification
+      // Create in-app notification (uses extended notifications.type CHECK)
       await supabaseAdmin.from('notifications').insert({
         user_id: userId,
-        type: 'payment_setup_complete',
+        type: 'payments_active',
         title: 'Payments Active',
-        message: 'Your bank account is connected. You can now receive payments from clients.',
-        data: { accountId: account.id },
+        body: 'Your bank account is connected. You can now receive payments from clients.',
+        icon: 'cash-outline',
+        color: '#10B981',
+        action_type: 'navigate',
+        action_data: { accountId: account.id, screen: 'Settings' },
       });
 
       // Send push notification
