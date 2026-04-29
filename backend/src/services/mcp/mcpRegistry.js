@@ -52,6 +52,33 @@ const GOOGLE_CALENDAR = {
   scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
 };
 
+// Active OAuth integration: QuickBooks Online — comprehensive read surface
+// (customers, vendors, items, invoices, bills, P&L, AR aging, projects,
+// classes, accounts). Live whenever the env vars are set; flips to "Coming
+// soon" automatically when they're missing.
+const QBO = {
+  type: 'qbo',
+  name: 'QuickBooks Online',
+  description: 'Import your customers, subcontractors, service catalog, invoices, and full P&L history. The fastest way to onboard an existing contractor.',
+  icon: { lib: 'fa5', name: 'book', color: '#2CA01C' }, // QBO green
+  category: 'mcp_qbo',
+  oauth: true,
+  enabled: !!(process.env.QBO_OAUTH_CLIENT_ID && process.env.QBO_OAUTH_CLIENT_SECRET),
+  scopes: ['com.intuit.quickbooks.accounting'],
+};
+
+// Active OAuth integration: Monday.com — board + item reads.
+const MONDAY = {
+  type: 'monday',
+  name: 'Monday.com',
+  description: 'Import projects from your Monday boards — pick a board, map columns to project fields, done.',
+  icon: { lib: 'fa5', name: 'th-large', color: '#FF3D57' }, // Monday red
+  category: 'mcp_monday',
+  oauth: true,
+  enabled: !!(process.env.MONDAY_OAUTH_CLIENT_ID && process.env.MONDAY_OAUTH_CLIENT_SECRET),
+  scopes: ['boards:read', 'me:read', 'users:read'],
+};
+
 // Future entries — placeholders, not active until their adapters ship.
 // Keeping them here documents the roadmap and lets the registry render
 // "Coming soon" tiles in the UI.
@@ -76,24 +103,24 @@ const PLANNED = {
     scopes: ['read_only'],
     coming_soon: true,
   },
-  qbo: {
-    type: 'qbo',
-    name: 'QuickBooks Online',
-    description: 'Sync your books — Foreman cross-references QB invoices, vendors, and expense categorization.',
-    icon: { lib: 'fa5', name: 'book', color: '#2CA01C' }, // QBO green
-    category: 'mcp_qbo',
+  buildertrend: {
+    type: 'buildertrend',
+    name: 'Buildertrend',
+    description: 'Import projects, customers, change orders from your Buildertrend account. Coming soon.',
+    icon: { lib: 'fa5', name: 'hammer', color: '#FF6F00' },
+    category: 'mcp_buildertrend',
     oauth: true,
-    scopes: ['com.intuit.quickbooks.accounting'],
+    scopes: [],
     coming_soon: true,
   },
-  monday: {
-    type: 'monday',
-    name: 'Monday.com',
-    description: 'Read project boards — Foreman keeps Sylk and Monday in sync.',
-    icon: { lib: 'fa5', name: 'th-large', color: '#FF3D57' }, // Monday red
-    category: 'mcp_monday',
+  jobber: {
+    type: 'jobber',
+    name: 'Jobber',
+    description: 'Import clients, properties, jobs, and invoices from Jobber. Coming soon.',
+    icon: { lib: 'fa5', name: 'wrench', color: '#179AE3' },
+    category: 'mcp_jobber',
     oauth: true,
-    scopes: ['boards:read', 'me:read'],
+    scopes: [],
     coming_soon: true,
   },
 };
@@ -101,6 +128,8 @@ const PLANNED = {
 const REGISTRY = {
   echo: ECHO,
   google_calendar: GOOGLE_CALENDAR,
+  qbo: QBO,
+  monday: MONDAY,
   ...PLANNED,
 };
 

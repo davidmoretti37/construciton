@@ -5,6 +5,7 @@ import ClientProjectDetailScreen from '../screens/client/ClientProjectDetailScre
 import ClientInvoicesScreen from '../screens/client/ClientInvoicesScreen';
 import ClientMessagesScreen from '../screens/client/ClientMessagesScreen';
 import ClientChangeOrderDetailScreen from '../screens/client/ClientChangeOrderDetailScreen';
+import ClientEstimateDetailScreen from '../screens/client/ClientEstimateDetailScreen';
 import ClientDocumentsScreen from '../screens/client/ClientDocumentsScreen';
 import ClientPhotosScreen from '../screens/client/ClientPhotosScreen';
 import ClientAISummariesScreen from '../screens/client/ClientAISummariesScreen';
@@ -25,6 +26,7 @@ export default function ClientMainNavigator() {
       <Stack.Screen name="ClientInvoices" component={ClientInvoicesScreen} />
       <Stack.Screen name="ClientMessages" component={ClientMessagesScreen} />
       <Stack.Screen name="ClientChangeOrderDetail" component={ClientChangeOrderDetailScreen} />
+      <Stack.Screen name="ClientEstimateDetail" component={ClientEstimateDetailScreen} />
       <Stack.Screen name="ClientDocuments" component={ClientDocumentsScreen} />
       <Stack.Screen name="ClientPhotos" component={ClientPhotosScreen} />
       <Stack.Screen name="ClientAISummaries" component={ClientAISummariesScreen} />

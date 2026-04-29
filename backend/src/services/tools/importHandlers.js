@@ -1019,8 +1019,199 @@ function clamp(n, min, max, def) {
   return Math.max(min, Math.min(max, v));
 }
 
+// ─────────────────────────────────────────────────────────────────
+// PUSH TO QBO — mirror our records back to QuickBooks so the CPA's
+// view stays in sync with our operations. Each helper is no-op when
+// QBO isn't connected (returns { skipped: 'qbo_not_connected' }).
+// ─────────────────────────────────────────────────────────────────
+
+const credentialStore = require('../mcp/credentialStore');
+
+async function isQboConnected(userId) {
+  const cred = await credentialStore.getCredential(userId, 'qbo');
+  return !!(cred && cred.accessToken && cred.metadata?.realmId);
+}
+
+/** Mirror a local client to QBO. Idempotent — sets clients.qbo_id on success. */
+async function mirror_client_to_qbo(userId, args = {}) {
+  if (!args.client_id) return { error: 'client_id is required' };
+  if (!(await isQboConnected(userId))) return { skipped: 'qbo_not_connected' };
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id, full_name, email, phone, qbo_id')
+    .eq('user_id', userId)
+    .eq('id', args.client_id)
+    .maybeSingle();
+  if (!client) return { error: 'Client not found' };
+  if (client.qbo_id) return { success: true, already_mirrored: true, qbo_id: client.qbo_id };
+
+  const r = await call('qbo__create_customer', {
+    display_name: client.full_name,
+    email: client.email,
+    phone: client.phone,
+  }, userId);
+  if (r.error) return { error: r.error };
+
+  await supabase
+    .from('clients')
+    .update({ qbo_id: r.qbo_id, qbo_synced_at: new Date().toISOString() })
+    .eq('id', client.id);
+  return { success: true, qbo_id: r.qbo_id };
+}
+
+/** Mirror a local invoice to QBO. */
+async function mirror_invoice_to_qbo(userId, args = {}) {
+  if (!args.invoice_id) return { error: 'invoice_id is required' };
+  if (!(await isQboConnected(userId))) return { skipped: 'qbo_not_connected' };
+
+  const { data: inv } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, client_name, items, subtotal, tax_amount, total, due_date, notes, qbo_id, project_id')
+    .eq('user_id', userId)
+    .eq('id', args.invoice_id)
+    .maybeSingle();
+  if (!inv) return { error: 'Invoice not found' };
+  if (inv.qbo_id) return { success: true, already_mirrored: true, qbo_id: inv.qbo_id };
+
+  // Resolve customer's QBO id (must already be imported or mirrored)
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id, qbo_id, full_name')
+    .eq('user_id', userId)
+    .ilike('full_name', inv.client_name || '')
+    .maybeSingle();
+  let customerQboId = client?.qbo_id;
+  if (!customerQboId && client) {
+    const m = await mirror_client_to_qbo(userId, { client_id: client.id });
+    if (m.success) customerQboId = m.qbo_id;
+  }
+  if (!customerQboId) return { error: `Client "${inv.client_name}" not in QuickBooks. Mirror or import them first.` };
+
+  const lines = (Array.isArray(inv.items) && inv.items.length > 0
+    ? inv.items
+    : [{ description: inv.invoice_number, total: inv.total, pricePerUnit: inv.total, quantity: 1 }]
+  ).map((l) => ({
+    description: l.description || 'Line item',
+    amount: parseFloat(l.total || l.amount || 0),
+    qty: parseFloat(l.quantity || 1),
+    unit_price: parseFloat(l.pricePerUnit || l.unit_price || 0),
+  }));
+
+  const r = await call('qbo__create_invoice', {
+    customer_qbo_id: customerQboId,
+    doc_number: inv.invoice_number,
+    due_date: inv.due_date,
+    private_note: inv.notes,
+    lines,
+  }, userId);
+  if (r.error) return { error: r.error };
+
+  await supabase
+    .from('invoices')
+    .update({ qbo_id: r.qbo_id, qbo_synced_at: new Date().toISOString() })
+    .eq('id', inv.id);
+  return { success: true, qbo_id: r.qbo_id, doc_number: r.doc_number };
+}
+
+/** Mirror an expense (project_transactions row) as a QB Bill. */
+async function mirror_expense_to_qbo(userId, args = {}) {
+  if (!args.transaction_id) return { error: 'transaction_id is required' };
+  if (!(await isQboConnected(userId))) return { skipped: 'qbo_not_connected' };
+
+  const { data: tx } = await supabase
+    .from('project_transactions')
+    .select('id, type, amount, description, date, category, worker_id, qbo_id')
+    .eq('id', args.transaction_id)
+    .maybeSingle();
+  if (!tx) return { error: 'Transaction not found' };
+  if (tx.type !== 'expense') return { error: 'Only expense transactions can be mirrored as bills.' };
+  if (tx.qbo_id) return { success: true, already_mirrored: true, qbo_id: tx.qbo_id };
+
+  // Need a vendor — match worker → workers.qbo_id
+  let vendorQboId = null;
+  if (tx.worker_id) {
+    const { data: w } = await supabase
+      .from('workers')
+      .select('qbo_id, full_name')
+      .eq('id', tx.worker_id)
+      .maybeSingle();
+    vendorQboId = w?.qbo_id || null;
+  }
+  if (!vendorQboId) return { error: 'Linked vendor not in QuickBooks. Import vendors first or link a vendor with qbo_id.' };
+
+  // Need an expense account — caller must pass it OR we look up a default
+  if (!args.account_qbo_id) return { error: 'account_qbo_id is required (use qbo__list_accounts to find an Expense account).' };
+
+  const r = await call('qbo__create_bill', {
+    vendor_qbo_id: vendorQboId,
+    txn_date: tx.date,
+    private_note: tx.description,
+    lines: [{ description: tx.description || 'Expense', amount: parseFloat(tx.amount), account_qbo_id: args.account_qbo_id }],
+  }, userId);
+  if (r.error) return { error: r.error };
+
+  await supabase
+    .from('project_transactions')
+    .update({ qbo_id: r.qbo_id, qbo_synced_at: new Date().toISOString() })
+    .eq('id', tx.id);
+  return { success: true, qbo_id: r.qbo_id };
+}
+
+/** Mirror an estimate to QBO. */
+async function mirror_estimate_to_qbo(userId, args = {}) {
+  if (!args.estimate_id) return { error: 'estimate_id is required' };
+  if (!(await isQboConnected(userId))) return { skipped: 'qbo_not_connected' };
+
+  const { data: est } = await supabase
+    .from('estimates')
+    .select('id, estimate_number, client_name, items, total, valid_until, notes, qbo_id')
+    .eq('user_id', userId)
+    .eq('id', args.estimate_id)
+    .maybeSingle();
+  if (!est) return { error: 'Estimate not found' };
+  if (est.qbo_id) return { success: true, already_mirrored: true, qbo_id: est.qbo_id };
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id, qbo_id')
+    .eq('user_id', userId)
+    .ilike('full_name', est.client_name || '')
+    .maybeSingle();
+  let customerQboId = client?.qbo_id;
+  if (!customerQboId && client) {
+    const m = await mirror_client_to_qbo(userId, { client_id: client.id });
+    if (m.success) customerQboId = m.qbo_id;
+  }
+  if (!customerQboId) return { error: `Client "${est.client_name}" not in QuickBooks. Mirror or import them first.` };
+
+  const lines = (Array.isArray(est.items) && est.items.length > 0 ? est.items : [
+    { description: est.estimate_number, total: est.total, pricePerUnit: est.total, quantity: 1 },
+  ]).map((l) => ({
+    description: l.description || 'Line item',
+    amount: parseFloat(l.total || l.amount || 0),
+    qty: parseFloat(l.quantity || 1),
+    unit_price: parseFloat(l.pricePerUnit || l.unit_price || 0),
+  }));
+
+  const r = await call('qbo__create_estimate', {
+    customer_qbo_id: customerQboId,
+    doc_number: est.estimate_number,
+    expiration_date: est.valid_until,
+    customer_memo: est.notes,
+    lines,
+  }, userId);
+  if (r.error) return { error: r.error };
+
+  await supabase
+    .from('estimates')
+    .update({ qbo_id: r.qbo_id, qbo_synced_at: new Date().toISOString() })
+    .eq('id', est.id);
+  return { success: true, qbo_id: r.qbo_id };
+}
+
 module.exports = {
-  // QBO
+  // QBO read / import
   qbo_onboarding_summary,
   import_qbo_clients,
   import_qbo_subcontractors,
@@ -1029,6 +1220,11 @@ module.exports = {
   import_qbo_projects,
   import_qbo_invoice_history,
   import_qbo_expense_history,
+  // QBO write / mirror
+  mirror_client_to_qbo,
+  mirror_invoice_to_qbo,
+  mirror_expense_to_qbo,
+  mirror_estimate_to_qbo,
   // Monday
   preview_monday_board,
   import_monday_projects,

@@ -170,6 +170,168 @@ const TOOLS = [
     'qbo__get_ar_aging',
     'Fetch QuickBooks A/R Aging Detail report — currently outstanding invoices bucketed by 0-30 / 31-60 / 61-90 / 90+ days overdue. Mirrors what our get_ar_aging tool reports, but for the imported QB data on day one.'
   ),
+  readTool(
+    'qbo__list_credit_memos',
+    'List QuickBooks Credit Memos (refunds + adjustments). Useful for accurate AR + cash-flow imports.',
+    { ...PAGE_PROPS, ...DATE_PROPS }
+  ),
+  readTool(
+    'qbo__list_purchases',
+    'List QuickBooks Purchases (expenses, checks, credit-card charges). Complements Bills for full expense history.',
+    { ...PAGE_PROPS, ...DATE_PROPS }
+  ),
+  readTool(
+    'qbo__list_deposits',
+    'List QuickBooks Deposits.',
+    { ...PAGE_PROPS, ...DATE_PROPS }
+  ),
+  readTool(
+    'qbo__get_balance_sheet',
+    'Fetch QuickBooks Balance Sheet for an as-of date.',
+    { as_of: { type: 'string', description: 'ISO YYYY-MM-DD. Defaults to today.' } }
+  ),
+  readTool(
+    'qbo__get_cash_flow',
+    'Fetch QuickBooks Cash Flow report for a date range.',
+    { ...DATE_PROPS }
+  ),
+
+  // ──── WRITE — push from our app back to QB ────
+  // These are external_write because they create records the CPA sees;
+  // the registry marks them as requiring approval so the user always
+  // confirms before a mirror to QB happens.
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__create_customer',
+      description: 'Create a new QuickBooks Customer. Returns the new QBO Id. Use only when mirroring a client our app created — pass display_name, email, phone, address.',
+      parameters: {
+        type: 'object',
+        properties: {
+          display_name: { type: 'string' },
+          company_name: { type: 'string' },
+          email: { type: 'string' },
+          phone: { type: 'string' },
+          mobile: { type: 'string' },
+          billing_address_line1: { type: 'string' },
+          billing_city: { type: 'string' },
+          billing_state: { type: 'string' },
+          billing_postal_code: { type: 'string' },
+        },
+        required: ['display_name'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__create_invoice',
+      description: 'Create a new QuickBooks Invoice. Returns the new QBO Id. Use to mirror an invoice generated in our app (one-shot or progress-draw). Requires customer_qbo_id + line items.',
+      parameters: {
+        type: 'object',
+        properties: {
+          customer_qbo_id: { type: 'string', description: 'QB Customer.Id (from a prior import).' },
+          doc_number: { type: 'string', description: 'Optional — defaults to QBO auto-numbering.' },
+          txn_date: { type: 'string', description: 'ISO YYYY-MM-DD. Default today.' },
+          due_date: { type: 'string', description: 'ISO YYYY-MM-DD.' },
+          private_note: { type: 'string' },
+          customer_memo: { type: 'string' },
+          lines: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                amount: { type: 'number' },
+                qty: { type: 'number' },
+                unit_price: { type: 'number' },
+                item_qbo_id: { type: 'string', description: 'Optional QB Item.Id; falls back to default income account.' },
+              },
+              required: ['description', 'amount'],
+            },
+          },
+        },
+        required: ['customer_qbo_id', 'lines'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__create_bill',
+      description: 'Create a new QuickBooks Bill (vendor invoice you owe). Use to mirror a recorded expense/transaction back to QB.',
+      parameters: {
+        type: 'object',
+        properties: {
+          vendor_qbo_id: { type: 'string' },
+          doc_number: { type: 'string' },
+          txn_date: { type: 'string' },
+          due_date: { type: 'string' },
+          private_note: { type: 'string' },
+          lines: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                amount: { type: 'number' },
+                account_qbo_id: { type: 'string', description: 'Expense account QBO Id from list_accounts.' },
+              },
+              required: ['amount', 'account_qbo_id'],
+            },
+          },
+        },
+        required: ['vendor_qbo_id', 'lines'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__create_estimate',
+      description: 'Create a new QuickBooks Estimate (formal quote). Same line shape as create_invoice.',
+      parameters: {
+        type: 'object',
+        properties: {
+          customer_qbo_id: { type: 'string' },
+          doc_number: { type: 'string' },
+          txn_date: { type: 'string' },
+          expiration_date: { type: 'string' },
+          customer_memo: { type: 'string' },
+          lines: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                amount: { type: 'number' },
+                qty: { type: 'number' },
+                unit_price: { type: 'number' },
+              },
+              required: ['description', 'amount'],
+            },
+          },
+        },
+        required: ['customer_qbo_id', 'lines'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
 ];
 
 function getTools() {
@@ -305,9 +467,150 @@ async function callTool(toolName, args, credential) {
     case 'qbo__list_payments':     return listEntities(credential, 'Payment', args, mapPayment, dateWhere(args, 'TxnDate'));
     case 'qbo__get_pl_report':     return getReport(credential, 'ProfitAndLoss', args);
     case 'qbo__get_ar_aging':      return getReport(credential, 'AgedReceivables', args);
+    case 'qbo__list_credit_memos': return listEntities(credential, 'CreditMemo', args, mapInvoice, dateWhere(args, 'TxnDate'));
+    case 'qbo__list_purchases':    return listEntities(credential, 'Purchase', args, mapPurchase, dateWhere(args, 'TxnDate'));
+    case 'qbo__list_deposits':     return listEntities(credential, 'Deposit', args, mapPurchase, dateWhere(args, 'TxnDate'));
+    case 'qbo__get_balance_sheet': return getReport(credential, 'BalanceSheet', { date_to: args.as_of, date_from: undefined });
+    case 'qbo__get_cash_flow':     return getReport(credential, 'CashFlow', args);
+    // WRITE
+    case 'qbo__create_customer':   return createCustomer(credential, args);
+    case 'qbo__create_invoice':    return createInvoice(credential, args);
+    case 'qbo__create_bill':       return createBill(credential, args);
+    case 'qbo__create_estimate':   return createEstimate(credential, args);
     default:
       return { error: `Unknown QBO tool: ${toolName}` };
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// WRITE helpers
+// ─────────────────────────────────────────────────────────────────
+
+async function qboPost(credential, entity, body) {
+  const url = realmUrl(credential, `/${entity.toLowerCase()}?minorversion=70`);
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(credential),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    if (resp.status === 401) {
+      const err = new Error('QBO 401 — token expired');
+      err.status = 401;
+      throw err;
+    }
+    throw new Error(`QBO POST ${entity} failed (${resp.status}): ${text.slice(0, 400)}`);
+  }
+  return resp.json();
+}
+
+async function createCustomer(credential, args) {
+  const body = {
+    DisplayName: args.display_name,
+    CompanyName: args.company_name || undefined,
+    PrimaryEmailAddr: args.email ? { Address: args.email } : undefined,
+    PrimaryPhone: args.phone ? { FreeFormNumber: args.phone } : undefined,
+    Mobile: args.mobile ? { FreeFormNumber: args.mobile } : undefined,
+    BillAddr: (args.billing_address_line1 || args.billing_city) ? {
+      Line1: args.billing_address_line1,
+      City: args.billing_city,
+      CountrySubDivisionCode: args.billing_state,
+      PostalCode: args.billing_postal_code,
+    } : undefined,
+  };
+  const json = await qboPost(credential, 'Customer', body);
+  const c = json.Customer;
+  if (!c) return { error: 'QBO did not return a Customer record' };
+  return { success: true, qbo_id: c.Id, display_name: c.DisplayName };
+}
+
+async function createInvoice(credential, args) {
+  const lines = (args.lines || []).map((l) => ({
+    DetailType: 'SalesItemLineDetail',
+    Amount: l.amount,
+    Description: l.description,
+    SalesItemLineDetail: {
+      Qty: l.qty || 1,
+      UnitPrice: l.unit_price != null ? l.unit_price : l.amount,
+      ...(l.item_qbo_id ? { ItemRef: { value: l.item_qbo_id } } : {}),
+    },
+  }));
+  const body = {
+    CustomerRef: { value: args.customer_qbo_id },
+    DocNumber: args.doc_number || undefined,
+    TxnDate: args.txn_date || undefined,
+    DueDate: args.due_date || undefined,
+    PrivateNote: args.private_note || undefined,
+    CustomerMemo: args.customer_memo ? { value: args.customer_memo } : undefined,
+    Line: lines,
+  };
+  const json = await qboPost(credential, 'Invoice', body);
+  const inv = json.Invoice;
+  if (!inv) return { error: 'QBO did not return an Invoice record' };
+  return { success: true, qbo_id: inv.Id, doc_number: inv.DocNumber, total: parseFloat(inv.TotalAmt) };
+}
+
+async function createBill(credential, args) {
+  const lines = (args.lines || []).map((l) => ({
+    DetailType: 'AccountBasedExpenseLineDetail',
+    Amount: l.amount,
+    Description: l.description,
+    AccountBasedExpenseLineDetail: {
+      AccountRef: { value: l.account_qbo_id },
+    },
+  }));
+  const body = {
+    VendorRef: { value: args.vendor_qbo_id },
+    DocNumber: args.doc_number || undefined,
+    TxnDate: args.txn_date || undefined,
+    DueDate: args.due_date || undefined,
+    PrivateNote: args.private_note || undefined,
+    Line: lines,
+  };
+  const json = await qboPost(credential, 'Bill', body);
+  const b = json.Bill;
+  if (!b) return { error: 'QBO did not return a Bill record' };
+  return { success: true, qbo_id: b.Id, doc_number: b.DocNumber, total: parseFloat(b.TotalAmt) };
+}
+
+async function createEstimate(credential, args) {
+  const lines = (args.lines || []).map((l) => ({
+    DetailType: 'SalesItemLineDetail',
+    Amount: l.amount,
+    Description: l.description,
+    SalesItemLineDetail: {
+      Qty: l.qty || 1,
+      UnitPrice: l.unit_price != null ? l.unit_price : l.amount,
+    },
+  }));
+  const body = {
+    CustomerRef: { value: args.customer_qbo_id },
+    DocNumber: args.doc_number || undefined,
+    TxnDate: args.txn_date || undefined,
+    ExpirationDate: args.expiration_date || undefined,
+    CustomerMemo: args.customer_memo ? { value: args.customer_memo } : undefined,
+    Line: lines,
+  };
+  const json = await qboPost(credential, 'Estimate', body);
+  const e = json.Estimate;
+  if (!e) return { error: 'QBO did not return an Estimate record' };
+  return { success: true, qbo_id: e.Id, doc_number: e.DocNumber, total: parseFloat(e.TotalAmt) };
+}
+
+function mapPurchase(p) {
+  return {
+    qbo_id: p.Id,
+    doc_number: p.DocNumber || null,
+    payment_type: p.PaymentType || null,
+    txn_date: p.TxnDate || null,
+    total: parseFloat(p.TotalAmt || 0),
+    entity_name: p.EntityRef?.name || null,
+    private_note: p.PrivateNote || null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────

@@ -75,6 +75,11 @@ const TOOL_METADATA = Object.freeze({
   import_monday_projects:    { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'monday'] },
   csv_preview:               { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'csv'] },
   csv_import:                { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'csv'] },
+  // Mirror to QBO (external_write — leaves a record in the customer's accounting system; needs approval)
+  mirror_client_to_qbo:      { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'qbo', 'mirror'] },
+  mirror_invoice_to_qbo:     { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'qbo', 'mirror', 'financial'] },
+  mirror_expense_to_qbo:     { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'qbo', 'mirror', 'financial'] },
+  mirror_estimate_to_qbo:    { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'qbo', 'mirror', 'financial'] },
 
   // ───── Draws (progress billing) ─────
   create_draw_schedule:      { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial'] },

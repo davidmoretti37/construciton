@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, fetchProjectBilling, fetchProjectEstimates, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
+import { supabase } from '../../lib/supabase';
+import { API_URL } from '../../config/api';
 import ClientHeader from '../../components/ClientHeader';
 
 const C = {
@@ -431,7 +433,37 @@ export default function ClientMoneyScreen({ navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>ESTIMATES</Text>
             {estimates.map((est) => (
-              <View key={est.id} style={styles.activityRow}>
+              <TouchableOpacity
+                key={est.id}
+                style={styles.activityRow}
+                activeOpacity={0.7}
+                onPress={async () => {
+                  // Find the full row from the direct fetch (has items, scope, etc.)
+                  // and route to the detail screen for accept/decline.
+                  const full = estimatesDirect.find(e => e.id === est.source_id) || null;
+                  if (full) {
+                    navigation.getParent()?.navigate('ClientEstimateDetail', { estimate: full, project: activeProject });
+                    return;
+                  }
+                  // Fallback: fetch the single estimate via portal route
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const res = await fetch(
+                      `${API_URL}/api/portal/projects/${activeProject?.id}/estimates`,
+                      { headers: { Authorization: `Bearer ${session?.access_token || ''}` } }
+                    );
+                    const list = await res.json().catch(() => []);
+                    const match = Array.isArray(list) ? list.find(e => e.id === est.source_id) : null;
+                    if (match) {
+                      navigation.getParent()?.navigate('ClientEstimateDetail', { estimate: match, project: activeProject });
+                    } else {
+                      Alert.alert('Not available', 'This estimate is no longer available.');
+                    }
+                  } catch (e) {
+                    Alert.alert('Error', e.message || 'Could not open estimate');
+                  }
+                }}
+              >
                 <View style={[styles.activityIcon, { backgroundColor: '#E0E7FF' }]}>
                   <Ionicons name="document-text-outline" size={16} color="#3730A3" />
                 </View>
@@ -442,7 +474,8 @@ export default function ClientMoneyScreen({ navigation }) {
                   </Text>
                 </View>
                 <Text style={styles.activityAmount}>${(est.amount || 0).toLocaleString()}</Text>
-              </View>
+                <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             ))}
           </View>
         )}

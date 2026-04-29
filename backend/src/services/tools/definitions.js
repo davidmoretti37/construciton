@@ -2327,6 +2327,63 @@ const toolDefinitions = [
     }
   },
 
+  // ==================== PUSH TO QUICKBOOKS ====================
+  // These keep QB's view in sync as the contractor operates in our app.
+  // No-ops when QB isn't connected. Each one is idempotent — sets the
+  // local row's qbo_id on success, returns { already_mirrored: true } on
+  // re-runs.
+  {
+    type: 'function',
+    function: {
+      name: 'mirror_client_to_qbo',
+      description: 'Push a local client record into QuickBooks as a Customer. Use after the user creates a new client in our app, or as part of mirror_invoice_to_qbo (which auto-mirrors the client first if needed). No-op when QB not connected.',
+      parameters: {
+        type: 'object',
+        properties: { client_id: { type: 'string', description: 'UUID of the local client.' } },
+        required: ['client_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'mirror_invoice_to_qbo',
+      description: 'Push a local invoice into QuickBooks. The CRITICAL step that keeps the CPA\'s view of revenue accurate. Auto-mirrors the client first if they\'re not in QB yet. Use after generate_draw_invoice or any other invoice creation when the user has QB connected.',
+      parameters: {
+        type: 'object',
+        properties: { invoice_id: { type: 'string', description: 'UUID of the local invoice.' } },
+        required: ['invoice_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'mirror_expense_to_qbo',
+      description: 'Push a local expense (project_transactions row, type=expense) into QuickBooks as a Bill. Requires the linked vendor to be in QB and an expense account_qbo_id. Use sparingly — most contractors prefer entering expenses directly in QB.',
+      parameters: {
+        type: 'object',
+        properties: {
+          transaction_id: { type: 'string', description: 'UUID of the local transaction.' },
+          account_qbo_id: { type: 'string', description: 'QBO Account.Id of an Expense-type account. Get from qbo__list_accounts.' }
+        },
+        required: ['transaction_id', 'account_qbo_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'mirror_estimate_to_qbo',
+      description: 'Push a local estimate into QuickBooks. Auto-mirrors the client first if needed. Useful when the user wants formal QB-numbered quotes.',
+      parameters: {
+        type: 'object',
+        properties: { estimate_id: { type: 'string', description: 'UUID of the local estimate.' } },
+        required: ['estimate_id']
+      }
+    }
+  },
+
   // ───── Subcontractors (Phase J) ─────
   {
     type: 'function',
@@ -2585,6 +2642,10 @@ const TOOL_STATUS_MESSAGES = {
   import_monday_projects: 'Importing projects from Monday...',
   csv_preview: 'Previewing your spreadsheet...',
   csv_import: 'Importing your spreadsheet...',
+  mirror_client_to_qbo: 'Pushing client to QuickBooks...',
+  mirror_invoice_to_qbo: 'Pushing invoice to QuickBooks...',
+  mirror_expense_to_qbo: 'Pushing expense to QuickBooks...',
+  mirror_estimate_to_qbo: 'Pushing estimate to QuickBooks...',
   get_project_billing: 'Loading billing summary for the project...',
   create_work_schedule: 'Creating work schedule...',
   create_worker_task: 'Creating task...',

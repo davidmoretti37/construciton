@@ -105,7 +105,7 @@ async function oauthAuthorizeUrl(state, redirectUri) {
   return `${AUTH_ENDPOINT}?${params.toString()}`;
 }
 
-async function oauthExchangeCode(code, redirectUri) {
+async function oauthExchangeCode(code, redirectUri, _callbackParams = {}) {
   const { id, secret } = clientCreds();
   const body = new URLSearchParams({
     code,

@@ -201,6 +201,24 @@ async function disconnect(userId, integrationType) {
     .eq('integration_type', integrationType);
 }
 
+/**
+ * Look up which user owns a given external-system identifier — used by
+ * webhook receivers to route an event (which arrives as "realmId X
+ * changed") back to the right user. Searches the metadata jsonb for
+ * `realmId` (QBO) or `account_id` (Monday) etc.
+ */
+async function findUserByRealmId(integrationType, realmId) {
+  if (!realmId) return null;
+  const { data } = await supabase
+    .from('user_integrations')
+    .select('user_id, metadata')
+    .eq('integration_type', integrationType)
+    .eq('status', 'connected')
+    .filter('metadata->>realmId', 'eq', String(realmId))
+    .maybeSingle();
+  return data?.user_id || null;
+}
+
 /** Update metadata after a sync (last_synced_at + arbitrary metadata fields). */
 async function touchSync(userId, integrationType, metadataPatch = {}) {
   const { data: current } = await supabase
@@ -226,6 +244,7 @@ module.exports = {
   markStatus,
   disconnect,
   touchSync,
+  findUserByRealmId,
   // Exported for tests:
   _hasKey: () => !!getKey(),
 };

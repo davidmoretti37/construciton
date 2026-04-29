@@ -211,4 +211,122 @@ router.post('/:type/disconnect', authenticateUser, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// POST /qbo/webhook — Intuit posts here when entities change in QB.
+// We verify the HMAC-SHA256 signature against QBO_WEBHOOK_VERIFIER_TOKEN
+// and re-fetch each affected entity to keep our copy fresh.
+//
+// Mounted with express.raw() in server.js so the body stays as a Buffer
+// for signature verification. Mount path:
+//
+//     app.use('/api/integrations/qbo/webhook', express.raw({ type: '*/*' }))
+//     app.use('/api/integrations', integrationsRouter)
+//
+// (The router-level mount is fine for everything else because the raw
+// middleware short-circuits before the JSON parser.)
+// ─────────────────────────────────────────────────────────────────
+router.post('/qbo/webhook', async (req, res) => {
+  try {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body || {}));
+    const signature = req.get('intuit-signature') || '';
+    const verifierToken = process.env.QBO_WEBHOOK_VERIFIER_TOKEN;
+    if (!verifierToken) {
+      logger.warn('[qbo/webhook] QBO_WEBHOOK_VERIFIER_TOKEN not set — rejecting webhook');
+      return res.status(503).json({ error: 'webhook verification not configured' });
+    }
+
+    // Intuit signs with HMAC-SHA256 + base64. Constant-time compare.
+    const expected = crypto.createHmac('sha256', verifierToken).update(rawBody).digest('base64');
+    const valid = signature.length === expected.length &&
+      crypto.timingSafeEqual(Buffer.from(signature, 'utf8'), Buffer.from(expected, 'utf8'));
+    if (!valid) {
+      logger.warn('[qbo/webhook] signature mismatch');
+      return res.status(401).json({ error: 'invalid signature' });
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(rawBody.toString('utf8'));
+    } catch (e) {
+      return res.status(400).json({ error: 'invalid JSON' });
+    }
+
+    // Async-fire the dispatcher; respond 200 fast (Intuit requires <3s).
+    // Errors don't propagate back — they get logged + a retry happens
+    // on the next event because Intuit doesn't retry 200s.
+    setImmediate(() => handleQboWebhook(payload).catch((e) => {
+      logger.error('[qbo/webhook] dispatcher error:', e.message);
+    }));
+
+    res.status(200).json({ received: true });
+  } catch (err) {
+    logger.error('[qbo/webhook] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Webhook payload shape:
+ *   { eventNotifications: [{ realmId, dataChangeEvent: { entities: [{ name, id, operation, lastUpdated }] } }] }
+ *
+ * Strategy: for each (realmId, entity) → look up the user_integrations
+ * row whose metadata.realmId matches, then trigger a single-record
+ * re-import via the matching importHandler. We only handle the entity
+ * types that map to local tables.
+ */
+async function handleQboWebhook(payload) {
+  const events = payload?.eventNotifications || [];
+  for (const e of events) {
+    const realmId = e.realmId;
+    const entities = e.dataChangeEvent?.entities || [];
+    if (!realmId || entities.length === 0) continue;
+
+    // Find which user owns this realm
+    const userId = await credentialStore.findUserByRealmId('qbo', realmId);
+    if (!userId) {
+      logger.info(`[qbo/webhook] no user for realmId=${realmId}; ignoring`);
+      continue;
+    }
+
+    for (const ent of entities) {
+      try {
+        await refetchQboEntity(userId, ent.name, ent.id, ent.operation);
+      } catch (err) {
+        logger.warn(`[qbo/webhook] refetch failed ${ent.name}/${ent.id}: ${err.message}`);
+      }
+    }
+  }
+}
+
+async function refetchQboEntity(userId, entityName, entityId, operation) {
+  // For DELETE we just mark the local row's qbo_id-stamped record stale
+  // (we don't currently delete cascade — would lose history).
+  if (operation === 'Delete' || operation === 'Merge') {
+    logger.info(`[qbo/webhook] ${operation} on ${entityName}/${entityId} for user ${userId} — stale, leaving local copy intact`);
+    return;
+  }
+
+  const importHandlers = require('../services/tools/importHandlers');
+  // Map QBO entity names to our import functions. Each is a full re-pull
+  // of the type — wasteful for one record but correct, and webhook volume
+  // is low for typical contractors.
+  switch (entityName) {
+    case 'Customer':  return importHandlers.import_qbo_clients(userId, {});
+    case 'Vendor':    return importHandlers.import_qbo_subcontractors(userId, { only_1099: false });
+    case 'Employee':  return importHandlers.import_qbo_employees(userId, {});
+    case 'Item':      return importHandlers.import_qbo_service_catalog(userId, {});
+    case 'Invoice':   return importHandlers.import_qbo_invoice_history(userId, { months_back: 1 });
+    case 'Estimate':
+    case 'Bill':
+    case 'Payment':
+    case 'CreditMemo':
+    case 'Purchase':
+      // Lower-priority entities — log and skip in v1.
+      logger.info(`[qbo/webhook] ${entityName} change for user ${userId} — not auto-handled in v1`);
+      return;
+    default:
+      logger.info(`[qbo/webhook] unhandled entity ${entityName}`);
+  }
+}
+
 module.exports = router;

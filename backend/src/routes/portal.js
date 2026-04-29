@@ -590,7 +590,7 @@ router.patch('/estimates/:estimateId/respond', async (req, res) => {
     // Verify client has access to this estimate's project
     const { data: estimate, error: estError } = await supabase
       .from('estimates')
-      .select('id, project_id, status')
+      .select('id, project_id, status, user_id, estimate_number, total, project_name')
       .eq('id', estimateId)
       .single();
 
@@ -645,6 +645,49 @@ router.patch('/estimates/:estimateId/respond', async (req, res) => {
         actor_id: clientId,
         notes,
       });
+
+    // Notify the owner — push notification + in-app row
+    try {
+      const clientName = req.client.full_name || 'Client';
+      const projectLabel = estimate.project_name || 'project';
+      const total = parseFloat(estimate.total || 0);
+      const amountLabel = total > 0 ? ` ($${total.toLocaleString()})` : '';
+      const titleByAction = {
+        accepted: 'Estimate accepted',
+        rejected: 'Estimate declined',
+        changes_requested: 'Changes requested',
+      };
+      const bodyByAction = {
+        accepted: `${clientName} accepted ${estimate.estimate_number || 'your estimate'} for ${projectLabel}${amountLabel}.`,
+        rejected: `${clientName} declined ${estimate.estimate_number || 'your estimate'} for ${projectLabel}.${notes ? ' Reason: ' + notes : ''}`,
+        changes_requested: `${clientName} requested changes to ${estimate.estimate_number || 'your estimate'} for ${projectLabel}.${notes ? ' "' + notes + '"' : ''}`,
+      };
+
+      // In-app notification row (uses extended notifications type set)
+      await supabase.from('notifications').insert({
+        user_id: estimate.user_id,
+        title: titleByAction[action],
+        body: bodyByAction[action],
+        type: 'financial_update',
+        project_id: estimate.project_id,
+        action_type: 'navigate',
+        action_data: { estimateId, projectId: estimate.project_id, screen: 'ProjectDetail' },
+      });
+
+      // Best-effort push notification through the gating edge function
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: estimate.user_id,
+          title: titleByAction[action],
+          body: bodyByAction[action],
+          type: 'financial_update',
+          data: { estimateId, projectId: estimate.project_id, screen: 'ProjectDetail' },
+          projectId: estimate.project_id,
+        },
+      }).catch(() => {});
+    } catch (notifErr) {
+      logger.warn('[Portal] Estimate response owner notify failed:', notifErr.message);
+    }
 
     logger.info(`[Portal] Estimate ${estimateId} ${action} by client ${clientId}`);
     res.json({ success: true, status: statusMap[action] });

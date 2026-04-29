@@ -109,6 +109,10 @@ app.use('/api/teller/connect-page', (req, res, next) => {
 // Stripe webhook needs raw body - MUST be before express.json()
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
+// QBO webhook also needs raw body for HMAC-SHA256 signature verification.
+// Same pattern as Stripe — keep this BEFORE express.json().
+app.use('/api/integrations/qbo/webhook', express.raw({ type: '*/*' }));
+
 // Twilio webhooks come in as application/x-www-form-urlencoded with the
 // signature computed over the canonicalized form params. Mounted at
 // `/webhooks/twilio` (outside /api) so it bypasses the per-router auth
