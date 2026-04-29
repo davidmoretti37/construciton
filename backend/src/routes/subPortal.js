@@ -30,6 +30,28 @@ const supabase = createClient(
 );
 
 // =============================================================================
+// GET /api/sub-portal/check-invite?email=foo@bar.com   (public)
+// =============================================================================
+// Used by the signup screen to detect that an email was invited as a sub
+// (so the app can route them to the sub portal after signup).
+
+router.get('/check-invite', async (req, res) => {
+  try {
+    const email = (req.query.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: 'email query param required' });
+    const unclaimed = await subOrgService.findUnclaimedByEmail(email);
+    return res.json({
+      invited: !!unclaimed,
+      sub_organization_id: unclaimed?.id || null,
+      legal_name: unclaimed?.legal_name || null,
+    });
+  } catch (err) {
+    logger.error('[subPortal] check-invite error:', err);
+    return res.status(500).json({ error: 'Lookup failed' });
+  }
+});
+
+// =============================================================================
 // POST /api/sub-portal/auth/signup
 // =============================================================================
 // Body: { token (signup_invite or first_claim), email, password }
@@ -87,13 +109,48 @@ async function loadSubOrgForUser(userId) {
   return data;
 }
 
+/**
+ * Auto-link by email: if no sub_organizations row is linked to this user
+ * but there's an UNCLAIMED row whose primary_email matches the user's
+ * auth.users.email, link them. Idempotent — safe to call on every /me
+ * request (no-op when already linked).
+ *
+ * This is what makes the "sign up with the email I was invited at" UX
+ * work without magic links.
+ */
+async function autoLinkSubOrgByEmail(authUser) {
+  if (!authUser?.id || !authUser?.email) return null;
+  // Already linked?
+  const existing = await loadSubOrgForUser(authUser.id);
+  if (existing) return existing;
+
+  const unclaimed = await subOrgService.findUnclaimedByEmail(authUser.email);
+  if (!unclaimed) return null;
+
+  // Make sure the user has a profiles row with role='sub' (sign-up may
+  // have used the default 'owner' role; we promote to 'sub' here so the
+  // app can route them to the sub portal).
+  await supabase
+    .from('profiles')
+    .upsert({ id: authUser.id, role: 'sub', subscription_tier: 'free', business_email: authUser.email }, { onConflict: 'id' });
+
+  return subOrgService.linkSubToAuthUser({
+    subOrganizationId: unclaimed.id,
+    authUserId: authUser.id,
+  });
+}
+
 // =============================================================================
 // GET /api/sub-portal/me
 // =============================================================================
 
 router.get('/me', authenticateUser, async (req, res) => {
   try {
-    const sub = await loadSubOrgForUser(req.user.id);
+    let sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) {
+      // Auto-link if there's an unclaimed sub_organization with this email
+      sub = await autoLinkSubOrgByEmail(req.user);
+    }
     if (!sub) return res.status(404).json({ error: 'No sub_organization linked to your account' });
 
     // Also load profile to show subscription_tier

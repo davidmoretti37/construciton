@@ -366,10 +366,52 @@ async function sendChangeOrderEmail({ changeOrder, lineItems, project, businessN
   }
 }
 
+/**
+ * Subcontractor invitation email — invites the sub to install Sylk and
+ * sign up with the same email. On first sign-up the backend auto-links
+ * their auth.users row to the pre-created sub_organizations record.
+ */
+async function sendSubInvitationEmail({ subEmail, subName, businessName, ownerName, signupUrl }) {
+  if (!subEmail || !process.env.RESEND_API_KEY) {
+    return { sent: false, reason: 'no_email_or_key' };
+  }
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [subEmail],
+      subject: `${esc(businessName || 'A contractor')} invited you to Sylk`,
+      html: `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:40px 20px;background:#F8FAFC;">
+          <div style="background:#fff;border-radius:16px;padding:32px;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
+            <div style="font-size:14px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;text-align:center;">${esc(businessName || 'Your Contractor')}</div>
+            <h2 style="margin:8px 0 0;color:#0F172A;text-align:center;">You're invited</h2>
+            <p style="color:#64748B;text-align:center;font-size:14px;margin-top:6px;">As a subcontractor on Sylk</p>
+            <p style="color:#0F172A;font-size:15px;line-height:1.5;margin-top:24px;">Hi ${esc(subName || 'there')},</p>
+            <p style="color:#0F172A;font-size:15px;line-height:1.5;">${esc(ownerName || businessName || 'Your contractor')} added you on Sylk to manage documents, bids, and payments in one place.</p>
+            <p style="color:#0F172A;font-size:15px;line-height:1.5;"><strong>How to get in:</strong></p>
+            <ol style="color:#0F172A;font-size:15px;line-height:1.6;padding-left:20px;">
+              <li>Install Sylk from the App Store or Google Play.</li>
+              <li>Tap <strong>Sign up</strong> and use this email: <strong>${esc(subEmail)}</strong></li>
+              <li>You'll see your subcontractor portal with documents, engagements, and invoices.</li>
+            </ol>
+            ${signupUrl ? `<a href="${signupUrl}" style="display:block;background:#1E40AF;color:#fff;text-align:center;padding:16px;border-radius:12px;text-decoration:none;font-weight:600;margin-top:24px;font-size:16px;">Open Sylk</a>` : ''}
+            <p style="color:#94A3B8;font-size:12px;margin-top:24px;text-align:center;">It's free for subs. ${esc(businessName || 'Your contractor')} will see your insurance and license once you upload them.</p>
+          </div>
+          <div style="text-align:center;margin-top:24px;font-size:12px;color:#94A3B8;">Sent via <strong>Sylk</strong></div>
+        </div>`,
+    });
+    if (error) return { sent: false, error: error.message };
+    return { sent: true, emailId: data?.id };
+  } catch (err) {
+    return { sent: false, error: err.message };
+  }
+}
+
 module.exports = {
   sendInvoiceEmail,
   sendEstimateEmail,
   sendChangeOrderEmail,
   sendSignatureRequestEmail,
   sendSignatureCompletedEmail,
+  sendSubInvitationEmail,
 };

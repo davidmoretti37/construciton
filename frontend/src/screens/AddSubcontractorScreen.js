@@ -51,8 +51,8 @@ export default function AddSubcontractorScreen({ navigation }) {
         );
       } else {
         Alert.alert(
-          'Sub added',
-          `Magic link sent to ${form.primary_email}. They'll receive an email to set up their profile.`,
+          'Invitation sent',
+          `Sent to ${form.primary_email}. They'll install Sylk and sign up with this email — their account will be linked automatically.`,
           [{ text: 'OK', onPress: () => navigation.replace('SubcontractorDetail', { sub_organization_id: result.sub_organization.id }) }]
         );
       }
@@ -96,7 +96,7 @@ export default function AddSubcontractorScreen({ navigation }) {
         </TouchableOpacity>
 
         <Text style={styles.hint}>
-          We'll email them a link to upload their COI and W9. They don't need a Sylk account to get started.
+          We'll email them an invitation. They install Sylk, sign up with this email, and their account links automatically — no separate magic link.
         </Text>
       </ScrollView>
     </SafeAreaView>

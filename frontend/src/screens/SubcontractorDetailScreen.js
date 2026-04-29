@@ -86,25 +86,28 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         </View>
       </View>
 
-      {/* Tab strip */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabStrip}
-      >
-        {TABS.map((t) => {
-          const isActive = activeTab === t;
-          return (
-            <TouchableOpacity
-              key={t}
-              onPress={() => setActiveTab(t)}
-              style={[styles.tab, isActive && styles.tabActive]}
-            >
-              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{t}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* Tab strip — fixed height so chips don't stretch to fill flex space */}
+      <View style={styles.tabStripWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabStrip}
+        >
+          {TABS.map((t) => {
+            const isActive = activeTab === t;
+            return (
+              <TouchableOpacity
+                key={t}
+                onPress={() => setActiveTab(t)}
+                style={[styles.tab, isActive && styles.tabActive]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{t}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       <ScrollView
         contentContainerStyle={styles.body}
@@ -209,8 +212,16 @@ const makeStyles = (Colors) => StyleSheet.create({
   backBtn: { padding: 8 },
   heading: { fontSize: 22, fontWeight: '700', color: Colors.primaryText },
   meta: { fontSize: 13, color: Colors.secondaryText, marginTop: 2 },
-  tabStrip: { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: Colors.cardBackground },
+  tabStripWrap: { height: 44, marginVertical: 4 },
+  tabStrip: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
+  tab: {
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: Colors.cardBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tabActive: { backgroundColor: Colors.primaryBlue },
   tabText: { fontSize: 13, color: Colors.primaryText, fontWeight: '500' },
   tabTextActive: { color: '#fff', fontWeight: '700' },

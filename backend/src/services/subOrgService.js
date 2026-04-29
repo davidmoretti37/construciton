@@ -18,6 +18,12 @@ const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 
+function getEmailService() {
+  // Lazy-load to avoid eager Resend init in test env (matches eSignService pattern)
+  // eslint-disable-next-line global-require
+  return require('./emailService');
+}
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -126,14 +132,82 @@ async function addSubByGc({
     throw insertErr;
   }
 
-  // 3. Issue first_claim action token so sub can claim their vault
+  // 3. Issue first_claim action token (kept as a fallback path for ops/CLI;
+  //    the primary flow is now: sub installs Sylk, signs up with their
+  //    email, and the backend auto-links them to this row on portal access.)
   const actionToken = await issueActionToken({
     subOrganizationId: created.id,
     scope: 'first_claim',
     createdBy: gcUserId,
   });
 
+  // 4. Send invitation email — the sub uses the standard signup flow,
+  //    NOT a magic link. Their email is what links them to this record.
+  try {
+    const { data: gcProfile } = await supabase
+      .from('profiles')
+      .select('business_name')
+      .eq('id', gcUserId)
+      .maybeSingle();
+    const emailSvc = getEmailService();
+    const result = await emailSvc.sendSubInvitationEmail({
+      subEmail: primaryEmail,
+      subName: legalName,
+      businessName: gcProfile?.business_name || 'Your contractor',
+      ownerName: gcProfile?.business_name,
+      signupUrl: process.env.SYLK_SIGNUP_URL || null,
+    });
+    if (!result.sent) {
+      logger.warn('[subOrgService] sendSubInvitationEmail not sent:', result.reason || result.error);
+    }
+  } catch (e) {
+    logger.warn('[subOrgService] sendSubInvitationEmail error (non-fatal):', e.message);
+  }
+
   return { sub_organization: created, action_token: actionToken, was_existing: false };
+}
+
+// =============================================================================
+// findUnclaimedByEmail — used at sign-up to auto-link by email match
+// =============================================================================
+
+/**
+ * Find an unclaimed sub_organization whose primary_email matches (case-insensitive).
+ * Returns the row or null.
+ */
+async function findUnclaimedByEmail(email) {
+  if (!email) return null;
+  const { data, error } = await supabase
+    .from('sub_organizations')
+    .select('*')
+    .ilike('primary_email', email.trim())
+    .is('auth_user_id', null)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error) {
+    logger.error('[subOrgService] findUnclaimedByEmail error:', error);
+    throw error;
+  }
+  return data || null;
+}
+
+/**
+ * Link an existing sub_organizations row to an authenticated user (set
+ * auth_user_id + claimed_at). Used by the auto-link-by-email flow at
+ * sign-up or first sub-portal access.
+ */
+async function linkSubToAuthUser({ subOrganizationId, authUserId }) {
+  const { data, error } = await supabase
+    .from('sub_organizations')
+    .update({
+      auth_user_id: authUserId,
+      claimed_at: new Date().toISOString(),
+    })
+    .eq('id', subOrganizationId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 /**
@@ -428,6 +502,8 @@ async function upgradeSubToOwner({ subOrganizationId }) {
 module.exports = {
   // CRUD
   findByTaxId,
+  findUnclaimedByEmail,
+  linkSubToAuthUser,
   addSubByGc,
   listSubsForGc,
   getSubForGc,
