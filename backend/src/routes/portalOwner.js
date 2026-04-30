@@ -182,6 +182,25 @@ router.post('/share', async (req, res) => {
         .update({ token_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() })
         .eq('id', existing.id);
 
+      // Ensure portal settings exist on re-share too — if owner revoked and
+      // re-shared, they may have been deleted. ignoreDuplicates so we don't
+      // overwrite any toggles the owner already set.
+      await supabase
+        .from('client_portal_settings')
+        .upsert({
+          project_id: projectId,
+          owner_id: ownerId,
+          show_phases: true,
+          show_photos: true,
+          show_budget: true,
+          show_daily_logs: true,
+          show_documents: true,
+          show_messages: true,
+          show_site_activity: true,
+          weekly_summary_enabled: true,
+          invoice_reminders: true,
+        }, { onConflict: 'project_id', ignoreDuplicates: true });
+
       return res.json({
         message: 'Project already shared with this client',
         accessToken: existing.access_token,
@@ -217,7 +236,7 @@ router.post('/share', async (req, res) => {
         show_site_activity: true,
         weekly_summary_enabled: true,
         invoice_reminders: true,
-      }, { onConflict: 'project_id' });
+      }, { onConflict: 'project_id', ignoreDuplicates: true });
 
     const portalUrl = `${process.env.PORTAL_URL || 'https://sylkapp.ai/portal'}/login?token=${projectClient.access_token}`;
 
@@ -896,8 +915,14 @@ router.post('/invoices/:invoiceId/send', authenticateUser, async (req, res) => {
           user_id: client.user_id,
           title: 'New Invoice',
           body: `Invoice ${invoice.invoice_number} for $${parseFloat(invoice.total).toLocaleString()} is ready for payment.`,
-          type: 'invoice',
-          data: { invoiceId, projectId: invoice.project_id },
+          // 'invoice' is not in notifications.type CHECK — use 'financial_update'
+          type: 'financial_update',
+          icon: 'receipt-outline',
+          color: '#1E40AF',
+          project_id: invoice.project_id || null,
+          // Standardized: action_type + action_data (was 'data' before, frontend doesn't recognize)
+          action_type: 'navigate',
+          action_data: { invoiceId, projectId: invoice.project_id, screen: 'ClientProjectDetail' },
         });
       }
     } catch {
@@ -1310,14 +1335,16 @@ router.post('/change-orders/:id/send', async (req, res) => {
       .single();
     if (!project) return res.status(400).json({ error: 'Project missing for change order' });
 
-    // Resolve client email — explicit client record wins, then project fallback
+    // Resolve client email — explicit client record wins, then project fallback.
+    // Use maybeSingle (not single) so projects with multiple shared clients
+    // don't crash the route with PGRST116. We just take the first one.
     let clientEmail = project.client_email || null;
-    const { data: pc } = await supabase
+    const { data: pcRows } = await supabase
       .from('project_clients')
       .select('clients(email, full_name)')
       .eq('project_id', co.project_id)
-      .limit(1)
-      .single();
+      .limit(1);
+    const pc = Array.isArray(pcRows) && pcRows.length > 0 ? pcRows[0] : null;
     if (pc?.clients?.email) clientEmail = pc.clients.email;
 
     if (!clientEmail) {
@@ -1554,12 +1581,26 @@ router.post('/claim-client-link', async (req, res) => {
     const client = pendingClients[0];
 
     // 1) Link clients.user_id
-    await supabase.from('clients').update({ user_id: userId }).eq('id', client.id);
+    const { error: linkErr } = await supabase
+      .from('clients')
+      .update({ user_id: userId })
+      .eq('id', client.id);
+    if (linkErr) {
+      logger.error('[PortalAdmin] Failed to link clients.user_id:', linkErr.message);
+      return res.status(500).json({ error: 'Failed to link client (step 1)' });
+    }
+
     // 2) Set profile role + owner_id
-    await supabase
+    const { error: profileErr } = await supabase
       .from('profiles')
       .update({ role: 'client', owner_id: client.owner_id })
       .eq('id', userId);
+    if (profileErr) {
+      // Rollback clients.user_id since the link is incomplete
+      await supabase.from('clients').update({ user_id: null }).eq('id', client.id);
+      logger.error('[PortalAdmin] Failed to set profile role/owner:', profileErr.message);
+      return res.status(500).json({ error: 'Failed to link client (step 2)' });
+    }
 
     res.json({
       linked: true,

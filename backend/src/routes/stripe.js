@@ -467,13 +467,17 @@ async function handleTrialEnding(subscription) {
   const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
   const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - Date.now()) / (1000 * 60 * 60 * 24))) : 3;
 
-  // Create in-app notification
+  // Create in-app notification — 'trial_ending' is not in the type CHECK,
+  // and 'message'/'data' are non-existent columns. Use system + body + action_data.
   await supabaseAdmin.from('notifications').insert({
     user_id: userId,
-    type: 'trial_ending',
+    type: 'system',
     title: 'Trial Ending Soon',
-    message: `Your free trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Subscribe to keep using all features.`,
-    data: { screen: 'Billing', daysLeft },
+    body: `Your free trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Subscribe to keep using all features.`,
+    icon: 'time-outline',
+    color: '#F59E0B',
+    action_type: 'navigate',
+    action_data: { screen: 'Billing', daysLeft },
   });
 
   // Send push notification
@@ -699,8 +703,15 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
   }
 
   // Atomic update with optimistic lock + retry on conflict
-  // All math in integer cents to avoid floating-point drift
+  // All math in integer cents to avoid floating-point drift.
+  //
+  // Hoist newAmountPaid + newStatus out of the loop so audit/notification
+  // code below can read them. (Previously block-scoped → undefined leakage.)
   const MAX_RETRIES = 3;
+  let newAmountPaid;
+  let newStatus;
+  let success = false;
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     // Re-read invoice on retry to get current amount_paid
     const currentInvoice = attempt === 0 ? invoice : (
@@ -715,8 +726,8 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     const existingPaidCents = Math.round(parseFloat(currentInvoice.amount_paid || 0) * 100);
     const totalCents = Math.round(parseFloat(currentInvoice.total) * 100);
     const newAmountPaidCents = existingPaidCents + amountPaidCents;
-    const newAmountPaid = newAmountPaidCents / 100;
-    const newStatus = newAmountPaidCents >= totalCents ? 'paid' : 'partial';
+    newAmountPaid = newAmountPaidCents / 100;
+    newStatus = newAmountPaidCents >= totalCents ? 'paid' : 'partial';
 
     const { data: updated, error: updateError } = await supabaseAdmin
       .from('invoices')
@@ -748,7 +759,13 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     }
 
     // Success
+    success = true;
     break;
+  }
+
+  // If we never succeeded, bail before writing a misleading audit row
+  if (!success) {
+    return;
   }
 
   // Record immutable payment event for audit trail

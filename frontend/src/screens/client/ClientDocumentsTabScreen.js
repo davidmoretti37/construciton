@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { fetchDashboard, fetchProjectBilling } from '../../services/clientPortalApi';
-import { supabase } from '../../lib/supabase';
+import { fetchDashboard, fetchProjectBilling, fetchProjectDocuments, fetchProjectApprovals } from '../../services/clientPortalApi';
 import ClientHeader from '../../components/ClientHeader';
 
 const C = {
@@ -24,27 +23,8 @@ const C = {
   red: '#EF4444', redBg: '#FEE2E2',
 };
 
-const fetchDocuments = async (projectId) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return [];
-  const { API_URL } = require('../../config/api');
-  const res = await fetch(`${API_URL}/api/portal/projects/${projectId}/documents`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-  if (!res.ok) return [];
-  return res.json();
-};
-
-const fetchApprovals = async (projectId) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return [];
-  const { API_URL } = require('../../config/api');
-  const res = await fetch(`${API_URL}/api/portal/projects/${projectId}/approvals`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-  if (!res.ok) return [];
-  return res.json();
-};
+// (fetchProjectDocuments + fetchProjectApprovals imported from clientPortalApi —
+// they go through portalFetch which handles 401/429 retries + auth headers.)
 
 const ACTIVITY_VISUAL = {
   approved:        { icon: 'checkmark-circle', color: C.green,    label: 'Approved' },
@@ -115,25 +95,41 @@ export default function ClientDocumentsTabScreen({ navigation }) {
   const [documents, setDocuments] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [billingHistory, setBillingHistory] = useState([]);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
-      if (projects.length > 0) {
-        const proj = projects[0];
-        setActiveProject(proj);
-        const [docs, apps, billing] = await Promise.all([
-          fetchDocuments(proj.id).catch(() => []),
-          fetchApprovals(proj.id).catch(() => []),
-          fetchProjectBilling(proj.id).catch(() => null),
-        ]);
-        setDocuments(Array.isArray(docs) ? docs : []);
-        setApprovals(Array.isArray(apps) ? apps : []);
-        setBillingHistory(billing?.history || []);
+      if (projects.length === 0) {
+        setActiveProject(null);
+        setDocuments([]);
+        setApprovals([]);
+        return;
+      }
+      const proj = projects[0];
+      setActiveProject(proj);
+
+      // Track each fetch independently so partial failures don't blank the screen.
+      const [docsRes, appsRes, billingRes] = await Promise.allSettled([
+        fetchProjectDocuments(proj.id),
+        fetchProjectApprovals(proj.id),
+        fetchProjectBilling(proj.id),
+      ]);
+
+      setDocuments(docsRes.status === 'fulfilled' && Array.isArray(docsRes.value) ? docsRes.value : []);
+      setApprovals(appsRes.status === 'fulfilled' && Array.isArray(appsRes.value) ? appsRes.value : []);
+      setBillingHistory(billingRes.status === 'fulfilled' ? (billingRes.value?.history || []) : []);
+
+      // Only flag an error if BOTH primary feeds failed — that's a real problem
+      // (auth invalid, network down). One failing is fine — show what we have.
+      if (docsRes.status === 'rejected' && appsRes.status === 'rejected') {
+        setLoadError('Could not load documents. Pull down to retry.');
       }
     } catch (e) {
       console.error('Documents load error:', e);
+      setLoadError(e.message || 'Could not load documents');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -166,6 +162,14 @@ export default function ClientDocumentsTabScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.amber} />
         }
       >
+        {/* Error banner */}
+        {loadError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={16} color={C.red} />
+            <Text style={styles.errorBannerText}>{loadError}</Text>
+          </View>
+        )}
+
         {/* Activity feed — what happened recently */}
         {activityFeed.length > 0 && (
           <View style={styles.section}>
@@ -232,4 +236,10 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', padding: 40, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: C.text },
   emptySub: { fontSize: 13, color: C.textMuted, textAlign: 'center' },
+
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.redBg, borderRadius: 10, padding: 12, marginBottom: 12,
+  },
+  errorBannerText: { fontSize: 13, color: C.red, flex: 1 },
 });

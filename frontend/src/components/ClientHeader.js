@@ -18,7 +18,10 @@ const C = {
 };
 
 export default function ClientHeader({ title, subtitle, navigation, gradient = true }) {
-  const { unreadCount } = useNotifications?.() || { unreadCount: 0 };
+  // useNotifications returns a default object if no provider is mounted (the
+  // context provider is in App.js root). Calling the hook is required by Rules
+  // of Hooks; the safety net is the `|| { unreadCount: 0 }` fallback.
+  const { unreadCount } = useNotifications() || { unreadCount: 0 };
   const Body = (
     <SafeAreaView edges={['top']} style={styles.inner}>
       <View style={styles.row}>

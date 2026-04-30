@@ -15,8 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, fetchProjectBilling, fetchProjectEstimates, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
-import { supabase } from '../../lib/supabase';
-import { API_URL } from '../../config/api';
 import ClientHeader from '../../components/ClientHeader';
 
 const C = {
@@ -44,6 +42,7 @@ export default function ClientMoneyScreen({ navigation }) {
   const [billing, setBilling] = useState(null);  // unified estimates+draws+COs+invoices
   const [estimatesDirect, setEstimatesDirect] = useState([]);  // fallback when billing endpoint unavailable
   const [paying, setPaying] = useState(null);
+  const [openingEstimate, setOpeningEstimate] = useState(null);  // tap-guard against double-fire
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
   const loadData = useCallback(async () => {
@@ -119,6 +118,11 @@ export default function ClientMoneyScreen({ navigation }) {
         if (result?.url) {
           await Linking.openURL(result.url);
           setTimeout(() => loadData(), 2000);
+        } else {
+          Alert.alert(
+            'Payment unavailable',
+            result?.error || "Couldn't start checkout. Please try again or contact your contractor.",
+          );
         }
       }
     } catch (e) {
@@ -437,22 +441,19 @@ export default function ClientMoneyScreen({ navigation }) {
                 key={est.id}
                 style={styles.activityRow}
                 activeOpacity={0.7}
+                disabled={openingEstimate === est.source_id}
                 onPress={async () => {
-                  // Find the full row from the direct fetch (has items, scope, etc.)
-                  // and route to the detail screen for accept/decline.
-                  const full = estimatesDirect.find(e => e.id === est.source_id) || null;
-                  if (full) {
-                    navigation.getParent()?.navigate('ClientEstimateDetail', { estimate: full, project: activeProject });
-                    return;
-                  }
-                  // Fallback: fetch the single estimate via portal route
+                  if (openingEstimate) return; // prevent double-tap
+                  setOpeningEstimate(est.source_id);
                   try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const res = await fetch(
-                      `${API_URL}/api/portal/projects/${activeProject?.id}/estimates`,
-                      { headers: { Authorization: `Bearer ${session?.access_token || ''}` } }
-                    );
-                    const list = await res.json().catch(() => []);
+                    // Find the full row from the direct fetch (has items, scope, etc.)
+                    const full = estimatesDirect.find(e => e.id === est.source_id) || null;
+                    if (full) {
+                      navigation.getParent()?.navigate('ClientEstimateDetail', { estimate: full, project: activeProject });
+                      return;
+                    }
+                    // Fallback: re-fetch via the portal helper (handles auth + retries)
+                    const list = await fetchProjectEstimates(activeProject?.id).catch(() => []);
                     const match = Array.isArray(list) ? list.find(e => e.id === est.source_id) : null;
                     if (match) {
                       navigation.getParent()?.navigate('ClientEstimateDetail', { estimate: match, project: activeProject });
@@ -461,6 +462,9 @@ export default function ClientMoneyScreen({ navigation }) {
                     }
                   } catch (e) {
                     Alert.alert('Error', e.message || 'Could not open estimate');
+                  } finally {
+                    // Small delay so React Navigation finishes the push before we re-enable
+                    setTimeout(() => setOpeningEstimate(null), 600);
                   }
                 }}
               >
