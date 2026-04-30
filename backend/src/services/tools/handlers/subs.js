@@ -520,6 +520,14 @@ async function add_project_document(userId, args) {
     if (!title || !file_url) {
       return userSafeError('title and file_url are required');
     }
+    // Public URLs (https://...) won't resolve through our signed-URL path —
+    // require a storage path. Foreman should accept files via the user's
+    // upload UI first, then call this with the returned storage path.
+    if (/^https?:\/\//i.test(file_url)) {
+      return userSafeError(
+        'file_url must be a storage path (e.g. "userId/projectId/file.pdf"), not a public URL. Upload the file via the project documents screen first, then reference it here.'
+      );
+    }
 
     // Resolve project (by id or by name)
     let projectId = rawProjectId || project;

@@ -113,17 +113,26 @@ export default function DocumentsCard({ projectId, navigation }) {
 
       setDocs(pd || []);
 
-      // Action items: open doc requests for subs on this project, unsigned contracts
-      // (kept light — full action surface lives in the project's compliance/bidding flows)
-      const { data: openTokens } = await supabase
-        .from('sub_action_tokens')
-        .select('id, scope, doc_type_requested, sub_organization_id, created_at, sub:sub_organizations(legal_name)')
-        .eq('scope', 'upload_doc')
-        .is('used_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .in('sub_organization_id', (
-          (await supabase.from('sub_engagements').select('sub_organization_id').eq('project_id', projectId)).data || []
-        ).map((e) => e.sub_organization_id));
+      // Action items: open doc requests for subs on this project.
+      // Guard the .in([]) edge-case — PostgREST throws on an empty array.
+      let openTokens = [];
+      const { data: engRows } = await supabase
+        .from('sub_engagements')
+        .select('sub_organization_id')
+        .eq('project_id', projectId)
+        .neq('status', 'cancelled');
+      const engSubIds = [...new Set((engRows || []).map((e) => e.sub_organization_id).filter(Boolean))];
+
+      if (engSubIds.length > 0) {
+        const { data } = await supabase
+          .from('sub_action_tokens')
+          .select('id, scope, doc_type_requested, sub_organization_id, created_at, sub:sub_organizations(legal_name)')
+          .eq('scope', 'upload_doc')
+          .is('used_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .in('sub_organization_id', engSubIds);
+        openTokens = data || [];
+      }
 
       const items = (openTokens || []).map((t) => ({
         id: `req-${t.id}`,

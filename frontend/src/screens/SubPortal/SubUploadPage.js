@@ -11,7 +11,7 @@
  * endpoint. On success, navigates back to Home / shows confirmation.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   SafeAreaView, ScrollView, Alert, TextInput,
@@ -86,7 +86,11 @@ export default function SubUploadPage({ route, navigation }) {
   const docLabel = DOC_TYPE_LABELS[docType] || docType || 'document';
   const orgName = subOrg?.legal_name || magicInfo?.sub_organization?.legal_name;
 
+  const pickerBusyRef = useRef(false);
+
   const onPickFile = async () => {
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*'],
@@ -95,11 +99,17 @@ export default function SubUploadPage({ route, navigation }) {
       if (result.canceled) return;
       setPickedFile(result.assets?.[0]);
     } catch (e) {
-      Alert.alert('Could not pick file', e.message);
+      const stuck = /Different document picking in progress|Await other document/.test(e?.message || '');
+      Alert.alert(stuck ? 'iOS picker is stuck' : 'Could not pick file',
+        stuck ? 'Reload the app to clear it.' : e.message);
+    } finally {
+      pickerBusyRef.current = false;
     }
   };
 
   const onTakePhoto = async () => {
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
@@ -118,6 +128,8 @@ export default function SubUploadPage({ route, navigation }) {
       });
     } catch (e) {
       Alert.alert('Camera error', e.message);
+    } finally {
+      pickerBusyRef.current = false;
     }
   };
 

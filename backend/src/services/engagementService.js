@@ -265,34 +265,41 @@ async function getEngagementForSub(engagementId, subAuthUserId) {
     .eq('id', engagement.gc_user_id)
     .maybeSingle();
 
-  // Original bid_request (the one whose awarded_bid_id pointed to a sub_bid
-  // for this sub_organization) + its attachments.
-  const { data: bidRequest } = await supabase
-    .from('bid_requests')
-    .select(`
-      id, scope_summary, due_at,
-      site_address, site_city, site_state_code, site_postal_code, site_visit_notes,
-      awarded_bid_id, awarded_at,
-      bid:sub_bids!fk_bid_requests_awarded(id, sub_organization_id, amount, timeline_days, exclusions, notes)
-    `)
-    .eq('project_id', engagement.project_id)
-    .eq('gc_user_id', engagement.gc_user_id)
-    .eq('trade', engagement.trade)
-    .not('awarded_bid_id', 'is', null)
-    .order('awarded_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const matchingBid = bidRequest?.bid?.sub_organization_id === subOrg.id ? bidRequest : null;
-
+  // Original bid_request: find the accepted sub_bid for this sub on this
+  // GC's project, then walk back via awarded_bid_id. Two-step instead of an
+  // embed (PostgREST reverse-FK embeds are fragile and the unique constraint
+  // on awarded_bid_id can confuse the resolver).
+  let matchingBid = null;
   let bidAttachments = [];
-  if (matchingBid) {
-    const { data } = await supabase
-      .from('bid_request_attachments')
-      .select('id, file_name, file_mime, file_size_bytes, attachment_type, uploaded_by_role, created_at')
-      .eq('bid_request_id', matchingBid.id)
-      .order('created_at', { ascending: true });
-    bidAttachments = data || [];
+
+  const { data: acceptedBid } = await supabase
+    .from('sub_bids')
+    .select('id')
+    .eq('sub_organization_id', subOrg.id)
+    .eq('status', 'accepted')
+    .order('decided_at', { ascending: false, nullsLast: true })
+    .limit(5);
+
+  const acceptedBidIds = (acceptedBid || []).map((b) => b.id);
+  if (acceptedBidIds.length > 0) {
+    const { data: brs } = await supabase
+      .from('bid_requests')
+      .select('id, scope_summary, due_at, site_address, site_city, site_state_code, site_postal_code, site_visit_notes, awarded_bid_id, awarded_at, project_id, gc_user_id, trade')
+      .in('awarded_bid_id', acceptedBidIds)
+      .eq('project_id', engagement.project_id)
+      .eq('gc_user_id', engagement.gc_user_id)
+      .order('awarded_at', { ascending: false })
+      .limit(1);
+
+    if (brs && brs.length > 0) {
+      matchingBid = brs[0];
+      const { data } = await supabase
+        .from('bid_request_attachments')
+        .select('id, file_name, file_mime, file_size_bytes, attachment_type, uploaded_by_role, created_at')
+        .eq('bid_request_id', matchingBid.id)
+        .order('created_at', { ascending: true });
+      bidAttachments = data || [];
+    }
   }
 
   // Project documents the GC has flagged visible_to_subs

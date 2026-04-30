@@ -5,7 +5,7 @@
  * Visual language matches Home and Work tabs.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
   ActivityIndicator, Alert,
@@ -118,8 +118,12 @@ export default function SubDocumentsTab({ navigation }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const pickerBusyRef = useRef(false);
+
   const onUpload = async (docType) => {
     if (!subOrg) return;
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*'],
@@ -142,8 +146,15 @@ export default function SubDocumentsTab({ navigation }) {
       });
       await load();
     } catch (e) {
-      Alert.alert('Upload failed', e.message || 'Unknown error');
+      const stuck = /Different document picking in progress|Await other document/.test(e?.message || '');
+      Alert.alert(
+        stuck ? 'iOS picker is stuck' : 'Upload failed',
+        stuck
+          ? 'iOS thinks a previous picker is still open. Reload the app to clear it.'
+          : (e.message || 'Unknown error'),
+      );
     } finally {
+      pickerBusyRef.current = false;
       setUploadingType(null);
     }
   };

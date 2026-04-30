@@ -40,6 +40,15 @@ export default function EngagementDetailScreen({ route, navigation }) {
   const [savingDates, setSavingDates] = useState(false);
 
   const onSaveDates = async () => {
+    const isValidDate = (s) => !s || /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
+    if (!isValidDate(mobDate) || !isValidDate(endDate)) {
+      Alert.alert('Invalid date', 'Use the format YYYY-MM-DD (e.g. 2026-05-15) or leave blank.');
+      return;
+    }
+    if (mobDate.trim() && endDate.trim() && mobDate.trim() > endDate.trim()) {
+      Alert.alert('Date order', 'Completion date must be on or after the mobilization date.');
+      return;
+    }
     setSavingDates(true);
     try {
       await api.updateEngagement(engagement_id, {
