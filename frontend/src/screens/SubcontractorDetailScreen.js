@@ -652,11 +652,18 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                           <Ionicons name="mail" size={20} color="#0EA5E9" />
                         </View>
                         <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={styles.bidCardTitle} numberOfLines={1}>
-                            {br.trade}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={styles.bidCardTitle} numberOfLines={1}>
+                              {br.trade}
+                            </Text>
+                            {br.originated_by_role === 'sub' && (
+                              <View style={styles.fromSubBadge}>
+                                <Text style={styles.fromSubBadgeText}>From sub</Text>
+                              </View>
+                            )}
+                          </View>
                           <Text style={styles.bidCardMeta} numberOfLines={1}>
-                            {br.project?.name || 'Project'}
+                            {br.project?.name || (br.originated_by_role === 'sub' ? 'Unsolicited proposal' : 'Project')}
                             {br.due_at ? ` · due ${new Date(br.due_at).toLocaleDateString()}` : ''}
                           </Text>
                         </View>
@@ -927,6 +934,15 @@ const makeStyles = (Colors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   bidCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.primaryText, textTransform: 'capitalize' },
+  fromSubBadge: {
+    paddingHorizontal: 6, paddingVertical: 2,
+    backgroundColor: '#8B5CF615',
+    borderRadius: 4,
+  },
+  fromSubBadgeText: {
+    fontSize: 9, fontWeight: '700',
+    color: '#8B5CF6', textTransform: 'uppercase', letterSpacing: 0.4,
+  },
   bidCardMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
   bidCardBody: { fontSize: 13, color: Colors.primaryText, marginTop: 10, lineHeight: 19 },
   bidCardFooter: {

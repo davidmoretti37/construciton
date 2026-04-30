@@ -97,6 +97,18 @@ export const uploadSubBidAttachment = (bidRequestId, payload) =>
     body: JSON.stringify(payload),
   });
 
+// Sub-initiated proposals (the sub pitches a GC unsolicited)
+export const listMyContractors = async () => {
+  const json = await authedFetch('/api/sub-portal/contractors');
+  return json.contractors || [];
+};
+
+export const sendProposal = (payload) =>
+  authedFetch('/api/sub-portal/proposals', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
 export const listMyInvoices = async () => {
   const json = await authedFetch('/api/sub-portal/invoices');
   return json.invoices || [];

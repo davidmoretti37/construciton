@@ -36,9 +36,15 @@ async function createBidRequest({
   siteStateCode = null,
   sitePostalCode = null,
   siteVisitNotes = null,
+  originatedByRole = 'gc',
 }) {
-  if (!gcUserId || !projectId || !trade || !scopeSummary) {
-    throw new Error('gcUserId, projectId, trade, and scopeSummary required');
+  if (!gcUserId || !trade || !scopeSummary) {
+    throw new Error('gcUserId, trade, and scopeSummary required');
+  }
+  // projectId is required for GC-originated; sub-originated proposals
+  // can have null projectId (sub may not know which project yet).
+  if (originatedByRole === 'gc' && !projectId) {
+    throw new Error('projectId required for GC-originated bid requests');
   }
   const { data, error } = await supabase
     .from('bid_requests')
@@ -58,12 +64,14 @@ async function createBidRequest({
       site_postal_code: sitePostalCode,
       site_visit_notes: siteVisitNotes,
       status: 'open',
+      originated_by_role: originatedByRole,
     })
     .select()
     .single();
   if (error) throw error;
   return data;
 }
+
 
 // =============================================================================
 // inviteSubsToBid

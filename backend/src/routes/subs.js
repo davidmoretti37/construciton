@@ -236,7 +236,7 @@ router.get('/:id/bid-history', authenticateUser, async (req, res) => {
       .select(`
         bid_request:bid_requests (
           id, gc_user_id, project_id, trade, scope_summary,
-          status, created_at, due_at,
+          status, created_at, due_at, originated_by_role,
           site_address, site_city, site_state_code,
           project:projects (id, name, location)
         )

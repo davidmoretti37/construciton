@@ -257,6 +257,118 @@ router.get('/bids', authenticateUser, async (req, res) => {
 });
 
 // =============================================================================
+// GET /api/sub-portal/contractors — GCs the sub is linked to
+// =============================================================================
+// Returns the GC who created the sub_organization + any GC the sub has an
+// engagement with. The sub picks one of these when creating a proposal.
+
+router.get('/contractors', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.json({ contractors: [] });
+
+    const gcIds = new Set();
+    if (sub.created_by_gc_user_id) gcIds.add(sub.created_by_gc_user_id);
+
+    const { data: engs } = await supabase
+      .from('sub_engagements')
+      .select('gc_user_id')
+      .eq('sub_organization_id', sub.id);
+    for (const e of (engs || [])) if (e.gc_user_id) gcIds.add(e.gc_user_id);
+
+    if (gcIds.size === 0) return res.json({ contractors: [] });
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, business_name, business_email, business_phone')
+      .in('id', [...gcIds]);
+
+    return res.json({ contractors: profiles || [] });
+  } catch (err) {
+    logger.error('[subPortal] contractors error:', err);
+    return res.status(500).json({ error: 'Failed to list contractors' });
+  }
+});
+
+// =============================================================================
+// POST /api/sub-portal/proposals — sub-initiated unsolicited proposal
+// =============================================================================
+// Body: { gc_user_id, trade, scope_summary, amount, timeline_days?,
+//         exclusions?, notes?, project_id? }
+//
+// Creates a bid_request (originated_by_role='sub'), invites the sub,
+// and submits their bid in one transaction-like flow. After insert the
+// flow looks identical to a GC-originated bid — GC sees it on their
+// SubcontractorDetail Bids tab and can accept or decline.
+
+router.post('/proposals', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(403).json({ error: 'No sub_organization linked' });
+
+    const {
+      gc_user_id, trade, scope_summary, amount,
+      timeline_days, exclusions, notes, project_id,
+    } = req.body || {};
+
+    if (!gc_user_id || !trade || !scope_summary || amount == null) {
+      return res.status(400).json({
+        error: 'gc_user_id, trade, scope_summary, and amount required',
+      });
+    }
+
+    // Verify the sub is linked to this GC (creator OR engagement)
+    let allowed = false;
+    if (sub.created_by_gc_user_id === gc_user_id) allowed = true;
+    if (!allowed) {
+      const { data: eng } = await supabase
+        .from('sub_engagements')
+        .select('id')
+        .eq('sub_organization_id', sub.id)
+        .eq('gc_user_id', gc_user_id)
+        .limit(1);
+      if (eng && eng.length > 0) allowed = true;
+    }
+    if (!allowed) {
+      return res.status(403).json({ error: 'You are not linked to this contractor' });
+    }
+
+    // 1. Create bid_request (originated_by_role='sub')
+    const bidRequest = await biddingService.createBidRequest({
+      gcUserId: gc_user_id,
+      projectId: project_id || null,
+      trade,
+      scopeSummary: scope_summary,
+      originatedByRole: 'sub',
+    });
+
+    // 2. Self-invite (so subsequent attachment + bid logic works)
+    await supabase
+      .from('bid_request_invitations')
+      .insert({
+        bid_request_id: bidRequest.id,
+        sub_organization_id: sub.id,
+        invited_by: req.user.id,
+      });
+
+    // 3. Submit the sub's bid
+    const bid = await biddingService.submitBid({
+      bidRequestId: bidRequest.id,
+      subOrganizationId: sub.id,
+      amount: Number(amount),
+      timelineDays: timeline_days || null,
+      exclusions: exclusions || null,
+      notes: notes || null,
+    });
+
+    return res.json({ bid_request: bidRequest, bid });
+  } catch (err) {
+    logger.error('[subPortal] proposals error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to send proposal' });
+  }
+});
+
+// =============================================================================
 // GET /api/sub-portal/bids/:id — full bid package for the invited sub
 // =============================================================================
 // Returns the bid_request + project basics + attachments. The sub must

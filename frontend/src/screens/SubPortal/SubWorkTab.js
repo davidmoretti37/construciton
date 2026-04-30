@@ -84,6 +84,24 @@ export default function SubWorkTab({ navigation }) {
           : `${totalActive} item${totalActive === 1 ? '' : 's'} across your contractors.`}
       </Text>
 
+      {/* Send a proposal CTA */}
+      <TouchableOpacity
+        style={styles.proposeCta}
+        activeOpacity={0.85}
+        onPress={() => navigation?.navigate?.('SubProposalCreator')}
+      >
+        <View style={styles.proposeCtaIcon}>
+          <Ionicons name="paper-plane" size={20} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.proposeCtaTitle}>Send a proposal</Text>
+          <Text style={styles.proposeCtaBody}>
+            Pitch a contractor with your scope, price, and timeline.
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#fff" />
+      </TouchableOpacity>
+
       {/* Filter chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {FILTERS.map((f) => {
@@ -336,6 +354,19 @@ const makeStyles = (Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 26, fontWeight: '700', color: Colors.primaryText },
   headerSub: { fontSize: 14, color: Colors.secondaryText, marginTop: 4, marginBottom: 16, lineHeight: 20 },
+  proposeCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: SUB_VIOLET,
+    borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  proposeCtaIcon: {
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  proposeCtaTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  proposeCtaBody: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
   chipRow: { flexDirection: 'row', gap: 8, paddingVertical: 4, paddingRight: 8 },
   chip: {
     paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999,
