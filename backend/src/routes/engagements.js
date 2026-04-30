@@ -259,6 +259,81 @@ router.post('/:id/subcontracts', authenticateUser, async (req, res) => {
 });
 
 // =============================================================================
+// POST /api/engagements/:id/subcontracts/:subId/request-esign
+// =============================================================================
+// Fires the native eSignService for a subcontract — generates a signing
+// link that the sub can use to draw their signature in browser/mobile.
+// Alternative to the action_token sub-portal flow; both are valid.
+// On signing, eSignService updates subcontracts.status='signed_by_sub'.
+router.post('/:id/subcontracts/:subId/request-esign', authenticateUser, async (req, res) => {
+  try {
+    const { signerEmail, signerName } = req.body || {};
+
+    // Verify ownership of engagement
+    const engagement = await engagementService.getEngagement({
+      engagementId: req.params.id,
+      callerUserId: req.user.id,
+    });
+    if (!engagement || engagement.gc_user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Verify subcontract exists + belongs to this engagement
+    const { data: sub, error: subErr } = await supabase
+      .from('subcontracts')
+      .select('id, gc_user_id, engagement_id, title, status')
+      .eq('id', req.params.subId)
+      .eq('gc_user_id', req.user.id)
+      .single();
+    if (subErr || !sub) return res.status(404).json({ error: 'Subcontract not found' });
+    if (sub.engagement_id !== engagement.id) {
+      return res.status(400).json({ error: 'Subcontract not part of this engagement' });
+    }
+
+    // Resolve signer — prefer body params, fall back to engagement contacts
+    let resolvedEmail = signerEmail;
+    let resolvedName = signerName;
+    if (!resolvedEmail) {
+      const { data: subOrg } = await supabase
+        .from('sub_organizations')
+        .select('primary_contact_email, primary_contact_name, name')
+        .eq('id', engagement.sub_organization_id)
+        .single();
+      resolvedEmail = subOrg?.primary_contact_email;
+      resolvedName = resolvedName || subOrg?.primary_contact_name || subOrg?.name;
+    }
+    if (!resolvedEmail) {
+      return res.status(400).json({ error: 'No signer email available — pass signerEmail in body' });
+    }
+
+    const eSign = require('../services/eSignService');
+    const sig = await eSign.createSignatureRequest({
+      ownerId: req.user.id,
+      documentType: 'subcontract',
+      documentId: sub.id,
+      signerName: resolvedName || 'Subcontractor',
+      signerEmail: resolvedEmail,
+    });
+
+    // Flip status to 'sent' so the sub-portal reflects the active request
+    await supabase
+      .from('subcontracts')
+      .update({ status: 'sent', sent_at: new Date().toISOString(), esign_request_id: sig.signatureId })
+      .eq('id', sub.id)
+      .in('status', ['draft']);
+
+    res.json({
+      signatureId: sig.signatureId,
+      signingUrl: sig.signingUrl,
+      expiresAt: sig.expiresAt,
+    });
+  } catch (err) {
+    logger.error('[engagements] subcontract eSign request failed:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to create signing request' });
+  }
+});
+
+// =============================================================================
 // GET /api/engagements/:id/invoices
 // =============================================================================
 

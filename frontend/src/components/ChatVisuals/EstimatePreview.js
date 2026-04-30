@@ -990,22 +990,35 @@ export default function EstimatePreview({ data, onAction }) {
             </TouchableOpacity>
           </>
         ) : status === 'accepted' ? (
-          <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+          // If a project already exists for this estimate, hide "Set up draws"
+          // — the owner would just create a duplicate project. They can still
+          // configure draws by editing the existing project.
+          data?.project_id ? (
             <TouchableOpacity
-              style={[styles.sendButton, { flex: 1, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: Colors.primaryBlue }]}
+              style={[styles.sendButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={handleConvertToInvoice}
             >
-              <Ionicons name="document-text-outline" size={16} color={Colors.primaryBlue} />
-              <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>Bill it all now</Text>
+              <Ionicons name="document-text-outline" size={18} color="#fff" />
+              <Text style={styles.buttonText}>Bill it all now</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.sendButton, styles.primaryButton, { flex: 1, backgroundColor: Colors.primaryBlue }]}
-              onPress={handleSetUpDraws}
-            >
-              <Ionicons name="cash-outline" size={16} color="#fff" />
-              <Text style={styles.buttonText}>Set up draws</Text>
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+              <TouchableOpacity
+                style={[styles.sendButton, { flex: 1, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: Colors.primaryBlue }]}
+                onPress={handleConvertToInvoice}
+              >
+                <Ionicons name="document-text-outline" size={16} color={Colors.primaryBlue} />
+                <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>Bill it all now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendButton, styles.primaryButton, { flex: 1, backgroundColor: Colors.primaryBlue }]}
+                onPress={handleSetUpDraws}
+              >
+                <Ionicons name="cash-outline" size={16} color="#fff" />
+                <Text style={styles.buttonText}>Set up draws</Text>
+              </TouchableOpacity>
+            </View>
+          )
         ) : !status ? (
           <>
             <TouchableOpacity
