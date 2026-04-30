@@ -296,11 +296,11 @@ router.post('/:id/subcontracts/:subId/request-esign', authenticateUser, async (r
     if (!resolvedEmail) {
       const { data: subOrg } = await supabase
         .from('sub_organizations')
-        .select('primary_contact_email, primary_contact_name, name')
+        .select('primary_email, dba, legal_name')
         .eq('id', engagement.sub_organization_id)
         .single();
-      resolvedEmail = subOrg?.primary_contact_email;
-      resolvedName = resolvedName || subOrg?.primary_contact_name || subOrg?.name;
+      resolvedEmail = subOrg?.primary_email;
+      resolvedName = resolvedName || subOrg?.dba || subOrg?.legal_name;
     }
     if (!resolvedEmail) {
       return res.status(400).json({ error: 'No signer email available — pass signerEmail in body' });

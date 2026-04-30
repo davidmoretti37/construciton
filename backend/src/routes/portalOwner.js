@@ -1432,8 +1432,13 @@ router.post('/change-orders/:id/send', async (req, res) => {
             user_id: client.user_id,
             title: 'New Change Order',
             body: `CO-${String(co.co_number).padStart(3, '0')} for $${parseFloat(co.total_amount).toLocaleString()} ready for review.`,
-            type: 'change_order',
-            data: { changeOrderId: id, projectId: co.project_id },
+            // 'change_order' is not in notifications.type CHECK — use 'financial_update'
+            type: 'financial_update',
+            icon: 'swap-horizontal-outline',
+            color: '#D97706',
+            project_id: co.project_id,
+            action_type: 'navigate',
+            action_data: { changeOrderId: id, projectId: co.project_id, screen: 'ClientChangeOrderDetail' },
           });
         }
       }
@@ -1533,6 +1538,111 @@ router.post('/change-orders/:id/void', async (req, res) => {
   } catch (error) {
     logger.error('[PortalAdmin] Void CO error:', error.message);
     res.status(500).json({ error: 'Failed to void change order' });
+  }
+});
+
+// ============================================================
+// POST /change-orders/:id/bill-now
+// ============================================================
+// Generates an invoice immediately from an approved CO. Used by the
+// BillingCard "Bill" action and notification one-tap. Mirrors the
+// "Bill it all now" flow used for estimates, but copies CO line items.
+router.post('/change-orders/:id/bill-now', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { id } = req.params;
+
+    const { data: co, error: coErr } = await supabase
+      .from('change_orders')
+      .select('*, change_order_line_items(*)')
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .single();
+    if (coErr || !co) return res.status(404).json({ error: 'Change order not found' });
+    if (co.status !== 'approved') {
+      return res.status(400).json({ error: `CO must be approved before billing (current: ${co.status})` });
+    }
+
+    // Don't double-bill: if a draw_schedule_items row already references
+    // this CO and produced an invoice, return the existing invoice id.
+    const { data: existingDraw } = await supabase
+      .from('draw_schedule_items')
+      .select('id, invoice_id')
+      .eq('co_id', id)
+      .maybeSingle();
+    if (existingDraw?.invoice_id) {
+      return res.json({
+        invoice_id: existingDraw.invoice_id,
+        already_billed: true,
+        message: 'This change order has already been billed.',
+      });
+    }
+
+    // Pull project context for client info
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, name, client_name, client_phone, client_email, client_address')
+      .eq('id', co.project_id)
+      .single();
+    if (!project) return res.status(400).json({ error: 'Project not found' });
+
+    // Build invoice line items from CO line items
+    const items = (co.change_order_line_items || [])
+      .sort((a, b) => (a.position || 0) - (b.position || 0))
+      .map(li => ({
+        description: li.description,
+        quantity: parseFloat(li.quantity || 0),
+        unit: li.unit || null,
+        pricePerUnit: parseFloat(li.unit_price || 0),
+        total: parseFloat(li.amount || 0),
+      }));
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14);
+
+    const { data: invoice, error: invErr } = await supabase
+      .from('invoices')
+      .insert({
+        user_id: ownerId,
+        project_id: co.project_id,
+        client_name: project.client_name,
+        client_phone: project.client_phone,
+        client_email: project.client_email,
+        client_address: project.client_address,
+        project_name: project.name,
+        items,
+        subtotal: parseFloat(co.subtotal || 0),
+        tax_rate: parseFloat(co.tax_rate || 0),
+        tax_amount: parseFloat(co.tax_amount || 0),
+        total: parseFloat(co.total_amount || 0),
+        due_date: dueDate.toISOString().split('T')[0],
+        payment_terms: 'Net 14',
+        notes: `Generated from CO-${String(co.co_number).padStart(3, '0')}: ${co.title}`,
+        status: 'unpaid',
+      })
+      .select()
+      .single();
+    if (invErr) {
+      logger.error('[PortalAdmin] CO bill-now invoice create failed:', invErr.message);
+      return res.status(500).json({ error: invErr.message });
+    }
+
+    // Audit
+    await supabase.from('approval_events').insert({
+      project_id: co.project_id,
+      entity_type: 'change_order',
+      entity_id: id,
+      action: 'sent',
+      actor_type: 'owner',
+      actor_id: ownerId,
+      notes: `Billed via invoice ${invoice.invoice_number}`,
+      metadata: { invoice_id: invoice.id, co_number: co.co_number },
+    });
+
+    res.json({ invoice_id: invoice.id, invoice_number: invoice.invoice_number, total: invoice.total });
+  } catch (error) {
+    logger.error('[PortalAdmin] CO bill-now error:', error.message);
+    res.status(500).json({ error: 'Failed to bill change order' });
   }
 });
 
