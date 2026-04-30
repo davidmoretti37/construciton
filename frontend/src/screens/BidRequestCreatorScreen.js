@@ -15,7 +15,7 @@
  *     POST /:id/attachments (base64 → storage) → POST /:id/invite.
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, Modal, FlatList, Linking, Image, Platform,
@@ -189,49 +189,69 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     }
   };
 
-  const onPickPDF = async () => {
+  // iOS only allows one document/image picker at a time. Modal close + picker
+  // open must not race — close, wait for the slide-out animation, then open.
+  // The ref guards against double-tap (e.g. user tapping "Pick a PDF" twice).
+  const pickerBusyRef = useRef(false);
+  const closeModalAndWait = async () => {
     setPickerOpen(false);
+    await new Promise((r) => setTimeout(r, 300));
+  };
+
+  const onPickPDF = async () => {
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
+    await closeModalAndWait();
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf'],
         copyToCacheDirectory: true,
       });
-      if (result.canceled) return;
-      await addPickedFile(result.assets?.[0], pickerType);
+      if (!result.canceled) await addPickedFile(result.assets?.[0], pickerType);
     } catch (e) {
       Alert.alert('Could not pick file', e.message);
+    } finally {
+      pickerBusyRef.current = false;
     }
   };
 
   const onPickImage = async () => {
-    setPickerOpen(false);
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
+    await closeModalAndWait();
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.85,
       });
-      if (result.canceled) return;
-      await addPickedFile(result.assets?.[0], pickerType);
+      if (!result.canceled) await addPickedFile(result.assets?.[0], pickerType);
     } catch (e) {
       Alert.alert('Could not pick image', e.message);
+    } finally {
+      pickerBusyRef.current = false;
     }
   };
 
   const onTakePhoto = async () => {
-    setPickerOpen(false);
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
+    await closeModalAndWait();
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) { Alert.alert('Camera permission needed'); return; }
       const result = await ImagePicker.launchCameraAsync({ quality: 0.85 });
-      if (result.canceled) return;
-      const a = result.assets[0];
-      await addPickedFile({
-        uri: a.uri,
-        name: `photo-${Date.now()}.jpg`,
-        mimeType: 'image/jpeg',
-      }, 'photo');
+      if (!result.canceled) {
+        const a = result.assets[0];
+        await addPickedFile({
+          uri: a.uri,
+          name: `photo-${Date.now()}.jpg`,
+          mimeType: 'image/jpeg',
+        }, 'photo');
+      }
     } catch (e) {
       Alert.alert('Camera error', e.message);
+    } finally {
+      pickerBusyRef.current = false;
     }
   };
 
