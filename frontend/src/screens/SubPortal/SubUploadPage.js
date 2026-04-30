@@ -44,11 +44,15 @@ export default function SubUploadPage({ route, navigation }) {
   const styles = makeStyles(Colors);
 
   // In-app params take precedence; magic-link path uses ?t=<token> on web.
+  // On native, `window` exists but `window.location` doesn't — guard both.
   const inAppDocType = route?.params?.docType || null;
   const inAppActionTokenId = route?.params?.actionTokenId || null;
-  const tokenParam = route?.params?.token || (typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('t')
-    : null);
+  let webToken = null;
+  if (typeof window !== 'undefined' && window?.location?.search) {
+    try { webToken = new URLSearchParams(window.location.search).get('t'); }
+    catch (_) { webToken = null; }
+  }
+  const tokenParam = route?.params?.token || webToken;
   const isInApp = !!inAppDocType;
 
   const [magicInfo, setMagicInfo] = useState(null);
@@ -216,12 +220,12 @@ export default function SubUploadPage({ route, navigation }) {
           </View>
         ) : (
           <View style={styles.pickerRow}>
-            <TouchableOpacity style={styles.pickerBtn} onPress={onTakePhoto} activeOpacity={0.85}>
-              <Ionicons name="camera" size={28} color="#fff" />
+            <TouchableOpacity style={styles.pickerBtn} onPress={onTakePhoto} activeOpacity={0.7}>
+              <Ionicons name="camera-outline" size={26} color={Colors.primaryText} />
               <Text style={styles.pickerBtnText}>Take photo</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.pickerBtn, styles.pickerBtnSecondary]} onPress={onPickFile} activeOpacity={0.85}>
-              <Ionicons name="document-attach" size={28} color="#fff" />
+            <TouchableOpacity style={styles.pickerBtn} onPress={onPickFile} activeOpacity={0.7}>
+              <Ionicons name="document-attach-outline" size={26} color={Colors.primaryText} />
               <Text style={styles.pickerBtnText}>Pick PDF</Text>
             </TouchableOpacity>
           </View>
@@ -284,11 +288,14 @@ const makeStyles = (Colors) => StyleSheet.create({
   scroll: { padding: 18, paddingBottom: 40 },
   pickerRow: { flexDirection: 'row', gap: 12, marginBottom: 18 },
   pickerBtn: {
-    flex: 1, backgroundColor: SUB_VIOLET, borderRadius: 14,
-    paddingVertical: 22, alignItems: 'center', justifyContent: 'center', gap: 6,
+    flex: 1,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    paddingVertical: 22,
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
   },
-  pickerBtnSecondary: { backgroundColor: '#475569' },
-  pickerBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  pickerBtnText: { color: Colors.primaryText, fontWeight: '600', fontSize: 14 },
   filePicked: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.cardBackground,

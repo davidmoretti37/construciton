@@ -351,19 +351,28 @@ router.post('/documents/upload-blob', authenticateUser, async (req, res) => {
       ...filterAllowed(rest),
     });
 
-    // If this upload fulfills a doc-request action token, consume it so the
-    // request disappears from the sub's inbox.
-    if (action_token_id) {
-      try {
-        await supabase
-          .from('sub_action_tokens')
-          .update({ used_at: new Date().toISOString() })
-          .eq('id', action_token_id)
-          .eq('sub_organization_id', sub_organization_id)
-          .is('used_at', null);
-      } catch (e) {
-        logger.warn('[compliance] failed to consume action token:', e.message);
+    // Consume matching doc-request tokens so the request disappears from
+    // the sub's inbox. Two cases:
+    //   1. Explicit action_token_id passed (when sub taps the Home action).
+    //   2. Sub uploaded via the Documents tab WITHOUT going through the
+    //      action item — auto-consume any open upload_doc token for this
+    //      sub_organization + doc_type combo.
+    try {
+      const consumeQ = supabase
+        .from('sub_action_tokens')
+        .update({ used_at: new Date().toISOString() })
+        .eq('sub_organization_id', sub_organization_id)
+        .is('used_at', null);
+
+      if (action_token_id) {
+        await consumeQ.eq('id', action_token_id);
+      } else {
+        await consumeQ
+          .eq('scope', 'upload_doc')
+          .eq('doc_type_requested', doc_type);
       }
+    } catch (e) {
+      logger.warn('[compliance] failed to consume action token(s):', e.message);
     }
 
     return res.json({ compliance_document: created });
