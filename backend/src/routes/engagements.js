@@ -113,7 +113,15 @@ router.get('/:id', authenticateUser, async (req, res) => {
     if (!engagement) return res.status(404).json({ error: 'Not found or access denied' });
 
     const compliance = await complianceService.computeForEngagement(engagement.id);
-    return res.json({ engagement, compliance });
+
+    // Tasks assigned to the sub on this engagement
+    const { data: tasks } = await supabase
+      .from('worker_tasks')
+      .select('id, title, description, start_date, end_date, status, color, created_at')
+      .eq('sub_engagement_id', engagement.id)
+      .order('start_date', { ascending: true, nullsLast: true });
+
+    return res.json({ engagement, compliance, tasks: tasks || [] });
   } catch (err) {
     logger.error('[engagements] GET /:id error:', err);
     return res.status(500).json({ error: 'Failed to load engagement' });
@@ -139,7 +147,8 @@ router.patch('/:id', authenticateUser, async (req, res) => {
 
     // Editable scalar fields
     const editable = ['scope_summary', 'contract_amount', 'payment_terms',
-                      'payment_terms_notes', 'retention_pct'];
+                      'payment_terms_notes', 'retention_pct',
+                      'mobilization_date', 'completion_target_date'];
     const updates = {};
     for (const k of editable) if (k in rest) updates[k] = rest[k];
 

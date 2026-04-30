@@ -186,6 +186,9 @@ const TOOL_HANDLERS = {
   accept_bid: subs.accept_bid,
   decline_bid: subs.decline_bid,
   verify_compliance_doc: subs.verify_compliance_doc,
+  // v1.5
+  create_sub_task: subs.create_sub_task,
+  add_project_document: subs.add_project_document,
 
   // SMS tools — disabled at the product level. Re-enable by uncommenting:
   // list_unread_sms: sms.list_unread_sms,

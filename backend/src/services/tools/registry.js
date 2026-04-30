@@ -230,6 +230,8 @@ const TOOL_METADATA = Object.freeze({
   accept_bid:                      { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'bidding', 'mutation', 'external'] },
   decline_bid:                     { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'bidding', 'mutation'] },
   verify_compliance_doc:           { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'compliance', 'mutation'] },
+  create_sub_task:                 { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'mutation', 'tasks'] },
+  add_project_document:            { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['projects', 'mutation', 'documents'] },
 });
 
 // ─────────────────────────────────────────────────────────────────

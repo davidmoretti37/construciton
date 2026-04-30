@@ -232,10 +232,137 @@ async function listEngagementsForSub(subAuthUserId) {
   return (data || []).map((e) => ({ ...e, gc_business_name: gcNames[e.gc_user_id] || null }));
 }
 
+// =============================================================================
+// getEngagementForSub — full job package for the hired sub
+// =============================================================================
+// Returns engagement + project + GC profile + bid attachments (from the
+// originally accepted bid_request) + project_documents the GC has flagged
+// visible to subs + sub's deliverables tied to this engagement + tasks.
+async function getEngagementForSub(engagementId, subAuthUserId) {
+  // Resolve sub_organization_id from auth user
+  const { data: subOrg } = await supabase
+    .from('sub_organizations')
+    .select('id')
+    .eq('auth_user_id', subAuthUserId)
+    .maybeSingle();
+  if (!subOrg) return null;
+
+  const { data: engagement } = await supabase
+    .from('sub_engagements')
+    .select(`
+      *,
+      project:projects (id, name, location, start_date, end_date, status, task_description)
+    `)
+    .eq('id', engagementId)
+    .eq('sub_organization_id', subOrg.id)
+    .maybeSingle();
+  if (!engagement) return null;
+
+  // GC business profile
+  const { data: gc } = await supabase
+    .from('profiles')
+    .select('id, business_name, business_email, business_phone')
+    .eq('id', engagement.gc_user_id)
+    .maybeSingle();
+
+  // Original bid_request (the one whose awarded_bid_id pointed to a sub_bid
+  // for this sub_organization) + its attachments.
+  const { data: bidRequest } = await supabase
+    .from('bid_requests')
+    .select(`
+      id, scope_summary, due_at,
+      site_address, site_city, site_state_code, site_postal_code, site_visit_notes,
+      awarded_bid_id, awarded_at,
+      bid:sub_bids!fk_bid_requests_awarded(id, sub_organization_id, amount, timeline_days, exclusions, notes)
+    `)
+    .eq('project_id', engagement.project_id)
+    .eq('gc_user_id', engagement.gc_user_id)
+    .eq('trade', engagement.trade)
+    .not('awarded_bid_id', 'is', null)
+    .order('awarded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const matchingBid = bidRequest?.bid?.sub_organization_id === subOrg.id ? bidRequest : null;
+
+  let bidAttachments = [];
+  if (matchingBid) {
+    const { data } = await supabase
+      .from('bid_request_attachments')
+      .select('id, file_name, file_mime, file_size_bytes, attachment_type, uploaded_by_role, created_at')
+      .eq('bid_request_id', matchingBid.id)
+      .order('created_at', { ascending: true });
+    bidAttachments = data || [];
+  }
+
+  // Project documents the GC has flagged visible_to_subs
+  const { data: projectDocs } = await supabase
+    .from('project_documents')
+    .select('id, title, file_name, file_url, file_type, category, is_important, created_at')
+    .eq('project_id', engagement.project_id)
+    .eq('visible_to_subs', true)
+    .order('created_at', { ascending: false });
+
+  // Sub's own deliverables (compliance_documents) tied to this engagement
+  const { data: subDeliverables } = await supabase
+    .from('compliance_documents')
+    .select('id, doc_type, file_name, file_mime, file_size_bytes, expires_at, status, created_at')
+    .eq('sub_engagement_id', engagementId)
+    .order('created_at', { ascending: false });
+
+  // Tasks for this engagement
+  const { data: tasks } = await supabase
+    .from('worker_tasks')
+    .select('id, title, description, start_date, end_date, status, color, created_at')
+    .eq('sub_engagement_id', engagementId)
+    .order('start_date', { ascending: true, nullsLast: true });
+
+  return {
+    engagement: {
+      ...engagement,
+      gc_business_name: gc?.business_name || null,
+      gc_business_email: gc?.business_email || null,
+      gc_business_phone: gc?.business_phone || null,
+    },
+    bid_request: matchingBid,
+    bid_attachments: bidAttachments,
+    project_documents: projectDocs || [],
+    sub_deliverables: subDeliverables || [],
+    tasks: tasks || [],
+  };
+}
+
+// Allow GC to update an engagement (status transitions, dates, etc.)
+async function updateEngagement(engagementId, gcUserId, updates) {
+  const allowed = [
+    'mobilization_date', 'completion_target_date', 'status',
+    'contract_amount', 'retention_pct',
+    'payment_terms', 'payment_terms_notes', 'scope_summary',
+  ];
+  const cleaned = {};
+  for (const k of allowed) if (k in updates) cleaned[k] = updates[k];
+  if (Object.keys(cleaned).length === 0) {
+    return null;
+  }
+  cleaned.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('sub_engagements')
+    .update(cleaned)
+    .eq('id', engagementId)
+    .eq('gc_user_id', gcUserId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 module.exports = {
   createEngagement,
   transitionStatus,
   getEngagement,
+  getEngagementForSub,
+  updateEngagement,
   listEngagementsForGc,
   listEngagementsForSub,
   autoPublishCompliance,

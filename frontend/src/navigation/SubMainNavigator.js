@@ -11,6 +11,7 @@ import SubPortalScreen from '../screens/SubPortalScreen';
 import SubUploadPage from '../screens/SubPortal/SubUploadPage';
 import SubBidSubmitPage from '../screens/SubPortal/SubBidSubmitPage';
 import SubProposalCreatorScreen from '../screens/SubPortal/SubProposalCreatorScreen';
+import SubEngagementDetailScreen from '../screens/SubPortal/SubEngagementDetailScreen';
 import DocumentViewerScreen from '../screens/DocumentViewerScreen';
 
 const Stack = createStackNavigator();
@@ -22,6 +23,7 @@ export default function SubMainNavigator() {
       <Stack.Screen name="SubUpload" component={SubUploadPage} />
       <Stack.Screen name="SubBidSubmit" component={SubBidSubmitPage} />
       <Stack.Screen name="SubProposalCreator" component={SubProposalCreatorScreen} />
+      <Stack.Screen name="SubEngagementDetail" component={SubEngagementDetailScreen} />
       <Stack.Screen
         name="DocumentViewer"
         component={DocumentViewerScreen}

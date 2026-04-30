@@ -84,24 +84,6 @@ export default function SubWorkTab({ navigation }) {
           : `${totalActive} item${totalActive === 1 ? '' : 's'} across your contractors.`}
       </Text>
 
-      {/* Send a proposal CTA */}
-      <TouchableOpacity
-        style={styles.proposeCta}
-        activeOpacity={0.85}
-        onPress={() => navigation?.navigate?.('SubProposalCreator')}
-      >
-        <View style={styles.proposeCtaIcon}>
-          <Ionicons name="paper-plane" size={20} color="#fff" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.proposeCtaTitle}>Send a proposal</Text>
-          <Text style={styles.proposeCtaBody}>
-            Pitch a contractor with your scope, price, and timeline.
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color="#fff" />
-      </TouchableOpacity>
-
       {/* Filter chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {FILTERS.map((f) => {
@@ -126,7 +108,7 @@ export default function SubWorkTab({ navigation }) {
 
       {/* Schedule — engagements grouped by lifecycle phase */}
       {showEngagements && (
-        <ScheduleView engagements={engagements} Colors={Colors} styles={styles} />
+        <ScheduleView engagements={engagements} Colors={Colors} styles={styles} navigation={navigation} />
       )}
 
       {/* Bid invitations */}
@@ -218,11 +200,34 @@ export default function SubWorkTab({ navigation }) {
           ))}
         </Section>
       )}
+
+      {/* Send a proposal CTA — secondary action at the bottom */}
+      <View style={{ marginTop: 26 }}>
+        <Text style={styles.sectionTitle}>Pitch a contractor</Text>
+        <TouchableOpacity
+          style={styles.proposeCta}
+          activeOpacity={0.7}
+          onPress={() => navigation?.navigate?.('SubProposalCreator')}
+        >
+          <View style={styles.proposeCtaIcon}>
+            <Ionicons name="paper-plane-outline" size={18} color={SUB_VIOLET} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.proposeCtaTitle}>Send a proposal</Text>
+            <Text style={styles.proposeCtaBody}>
+              Reach out to a contractor with your scope, price, and timeline.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ height: 80 }} />
     </ScrollView>
   );
 }
 
-function ScheduleView({ engagements, Colors, styles }) {
+function ScheduleView({ engagements, Colors, styles, navigation }) {
   const upcoming = [];
   const active = [];
   const completed = [];
@@ -243,21 +248,26 @@ function ScheduleView({ engagements, Colors, styles }) {
 
   return (
     <View>
-      <ScheduleGroup title="In progress" items={active}    accent="#10B981"           Colors={Colors} styles={styles} />
-      <ScheduleGroup title="Upcoming"    items={upcoming}  accent="#3B82F6"           Colors={Colors} styles={styles} />
-      <ScheduleGroup title="Completed"   items={completed} accent="#6B7280" muted     Colors={Colors} styles={styles} />
-      <ScheduleGroup title="Cancelled"   items={cancelled} accent="#DC2626" muted     Colors={Colors} styles={styles} />
+      <ScheduleGroup title="In progress" items={active}    accent="#10B981"           Colors={Colors} styles={styles} navigation={navigation} />
+      <ScheduleGroup title="Upcoming"    items={upcoming}  accent="#3B82F6"           Colors={Colors} styles={styles} navigation={navigation} />
+      <ScheduleGroup title="Completed"   items={completed} accent="#6B7280" muted     Colors={Colors} styles={styles} navigation={navigation} />
+      <ScheduleGroup title="Cancelled"   items={cancelled} accent="#DC2626" muted     Colors={Colors} styles={styles} navigation={navigation} />
     </View>
   );
 }
 
-function ScheduleGroup({ title, items, accent, muted, Colors, styles }) {
+function ScheduleGroup({ title, items, accent, muted, Colors, styles, navigation }) {
   if (!items?.length) return null;
   return (
     <View style={{ marginTop: 14 }}>
       <Text style={[styles.sectionTitle, { marginTop: 0 }]}>{title}</Text>
       {items.map((e) => (
-        <View key={e.id} style={[styles.scheduleCard, muted && { opacity: 0.85 }]}>
+        <TouchableOpacity
+          key={e.id}
+          style={[styles.scheduleCard, muted && { opacity: 0.85 }]}
+          activeOpacity={0.7}
+          onPress={() => navigation?.navigate?.('SubEngagementDetail', { engagementId: e.id })}
+        >
           <View style={[styles.scheduleAccent, { backgroundColor: accent }]} />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.scheduleTitle}>{e.trade || 'Job'}</Text>
@@ -287,7 +297,8 @@ function ScheduleGroup({ title, items, accent, muted, Colors, styles }) {
               ) : null}
             </View>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ marginRight: 4 }} />
+        </TouchableOpacity>
       ))}
     </View>
   );
@@ -356,17 +367,17 @@ const makeStyles = (Colors) => StyleSheet.create({
   headerSub: { fontSize: 14, color: Colors.secondaryText, marginTop: 4, marginBottom: 16, lineHeight: 20 },
   proposeCta: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: SUB_VIOLET,
-    borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14,
-    marginBottom: 8,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: Colors.border,
   },
   proposeCtaIcon: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: SUB_VIOLET + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  proposeCtaTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  proposeCtaBody: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
+  proposeCtaTitle: { color: Colors.primaryText, fontSize: 14, fontWeight: '600' },
+  proposeCtaBody: { color: Colors.secondaryText, fontSize: 12, marginTop: 2 },
   chipRow: { flexDirection: 'row', gap: 8, paddingVertical: 4, paddingRight: 8 },
   chip: {
     paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999,

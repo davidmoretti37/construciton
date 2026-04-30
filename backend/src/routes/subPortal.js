@@ -623,6 +623,123 @@ router.get('/engagements', authenticateUser, async (req, res) => {
 });
 
 // =============================================================================
+// GET /api/sub-portal/engagements/:id — full job package for the sub
+// =============================================================================
+
+router.get('/engagements/:id', authenticateUser, async (req, res) => {
+  try {
+    const pkg = await engagementService.getEngagementForSub(req.params.id, req.user.id);
+    if (!pkg) return res.status(404).json({ error: 'Engagement not found' });
+    return res.json(pkg);
+  } catch (err) {
+    logger.error('[subPortal] GET /engagements/:id error:', err);
+    return res.status(500).json({ error: 'Failed to load engagement' });
+  }
+});
+
+// =============================================================================
+// GET /api/sub-portal/engagements/:id/attachments/:aid/url — bid attachment URL
+// =============================================================================
+// Sub views the GC's original bid attachment after acceptance. Auth checked
+// via getEngagementForSub.
+
+router.get('/engagements/:id/attachments/:aid/url', authenticateUser, async (req, res) => {
+  try {
+    const pkg = await engagementService.getEngagementForSub(req.params.id, req.user.id);
+    if (!pkg) return res.status(404).json({ error: 'Engagement not found' });
+
+    const allowedIds = (pkg.bid_attachments || []).map((a) => a.id);
+    if (!allowedIds.includes(req.params.aid)) {
+      return res.status(403).json({ error: 'Attachment not in your engagement' });
+    }
+
+    const { data: row } = await supabase
+      .from('bid_request_attachments')
+      .select('file_url')
+      .eq('id', req.params.aid)
+      .maybeSingle();
+    if (!row) return res.status(404).json({ error: 'Not found' });
+
+    const { data: signed, error: sErr } = await supabase
+      .storage
+      .from('documents')
+      .createSignedUrl(row.file_url, 300);
+    if (sErr) throw sErr;
+    return res.json({ url: signed.signedUrl, expires_in: 300 });
+  } catch (err) {
+    logger.error('[subPortal] engagement attachment url error:', err);
+    return res.status(500).json({ error: 'Failed to issue URL' });
+  }
+});
+
+// =============================================================================
+// GET /api/sub-portal/engagements/:id/project-docs/:docId/url
+// =============================================================================
+// Sub views a project_document the GC flagged visible_to_subs.
+
+router.get('/engagements/:id/project-docs/:docId/url', authenticateUser, async (req, res) => {
+  try {
+    const pkg = await engagementService.getEngagementForSub(req.params.id, req.user.id);
+    if (!pkg) return res.status(404).json({ error: 'Engagement not found' });
+
+    const allowedIds = (pkg.project_documents || []).map((d) => d.id);
+    if (!allowedIds.includes(req.params.docId)) {
+      return res.status(403).json({ error: 'Document not visible to you' });
+    }
+
+    const { data: row } = await supabase
+      .from('project_documents')
+      .select('file_url')
+      .eq('id', req.params.docId)
+      .maybeSingle();
+    if (!row) return res.status(404).json({ error: 'Not found' });
+
+    const { data: signed, error: sErr } = await supabase
+      .storage
+      .from('project-docs')
+      .createSignedUrl(row.file_url, 300);
+    if (sErr) throw sErr;
+    return res.json({ url: signed.signedUrl, expires_in: 300 });
+  } catch (err) {
+    logger.error('[subPortal] project doc url error:', err);
+    return res.status(500).json({ error: 'Failed to issue URL' });
+  }
+});
+
+// =============================================================================
+// PATCH /api/sub-portal/tasks/:id — sub marks a task complete
+// =============================================================================
+
+router.patch('/tasks/:id', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(403).json({ error: 'No sub_organization linked' });
+
+    const allowed = ['status'];
+    const cleaned = {};
+    for (const k of allowed) if (k in req.body) cleaned[k] = req.body[k];
+    if (Object.keys(cleaned).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+    cleaned.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('worker_tasks')
+      .update(cleaned)
+      .eq('id', req.params.id)
+      .eq('sub_organization_id', sub.id)
+      .select()
+      .single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Task not found' });
+    return res.json({ task: data });
+  } catch (err) {
+    logger.error('[subPortal] PATCH /tasks error:', err);
+    return res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+// =============================================================================
 // Invoices
 // =============================================================================
 

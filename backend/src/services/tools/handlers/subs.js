@@ -431,6 +431,182 @@ async function verify_compliance_doc(userId, { document_id, verification_status,
   };
 }
 
+// =============================================================================
+// create_sub_task — assign a task to a sub on an engagement
+// =============================================================================
+async function create_sub_task(userId, { engagement_id, title, description, start_date, end_date }) {
+  try {
+    if (!engagement_id || !title) {
+      return userSafeError('engagement_id and title are required');
+    }
+    // Verify GC owns the engagement
+    const { data: eng } = await supabase
+      .from('sub_engagements')
+      .select('id, gc_user_id, sub_organization_id, project_id, sub:sub_organizations(auth_user_id, legal_name)')
+      .eq('id', engagement_id)
+      .maybeSingle();
+    if (!eng) return userSafeError('Engagement not found');
+    if (eng.gc_user_id !== userId) return userSafeError('You do not own this engagement');
+
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = start_date || today;
+    const endDate = end_date || startDate;
+
+    const { data: task, error } = await supabase
+      .from('worker_tasks')
+      .insert({
+        owner_id: userId,
+        project_id: eng.project_id,
+        sub_organization_id: eng.sub_organization_id,
+        sub_engagement_id: engagement_id,
+        title,
+        description: description || null,
+        start_date: startDate,
+        end_date: endDate,
+        status: 'pending',
+      })
+      .select()
+      .single();
+    if (error) {
+      logger.error('[create_sub_task] insert error:', error);
+      return userSafeError('Could not create task');
+    }
+
+    // Notify sub if they have an account
+    if (eng.sub?.auth_user_id) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: eng.sub.auth_user_id,
+          title: `New task: ${title}`,
+          body: description ? description.slice(0, 120) : `Due ${endDate}`,
+          type: 'sub_task_assigned',
+          icon: 'checkmark-done-outline',
+          color: '#8B5CF6',
+          action_data: { engagement_id, task_id: task.id },
+        });
+      } catch (e) { logger.warn('[create_sub_task] notification:', e.message); }
+    }
+
+    return {
+      task: {
+        id: task.id,
+        title: task.title,
+        start_date: task.start_date,
+        end_date: task.end_date,
+        status: task.status,
+      },
+      sub_legal_name: eng.sub?.legal_name || null,
+    };
+  } catch (e) {
+    logger.error('[create_sub_task] error:', e);
+    return userSafeError('Could not create task');
+  }
+}
+
+// =============================================================================
+// add_project_document — attach an uploaded file with role-aware visibility
+// =============================================================================
+async function add_project_document(userId, args) {
+  try {
+    const {
+      project, project_id: rawProjectId,
+      title, file_url, file_name, category = 'other',
+      visible_to_subs = false,
+      visible_to_workers = false,
+      visible_to_clients = false,
+      is_important = false,
+    } = args || {};
+
+    if (!title || !file_url) {
+      return userSafeError('title and file_url are required');
+    }
+
+    // Resolve project (by id or by name)
+    let projectId = rawProjectId || project;
+    // If looks like a name, resolve
+    if (projectId && !projectId.includes('-')) {
+      const { data: rows } = await supabase
+        .from('projects')
+        .select('id, name')
+        .eq('user_id', userId)
+        .ilike('name', `%${projectId}%`)
+        .limit(2);
+      if (!rows || rows.length === 0) return userSafeError(`Project "${projectId}" not found`);
+      if (rows.length > 1) return userSafeError(`Multiple projects matched "${projectId}". Please be specific.`);
+      projectId = rows[0].id;
+    } else if (projectId) {
+      const { data: row } = await supabase
+        .from('projects')
+        .select('id, user_id')
+        .eq('id', projectId)
+        .maybeSingle();
+      if (!row || row.user_id !== userId) return userSafeError('Project not found or not yours');
+    } else {
+      return userSafeError('project name or project_id required');
+    }
+
+    const { data: doc, error } = await supabase
+      .from('project_documents')
+      .insert({
+        project_id: projectId,
+        user_id: userId,
+        title,
+        file_url,
+        file_name: file_name || title,
+        category,
+        visible_to_subs,
+        visible_to_workers,
+        visible_to_clients,
+        is_important,
+      })
+      .select()
+      .single();
+    if (error) {
+      logger.error('[add_project_document] insert error:', error);
+      return userSafeError('Could not save document');
+    }
+
+    // If visible to subs, notify any active engagements on the project.
+    if (visible_to_subs) {
+      try {
+        const { data: engagements } = await supabase
+          .from('sub_engagements')
+          .select('id, sub_organization_id, sub:sub_organizations(auth_user_id, legal_name)')
+          .eq('project_id', projectId)
+          .eq('gc_user_id', userId)
+          .neq('status', 'cancelled');
+        for (const eng of (engagements || [])) {
+          if (!eng.sub?.auth_user_id) continue;
+          await supabase.from('notifications').insert({
+            user_id: eng.sub.auth_user_id,
+            title: is_important ? `Important: ${title}` : `New project document: ${title}`,
+            body: 'Your contractor added a document — tap to view.',
+            type: 'project_doc_added',
+            icon: 'document-text-outline',
+            color: '#8B5CF6',
+            action_data: { engagement_id: eng.id, document_id: doc.id },
+          });
+        }
+      } catch (e) { logger.warn('[add_project_document] notify:', e.message); }
+    }
+
+    return {
+      document: {
+        id: doc.id,
+        title: doc.title,
+        category: doc.category,
+        visible_to_subs: doc.visible_to_subs,
+        visible_to_workers: doc.visible_to_workers,
+        visible_to_clients: doc.visible_to_clients,
+        is_important: doc.is_important,
+      },
+    };
+  } catch (e) {
+    logger.error('[add_project_document] error:', e);
+    return userSafeError('Could not save document');
+  }
+}
+
 module.exports = {
   list_subs, get_sub, get_sub_compliance,
   list_engagements, get_engagement,
@@ -440,4 +616,6 @@ module.exports = {
   send_bid_invitation,
   // Polish
   get_bid_request, accept_bid, decline_bid, verify_compliance_doc,
+  // v1.5
+  create_sub_task, add_project_document,
 };

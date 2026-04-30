@@ -109,6 +109,22 @@ export const sendProposal = (payload) =>
     body: JSON.stringify(payload),
   });
 
+// Engagement detail (post-acceptance job package)
+export const getEngagementDetail = (engagementId) =>
+  authedFetch(`/api/sub-portal/engagements/${engagementId}`);
+
+export const getEngagementBidAttachmentUrl = (engagementId, attachmentId) =>
+  authedFetch(`/api/sub-portal/engagements/${engagementId}/attachments/${attachmentId}/url`);
+
+export const getEngagementProjectDocUrl = (engagementId, docId) =>
+  authedFetch(`/api/sub-portal/engagements/${engagementId}/project-docs/${docId}/url`);
+
+export const updateTask = (taskId, updates) =>
+  authedFetch(`/api/sub-portal/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+
 export const listMyInvoices = async () => {
   const json = await authedFetch('/api/sub-portal/invoices');
   return json.invoices || [];

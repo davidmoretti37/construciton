@@ -586,6 +586,92 @@ const toolDefinitions = [
     }
   },
 
+  // ==================== SUB TASK ASSIGNMENT ====================
+  {
+    type: 'function',
+    function: {
+      name: 'create_sub_task',
+      description: 'Assign a task or work item to a subcontractor on an active engagement. Use when the user says things like "add a task for Mike to install rough-in plumbing by Friday" or "tell Lana she needs to install crown molding next week". The sub will see this in their portal and can mark it complete.',
+      parameters: {
+        type: 'object',
+        properties: {
+          engagement_id: {
+            type: 'string',
+            description: 'UUID of the sub_engagement (active job for a sub on a project). Required — every sub task is scoped to a specific job.'
+          },
+          title: {
+            type: 'string',
+            description: 'Short task title (e.g., "Install rough-in plumbing", "Frame interior walls")'
+          },
+          description: {
+            type: 'string',
+            description: 'Optional details about what needs to be done'
+          },
+          start_date: {
+            type: 'string',
+            description: 'Task start date in YYYY-MM-DD format. Defaults to today.'
+          },
+          end_date: {
+            type: 'string',
+            description: 'Task end / due date in YYYY-MM-DD format. Defaults to start_date.'
+          }
+        },
+        required: ['engagement_id', 'title']
+      }
+    }
+  },
+
+  // ==================== PROJECT DOCUMENT (with role visibility) ====================
+  {
+    type: 'function',
+    function: {
+      name: 'add_project_document',
+      description: 'Attach an already-uploaded file as a project document with role-aware visibility. Use when the user says things like "share the plans with Lana" or "add this contract to Smith Bath visible to subs". The file must already exist in storage (file_url is the storage path or signed URL).',
+      parameters: {
+        type: 'object',
+        properties: {
+          project: {
+            type: 'string',
+            description: 'Project name or UUID. Names are resolved automatically.'
+          },
+          title: {
+            type: 'string',
+            description: 'Document title (e.g., "Plans Rev 3", "Master Subcontract")'
+          },
+          file_url: {
+            type: 'string',
+            description: 'Storage path or accessible URL of the already-uploaded file'
+          },
+          file_name: {
+            type: 'string',
+            description: 'Original filename (e.g., "plans_rev3.pdf")'
+          },
+          category: {
+            type: 'string',
+            description: 'Document category. Common: plan, contract, photo, spec, other.'
+          },
+          visible_to_subs: {
+            type: 'boolean',
+            description: 'Make this document visible to subcontractors with active engagements on the project. Default false.'
+          },
+          visible_to_workers: {
+            type: 'boolean',
+            description: 'Make this document visible to workers assigned to the project. Default false.'
+          },
+          visible_to_clients: {
+            type: 'boolean',
+            description: 'Make this document visible in the client portal. Default false.'
+          },
+          is_important: {
+            type: 'boolean',
+            description: 'Flag as important — surfaces with an Important badge in all role-specific document lists. Default false.'
+          }
+        },
+        required: ['project', 'title', 'file_url']
+      }
+    }
+  },
+
   // ==================== SERVICE PRICING MUTATIONS ====================
   {
     type: 'function',
