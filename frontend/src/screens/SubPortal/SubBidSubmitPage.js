@@ -349,7 +349,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
         {/* Hero */}
         <View style={styles.heroCard}>
           <View style={styles.tradeChip}>
-            <Ionicons name="construct" size={14} color="#fff" />
+            <Ionicons name="construct" size={13} color={SUB_VIOLET} />
             <Text style={styles.tradeChipText}>{br.trade}</Text>
           </View>
           <Text style={styles.projectName} numberOfLines={2}>
@@ -371,7 +371,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
           <Section title="Job site" Colors={Colors}>
             <TouchableOpacity style={styles.siteCard} onPress={openMap} activeOpacity={0.8}>
               <View style={styles.siteIconWrap}>
-                <Ionicons name="location" size={20} color={SUB_VIOLET} />
+                <Ionicons name="location-outline" size={20} color={Colors.primaryText} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.siteAddress}>{siteAddress}</Text>
@@ -388,7 +388,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
         {br.site_visit_notes ? (
           <Section title="Site visit" Colors={Colors}>
             <View style={styles.noteCard}>
-              <Ionicons name="information-circle" size={16} color={SUB_VIOLET} />
+              <Ionicons name="information-circle-outline" size={18} color={Colors.secondaryText} />
               <Text style={styles.noteText}>{br.site_visit_notes}</Text>
             </View>
           </Section>
@@ -415,7 +415,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
                     <Image source={{ uri: galleryUrls[a.id] }} style={styles.photoTile} resizeMode="cover" />
                   ) : (
                     <View style={styles.photoTile}>
-                      <Ionicons name="image" size={28} color={SUB_VIOLET} />
+                      <Ionicons name="image-outline" size={26} color={Colors.secondaryText} />
                     </View>
                   )}
                   <Text style={styles.photoCaption} numberOfLines={1}>{a.file_name}</Text>
@@ -440,7 +440,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
                   disabled={isLoading}
                 >
                   <View style={styles.docIconWrap}>
-                    <Ionicons name="document-text" size={20} color={SUB_VIOLET} />
+                    <Ionicons name="document-text-outline" size={20} color={Colors.primaryText} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.docName} numberOfLines={1}>{a.file_name}</Text>
@@ -516,12 +516,12 @@ export default function SubBidSubmitPage({ route, navigation }) {
             Send a counter-proposal, signed agreement, photos of the existing conditions, etc.
           </Text>
           <View style={styles.attachBtnRow}>
-            <TouchableOpacity style={styles.attachBtn} onPress={pickAttachment} activeOpacity={0.8}>
-              <Ionicons name="document-attach" size={18} color={SUB_VIOLET} />
+            <TouchableOpacity style={styles.attachBtn} onPress={pickAttachment} activeOpacity={0.7}>
+              <Ionicons name="document-attach-outline" size={18} color={Colors.primaryText} />
               <Text style={styles.attachBtnText}>Pick a file</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.attachBtn} onPress={pickPhoto} activeOpacity={0.8}>
-              <Ionicons name="images" size={18} color={SUB_VIOLET} />
+            <TouchableOpacity style={styles.attachBtn} onPress={pickPhoto} activeOpacity={0.7}>
+              <Ionicons name="images-outline" size={18} color={Colors.primaryText} />
               <Text style={styles.attachBtnText}>Pick photos</Text>
             </TouchableOpacity>
           </View>
@@ -536,7 +536,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
                       <Image source={{ uri: a.uri }} style={styles.attachThumb} />
                     ) : (
                       <View style={[styles.attachThumb, styles.attachThumbDoc]}>
-                        <Ionicons name="document-text" size={20} color={SUB_VIOLET} />
+                        <Ionicons name="document-text-outline" size={20} color={Colors.primaryText} />
                       </View>
                     )}
                     <View style={{ flex: 1, marginLeft: 10 }}>
@@ -702,23 +702,23 @@ const makeStyles = (Colors) => StyleSheet.create({
   headerSub: { fontSize: 13, color: Colors.secondaryText, marginTop: 2 },
   scroll: { padding: 16 },
   heroCard: {
-    backgroundColor: SUB_VIOLET + '12',
-    borderRadius: 16,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
     padding: 18,
-    borderLeftWidth: 4,
-    borderLeftColor: SUB_VIOLET,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   tradeChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: SUB_VIOLET,
+    backgroundColor: SUB_VIOLET + '15',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
     alignSelf: 'flex-start',
   },
-  tradeChipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  tradeChipText: { color: SUB_VIOLET, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
   projectName: { fontSize: 22, fontWeight: '700', color: Colors.primaryText, marginTop: 12 },
   projectType: { fontSize: 13, color: Colors.secondaryText, marginTop: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
@@ -734,8 +734,8 @@ const makeStyles = (Colors) => StyleSheet.create({
     borderColor: Colors.border,
   },
   siteIconWrap: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: SUB_VIOLET + '15',
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.background,
     alignItems: 'center', justifyContent: 'center',
   },
   siteAddress: { fontSize: 14, color: Colors.primaryText, fontWeight: '500' },
@@ -744,9 +744,11 @@ const makeStyles = (Colors) => StyleSheet.create({
   noteCard: {
     flexDirection: 'row',
     gap: 10,
-    backgroundColor: SUB_VIOLET + '10',
+    backgroundColor: Colors.cardBackground,
     borderRadius: 12,
     padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   noteText: { flex: 1, fontSize: 14, color: Colors.primaryText, lineHeight: 20 },
   scopeCard: {
@@ -756,10 +758,11 @@ const makeStyles = (Colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  scopeText: { fontSize: 14, color: Colors.primaryText, lineHeight: 22 },
+  scopeText: { fontSize: 14, color: Colors.primaryText, lineHeight: 21 },
   photoTile: {
     width: 120, height: 90, borderRadius: 10,
-    backgroundColor: SUB_VIOLET + '15',
+    backgroundColor: Colors.cardBackground,
+    borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
   photoCaption: { width: 120, fontSize: 11, color: Colors.secondaryText, marginTop: 4 },
@@ -768,14 +771,14 @@ const makeStyles = (Colors) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.cardBackground,
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   docIconWrap: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: SUB_VIOLET + '15',
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.background,
     alignItems: 'center', justifyContent: 'center',
   },
   docName: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
@@ -784,11 +787,13 @@ const makeStyles = (Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#10B98115',
+    backgroundColor: Colors.cardBackground,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   alreadyText: { flex: 1, fontSize: 13, color: Colors.primaryText, fontWeight: '500' },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.primaryText, marginTop: 14, marginBottom: 6 },
@@ -808,10 +813,10 @@ const makeStyles = (Colors) => StyleSheet.create({
   attachBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, paddingVertical: 12,
-    borderRadius: 12, borderWidth: 1, borderColor: SUB_VIOLET,
-    backgroundColor: SUB_VIOLET + '10',
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
+    backgroundColor: Colors.cardBackground,
   },
-  attachBtnText: { color: SUB_VIOLET, fontWeight: '700', fontSize: 13 },
+  attachBtnText: { color: Colors.primaryText, fontWeight: '600', fontSize: 13 },
   attachItem: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.cardBackground,
@@ -819,7 +824,7 @@ const makeStyles = (Colors) => StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
   },
   attachThumb: { width: 44, height: 44, borderRadius: 8 },
-  attachThumbDoc: { backgroundColor: SUB_VIOLET + '15', alignItems: 'center', justifyContent: 'center' },
+  attachThumbDoc: { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
   attachName: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
   attachMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
   galleryHint: { fontSize: 11, color: Colors.secondaryText, marginTop: 8, fontStyle: 'italic' },
@@ -827,18 +832,18 @@ const makeStyles = (Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: SUB_VIOLET,
-    borderRadius: 14,
+    borderColor: Colors.border,
+    borderRadius: 12,
     paddingHorizontal: 16,
     backgroundColor: Colors.cardBackground,
   },
-  dollarSign: { fontSize: 28, fontWeight: '700', color: SUB_VIOLET, marginRight: 6 },
+  dollarSign: { fontSize: 26, fontWeight: '600', color: Colors.secondaryText, marginRight: 6 },
   amountInput: {
     flex: 1,
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
     color: Colors.primaryText,
-    paddingVertical: 16,
+    paddingVertical: 14,
   },
   primaryBtn: {
     flexDirection: 'row',

@@ -66,7 +66,7 @@ const DOC_ICONS = {
   other_doc:       'document-outline',
 };
 
-export default function SubDocumentsTab() {
+export default function SubDocumentsTab({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -76,6 +76,29 @@ export default function SubDocumentsTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploadingType, setUploadingType] = useState(null);
+  const [openingDocId, setOpeningDocId] = useState(null);
+
+  const onOpenDoc = async (d) => {
+    if (!d?.id || openingDocId) return;
+    setOpeningDocId(d.id);
+    try {
+      const res = await api.getDocumentSignedUrl(d.id);
+      if (!res?.url) throw new Error('No URL');
+      const ext = (d.file_name || '').split('.').pop()?.toLowerCase();
+      const isPDF = (d.file_mime || '').includes('pdf') || ext === 'pdf';
+      const isImage = (d.file_mime || '').startsWith('image/') ||
+        ['jpg','jpeg','png','gif','webp','bmp','heic'].includes(ext);
+      navigation?.navigate?.('DocumentViewer', {
+        fileUrl: res.url,
+        fileName: d.file_name || d.doc_type,
+        fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
+      });
+    } catch (e) {
+      Alert.alert('Could not open', e.message || 'Try again.');
+    } finally {
+      setOpeningDocId(null);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -183,10 +206,17 @@ export default function SubDocumentsTab() {
         presentCompliance.map((t) => {
           const d = compByType[t];
           const status = computeStatus(d);
+          const isOpening = openingDocId === d.id;
           return (
-            <View key={t} style={styles.docCard}>
-              <View style={[styles.docIconWrap, { backgroundColor: SUB_VIOLET + '15' }]}>
-                <Ionicons name={DOC_ICONS[t] || 'document-outline'} size={20} color={SUB_VIOLET} />
+            <TouchableOpacity
+              key={t}
+              style={styles.docCard}
+              activeOpacity={0.7}
+              onPress={() => onOpenDoc(d)}
+              disabled={isOpening}
+            >
+              <View style={styles.docIconWrap}>
+                <Ionicons name={DOC_ICONS[t] || 'document-outline'} size={20} color={Colors.primaryText} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.docTitle} numberOfLines={1}>{DOC_TYPE_LABELS[t] || t}</Text>
@@ -201,12 +231,12 @@ export default function SubDocumentsTab() {
                 activeOpacity={0.7}
               >
                 {uploadingType === t ? (
-                  <ActivityIndicator size="small" color={SUB_VIOLET} />
+                  <ActivityIndicator size="small" color={Colors.secondaryText} />
                 ) : (
                   <Text style={styles.replaceBtnText}>Replace</Text>
                 )}
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           );
         })
       )}
@@ -243,21 +273,33 @@ export default function SubDocumentsTab() {
         Send a signed contract, invoice PDF, change order, photos, or anything else to your contractor.
       </Text>
 
-      {projectFiles.length > 0 && projectFiles.map((d) => (
-        <View key={d.id} style={styles.docCard}>
-          <View style={[styles.docIconWrap, { backgroundColor: '#0EA5E915' }]}>
-            <Ionicons name={DOC_ICONS[d.doc_type] || 'document-outline'} size={20} color="#0EA5E9" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.docTitle} numberOfLines={1}>
-              {PROJECT_FILE_LABELS[d.doc_type] || d.doc_type}
-            </Text>
-            <Text style={styles.fileMeta} numberOfLines={1}>
-              {d.file_name || ''}{d.created_at ? `  ·  ${new Date(d.created_at).toLocaleDateString()}` : ''}
-            </Text>
-          </View>
-        </View>
-      ))}
+      {projectFiles.length > 0 && projectFiles.map((d) => {
+        const isOpening = openingDocId === d.id;
+        return (
+          <TouchableOpacity
+            key={d.id}
+            style={styles.docCard}
+            activeOpacity={0.7}
+            onPress={() => onOpenDoc(d)}
+            disabled={isOpening}
+          >
+            <View style={styles.docIconWrap}>
+              <Ionicons name={DOC_ICONS[d.doc_type] || 'document-outline'} size={20} color={Colors.primaryText} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.docTitle} numberOfLines={1}>
+                {PROJECT_FILE_LABELS[d.doc_type] || d.doc_type}
+              </Text>
+              <Text style={styles.fileMeta} numberOfLines={1}>
+                {d.file_name || ''}{d.created_at ? `  ·  ${new Date(d.created_at).toLocaleDateString()}` : ''}
+              </Text>
+            </View>
+            {isOpening
+              ? <ActivityIndicator size="small" color={Colors.secondaryText} />
+              : <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />}
+          </TouchableOpacity>
+        );
+      })}
 
       {projectFileTypes.map((t) => (
         <TouchableOpacity
@@ -272,9 +314,9 @@ export default function SubDocumentsTab() {
           </View>
           <Text style={styles.addCardLabel}>Send {PROJECT_FILE_LABELS[t]?.toLowerCase()}</Text>
           {uploadingType === t ? (
-            <ActivityIndicator size="small" color={SUB_VIOLET} />
+            <ActivityIndicator size="small" color={Colors.secondaryText} />
           ) : (
-            <Ionicons name="cloud-upload" size={22} color="#0EA5E9" />
+            <Ionicons name="cloud-upload-outline" size={20} color={Colors.secondaryText} />
           )}
         </TouchableOpacity>
       ))}
@@ -307,17 +349,18 @@ const makeStyles = (Colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
+    borderRadius: 12,
     padding: 14,
-    marginBottom: 10,
-    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   docIconWrap: {
-    width: 38, height: 38, borderRadius: 10,
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.background,
     alignItems: 'center', justifyContent: 'center',
   },
-  addIconWrap: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
+  addIconWrap: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
   docTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
   statusPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
@@ -329,12 +372,11 @@ const makeStyles = (Colors) => StyleSheet.create({
   replaceBtnText: { fontSize: 12, fontWeight: '600', color: Colors.primaryText },
   addCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
+    backgroundColor: 'transparent',
+    borderRadius: 12,
     padding: 14,
-    marginBottom: 10,
-    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    marginBottom: 8,
+    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
   },
   addCardLabel: { flex: 1, fontSize: 14, color: Colors.primaryText, marginLeft: 12, fontWeight: '500' },
 });

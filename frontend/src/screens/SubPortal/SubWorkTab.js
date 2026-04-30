@@ -112,8 +112,8 @@ export default function SubWorkTab({ navigation }) {
           {engagements.map((e) => (
             <View key={e.id} style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={[styles.cardIconWrap, { backgroundColor: SUB_VIOLET + '15' }]}>
-                  <Ionicons name="briefcase" size={20} color={SUB_VIOLET} />
+                <View style={styles.cardIconWrap}>
+                  <Ionicons name="briefcase-outline" size={20} color={Colors.primaryText} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{e.trade || 'Active job'}</Text>
@@ -147,8 +147,8 @@ export default function SubWorkTab({ navigation }) {
               onPress={() => navigation?.navigate?.('SubBidSubmit', { bidRequestId: b.id })}
             >
               <View style={styles.cardHeader}>
-                <View style={[styles.cardIconWrap, { backgroundColor: '#0EA5E915' }]}>
-                  <Ionicons name="mail" size={20} color="#0EA5E9" />
+                <View style={styles.cardIconWrap}>
+                  <Ionicons name="mail-outline" size={20} color={Colors.primaryText} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{b.trade || 'Bid invitation'}</Text>
@@ -156,7 +156,7 @@ export default function SubWorkTab({ navigation }) {
                     <Text style={styles.cardMeta}>Due {new Date(b.due_at).toLocaleDateString()}</Text>
                   )}
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#0EA5E9" />
+                <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
               </View>
               {b.scope_summary ? (
                 <Text style={styles.cardBody} numberOfLines={3}>{b.scope_summary}</Text>
@@ -173,10 +173,15 @@ export default function SubWorkTab({ navigation }) {
           Colors={Colors}
         >
           {(bids.my_bids || []).map((b) => (
-            <View key={b.id} style={styles.card}>
+            <TouchableOpacity
+              key={b.id}
+              style={styles.card}
+              activeOpacity={0.7}
+              onPress={() => navigation?.navigate?.('SubBidSubmit', { bidRequestId: b.bid_request?.id || b.bid_request_id })}
+            >
               <View style={styles.cardHeader}>
-                <View style={[styles.cardIconWrap, { backgroundColor: '#3B82F615' }]}>
-                  <Ionicons name="paper-plane" size={20} color="#3B82F6" />
+                <View style={styles.cardIconWrap}>
+                  <Ionicons name="paper-plane-outline" size={20} color={Colors.primaryText} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.cardTitle}>${Number(b.amount).toLocaleString()}</Text>
@@ -186,7 +191,7 @@ export default function SubWorkTab({ navigation }) {
                 </View>
                 <StatusPill status={b.status} />
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </Section>
       )}
@@ -201,8 +206,8 @@ export default function SubWorkTab({ navigation }) {
           {invoices.map((inv) => (
             <View key={inv.id} style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={[styles.cardIconWrap, { backgroundColor: '#10B98115' }]}>
-                  <Ionicons name="cash" size={20} color="#10B981" />
+                <View style={styles.cardIconWrap}>
+                  <Ionicons name="cash-outline" size={20} color={Colors.primaryText} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.cardTitle}>${Number(inv.total_amount).toLocaleString()}</Text>
@@ -279,15 +284,16 @@ const makeStyles = (Colors) => StyleSheet.create({
   chipText: { fontSize: 13, color: Colors.primaryText, fontWeight: '500' },
   card: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
+    borderRadius: 12,
     padding: 14,
-    marginBottom: 10,
-    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center' },
   cardIconWrap: {
-    width: 38, height: 38, borderRadius: 10,
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.background,
     alignItems: 'center', justifyContent: 'center',
   },
   cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.primaryText },

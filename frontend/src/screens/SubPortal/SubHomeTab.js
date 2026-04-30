@@ -146,7 +146,7 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
     <ScrollView
       contentContainerStyle={styles.scroll}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={SUB_VIOLET} />
+        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.secondaryText} />
       }
     >
       {/* Greeting */}
@@ -155,10 +155,10 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
       </Text>
       <Text style={styles.subGreeting}>Here's what needs your attention.</Text>
 
-      {/* Profile summary card */}
+      {/* Profile summary card — neutral, subtle */}
       <TouchableOpacity
         style={styles.profileCard}
-        activeOpacity={0.9}
+        activeOpacity={0.7}
         onPress={() => onNavigateTab?.('settings')}
       >
         <View style={styles.avatar}>
@@ -171,18 +171,23 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
             {subOrg?.legal_name || 'My business'}
           </Text>
           <Text style={styles.profileMeta} numberOfLines={1}>
-            {(subOrg?.trades || []).join(', ') || 'Set your trades'}
+            {(subOrg?.trades || []).join(', ') || 'Tap to set trades'}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={22} color={Colors.secondaryText} />
+        <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
       </TouchableOpacity>
 
       {/* Action items */}
       <Text style={styles.sectionTitle}>Action items</Text>
       {pending.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Ionicons name="checkmark-circle" size={28} color="#10B981" />
-          <Text style={styles.emptyText}>You're all caught up.</Text>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="checkmark" size={20} color="#10B981" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.emptyTitle}>All caught up</Text>
+            <Text style={styles.emptyBody}>No pending requests, expiring docs, or open bids.</Text>
+          </View>
         </View>
       ) : (
         pending.map((p) => (
@@ -191,17 +196,17 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
             activeOpacity={p.onPress ? 0.7 : 1}
             disabled={!p.onPress}
             onPress={p.onPress}
-            style={[styles.actionCard, { borderLeftColor: p.color }]}
+            style={styles.actionCard}
           >
-            <View style={[styles.actionIconWrap, { backgroundColor: p.color + '15' }]}>
-              <Ionicons name={p.icon} size={20} color={p.color} />
+            <View style={[styles.actionIconWrap, { backgroundColor: p.color + '12' }]}>
+              <Ionicons name={p.icon} size={18} color={p.color} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.actionTitle} numberOfLines={2}>{p.title}</Text>
               <Text style={styles.actionBody} numberOfLines={1}>{p.body}</Text>
             </View>
             {p.onPress && (
-              <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+              <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
             )}
           </TouchableOpacity>
         ))
@@ -223,9 +228,11 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
                   </Text>
                 )}
               </View>
-              <Text style={[styles.activityStatus, { color: pillColor(b.status) }]}>
-                {b.status}
-              </Text>
+              <View style={[styles.activityPill, { backgroundColor: pillColor(b.status) + '15' }]}>
+                <Text style={[styles.activityStatus, { color: pillColor(b.status) }]}>
+                  {b.status}
+                </Text>
+              </View>
             </View>
           ))}
         </>
@@ -244,75 +251,82 @@ function pillColor(status) {
 const makeStyles = (Colors) => StyleSheet.create({
   scroll: { padding: 18, paddingBottom: 120 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  greeting: { fontSize: 26, fontWeight: '700', color: Colors.primaryText },
-  subGreeting: { fontSize: 14, color: Colors.secondaryText, marginTop: 4, marginBottom: 18 },
+  greeting: { fontSize: 24, fontWeight: '700', color: Colors.primaryText },
+  subGreeting: { fontSize: 14, color: Colors.secondaryText, marginTop: 4, marginBottom: 22 },
   profileCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   avatar: {
-    width: 52, height: 52, borderRadius: 26, backgroundColor: SUB_VIOLET,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: SUB_VIOLET + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: '#fff', fontSize: 22, fontWeight: '700' },
-  profileName: { fontSize: 17, fontWeight: '700', color: Colors.primaryText },
-  profileMeta: { fontSize: 13, color: Colors.secondaryText, marginTop: 3 },
+  avatarText: { color: SUB_VIOLET, fontSize: 17, fontWeight: '700' },
+  profileName: { fontSize: 15, fontWeight: '600', color: Colors.primaryText },
+  profileMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
   sectionTitle: {
-    fontSize: 12, fontWeight: '700', color: Colors.secondaryText,
-    textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 22, marginBottom: 10,
+    fontSize: 11, fontWeight: '700', color: Colors.secondaryText,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 26, marginBottom: 10,
   },
   emptyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  emptyText: { color: Colors.primaryText, fontSize: 15, fontWeight: '500' },
+  emptyIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#10B98115',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
+  emptyBody: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
   actionCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    borderLeftWidth: 4,
-    marginBottom: 10,
-    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   actionIconWrap: {
-    width: 38, height: 38, borderRadius: 10,
+    width: 34, height: 34, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
   actionTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText, lineHeight: 19 },
-  actionBody: { fontSize: 12, color: Colors.secondaryText, marginTop: 3 },
+  actionBody: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
   activityCard: {
     backgroundColor: Colors.cardBackground,
     borderRadius: 12,
-    padding: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   activityTitle: { fontSize: 14, color: Colors.primaryText, fontWeight: '600' },
   activityMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  activityPill: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 10,
+  },
   activityStatus: {
-    fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
-    letterSpacing: 0.4, marginLeft: 10,
+    fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4,
   },
 });

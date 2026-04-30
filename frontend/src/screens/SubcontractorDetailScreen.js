@@ -544,7 +544,15 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                   const status = br.my_bid?.status || br.status; // sub's bid status takes precedence
                   const pill = bidPill(status);
                   return (
-                    <View key={br.id} style={styles.bidCard}>
+                    <TouchableOpacity
+                      key={br.id}
+                      style={styles.bidCard}
+                      activeOpacity={0.7}
+                      onPress={() => navigation.navigate('BidResponseDetail', {
+                        bidRequestId: br.id,
+                        subOrgId: sub_organization_id,
+                      })}
+                    >
                       <View style={styles.bidCardHeader}>
                         <View style={[styles.bidIconWrap, { backgroundColor: '#0EA5E915' }]}>
                           <Ionicons name="mail" size={20} color="#0EA5E9" />
@@ -586,7 +594,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                           Sent {new Date(br.created_at).toLocaleDateString()}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </>

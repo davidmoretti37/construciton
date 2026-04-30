@@ -261,15 +261,17 @@ router.get('/:id/bid-history', authenticateUser, async (req, res) => {
           .select('id', { count: 'exact', head: true })
           .eq('bid_request_id', br.id),
       ]);
-      const { count: attachmentCount } = await supabase
+      const { data: attachments } = await supabase
         .from('bid_request_attachments')
-        .select('id', { count: 'exact', head: true })
-        .eq('bid_request_id', br.id);
+        .select('id, file_name, file_mime, file_size_bytes, attachment_type, uploaded_by_role, created_at')
+        .eq('bid_request_id', br.id)
+        .order('created_at', { ascending: true });
       return {
         ...br,
         my_bid: myBid || null,
         total_bids: bidCount || 0,
-        attachment_count: attachmentCount || 0,
+        attachments: attachments || [],
+        attachment_count: (attachments || []).length,
       };
     }));
 
