@@ -2374,6 +2374,19 @@ export default function ChatScreen({ navigation, route }) {
       case 'convert-estimate-to-invoice':
         await invoiceActions.handleConvertToInvoice(action.data);
         break;
+
+      // Owner just chose "Set up draws" on an accepted estimate → open
+      // ProjectBuilder pre-loaded from the estimate. Builder takes care of
+      // creating the project + draw schedule.
+      case 'set-up-draws-from-estimate': {
+        const estId = action.data?.id || action.data?.estimateId;
+        if (!estId) {
+          Alert.alert('Missing estimate', "Save the estimate first before setting up draws.");
+          break;
+        }
+        navigation.navigate('ProjectBuilder', { fromEstimateId: estId });
+        break;
+      }
       case 'save-invoice':
         await invoiceActions.handleSaveInvoice(action.data);
         break;

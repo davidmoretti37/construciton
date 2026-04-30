@@ -536,6 +536,14 @@ export default function EstimatePreview({ data, onAction }) {
     }
   };
 
+  // "Set up draws" — create a project pre-loaded from this estimate, with
+  // the Draws section expanded so the owner can configure milestone billing.
+  const handleSetUpDraws = () => {
+    if (onAction) {
+      onAction({ label: 'Set up draws', type: 'set-up-draws-from-estimate', data });
+    }
+  };
+
   const getStatusColor = () => {
     switch (status) {
       case 'draft':
@@ -982,13 +990,22 @@ export default function EstimatePreview({ data, onAction }) {
             </TouchableOpacity>
           </>
         ) : status === 'accepted' ? (
-          <TouchableOpacity
-            style={[styles.sendButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue }]}
-            onPress={handleConvertToInvoice}
-          >
-            <Ionicons name="document-text-outline" size={18} color="#fff" />
-            <Text style={styles.buttonText}>{t('estimate.convertToInvoice')}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+            <TouchableOpacity
+              style={[styles.sendButton, { flex: 1, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: Colors.primaryBlue }]}
+              onPress={handleConvertToInvoice}
+            >
+              <Ionicons name="document-text-outline" size={16} color={Colors.primaryBlue} />
+              <Text style={[styles.buttonText, { color: Colors.primaryBlue }]}>Bill it all now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sendButton, styles.primaryButton, { flex: 1, backgroundColor: Colors.primaryBlue }]}
+              onPress={handleSetUpDraws}
+            >
+              <Ionicons name="cash-outline" size={16} color="#fff" />
+              <Text style={styles.buttonText}>Set up draws</Text>
+            </TouchableOpacity>
+          </View>
         ) : !status ? (
           <>
             <TouchableOpacity

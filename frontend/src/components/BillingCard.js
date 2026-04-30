@@ -69,8 +69,15 @@ function StatusPill({ status }) {
   );
 }
 
-function EventRow({ event, onAction, onOpen, isAction }) {
+function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projectHasDraws, onBillAll, onSetUpDraws }) {
   const visual = SOURCE_VISUAL[event.source] || SOURCE_VISUAL.invoice;
+  // Accepted estimates with no invoice/draws yet → render with action prompt below.
+  // This is the gap the user flagged: client accepted but no path to billing yet.
+  const isAcceptedEstimateNeedingAction =
+    event.source === 'estimate'
+    && (event.status === 'accepted' || event.raw_status === 'accepted')
+    && !projectHasInvoice
+    && !projectHasDraws;
 
   // Build the meta line — what makes this row actionable
   let metaLine = null;
@@ -87,44 +94,71 @@ function EventRow({ event, onAction, onOpen, isAction }) {
   }
 
   return (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => onOpen?.(event)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.iconCircle, { backgroundColor: visual.color + '15' }]}>
-        <Ionicons name={visual.icon} size={16} color={visual.color} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={styles.rowHeader}>
-          <Text style={styles.rowLabel} numberOfLines={1}>
-            {event.label}{event.description && event.label !== event.description ? ` — ${event.description}` : ''}
-          </Text>
-          <StatusPill status={event.raw_status || event.status} />
+    <View>
+      <TouchableOpacity
+        style={styles.row}
+        onPress={() => onOpen?.(event)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.iconCircle, { backgroundColor: visual.color + '15' }]}>
+          <Ionicons name={visual.icon} size={16} color={visual.color} />
         </View>
-        <View style={styles.rowMeta}>
-          <Text style={styles.amount}>
-            {event.amount_due != null && event.source === 'invoice'
-              ? fmt$(event.amount_due > 0 ? event.amount_due : event.amount)
-              : fmt$(event.amount)}
-          </Text>
-          {metaLine ? <Text style={styles.meta}>{metaLine}</Text> : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.rowHeader}>
+            <Text style={styles.rowLabel} numberOfLines={1}>
+              {event.label}{event.description && event.label !== event.description ? ` — ${event.description}` : ''}
+            </Text>
+            <StatusPill status={event.raw_status || event.status} />
+          </View>
+          <View style={styles.rowMeta}>
+            <Text style={styles.amount}>
+              {event.amount_due != null && event.source === 'invoice'
+                ? fmt$(event.amount_due > 0 ? event.amount_due : event.amount)
+                : fmt$(event.amount)}
+            </Text>
+            {metaLine ? <Text style={styles.meta}>{metaLine}</Text> : null}
+          </View>
         </View>
-      </View>
-      {isAction && event.cta_label && event.action_type ? (
-        <TouchableOpacity
-          style={[styles.cta, ctaStyleFor(event.action_type)]}
-          onPress={(e) => { e.stopPropagation?.(); onAction?.(event); }}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.ctaText, ctaTextStyleFor(event.action_type)]}>
-            {event.cta_label}
-          </Text>
-        </TouchableOpacity>
-      ) : (
-        <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+        {isAction && event.cta_label && event.action_type ? (
+          <TouchableOpacity
+            style={[styles.cta, ctaStyleFor(event.action_type)]}
+            onPress={(e) => { e.stopPropagation?.(); onAction?.(event); }}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.ctaText, ctaTextStyleFor(event.action_type)]}>
+              {event.cta_label}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+        )}
+      </TouchableOpacity>
+
+      {/* Accepted estimate prompt — owner picks how to bill */}
+      {isAcceptedEstimateNeedingAction && (
+        <View style={styles.acceptedPrompt}>
+          <Text style={styles.acceptedPromptTitle}>Client accepted — how do you want to bill?</Text>
+          <View style={styles.acceptedPromptButtons}>
+            <TouchableOpacity
+              style={styles.acceptedBtnSecondary}
+              onPress={(e) => { e.stopPropagation?.(); onBillAll?.(event); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="receipt-outline" size={14} color={C.primary} />
+              <Text style={styles.acceptedBtnSecondaryText}>Bill it all now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.acceptedBtnPrimary}
+              onPress={(e) => { e.stopPropagation?.(); onSetUpDraws?.(event); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="cash-outline" size={14} color="#fff" />
+              <Text style={styles.acceptedBtnPrimaryText}>Set up draws</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -218,6 +252,47 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
     // buttons (Send / Nudge) on the right of each row still fire normally.
   };
 
+  // ─── Accepted-estimate prompts ───────────────────────────────────────────
+  // After client accepts, owner needs to choose: bill it all now (single
+  // invoice) OR set up draws (project-level milestone billing).
+  const handleBillAll = async (event) => {
+    if (busyAction) return;
+    setBusyAction(event.id);
+    try {
+      const { createInvoiceFromEstimate } = require('../utils/storage/estimates');
+      const inv = await createInvoiceFromEstimate(event.source_id);
+      if (inv) {
+        Alert.alert(
+          'Invoice Created',
+          `Invoice ${inv.invoice_number} created from this estimate.`,
+        );
+        await load();
+        onRefresh?.();
+      } else {
+        Alert.alert('Error', 'Could not create invoice. The estimate may already be converted.');
+      }
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to create invoice');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleSetUpDraws = (event) => {
+    if (!navigation) return;
+    // Pre-fill ProjectBuilder from the estimate, expanded on the Draws section.
+    // ProjectBuilder is registered in OwnerMainNavigator + BottomTabNavigator
+    // — it accepts route.params.fromEstimateId.
+    navigation.navigate('ProjectBuilder', { fromEstimateId: event.source_id });
+  };
+
+  // Detect: does this project already have invoices/draws? If so, the
+  // accepted-estimate prompt is unnecessary.
+  const projectHasInvoice = (data?.action || []).concat(data?.history || []).concat(data?.upcoming || [])
+    .some(e => e.source === 'invoice');
+  const projectHasDraws = (data?.action || []).concat(data?.history || []).concat(data?.upcoming || [])
+    .some(e => e.source === 'draw');
+
   if (loading) {
     return (
       <View style={[styles.card, { alignItems: 'center', paddingVertical: 24 }]}>
@@ -238,7 +313,20 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
     );
   }
 
-  const { project: rollup, counts, action, upcoming, history } = data;
+  // Promote accepted-but-not-yet-billed estimates from HISTORY → ACTION so the
+  // owner sees the "what's next?" prompt without expanding history. Without
+  // this, the most important UX moment — "client just accepted, what now?" —
+  // is hidden behind a collapse.
+  const promoted = data.history.filter(
+    e => e.source === 'estimate'
+      && (e.status === 'accepted' || e.raw_status === 'accepted')
+      && !projectHasInvoice
+      && !projectHasDraws,
+  );
+  const action = [...data.action, ...promoted];
+  const history = data.history.filter(e => !promoted.includes(e));
+  const upcoming = data.upcoming;
+  const rollup = data.project;
   const contractDelta = rollup.contract_delta_from_cos || 0;
   const drawnPct = rollup.contract_amount > 0
     ? Math.min(100, (rollup.drawn_to_date / rollup.contract_amount) * 100)
@@ -301,6 +389,10 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
               event={event}
               onAction={handleAction}
               onOpen={handleOpen}
+              onBillAll={handleBillAll}
+              onSetUpDraws={handleSetUpDraws}
+              projectHasInvoice={projectHasInvoice}
+              projectHasDraws={projectHasDraws}
               isAction
             />
           ))}
@@ -315,7 +407,15 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
             <Text style={styles.zoneLabel}>Upcoming ({upcoming.length})</Text>
           </View>
           {upcoming.map((event) => (
-            <EventRow key={event.id} event={event} onOpen={handleOpen} />
+            <EventRow
+              key={event.id}
+              event={event}
+              onOpen={handleOpen}
+              onBillAll={handleBillAll}
+              onSetUpDraws={handleSetUpDraws}
+              projectHasInvoice={projectHasInvoice}
+              projectHasDraws={projectHasDraws}
+            />
           ))}
         </View>
       )}
@@ -335,7 +435,15 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
             <Text style={styles.zoneLabel}>History ({history.length})</Text>
           </TouchableOpacity>
           {historyExpanded && history.map((event) => (
-            <EventRow key={event.id} event={event} onOpen={handleOpen} />
+            <EventRow
+              key={event.id}
+              event={event}
+              onOpen={handleOpen}
+              onBillAll={handleBillAll}
+              onSetUpDraws={handleSetUpDraws}
+              projectHasInvoice={projectHasInvoice}
+              projectHasDraws={projectHasDraws}
+            />
           ))}
         </View>
       )}
@@ -405,6 +513,29 @@ const styles = StyleSheet.create({
 
   cta: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   ctaText: { fontSize: 12, fontWeight: '700' },
+
+  // Accepted-estimate "what next" prompt — appears beneath the estimate row
+  // when client accepted but no invoice/draws exist on the project yet.
+  acceptedPrompt: {
+    backgroundColor: C.primaryLight,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 6,
+    marginLeft: 40,
+  },
+  acceptedPromptTitle: { fontSize: 13, fontWeight: '700', color: C.primary, marginBottom: 8 },
+  acceptedPromptButtons: { flexDirection: 'row', gap: 8 },
+  acceptedBtnSecondary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.primary, borderRadius: 8,
+    paddingVertical: 10,
+  },
+  acceptedBtnSecondaryText: { fontSize: 12, fontWeight: '700', color: C.primary },
+  acceptedBtnPrimary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: C.primary, borderRadius: 8, paddingVertical: 10,
+  },
+  acceptedBtnPrimaryText: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
   emptyMsg: {
     fontSize: 13, color: C.textMuted, fontStyle: 'italic',

@@ -322,6 +322,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
 
   const chatExtractedData = route?.params?.chatExtractedData || null;
   const initialProjectId = route?.params?.projectId || null;
+  // When a client accepts an estimate, the BillingCard's "Set up draws" button
+  // routes here with fromEstimateId so the builder pre-fills name/budget/scope
+  // and links the estimate when the project saves. Also tells the user to scroll
+  // to the Draws section (we can't auto-scroll without a ref, but we open it
+  // expanded by default below).
+  const fromEstimateId = route?.params?.fromEstimateId || null;
 
   // Hydrate initial form state from chat extraction (if present)
   const initial = useMemo(() => hydrateFromChatData(chatExtractedData), [chatExtractedData]);
@@ -376,12 +382,13 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const [supervisors, setSupervisors] = useState([]);
   const [availableWorkers, setAvailableWorkers] = useState([]);
 
-  // UI state
+  // UI state — when arriving from an accepted estimate via "Set up draws",
+  // pre-expand the Draws section so the owner lands on the right step.
   const [expandedSections, setExpandedSections] = useState({
     basics: true,
     timeline: false,
     phases: false,
-    draws: false,
+    draws: !!fromEstimateId,
     team: false,
     checklist: false,
     documents: false,
@@ -436,6 +443,52 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       }
     })();
   }, []);
+
+  // ---- From-estimate mode: pre-fill from an accepted estimate ----
+  // Owner taps "Set up draws" on an accepted estimate → routes here with
+  // fromEstimateId. We pre-fill name/budget/dates/scope/phases from the
+  // estimate, then enable billInDraws so the section is ready to populate.
+  useEffect(() => {
+    if (!fromEstimateId || initialProjectId) return; // skip if resuming a saved project
+    (async () => {
+      try {
+        const est = await getEstimate(fromEstimateId);
+        if (!est) return;
+        // Stash estimate data so we can link it on save + pre-fill the form
+        setLinkedEstimateId(est.id);
+        setLinkedEstimate(est);
+        setName(est.project_name || est.client_name || '');
+        setClient(est.client_name || '');
+        setClientPhone(est.client_phone || '');
+        setClientEmail(est.client_email || '');
+        setLocation(est.client_address || '');
+        setContractAmount(String(est.total || ''));
+        // Pre-fill phases from estimate
+        if (Array.isArray(est.phases) && est.phases.length > 0) {
+          setPhases(est.phases.map((p, i) => ({
+            name: p.name || `Phase ${i + 1}`,
+            plannedDays: p.plannedDays || p.planned_days || 0,
+            budget: String(p.budget || ''),
+            assignedWorkerId: p.assignedWorkerId || null,
+            tasks: Array.isArray(p.tasks)
+              ? p.tasks.map(t => ({
+                  description: typeof t === 'string' ? t : t.description || '',
+                  completed: false, status: 'not_started',
+                }))
+              : [],
+          })));
+        }
+        // Schedule
+        if (est.schedule?.startDate) setStartDate(est.schedule.startDate);
+        if (est.schedule?.estimatedEndDate) setEndDate(est.schedule.estimatedEndDate);
+        // Default to billing in draws since that's the whole reason the owner
+        // went down this path. Owner can flip it off if they change their mind.
+        setBillInDraws(true);
+      } catch (e) {
+        console.warn('[ProjectBuilder] failed to load estimate:', e?.message);
+      }
+    })();
+  }, [fromEstimateId, initialProjectId]);
 
   // ---- Resume-mode: load existing project + phases ----
   useEffect(() => {
@@ -1326,6 +1379,31 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             );
           } catch (e) {
             // Likely duplicate — ignore
+          }
+        }
+
+        // Back-link estimate → project so it shows in this project's BillingCard.
+        // Also bumps status to 'accepted' if it wasn't already (sometimes the
+        // owner sets up the project before the client formally clicked Accept).
+        if (linkedEstimateId) {
+          try {
+            await supabase
+              .from('estimates')
+              .update({
+                project_id: saved.id,
+                status: 'accepted',
+                accepted_date: new Date().toISOString(),
+              })
+              .eq('id', linkedEstimateId)
+              .neq('status', 'accepted'); // don't overwrite the real accepted_date
+            // If it was already accepted, just back-link without touching status
+            await supabase
+              .from('estimates')
+              .update({ project_id: saved.id })
+              .eq('id', linkedEstimateId)
+              .is('project_id', null);
+          } catch (e) {
+            console.warn('[ProjectBuilder] back-link estimate failed:', e?.message);
           }
         }
 

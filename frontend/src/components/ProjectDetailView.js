@@ -41,6 +41,7 @@ import TaskDetailModal from './TaskDetailModal';
 import NonWorkingDatesManager from './NonWorkingDatesManager';
 import EstimatePreview from './ChatVisuals/EstimatePreview';
 import BillingCard from './BillingCard';
+import DocumentsCard from './DocumentsCard';
 import DailyChecklistSection from './DailyChecklistSection';
 import TodaysChecklistSection from './TodaysChecklistSection';
 import { formatHoursMinutes } from '../utils/calculations';
@@ -1993,6 +1994,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             />
           )}
 
+          {/* Documents — unified surface mirroring BillingCard pattern */}
+          {!isDemo && project?.id && (
+            <DocumentsCard projectId={project.id} navigation={navigation} />
+          )}
+
           {/* Project Status Actions */}
           {isOwner && !isDemo && (
             <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12 }}>
@@ -3102,6 +3108,20 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     }
                     return;
                   }
+                  // "Set up draws" — open ProjectBuilder pre-loaded from this estimate.
+                  if (action?.type === 'set-up-draws-from-estimate') {
+                    const estId = action.data?.id || action.data?.estimateId;
+                    if (!estId) {
+                      Alert.alert('Missing estimate', 'Save the estimate first.');
+                      return;
+                    }
+                    setShowEstimateModal(false);
+                    if (navigation) {
+                      navigation.navigate('ProjectBuilder', { fromEstimateId: estId });
+                    }
+                    return;
+                  }
+
                   // Convert-to-invoice button on accepted estimates.
                   if (action?.type === 'convert-estimate-to-invoice') {
                     try {
