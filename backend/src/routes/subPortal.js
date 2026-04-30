@@ -257,6 +257,154 @@ router.get('/bids', authenticateUser, async (req, res) => {
 });
 
 // =============================================================================
+// GET /api/sub-portal/bids/:id — full bid package for the invited sub
+// =============================================================================
+// Returns the bid_request + project basics + attachments. The sub must
+// be invited (via bid_request_invitations) for this to succeed.
+
+router.get('/bids/:id', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(404).json({ error: 'No sub_organization linked' });
+
+    // Confirm the sub was invited to this bid
+    const { data: invite } = await supabase
+      .from('bid_request_invitations')
+      .select('id')
+      .eq('bid_request_id', req.params.id)
+      .eq('sub_organization_id', sub.id)
+      .maybeSingle();
+    if (!invite) return res.status(403).json({ error: 'Not invited to this bid' });
+
+    const { data: br } = await supabase
+      .from('bid_requests')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (!br) return res.status(404).json({ error: 'Bid request not found' });
+
+    // Project basics — sub doesn't need full project (financials etc.)
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, project_name, project_type, project_description, address, city, state_code, postal_code')
+      .eq('id', br.project_id)
+      .maybeSingle();
+
+    const { data: attachments } = await supabase
+      .from('bid_request_attachments')
+      .select('id, file_name, file_mime, file_size_bytes, attachment_type, created_at')
+      .eq('bid_request_id', req.params.id)
+      .order('created_at', { ascending: true });
+
+    // GC sender name for display
+    const { data: gcProfile } = await supabase
+      .from('profiles')
+      .select('business_name')
+      .eq('id', br.gc_user_id)
+      .maybeSingle();
+
+    // Existing bid by this sub (for editing)
+    const { data: existingBid } = await supabase
+      .from('sub_bids')
+      .select('*')
+      .eq('bid_request_id', req.params.id)
+      .eq('sub_organization_id', sub.id)
+      .maybeSingle();
+
+    return res.json({
+      bid_request: br,
+      project,
+      attachments: attachments || [],
+      sender_name: gcProfile?.business_name || null,
+      my_bid: existingBid || null,
+    });
+  } catch (err) {
+    logger.error('[subPortal] GET /bids/:id error:', err);
+    return res.status(500).json({ error: 'Failed to load bid' });
+  }
+});
+
+// =============================================================================
+// GET /api/sub-portal/bids/:id/attachments/:aid/url
+// =============================================================================
+// Signed URL for an attachment — sub must be invited.
+
+router.get('/bids/:id/attachments/:aid/url', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(404).json({ error: 'No sub_organization linked' });
+
+    const { data: invite } = await supabase
+      .from('bid_request_invitations')
+      .select('id')
+      .eq('bid_request_id', req.params.id)
+      .eq('sub_organization_id', sub.id)
+      .maybeSingle();
+    if (!invite) return res.status(403).json({ error: 'Not invited to this bid' });
+
+    const { data: row } = await supabase
+      .from('bid_request_attachments')
+      .select('file_url')
+      .eq('id', req.params.aid)
+      .eq('bid_request_id', req.params.id)
+      .maybeSingle();
+    if (!row) return res.status(404).json({ error: 'Attachment not found' });
+
+    const { data: signed, error: sErr } = await supabase
+      .storage
+      .from('documents')
+      .createSignedUrl(row.file_url, 300);
+    if (sErr) throw sErr;
+    return res.json({ url: signed.signedUrl, expires_in: 300 });
+  } catch (err) {
+    logger.error('[subPortal] attachment url:', err);
+    return res.status(500).json({ error: 'Failed to issue URL' });
+  }
+});
+
+// =============================================================================
+// POST /api/sub-portal/bids/:id/decline — sub declines an invitation
+// =============================================================================
+
+router.post('/bids/:id/decline', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(404).json({ error: 'No sub_organization linked' });
+
+    const { data: invite } = await supabase
+      .from('bid_request_invitations')
+      .select('id')
+      .eq('bid_request_id', req.params.id)
+      .eq('sub_organization_id', sub.id)
+      .maybeSingle();
+    if (!invite) return res.status(403).json({ error: 'Not invited to this bid' });
+
+    // Mark a withdrawn sub_bid row (or upsert one)
+    const { data: existing } = await supabase
+      .from('sub_bids')
+      .select('id')
+      .eq('bid_request_id', req.params.id)
+      .eq('sub_organization_id', sub.id)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('sub_bids').update({ status: 'withdrawn' }).eq('id', existing.id);
+    } else {
+      await supabase.from('sub_bids').insert({
+        bid_request_id: req.params.id,
+        sub_organization_id: sub.id,
+        amount: 0,
+        status: 'withdrawn',
+      });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error('[subPortal] decline error:', err);
+    return res.status(500).json({ error: 'Failed to decline' });
+  }
+});
+
+// =============================================================================
 // POST /api/sub-portal/bids — submit a bid for an invited request
 // =============================================================================
 

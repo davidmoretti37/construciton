@@ -31,6 +31,11 @@ async function createBidRequest({
   paymentTerms = 'net_30',
   paymentTermsNotes = null,
   requiredDocTypes = [],
+  siteAddress = null,
+  siteCity = null,
+  siteStateCode = null,
+  sitePostalCode = null,
+  siteVisitNotes = null,
 }) {
   if (!gcUserId || !projectId || !trade || !scopeSummary) {
     throw new Error('gcUserId, projectId, trade, and scopeSummary required');
@@ -47,6 +52,11 @@ async function createBidRequest({
       payment_terms: paymentTerms,
       payment_terms_notes: paymentTermsNotes,
       required_doc_types: requiredDocTypes,
+      site_address: siteAddress,
+      site_city: siteCity,
+      site_state_code: siteStateCode,
+      site_postal_code: sitePostalCode,
+      site_visit_notes: siteVisitNotes,
       status: 'open',
     })
     .select()

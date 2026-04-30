@@ -112,6 +112,28 @@ export const getComplianceDocSignedUrl = (id) =>
 export const createBidRequest = (payload) =>
   authedFetch('/api/bid-requests', { method: 'POST', body: JSON.stringify(payload) });
 
+export const generateBidScope = (payload) =>
+  authedFetch('/api/bid-requests/generate-scope', { method: 'POST', body: JSON.stringify(payload) });
+
+export const uploadBidAttachment = (bidRequestId, payload) =>
+  authedFetch(`/api/bid-requests/${bidRequestId}/attachments`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const listBidAttachments = async (bidRequestId) => {
+  const json = await authedFetch(`/api/bid-requests/${bidRequestId}/attachments`);
+  return json.attachments || [];
+};
+
+export const getBidAttachmentSignedUrl = (bidRequestId, attachmentId) =>
+  authedFetch(`/api/bid-requests/${bidRequestId}/attachments/${attachmentId}/url`);
+
+export const deleteBidAttachment = (bidRequestId, attachmentId) =>
+  authedFetch(`/api/bid-requests/${bidRequestId}/attachments/${attachmentId}`, {
+    method: 'DELETE',
+  });
+
 export const listBidRequests = async (params = {}) => {
   const qs = new URLSearchParams(params).toString();
   const json = await authedFetch(`/api/bid-requests${qs ? '?' + qs : ''}`);

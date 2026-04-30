@@ -80,6 +80,15 @@ export const submitBid = (payload) =>
     body: JSON.stringify(payload),
   });
 
+export const getBidRequestForSub = (id) =>
+  authedFetch(`/api/sub-portal/bids/${id}`);
+
+export const getBidAttachmentSignedUrlForSub = (bidRequestId, attachmentId) =>
+  authedFetch(`/api/sub-portal/bids/${bidRequestId}/attachments/${attachmentId}/url`);
+
+export const declineBidRequest = (id) =>
+  authedFetch(`/api/sub-portal/bids/${id}/decline`, { method: 'POST' });
+
 export const listMyInvoices = async () => {
   const json = await authedFetch('/api/sub-portal/invoices');
   return json.invoices || [];

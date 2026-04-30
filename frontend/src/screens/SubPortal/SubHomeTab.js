@@ -105,7 +105,9 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
         body: 'Tap to view scope and submit.',
         icon: 'mail-outline',
         color: '#0EA5E9',
-        onPress: () => onNavigateTab?.('work'),
+        onPress: r.bid_request_id
+          ? () => navigation?.navigate?.('SubBidSubmit', { bidRequestId: r.bid_request_id })
+          : () => onNavigateTab?.('work'),
       });
     }
   }
@@ -136,7 +138,7 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
       body: inv.scope_summary?.slice(0, 80) || 'Tap to view scope and submit.',
       icon: 'mail-outline',
       color: '#0EA5E9',
-      onPress: () => onNavigateTab?.('work'),
+      onPress: () => navigation?.navigate?.('SubBidSubmit', { bidRequestId: inv.id }),
     });
   }
 

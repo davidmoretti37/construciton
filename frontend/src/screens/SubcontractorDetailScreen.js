@@ -433,12 +433,30 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         )}
 
         {activeTab === 'Bids' && (
-          <View style={styles.emptyBig}>
-            <Ionicons name="mail-outline" size={42} color={Colors.secondaryText} />
-            <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No bid history</Text>
-            <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-              Bids you receive from this sub will show here.
-            </Text>
+          <View>
+            <TouchableOpacity
+              style={styles.getBidsCta}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('BidRequestCreator', { subOrganizationId: sub_organization_id })}
+            >
+              <View style={styles.getBidsIcon}>
+                <Ionicons name="paper-plane" size={22} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.getBidsTitle}>Send bid invitation</Text>
+                <Text style={styles.getBidsBody}>
+                  Pick a project + trade, AI drafts the scope, attach plans/photos, send.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            </TouchableOpacity>
+            <View style={[styles.emptyBig, { paddingTop: 28 }]}>
+              <Ionicons name="mail-outline" size={42} color={Colors.secondaryText} />
+              <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No bid history</Text>
+              <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
+                Bids this sub submits will show here.
+              </Text>
+            </View>
           </View>
         )}
 
@@ -672,6 +690,20 @@ const makeStyles = (Colors) => StyleSheet.create({
   },
   requestCtaTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
   requestCtaBody: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
+  getBidsCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 14, padding: 14,
+    shadowColor: '#0F172A', shadowOpacity: 0.1, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 }, elevation: 3,
+  },
+  getBidsIcon: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  getBidsTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  getBidsBody: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
   docCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.cardBackground || '#fff',

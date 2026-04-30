@@ -24,7 +24,7 @@ const FILTERS = [
   { key: 'invoices',    label: 'Invoices' },
 ];
 
-export default function SubWorkTab() {
+export default function SubWorkTab({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -140,7 +140,12 @@ export default function SubWorkTab() {
           Colors={Colors}
         >
           {(bids.open_invitations || []).map((b) => (
-            <View key={b.id} style={styles.card}>
+            <TouchableOpacity
+              key={b.id}
+              style={styles.card}
+              activeOpacity={0.7}
+              onPress={() => navigation?.navigate?.('SubBidSubmit', { bidRequestId: b.id })}
+            >
               <View style={styles.cardHeader}>
                 <View style={[styles.cardIconWrap, { backgroundColor: '#0EA5E915' }]}>
                   <Ionicons name="mail" size={20} color="#0EA5E9" />
@@ -151,11 +156,12 @@ export default function SubWorkTab() {
                     <Text style={styles.cardMeta}>Due {new Date(b.due_at).toLocaleDateString()}</Text>
                   )}
                 </View>
+                <Ionicons name="chevron-forward" size={18} color="#0EA5E9" />
               </View>
               {b.scope_summary ? (
                 <Text style={styles.cardBody} numberOfLines={3}>{b.scope_summary}</Text>
               ) : null}
-            </View>
+            </TouchableOpacity>
           ))}
         </Section>
       )}

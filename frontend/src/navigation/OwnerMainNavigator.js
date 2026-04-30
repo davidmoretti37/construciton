@@ -381,6 +381,7 @@ export default function OwnerMainNavigator() {
       <Stack.Screen name="SubcontractorDetail"   component={require('../screens/SubcontractorDetailScreen').default} />
       <Stack.Screen name="AddSubcontractor"      component={require('../screens/AddSubcontractorScreen').default} />
       <Stack.Screen name="EngagementDetail"      component={require('../screens/EngagementDetailScreen').default} />
+      <Stack.Screen name="BidRequestCreator"     component={require('../screens/BidRequestCreatorScreen').default} />
     </Stack.Navigator>
   );
 }
