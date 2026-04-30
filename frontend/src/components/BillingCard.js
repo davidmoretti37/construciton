@@ -363,9 +363,18 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
       && !projectHasInvoice
       && !projectHasDraws,
   );
-  const action = [...data.action, ...promoted];
-  const history = data.history.filter(e => !promoted.includes(e));
-  const upcoming = data.upcoming;
+  // Filter out optimistically-resolved estimate events from EVERY zone so
+  // the count headers ("Action required (N)") match the visible rows.
+  // Without this, hiding the row inside EventRow caused "ACTION REQUIRED (1)"
+  // to render with no row beneath it — which looks broken.
+  const isOptimisticallyResolved = (e) =>
+    !!e.source_id && e.source === 'estimate' &&
+    (billedEstimateIds.has(e.source_id) || drawsSetUpEstimateIds.has(e.source_id));
+  const action = [...data.action, ...promoted].filter((e) => !isOptimisticallyResolved(e));
+  const history = data.history
+    .filter(e => !promoted.includes(e))
+    .filter((e) => !isOptimisticallyResolved(e));
+  const upcoming = data.upcoming.filter((e) => !isOptimisticallyResolved(e));
   const rollup = data.project;
   const contractDelta = rollup.contract_delta_from_cos || 0;
   const drawnPct = rollup.contract_amount > 0
