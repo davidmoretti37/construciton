@@ -51,7 +51,9 @@ const aiLimiter = rateLimit({
  */
 const servicesLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
-  max: 60, // 60 requests per minute
+  max: 180, // 180 requests per minute — generous because list/refresh
+            // patterns (sub portal Home loads bids + docs + pending in one tick)
+            // can fire several requests close together.
   standardHeaders: true,
   legacyHeaders: false,
   handler: createRateLimitHandler('services'),
