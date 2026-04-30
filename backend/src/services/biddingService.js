@@ -190,10 +190,11 @@ async function submitBid({
 // =============================================================================
 
 async function acceptBid({ bidId, gcUserId }) {
-  // Load bid + request
+  // Load bid + request. Disambiguate FK — there are two relationships
+  // between sub_bids and bid_requests (bid_request_id + awarded_bid_id).
   const { data: bid, error: bidErr } = await supabase
     .from('sub_bids')
-    .select('*, bid_request:bid_requests(id, gc_user_id, project_id, trade, payment_terms, payment_terms_notes, status)')
+    .select('*, bid_request:bid_requests!sub_bids_bid_request_id_fkey(id, gc_user_id, project_id, trade, payment_terms, payment_terms_notes, status)')
     .eq('id', bidId)
     .maybeSingle();
   if (bidErr) throw bidErr;
@@ -259,7 +260,7 @@ async function acceptBid({ bidId, gcUserId }) {
 async function declineBid({ bidId, gcUserId }) {
   const { data: bid, error } = await supabase
     .from('sub_bids')
-    .select('*, bid_request:bid_requests(id, gc_user_id)')
+    .select('*, bid_request:bid_requests!sub_bids_bid_request_id_fkey(id, gc_user_id)')
     .eq('id', bidId)
     .maybeSingle();
   if (error) throw error;

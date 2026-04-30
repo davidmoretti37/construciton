@@ -244,7 +244,7 @@ router.get('/bids', authenticateUser, async (req, res) => {
     if (sub) {
       const { data } = await supabase
         .from('sub_bids')
-        .select('*, bid_request:bid_requests(id, project_id, trade, scope_summary, status)')
+        .select('*, bid_request:bid_requests!sub_bids_bid_request_id_fkey(id, project_id, trade, scope_summary, status)')
         .eq('sub_organization_id', sub.id)
         .order('submitted_at', { ascending: false });
       mine = data || [];
