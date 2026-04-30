@@ -282,8 +282,13 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
     if (!navigation) return;
     // Pre-fill ProjectBuilder from the estimate, expanded on the Draws section.
     // ProjectBuilder is registered in OwnerMainNavigator + BottomTabNavigator
-    // — it accepts route.params.fromEstimateId.
-    navigation.navigate('ProjectBuilder', { fromEstimateId: event.source_id });
+    // — only reachable from owner role. If a client somehow renders this card,
+    // bail with a friendly message instead of crashing the navigator.
+    try {
+      navigation.navigate('ProjectBuilder', { fromEstimateId: event.source_id });
+    } catch (e) {
+      Alert.alert('Not available', "Couldn't open the project builder from here.");
+    }
   };
 
   // Detect: does this project already have invoices/draws? If so, the

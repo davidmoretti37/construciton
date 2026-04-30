@@ -2,14 +2,15 @@
 // Three actions: Accept / Decline / Request Changes.
 // Mirrors the look and feel of ClientChangeOrderDetailScreen.
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { respondToEstimate } from '../../services/clientPortalApi';
+import { useFocusEffect } from '@react-navigation/native';
+import { respondToEstimate, fetchProjectEstimates } from '../../services/clientPortalApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 const C = {
@@ -51,6 +52,27 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
   const [declineReason, setDeclineReason] = useState('');
   const [changesNotes, setChangesNotes] = useState('');
   const [selectedChip, setSelectedChip] = useState(null);
+
+  // If the client signs in the browser (signature_required estimates), the
+  // server flips status to 'accepted' but our local state is stale. Refetch
+  // when the screen regains focus so the UI reflects reality.
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+    (async () => {
+      if (!estimate?.id || !project?.id) return;
+      try {
+        const list = await fetchProjectEstimates(project.id);
+        if (cancelled || !Array.isArray(list)) return;
+        const fresh = list.find(e => e.id === estimate.id);
+        if (fresh && fresh.status !== estimate.status) {
+          setEstimate(prev => ({ ...prev, ...fresh }));
+        }
+      } catch (_) {
+        // best-effort
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [estimate?.id, estimate?.status, project?.id]));
 
   const status = STATUS_MAP[estimate?.status] || STATUS_MAP.sent;
   const isPending = ['sent', 'viewed', 'draft'].includes(estimate?.status);
