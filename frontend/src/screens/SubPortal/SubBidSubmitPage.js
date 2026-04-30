@@ -255,6 +255,8 @@ export default function SubBidSubmitPage({ route, navigation }) {
 
       // Upload sub's attachments (counter-proposal, photos, etc.) to the
       // same bid_request — backend tags them with uploaded_by_role='sub'.
+      // Track failures and surface them so the sub knows if files are missing.
+      const failures = [];
       for (const att of pendingAttachments) {
         try {
           await api.uploadSubBidAttachment(bidRequestId, {
@@ -266,14 +268,27 @@ export default function SubBidSubmitPage({ route, navigation }) {
           });
         } catch (e) {
           console.warn('Sub bid attachment failed:', att.name, e.message);
+          failures.push({ name: att.name, error: e.message || 'upload error' });
         }
       }
 
-      Alert.alert(
-        'Bid submitted',
-        `Your bid of $${amt.toLocaleString()} was sent to ${senderName || 'the contractor'}.`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }],
-      );
+      if (failures.length > 0) {
+        Alert.alert(
+          'Bid sent — some files failed',
+          `Your $${amt.toLocaleString()} bid was sent, but ${failures.length} file${failures.length === 1 ? '' : 's'} could not upload:\n\n` +
+            failures.map((f) => `• ${f.name}: ${f.error}`).join('\n') +
+            `\n\nPlease retry the upload from Documents → Other files.`,
+          [{ text: 'OK', onPress: () => navigation.goBack() }],
+        );
+      } else {
+        Alert.alert(
+          'Bid submitted',
+          pendingAttachments.length > 0
+            ? `Your bid of $${amt.toLocaleString()} and ${pendingAttachments.length} attachment${pendingAttachments.length === 1 ? '' : 's'} were sent to ${senderName || 'the contractor'}.`
+            : `Your bid of $${amt.toLocaleString()} was sent to ${senderName || 'the contractor'}.`,
+          [{ text: 'OK', onPress: () => navigation.goBack() }],
+        );
+      }
     } catch (e) {
       Alert.alert('Could not submit', e.message || 'Try again');
     } finally {
