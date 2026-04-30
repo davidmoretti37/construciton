@@ -19,7 +19,7 @@ import * as api from '../../services/subPortalService';
 
 const SUB_VIOLET = '#8B5CF6';
 
-const DOC_TYPE_LABELS = {
+const COMPLIANCE_TYPE_LABELS = {
   w9: 'IRS Form W-9',
   coi_gl: 'General Liability COI',
   coi_wc: 'Workers Comp COI',
@@ -33,7 +33,19 @@ const DOC_TYPE_LABELS = {
   msa: 'Master Subcontract Agreement',
 };
 
+const PROJECT_FILE_LABELS = {
+  signed_contract: 'Signed contract',
+  invoice_pdf:     'Invoice (PDF)',
+  proposal:        'Proposal / quote',
+  change_order:    'Change order',
+  work_photo:      'Work photo',
+  other_doc:       'Other document',
+};
+
+const DOC_TYPE_LABELS = { ...COMPLIANCE_TYPE_LABELS, ...PROJECT_FILE_LABELS };
+
 const DOC_ICONS = {
+  // Compliance
   w9: 'receipt-outline',
   coi_gl: 'shield-checkmark-outline',
   coi_wc: 'shield-checkmark-outline',
@@ -45,6 +57,13 @@ const DOC_ICONS = {
   license_business: 'business-outline',
   drug_policy: 'flask-outline',
   msa: 'document-attach-outline',
+  // Project files
+  signed_contract: 'create-outline',
+  invoice_pdf:     'cash-outline',
+  proposal:        'reader-outline',
+  change_order:    'swap-horizontal-outline',
+  work_photo:      'camera-outline',
+  other_doc:       'document-outline',
 };
 
 export default function SubDocumentsTab() {
@@ -114,13 +133,22 @@ export default function SubDocumentsTab() {
     );
   }
 
-  // Group by doc type — most recent only
-  const byType = {};
+  // For compliance: keep most recent per doc_type. For project files:
+  // show every uploaded file (multiple invoices, photos, etc.).
+  const complianceTypes = Object.keys(COMPLIANCE_TYPE_LABELS);
+  const projectFileTypes = Object.keys(PROJECT_FILE_LABELS);
+
+  const compByType = {};
   for (const d of docs) {
-    if (!byType[d.doc_type]) byType[d.doc_type] = d;
+    if (!complianceTypes.includes(d.doc_type)) continue;
+    if (!compByType[d.doc_type]) compByType[d.doc_type] = d;
   }
-  const presentTypes = Object.keys(byType);
-  const missingTypes = Object.keys(DOC_TYPE_LABELS).filter((t) => !presentTypes.includes(t));
+  const presentCompliance = Object.keys(compByType);
+  const missingCompliance = complianceTypes.filter((t) => !presentCompliance.includes(t));
+
+  const projectFiles = docs
+    .filter((d) => projectFileTypes.includes(d.doc_type))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const computeStatus = (d) => {
     if (!d.expires_at) return { label: 'Active', color: '#10B981', bg: '#10B98115' };
@@ -140,19 +168,20 @@ export default function SubDocumentsTab() {
     >
       <Text style={styles.headerTitle}>Documents</Text>
       <Text style={styles.headerSub}>
-        Upload once — visible to every contractor who hires you.
+        Compliance docs (W-9, COI, licenses) live in your vault — uploaded once,
+        visible to every contractor who hires you.
       </Text>
 
-      {/* On file */}
-      <Text style={styles.sectionTitle}>On file</Text>
-      {presentTypes.length === 0 ? (
+      {/* Compliance — On file */}
+      <Text style={styles.sectionTitle}>Compliance · on file</Text>
+      {presentCompliance.length === 0 ? (
         <View style={styles.emptyBlock}>
           <Ionicons name="folder-open-outline" size={26} color={Colors.secondaryText} />
           <Text style={styles.emptyText}>No documents uploaded yet.</Text>
         </View>
       ) : (
-        presentTypes.map((t) => {
-          const d = byType[t];
+        presentCompliance.map((t) => {
+          const d = compByType[t];
           const status = computeStatus(d);
           return (
             <View key={t} style={styles.docCard}>
@@ -182,11 +211,11 @@ export default function SubDocumentsTab() {
         })
       )}
 
-      {/* Missing */}
-      {missingTypes.length > 0 && (
+      {/* Compliance — Missing */}
+      {missingCompliance.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Add</Text>
-          {missingTypes.map((t) => (
+          <Text style={styles.sectionTitle}>Compliance · add</Text>
+          {missingCompliance.map((t) => (
             <TouchableOpacity
               key={t}
               style={styles.addCard}
@@ -207,6 +236,48 @@ export default function SubDocumentsTab() {
           ))}
         </>
       )}
+
+      {/* Project files — uploaded by sub, visible to GCs */}
+      <Text style={styles.sectionTitle}>Project files</Text>
+      <Text style={styles.subsectionHint}>
+        Send a signed contract, invoice PDF, change order, photos, or anything else to your contractor.
+      </Text>
+
+      {projectFiles.length > 0 && projectFiles.map((d) => (
+        <View key={d.id} style={styles.docCard}>
+          <View style={[styles.docIconWrap, { backgroundColor: '#0EA5E915' }]}>
+            <Ionicons name={DOC_ICONS[d.doc_type] || 'document-outline'} size={20} color="#0EA5E9" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.docTitle} numberOfLines={1}>
+              {PROJECT_FILE_LABELS[d.doc_type] || d.doc_type}
+            </Text>
+            <Text style={styles.fileMeta} numberOfLines={1}>
+              {d.file_name || ''}{d.created_at ? `  ·  ${new Date(d.created_at).toLocaleDateString()}` : ''}
+            </Text>
+          </View>
+        </View>
+      ))}
+
+      {projectFileTypes.map((t) => (
+        <TouchableOpacity
+          key={t}
+          style={styles.addCard}
+          onPress={() => onUpload(t)}
+          disabled={uploadingType === t}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.docIconWrap, styles.addIconWrap]}>
+            <Ionicons name={DOC_ICONS[t] || 'add'} size={20} color={Colors.secondaryText} />
+          </View>
+          <Text style={styles.addCardLabel}>Send {PROJECT_FILE_LABELS[t]?.toLowerCase()}</Text>
+          {uploadingType === t ? (
+            <ActivityIndicator size="small" color={SUB_VIOLET} />
+          ) : (
+            <Ionicons name="cloud-upload" size={22} color="#0EA5E9" />
+          )}
+        </TouchableOpacity>
+      ))}
     </ScrollView>
   );
 }
@@ -230,6 +301,8 @@ const makeStyles = (Colors) => StyleSheet.create({
     paddingHorizontal: 16,
   },
   emptyText: { color: Colors.secondaryText, fontSize: 14 },
+  subsectionHint: { fontSize: 12, color: Colors.secondaryText, marginTop: -4, marginBottom: 10, lineHeight: 18 },
+  fileMeta: { fontSize: 11, color: Colors.secondaryText, marginTop: 3 },
   docCard: {
     flexDirection: 'row',
     alignItems: 'center',

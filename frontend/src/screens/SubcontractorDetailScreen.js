@@ -43,6 +43,18 @@ const DOC_TYPE_META = {
 
 const REQUESTABLE_DOCS = ['coi_gl', 'coi_wc', 'coi_auto', 'ai_endorsement', 'w9', 'license_state', 'license_business', 'drug_policy'];
 
+// Files the sub uploads themselves — not requestable, displayed in a
+// separate "From sub" group in the Documents tab.
+const PROJECT_FILE_META = {
+  signed_contract: { label: 'Signed contract',  icon: 'create-outline',          color: '#0EA5E9' },
+  invoice_pdf:     { label: 'Invoice (PDF)',    icon: 'cash-outline',            color: '#10B981' },
+  proposal:        { label: 'Proposal / quote', icon: 'reader-outline',          color: '#0EA5E9' },
+  change_order:    { label: 'Change order',     icon: 'swap-horizontal-outline', color: '#F59E0B' },
+  work_photo:      { label: 'Work photo',       icon: 'camera-outline',          color: '#8B5CF6' },
+  other_doc:       { label: 'Other document',   icon: 'document-outline',        color: '#6B7280' },
+};
+const PROJECT_FILE_TYPES = Object.keys(PROJECT_FILE_META);
+
 function getInitials(name) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
@@ -167,16 +179,25 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
     }
   };
 
-  // Group docs by best-of-type for the Documents tab
+  // Compliance docs: best-of-type. Project files (sub-uploaded contracts,
+  // invoices, photos): show every row, newest first.
   const bestByType = useMemo(() => {
     const map = {};
     for (const d of docs) {
+      if (PROJECT_FILE_TYPES.includes(d.doc_type)) continue;
       if (!map[d.doc_type]) map[d.doc_type] = d;
     }
     return map;
   }, [docs]);
   const presentTypes = Object.keys(bestByType);
   const missingRequestable = REQUESTABLE_DOCS.filter((t) => !presentTypes.includes(t));
+
+  const projectFiles = useMemo(() =>
+    docs
+      .filter((d) => PROJECT_FILE_TYPES.includes(d.doc_type))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    [docs],
+  );
 
   if (loading) {
     return (
@@ -448,10 +469,43 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
               </>
             )}
 
-            {presentTypes.length === 0 && missingRequestable.length === 0 && (
+            {presentTypes.length === 0 && missingRequestable.length === 0 && projectFiles.length === 0 && (
               <Text style={[styles.emptyMini, { color: Colors.secondaryText, paddingVertical: 32, textAlign: 'center' }]}>
                 Loading documents…
               </Text>
+            )}
+
+            {projectFiles.length > 0 && (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: 24 }]}>From sub</Text>
+                {projectFiles.map((d) => {
+                  const meta = PROJECT_FILE_META[d.doc_type] || { label: d.doc_type, icon: 'document-outline', color: Colors.primaryBlue };
+                  const isOpening = openingDocId === d.id;
+                  return (
+                    <TouchableOpacity
+                      key={d.id}
+                      style={styles.docCard}
+                      activeOpacity={0.7}
+                      onPress={() => onOpenDoc(d)}
+                      disabled={isOpening}
+                    >
+                      <View style={[styles.docIcon, { backgroundColor: meta.color + '15' }]}>
+                        <Ionicons name={meta.icon} size={20} color={meta.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.docTitle}>{meta.label}</Text>
+                        <Text style={styles.docMeta} numberOfLines={1}>
+                          {d.file_name || ''}
+                          {d.created_at ? `  ·  ${new Date(d.created_at).toLocaleDateString()}` : ''}
+                        </Text>
+                      </View>
+                      {isOpening
+                        ? <ActivityIndicator size="small" color={meta.color} style={{ marginRight: 6 }} />
+                        : <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ marginLeft: 6 }} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
             )}
           </View>
         )}
