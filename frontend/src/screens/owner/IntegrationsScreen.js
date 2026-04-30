@@ -226,22 +226,54 @@ export default function IntegrationsScreen({ navigation }) {
           />
         }
       >
+        {/* Top banner when ANY integration needs attention. Pre-empts the
+            user discovering it via individual cards. */}
+        {(() => {
+          const broken = integrations.filter(i =>
+            i.connection?.status === 'expired' || i.connection?.status === 'error'
+          );
+          if (broken.length === 0) return null;
+          return (
+            <View style={styles.warnBanner}>
+              <Ionicons name="warning" size={18} color="#92400E" />
+              <Text style={styles.warnBannerText}>
+                {broken.length} integration{broken.length === 1 ? '' : 's'} need attention.
+                Tap <Text style={{ fontWeight: '700' }}>Reconnect</Text> below to restore access.
+              </Text>
+            </View>
+          );
+        })()}
+
         {integrations.map(intg => {
           const isConnected = intg.connection?.status === 'connected';
           const isExpired = intg.connection?.status === 'expired';
           const isError = intg.connection?.status === 'error';
+          const needsReconnect = isExpired || isError;
           const isBusy = busyType === intg.type;
           const canAct = !intg.coming_soon && intg.enabled;
+          const lastSynced = intg.connection?.last_synced_at;
+          const lastError = intg.connection?.last_error;
 
           return (
-            <View key={intg.type} style={[styles.card, intg.coming_soon && styles.cardMuted]}>
+            <View
+              key={intg.type}
+              style={[
+                styles.card,
+                intg.coming_soon && styles.cardMuted,
+                needsReconnect && styles.cardError,
+              ]}
+            >
               <View style={styles.cardHeader}>
-                <View style={[styles.iconCircle, isConnected && styles.iconCircleActive]}>
+                <View style={[
+                  styles.iconCircle,
+                  isConnected && styles.iconCircleActive,
+                  needsReconnect && styles.iconCircleError,
+                ]}>
                   <IntegrationIcon
                     icon={intg.icon}
                     size={20}
                     fallbackColor={Colors.primaryText}
-                    forceColor={isConnected ? '#fff' : null}
+                    forceColor={(isConnected || needsReconnect) ? '#fff' : null}
                   />
                 </View>
                 <View style={styles.cardBody}>
@@ -251,23 +283,46 @@ export default function IntegrationsScreen({ navigation }) {
                     <Text style={styles.comingSoon}>Coming soon</Text>
                   )}
                   {isConnected && (
-                    <Text style={styles.statusOk}>
-                      ✓ Connected{intg.connection.connected_at ? ` · ${relativeTime(intg.connection.connected_at)}` : ''}
-                    </Text>
+                    <View>
+                      <Text style={styles.statusOk}>
+                        ✓ Connected{intg.connection.connected_at ? ` · ${relativeTime(intg.connection.connected_at)}` : ''}
+                      </Text>
+                      {lastSynced && (
+                        <Text style={styles.statusSynced}>
+                          Last synced {relativeTime(lastSynced)}
+                        </Text>
+                      )}
+                    </View>
                   )}
                   {isExpired && (
-                    <Text style={styles.statusWarn}>⚠ Expired — reconnect</Text>
+                    <View>
+                      <Text style={styles.statusWarn}>
+                        ⚠ Session expired
+                      </Text>
+                      <Text style={styles.statusErrorDetail} numberOfLines={2}>
+                        {lastError || 'Token expired or refresh failed. Reconnect to restore access.'}
+                      </Text>
+                    </View>
                   )}
                   {isError && (
-                    <Text style={styles.statusError} numberOfLines={2}>
-                      ⚠ Error: {intg.connection.last_error || 'unknown'}
-                    </Text>
+                    <View>
+                      <Text style={styles.statusError}>
+                        ⚠ Connection error
+                      </Text>
+                      <Text style={styles.statusErrorDetail} numberOfLines={3}>
+                        {lastError || 'Something went wrong. Try reconnecting.'}
+                      </Text>
+                    </View>
                   )}
                 </View>
                 {canAct && (
                   <View style={styles.cardActions}>
                     {isBusy ? (
                       <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                    ) : needsReconnect ? (
+                      <TouchableOpacity onPress={() => handleConnect(intg)} style={styles.btnReconnect}>
+                        <Text style={styles.btnReconnectText}>Reconnect</Text>
+                      </TouchableOpacity>
                     ) : isConnected ? (
                       <TouchableOpacity onPress={() => handleDisconnect(intg)} style={styles.btnGhost}>
                         <Text style={styles.btnGhostText}>Disconnect</Text>
@@ -324,6 +379,11 @@ function makeStyles(C) {
       borderColor: C.border,
     },
     cardMuted: { opacity: 0.6 },
+    cardError: {
+      borderColor: '#FCA5A5',
+      borderWidth: 1.5,
+      backgroundColor: isDark ? 'rgba(220, 38, 38, 0.08)' : '#FEF2F2',
+    },
     cardHeader: { flexDirection: 'row', gap: 12 },
     iconCircle: {
       width: 40,
@@ -339,13 +399,36 @@ function makeStyles(C) {
       backgroundColor: '#10B981',
       borderColor: '#10B981',
     },
+    iconCircleError: {
+      backgroundColor: '#DC2626',
+      borderColor: '#DC2626',
+    },
     cardBody: { flex: 1 },
     cardTitle: { fontSize: 15, fontWeight: '600', color: C.primaryText, marginBottom: 2 },
     cardDescription: { fontSize: 12, color: C.secondaryText, lineHeight: 17 },
     comingSoon: { fontSize: 11, color: C.secondaryText, fontStyle: 'italic', marginTop: 6 },
     statusOk: { fontSize: 11, color: '#059669', marginTop: 6, fontWeight: '500' },
-    statusWarn: { fontSize: 11, color: '#D97706', marginTop: 6, fontWeight: '500' },
-    statusError: { fontSize: 11, color: '#DC2626', marginTop: 6 },
+    statusSynced: { fontSize: 10, color: C.secondaryText, marginTop: 2 },
+    statusWarn: { fontSize: 12, color: '#D97706', marginTop: 6, fontWeight: '700' },
+    statusError: { fontSize: 12, color: '#DC2626', marginTop: 6, fontWeight: '700' },
+    statusErrorDetail: { fontSize: 11, color: '#7F1D1D', marginTop: 2, lineHeight: 15 },
+    warnBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: '#FEF3C7',
+      borderWidth: 1,
+      borderColor: '#F59E0B',
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 12,
+    },
+    warnBannerText: {
+      flex: 1,
+      fontSize: 12,
+      color: '#92400E',
+      lineHeight: 16,
+    },
     cardActions: { justifyContent: 'center' },
     btnPrimary: {
       backgroundColor: C.primaryBlue,
@@ -363,6 +446,13 @@ function makeStyles(C) {
       borderRadius: 18,
     },
     btnGhostText: { color: C.primaryText, fontSize: 12, fontWeight: '500' },
+    btnReconnect: {
+      backgroundColor: '#DC2626',
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 18,
+    },
+    btnReconnectText: { color: '#fff', fontSize: 13, fontWeight: '700' },
     footnote: {
       fontSize: 11,
       color: C.secondaryText,

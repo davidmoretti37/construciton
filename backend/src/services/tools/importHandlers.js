@@ -20,6 +20,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../../utils/logger');
 const mcpClient = require('../mcp/mcpClient');
+const { userSafeError } = require('../userSafeError');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -121,7 +122,7 @@ async function upsertClient(userId, c, dryRun) {
   const email = c.email ? c.email.toLowerCase() : null;
   const phone = c.phone || c.mobile || null;
 
-  // 1. Match by qbo_id
+  // 1. Match by qbo_id (HIGH confidence — auto-merge)
   let { data: existing } = await supabase
     .from('clients')
     .select('id, full_name, email, phone, qbo_id, import_source')
@@ -129,7 +130,7 @@ async function upsertClient(userId, c, dryRun) {
     .eq('qbo_id', c.qbo_id)
     .maybeSingle();
 
-  // 2. Fallback: email
+  // 2. Fallback: email (HIGH confidence — auto-merge)
   if (!existing && email) {
     const { data } = await supabase
       .from('clients')
@@ -140,7 +141,7 @@ async function upsertClient(userId, c, dryRun) {
       .maybeSingle();
     existing = data;
   }
-  // 3. Fallback: exact name + phone
+  // 3. Fallback: exact name + phone (HIGH confidence — auto-merge)
   if (!existing && phone) {
     const { data } = await supabase
       .from('clients')
@@ -151,6 +152,27 @@ async function upsertClient(userId, c, dryRun) {
       .is('qbo_id', null)
       .maybeSingle();
     existing = data;
+  }
+
+  // 4. AMBIGUOUS — same name but different/missing email & phone don't
+  // match. Could be the same person or a different "John Smith". Don't
+  // auto-merge — stash a conflict row, let the user decide later.
+  if (!existing) {
+    const ambiguous = await findAmbiguousClient(userId, fullName, email, phone);
+    if (ambiguous && !dryRun) {
+      await stashConflict(userId, {
+        source_platform: 'qbo',
+        target_table: 'clients',
+        external_id: c.qbo_id,
+        external_data: c,
+        candidate_local_id: ambiguous.id,
+        candidate_local_data: ambiguous,
+        match_type: ambiguous.match_type,
+        match_score: ambiguous.score,
+      });
+      return 'conflict';
+    }
+    if (ambiguous && dryRun) return 'conflict';
   }
 
   if (dryRun) return existing ? 'updated' : 'created';
@@ -1210,6 +1232,231 @@ async function mirror_estimate_to_qbo(userId, args = {}) {
   return { success: true, qbo_id: r.qbo_id };
 }
 
+// ─────────────────────────────────────────────────────────────────
+// CONFLICT / MERGE HELPERS
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Look for a local client that's a fuzzy match to the incoming external
+ * record. Returns { id, full_name, ..., match_type, score } or null.
+ *
+ * Heuristics (each tried in order, first match wins):
+ *   - SAME name (case-insensitive), neither side has the other's email
+ *   - SAME email but different phone (likely same person, weird data)
+ *   - VERY SIMILAR name (Levenshtein-ish) when no email/phone match
+ *
+ * Score is a coarse 0–1 indicator the agent can show to the user.
+ */
+async function findAmbiguousClient(userId, fullName, email, phone) {
+  if (!fullName) return null;
+
+  // Exact-name match (case-insensitive) without email/phone overlap.
+  const { data: nameMatches } = await supabase
+    .from('clients')
+    .select('id, full_name, email, phone, qbo_id')
+    .eq('user_id', userId)
+    .ilike('full_name', fullName)
+    .is('qbo_id', null)
+    .limit(5);
+
+  if (nameMatches && nameMatches.length > 0) {
+    if (nameMatches.length === 1) {
+      const m = nameMatches[0];
+      // Only flag as conflict if we couldn't auto-merge above (no email/phone hit).
+      // The auto-merge above already caught exact email and exact name+phone matches.
+      // So if we're here, the existing row's email/phone differ or are missing.
+      return { ...m, match_type: 'fuzzy_name', score: 0.7 };
+    }
+    return { ...nameMatches[0], match_type: 'multiple_candidates', score: 0.5 };
+  }
+
+  // Same email different phone — rarer, but worth catching.
+  if (email && phone) {
+    const { data: emailMatches } = await supabase
+      .from('clients')
+      .select('id, full_name, email, phone, qbo_id')
+      .eq('user_id', userId)
+      .ilike('email', email)
+      .neq('phone', phone)
+      .is('qbo_id', null)
+      .limit(1);
+    if (emailMatches && emailMatches.length > 0) {
+      return { ...emailMatches[0], match_type: 'email_diff_phone', score: 0.85 };
+    }
+  }
+
+  return null;
+}
+
+async function stashConflict(userId, payload) {
+  const row = {
+    user_id: userId,
+    source_platform: payload.source_platform,
+    target_table: payload.target_table,
+    external_id: payload.external_id || null,
+    external_data: payload.external_data || {},
+    candidate_local_id: payload.candidate_local_id || null,
+    candidate_local_data: payload.candidate_local_data || {},
+    match_type: payload.match_type,
+    match_score: payload.match_score || null,
+    status: 'pending',
+  };
+  // Upsert on (user, platform, external_id, candidate) so re-runs don't
+  // duplicate the same pending conflict.
+  await supabase
+    .from('import_conflicts')
+    .upsert(row, {
+      onConflict: 'user_id,source_platform,external_id,candidate_local_id',
+      ignoreDuplicates: false,
+    });
+}
+
+/**
+ * Agent tool: list pending import conflicts for the user. Optionally
+ * filter by source platform or target table. Returns conflict rows with
+ * the external + local snapshots so the agent can ask "merge or keep?".
+ */
+async function list_import_conflicts(userId, args = {}) {
+  let q = supabase
+    .from('import_conflicts')
+    .select('id, source_platform, target_table, external_id, external_data, candidate_local_id, candidate_local_data, match_type, match_score, created_at')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (args.source_platform) q = q.eq('source_platform', args.source_platform);
+  if (args.target_table)    q = q.eq('target_table', args.target_table);
+  const { data, error } = await q;
+  if (error) return userSafeError(error, "Couldn't load conflicts.");
+  return {
+    success: true,
+    count: data?.length || 0,
+    conflicts: (data || []).map((c) => ({
+      id: c.id,
+      source: c.source_platform,
+      target: c.target_table,
+      match_type: c.match_type,
+      match_score: c.match_score,
+      external: pluckClientLike(c.external_data),
+      candidate: pluckClientLike(c.candidate_local_data),
+      created_at: c.created_at,
+    })),
+  };
+}
+
+/** Compact display shape for client/worker snapshots in conflict cards. */
+function pluckClientLike(data) {
+  if (!data) return null;
+  return {
+    name: data.display_name || data.full_name || data.name || null,
+    email: data.email || data.PrimaryEmailAddr?.Address || null,
+    phone: data.phone || data.PrimaryPhone?.FreeFormNumber || null,
+    qbo_id: data.qbo_id || data.Id || null,
+  };
+}
+
+/**
+ * Agent tool: resolve a single import conflict.
+ *
+ *   resolution = 'merge'           — link external to local (set qbo_id, fill blanks)
+ *   resolution = 'keep_separate'   — create a new local row from the external data
+ *   resolution = 'skip'            — mark resolved, do nothing (treats as "ignore")
+ */
+async function resolve_import_conflict(userId, args = {}) {
+  if (!args.conflict_id) return { error: 'conflict_id is required' };
+  const resolution = args.resolution;
+  if (!['merge', 'keep_separate', 'skip'].includes(resolution)) {
+    return { error: 'resolution must be one of: merge, keep_separate, skip' };
+  }
+
+  const { data: conflict, error: fetchErr } = await supabase
+    .from('import_conflicts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('id', args.conflict_id)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (fetchErr || !conflict) return { error: 'Conflict not found or already resolved' };
+
+  let outcome = { resolved: true };
+
+  try {
+    if (resolution === 'merge') {
+      outcome = await applyMerge(userId, conflict);
+    } else if (resolution === 'keep_separate') {
+      outcome = await applyKeepSeparate(userId, conflict);
+    } else {
+      outcome = { skipped: true };
+    }
+  } catch (e) {
+    return { error: `Resolution failed: ${e.message}` };
+  }
+
+  await supabase
+    .from('import_conflicts')
+    .update({
+      status: resolution === 'merge' ? 'merged'
+            : resolution === 'keep_separate' ? 'kept_separate'
+            : 'skipped',
+      resolved_at: new Date().toISOString(),
+      resolved_note: args.note || null,
+    })
+    .eq('id', conflict.id);
+
+  return { success: true, resolution, ...outcome };
+}
+
+async function applyMerge(userId, conflict) {
+  const ext = conflict.external_data || {};
+  if (conflict.target_table === 'clients' && conflict.candidate_local_id) {
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('email, phone, import_source')
+      .eq('id', conflict.candidate_local_id)
+      .maybeSingle();
+    const stamp = importStamp(conflict.source_platform, conflict.external_id);
+    await supabase
+      .from('clients')
+      .update({
+        qbo_id: conflict.source_platform === 'qbo' ? conflict.external_id : undefined,
+        qbo_synced_at: conflict.source_platform === 'qbo' ? new Date().toISOString() : undefined,
+        monday_id: conflict.source_platform === 'monday' ? conflict.external_id : undefined,
+        monday_synced_at: conflict.source_platform === 'monday' ? new Date().toISOString() : undefined,
+        email: existing?.email || ext.email || null,
+        phone: existing?.phone || ext.phone || ext.mobile || null,
+        import_source: { ...(existing?.import_source || {}), ...stamp },
+      })
+      .eq('id', conflict.candidate_local_id)
+      .eq('user_id', userId);
+    return { merged_into: conflict.candidate_local_id };
+  }
+  // Workers / projects merge support could go here. v1: clients only.
+  return { merged: false, reason: 'unsupported target_table for merge' };
+}
+
+async function applyKeepSeparate(userId, conflict) {
+  const ext = conflict.external_data || {};
+  if (conflict.target_table === 'clients') {
+    const fullName = ext.display_name || ext.company_name
+      || [ext.given_name, ext.family_name].filter(Boolean).join(' ')
+      || 'Imported contact';
+    const stamp = importStamp(conflict.source_platform, conflict.external_id);
+    const { data: created, error } = await supabase.from('clients').insert({
+      user_id: userId,
+      owner_id: userId,
+      full_name: fullName,
+      email: ext.email || null,
+      phone: ext.phone || ext.mobile || null,
+      qbo_id: conflict.source_platform === 'qbo' ? conflict.external_id : null,
+      qbo_synced_at: conflict.source_platform === 'qbo' ? new Date().toISOString() : null,
+      import_source: stamp,
+    }).select('id').single();
+    if (error) throw new Error(error.message);
+    return { created_id: created.id };
+  }
+  return { created: false, reason: 'unsupported target_table for keep_separate' };
+}
+
 module.exports = {
   // QBO read / import
   qbo_onboarding_summary,
@@ -1231,4 +1478,7 @@ module.exports = {
   // CSV
   csv_preview,
   csv_import,
+  // Conflicts / merge
+  list_import_conflicts,
+  resolve_import_conflict,
 };

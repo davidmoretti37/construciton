@@ -2383,6 +2383,36 @@ const toolDefinitions = [
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'list_import_conflicts',
+      description: 'List pending import conflicts — likely-duplicate matches that the importer flagged for user confirmation (e.g. QB has "John Smith" but you already have "John Smith" with no email — same person?). Use to surface them in chat so the user can resolve. Returns at most 100 pending conflicts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          source_platform: { type: 'string', enum: ['qbo', 'monday', 'csv', 'manual'], description: 'Optional filter.' },
+          target_table: { type: 'string', enum: ['clients', 'workers', 'projects'], description: 'Optional filter.' },
+        },
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'resolve_import_conflict',
+      description: 'Resolve one import conflict. resolution=merge links the external record to the existing local row (sets qbo_id, fills blanks). resolution=keep_separate creates a brand-new local row from the external data. resolution=skip marks it resolved with no action.',
+      parameters: {
+        type: 'object',
+        properties: {
+          conflict_id: { type: 'string', description: 'UUID of the import_conflicts row.' },
+          resolution: { type: 'string', enum: ['merge', 'keep_separate', 'skip'] },
+          note: { type: 'string', description: 'Optional human-readable reason for the resolution.' },
+        },
+        required: ['conflict_id', 'resolution']
+      }
+    }
+  },
 
   // ───── Subcontractors (Phase J) ─────
   {
@@ -2646,6 +2676,8 @@ const TOOL_STATUS_MESSAGES = {
   mirror_invoice_to_qbo: 'Pushing invoice to QuickBooks...',
   mirror_expense_to_qbo: 'Pushing expense to QuickBooks...',
   mirror_estimate_to_qbo: 'Pushing estimate to QuickBooks...',
+  list_import_conflicts: 'Checking import conflicts...',
+  resolve_import_conflict: 'Applying resolution...',
   get_project_billing: 'Loading billing summary for the project...',
   create_work_schedule: 'Creating work schedule...',
   create_worker_task: 'Creating task...',

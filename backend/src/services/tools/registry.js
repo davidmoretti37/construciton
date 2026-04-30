@@ -80,6 +80,8 @@ const TOOL_METADATA = Object.freeze({
   mirror_invoice_to_qbo:     { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'qbo', 'mirror', 'financial'] },
   mirror_expense_to_qbo:     { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'qbo', 'mirror', 'financial'] },
   mirror_estimate_to_qbo:    { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'qbo', 'mirror', 'financial'] },
+  list_import_conflicts:     { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,           requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'merge'] },
+  resolve_import_conflict:   { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,     requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'merge'] },
 
   // ───── Draws (progress billing) ─────
   create_draw_schedule:      { category: CATEGORIES.DRAWS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial'] },

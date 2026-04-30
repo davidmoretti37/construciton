@@ -16,6 +16,7 @@ on:
           - patterns
           - business-profile
           - domain-search
+          - integrations
 
 jobs:
   crons:
@@ -73,3 +74,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+      # Integrations resync. Webhooks cover real-time changes, but this
+      # catches deletes / archives / rotations / missed events. Runs the
+      # same idempotent import handlers used by the agent — qbo_id-keyed
+      # upserts so no duplicates. Skipped users with no QB connection.
+      - name: Resync connected integrations (QBO)
+        if: ${{ github.event.inputs.script == '' || github.event.inputs.script == 'all' || github.event.inputs.script == 'integrations' }}
+        run: node scripts/resync-integrations.js
+        working-directory: ./backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          QBO_OAUTH_CLIENT_ID: ${{ secrets.QBO_OAUTH_CLIENT_ID }}
+          QBO_OAUTH_CLIENT_SECRET: ${{ secrets.QBO_OAUTH_CLIENT_SECRET }}
+          QBO_ENV: ${{ secrets.QBO_ENV }}
+          INTEGRATION_ENCRYPTION_KEY: ${{ secrets.INTEGRATION_ENCRYPTION_KEY }}
