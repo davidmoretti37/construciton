@@ -302,7 +302,7 @@ router.get('/bids/:id', authenticateUser, async (req, res) => {
 
     const { data: attachments } = await supabase
       .from('bid_request_attachments')
-      .select('id, file_name, file_mime, file_size_bytes, attachment_type, created_at')
+      .select('id, file_name, file_mime, file_size_bytes, attachment_type, uploaded_by_role, created_at')
       .eq('bid_request_id', req.params.id)
       .order('created_at', { ascending: true });
 

@@ -190,7 +190,7 @@ router.post('/:id/attachments', authenticateUser, async (req, res) => {
 
     const access = await loadBidRequestForCaller(req.params.id, req.user.id);
     if (access.error) return res.status(access.code).json({ error: access.error });
-    if (access.role !== 'gc') return res.status(403).json({ error: 'Only the GC can add attachments' });
+    // Both GC and invited subs can upload — uploaded_by_role differentiates.
 
     const buffer = Buffer.from(file_base64, 'base64');
     const ext = file_name.split('.').pop()?.toLowerCase() || 'bin';
@@ -216,6 +216,7 @@ router.post('/:id/attachments', authenticateUser, async (req, res) => {
         file_size_bytes: file_size_bytes || buffer.length,
         attachment_type,
         uploaded_by: req.user.id,
+        uploaded_by_role: access.role, // 'gc' or 'sub'
       })
       .select()
       .single();
@@ -237,7 +238,7 @@ router.get('/:id/attachments', authenticateUser, async (req, res) => {
 
     const { data, error } = await supabase
       .from('bid_request_attachments')
-      .select('*')
+      .select('id, file_name, file_mime, file_size_bytes, attachment_type, uploaded_by_role, created_at')
       .eq('bid_request_id', req.params.id)
       .order('created_at', { ascending: true });
     if (error) throw error;

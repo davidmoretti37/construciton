@@ -8,15 +8,21 @@
  * Route params: { bidRequestId }
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, Linking, Platform, Image,
+  Modal, FlatList, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 const SUB_VIOLET = '#8B5CF6';
 
@@ -46,6 +52,16 @@ export default function SubBidSubmitPage({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [declining, setDeclining] = useState(false);
 
+  // Sub-side attachments (queued, uploaded after bid submit)
+  const [pendingAttachments, setPendingAttachments] = useState([]);
+  const pickerBusyRef = useRef(false);
+
+  // Photo gallery viewer
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [galleryUrls, setGalleryUrls] = useState({}); // attachmentId → signed url
+  const galleryListRef = useRef(null);
+
   const load = useCallback(async () => {
     if (!bidRequestId) return;
     setLoading(true);
@@ -57,6 +73,21 @@ export default function SubBidSubmitPage({ route, navigation }) {
         setTimelineDays(data.my_bid.timeline_days != null ? String(data.my_bid.timeline_days) : '');
         setExclusions(data.my_bid.exclusions || '');
         setNotes(data.my_bid.notes || '');
+      }
+
+      // Prefetch signed URLs for all photo attachments so thumbnails render
+      // immediately and the gallery is instant when tapped.
+      const photos = (data?.attachments || []).filter((a) =>
+        a.attachment_type === 'photo' || (a.file_mime || '').startsWith('image/'));
+      const urlMap = {};
+      await Promise.all(photos.map(async (p) => {
+        try {
+          const r = await api.getBidAttachmentSignedUrlForSub(bidRequestId, p.id);
+          if (r?.url) urlMap[p.id] = r.url;
+        } catch (_) { /* ignore */ }
+      }));
+      if (Object.keys(urlMap).length) {
+        setGalleryUrls((m) => ({ ...m, ...urlMap }));
       }
     } catch (e) {
       Alert.alert('Could not load bid', e.message || 'Try again');
@@ -95,6 +126,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
     Linking.openURL(url).catch(() => {});
   };
 
+  // For docs (non-image): keep DocumentViewer flow
   const onOpenAttachment = async (att) => {
     if (!att?.id || openingId) return;
     setOpeningId(att.id);
@@ -117,6 +149,94 @@ export default function SubBidSubmitPage({ route, navigation }) {
     }
   };
 
+  // For photos: open inline swipeable gallery. Lazily fetches signed URLs
+  // for each image as the user swipes to it.
+  const ensureGalleryUrl = useCallback(async (attId) => {
+    if (galleryUrls[attId]) return galleryUrls[attId];
+    try {
+      const res = await api.getBidAttachmentSignedUrlForSub(bidRequestId, attId);
+      if (!res?.url) return null;
+      setGalleryUrls((m) => ({ ...m, [attId]: res.url }));
+      return res.url;
+    } catch (e) {
+      return null;
+    }
+  }, [bidRequestId, galleryUrls]);
+
+  const openGallery = useCallback(async (photos, startIndex) => {
+    setGalleryIndex(startIndex);
+    setGalleryOpen(true);
+    // Prefetch the URL for the tapped photo first, then neighbors in background
+    const ids = photos.map((p) => p.id);
+    await ensureGalleryUrl(ids[startIndex]);
+    if (ids[startIndex + 1]) ensureGalleryUrl(ids[startIndex + 1]);
+    if (ids[startIndex - 1]) ensureGalleryUrl(ids[startIndex - 1]);
+  }, [ensureGalleryUrl]);
+
+  // ───── Sub-side attachments ─────
+  const addPickedFile = async (asset, mimeFallback) => {
+    if (!asset?.uri) return;
+    try {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const isImage = (asset.mimeType || mimeFallback || '').startsWith('image/');
+      setPendingAttachments((prev) => [...prev, {
+        localId: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        uri: asset.uri,
+        name: asset.name || asset.fileName || `attachment-${Date.now()}.${isImage ? 'jpg' : 'pdf'}`,
+        mime: asset.mimeType || mimeFallback || 'application/pdf',
+        size: asset.size || asset.fileSize || null,
+        base64,
+        attachment_type: isImage ? 'photo' : 'spec',
+      }]);
+    } catch (e) {
+      Alert.alert('Could not read file', e.message);
+    }
+  };
+
+  const pickAttachment = async () => {
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: true,
+      });
+      if (!result.canceled) {
+        for (const a of (result.assets || [])) await addPickedFile(a);
+      }
+    } catch (e) {
+      Alert.alert('Could not pick file', e.message);
+    } finally {
+      pickerBusyRef.current = false;
+    }
+  };
+
+  const pickPhoto = async () => {
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+        allowsMultipleSelection: true,
+        selectionLimit: 0,
+      });
+      if (!result.canceled) {
+        for (const a of (result.assets || [])) await addPickedFile(a, 'image/jpeg');
+      }
+    } catch (e) {
+      Alert.alert('Could not pick photo', e.message);
+    } finally {
+      pickerBusyRef.current = false;
+    }
+  };
+
+  const removePending = (localId) =>
+    setPendingAttachments((prev) => prev.filter((a) => a.localId !== localId));
+
   const onSubmit = async () => {
     const amt = Number(amount);
     if (!amt || amt <= 0) {
@@ -132,6 +252,23 @@ export default function SubBidSubmitPage({ route, navigation }) {
         exclusions: exclusions.trim() || null,
         notes: notes.trim() || null,
       });
+
+      // Upload sub's attachments (counter-proposal, photos, etc.) to the
+      // same bid_request — backend tags them with uploaded_by_role='sub'.
+      for (const att of pendingAttachments) {
+        try {
+          await api.uploadSubBidAttachment(bidRequestId, {
+            file_base64: att.base64,
+            file_name: att.name,
+            file_mime: att.mime,
+            file_size_bytes: att.size,
+            attachment_type: att.attachment_type,
+          });
+        } catch (e) {
+          console.warn('Sub bid attachment failed:', att.name, e.message);
+        }
+      }
+
       Alert.alert(
         'Bid submitted',
         `Your bid of $${amt.toLocaleString()} was sent to ${senderName || 'the contractor'}.`,
@@ -264,28 +401,28 @@ export default function SubBidSubmitPage({ route, navigation }) {
           </View>
         </Section>
 
-        {/* Photo attachments — gallery */}
+        {/* Photo attachments — swipeable gallery */}
         {photoAttachments.length > 0 && (
           <Section title="Site photos" Colors={Colors}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {photoAttachments.map((a) => (
+              {photoAttachments.map((a, idx) => (
                 <TouchableOpacity
                   key={a.id}
-                  onPress={() => onOpenAttachment(a)}
+                  onPress={() => openGallery(photoAttachments, idx)}
                   activeOpacity={0.85}
-                  disabled={openingId === a.id}
                 >
-                  <View style={styles.photoTile}>
-                    {openingId === a.id ? (
-                      <ActivityIndicator color={SUB_VIOLET} />
-                    ) : (
+                  {galleryUrls[a.id] ? (
+                    <Image source={{ uri: galleryUrls[a.id] }} style={styles.photoTile} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.photoTile}>
                       <Ionicons name="image" size={28} color={SUB_VIOLET} />
-                    )}
-                  </View>
+                    </View>
+                  )}
                   <Text style={styles.photoCaption} numberOfLines={1}>{a.file_name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            <Text style={styles.galleryHint}>Tap a photo to swipe through full-size</Text>
           </Section>
         )}
 
@@ -373,6 +510,51 @@ export default function SubBidSubmitPage({ route, navigation }) {
             multiline
           />
 
+          {/* Attach files / photos */}
+          <Text style={styles.fieldLabel}>Attach files (optional)</Text>
+          <Text style={styles.attachHint}>
+            Send a counter-proposal, signed agreement, photos of the existing conditions, etc.
+          </Text>
+          <View style={styles.attachBtnRow}>
+            <TouchableOpacity style={styles.attachBtn} onPress={pickAttachment} activeOpacity={0.8}>
+              <Ionicons name="document-attach" size={18} color={SUB_VIOLET} />
+              <Text style={styles.attachBtnText}>Pick a file</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.attachBtn} onPress={pickPhoto} activeOpacity={0.8}>
+              <Ionicons name="images" size={18} color={SUB_VIOLET} />
+              <Text style={styles.attachBtnText}>Pick photos</Text>
+            </TouchableOpacity>
+          </View>
+
+          {pendingAttachments.length > 0 && (
+            <View style={{ marginTop: 4 }}>
+              {pendingAttachments.map((a) => {
+                const isImage = a.mime?.startsWith('image/');
+                return (
+                  <View key={a.localId} style={styles.attachItem}>
+                    {isImage ? (
+                      <Image source={{ uri: a.uri }} style={styles.attachThumb} />
+                    ) : (
+                      <View style={[styles.attachThumb, styles.attachThumbDoc]}>
+                        <Ionicons name="document-text" size={20} color={SUB_VIOLET} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.attachName} numberOfLines={1}>{a.name}</Text>
+                      <Text style={styles.attachMeta}>
+                        {isImage ? 'Photo' : 'Document'}
+                        {a.size ? ` · ${(a.size / 1024).toFixed(0)} KB` : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => removePending(a.localId)}>
+                      <Ionicons name="close-circle" size={22} color={Colors.secondaryText} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <TouchableOpacity
             style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
             onPress={onSubmit}
@@ -405,9 +587,86 @@ export default function SubBidSubmitPage({ route, navigation }) {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+
+      {/* Photo gallery — full-screen swipeable viewer */}
+      <Modal visible={galleryOpen} transparent={false} animationType="fade" onRequestClose={() => setGalleryOpen(false)}>
+        <View style={galleryStyles.root}>
+          <View style={galleryStyles.header}>
+            <TouchableOpacity onPress={() => setGalleryOpen(false)} style={galleryStyles.closeBtn} activeOpacity={0.7}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            <Text style={galleryStyles.headerText}>
+              {galleryIndex + 1} / {photoAttachments.length}
+            </Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <FlatList
+            ref={galleryListRef}
+            data={photoAttachments}
+            keyExtractor={(p) => p.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={galleryIndex}
+            getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
+            onMomentumScrollEnd={(ev) => {
+              const i = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_W);
+              setGalleryIndex(i);
+              const ids = photoAttachments.map((p) => p.id);
+              if (ids[i + 1]) ensureGalleryUrl(ids[i + 1]);
+              if (ids[i - 1]) ensureGalleryUrl(ids[i - 1]);
+            }}
+            renderItem={({ item }) => (
+              <View style={galleryStyles.slide}>
+                {galleryUrls[item.id] ? (
+                  <Image
+                    source={{ uri: galleryUrls[item.id] }}
+                    style={galleryStyles.image}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <ActivityIndicator color="#fff" size="large" />
+                )}
+              </View>
+            )}
+          />
+
+          {photoAttachments[galleryIndex]?.file_name ? (
+            <Text style={galleryStyles.caption} numberOfLines={2}>
+              {photoAttachments[galleryIndex].file_name}
+            </Text>
+          ) : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const galleryStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#000' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingTop: 50,
+    paddingBottom: 14,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+  },
+  closeBtn: { padding: 6, width: 40 },
+  headerText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  slide: { width: SCREEN_W, alignItems: 'center', justifyContent: 'center' },
+  image: { width: SCREEN_W, height: SCREEN_H * 0.78 },
+  caption: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+  },
+});
 
 function Section({ title, children, Colors }) {
   return (
@@ -544,6 +803,26 @@ const makeStyles = (Colors) => StyleSheet.create({
     backgroundColor: Colors.cardBackground,
   },
   multilineInput: { minHeight: 70, textAlignVertical: 'top' },
+  attachHint: { fontSize: 12, color: Colors.secondaryText, marginBottom: 8, marginTop: -2, lineHeight: 18 },
+  attachBtnRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  attachBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 12,
+    borderRadius: 12, borderWidth: 1, borderColor: SUB_VIOLET,
+    backgroundColor: SUB_VIOLET + '10',
+  },
+  attachBtnText: { color: SUB_VIOLET, fontWeight: '700', fontSize: 13 },
+  attachItem: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12, padding: 10, marginBottom: 8,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  attachThumb: { width: 44, height: 44, borderRadius: 8 },
+  attachThumbDoc: { backgroundColor: SUB_VIOLET + '15', alignItems: 'center', justifyContent: 'center' },
+  attachName: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
+  attachMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  galleryHint: { fontSize: 11, color: Colors.secondaryText, marginTop: 8, fontStyle: 'italic' },
   amountWrap: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -89,6 +89,14 @@ export const getBidAttachmentSignedUrlForSub = (bidRequestId, attachmentId) =>
 export const declineBidRequest = (id) =>
   authedFetch(`/api/sub-portal/bids/${id}/decline`, { method: 'POST' });
 
+// The sub's own auth token works on the GC route below — backend checks
+// for invitation membership and tags uploaded_by_role='sub'.
+export const uploadSubBidAttachment = (bidRequestId, payload) =>
+  authedFetch(`/api/bid-requests/${bidRequestId}/attachments`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
 export const listMyInvoices = async () => {
   const json = await authedFetch('/api/sub-portal/invoices');
   return json.invoices || [];
