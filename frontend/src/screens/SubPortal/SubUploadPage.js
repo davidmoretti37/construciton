@@ -1,12 +1,17 @@
 /**
- * SubUploadPage — magic-link single-purpose upload page.
+ * SubUploadPage — upload a compliance document.
  *
- * Reached via /sub/upload?t=<token>. Validates the token, surfaces what doc
- * is being requested, prompts the sub to snap a photo or pick a file, and
- * uploads via the public /api/sub-action/upload endpoint.
+ * Two ways to land here:
+ *   1. From the in-app inbox/Documents tab: route.params has
+ *      { docType, actionTokenId? } and the user is authenticated.
+ *   2. Magic-link URL ?t=<token>: token redeems server-side, returns
+ *      sub_organization + doc_type, then we use the public upload endpoint.
+ *
+ * Picks a file (camera or PDF), reads as base64, uploads via the appropriate
+ * endpoint. On success, navigates back to Home / shows confirmation.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   SafeAreaView, ScrollView, Alert, TextInput,
@@ -14,11 +19,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { LightColors } from '../../constants/theme';
+import * as FileSystem from 'expo-file-system/legacy';
+import { useTheme } from '../../contexts/ThemeContext';
+import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
-
-const Colors = LightColors;
 
 const DOC_TYPE_LABELS = {
   w9: 'IRS Form W-9',
@@ -27,14 +31,28 @@ const DOC_TYPE_LABELS = {
   coi_auto: 'Commercial Auto COI',
   coi_umbrella: 'Umbrella COI',
   ai_endorsement: 'Additional Insured Endorsement',
+  waiver_subrogation: 'Waiver of Subrogation',
   license_state: 'State Contractor License',
   license_business: 'Business License',
+  drug_policy: 'Drug Testing Policy',
+  msa: 'Master Subcontract Agreement',
 };
 
-export default function SubUploadPage({ route }) {
-  const tokenParam = route?.params?.token || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('t') : null);
+export default function SubUploadPage({ route, navigation }) {
+  const { isDark = false } = useTheme() || {};
+  const Colors = isDark ? DarkColors : LightColors;
+  const styles = makeStyles(Colors);
 
-  const [tokenInfo, setTokenInfo] = useState(null);
+  // In-app params take precedence; magic-link path uses ?t=<token> on web.
+  const inAppDocType = route?.params?.docType || null;
+  const inAppActionTokenId = route?.params?.actionTokenId || null;
+  const tokenParam = route?.params?.token || (typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('t')
+    : null);
+  const isInApp = !!inAppDocType;
+
+  const [magicInfo, setMagicInfo] = useState(null);
+  const [subOrg, setSubOrg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [pickedFile, setPickedFile] = useState(null);
@@ -42,16 +60,27 @@ export default function SubUploadPage({ route }) {
   const [policyNumber, setPolicyNumber] = useState('');
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (!tokenParam) {
+  const init = useCallback(async () => {
+    try {
+      if (isInApp) {
+        const me = await api.getMe();
+        setSubOrg(me.sub_organization);
+      } else if (tokenParam) {
+        const info = await api.redeemActionToken(tokenParam);
+        setMagicInfo(info);
+      }
+    } catch (e) {
+      Alert.alert('Could not load', e.message || 'Try again');
+    } finally {
       setLoading(false);
-      return;
     }
-    api.redeemActionToken(tokenParam)
-      .then((info) => setTokenInfo(info))
-      .catch((e) => Alert.alert('Invalid link', e.message))
-      .finally(() => setLoading(false));
-  }, [tokenParam]);
+  }, [isInApp, tokenParam]);
+
+  useEffect(() => { init(); }, [init]);
+
+  const docType = inAppDocType || magicInfo?.doc_type_requested;
+  const docLabel = DOC_TYPE_LABELS[docType] || docType || 'document';
+  const orgName = subOrg?.legal_name || magicInfo?.sub_organization?.legal_name;
 
   const onPickFile = async () => {
     try {
@@ -80,7 +109,7 @@ export default function SubUploadPage({ route }) {
       if (result.canceled) return;
       setPickedFile({
         uri: result.assets[0].uri,
-        name: `${tokenInfo?.doc_type_requested || 'doc'}-${Date.now()}.jpg`,
+        name: `${docType || 'doc'}-${Date.now()}.jpg`,
         mimeType: 'image/jpeg',
       });
     } catch (e) {
@@ -98,28 +127,28 @@ export default function SubUploadPage({ route }) {
       const base64 = await FileSystem.readAsStringAsync(pickedFile.uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      // Use the action token to upload — backend records doc + consumes token.
-      await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000'}/api/sub-action/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: tokenParam,
-          doc_type: tokenInfo?.doc_type_requested,
-          file_url: 'pending', // backend should be extended to accept blob too;
-                                // for now if pre-signed-URL flow is used, file_url
-                                // would be the storage path. v1 uses base64-via
-                                // /api/compliance/documents/upload-blob (auth-only).
-                                // For magic-link uploads we can't auth — so we
-                                // provide a future server-side variant. Today
-                                // the route accepts file_url + metadata only.
+
+      if (isInApp) {
+        if (!subOrg?.id) throw new Error('No sub_organization linked');
+        await api.uploadDocumentBlob({
+          sub_organization_id: subOrg.id,
+          doc_type: docType,
           file_name: pickedFile.name,
+          file_mime: pickedFile.mimeType || 'application/pdf',
+          file_base64: base64,
           expires_at: expiresAt || null,
           policy_number: policyNumber || null,
-        }),
-      });
+          action_token_id: inAppActionTokenId || null,
+        });
+      } else {
+        // Magic-link path — public endpoint, requires file_url. Not fully
+        // wired in v1 (server-side blob accept for unauth). Surface a clear
+        // message rather than silently fail.
+        throw new Error('Public link upload not yet supported. Open Sylk and sign in to upload.');
+      }
       setDone(true);
     } catch (e) {
-      Alert.alert('Upload failed', e.message);
+      Alert.alert('Upload failed', e.message || 'Unknown error');
     } finally {
       setUploading(false);
     }
@@ -127,15 +156,15 @@ export default function SubUploadPage({ route }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.center}>
+      <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <ActivityIndicator size="large" color={Colors.primaryBlue} />
       </SafeAreaView>
     );
   }
 
-  if (!tokenInfo) {
+  if (!isInApp && !magicInfo) {
     return (
-      <SafeAreaView style={styles.center}>
+      <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="alert-circle-outline" size={48} color={Colors.errorRed} />
         <Text style={styles.errorTitle}>Link invalid or expired</Text>
         <Text style={styles.errorBody}>Ask the contractor to send you a new link.</Text>
@@ -145,46 +174,66 @@ export default function SubUploadPage({ route }) {
 
   if (done) {
     return (
-      <SafeAreaView style={styles.center}>
-        <Ionicons name="checkmark-circle" size={64} color={Colors.successGreen} />
+      <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
+        <Ionicons name="checkmark-circle" size={72} color={Colors.successGreen} />
         <Text style={styles.successTitle}>Uploaded</Text>
         <Text style={styles.successBody}>The contractor will see it on Sylk.</Text>
+        {navigation && (
+          <TouchableOpacity
+            style={[styles.primaryBtn, { marginTop: 24, paddingHorizontal: 32 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.primaryBtnText}>Done</Text>
+          </TouchableOpacity>
+        )}
       </SafeAreaView>
     );
   }
 
-  const docLabel = DOC_TYPE_LABELS[tokenInfo.doc_type_requested] || tokenInfo.doc_type_requested || 'document';
-
   return (
-    <SafeAreaView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.heading}>Upload {docLabel}</Text>
-        <Text style={styles.subheading}>For {tokenInfo.sub_organization?.legal_name}</Text>
+    <SafeAreaView style={[styles.root, { backgroundColor: Colors.background }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        {navigation && (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
+          </TouchableOpacity>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.heading}>Upload {docLabel}</Text>
+          {orgName ? <Text style={styles.subheading}>For {orgName}</Text> : null}
+        </View>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {pickedFile ? (
           <View style={styles.filePicked}>
-            <Ionicons name="document-text-outline" size={24} color={Colors.primaryBlue} />
-            <Text style={styles.fileName}>{pickedFile.name}</Text>
+            <Ionicons name="document-text" size={26} color={Colors.primaryBlue} />
+            <Text style={styles.fileName} numberOfLines={1}>{pickedFile.name}</Text>
+            <TouchableOpacity onPress={() => setPickedFile(null)}>
+              <Ionicons name="close-circle" size={22} color={Colors.secondaryText} />
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.pickerRow}>
-            <TouchableOpacity style={styles.pickerBtn} onPress={onTakePhoto}>
-              <Ionicons name="camera-outline" size={28} color="#fff" />
+            <TouchableOpacity style={styles.pickerBtn} onPress={onTakePhoto} activeOpacity={0.85}>
+              <Ionicons name="camera" size={28} color="#fff" />
               <Text style={styles.pickerBtnText}>Take photo</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.pickerBtn, { backgroundColor: Colors.darkGray }]} onPress={onPickFile}>
-              <Ionicons name="document-attach-outline" size={28} color="#fff" />
+            <TouchableOpacity style={[styles.pickerBtn, styles.pickerBtnSecondary]} onPress={onPickFile} activeOpacity={0.85}>
+              <Ionicons name="document-attach" size={28} color="#fff" />
               <Text style={styles.pickerBtnText}>Pick PDF</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <Text style={styles.label}>Expiration date (YYYY-MM-DD)</Text>
+        <Text style={styles.label}>Expiration date</Text>
         <TextInput
           style={styles.input}
           value={expiresAt}
           onChangeText={setExpiresAt}
-          placeholder="2026-12-31"
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={Colors.placeholder || '#9CA3AF'}
           autoCapitalize="none"
         />
 
@@ -194,18 +243,20 @@ export default function SubUploadPage({ route }) {
           value={policyNumber}
           onChangeText={setPolicyNumber}
           placeholder="e.g. GL-12345"
+          placeholderTextColor={Colors.placeholder || '#9CA3AF'}
           autoCapitalize="characters"
         />
 
         <TouchableOpacity
-          style={[styles.submit, (!pickedFile || uploading) && { opacity: 0.5 }]}
+          style={[styles.primaryBtn, (!pickedFile || uploading) && { opacity: 0.5 }]}
           onPress={onUpload}
           disabled={!pickedFile || uploading}
+          activeOpacity={0.85}
         >
           {uploading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitText}>Upload</Text>
+            <Text style={styles.primaryBtnText}>Upload</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -213,37 +264,51 @@ export default function SubUploadPage({ route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const SUB_VIOLET = '#8B5CF6';
+
+const makeStyles = (Colors) => StyleSheet.create({
+  root: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  scroll: { padding: 20 },
-  heading: { fontSize: 22, fontWeight: '700', color: Colors.primaryText },
-  subheading: { fontSize: 14, color: Colors.secondaryText, marginTop: 4, marginBottom: 24 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  backBtn: { padding: 6, marginRight: 4 },
+  heading: { fontSize: 20, fontWeight: '700', color: Colors.primaryText },
+  subheading: { fontSize: 13, color: Colors.secondaryText, marginTop: 2 },
+  scroll: { padding: 18, paddingBottom: 40 },
   pickerRow: { flexDirection: 'row', gap: 12, marginBottom: 18 },
   pickerBtn: {
-    flex: 1, backgroundColor: Colors.primaryBlue, borderRadius: 12,
-    padding: 18, alignItems: 'center', justifyContent: 'center',
+    flex: 1, backgroundColor: SUB_VIOLET, borderRadius: 14,
+    paddingVertical: 22, alignItems: 'center', justifyContent: 'center', gap: 6,
   },
-  pickerBtnText: { color: '#fff', fontWeight: '700', marginTop: 6 },
+  pickerBtnSecondary: { backgroundColor: '#475569' },
+  pickerBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   filePicked: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.cardBackground,
-    padding: 14, borderRadius: 10, marginBottom: 18,
+    padding: 14, borderRadius: 12, marginBottom: 18,
+    borderWidth: 1, borderColor: Colors.border,
   },
-  fileName: { flex: 1, color: Colors.primaryText, fontSize: 14 },
-  label: { fontSize: 13, color: Colors.secondaryText, marginBottom: 4, marginTop: 8 },
+  fileName: { flex: 1, color: Colors.primaryText, fontSize: 14, fontWeight: '500' },
+  label: { fontSize: 13, color: Colors.secondaryText, marginBottom: 6, marginTop: 12, fontWeight: '600' },
   input: {
     borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
-    paddingVertical: 12, paddingHorizontal: 14, fontSize: 15,
-    backgroundColor: '#fff',
+    paddingVertical: 14, paddingHorizontal: 14, fontSize: 15,
+    backgroundColor: Colors.cardBackground, color: Colors.primaryText,
   },
-  submit: {
-    backgroundColor: Colors.primaryBlue, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center', marginTop: 24,
+  primaryBtn: {
+    backgroundColor: SUB_VIOLET, borderRadius: 14,
+    paddingVertical: 16, alignItems: 'center', marginTop: 28,
   },
-  submitText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   errorTitle: { fontSize: 20, fontWeight: '700', color: Colors.primaryText, marginTop: 16 },
   errorBody: { fontSize: 14, color: Colors.secondaryText, marginTop: 6, textAlign: 'center' },
-  successTitle: { fontSize: 22, fontWeight: '700', color: Colors.primaryText, marginTop: 16 },
+  successTitle: { fontSize: 24, fontWeight: '700', color: Colors.primaryText, marginTop: 18 },
   successBody: { fontSize: 14, color: Colors.secondaryText, marginTop: 8, textAlign: 'center' },
 });

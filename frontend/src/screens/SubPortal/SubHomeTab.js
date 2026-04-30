@@ -1,8 +1,10 @@
 /**
  * SubHomeTab — landing page for the sub portal.
  *
- * Shows: pending action items, recent activity, profile summary card,
- * Upgrade-to-Sylk-Owner banner.
+ * Shows: pending action items (inbound requests + expiring docs + bid invites),
+ * profile summary, recent activity. Tapping a doc-request action opens the
+ * upload flow with the doc_type prefilled and the action_token_id ready to
+ * consume on success.
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -15,7 +17,16 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
 
-export default function SubHomeTab() {
+const SUB_VIOLET = '#8B5CF6';
+
+const DOC_LABEL = {
+  w9: 'W-9', coi_gl: 'General Liability COI', coi_wc: 'Workers Comp COI',
+  coi_auto: 'Auto COI', coi_umbrella: 'Umbrella COI',
+  ai_endorsement: 'Additional Insured Endorsement', license_state: 'State License',
+  license_business: 'Business License', drug_policy: 'Drug Testing Policy',
+};
+
+export default function SubHomeTab({ navigation, onNavigateTab }) {
   const { isDark = false } = useTheme() || {};
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
@@ -54,18 +65,12 @@ export default function SubHomeTab() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primaryBlue} />
+        <ActivityIndicator size="large" color={SUB_VIOLET} />
       </View>
     );
   }
 
-  // Pending action items — inbound requests first, then expiring docs, then bids
-  const DOC_LABEL = {
-    w9: 'W-9', coi_gl: 'General Liability COI', coi_wc: 'Workers Comp COI',
-    coi_auto: 'Auto COI', coi_umbrella: 'Umbrella COI',
-    ai_endorsement: 'Additional Insured Endorsement', license_state: 'State License',
-    license_business: 'Business License', drug_policy: 'Drug Testing Policy',
-  };
+  // Build action items list
   const pending = [];
 
   for (const r of pendingRequests) {
@@ -77,7 +82,11 @@ export default function SubHomeTab() {
         title: r.sender_name ? `${r.sender_name} requested your ${docName}` : `Document requested: ${docName}`,
         body: 'Tap to upload — snap a photo or pick a PDF.',
         icon: 'document-attach-outline',
-        color: Colors.primaryBlue,
+        color: SUB_VIOLET,
+        onPress: () => navigation?.navigate?.('SubUpload', {
+          docType: r.doc_type_requested,
+          actionTokenId: r.id,
+        }),
       });
     } else if (r.scope === 'sign_contract') {
       pending.push({
@@ -86,7 +95,7 @@ export default function SubHomeTab() {
         title: r.sender_name ? `${r.sender_name} sent a contract to sign` : 'Contract awaiting your signature',
         body: 'Tap to review and sign.',
         icon: 'create-outline',
-        color: Colors.accent || '#8B5CF6',
+        color: '#3B82F6',
       });
     } else if (r.scope === 'submit_bid') {
       pending.push({
@@ -95,7 +104,8 @@ export default function SubHomeTab() {
         title: r.sender_name ? `${r.sender_name} invited you to bid` : 'New bid invitation',
         body: 'Tap to view scope and submit.',
         icon: 'mail-outline',
-        color: Colors.primaryBlue,
+        color: '#0EA5E9',
+        onPress: () => onNavigateTab?.('work'),
       });
     }
   }
@@ -111,7 +121,8 @@ export default function SubHomeTab() {
         title: `${(DOC_LABEL[d.doc_type] || d.doc_type.toUpperCase())} ${days < 0 ? 'expired' : `expires in ${days}d`}`,
         body: 'Tap to upload renewed copy.',
         icon: days < 0 ? 'close-circle-outline' : 'alert-circle-outline',
-        color: days < 0 ? Colors.errorRed : Colors.warningOrange,
+        color: days < 0 ? '#DC2626' : '#F59E0B',
+        onPress: () => onNavigateTab?.('documents'),
       });
     }
   }
@@ -124,88 +135,119 @@ export default function SubHomeTab() {
       title: `Bid invitation: ${inv.trade}`,
       body: inv.scope_summary?.slice(0, 80) || 'Tap to view scope and submit.',
       icon: 'mail-outline',
-      color: Colors.primaryBlue,
+      color: '#0EA5E9',
+      onPress: () => onNavigateTab?.('work'),
     });
   }
-
-  const isFreeTier = profile?.subscription_tier === 'free';
 
   return (
     <ScrollView
       contentContainerStyle={styles.scroll}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
+        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={SUB_VIOLET} />
       }
     >
+      {/* Greeting */}
+      <Text style={styles.greeting}>
+        Hi, {(subOrg?.legal_name || 'there').split(' ')[0]}
+      </Text>
+      <Text style={styles.subGreeting}>Here's what needs your attention.</Text>
+
       {/* Profile summary card */}
-      <View style={styles.profileCard}>
+      <TouchableOpacity
+        style={styles.profileCard}
+        activeOpacity={0.9}
+        onPress={() => onNavigateTab?.('settings')}
+      >
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
             {(subOrg?.legal_name || 'S').slice(0, 1).toUpperCase()}
           </Text>
         </View>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.profileName}>{subOrg?.legal_name || 'My business'}</Text>
-          <Text style={styles.profileMeta}>{(subOrg?.trades || []).join(', ') || 'Set your trades'}</Text>
+        <View style={{ flex: 1, marginLeft: 14 }}>
+          <Text style={styles.profileName} numberOfLines={1}>
+            {subOrg?.legal_name || 'My business'}
+          </Text>
+          <Text style={styles.profileMeta} numberOfLines={1}>
+            {(subOrg?.trades || []).join(', ') || 'Set your trades'}
+          </Text>
         </View>
-        <TouchableOpacity onPress={() => {/* nav to profile edit */ }}>
-          <Ionicons name="settings-outline" size={22} color={Colors.secondaryText} />
-        </TouchableOpacity>
-      </View>
+        <Ionicons name="chevron-forward" size={22} color={Colors.secondaryText} />
+      </TouchableOpacity>
 
-      {/* Upgrade banner — Free tier only */}
-      {isFreeTier && (
-        <View style={styles.upgradeBanner}>
-          <Ionicons name="rocket-outline" size={28} color="#fff" />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.upgradeTitle}>Run your own jobs through Sylk</Text>
-            <Text style={styles.upgradeBody}>
-              Track customers, send invoices, manage your crew. Free for 14 days.
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.upgradeBtn}>
-            <Text style={styles.upgradeBtnText}>Try free</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Pending actions */}
+      {/* Action items */}
       <Text style={styles.sectionTitle}>Action items</Text>
       {pending.length === 0 ? (
-        <Text style={styles.emptyText}>You're all caught up. 🎉</Text>
+        <View style={styles.emptyCard}>
+          <Ionicons name="checkmark-circle" size={28} color="#10B981" />
+          <Text style={styles.emptyText}>You're all caught up.</Text>
+        </View>
       ) : (
         pending.map((p) => (
-          <View key={p.key} style={[styles.actionCard, { borderLeftColor: p.color }]}>
-            <Ionicons name={p.icon} size={22} color={p.color} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.actionTitle}>{p.title}</Text>
-              <Text style={styles.actionBody}>{p.body}</Text>
+          <TouchableOpacity
+            key={p.key}
+            activeOpacity={p.onPress ? 0.7 : 1}
+            disabled={!p.onPress}
+            onPress={p.onPress}
+            style={[styles.actionCard, { borderLeftColor: p.color }]}
+          >
+            <View style={[styles.actionIconWrap, { backgroundColor: p.color + '15' }]}>
+              <Ionicons name={p.icon} size={20} color={p.color} />
             </View>
-          </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.actionTitle} numberOfLines={2}>{p.title}</Text>
+              <Text style={styles.actionBody} numberOfLines={1}>{p.body}</Text>
+            </View>
+            {p.onPress && (
+              <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
+            )}
+          </TouchableOpacity>
         ))
       )}
 
       {/* Recent activity */}
-      <Text style={styles.sectionTitle}>Recent</Text>
-      {(bids.my_bids || []).slice(0, 5).map((b) => (
-        <View key={b.id} style={styles.activityCard}>
-          <Text style={styles.activityTitle}>
-            ${Number(b.amount).toLocaleString()} bid · {b.bid_request?.trade || ''}
-          </Text>
-          <Text style={styles.activityMeta}>{b.status}</Text>
-        </View>
-      ))}
+      {(bids.my_bids || []).length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Recent bids</Text>
+          {(bids.my_bids || []).slice(0, 5).map((b) => (
+            <View key={b.id} style={styles.activityCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activityTitle}>
+                  ${Number(b.amount).toLocaleString()} · {b.bid_request?.trade || 'Bid'}
+                </Text>
+                {b.bid_request?.scope_summary && (
+                  <Text style={styles.activityMeta} numberOfLines={1}>
+                    {b.bid_request.scope_summary}
+                  </Text>
+                )}
+              </View>
+              <Text style={[styles.activityStatus, { color: pillColor(b.status) }]}>
+                {b.status}
+              </Text>
+            </View>
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }
 
+function pillColor(status) {
+  if (status === 'accepted' || status === 'paid') return '#10B981';
+  if (status === 'declined' || status === 'rejected') return '#DC2626';
+  if (status === 'submitted' || status === 'sent') return '#3B82F6';
+  return '#6B7280';
+}
+
 const makeStyles = (Colors) => StyleSheet.create({
-  scroll: { padding: 16 },
+  scroll: { padding: 18, paddingBottom: 120 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  greeting: { fontSize: 26, fontWeight: '700', color: Colors.primaryText },
+  subGreeting: { fontSize: 14, color: Colors.secondaryText, marginTop: 4, marginBottom: 18 },
   profileCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#0F172A',
@@ -213,49 +255,62 @@ const makeStyles = (Colors) => StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   avatar: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.primaryBlue,
+    width: 52, height: 52, borderRadius: 26, backgroundColor: SUB_VIOLET,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  profileName: { fontSize: 16, fontWeight: '700', color: Colors.primaryText },
-  profileMeta: { fontSize: 13, color: Colors.secondaryText, marginTop: 2 },
-  upgradeBanner: {
-    backgroundColor: Colors.accent || '#8B5CF6',
+  avatarText: { color: '#fff', fontSize: 22, fontWeight: '700' },
+  profileName: { fontSize: 17, fontWeight: '700', color: Colors.primaryText },
+  profileMeta: { fontSize: 13, color: Colors.secondaryText, marginTop: 3 },
+  sectionTitle: {
+    fontSize: 12, fontWeight: '700', color: Colors.secondaryText,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 22, marginBottom: 10,
+  },
+  emptyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+  },
+  emptyText: { color: Colors.primaryText, fontSize: 15, fontWeight: '500' },
+  actionCard: {
+    backgroundColor: Colors.cardBackground,
     borderRadius: 14,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
-  },
-  upgradeTitle: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  upgradeBody: { color: '#fff', opacity: 0.9, fontSize: 12, marginTop: 2 },
-  upgradeBtn: { backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
-  upgradeBtnText: { color: '#5B21B6', fontWeight: '700', fontSize: 13 },
-  sectionTitle: {
-    fontSize: 12, fontWeight: '700', color: Colors.secondaryText,
-    textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 12, marginBottom: 8,
-  },
-  emptyText: { color: Colors.secondaryText, fontSize: 14, paddingVertical: 8 },
-  actionCard: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderLeftWidth: 4,
-    marginBottom: 8,
+    marginBottom: 10,
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
-  actionTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
-  actionBody: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  actionIconWrap: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  actionTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText, lineHeight: 19 },
+  actionBody: { fontSize: 12, color: Colors.secondaryText, marginTop: 3 },
   activityCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 6,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
   activityTitle: { fontSize: 14, color: Colors.primaryText, fontWeight: '600' },
   activityMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  activityStatus: {
+    fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
+    letterSpacing: 0.4, marginLeft: 10,
+  },
 });

@@ -2,6 +2,7 @@
  * SubDocumentsTab — all compliance docs in one place.
  *
  * Shows COI, W9, license, etc. with status / expiry. Replace doc, add new.
+ * Visual language matches Home and Work tabs.
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -11,10 +12,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
+
+const SUB_VIOLET = '#8B5CF6';
 
 const DOC_TYPE_LABELS = {
   w9: 'IRS Form W-9',
@@ -28,6 +31,20 @@ const DOC_TYPE_LABELS = {
   license_business: 'Business License',
   drug_policy: 'Drug Testing Policy',
   msa: 'Master Subcontract Agreement',
+};
+
+const DOC_ICONS = {
+  w9: 'receipt-outline',
+  coi_gl: 'shield-checkmark-outline',
+  coi_wc: 'shield-checkmark-outline',
+  coi_auto: 'car-outline',
+  coi_umbrella: 'umbrella-outline',
+  ai_endorsement: 'document-text-outline',
+  waiver_subrogation: 'document-text-outline',
+  license_state: 'ribbon-outline',
+  license_business: 'business-outline',
+  drug_policy: 'flask-outline',
+  msa: 'document-attach-outline',
 };
 
 export default function SubDocumentsTab() {
@@ -92,12 +109,12 @@ export default function SubDocumentsTab() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primaryBlue} />
+        <ActivityIndicator size="large" color={SUB_VIOLET} />
       </View>
     );
   }
 
-  // Group by doc type
+  // Group by doc type — most recent only
   const byType = {};
   for (const d of docs) {
     if (!byType[d.doc_type]) byType[d.doc_type] = d;
@@ -106,104 +123,145 @@ export default function SubDocumentsTab() {
   const missingTypes = Object.keys(DOC_TYPE_LABELS).filter((t) => !presentTypes.includes(t));
 
   const computeStatus = (d) => {
-    if (!d.expires_at) return { label: 'Active', color: Colors.successGreen };
+    if (!d.expires_at) return { label: 'Active', color: '#10B981', bg: '#10B98115' };
     const now = new Date();
     const days = Math.floor((new Date(d.expires_at) - now) / 86400000);
-    if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, color: Colors.errorRed };
-    if (days <= 30) return { label: `Expires in ${days}d`, color: Colors.warningOrange };
-    return { label: `Expires ${d.expires_at}`, color: Colors.successGreen };
+    if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, color: '#DC2626', bg: '#DC262615' };
+    if (days <= 30) return { label: `Expires in ${days}d`, color: '#F59E0B', bg: '#F59E0B15' };
+    return { label: `Active`, color: '#10B981', bg: '#10B98115' };
   };
 
   return (
     <ScrollView
       contentContainerStyle={styles.scroll}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
+        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={SUB_VIOLET} />
       }
     >
       <Text style={styles.headerTitle}>Documents</Text>
-      <Text style={styles.headerSub}>Upload once — visible to every GC who hires you.</Text>
+      <Text style={styles.headerSub}>
+        Upload once — visible to every contractor who hires you.
+      </Text>
 
+      {/* On file */}
       <Text style={styles.sectionTitle}>On file</Text>
-      {presentTypes.length === 0 && (
-        <Text style={styles.emptyText}>No docs uploaded yet.</Text>
-      )}
-      {presentTypes.map((t) => {
-        const d = byType[t];
-        const status = computeStatus(d);
-        return (
-          <View key={t} style={styles.docCard}>
-            <View style={styles.docHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.docTitle}>{DOC_TYPE_LABELS[t] || t}</Text>
-                <Text style={[styles.docStatus, { color: status.color }]}>{status.label}</Text>
+      {presentTypes.length === 0 ? (
+        <View style={styles.emptyBlock}>
+          <Ionicons name="folder-open-outline" size={26} color={Colors.secondaryText} />
+          <Text style={styles.emptyText}>No documents uploaded yet.</Text>
+        </View>
+      ) : (
+        presentTypes.map((t) => {
+          const d = byType[t];
+          const status = computeStatus(d);
+          return (
+            <View key={t} style={styles.docCard}>
+              <View style={[styles.docIconWrap, { backgroundColor: SUB_VIOLET + '15' }]}>
+                <Ionicons name={DOC_ICONS[t] || 'document-outline'} size={20} color={SUB_VIOLET} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.docTitle} numberOfLines={1}>{DOC_TYPE_LABELS[t] || t}</Text>
+                <View style={[styles.statusPill, { backgroundColor: status.bg, marginTop: 4 }]}>
+                  <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+                </View>
               </View>
               <TouchableOpacity
-                style={[styles.replaceBtn, { borderColor: Colors.border }]}
+                style={styles.replaceBtn}
                 onPress={() => onUpload(t)}
                 disabled={uploadingType === t}
+                activeOpacity={0.7}
               >
                 {uploadingType === t ? (
-                  <ActivityIndicator size="small" color={Colors.primaryBlue} />
+                  <ActivityIndicator size="small" color={SUB_VIOLET} />
                 ) : (
                   <Text style={styles.replaceBtnText}>Replace</Text>
                 )}
               </TouchableOpacity>
             </View>
-          </View>
-        );
-      })}
+          );
+        })
+      )}
 
-      <Text style={styles.sectionTitle}>Add</Text>
-      {missingTypes.map((t) => (
-        <TouchableOpacity
-          key={t}
-          style={styles.addCard}
-          onPress={() => onUpload(t)}
-          disabled={uploadingType === t}
-        >
-          <Ionicons name="add-circle-outline" size={22} color={Colors.primaryBlue} />
-          <Text style={styles.addCardLabel}>{DOC_TYPE_LABELS[t] || t}</Text>
-          {uploadingType === t && <ActivityIndicator size="small" color={Colors.primaryBlue} />}
-        </TouchableOpacity>
-      ))}
+      {/* Missing */}
+      {missingTypes.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Add</Text>
+          {missingTypes.map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={styles.addCard}
+              onPress={() => onUpload(t)}
+              disabled={uploadingType === t}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.docIconWrap, styles.addIconWrap]}>
+                <Ionicons name={DOC_ICONS[t] || 'add'} size={20} color={Colors.secondaryText} />
+              </View>
+              <Text style={styles.addCardLabel}>{DOC_TYPE_LABELS[t] || t}</Text>
+              {uploadingType === t ? (
+                <ActivityIndicator size="small" color={SUB_VIOLET} />
+              ) : (
+                <Ionicons name="add-circle" size={22} color={SUB_VIOLET} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }
 
 const makeStyles = (Colors) => StyleSheet.create({
-  scroll: { padding: 16, paddingBottom: 80 },
+  scroll: { padding: 18, paddingBottom: 120 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: Colors.primaryText },
-  headerSub: { fontSize: 13, color: Colors.secondaryText, marginTop: 4 },
+  headerTitle: { fontSize: 26, fontWeight: '700', color: Colors.primaryText },
+  headerSub: { fontSize: 14, color: Colors.secondaryText, marginTop: 4, marginBottom: 16, lineHeight: 20 },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', color: Colors.secondaryText,
-    textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 18, marginBottom: 8,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 18, marginBottom: 10,
   },
-  emptyText: { color: Colors.secondaryText, fontSize: 14, paddingVertical: 8 },
-  docCard: {
+  emptyBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+  },
+  emptyText: { color: Colors.secondaryText, fontSize: 14 },
+  docCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
     padding: 14,
-    marginBottom: 8,
-    shadowColor: '#0F172A', shadowOpacity: 0.05, shadowRadius: 6,
+    marginBottom: 10,
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
     shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
-  docHeader: { flexDirection: 'row', alignItems: 'center' },
+  docIconWrap: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  addIconWrap: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
   docTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
-  docStatus: { fontSize: 12, marginTop: 3 },
+  statusPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  statusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   replaceBtn: {
-    paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderRadius: 8,
-    minWidth: 70, alignItems: 'center',
+    paddingVertical: 7, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: 8,
+    minWidth: 70, alignItems: 'center', marginLeft: 10,
   },
   replaceBtnText: { fontSize: 12, fontWeight: '600', color: Colors.primaryText },
   addCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
-    marginBottom: 6,
-    gap: 10,
+    marginBottom: 10,
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
-  addCardLabel: { flex: 1, fontSize: 14, color: Colors.primaryText },
+  addCardLabel: { flex: 1, fontSize: 14, color: Colors.primaryText, marginLeft: 12, fontWeight: '500' },
 });

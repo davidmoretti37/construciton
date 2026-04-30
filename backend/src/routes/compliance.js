@@ -312,6 +312,7 @@ router.post('/documents/upload-blob', authenticateUser, async (req, res) => {
       file_name,
       file_mime = 'application/pdf',
       file_base64,
+      action_token_id,
       ...rest
     } = req.body || {};
 
@@ -349,6 +350,21 @@ router.post('/documents/upload-blob', authenticateUser, async (req, res) => {
       uploadedVia: access.role === 'sub' ? 'sub_portal' : 'gc_upload',
       ...filterAllowed(rest),
     });
+
+    // If this upload fulfills a doc-request action token, consume it so the
+    // request disappears from the sub's inbox.
+    if (action_token_id) {
+      try {
+        await supabase
+          .from('sub_action_tokens')
+          .update({ used_at: new Date().toISOString() })
+          .eq('id', action_token_id)
+          .eq('sub_organization_id', sub_organization_id)
+          .is('used_at', null);
+      } catch (e) {
+        logger.warn('[compliance] failed to consume action token:', e.message);
+      }
+    }
 
     return res.json({ compliance_document: created });
   } catch (err) {
