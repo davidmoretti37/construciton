@@ -225,9 +225,13 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*'],
         copyToCacheDirectory: true,
-        multiple: false,
+        multiple: true,
       });
-      if (!result.canceled) await addPickedFile(result.assets?.[0], type);
+      if (!result.canceled) {
+        for (const asset of (result.assets || [])) {
+          await addPickedFile(asset, type);
+        }
+      }
     } catch (e) {
       if (!handleStuckPicker(e)) Alert.alert('Could not pick file', e.message);
     } finally {
@@ -264,8 +268,14 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.85,
+        allowsMultipleSelection: true,
+        selectionLimit: 0, // 0 = unlimited
       });
-      if (!result.canceled) await addPickedFile(result.assets?.[0], 'photo');
+      if (!result.canceled) {
+        for (const asset of (result.assets || [])) {
+          await addPickedFile(asset, 'photo');
+        }
+      }
     } catch (e) {
       Alert.alert('Could not pick image', e.message);
     } finally {
