@@ -27,7 +27,36 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
-import { fetchProjects } from '../services/projectService';
+import { supabase } from '../lib/supabase';
+
+// Inline lightweight project fetch for the bid picker. The fetchProjects
+// helper from projectService loads phases dynamically and breaks on a
+// missing module — we don't need phases here, just id/name/address.
+async function fetchProjectsForPicker() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, project_name, project_type, project_description, address, city, state_code, postal_code')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.warn('[BidRequestCreator] fetchProjects error:', error.message);
+    return [];
+  }
+  // Match the shape the rest of the file expects
+  return (data || []).map((p) => ({
+    id: p.id,
+    name: p.project_name,
+    project_name: p.project_name,
+    project_type: p.project_type,
+    project_description: p.project_description,
+    address: p.address,
+    city: p.city,
+    state_code: p.state_code,
+    postal_code: p.postal_code,
+  }));
+}
 
 const SUB_VIOLET = '#8B5CF6';
 
@@ -99,7 +128,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     setLoading(true);
     try {
       const [projList, subList] = await Promise.all([
-        fetchProjects(),
+        fetchProjectsForPicker(),
         api.listSubs(),
       ]);
       setProjects(projList || []);
