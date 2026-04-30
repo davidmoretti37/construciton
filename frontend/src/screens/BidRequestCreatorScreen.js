@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Updates from 'expo-updates';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
@@ -193,6 +194,30 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
   // system picker directly. pickerBusyRef guards against double-taps.
   const pickerBusyRef = useRef(false);
 
+  // Specific catch for the iOS "Different document picking in progress" bug
+  // — that flag lives in the native module and survives JS reloads. Offer a
+  // one-tap reload that re-initializes the native bundle.
+  const handleStuckPicker = (e) => {
+    const stuck = /Different document picking in progress|Await other document/.test(e?.message || '');
+    if (!stuck) return false;
+    Alert.alert(
+      'iOS picker is stuck',
+      'iOS thinks a previous picker is still open. Reload the app to clear it — your draft will be lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reload app',
+          style: 'destructive',
+          onPress: async () => {
+            try { await Updates.reloadAsync(); }
+            catch (_) { /* dev client / Expo Go fallback */ }
+          },
+        },
+      ],
+    );
+    return true;
+  };
+
   const pickDocument = async (type) => {
     if (pickerBusyRef.current) return;
     pickerBusyRef.current = true;
@@ -204,7 +229,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
       });
       if (!result.canceled) await addPickedFile(result.assets?.[0], type);
     } catch (e) {
-      Alert.alert('Could not pick file', e.message);
+      if (!handleStuckPicker(e)) Alert.alert('Could not pick file', e.message);
     } finally {
       pickerBusyRef.current = false;
     }
