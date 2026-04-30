@@ -27,6 +27,8 @@ import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import WorkerOnboardingNavigator from './src/navigation/WorkerOnboardingNavigator';
 
 import SupervisorOnboardingNavigator from './src/navigation/SupervisorOnboardingNavigator';
+import SubOnboardingNavigator from './src/navigation/SubOnboardingNavigator';
+import SubMainNavigator from './src/navigation/SubMainNavigator';
 import ClientMainNavigator from './src/navigation/ClientMainNavigator';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -297,6 +299,9 @@ function AppContent() {
         // Clients skip onboarding for now — go straight to main app
         logger.debug('Showing: CLIENT MAIN APP (skip onboarding)');
         return <ClientMainNavigator />;
+      } else if (role === 'sub') {
+        logger.debug('Showing: SUB ONBOARDING');
+        return <SubOnboardingNavigator onComplete={handleOnboardingComplete} onGoBack={handleGoBackToRoleSelection} />;
       }
     }
 
@@ -320,6 +325,9 @@ function AppContent() {
     } else if (role === 'client') {
       logger.debug('Showing: CLIENT MAIN APP');
       return <ClientMainNavigator />;
+    } else if (role === 'sub') {
+      logger.debug('Showing: SUB PORTAL');
+      return <SubMainNavigator />;
     }
 
     // Fallback

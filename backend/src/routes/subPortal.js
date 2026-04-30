@@ -141,6 +141,34 @@ async function autoLinkSubOrgByEmail(authUser) {
 }
 
 // =============================================================================
+// POST /api/sub-portal/accept-invite
+// =============================================================================
+// Called from the sub onboarding "Accept invitation" screen. Looks up the
+// unclaimed sub_organization by the user's auth email, links it, and sets
+// profiles.role='sub' / subscription_tier='free'. Idempotent — if already
+// linked, returns the existing row.
+
+router.post('/accept-invite', authenticateUser, async (req, res) => {
+  try {
+    const existing = await loadSubOrgForUser(req.user.id);
+    if (existing) {
+      return res.json({ sub_organization: existing, already_linked: true });
+    }
+
+    const linked = await autoLinkSubOrgByEmail(req.user);
+    if (!linked) {
+      return res.status(404).json({
+        error: 'No invitation found for this email. Ask your contractor to invite you and try again.',
+      });
+    }
+    return res.json({ sub_organization: linked, already_linked: false });
+  } catch (err) {
+    logger.error('[subPortal] accept-invite error:', err);
+    return res.status(500).json({ error: 'Failed to accept invitation' });
+  }
+});
+
+// =============================================================================
 // GET /api/sub-portal/me
 // =============================================================================
 
