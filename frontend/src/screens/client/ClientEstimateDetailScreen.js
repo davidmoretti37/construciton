@@ -87,6 +87,16 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
   };
 
   const handleAccept = () => {
+    // Signature-required estimates skip the typed-name path. The owner
+    // separately sent a signing link; if the client tries to accept here,
+    // tell them to use the email/portal sign link.
+    if (estimate?.signature_required) {
+      Alert.alert(
+        'Signature required',
+        'This estimate needs your signature. Check your email for the signing link the contractor sent, or ask them to resend it.'
+      );
+      return;
+    }
     if (!acceptName.trim()) {
       Alert.alert('Name Required', 'Please type your name to accept.');
       return;
@@ -134,6 +144,16 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         {/* Header */}
         <Text style={styles.title}>{estimate?.estimate_number || 'Estimate'}</Text>
         {estimate?.project_name ? <Text style={styles.subtitle}>{estimate.project_name}</Text> : null}
+
+        {/* Signature-required notice */}
+        {isPending && estimate?.signature_required && (
+          <View style={styles.signatureNotice}>
+            <Ionicons name="shield-checkmark-outline" size={16} color="#1E40AF" />
+            <Text style={styles.signatureNoticeText}>
+              Your contractor requested a signature. Check your email for the signing link.
+            </Text>
+          </View>
+        )}
 
         {/* Total */}
         <View style={styles.costCard}>
@@ -341,6 +361,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: C.text },
   subtitle: { fontSize: 14, color: C.textSec, marginTop: 4, marginBottom: 16 },
 
+  signatureNotice: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#DBEAFE', borderRadius: 10, padding: 12, marginBottom: 16,
+  },
+  signatureNoticeText: { fontSize: 13, color: '#1E40AF', flex: 1, lineHeight: 18 },
+
   costCard: {
     backgroundColor: C.surface, borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 20,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 4,
@@ -411,17 +437,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 12,
     backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border,
   },
+  // All three actions: same flex + same row layout with centered content,
+  // so the labels line up cleanly across the bar.
   declineAction: {
-    flex: 0.7, borderWidth: 2, borderColor: C.border, borderRadius: 12, paddingVertical: 14, alignItems: 'center',
+    flex: 1, borderWidth: 2, borderColor: C.border, borderRadius: 12, paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
   },
-  declineActionText: { fontSize: 14, fontWeight: '600', color: C.textSec },
+  declineActionText: { fontSize: 14, fontWeight: '600', color: C.textSec, textAlign: 'center' },
   changesAction: {
-    flex: 1, backgroundColor: C.blueBg, borderWidth: 1.5, borderColor: C.blue, borderRadius: 12, paddingVertical: 14, alignItems: 'center',
+    flex: 1.2, backgroundColor: C.blueBg, borderWidth: 1.5, borderColor: C.blue, borderRadius: 12, paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
   },
-  changesActionText: { fontSize: 14, fontWeight: '700', color: C.blue },
+  changesActionText: { fontSize: 13, fontWeight: '700', color: C.blue, textAlign: 'center' },
   acceptAction: {
     flex: 1, backgroundColor: C.green, borderRadius: 12, paddingVertical: 14,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
-  acceptActionText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  acceptActionText: { color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });

@@ -590,7 +590,7 @@ router.patch('/estimates/:estimateId/respond', async (req, res) => {
     // Verify client has access to this estimate's project
     const { data: estimate, error: estError } = await supabase
       .from('estimates')
-      .select('id, project_id, status, user_id, estimate_number, total, project_name')
+      .select('id, project_id, status, user_id, estimate_number, total, project_name, signature_required')
       .eq('id', estimateId)
       .single();
 
@@ -600,6 +600,15 @@ router.patch('/estimates/:estimateId/respond', async (req, res) => {
 
     if (!estimate.project_id) {
       return res.status(403).json({ error: 'Access denied — estimate has no associated project' });
+    }
+
+    // If signature required, the client must use the signing flow — not the
+    // typed-name accept path. Decline / request-changes still work without a
+    // signature because they don't authorize work to begin.
+    if (action === 'accepted' && estimate.signature_required) {
+      return res.status(400).json({
+        error: 'This estimate requires an e-signature. Please use the signing link.',
+      });
     }
 
     const { data: estAccess } = await supabase

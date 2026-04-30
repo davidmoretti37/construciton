@@ -30,15 +30,16 @@ const supabase = createClient(
 const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
 const STORAGE_BUCKET = 'documents';
 const TOKEN_TTL_DAYS = 7;
-const VALID_DOC_TYPES = new Set(['estimate', 'invoice', 'contract', 'change_order']);
+const VALID_DOC_TYPES = new Set(['estimate', 'invoice', 'contract', 'change_order', 'subcontract']);
 
 // ownerField defaults to 'user_id' across estimates/invoices/contract_documents.
-// change_orders uses `owner_id` instead — explicit override here.
+// change_orders uses `owner_id`, subcontracts use `gc_user_id` — explicit overrides.
 const DOC_TABLES = {
   estimate:     { table: 'estimates',          titleField: 'estimate_number', nameField: 'project_name', ownerField: 'user_id' },
   invoice:      { table: 'invoices',           titleField: 'invoice_number',  nameField: 'project_name', ownerField: 'user_id' },
   contract:     { table: 'contract_documents', titleField: 'file_name',       nameField: 'file_name',    ownerField: 'user_id' },
   change_order: { table: 'change_orders',      titleField: 'title',           nameField: 'title',        ownerField: 'owner_id' },
+  subcontract:  { table: 'subcontracts',       titleField: 'title',           nameField: 'title',        ownerField: 'gc_user_id' },
 };
 
 // =============================================================================
@@ -62,8 +63,12 @@ async function renderDocumentPdf(documentType, doc) {
   let y = 740;
   const left = 56;
 
-  // Header line: e.g. "CHANGE ORDER" / "ESTIMATE" / "INVOICE"
-  const headerLabel = documentType === 'change_order' ? 'CHANGE ORDER' : documentType.toUpperCase();
+  // Header line: e.g. "CHANGE ORDER" / "ESTIMATE" / "INVOICE" / "SUBCONTRACT"
+  const HEADER_LABELS = {
+    change_order: 'CHANGE ORDER',
+    subcontract: 'SUBCONTRACT',
+  };
+  const headerLabel = HEADER_LABELS[documentType] || documentType.toUpperCase();
   page.drawText(headerLabel, { x: left, y, size: 22, font: bold, color: rgb(0.06, 0.09, 0.16) });
   y -= 28;
   // Sub-header: doc number / title
@@ -71,6 +76,9 @@ async function renderDocumentPdf(documentType, doc) {
   if (documentType === 'change_order') {
     const num = `CO-${String(doc.co_number || 0).padStart(3, '0')}`;
     subHeader = doc.title ? `${num} — ${doc.title}` : num;
+  } else if (documentType === 'subcontract') {
+    const subType = (doc.contract_type || '').toUpperCase().replace('_', ' ') || 'AGREEMENT';
+    subHeader = doc.title ? `${subType} — ${doc.title}` : subType;
   }
   page.drawText(subHeader, { x: left, y, size: 12, font, color: rgb(0.4, 0.45, 0.55) });
   y -= 36;
@@ -104,7 +112,32 @@ async function renderDocumentPdf(documentType, doc) {
       writeRow('Schedule impact', `${days > 0 ? '+' : ''}${days} day${Math.abs(days) === 1 ? '' : 's'}`);
     }
   }
+
+  // Subcontract specific fields: type, total, body markdown
+  if (documentType === 'subcontract') {
+    if (doc.contract_type) writeRow('Agreement', doc.contract_type.replace('_', ' ').toUpperCase());
+    if (doc.total_amount) writeRow('Total', `$${Number(doc.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`);
+    if (doc.body_md) {
+      y -= 6;
+      page.drawText('Terms', { x: left, y, size: 11, font: bold, color: rgb(0.2, 0.25, 0.35) });
+      y -= 14;
+      // Strip basic markdown (#, *, etc.) and word-wrap
+      const stripped = String(doc.body_md).replace(/[#*_`>]/g, '').replace(/\n+/g, ' ');
+      const bodyLines = stripped.match(/.{1,86}(\s|$)/g) || [];
+      for (const line of bodyLines.slice(0, 30)) {
+        if (y < 100) break;
+        page.drawText(line.trim(), { x: left, y, size: 10, font });
+        y -= 13;
+      }
+    }
+  }
   y -= 8;
+
+  // Subcontracts don't have line items — their body_md is the contract.
+  // Skip the rest of the doc rendering for them.
+  if (documentType === 'subcontract') {
+    return Buffer.from(await pdfDoc.save());
+  }
 
   page.drawText('Line items', { x: left, y, size: 12, font: bold });
   y -= 16;
@@ -579,6 +612,36 @@ async function recordSignature({ token, signaturePngBase64, signerName, ip, user
       }
     } catch (err) {
       logger.error('[eSign] approve_change_order threw after sign:', err.message);
+    }
+  }
+
+  // Estimate specific: signing an estimate is acceptance. Flip status to
+  // 'accepted' + set accepted_date. Pre-signed estimates that already had
+  // status='accepted' are no-op via the WHERE clause.
+  if (sig.document_type === 'estimate') {
+    try {
+      await supabase
+        .from('estimates')
+        .update({ status: 'accepted', accepted_date: ts })
+        .eq('id', sig.document_id)
+        .neq('status', 'accepted');
+    } catch (err) {
+      logger.error('[eSign] estimate accept-on-sign failed:', err.message);
+    }
+  }
+
+  // Subcontract specific: progress the contract status. The subcontracts
+  // status flow is draft → sent → signed_by_sub → fully_executed. The sub
+  // signs first; the GC counter-signs separately later (manual step in v1).
+  if (sig.document_type === 'subcontract') {
+    try {
+      await supabase
+        .from('subcontracts')
+        .update({ status: 'signed_by_sub', signed_at: ts })
+        .eq('id', sig.document_id)
+        .in('status', ['sent', 'draft']);
+    } catch (err) {
+      logger.error('[eSign] subcontract status flip failed:', err.message);
     }
   }
 

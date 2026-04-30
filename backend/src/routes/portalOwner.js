@@ -1635,6 +1635,20 @@ router.post('/estimates/:estimateId/send', authenticateUser, async (req, res) =>
       .single();
     if (estErr || !estimate) return res.status(404).json({ error: 'Estimate not found' });
 
+    // Allow the owner to override signature_required at send time. This is
+    // the toggle on the share sheet — flips the column before we kick off
+    // the signature request below.
+    if (typeof req.body?.signature_required === 'boolean'
+        && req.body.signature_required !== estimate.signature_required) {
+      const { data: updated } = await supabase
+        .from('estimates')
+        .update({ signature_required: req.body.signature_required })
+        .eq('id', estimateId)
+        .select('signature_required')
+        .single();
+      if (updated) estimate.signature_required = updated.signature_required;
+    }
+
     // Portal is the primary destination — flip status FIRST so the estimate
     // is immediately visible in the client portal even if email/notification
     // delivery has issues. Email is a best-effort secondary channel.
@@ -1712,6 +1726,31 @@ router.post('/estimates/:estimateId/send', authenticateUser, async (req, res) =>
       }
     }
 
+    // ─── Optional: signature request (only when owner toggled it on) ───
+    let signature = null;
+    if (estimate.signature_required) {
+      try {
+        const eSign = require('../services/eSignService');
+        // Prefer the linked client; fall back to estimate's client_email
+        const signerEmail = notifiedClient?.email || estimate.client_email || null;
+        const signerName = notifiedClient?.full_name || estimate.client_name || 'Client';
+        if (signerEmail) {
+          signature = await eSign.createSignatureRequest({
+            ownerId: userId,
+            documentType: 'estimate',
+            documentId: estimateId,
+            signerName,
+            signerEmail,
+          });
+        }
+      } catch (sigErr) {
+        // Non-fatal — estimate is still in 'sent' state and visible in portal.
+        // Owner can resend or the client can still accept by typed name unless
+        // signature_required blocks it (which the portal /respond route enforces).
+        logger.error('[PortalAdmin] Estimate signature request failed:', sigErr.message);
+      }
+    }
+
     // Audit
     if (estimate.project_id) {
       const auditNote = notifiedClient
@@ -1734,6 +1773,8 @@ router.post('/estimates/:estimateId/send', authenticateUser, async (req, res) =>
       portal_recipient: notifiedClient?.full_name || notifiedClient?.email || null,
       email_sent: !!emailResult.sent,
       email_recipient: emailResult.sent ? estimate.client_email : null,
+      signature_required: !!estimate.signature_required,
+      signature_request: signature ? { signing_url: signature.signingUrl, expires_at: signature.expiresAt } : null,
     });
   } catch (error) {
     logger.error('[PortalAdmin] Send estimate error:', error.message);

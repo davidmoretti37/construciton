@@ -449,27 +449,31 @@ export default function EstimatePreview({ data, onAction }) {
 
       // Estimate must already be saved to send via portal (needs an id)
       const canSendToPortal = !!data?.id;
-      const sendToPortal = async () => {
+      const sendToPortal = async (requireSignature) => {
         if (!data?.id) {
           Alert.alert('Save first', 'Save the estimate before sending it to the client.');
           return;
         }
         if (onAction) {
-          onAction({ type: 'send-estimate-to-client', data: { ...data, ...enrichedData } });
+          onAction({
+            type: 'send-estimate-to-client',
+            data: { ...data, ...enrichedData, signature_required: !!requireSignature },
+          });
         }
       };
 
       if (Platform.OS === 'ios') {
         const options = canSendToPortal
-          ? ['Cancel', 'Send to Client Portal', 'Share PDF', 'Email PDF']
+          ? ['Cancel', 'Send to Client Portal', 'Send & Require Signature', 'Share PDF', 'Email PDF']
           : ['Cancel', 'Share PDF', 'Email PDF'];
         ActionSheetIOS.showActionSheetWithOptions(
           { options, cancelButtonIndex: 0 },
           async (buttonIndex) => {
             if (canSendToPortal) {
-              if (buttonIndex === 1) await sendToPortal();
-              else if (buttonIndex === 2) await shareEstimatePDF(enrichedData);
-              else if (buttonIndex === 3) {
+              if (buttonIndex === 1) await sendToPortal(false);
+              else if (buttonIndex === 2) await sendToPortal(true);
+              else if (buttonIndex === 3) await shareEstimatePDF(enrichedData);
+              else if (buttonIndex === 4) {
                 const clientEmail = typeof client === 'object' ? client?.email : null;
                 await emailEstimatePDF(enrichedData, clientEmail);
               }
@@ -486,7 +490,8 @@ export default function EstimatePreview({ data, onAction }) {
         // Android: alert with options
         const buttons = [{ text: 'Cancel', style: 'cancel' }];
         if (canSendToPortal) {
-          buttons.push({ text: 'Send to Client Portal', onPress: sendToPortal });
+          buttons.push({ text: 'Send to Client Portal', onPress: () => sendToPortal(false) });
+          buttons.push({ text: 'Send & Require Signature', onPress: () => sendToPortal(true) });
         }
         buttons.push({ text: 'Share PDF', onPress: async () => await shareEstimatePDF(enrichedData) });
         buttons.push({

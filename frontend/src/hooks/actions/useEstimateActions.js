@@ -366,21 +366,34 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
         return false;
       }
       const { API_URL } = require('../../config/api');
+      // Pass signature_required through if the caller specified it (share sheet).
+      const body = {};
+      if (typeof data.signature_required === 'boolean') {
+        body.signature_required = data.signature_required;
+      } else if (typeof data.signatureRequired === 'boolean') {
+        body.signature_required = data.signatureRequired;
+      }
       const res = await fetch(`${API_URL}/api/portal-admin/estimates/${data.id}/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
+        body: Object.keys(body).length ? JSON.stringify(body) : undefined,
       });
       const result = await res.json();
       if (result.sent) {
         const lines = ['Estimate is now available in the client portal.'];
         if (result.portal_notified) lines.push(`In-app notification sent to ${result.portal_recipient}.`);
         if (result.email_sent) lines.push(`Also emailed to ${result.email_recipient}.`);
+        if (result.signature_required) {
+          lines.push(result.signature_request
+            ? 'Signing link sent — client must sign to accept.'
+            : 'Signature required, but the signing link could not be created. Resend or check email config.');
+        }
         Alert.alert('Shared to portal', lines.join('\n\n'));
         const num = data.estimateNumber || data.estimate_number || '';
-        addMessage(`✅ Estimate ${num} shared to client portal${result.email_sent ? ` (also emailed)` : ''}`);
+        addMessage(`✅ Estimate ${num} shared to client portal${result.signature_required ? ' (signature required)' : ''}${result.email_sent ? ' — also emailed' : ''}`);
         return true;
       } else {
         Alert.alert('Send Failed', result.error || 'Could not send estimate.');

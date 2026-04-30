@@ -3061,6 +3061,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         return;
                       }
                       const { API_URL } = require('../config/api');
+                      // Forward signature_required toggle from the share sheet
+                      const body = typeof action.data?.signature_required === 'boolean'
+                        ? JSON.stringify({ signature_required: action.data.signature_required })
+                        : undefined;
                       const res = await fetch(
                         `${API_URL}/api/portal-admin/estimates/${action.data.id}/send`,
                         {
@@ -3069,6 +3073,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                             'Content-Type': 'application/json',
                             Authorization: `Bearer ${session.access_token}`,
                           },
+                          body,
                         }
                       );
                       const result = await res.json().catch(() => ({}));
@@ -3081,6 +3086,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                           lines.push(`Also emailed to ${result.email_recipient}.`);
                         } else if (!result.portal_notified) {
                           lines.push('No client account is linked to this project yet — they\'ll see it when they sign in.');
+                        }
+                        if (result.signature_required) {
+                          lines.push(result.signature_request
+                            ? 'Signing link sent — client must sign to accept.'
+                            : 'Signature required, but the signing link could not be created.');
                         }
                         Alert.alert('Shared to portal', lines.join('\n\n'));
                         setShowEstimateModal(false);
