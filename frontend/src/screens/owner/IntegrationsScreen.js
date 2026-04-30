@@ -69,7 +69,7 @@ function relativeTime(iso) {
 export default function IntegrationsScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const styles = makeStyles(Colors);
+  const styles = makeStyles(Colors, isDark);
 
   const [integrations, setIntegrations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -347,7 +347,7 @@ export default function IntegrationsScreen({ navigation }) {
   );
 }
 
-function makeStyles(C) {
+function makeStyles(C, isDark = false) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.background },
     header: {
