@@ -76,6 +76,29 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
   const [requestingNote, setRequestingNote] = useState('');
   const [sending, setSending] = useState(false);
 
+  // Doc open
+  const [openingDocId, setOpeningDocId] = useState(null);
+
+  const onOpenDoc = useCallback(async (doc) => {
+    if (!doc?.id) return;
+    setOpeningDocId(doc.id);
+    try {
+      const res = await api.getComplianceDocSignedUrl(doc.id);
+      const url = res?.url;
+      if (!url) throw new Error('No signed URL returned');
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Cannot open', 'No app available to view this document.');
+      }
+    } catch (e) {
+      Alert.alert('Could not open', e.message || 'Try again.');
+    } finally {
+      setOpeningDocId(null);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const [subRes, docList, engs] = await Promise.all([
@@ -334,8 +357,15 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                   const d = bestByType[t];
                   const meta = DOC_TYPE_META[t] || { label: t.toUpperCase(), icon: 'document-outline', color: Colors.primaryBlue };
                   const status = statusForDoc(d, Colors);
+                  const isOpening = openingDocId === d.id;
                   return (
-                    <View key={t} style={styles.docCard}>
+                    <TouchableOpacity
+                      key={t}
+                      style={styles.docCard}
+                      activeOpacity={0.7}
+                      onPress={() => onOpenDoc(d)}
+                      disabled={isOpening}
+                    >
                       <View style={[styles.docIcon, { backgroundColor: meta.color + '15' }]}>
                         <Ionicons name={meta.icon} size={20} color={meta.color} />
                       </View>
@@ -346,10 +376,15 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                           {d.policy_number ? ` · ${d.policy_number}` : ''}
                         </Text>
                       </View>
-                      <View style={[styles.docStatusPill, { backgroundColor: status.bg }]}>
-                        <Text style={[styles.docStatusText, { color: status.color }]}>{status.label}</Text>
-                      </View>
-                    </View>
+                      {isOpening ? (
+                        <ActivityIndicator size="small" color={meta.color} style={{ marginRight: 6 }} />
+                      ) : (
+                        <View style={[styles.docStatusPill, { backgroundColor: status.bg }]}>
+                          <Text style={[styles.docStatusText, { color: status.color }]}>{status.label}</Text>
+                        </View>
+                      )}
+                      <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} style={{ marginLeft: 6 }} />
+                    </TouchableOpacity>
                   );
                 })}
               </>

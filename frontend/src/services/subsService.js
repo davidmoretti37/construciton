@@ -101,6 +101,10 @@ export const recordComplianceDoc = (payload) =>
     body: JSON.stringify(payload),
   });
 
+// Returns { signed_url, expires_at } — short-lived URL for viewing/downloading
+export const getComplianceDocSignedUrl = (id) =>
+  authedFetch(`/api/compliance/documents/${id}/url`);
+
 // =============================================================================
 // Bidding
 // =============================================================================
