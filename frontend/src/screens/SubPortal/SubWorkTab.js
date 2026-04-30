@@ -19,7 +19,7 @@ const SUB_VIOLET = '#8B5CF6';
 
 const FILTERS = [
   { key: 'all',         label: 'All' },
-  { key: 'engagements', label: 'Activity' },
+  { key: 'engagements', label: 'Schedule' },
   { key: 'bids',        label: 'Bids' },
   { key: 'invoices',    label: 'Invoices' },
 ];
@@ -106,30 +106,9 @@ export default function SubWorkTab({ navigation }) {
         })}
       </ScrollView>
 
-      {/* Engagements */}
+      {/* Schedule — engagements grouped by lifecycle phase */}
       {showEngagements && (
-        <Section title="Activity" empty={engagements.length === 0 ? 'No active jobs yet.' : null} Colors={Colors}>
-          {engagements.map((e) => (
-            <View key={e.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardIconWrap}>
-                  <Ionicons name="briefcase-outline" size={20} color={Colors.primaryText} />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>{e.trade || 'Active job'}</Text>
-                  <Text style={styles.cardMeta}>
-                    {e.contract_amount ? `$${Number(e.contract_amount).toLocaleString()}` : 'Amount TBD'}
-                    {e.payment_terms ? `  ·  ${e.payment_terms.replace(/_/g, ' ')}` : ''}
-                  </Text>
-                </View>
-                <StatusPill status={e.status} />
-              </View>
-              {e.scope_summary ? (
-                <Text style={styles.cardBody} numberOfLines={2}>{e.scope_summary}</Text>
-              ) : null}
-            </View>
-          ))}
-        </Section>
+        <ScheduleView engagements={engagements} Colors={Colors} styles={styles} />
       )}
 
       {/* Bid invitations */}
@@ -225,6 +204,87 @@ export default function SubWorkTab({ navigation }) {
   );
 }
 
+function ScheduleView({ engagements, Colors, styles }) {
+  const upcoming = [];
+  const active = [];
+  const completed = [];
+  const cancelled = [];
+  for (const e of engagements) {
+    const s = e.status;
+    if (s === 'cancelled') cancelled.push(e);
+    else if (s === 'closed_out' || s === 'substantially_complete') completed.push(e);
+    else if (s === 'mobilized' || s === 'in_progress') active.push(e);
+    else upcoming.push(e);
+  }
+
+  if (engagements.length === 0) {
+    return (
+      <Section title="Schedule" empty="No scheduled work yet. When a contractor accepts your bid, the job lands here." Colors={Colors} />
+    );
+  }
+
+  return (
+    <View>
+      <ScheduleGroup title="In progress" items={active}    accent="#10B981"           Colors={Colors} styles={styles} />
+      <ScheduleGroup title="Upcoming"    items={upcoming}  accent="#3B82F6"           Colors={Colors} styles={styles} />
+      <ScheduleGroup title="Completed"   items={completed} accent="#6B7280" muted     Colors={Colors} styles={styles} />
+      <ScheduleGroup title="Cancelled"   items={cancelled} accent="#DC2626" muted     Colors={Colors} styles={styles} />
+    </View>
+  );
+}
+
+function ScheduleGroup({ title, items, accent, muted, Colors, styles }) {
+  if (!items?.length) return null;
+  return (
+    <View style={{ marginTop: 14 }}>
+      <Text style={[styles.sectionTitle, { marginTop: 0 }]}>{title}</Text>
+      {items.map((e) => (
+        <View key={e.id} style={[styles.scheduleCard, muted && { opacity: 0.85 }]}>
+          <View style={[styles.scheduleAccent, { backgroundColor: accent }]} />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.scheduleTitle}>{e.trade || 'Job'}</Text>
+            <Text style={styles.scheduleProject} numberOfLines={1}>
+              {e.project?.name || 'Project'}
+              {e.gc_business_name ? `  ·  ${e.gc_business_name}` : ''}
+            </Text>
+            {e.project?.location ? (
+              <Text style={styles.scheduleLocation} numberOfLines={1}>
+                {e.project.location}
+              </Text>
+            ) : null}
+            <View style={styles.scheduleMetaRow}>
+              {formatScheduleDates(e) ? (
+                <View style={styles.scheduleMetaChip}>
+                  <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
+                  <Text style={styles.scheduleMetaText}>{formatScheduleDates(e)}</Text>
+                </View>
+              ) : null}
+              {e.contract_amount ? (
+                <View style={styles.scheduleMetaChip}>
+                  <Ionicons name="cash-outline" size={12} color={Colors.secondaryText} />
+                  <Text style={styles.scheduleMetaText}>
+                    ${Number(e.contract_amount).toLocaleString()}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function formatScheduleDates(e) {
+  const start = e.mobilized_at || e.contracted_at || e.awarded_at || e.project?.start_date || null;
+  const end = e.completed_at || e.closed_out_at || e.project?.end_date || null;
+  if (!start && !end) return null;
+  const fmt = (s) => s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '?';
+  if (start && end) return `${fmt(start)} → ${fmt(end)}`;
+  if (start) return `Started ${fmt(start)}`;
+  return `Due ${fmt(end)}`;
+}
+
 function Section({ title, empty, children, Colors }) {
   return (
     <View>
@@ -296,7 +356,32 @@ const makeStyles = (Colors) => StyleSheet.create({
     backgroundColor: Colors.background,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.primaryText },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.primaryText, textTransform: 'capitalize' },
   cardMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
   cardBody: { fontSize: 13, color: Colors.primaryText, marginTop: 10, lineHeight: 19 },
+  // Schedule card (mirrors GC SubcontractorDetailScreen style)
+  scheduleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingRight: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  scheduleAccent: { width: 4, alignSelf: 'stretch' },
+  scheduleTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText, textTransform: 'capitalize' },
+  scheduleProject: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  scheduleLocation: { fontSize: 11, color: Colors.secondaryText, marginTop: 2 },
+  scheduleMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  scheduleMetaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: Colors.background,
+    borderRadius: 5,
+  },
+  scheduleMetaText: { fontSize: 11, color: Colors.secondaryText, fontWeight: '600' },
 });

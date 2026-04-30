@@ -241,7 +241,9 @@ const engagementsRoutes = require('./routes/engagements');
 app.use('/api/engagements', servicesLimiter, engagementsRoutes);
 
 const bidRequestsRoutes = require('./routes/bidRequests');
-app.use('/api/bid-requests', servicesLimiter, bidRequestsRoutes);
+// 30mb to accommodate base64-encoded plans, photos, and specs
+// (base64 inflates ~33%; a typical batch can hit 15-20mb).
+app.use('/api/bid-requests', express.json({ limit: '30mb' }), servicesLimiter, bidRequestsRoutes);
 
 
 // ============================================================

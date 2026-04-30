@@ -210,11 +210,26 @@ async function listEngagementsForSub(subAuthUserId) {
   if (!sub) return [];
   const { data, error } = await supabase
     .from('sub_engagements')
-    .select('*')
+    .select(`
+      *,
+      project:projects (id, name, location, start_date, end_date, status)
+    `)
     .eq('sub_organization_id', sub.id)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data || [];
+
+  // Resolve GC business names so the sub knows who they're working for.
+  const gcIds = [...new Set((data || []).map((e) => e.gc_user_id).filter(Boolean))];
+  let gcNames = {};
+  if (gcIds.length) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, business_name')
+      .in('id', gcIds);
+    for (const p of (profiles || [])) gcNames[p.id] = p.business_name;
+  }
+
+  return (data || []).map((e) => ({ ...e, gc_business_name: gcNames[e.gc_user_id] || null }));
 }
 
 module.exports = {
