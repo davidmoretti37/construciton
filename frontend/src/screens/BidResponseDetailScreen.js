@@ -40,6 +40,64 @@ export default function BidResponseDetailScreen({ route, navigation }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
 
+  const [deciding, setDeciding] = useState(false);
+
+  const onAccept = () => {
+    if (!myBid?.id) return;
+    Alert.alert(
+      'Accept this bid?',
+      `Award this job to ${data?.sub_organization?.legal_name || 'the sub'} for $${Number(myBid.amount).toLocaleString()}.`
+        + ' All other submitted bids will be marked declined and a new active job will be created.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Accept',
+          onPress: async () => {
+            setDeciding(true);
+            try {
+              await api.acceptBid(bidRequestId, myBid.id);
+              Alert.alert(
+                'Bid accepted',
+                'A new active job has been created. The sub has been notified.',
+                [{ text: 'OK', onPress: () => navigation.goBack() }],
+              );
+            } catch (e) {
+              Alert.alert('Could not accept', e.message || 'Try again.');
+            } finally {
+              setDeciding(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const onDecline = () => {
+    if (!myBid?.id) return;
+    Alert.alert(
+      'Decline this bid?',
+      'The sub will be notified that their bid was not accepted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: async () => {
+            setDeciding(true);
+            try {
+              await api.declineBid(bidRequestId, myBid.id);
+              await load();
+            } catch (e) {
+              Alert.alert('Could not decline', e.message || 'Try again.');
+            } finally {
+              setDeciding(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -175,32 +233,76 @@ export default function BidResponseDetailScreen({ route, navigation }) {
 
         {/* Sub's response — top of fold if submitted */}
         {myBid && myBid.status !== 'withdrawn' ? (
-          <View style={styles.responseCard}>
-            <Text style={styles.label}>Sub's response</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.amountValue}>${Number(myBid.amount).toLocaleString()}</Text>
-              {myBid.timeline_days != null ? (
-                <Text style={styles.amountMeta}>{myBid.timeline_days} days</Text>
+          <>
+            <View style={styles.responseCard}>
+              <Text style={styles.label}>Sub's response</Text>
+              <View style={styles.amountRow}>
+                <Text style={styles.amountValue}>${Number(myBid.amount).toLocaleString()}</Text>
+                {myBid.timeline_days != null ? (
+                  <Text style={styles.amountMeta}>{myBid.timeline_days} days</Text>
+                ) : null}
+              </View>
+              {myBid.exclusions ? (
+                <>
+                  <Text style={styles.fieldLabel}>Exclusions</Text>
+                  <Text style={styles.fieldValue}>{myBid.exclusions}</Text>
+                </>
+              ) : null}
+              {myBid.notes ? (
+                <>
+                  <Text style={styles.fieldLabel}>Notes</Text>
+                  <Text style={styles.fieldValue}>{myBid.notes}</Text>
+                </>
+              ) : null}
+              {myBid.submitted_at ? (
+                <Text style={styles.timestamp}>
+                  Submitted {new Date(myBid.submitted_at).toLocaleDateString()}
+                </Text>
               ) : null}
             </View>
-            {myBid.exclusions ? (
-              <>
-                <Text style={styles.fieldLabel}>Exclusions</Text>
-                <Text style={styles.fieldValue}>{myBid.exclusions}</Text>
-              </>
-            ) : null}
-            {myBid.notes ? (
-              <>
-                <Text style={styles.fieldLabel}>Notes</Text>
-                <Text style={styles.fieldValue}>{myBid.notes}</Text>
-              </>
-            ) : null}
-            {myBid.submitted_at ? (
-              <Text style={styles.timestamp}>
-                Submitted {new Date(myBid.submitted_at).toLocaleDateString()}
-              </Text>
-            ) : null}
-          </View>
+
+            {/* Accept / Decline */}
+            {myBid.status === 'submitted' && (
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[styles.declineBtn, deciding && { opacity: 0.5 }]}
+                  onPress={onDecline}
+                  disabled={deciding}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.declineBtnText}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.acceptBtn, deciding && { opacity: 0.5 }]}
+                  onPress={onAccept}
+                  disabled={deciding}
+                  activeOpacity={0.85}
+                >
+                  {deciding ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                      <Text style={styles.acceptBtnText}>Accept bid</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {myBid.status === 'accepted' && (
+              <View style={styles.acceptedBanner}>
+                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                <Text style={styles.acceptedText}>You accepted this bid. An active job was created.</Text>
+              </View>
+            )}
+            {myBid.status === 'declined' && (
+              <View style={styles.acceptedBanner}>
+                <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+                <Text style={styles.acceptedText}>You declined this bid.</Text>
+              </View>
+            )}
+          </>
         ) : (
           <View style={styles.awaitingCard}>
             <Ionicons name="time-outline" size={20} color={Colors.secondaryText} />
@@ -452,6 +554,46 @@ const makeStyles = (Colors) => StyleSheet.create({
   fieldLabel: { fontSize: 11, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 14, marginBottom: 4 },
   fieldValue: { fontSize: 14, color: Colors.primaryText, lineHeight: 20 },
   timestamp: { fontSize: 11, color: Colors.secondaryText, marginTop: 14 },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  declineBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.cardBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineBtnText: { color: '#DC2626', fontSize: 14, fontWeight: '600' },
+  acceptBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acceptBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  acceptedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: Colors.cardBackground,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginTop: 12,
+  },
+  acceptedText: { fontSize: 13, color: Colors.primaryText, flex: 1 },
   awaitingCard: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: Colors.cardBackground,

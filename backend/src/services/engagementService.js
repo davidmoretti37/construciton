@@ -189,7 +189,8 @@ async function listEngagementsForGc(gcUserId, { projectId = null, status = null 
     .from('sub_engagements')
     .select(`
       *,
-      sub:sub_organizations (id, legal_name, trades, primary_email)
+      sub:sub_organizations (id, legal_name, trades, primary_email),
+      project:projects (id, name, location, start_date, end_date, status)
     `)
     .eq('gc_user_id', gcUserId)
     .order('created_at', { ascending: false });

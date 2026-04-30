@@ -61,6 +61,100 @@ function getInitials(name) {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
+function ScheduleSection({ engagements, navigation, Colors, styles }) {
+  // Bucket by status. The lifecycle goes:
+  //   awarded → contracted → mobilized → in_progress → substantially_complete → closed_out
+  // Anything before mobilized = Upcoming. mobilized + in_progress = In progress.
+  // substantially_complete + closed_out = Completed. cancelled = Cancelled.
+  const upcoming = [];
+  const active = [];
+  const completed = [];
+  const cancelled = [];
+
+  for (const e of engagements) {
+    const s = e.status;
+    if (s === 'cancelled') cancelled.push(e);
+    else if (s === 'closed_out' || s === 'substantially_complete') completed.push(e);
+    else if (s === 'mobilized' || s === 'in_progress') active.push(e);
+    else upcoming.push(e); // awarded, contracted, anything else
+  }
+
+  if (engagements.length === 0) {
+    return (
+      <View style={styles.emptyBig}>
+        <Ionicons name="calendar-outline" size={42} color={Colors.secondaryText} />
+        <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No scheduled work yet</Text>
+        <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
+          Accept a bid or add this sub to a project to see them on the schedule.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <ScheduleGroup title="In progress" items={active} navigation={navigation} Colors={Colors} styles={styles} accent="#10B981" />
+      <ScheduleGroup title="Upcoming"    items={upcoming} navigation={navigation} Colors={Colors} styles={styles} accent="#3B82F6" />
+      <ScheduleGroup title="Completed"   items={completed} navigation={navigation} Colors={Colors} styles={styles} accent="#6B7280" muted />
+      <ScheduleGroup title="Cancelled"   items={cancelled} navigation={navigation} Colors={Colors} styles={styles} accent="#DC2626" muted />
+    </View>
+  );
+}
+
+function ScheduleGroup({ title, items, navigation, Colors, styles, accent, muted }) {
+  if (!items?.length) return null;
+  return (
+    <View style={{ marginTop: 14 }}>
+      <Text style={[styles.sectionLabel, { marginTop: 0, marginBottom: 8 }]}>{title}</Text>
+      {items.map((e) => (
+        <TouchableOpacity
+          key={e.id}
+          style={[styles.scheduleCard, muted && { opacity: 0.85 }]}
+          onPress={() => navigation.navigate('EngagementDetail', { engagement_id: e.id })}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.scheduleAccent, { backgroundColor: accent }]} />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.scheduleTitle}>{e.trade || 'Job'}</Text>
+            <Text style={styles.scheduleProject} numberOfLines={1}>
+              {e.project?.name || 'Project'}
+              {e.project?.location ? `  ·  ${e.project.location}` : ''}
+            </Text>
+            <View style={styles.scheduleMetaRow}>
+              {formatScheduleDates(e) ? (
+                <View style={styles.scheduleMetaChip}>
+                  <Ionicons name="calendar-outline" size={12} color={Colors.secondaryText} />
+                  <Text style={styles.scheduleMetaText}>{formatScheduleDates(e)}</Text>
+                </View>
+              ) : null}
+              {e.contract_amount ? (
+                <View style={styles.scheduleMetaChip}>
+                  <Ionicons name="cash-outline" size={12} color={Colors.secondaryText} />
+                  <Text style={styles.scheduleMetaText}>
+                    ${Number(e.contract_amount).toLocaleString()}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+function formatScheduleDates(e) {
+  // Prefer engagement-level timestamps; fall back to project dates.
+  const start = e.mobilized_at || e.contracted_at || e.awarded_at || e.project?.start_date || null;
+  const end = e.completed_at || e.closed_out_at || e.project?.end_date || null;
+  if (!start && !end) return null;
+  const fmt = (s) => s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '?';
+  if (start && end) return `${fmt(start)} → ${fmt(end)}`;
+  if (start) return `Started ${fmt(start)}`;
+  return `Due ${fmt(end)}`;
+}
+
 function bidPill(status) {
   switch (status) {
     case 'submitted':  return { label: 'Submitted',  bg: '#3B82F620', fg: '#3B82F6' };
@@ -603,37 +697,12 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         )}
 
         {activeTab === 'Activity' && (
-          <View>
-            {engagements.length === 0 ? (
-              <View style={styles.emptyBig}>
-                <Ionicons name="briefcase-outline" size={42} color={Colors.secondaryText} />
-                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No active jobs yet</Text>
-                <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-                  Add this sub to a project from Project Detail.
-                </Text>
-              </View>
-            ) : (
-              engagements.map((e) => (
-                <TouchableOpacity
-                  key={e.id}
-                  style={styles.engagementCard}
-                  onPress={() => navigation.navigate('EngagementDetail', { engagement_id: e.id })}
-                  activeOpacity={0.85}
-                >
-                  <View style={[styles.engagementIcon, { backgroundColor: Colors.primaryBlue + '15' }]}>
-                    <Ionicons name="briefcase" size={18} color={Colors.primaryBlue} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.engagementTitle}>{e.trade}</Text>
-                    <Text style={styles.engagementMeta}>
-                      {e.contract_amount ? `$${Number(e.contract_amount).toLocaleString()}` : 'No amount set'} · {e.status}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
+          <ScheduleSection
+            engagements={engagements}
+            navigation={navigation}
+            Colors={Colors}
+            styles={styles}
+          />
         )}
 
         {activeTab === 'Invoices' && (
@@ -874,6 +943,34 @@ const makeStyles = (Colors) => StyleSheet.create({
   bidMetaChipText: { fontSize: 11, color: Colors.secondaryText, fontWeight: '600' },
   awaitingText: { fontSize: 11, color: Colors.secondaryText, fontStyle: 'italic' },
   bidSentDate: { fontSize: 11, color: Colors.secondaryText, marginLeft: 'auto' },
+  scheduleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.cardBackground || '#fff',
+    borderRadius: 12,
+    padding: 12,
+    paddingLeft: 0,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  scheduleAccent: {
+    width: 4,
+    alignSelf: 'stretch',
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  scheduleTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText, textTransform: 'capitalize' },
+  scheduleProject: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  scheduleMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  scheduleMetaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: Colors.background,
+    borderRadius: 5,
+  },
+  scheduleMetaText: { fontSize: 11, color: Colors.secondaryText, fontWeight: '600' },
   docCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.cardBackground || '#fff',
