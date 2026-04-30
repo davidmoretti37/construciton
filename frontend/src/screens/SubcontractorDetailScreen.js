@@ -86,18 +86,23 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
       const res = await api.getComplianceDocSignedUrl(doc.id);
       const url = res?.url;
       if (!url) throw new Error('No signed URL returned');
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Cannot open', 'No app available to view this document.');
-      }
+
+      const ext = (doc.file_name || doc.file_url || '').split('.').pop()?.toLowerCase();
+      const isPDF = (doc.file_mime || '').includes('pdf') || ext === 'pdf';
+      const isImage = (doc.file_mime || '').startsWith('image/') ||
+        ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'].includes(ext);
+
+      navigation.navigate('DocumentViewer', {
+        fileUrl: url,
+        fileName: doc.file_name || `${doc.doc_type}.${ext || 'pdf'}`,
+        fileType: isPDF ? 'pdf' : isImage ? 'image' : 'document',
+      });
     } catch (e) {
       Alert.alert('Could not open', e.message || 'Try again.');
     } finally {
       setOpeningDocId(null);
     }
-  }, []);
+  }, [navigation]);
 
   const load = useCallback(async () => {
     try {
