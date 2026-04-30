@@ -69,15 +69,22 @@ function StatusPill({ status }) {
   );
 }
 
-function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projectHasDraws, onBillAll, onSetUpDraws }) {
+function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projectHasDraws, onBillAll, onSetUpDraws, billedEstimateIds, drawsSetUpEstimateIds }) {
   const visual = SOURCE_VISUAL[event.source] || SOURCE_VISUAL.invoice;
   // Accepted estimates with no invoice/draws yet → render with action prompt below.
-  // This is the gap the user flagged: client accepted but no path to billing yet.
+  // Two suppression paths beyond the global flags:
+  //   1. The user just clicked "Bill it all now" on THIS estimate (optimistic).
+  //   2. The user just clicked "Set up draws" on THIS estimate (optimistic).
+  const optimisticallyResolved =
+    !!event.source_id &&
+    ((billedEstimateIds && billedEstimateIds.has(event.source_id)) ||
+     (drawsSetUpEstimateIds && drawsSetUpEstimateIds.has(event.source_id)));
   const isAcceptedEstimateNeedingAction =
     event.source === 'estimate'
     && (event.status === 'accepted' || event.raw_status === 'accepted')
     && !projectHasInvoice
-    && !projectHasDraws;
+    && !projectHasDraws
+    && !optimisticallyResolved;
 
   // Build the meta line — what makes this row actionable
   let metaLine = null;
@@ -177,6 +184,13 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
   const [loading, setLoading] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [busyAction, setBusyAction] = useState(null);
+  // Optimistic — once an estimate is billed, hide its "how do you want to
+  // bill?" prompt immediately rather than waiting for the next load() to
+  // surface the new invoice. Without this the user taps the button, sees
+  // the alert, but the prompt sticks around until the refetch resolves —
+  // which feels broken.
+  const [billedEstimateIds, setBilledEstimateIds] = useState(() => new Set());
+  const [drawsSetUpEstimateIds, setDrawsSetUpEstimateIds] = useState(() => new Set());
 
   const projectId = project?.id;
 
@@ -258,8 +272,6 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
   const handleBillAll = async (event) => {
     if (busyAction) return;
     if (!event?.source_id) {
-      // Defensive: if the event row was built without an estimate id we
-      // can't convert. Surface a real message instead of silently failing.
       Alert.alert('Cannot bill', 'No estimate is linked to this row.');
       return;
     }
@@ -268,11 +280,17 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
       const { createInvoiceFromEstimate } = require('../utils/storage/estimates');
       const inv = await createInvoiceFromEstimate(event.source_id);
       if (inv) {
+        // Optimistic: hide the "how do you want to bill?" prompt for this
+        // estimate immediately. The next load() refresh will swap the
+        // estimate row for the real invoice row.
+        setBilledEstimateIds((prev) => new Set(prev).add(event.source_id));
         Alert.alert(
           'Invoice Created',
-          `Invoice ${inv.invoice_number} created from this estimate.`,
+          `Invoice ${inv.invoice_number} created from this estimate.`
         );
-        await load();
+        // Fire the refetch in the background — the optimistic state has
+        // already updated the UI so the user sees instant feedback.
+        load().catch(() => {});
         onRefresh?.();
       } else {
         Alert.alert(
@@ -293,6 +311,12 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
     // ProjectBuilder is registered in OwnerMainNavigator + BottomTabNavigator
     // — only reachable from owner role. If a client somehow renders this card,
     // bail with a friendly message instead of crashing the navigator.
+    if (event?.source_id) {
+      // Hide the prompt for this estimate immediately — they're now in the
+      // builder configuring draws. If they back out without completing, the
+      // next load() will reveal the prompt again (stale optimism is fine).
+      setDrawsSetUpEstimateIds((prev) => new Set(prev).add(event.source_id));
+    }
     try {
       navigation.navigate('ProjectBuilder', { fromEstimateId: event.source_id });
     } catch (e) {
@@ -407,6 +431,8 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
               onSetUpDraws={handleSetUpDraws}
               projectHasInvoice={projectHasInvoice}
               projectHasDraws={projectHasDraws}
+              billedEstimateIds={billedEstimateIds}
+              drawsSetUpEstimateIds={drawsSetUpEstimateIds}
               isAction
             />
           ))}
@@ -429,6 +455,8 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
               onSetUpDraws={handleSetUpDraws}
               projectHasInvoice={projectHasInvoice}
               projectHasDraws={projectHasDraws}
+              billedEstimateIds={billedEstimateIds}
+              drawsSetUpEstimateIds={drawsSetUpEstimateIds}
             />
           ))}
         </View>
@@ -457,6 +485,8 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
               onSetUpDraws={handleSetUpDraws}
               projectHasInvoice={projectHasInvoice}
               projectHasDraws={projectHasDraws}
+              billedEstimateIds={billedEstimateIds}
+              drawsSetUpEstimateIds={drawsSetUpEstimateIds}
             />
           ))}
         </View>
@@ -531,25 +561,33 @@ const styles = StyleSheet.create({
   // Accepted-estimate "what next" prompt — appears beneath the estimate row
   // when client accepted but no invoice/draws exist on the project yet.
   acceptedPrompt: {
-    backgroundColor: C.primaryLight,
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 6,
+    // Compact prompt — sits just under the estimate row, no background
+    // tint or extra padding so it reads as a continuation of the row.
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: 0,
     marginLeft: 40,
+    marginRight: 0,
+    marginTop: 0,
   },
-  acceptedPromptTitle: { fontSize: 13, fontWeight: '700', color: C.primary, marginBottom: 8 },
-  acceptedPromptButtons: { flexDirection: 'row', gap: 8 },
+  acceptedPromptTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.textSec,
+    marginBottom: 6,
+  },
+  acceptedPromptButtons: { flexDirection: 'row', gap: 6 },
   acceptedBtnSecondary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.primary, borderRadius: 8,
-    paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    backgroundColor: 'transparent', borderWidth: 1, borderColor: C.primary, borderRadius: 6,
+    paddingVertical: 6, paddingHorizontal: 10,
   },
-  acceptedBtnSecondaryText: { fontSize: 12, fontWeight: '700', color: C.primary },
+  acceptedBtnSecondaryText: { fontSize: 11, fontWeight: '600', color: C.primary },
   acceptedBtnPrimary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: C.primary, borderRadius: 8, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    backgroundColor: C.primary, borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10,
   },
-  acceptedBtnPrimaryText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  acceptedBtnPrimaryText: { fontSize: 11, fontWeight: '600', color: '#fff' },
 
   emptyMsg: {
     fontSize: 13, color: C.textMuted, fontStyle: 'italic',
