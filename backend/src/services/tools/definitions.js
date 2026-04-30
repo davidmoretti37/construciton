@@ -2262,6 +2262,20 @@ const toolDefinitions = [
   {
     type: 'function',
     function: {
+      name: 'import_qbo_expense_history',
+      description: 'Import historical QuickBooks Bills as project_transactions (expense type). Best-effort vendor → worker → project linking. Bills without a clear project link fall into an unallocated bucket the user can re-categorize from the UI later. Default last 12 months.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dry_run: { type: 'boolean' },
+          months_back: { type: 'integer', description: 'How far back. Default 12, max 60.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'preview_monday_board',
       description: 'Preview a Monday board: schema (column titles + types), sample items, and a suggested column→field mapping (name/client/budget/address/dates). Call before import_monday_projects so the user can confirm or correct the mapping.',
       parameters: {
@@ -2838,6 +2852,7 @@ const TOOL_STATUS_MESSAGES = {
   import_qbo_service_catalog: 'Importing your service catalog...',
   import_qbo_projects: 'Importing projects from QuickBooks...',
   import_qbo_invoice_history: 'Pulling invoice history...',
+  import_qbo_expense_history: 'Pulling vendor bill history...',
   preview_monday_board: 'Previewing Monday board...',
   import_monday_projects: 'Importing projects from Monday...',
   csv_preview: 'Previewing your spreadsheet...',

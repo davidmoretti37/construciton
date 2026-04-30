@@ -78,6 +78,7 @@ const TOOL_METADATA = Object.freeze({
   import_qbo_service_catalog:{ category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
   import_qbo_projects:       { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
   import_qbo_invoice_history:{ category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
+  import_qbo_expense_history:{ category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },
   preview_monday_board:      { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'monday'] },
   import_monday_projects:    { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'monday'] },
   csv_preview:               { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'csv'] },
