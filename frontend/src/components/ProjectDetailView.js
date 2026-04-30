@@ -3102,6 +3102,30 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     }
                     return;
                   }
+                  // Convert-to-invoice button on accepted estimates.
+                  if (action?.type === 'convert-estimate-to-invoice') {
+                    try {
+                      const { createInvoiceFromEstimate } = require('../utils/storage/estimates');
+                      const inv = await createInvoiceFromEstimate(action.data?.id || action.data?.estimateId);
+                      if (inv) {
+                        Alert.alert(
+                          'Invoice Created',
+                          `Invoice ${inv.invoice_number} created from this estimate.`,
+                          [{ text: 'OK', onPress: () => {
+                            setShowEstimateModal(false);
+                            // Refresh project so new invoice appears in BillingCard
+                            onRefreshNeeded && onRefreshNeeded();
+                          }}]
+                        );
+                      } else {
+                        Alert.alert('Error', 'Could not create invoice. The estimate may already be converted.');
+                      }
+                    } catch (e) {
+                      Alert.alert('Error', e.message || 'Failed to create invoice');
+                    }
+                    return;
+                  }
+
                   // Default: close the modal for unhandled actions
                   setShowEstimateModal(false);
                 }}
