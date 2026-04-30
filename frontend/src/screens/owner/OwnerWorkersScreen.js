@@ -970,7 +970,7 @@ export default function OwnerWorkersScreen() {
                           <Text style={[styles.subName, { color: Colors.primaryText }]}>{sub.legal_name}</Text>
                           <Text style={[styles.subMeta, { color: Colors.secondaryText }]}>
                             {(sub.trades || []).join(', ') || '—'}
-                            {sub.engagements?.length ? ` · ${sub.engagements.length} engagement${sub.engagements.length === 1 ? '' : 's'}` : ''}
+                            {sub.engagements?.length ? ` · ${sub.engagements.length} active job${sub.engagements.length === 1 ? '' : 's'}` : ''}
                           </Text>
                         </View>
                         <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />

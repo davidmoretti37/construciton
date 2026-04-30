@@ -19,7 +19,7 @@ const SUB_VIOLET = '#8B5CF6';
 
 const FILTERS = [
   { key: 'all',         label: 'All' },
-  { key: 'engagements', label: 'Engagements' },
+  { key: 'engagements', label: 'Activity' },
   { key: 'bids',        label: 'Bids' },
   { key: 'invoices',    label: 'Invoices' },
 ];
@@ -80,7 +80,7 @@ export default function SubWorkTab() {
       <Text style={styles.headerTitle}>Work</Text>
       <Text style={styles.headerSub}>
         {totalActive === 0
-          ? 'Nothing here yet — bids and engagements will show up once a contractor sends you something.'
+          ? 'Nothing here yet — bids and active jobs will show up once a contractor sends you something.'
           : `${totalActive} item${totalActive === 1 ? '' : 's'} across your contractors.`}
       </Text>
 
@@ -108,7 +108,7 @@ export default function SubWorkTab() {
 
       {/* Engagements */}
       {showEngagements && (
-        <Section title="Engagements" empty={engagements.length === 0 ? 'No active engagements yet.' : null} Colors={Colors}>
+        <Section title="Activity" empty={engagements.length === 0 ? 'No active jobs yet.' : null} Colors={Colors}>
           {engagements.map((e) => (
             <View key={e.id} style={styles.card}>
               <View style={styles.cardHeader}>
@@ -116,7 +116,7 @@ export default function SubWorkTab() {
                   <Ionicons name="briefcase" size={20} color={SUB_VIOLET} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>{e.trade || 'Engagement'}</Text>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{e.trade || 'Active job'}</Text>
                   <Text style={styles.cardMeta}>
                     {e.contract_amount ? `$${Number(e.contract_amount).toLocaleString()}` : 'Amount TBD'}
                     {e.payment_terms ? `  ·  ${e.payment_terms.replace(/_/g, ' ')}` : ''}

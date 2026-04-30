@@ -22,7 +22,7 @@ const TABS = [
   { key: 'Overview',    icon: 'person-outline',          activeIcon: 'person' },
   { key: 'Documents',   icon: 'folder-outline',          activeIcon: 'folder' },
   { key: 'Bids',        icon: 'mail-outline',            activeIcon: 'mail' },
-  { key: 'Engagements', icon: 'briefcase-outline',       activeIcon: 'briefcase' },
+  { key: 'Activity',    icon: 'briefcase-outline',       activeIcon: 'briefcase' },
   { key: 'Invoices',    icon: 'cash-outline',            activeIcon: 'cash' },
 ];
 
@@ -442,12 +442,12 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {activeTab === 'Engagements' && (
+        {activeTab === 'Activity' && (
           <View>
             {engagements.length === 0 ? (
               <View style={styles.emptyBig}>
                 <Ionicons name="briefcase-outline" size={42} color={Colors.secondaryText} />
-                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No engagements yet</Text>
+                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No active jobs yet</Text>
                 <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
                   Add this sub to a project from Project Detail.
                 </Text>
@@ -479,9 +479,9 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         {activeTab === 'Invoices' && (
           <View style={styles.emptyBig}>
             <Ionicons name="cash-outline" size={42} color={Colors.secondaryText} />
-            <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>Invoices live on the engagement</Text>
+            <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>Invoices live on each job</Text>
             <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-              Tap an engagement to see invoices, payments, and balance.
+              Tap a job under Activity to see invoices, payments, and balance.
             </Text>
           </View>
         )}
