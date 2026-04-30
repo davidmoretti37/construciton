@@ -181,6 +181,11 @@ const TOOL_HANDLERS = {
   request_compliance_doc_from_sub: subs.request_compliance_doc_from_sub,
   request_msa_signature: subs.request_msa_signature,
   send_bid_invitation: subs.send_bid_invitation,
+  // Polish
+  get_bid_request: subs.get_bid_request,
+  accept_bid: subs.accept_bid,
+  decline_bid: subs.decline_bid,
+  verify_compliance_doc: subs.verify_compliance_doc,
 
   // SMS tools — disabled at the product level. Re-enable by uncommenting:
   // list_unread_sms: sms.list_unread_sms,

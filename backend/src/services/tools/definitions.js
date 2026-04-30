@@ -2702,6 +2702,65 @@ const toolDefinitions = [
         }
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_bid_request',
+      description: 'Get one bid request with every submitted bid, sorted lowest-first. Use after send_bid_invitation when the user wants to review responses ("how are the bids on the plumbing job?", "compare the framing bids"). Returns each bid\'s amount, timeline, exclusions, alternates, and status so the agent can recommend a winner.',
+      parameters: {
+        type: 'object',
+        required: ['bid_request_id'],
+        properties: {
+          bid_request_id: { type: 'string', description: 'UUID of the bid request.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'accept_bid',
+      description: 'EXTERNAL_WRITE — award a specific bid. The accepted sub gets notified, the bid_request is marked awarded, a sub_engagement is created linking the sub to the project at the bid amount, other bids on this request flip to declined automatically. **You MUST get explicit confirmation in the SAME TURN before calling.** Show "Award the [trade] job to [sub] for $[amount]? Other bidders will be auto-declined." and wait for explicit yes.',
+      parameters: {
+        type: 'object',
+        required: ['bid_id'],
+        properties: {
+          bid_id: { type: 'string', description: 'UUID of the sub_bid to accept.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'decline_bid',
+      description: 'Decline a single submitted bid (other bids stay alive). Use to thin the field before picking a winner, or to reject obviously-uncompetitive bids. The sub gets notified.',
+      parameters: {
+        type: 'object',
+        required: ['bid_id'],
+        properties: {
+          bid_id: { type: 'string', description: 'UUID of the sub_bid to decline.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'verify_compliance_doc',
+      description: 'Mark a recorded compliance document (COI, W-9, license, etc.) as verified or rejected after manual review. Use when the user says "the COI checks out" / "verify Smith Plumbing\'s insurance" or after a doc upload they want approved. Reject path requires a reason. Logs verified_by + verified_at for audit.',
+      parameters: {
+        type: 'object',
+        required: ['document_id', 'verification_status'],
+        properties: {
+          document_id: { type: 'string', description: 'UUID of the compliance_documents row.' },
+          verification_status: { type: 'string', enum: ['verified', 'rejected'] },
+          rejection_reason: { type: 'string', description: 'Required when rejecting. Free text explaining why (e.g. "expired", "wrong named insured", "not a notarized W-9").' },
+          verification_method: { type: 'string', description: "Default 'manual_review'. Use 'automated' if you used a verification API, 'auto_scan' if pulled from OCR, etc." }
+        }
+      }
+    }
   }
 ];
 
@@ -2723,6 +2782,10 @@ const TOOL_STATUS_MESSAGES = {
   record_payment: 'Recording payment...',
   request_compliance_doc_from_sub: 'Sending document request...',
   request_msa_signature: 'Sending MSA for signature...',
+  get_bid_request: 'Loading bids...',
+  accept_bid: 'Awarding bid + notifying winner...',
+  decline_bid: 'Declining bid...',
+  verify_compliance_doc: 'Updating verification status...',
   send_bid_invitation: 'Sending bid invitations...',
   // Granular tools
   search_projects: 'Looking up your projects...',

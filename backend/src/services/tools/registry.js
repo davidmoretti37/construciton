@@ -225,6 +225,10 @@ const TOOL_METADATA = Object.freeze({
   request_compliance_doc_from_sub: { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'communication', 'external'] },
   request_msa_signature:           { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'communication', 'external', 'esign'] },
   send_bid_invitation:             { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.HAIKU, tags: ['subs', 'communication', 'external', 'bidding'] },
+  get_bid_request:                 { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'bidding'] },
+  accept_bid:                      { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'bidding', 'mutation', 'external'] },
+  decline_bid:                     { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'bidding', 'mutation'] },
+  verify_compliance_doc:           { category: CATEGORIES.SUBS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['subs', 'compliance', 'mutation'] },
 });
 
 // ─────────────────────────────────────────────────────────────────

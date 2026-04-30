@@ -268,6 +268,169 @@ async function send_bid_invitation(userId, { project_id, trade, scope_summary, s
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Polish: bid review + compliance verification
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * One bid request with every submitted bid lined up for comparison.
+ * Each bid carries amount, timeline, exclusions, alternates, status.
+ * Used after send_bid_invitation when the user wants to review responses.
+ */
+async function get_bid_request(userId, { bid_request_id }) {
+  if (!bid_request_id) return { error: 'bid_request_id is required' };
+  try {
+    const { biddingService } = getSubServices();
+    const { data: br, error } = await supabase
+      .from('bid_requests')
+      .select('id, gc_user_id, project_id, trade, scope_summary, due_at, payment_terms, status, awarded_bid_id, created_at')
+      .eq('id', bid_request_id)
+      .maybeSingle();
+    if (error) return userSafeError(error, "Couldn't load bid request.");
+    if (!br) return { error: 'Bid request not found' };
+    if (br.gc_user_id !== userId) return { error: 'Access denied' };
+
+    const bids = await biddingService.listBidsForRequest({
+      bidRequestId: bid_request_id,
+      gcUserId: userId,
+    });
+
+    // Normalize for the agent: sort lowest-bid first when status=submitted.
+    const submitted = (bids || []).filter((b) => b.status === 'submitted')
+      .sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
+    const others = (bids || []).filter((b) => b.status !== 'submitted');
+
+    return {
+      success: true,
+      bid_request: {
+        id: br.id,
+        project_id: br.project_id,
+        trade: br.trade,
+        scope_summary: br.scope_summary,
+        due_at: br.due_at,
+        payment_terms: br.payment_terms,
+        status: br.status,
+        awarded_bid_id: br.awarded_bid_id,
+        created_at: br.created_at,
+      },
+      bid_count: bids?.length || 0,
+      bids: [...submitted, ...others].map((b) => ({
+        id: b.id,
+        sub_organization_id: b.sub_organization_id,
+        sub_name: b.sub_name || null,
+        amount: b.amount != null ? parseFloat(b.amount) : null,
+        timeline_days: b.timeline_days,
+        exclusions: b.exclusions || null,
+        alternates: b.alternates || null,
+        notes: b.notes || null,
+        status: b.status,
+        submitted_at: b.submitted_at,
+        decided_at: b.decided_at,
+      })),
+    };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+/**
+ * Accept one submitted bid → awards it, marks others declined,
+ * creates a sub_engagement linking the chosen sub to the project.
+ * EXTERNAL_WRITE because it notifies the awarded sub by email.
+ */
+async function accept_bid(userId, { bid_id }) {
+  const gate = await requireSupervisorPermission(userId, 'can_create_invoices');
+  if (gate) return gate;
+  if (!bid_id) return { error: 'bid_id is required' };
+  try {
+    const { biddingService } = getSubServices();
+    const result = await biddingService.acceptBid({ bidId: bid_id, gcUserId: userId });
+    return { success: true, ...result };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+/**
+ * Decline a single bid (the others stay alive). Useful when the user
+ * wants to thin the list before picking a winner.
+ */
+async function decline_bid(userId, { bid_id }) {
+  const gate = await requireSupervisorPermission(userId, 'can_create_invoices');
+  if (gate) return gate;
+  if (!bid_id) return { error: 'bid_id is required' };
+  try {
+    const { biddingService } = getSubServices();
+    await biddingService.declineBid({ bidId: bid_id, gcUserId: userId });
+    return { success: true, bid_id };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+/**
+ * Mark a recorded compliance document as verified (or rejected with a
+ * reason). Used after manual review of a COI / W-9 / license. The
+ * verified_by audit trail captures who clicked.
+ */
+async function verify_compliance_doc(userId, { document_id, verification_status, rejection_reason, verification_method = 'manual_review' }) {
+  const gate = await requireSupervisorPermission(userId, 'can_manage_workers');
+  if (gate) return gate;
+  if (!document_id) return { error: 'document_id is required' };
+  if (!['verified', 'rejected'].includes(verification_status)) {
+    return { error: "verification_status must be 'verified' or 'rejected'" };
+  }
+  if (verification_status === 'rejected' && !rejection_reason) {
+    return { error: 'rejection_reason is required when rejecting' };
+  }
+
+  // Confirm the doc belongs to a sub the user GC'd at some point.
+  // (compliance_documents is keyed by sub_organization_id, not user_id —
+  // we authorize via sub_engagements.gc_user_id.)
+  const { data: doc } = await supabase
+    .from('compliance_documents')
+    .select('id, sub_organization_id, doc_type, expires_at, status')
+    .eq('id', document_id)
+    .maybeSingle();
+  if (!doc) return { error: 'Document not found' };
+
+  const { data: ownerLink } = await supabase
+    .from('sub_engagements')
+    .select('id')
+    .eq('sub_organization_id', doc.sub_organization_id)
+    .eq('gc_user_id', userId)
+    .limit(1)
+    .maybeSingle();
+  if (!ownerLink) return { error: 'Access denied — this sub has no engagement under your account.' };
+
+  const updates = {
+    verification_status,
+    verified_at: new Date().toISOString(),
+    verified_by: userId,
+    verification_method,
+    rejection_reason: verification_status === 'rejected' ? rejection_reason : null,
+  };
+
+  const { data: updated, error } = await supabase
+    .from('compliance_documents')
+    .update(updates)
+    .eq('id', document_id)
+    .select('id, doc_type, verification_status, expires_at, rejection_reason')
+    .single();
+  if (error) return userSafeError(error, "Couldn't update verification.");
+
+  return {
+    success: true,
+    document: {
+      id: updated.id,
+      doc_type: updated.doc_type,
+      verification_status: updated.verification_status,
+      expires_at: updated.expires_at,
+      rejection_reason: updated.rejection_reason,
+    },
+  };
+}
+
 module.exports = {
   list_subs, get_sub, get_sub_compliance,
   list_engagements, get_engagement,
@@ -275,4 +438,6 @@ module.exports = {
   add_sub_to_project, record_compliance_doc, record_payment,
   request_compliance_doc_from_sub, request_msa_signature,
   send_bid_invitation,
+  // Polish
+  get_bid_request, accept_bid, decline_bid, verify_compliance_doc,
 };
