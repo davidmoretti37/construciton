@@ -111,8 +111,6 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
   const [siteVisitNotes, setSiteVisitNotes] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState([]);
   // each item: { localId, uri, name, mime, size, base64, type, uploading? }
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerType, setPickerType] = useState('plan');
 
   // STEP 3 — scope
   const [scope, setScope] = useState('');
@@ -189,25 +187,22 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     }
   };
 
-  // iOS only allows one document/image picker at a time. Modal close + picker
-  // open must not race — close, wait for the slide-out animation, then open.
-  // The ref guards against double-tap (e.g. user tapping "Pick a PDF" twice).
+  // iOS only allows one document/image picker session at a time. Avoid using
+  // a custom RN Modal as a chooser (it races with the system picker). For
+  // photos we show a native Alert.alert action sheet; for docs we open the
+  // system picker directly. pickerBusyRef guards against double-taps.
   const pickerBusyRef = useRef(false);
-  const closeModalAndWait = async () => {
-    setPickerOpen(false);
-    await new Promise((r) => setTimeout(r, 300));
-  };
 
-  const onPickPDF = async () => {
+  const pickDocument = async (type) => {
     if (pickerBusyRef.current) return;
     pickerBusyRef.current = true;
-    await closeModalAndWait();
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf'],
+        type: ['application/pdf', 'image/*'],
         copyToCacheDirectory: true,
+        multiple: false,
       });
-      if (!result.canceled) await addPickedFile(result.assets?.[0], pickerType);
+      if (!result.canceled) await addPickedFile(result.assets?.[0], type);
     } catch (e) {
       Alert.alert('Could not pick file', e.message);
     } finally {
@@ -215,27 +210,9 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     }
   };
 
-  const onPickImage = async () => {
+  const takePhoto = async () => {
     if (pickerBusyRef.current) return;
     pickerBusyRef.current = true;
-    await closeModalAndWait();
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.85,
-      });
-      if (!result.canceled) await addPickedFile(result.assets?.[0], pickerType);
-    } catch (e) {
-      Alert.alert('Could not pick image', e.message);
-    } finally {
-      pickerBusyRef.current = false;
-    }
-  };
-
-  const onTakePhoto = async () => {
-    if (pickerBusyRef.current) return;
-    pickerBusyRef.current = true;
-    await closeModalAndWait();
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) { Alert.alert('Camera permission needed'); return; }
@@ -253,6 +230,40 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     } finally {
       pickerBusyRef.current = false;
     }
+  };
+
+  const pickFromLibrary = async () => {
+    if (pickerBusyRef.current) return;
+    pickerBusyRef.current = true;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+      });
+      if (!result.canceled) await addPickedFile(result.assets?.[0], 'photo');
+    } catch (e) {
+      Alert.alert('Could not pick image', e.message);
+    } finally {
+      pickerBusyRef.current = false;
+    }
+  };
+
+  const promptPhotoSource = () => {
+    Alert.alert(
+      'Add a site photo',
+      null,
+      [
+        { text: 'Take a photo', onPress: takePhoto },
+        { text: 'Pick from library', onPress: pickFromLibrary },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  const onAttachmentTypePress = (type) => {
+    if (type === 'photo') promptPhotoSource();
+    else pickDocument(type);
   };
 
   const removeAttachment = (localId) => {
@@ -555,7 +566,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                 <TouchableOpacity
                   key={t.key}
                   style={styles.attachTypeBtn}
-                  onPress={() => { setPickerType(t.key); setPickerOpen(true); }}
+                  onPress={() => onAttachmentTypePress(t.key)}
                   activeOpacity={0.8}
                 >
                   <Ionicons name={t.icon} size={20} color={SUB_VIOLET} />
@@ -811,68 +822,9 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      {/* Attachment source picker */}
-      <Modal visible={pickerOpen} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          onPress={() => setPickerOpen(false)}
-          activeOpacity={1}
-        >
-          <View style={[styles.pickerSheet, { backgroundColor: Colors.cardBackground }]}>
-            <Text style={styles.pickerTitle}>
-              Add {ATTACHMENT_TYPES.find((t) => t.key === pickerType)?.label.toLowerCase()}
-            </Text>
-            {pickerType === 'photo' ? (
-              <>
-                <PickerOption icon="camera" label="Take a photo" onPress={onTakePhoto} Colors={Colors} />
-                <PickerOption icon="images" label="Pick from library" onPress={onPickImage} Colors={Colors} />
-              </>
-            ) : (
-              <>
-                <PickerOption icon="document-text" label="Pick a PDF" onPress={onPickPDF} Colors={Colors} />
-                <PickerOption icon="images" label="Pick an image" onPress={onPickImage} Colors={Colors} />
-              </>
-            )}
-            <TouchableOpacity
-              style={styles.pickerCancel}
-              onPress={() => setPickerOpen(false)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.pickerCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </SafeAreaView>
   );
 }
-
-function PickerOption({ icon, label, onPress, Colors }) {
-  return (
-    <TouchableOpacity
-      style={pickerOptionStyles.row}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Ionicons name={icon} size={22} color={SUB_VIOLET} />
-      <Text style={[pickerOptionStyles.label, { color: Colors.primaryText }]}>{label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-    </TouchableOpacity>
-  );
-}
-
-const pickerOptionStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    gap: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
-  },
-  label: { flex: 1, fontSize: 15, fontWeight: '500' },
-});
 
 const makeStyles = (Colors) => StyleSheet.create({
   root: { flex: 1 },
