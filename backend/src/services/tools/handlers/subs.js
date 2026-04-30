@@ -549,11 +549,14 @@ async function add_project_document(userId, args) {
       .from('project_documents')
       .insert({
         project_id: projectId,
-        user_id: userId,
-        title,
+        uploaded_by: userId,
+        // No `title` column on this table — store title in file_name as the
+        // human-facing label and the original filename in notes if different.
+        file_name: title,
         file_url,
-        file_name: file_name || title,
+        file_type: category === 'photo' ? 'image' : (category === 'plan' || category === 'contract' || category === 'spec' ? 'pdf' : 'document'),
         category,
+        notes: file_name && file_name !== title ? `Original filename: ${file_name}` : null,
         visible_to_subs,
         visible_to_workers,
         visible_to_clients,

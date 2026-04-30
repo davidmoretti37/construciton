@@ -55,7 +55,11 @@ async function userCanAccessDocument(userId, documentId) {
 router.post('/upload', auditLog({ entityType: 'document', table: 'project_documents', action: 'create', skipBefore: true }), async (req, res) => {
   try {
     const userId = req.user.id;
-    const { projectId, fileName, mimeType, base64, kind } = req.body || {};
+    const {
+      projectId, fileName, mimeType, base64, kind,
+      title, visible_to_subs = false, visible_to_workers = false,
+      visible_to_clients = false, is_important = false,
+    } = req.body || {};
 
     if (!projectId) return res.status(400).json({ error: 'projectId required' });
     if (!fileName) return res.status(400).json({ error: 'fileName required' });
@@ -100,14 +104,18 @@ router.post('/upload', auditLog({ entityType: 'document', table: 'project_docume
       .from('project_documents')
       .insert({
         project_id: projectId,
-        file_name: fileName,
+        file_name: title || fileName,  // use title as display name; falls back to filename
         file_url: storagePath,
         file_type: fileType,
         category: resolvedKind,
         uploaded_by: userId,
-        visible_to_workers: false,
+        notes: title && title !== fileName ? `Original filename: ${fileName}` : null,
+        visible_to_workers: !!visible_to_workers,
+        visible_to_subs: !!visible_to_subs,
+        visible_to_clients: !!visible_to_clients,
+        is_important: !!is_important,
       })
-      .select('id, file_name, file_type, category, file_url, created_at')
+      .select('id, file_name, file_type, category, file_url, visible_to_subs, visible_to_workers, visible_to_clients, is_important, created_at')
       .single();
 
     if (dbErr) {
