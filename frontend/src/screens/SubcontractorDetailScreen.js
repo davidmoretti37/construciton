@@ -126,7 +126,10 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         api.getSub(sub_organization_id),
         api.listComplianceDocs(sub_organization_id),
         api.listEngagements(),
-        api.listBidHistoryForSub(sub_organization_id).catch(() => []),
+        api.listBidHistoryForSub(sub_organization_id).catch((err) => {
+          console.warn('[SubcontractorDetail] bid-history failed:', err.message);
+          return [];
+        }),
       ]);
       setSub(subRes.sub_organization);
       setDocs(docList);
