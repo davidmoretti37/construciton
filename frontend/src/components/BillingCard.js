@@ -257,6 +257,12 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
   // invoice) OR set up draws (project-level milestone billing).
   const handleBillAll = async (event) => {
     if (busyAction) return;
+    if (!event?.source_id) {
+      // Defensive: if the event row was built without an estimate id we
+      // can't convert. Surface a real message instead of silently failing.
+      Alert.alert('Cannot bill', 'No estimate is linked to this row.');
+      return;
+    }
     setBusyAction(event.id);
     try {
       const { createInvoiceFromEstimate } = require('../utils/storage/estimates');
@@ -269,10 +275,13 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
         await load();
         onRefresh?.();
       } else {
-        Alert.alert('Error', 'Could not create invoice. The estimate may already be converted.');
+        Alert.alert(
+          "Couldn't create invoice",
+          'The estimate may already be converted, or the data is missing fields. Open the estimate directly and try from there.'
+        );
       }
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to create invoice');
+      Alert.alert('Error', e?.message || 'Failed to create invoice');
     } finally {
       setBusyAction(null);
     }
