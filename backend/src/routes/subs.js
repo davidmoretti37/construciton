@@ -214,4 +214,71 @@ router.post('/:id/request-doc', authenticateUser, async (req, res) => {
   }
 });
 
+// =============================================================================
+// GET /api/subs/:id/bid-history
+// =============================================================================
+// Returns bid_requests where THIS sub was invited (by THIS GC), with each
+// request's bid from the sub (if any) and a count of all bids on that
+// request — so the GC can see the full thread.
+
+router.get('/:id/bid-history', authenticateUser, async (req, res) => {
+  try {
+    // Access check (GC must be linked to this sub via creator or engagement)
+    const sub = await subOrgService.getSubForGc({
+      subOrgId: req.params.id,
+      gcUserId: req.user.id,
+    });
+    if (!sub) return res.status(404).json({ error: 'Sub not found or access denied' });
+
+    // Find all invitations for this sub, joined to the bid_request
+    const { data: invites } = await supabase
+      .from('bid_request_invitations')
+      .select(`
+        bid_request:bid_requests (
+          id, gc_user_id, project_id, trade, scope_summary,
+          status, created_at, due_at,
+          site_address, site_city, site_state_code,
+          project:projects (id, name, location)
+        )
+      `)
+      .eq('sub_organization_id', sub.id);
+
+    const requests = (invites || [])
+      .map((r) => r.bid_request)
+      .filter((r) => r && r.gc_user_id === req.user.id);
+
+    // For each request, fetch this sub's bid (if any) + total bid count
+    const enriched = await Promise.all(requests.map(async (br) => {
+      const [{ data: myBid }, { count: bidCount }] = await Promise.all([
+        supabase
+          .from('sub_bids')
+          .select('id, amount, timeline_days, status, submitted_at, exclusions, notes')
+          .eq('bid_request_id', br.id)
+          .eq('sub_organization_id', sub.id)
+          .maybeSingle(),
+        supabase
+          .from('sub_bids')
+          .select('id', { count: 'exact', head: true })
+          .eq('bid_request_id', br.id),
+      ]);
+      const { count: attachmentCount } = await supabase
+        .from('bid_request_attachments')
+        .select('id', { count: 'exact', head: true })
+        .eq('bid_request_id', br.id);
+      return {
+        ...br,
+        my_bid: myBid || null,
+        total_bids: bidCount || 0,
+        attachment_count: attachmentCount || 0,
+      };
+    }));
+
+    enriched.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return res.json({ bid_requests: enriched });
+  } catch (err) {
+    logger.error('[subs] bid-history error:', err);
+    return res.status(500).json({ error: 'Failed to load bid history' });
+  }
+});
+
 module.exports = router;

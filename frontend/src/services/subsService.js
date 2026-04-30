@@ -115,6 +115,11 @@ export const createBidRequest = (payload) =>
 export const generateBidScope = (payload) =>
   authedFetch('/api/bid-requests/generate-scope', { method: 'POST', body: JSON.stringify(payload) });
 
+export const listBidHistoryForSub = async (subOrgId) => {
+  const json = await authedFetch(`/api/subs/${subOrgId}/bid-history`);
+  return json.bid_requests || [];
+};
+
 export const uploadBidAttachment = (bidRequestId, payload) =>
   authedFetch(`/api/bid-requests/${bidRequestId}/attachments`, {
     method: 'POST',

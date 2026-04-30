@@ -14,6 +14,7 @@ import {
   ActivityIndicator, RefreshControl, Alert, Linking, Modal, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
@@ -48,6 +49,20 @@ function getInitials(name) {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
+function bidPill(status) {
+  switch (status) {
+    case 'submitted':  return { label: 'Submitted',  bg: '#3B82F620', fg: '#3B82F6' };
+    case 'accepted':   return { label: 'Accepted',   bg: '#10B98120', fg: '#10B981' };
+    case 'declined':
+    case 'rejected':   return { label: 'Declined',   bg: '#DC262620', fg: '#DC2626' };
+    case 'withdrawn':  return { label: 'Withdrawn',  bg: '#6B728020', fg: '#6B7280' };
+    case 'open':       return { label: 'Awaiting',   bg: '#F59E0B20', fg: '#F59E0B' };
+    case 'closed':     return { label: 'Closed',     bg: '#6B728020', fg: '#6B7280' };
+    case 'cancelled':  return { label: 'Cancelled',  bg: '#6B728020', fg: '#6B7280' };
+    default:           return { label: status || '—', bg: '#6B728020', fg: '#6B7280' };
+  }
+}
+
 function statusForDoc(d, Colors) {
   if (!d.expires_at) return { label: 'Active', color: Colors.successGreen, bg: Colors.successGreen + '15' };
   const now = new Date();
@@ -66,6 +81,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
   const [sub, setSub] = useState(null);
   const [docs, setDocs] = useState([]);
   const [engagements, setEngagements] = useState([]);
+  const [bidHistory, setBidHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('Overview');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -106,14 +122,16 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
 
   const load = useCallback(async () => {
     try {
-      const [subRes, docList, engs] = await Promise.all([
+      const [subRes, docList, engs, bidList] = await Promise.all([
         api.getSub(sub_organization_id),
         api.listComplianceDocs(sub_organization_id),
         api.listEngagements(),
+        api.listBidHistoryForSub(sub_organization_id).catch(() => []),
       ]);
       setSub(subRes.sub_organization);
       setDocs(docList);
       setEngagements(engs.filter((e) => e.sub_organization_id === sub_organization_id));
+      setBidHistory(bidList);
     } catch (e) {
       console.warn('[SubcontractorDetail] load:', e.message);
     } finally {
@@ -123,6 +141,9 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
   }, [sub_organization_id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Reload when navigating back to this screen (e.g. after sending a bid).
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const onSendRequest = async () => {
     if (!requestingType) return;
@@ -450,13 +471,69 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#fff" />
             </TouchableOpacity>
-            <View style={[styles.emptyBig, { paddingTop: 28 }]}>
-              <Ionicons name="mail-outline" size={42} color={Colors.secondaryText} />
-              <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No bid history</Text>
-              <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-                Bids this sub submits will show here.
-              </Text>
-            </View>
+
+            {bidHistory.length === 0 ? (
+              <View style={[styles.emptyBig, { paddingTop: 28 }]}>
+                <Ionicons name="mail-outline" size={42} color={Colors.secondaryText} />
+                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No bids sent yet</Text>
+                <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
+                  Bid invitations and responses will show here.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: 18 }]}>History</Text>
+                {bidHistory.map((br) => {
+                  const status = br.my_bid?.status || br.status; // sub's bid status takes precedence
+                  const pill = bidPill(status);
+                  return (
+                    <View key={br.id} style={styles.bidCard}>
+                      <View style={styles.bidCardHeader}>
+                        <View style={[styles.bidIconWrap, { backgroundColor: '#0EA5E915' }]}>
+                          <Ionicons name="mail" size={20} color="#0EA5E9" />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={styles.bidCardTitle} numberOfLines={1}>
+                            {br.trade}
+                          </Text>
+                          <Text style={styles.bidCardMeta} numberOfLines={1}>
+                            {br.project?.name || 'Project'}
+                            {br.due_at ? ` · due ${new Date(br.due_at).toLocaleDateString()}` : ''}
+                          </Text>
+                        </View>
+                        <View style={[styles.bidStatusPill, { backgroundColor: pill.bg }]}>
+                          <Text style={[styles.bidStatusText, { color: pill.fg }]}>{pill.label}</Text>
+                        </View>
+                      </View>
+                      {br.scope_summary ? (
+                        <Text style={styles.bidCardBody} numberOfLines={2}>{br.scope_summary}</Text>
+                      ) : null}
+                      <View style={styles.bidCardFooter}>
+                        {br.attachment_count > 0 && (
+                          <View style={styles.bidMetaChip}>
+                            <Ionicons name="attach" size={12} color={Colors.secondaryText} />
+                            <Text style={styles.bidMetaChipText}>{br.attachment_count}</Text>
+                          </View>
+                        )}
+                        {br.my_bid ? (
+                          <View style={[styles.bidMetaChip, { backgroundColor: '#10B98115' }]}>
+                            <Ionicons name="cash" size={12} color="#10B981" />
+                            <Text style={[styles.bidMetaChipText, { color: '#10B981', fontWeight: '700' }]}>
+                              ${Number(br.my_bid.amount).toLocaleString()}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.awaitingText}>Awaiting response</Text>
+                        )}
+                        <Text style={styles.bidSentDate}>
+                          Sent {new Date(br.created_at).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            )}
           </View>
         )}
 
@@ -704,6 +781,34 @@ const makeStyles = (Colors) => StyleSheet.create({
   },
   getBidsTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
   getBidsBody: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
+  bidCard: {
+    backgroundColor: Colors.cardBackground || '#fff',
+    borderRadius: 14, padding: 14, marginBottom: 10,
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+  },
+  bidCardHeader: { flexDirection: 'row', alignItems: 'center' },
+  bidIconWrap: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  bidCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.primaryText, textTransform: 'capitalize' },
+  bidCardMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  bidCardBody: { fontSize: 13, color: Colors.primaryText, marginTop: 10, lineHeight: 19 },
+  bidCardFooter: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  bidStatusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  bidStatusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  bidMetaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#6B728010', paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 5,
+  },
+  bidMetaChipText: { fontSize: 11, color: Colors.secondaryText, fontWeight: '600' },
+  awaitingText: { fontSize: 11, color: Colors.secondaryText, fontStyle: 'italic' },
+  bidSentDate: { fontSize: 11, color: Colors.secondaryText, marginLeft: 'auto' },
   docCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.cardBackground || '#fff',
