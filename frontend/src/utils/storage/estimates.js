@@ -634,19 +634,18 @@ export const createInvoiceFromEstimate = async (estimateId) => {
       return null;
     }
 
-    // Guard against duplicates — if any invoice already references this
-    // estimate_id, return that one instead of creating a second. The user
-    // tapping "Bill it all now" twice (or rapid double-tap) was creating
-    // multiple invoices off the same estimate.
+    // Guard against duplicates — match by estimate_id only (no user_id
+    // filter) so we catch every existing non-cancelled invoice. The DB
+    // constraint uq_invoices_one_per_estimate enforces this at write
+    // time anyway, but we want to short-circuit BEFORE the insert and
+    // return the existing invoice cleanly instead of throwing 23505.
     const { data: existingInv } = await supabase
       .from('invoices')
       .select('id, invoice_number, estimate_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, notes, created_at, updated_at, user_id')
-      .eq('user_id', userId)
       .eq('estimate_id', estimateId)
+      .neq('status', 'cancelled')
       .maybeSingle();
     if (existingInv) {
-      // Return the existing invoice — caller's flow ("Invoice Created"
-      // alert) is still appropriate; the estimate IS billed.
       return existingInv;
     }
 
@@ -690,6 +689,22 @@ export const createInvoiceFromEstimate = async (estimateId) => {
       .single();
 
     if (createError) {
+      // Race condition: between our existing-invoice lookup and the
+      // insert, another tab/click slipped in and created the invoice.
+      // The DB unique-constraint catches it (Postgres code 23505) —
+      // re-fetch the existing one and return it instead of failing.
+      if (createError.code === '23505') {
+        const { data: dupInv } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, estimate_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, notes, created_at, updated_at, user_id')
+          .eq('estimate_id', estimateId)
+          .neq('status', 'cancelled')
+          .maybeSingle();
+        if (dupInv) {
+          await updateEstimateStatus(estimateId, 'accepted').catch(() => {});
+          return dupInv;
+        }
+      }
       console.error('Error creating invoice:', createError);
       return null;
     }
