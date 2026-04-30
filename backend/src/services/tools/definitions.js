@@ -2383,6 +2383,113 @@ const toolDefinitions = [
       }
     }
   },
+  // ==================== CHANGE ORDERS ====================
+  // Mid-project work additions priced separately from the original contract.
+  // Workflow: create draft → review → send to client → client approves
+  // (or you mark applied) → contract_amount adjusts via the project's
+  // extras flow. Status lifecycle:
+  //   draft → pending_client → approved/rejected → applied
+  // (or draft → voided directly).
+  {
+    type: 'function',
+    function: {
+      name: 'create_change_order',
+      description: 'Create a draft change order on a project. CO_number auto-increments per project. Use for mid-project additions, scope expansions, client requests beyond the original contract. Always created as draft — call send_change_order separately to send it to the client.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'Project name, address, or UUID. Resolved automatically.' },
+          title: { type: 'string', description: 'Short title — e.g. "Extra island cabinets" or "Kitchen rough-in upgrade".' },
+          description: { type: 'string', description: 'Optional details about the scope change.' },
+          line_items: {
+            type: 'array',
+            description: 'At least one line item.',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                quantity: { type: 'number', description: 'Defaults to 1.' },
+                unit: { type: 'string', description: 'Optional ("each", "lf", "sqft", "hr").' },
+                unit_price: { type: 'number' },
+                category: { type: 'string', description: 'Optional ("labor", "materials", "subcontractor", etc.)' },
+              },
+              required: ['description', 'unit_price'],
+            },
+          },
+          schedule_impact_days: { type: 'number', description: 'Days the project end_date pushes by. Default 0.' },
+          tax_rate: { type: 'number', description: 'Decimal (0.08 for 8%). Default 0.' },
+          signature_required: { type: 'boolean', description: 'If true, send_change_order also fires an e-signature request. Default false.' },
+          billing_strategy: { type: 'string', enum: ['invoice_now', 'add_to_contract', 'final_invoice'], description: 'invoice_now: separate invoice on approval. add_to_contract: rolls into contract_amount. final_invoice: lumped into the final invoice. Default invoice_now.' },
+        },
+        required: ['project_id', 'title', 'line_items'],
+      },
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_change_orders',
+      description: 'List change orders. Filter by project_id, status (draft / pending_client / approved / rejected / voided / applied), or both. Returns CO number, title, status, total. Use for "show me change orders on the Smith job" or "anything pending client approval?".',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'Optional. Project name or UUID.' },
+          status: { type: 'string', enum: ['draft', 'pending_client', 'approved', 'rejected', 'voided', 'applied'] },
+          limit: { type: 'integer', description: 'Default 25, max 100.' },
+        },
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_change_order',
+      description: 'Fetch ONE change order with line items, status, schedule impact, applied delta. Use when the user references a specific CO ("CO-002", "the cabinets change order", or by UUID).',
+      parameters: {
+        type: 'object',
+        properties: {
+          change_order_id: { type: 'string', description: 'UUID, "CO-002" / "2", or a title fragment.' },
+        },
+        required: ['change_order_id'],
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_change_order',
+      description: 'Edit a DRAFT change order before sending. Locked once status is anything other than draft (you must recall first via the project detail UI). Pass any subset of fields to update; line_items replace the existing list wholesale when included.',
+      parameters: {
+        type: 'object',
+        properties: {
+          change_order_id: { type: 'string' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          line_items: { type: 'array', items: { type: 'object' } },
+          schedule_impact_days: { type: 'number' },
+          tax_rate: { type: 'number' },
+          signature_required: { type: 'boolean' },
+          billing_strategy: { type: 'string', enum: ['invoice_now', 'add_to_contract', 'final_invoice'] },
+        },
+        required: ['change_order_id'],
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_change_order',
+      description: 'Send a draft change order to the client by email. Flips status draft → pending_client. Resolves client email from the project (or its linked client). If signature_required is true on the CO, also fires an e-signature request. **You MUST get explicit confirmation in the SAME TURN before calling.** If user says "send CO 2" without prior confirmation, first show "Send CO-002 ($X) to client@... ? Once sent it locks until client responds." Wait for explicit yes before firing.',
+      parameters: {
+        type: 'object',
+        properties: {
+          change_order_id: { type: 'string' },
+        },
+        required: ['change_order_id'],
+      }
+    }
+  },
+
   {
     type: 'function',
     function: {
@@ -2678,6 +2785,11 @@ const TOOL_STATUS_MESSAGES = {
   mirror_estimate_to_qbo: 'Pushing estimate to QuickBooks...',
   list_import_conflicts: 'Checking import conflicts...',
   resolve_import_conflict: 'Applying resolution...',
+  create_change_order: 'Drafting change order...',
+  list_change_orders: 'Loading change orders...',
+  get_change_order: 'Loading change order...',
+  update_change_order: 'Updating change order...',
+  send_change_order: 'Sending change order to client...',
   get_project_billing: 'Loading billing summary for the project...',
   create_work_schedule: 'Creating work schedule...',
   create_worker_task: 'Creating task...',

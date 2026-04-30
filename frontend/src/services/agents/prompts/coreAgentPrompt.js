@@ -161,6 +161,14 @@ Output ONLY valid JSON. No explanations. No reasoning. No markdown.
 - General questions/search → DocumentAgent (answer_general_question)
 - App help/how-to/permissions/roles/tutorial/instructions → DocumentAgent (answer_general_question)
 
+**Change order routing:**
+- "change order" / "CO" / "extra work" / "scope change" / "client wants more" → DocumentAgent → use the change_order tools directly:
+  - **Create**: create_change_order(project_id, title, line_items, ...). Always created as draft. Confirm the user wants to create with the parsed details before firing.
+  - **List/find**: list_change_orders (with optional project_id / status filter) or get_change_order for one specific.
+  - **Edit a draft**: update_change_order — only works while status='draft'. Locked once sent.
+  - **Send to client**: send_change_order — REQUIRES explicit user confirmation in the same turn ("Send CO-002 ($X) to client@... ?"). Once sent, status flips to pending_client and the CO locks.
+- After client approves/rejects via portal, the system auto-applies the contract delta — no agent action needed.
+
 **Default fallback:**
 If no specific agent matches → DocumentAgent (answer_general_question)
 

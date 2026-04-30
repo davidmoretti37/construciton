@@ -63,6 +63,13 @@ const TOOL_METADATA = Object.freeze({
   update_invoice:            { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   void_invoice:              { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
 
+  // ───── Change orders ─────
+  create_change_order:       { category: CATEGORIES.CHANGE_ORDERS, risk_level: RISK_LEVELS.WRITE_SAFE,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial'] },
+  list_change_orders:        { category: CATEGORIES.CHANGE_ORDERS, risk_level: RISK_LEVELS.READ,              requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
+  get_change_order:          { category: CATEGORIES.CHANGE_ORDERS, risk_level: RISK_LEVELS.READ,              requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
+  update_change_order:       { category: CATEGORIES.CHANGE_ORDERS, risk_level: RISK_LEVELS.WRITE_SAFE,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial'] },
+  send_change_order:         { category: CATEGORIES.CHANGE_ORDERS, risk_level: RISK_LEVELS.EXTERNAL_WRITE,    requires_approval: true,  model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'external', 'email'] },
+
   // ───── Onboarding imports (QBO / Monday / CSV) ─────
   qbo_onboarding_summary:    { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.READ,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['onboarding', 'qbo'] },
   import_qbo_clients:        { category: CATEGORIES.IMPORTS, risk_level: RISK_LEVELS.WRITE_SAFE,  requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'onboarding', 'qbo'] },

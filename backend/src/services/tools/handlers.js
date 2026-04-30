@@ -32,6 +32,7 @@ const documents = require('./handlers/documents');
 const briefings = require('./handlers/briefings');
 const searchTools = require('./handlers/search');
 const subs = require('./handlers/subs');
+const changeOrders = require('./handlers/changeOrders');
 // SMS handlers exist but are not registered in TOOL_HANDLERS — disabled at
 // the product level. Keep this require so re-enabling is one line below.
 // eslint-disable-next-line no-unused-vars
@@ -73,6 +74,13 @@ const TOOL_HANDLERS = {
   get_draw_schedule: invoices.get_draw_schedule,
   get_ready_draws: invoices.get_ready_draws,
   get_project_billing: invoices.get_project_billing,
+
+  // Change orders
+  create_change_order: changeOrders.create_change_order,
+  list_change_orders: changeOrders.list_change_orders,
+  get_change_order: changeOrders.get_change_order,
+  update_change_order: changeOrders.update_change_order,
+  send_change_order: changeOrders.send_change_order,
 
   // Workers + supervisors + scheduling + clock
   get_workers: workers.get_workers,
