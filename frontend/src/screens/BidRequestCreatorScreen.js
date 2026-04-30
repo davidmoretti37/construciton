@@ -33,28 +33,27 @@ import { supabase } from '../lib/supabase';
 // helper from projectService loads phases dynamically and breaks on a
 // missing module — we don't need phases here, just id/name/address.
 async function fetchProjectsForPicker() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  // Don't filter by user_id — RLS already handles owner / supervisor /
+  // worker / hierarchy access via user_can_access_project().
   const { data, error } = await supabase
     .from('projects')
-    .select('id, project_name, project_type, project_description, address, city, state_code, postal_code')
-    .eq('user_id', user.id)
+    .select('id, name, location, task_description, client_name, client_address, status')
     .order('created_at', { ascending: false });
   if (error) {
     console.warn('[BidRequestCreator] fetchProjects error:', error.message);
     return [];
   }
-  // Match the shape the rest of the file expects
   return (data || []).map((p) => ({
     id: p.id,
-    name: p.project_name,
-    project_name: p.project_name,
-    project_type: p.project_type,
-    project_description: p.project_description,
-    address: p.address,
-    city: p.city,
-    state_code: p.state_code,
-    postal_code: p.postal_code,
+    name: p.name,
+    project_name: p.name,
+    project_type: null,
+    project_description: p.task_description,
+    location: p.location,
+    address: p.location || p.client_address,
+    city: null,
+    state_code: null,
+    postal_code: null,
   }));
 }
 
@@ -152,13 +151,16 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
     return TRADES.find((t) => t.key === trade)?.label || customTrade.trim() || '';
   }, [trade, customTrade]);
 
-  // Auto-fill site fields from project once a project is picked
+  // Auto-fill site fields from project once a project is picked.
+  // Most projects only have a single `location` string — drop it into
+  // siteAddress and leave the city/state/postal fields blank for the GC
+  // to fill in via Override if needed.
   useEffect(() => {
     if (project && !overrideSite) {
-      setSiteAddress(project.address || project.location || '');
-      setSiteCity(project.city || '');
-      setSiteState(project.state_code || project.state || '');
-      setSitePostal(project.postal_code || project.zip || '');
+      setSiteAddress(project.location || project.address || '');
+      setSiteCity('');
+      setSiteState('');
+      setSitePostal('');
     }
   }, [project, overrideSite]);
 
@@ -775,7 +777,7 @@ export default function BidRequestCreatorScreen({ route, navigation }) {
                         {item.name || item.project_name || 'Untitled project'}
                       </Text>
                       <Text style={styles.projectMeta} numberOfLines={1}>
-                        {[item.address, item.city].filter(Boolean).join(', ') || item.project_type || ''}
+                        {item.location || item.client_name || item.status || ''}
                       </Text>
                     </View>
                     {projectId === item.id && (

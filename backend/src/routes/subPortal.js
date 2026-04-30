@@ -284,11 +284,21 @@ router.get('/bids/:id', authenticateUser, async (req, res) => {
     if (!br) return res.status(404).json({ error: 'Bid request not found' });
 
     // Project basics — sub doesn't need full project (financials etc.)
-    const { data: project } = await supabase
+    const { data: projectRow } = await supabase
       .from('projects')
-      .select('id, project_name, project_type, project_description, address, city, state_code, postal_code')
+      .select('id, name, location, task_description, client_name')
       .eq('id', br.project_id)
       .maybeSingle();
+    const project = projectRow ? {
+      id: projectRow.id,
+      project_name: projectRow.name,
+      project_type: null,
+      project_description: projectRow.task_description,
+      address: projectRow.location,
+      city: null,
+      state_code: null,
+      postal_code: null,
+    } : null;
 
     const { data: attachments } = await supabase
       .from('bid_request_attachments')

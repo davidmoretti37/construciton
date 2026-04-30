@@ -41,14 +41,13 @@ router.post('/generate-scope', authenticateUser, async (req, res) => {
 
     const { data: project } = await supabase
       .from('projects')
-      .select('id, user_id, project_name, project_type, project_description, address, city, state_code')
+      .select('id, user_id, name, location, task_description, client_name, client_address')
       .eq('id', project_id)
       .maybeSingle();
     if (!project) return res.status(404).json({ error: 'Project not found' });
     if (project.user_id !== req.user.id) return res.status(403).json({ error: 'Access denied' });
 
     if (!anthropicClient.isAvailable()) {
-      // Graceful fallback when no API key is set — return a templated scope
       const fallback = templateScope({ trade, project, instructions });
       return res.json({ scope_summary: fallback, source: 'template' });
     }
@@ -63,10 +62,9 @@ router.post('/generate-scope', authenticateUser, async (req, res) => {
     ].join('\n');
 
     const userPrompt = [
-      `Project: ${project.project_name || 'Unnamed project'}`,
-      project.project_type ? `Type: ${project.project_type}` : null,
-      project.address || project.city ? `Location: ${[project.address, project.city, project.state_code].filter(Boolean).join(', ')}` : null,
-      project.project_description ? `Description: ${project.project_description}` : null,
+      `Project: ${project.name || 'Unnamed project'}`,
+      project.location ? `Location: ${project.location}` : null,
+      project.task_description ? `Description: ${project.task_description}` : null,
       ``,
       `Trade: ${trade}`,
       instructions ? `\nGC's specific notes: ${instructions}` : ``,
@@ -101,8 +99,7 @@ router.post('/generate-scope', authenticateUser, async (req, res) => {
 
 function templateScope({ trade, project, instructions }) {
   const lines = [
-    `- Furnish all labor, materials, tools, and supervision required for ${trade} work on ${project.project_name || 'this project'}.`,
-    project.project_type ? `- Project is a ${project.project_type}; conform to applicable codes and project plans.` : null,
+    `- Furnish all labor, materials, tools, and supervision required for ${trade} work on ${project.name || 'this project'}.`,
     `- Coordinate scheduling with the GC; submit RFIs in writing for any conflicts or unclear conditions.`,
     `- Pull all required permits and arrange inspections for the ${trade} scope.`,
     `- Excludes work outside the ${trade} trade unless explicitly listed in the bid.`,
