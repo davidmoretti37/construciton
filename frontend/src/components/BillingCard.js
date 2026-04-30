@@ -71,20 +71,22 @@ function StatusPill({ status }) {
 
 function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projectHasDraws, onBillAll, onSetUpDraws, billedEstimateIds, drawsSetUpEstimateIds }) {
   const visual = SOURCE_VISUAL[event.source] || SOURCE_VISUAL.invoice;
-  // Accepted estimates with no invoice/draws yet → render with action prompt below.
-  // Two suppression paths beyond the global flags:
-  //   1. The user just clicked "Bill it all now" on THIS estimate (optimistic).
-  //   2. The user just clicked "Set up draws" on THIS estimate (optimistic).
+  // Optimistic suppression — the user just resolved this estimate (billed
+  // it or sent it to set-up-draws), so don't render its row at all while
+  // the background load() catches up. The new invoice / draw schedule
+  // will surface in its own row once the refetch completes.
   const optimisticallyResolved =
     !!event.source_id &&
+    event.source === 'estimate' &&
     ((billedEstimateIds && billedEstimateIds.has(event.source_id)) ||
      (drawsSetUpEstimateIds && drawsSetUpEstimateIds.has(event.source_id)));
+  if (optimisticallyResolved) return null;
+
   const isAcceptedEstimateNeedingAction =
     event.source === 'estimate'
     && (event.status === 'accepted' || event.raw_status === 'accepted')
     && !projectHasInvoice
-    && !projectHasDraws
-    && !optimisticallyResolved;
+    && !projectHasDraws;
 
   // Build the meta line — what makes this row actionable
   let metaLine = null;

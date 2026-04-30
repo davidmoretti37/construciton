@@ -634,6 +634,22 @@ export const createInvoiceFromEstimate = async (estimateId) => {
       return null;
     }
 
+    // Guard against duplicates — if any invoice already references this
+    // estimate_id, return that one instead of creating a second. The user
+    // tapping "Bill it all now" twice (or rapid double-tap) was creating
+    // multiple invoices off the same estimate.
+    const { data: existingInv } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, estimate_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date, payment_terms, notes, created_at, updated_at, user_id')
+      .eq('user_id', userId)
+      .eq('estimate_id', estimateId)
+      .maybeSingle();
+    if (existingInv) {
+      // Return the existing invoice — caller's flow ("Invoice Created"
+      // alert) is still appropriate; the estimate IS billed.
+      return existingInv;
+    }
+
     const { data: estimate, error: fetchError } = await supabase
       .from('estimates')
       .select('id, project_id, client_name, client_phone, client_email, client_address, project_name, items, subtotal, tax_rate, tax_amount, total, payment_terms, notes')
