@@ -1632,11 +1632,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
 
       if (!PEV_SHADOW) {
         if (pevResult.handoff === 'approval') {
-          // PEV's executor hit a tool requiring user confirmation
-          // (destructive write or external send). Surface the inline
-          // approve/cancel card the frontend already renders for the
-          // legacy approval flow. User taps Approve → next turn becomes
-          // "yes confirm" and the PEV pipeline re-plans with confirmation.
+          // PEV's executor hit a tool requiring user confirmation. Emit
+          // the inline approve/cancel SSE event AND the humanized prompt
+          // text from the Responder (so the user sees plain English, not
+          // the raw action_summary).
           const pa = pevResult.pendingApproval || {};
           writer.emit({
             type: 'pending_approval',
@@ -1646,19 +1645,19 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             risk_level: pa.risk_level,
             reason: pa.reason,
           });
-          // Optional next-step hint for the user-facing copy
-          if (pa.next_step) {
-            writer.emit({ type: 'delta', content: pa.next_step });
-          }
+          const text = pevResult.response?.text || pa.next_step || 'Want me to go ahead?';
+          writer.emit({ type: 'delta', content: text });
           writer.emit({ type: 'done' });
           return;
         }
         if (pevResult.handoff === 'ask') {
-          // Halt and ask the user — surface the question as the agent's response.
-          writer.emit({ type: 'delta', content: pevResult.question || 'Could you clarify?' });
-          if (pevResult.suggestion) {
-            writer.emit({ type: 'delta', content: `\n\n${pevResult.suggestion}` });
-          }
+          // Halt and ask the user — surface the HUMANIZED question from
+          // the Responder. Never emit raw verifier gap or executor
+          // stoppedReason text directly (was the bug class).
+          const text = pevResult.response?.text
+            || pevResult.question
+            || 'Could you tell me a bit more about what you want?';
+          writer.emit({ type: 'delta', content: text });
           writer.emit({ type: 'done' });
           return;
         }

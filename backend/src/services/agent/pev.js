@@ -139,13 +139,25 @@ async function runPev(input) {
   emit({ type: 'pev_plan_done', verdict, stepCount: planResult.plan.steps.length });
 
   if (verdict === 'ask') {
-    const q = planResult.plan.needs_user_input?.question
+    const rawQ = planResult.plan.needs_user_input?.question
       || 'I need a bit more info to act on that.';
+    // Humanize the planner's question through the Responder. Most of the
+    // time the planner's question is fine, but Responder enforces tone
+    // (no apologies, one-question-only, concrete options).
+    const responder = await respond({
+      userMessage,
+      outcome: 'ask',
+      plan: planResult.plan,
+      stepResults: [],
+      gap: rawQ,
+    });
+    trace.stages.push({ stage: 'respond', latencyMs: responder.latencyMs, fallback: responder.fallback, outcome: 'ask' });
     return {
       handoff: 'ask',
-      question: q,
+      question: responder.text,
       options: planResult.plan.needs_user_input?.options || [],
       plan: planResult.plan,
+      response: { text: responder.text, visualElements: [] },
       trace,
       totalMs: Date.now() - t0,
     };
@@ -250,11 +262,22 @@ async function runPev(input) {
     // so the orchestrator's caller can emit a pending_approval SSE event
     // matching the existing approval flow's wire format.
     if (lastExec.pendingApproval) {
+      // Humanize the approval prompt through the Responder so we never
+      // surface raw "action_summary" text directly.
+      const responder = await respond({
+        userMessage,
+        outcome: 'approval',
+        plan: attemptedPlan,
+        stepResults: lastExec.stepResults,
+        pendingApproval: lastExec.pendingApproval,
+      });
+      trace.stages.push({ stage: 'respond', latencyMs: responder.latencyMs, fallback: responder.fallback, outcome: 'approval' });
       return {
         handoff: 'approval',
         pendingApproval: lastExec.pendingApproval,
         plan: attemptedPlan,
         stepResults: lastExec.stepResults,
+        response: { text: responder.text, visualElements: [] },
         trace,
         totalMs: Date.now() - t0,
       };
@@ -283,15 +306,26 @@ async function runPev(input) {
     if (lastVerifier.satisfied) break;
 
     // Not satisfied: if execution actually failed, surface to user (don't
-    // just spin in re-verify loops — the gap is real and needs human input)
+    // just spin in re-verify loops — the gap is real and needs human input).
+    // ALWAYS humanize through the Responder so the user never sees raw
+    // technical strings like "step s1 (search_projects) returned error".
     if (!lastExec.ok) {
+      const responder = await respond({
+        userMessage,
+        outcome: 'ask',
+        plan: attemptedPlan,
+        stepResults: lastExec.stepResults,
+        gap: lastVerifier.gap || lastExec.stoppedReason,
+        suggestion: lastVerifier.suggestion,
+      });
+      trace.stages.push({ stage: 'respond', latencyMs: responder.latencyMs, fallback: responder.fallback, outcome: 'ask' });
       return {
         handoff: 'ask',
-        question: lastVerifier.gap || lastExec.stoppedReason || 'I hit an issue running that.',
-        suggestion: lastVerifier.suggestion || null,
+        question: responder.text, // human-readable, never technical
         plan: attemptedPlan,
         stepResults: lastExec.stepResults,
         verifier: lastVerifier,
+        response: { text: responder.text, visualElements: [] },
         trace,
         totalMs: Date.now() - t0,
       };
@@ -324,6 +358,7 @@ async function runPev(input) {
   emit({ type: 'pev_respond_start' });
   const responder = await respond({
     userMessage,
+    outcome: 'success',
     plan: attemptedPlan,
     stepResults: lastExec?.stepResults || [],
   });
