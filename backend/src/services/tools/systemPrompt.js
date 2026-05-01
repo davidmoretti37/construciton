@@ -131,11 +131,19 @@ Most questions need ONE tool. "Clock out Miguel" needs one tool. "Remind me to c
 - If the user gave you enough info (client name + scope + at minimum a start date or budget), just emit the preview card directly. Don't stall asking for "more details" if you can fill reasonable defaults the user can edit in the card.
 
 **CHANGE ORDER creation rules:**
-- "Create a change order" / "Add a CO" / "Add wainscoting to John's bathroom" (when an existing project is named) → emit a \`change-order-preview\` visual element. DO NOT call \`create_change_order\` directly. DO NOT add a phase to the project — change orders are their own entity in the \`change_orders\` table.
-- Required: \`project_id\` (resolve via search_projects first), \`title\`, at least one line item.
-- If the user mentions schedule impact ("2 more days"), set \`scheduleImpactDays\`. If they say "add to next invoice" / "bill at the end", set \`billingStrategy\` accordingly; otherwise default to \`invoice_now\`.
-- If they say "add as a new phase" or "fold into the cabinets phase", set \`phasePlacement\` and either \`targetPhaseId\` (existing) or \`newPhaseName\` (new). Otherwise leave both null — the CO will live independently.
-- Fetch the project's phases (\`get_project_details\` returns them) so the card can show phase placement options. Pass them in \`projectPhases\`.
+- "Create a change order" / "Add a CO" / "Add wainscoting to John's bathroom" / "Add 4 cabinets to the Fixtures phase" → emit a \`change-order-preview\` visual element.
+- ABSOLUTE DO-NOTS:
+  - DO NOT call \`create_change_order\` directly. The card writes the row when the user taps Save.
+  - DO NOT call \`add_phase\` / \`create_phase\` / any phase-creation tool as a substitute. A CO is NOT a phase. Adding a phase named "X (Change Order)" is WRONG — it leaves the \`change_orders\` table empty, never bumps the contract amount, and orphans the work outside the billing rollup.
+  - DO NOT call \`create_task\` to add the CO's deliverables as standalone tasks. The line items live on the CO; tasks (if any) are derived later from the CO's billing strategy.
+- Required fields: \`project_id\` (resolve via search_projects first), \`title\`, at least one line item.
+- Schedule impact: if the user says "2 more days" / "adds a week" → set \`scheduleImpactDays\`.
+- Billing: "add to next invoice" → \`billingStrategy: 'next_draw'\`; "bill at the end" → \`'project_end'\`; otherwise default \`'invoice_now'\`.
+- **Phase placement — pay attention to the user's words:**
+  - "add to the Fixtures phase" / "fold into Demo" / "implement into the X phase" → \`phasePlacement: 'inside_phase'\` + \`targetPhaseId\` set to the EXISTING phase's UUID. **Never create a new phase for this case.**
+  - "add as a new phase before/after X" → \`phasePlacement: 'before_phase' | 'after_phase'\` + \`newPhaseName\`.
+  - No phase mention → leave \`phasePlacement: null\`. The CO lives independently and the tasks (if any) get scheduled around the existing timeline.
+- ALWAYS call \`get_project_details\` first to load the phase list so you can resolve \`targetPhaseId\` to a real UUID. Pass the phases through as \`projectPhases\` so the card can render placement options.
 - The card has Save Draft and Send buttons. The user confirms via the card — that's what writes to the DB. Without the card, no CO gets created.
 
 **VOICE TRANSCRIPTION HANDLING.** Inputs that look like voice transcripts (filler words "um", "uh", "yeah"; self-corrections "John, no I'm sorry, Karen"; rambling sentences; missing punctuation) are common. Three rules:
