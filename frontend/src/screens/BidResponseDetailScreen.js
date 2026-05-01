@@ -302,6 +302,34 @@ export default function BidResponseDetailScreen({ route, navigation }) {
                 <Text style={styles.acceptedText}>You declined this bid.</Text>
               </View>
             )}
+
+            {/* Sub's attachments — shown DIRECTLY under their bid response so the
+                GC sees them at the same time as the amount. GC's own bid
+                attachments stay further down as reference material. */}
+            {subPhotos.length > 0 && (
+              <Section title="Photos from sub" Colors={Colors}>
+                <PhotoStrip
+                  photos={subPhotos}
+                  urls={imageUrls}
+                  onTap={(idx) => openGallery(allPhotos, gcPhotos.length + idx)}
+                  styles={styles}
+                />
+              </Section>
+            )}
+            {subDocs.length > 0 && (
+              <Section title="Documents from sub" Colors={Colors}>
+                {subDocs.map((a) => (
+                  <DocRow
+                    key={a.id}
+                    a={a}
+                    onPress={() => onOpenDoc(a)}
+                    isLoading={openingDocId === a.id}
+                    styles={styles}
+                    Colors={Colors}
+                  />
+                ))}
+              </Section>
+            )}
           </>
         ) : (
           <View style={styles.awaitingCard}>
@@ -353,18 +381,6 @@ export default function BidResponseDetailScreen({ route, navigation }) {
           </Section>
         )}
 
-        {/* Photos from sub */}
-        {subPhotos.length > 0 && (
-          <Section title="Photos from sub" Colors={Colors}>
-            <PhotoStrip
-              photos={subPhotos}
-              urls={imageUrls}
-              onTap={(idx) => openGallery(allPhotos, gcPhotos.length + idx)}
-              styles={styles}
-            />
-          </Section>
-        )}
-
         {/* Documents from GC */}
         {gcDocs.length > 0 && (
           <Section title="Documents (sent by you)" Colors={Colors}>
@@ -381,21 +397,6 @@ export default function BidResponseDetailScreen({ route, navigation }) {
           </Section>
         )}
 
-        {/* Documents from sub */}
-        {subDocs.length > 0 && (
-          <Section title="Documents from sub" Colors={Colors}>
-            {subDocs.map((a) => (
-              <DocRow
-                key={a.id}
-                a={a}
-                onPress={() => onOpenDoc(a)}
-                isLoading={openingDocId === a.id}
-                styles={styles}
-                Colors={Colors}
-              />
-            ))}
-          </Section>
-        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
