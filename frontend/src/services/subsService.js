@@ -120,6 +120,10 @@ export const listBidHistoryForSub = async (subOrgId) => {
   return json.bid_requests || [];
 };
 
+// Engagement invoice PDF signed URL — backend allows GC or sub.
+export const getEngagementInvoiceUrl = (engagementId, invoiceId) =>
+  authedFetch(`/api/sub-portal/engagements/${engagementId}/invoices/${invoiceId}/url`);
+
 export const uploadBidAttachment = (bidRequestId, payload) =>
   authedFetch(`/api/bid-requests/${bidRequestId}/attachments`, {
     method: 'POST',

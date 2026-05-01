@@ -125,6 +125,16 @@ export const updateTask = (taskId, updates) =>
     body: JSON.stringify(updates),
   });
 
+// Simplified PDF-upload invoice flow (sub-side).
+export const uploadInvoiceToEngagement = (engagementId, payload) =>
+  authedFetch(`/api/sub-portal/engagements/${engagementId}/upload-invoice`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const getInvoiceUrl = (engagementId, invoiceId) =>
+  authedFetch(`/api/sub-portal/engagements/${engagementId}/invoices/${invoiceId}/url`);
+
 export const listMyInvoices = async () => {
   const json = await authedFetch('/api/sub-portal/invoices');
   return json.invoices || [];

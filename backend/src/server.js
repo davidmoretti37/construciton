@@ -226,7 +226,8 @@ const subsRoutes = require('./routes/subs');
 app.use('/api/subs', servicesLimiter, subsRoutes);
 
 const subPortalRoutes = require('./routes/subPortal');
-app.use('/api/sub-portal', servicesLimiter, subPortalRoutes);
+// 30mb to fit base64-encoded invoice PDFs and project file uploads.
+app.use('/api/sub-portal', express.json({ limit: '30mb' }), servicesLimiter, subPortalRoutes);
 
 const subActionRoutes = require('./routes/subAction');
 app.use('/api/sub-action', portalLimiter, subActionRoutes);

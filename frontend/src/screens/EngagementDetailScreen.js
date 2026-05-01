@@ -34,6 +34,19 @@ function prettyDocType(t) {
   return DOC_TYPE_LABELS[t] || (t || '').toUpperCase();
 }
 
+function invStatusPill(status) {
+  switch (status) {
+    case 'paid':     return { label: 'Paid',     bg: '#10B98115', fg: '#10B981' };
+    case 'sent':
+    case 'submitted':return { label: 'Sent',     bg: '#3B82F615', fg: '#3B82F6' };
+    case 'approved': return { label: 'Approved', bg: '#10B98115', fg: '#10B981' };
+    case 'rejected': return { label: 'Rejected', bg: '#DC262615', fg: '#DC2626' };
+    case 'partial_paid': return { label: 'Partial', bg: '#F59E0B15', fg: '#F59E0B' };
+    case 'draft':    return { label: 'Draft',    bg: '#6B728015', fg: '#6B7280' };
+    default:         return { label: status || '—', bg: '#6B728015', fg: '#6B7280' };
+  }
+}
+
 export default function EngagementDetailScreen({ route, navigation }) {
   const { engagement_id } = route.params || {};
   const { isDark = false } = useTheme() || {};
@@ -58,6 +71,26 @@ export default function EngagementDetailScreen({ route, navigation }) {
   const [endDate, setEndDate] = useState('');
   const [savingDates, setSavingDates] = useState(false);
   const [pickerField, setPickerField] = useState(null); // 'mob' | 'end' | null
+
+  const [openingInvoiceId, setOpeningInvoiceId] = useState(null);
+
+  const onOpenInvoice = async (inv) => {
+    if (!inv?.pdf_url || openingInvoiceId) return;
+    setOpeningInvoiceId(inv.id);
+    try {
+      const res = await api.getEngagementInvoiceUrl(engagement_id, inv.id);
+      if (!res?.url) throw new Error('No URL');
+      navigation.navigate('DocumentViewer', {
+        fileUrl: res.url,
+        fileName: inv.invoice_number ? `Invoice ${inv.invoice_number}` : `Invoice #${inv.id.slice(0, 6)}`,
+        fileType: 'pdf',
+      });
+    } catch (e) {
+      Alert.alert('Could not open', e.message || 'Try again');
+    } finally {
+      setOpeningInvoiceId(null);
+    }
+  };
 
   const onSaveDates = async () => {
     const isValidDate = (s) => !s || /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
@@ -304,16 +337,74 @@ export default function EngagementDetailScreen({ route, navigation }) {
 
         <Text style={styles.sectionTitle}>Invoices from sub</Text>
         {invoices.length === 0 ? (
-          <Text style={styles.emptyText}>No invoices yet.</Text>
+          <View style={styles.invoicesEmpty}>
+            <Ionicons name="cash-outline" size={22} color={Colors.secondaryText} />
+            <Text style={styles.invoicesEmptyText}>No invoices yet — sub uploads invoices from their Jobs tab.</Text>
+          </View>
         ) : (
-          invoices.map((inv) => (
-            <View key={inv.id} style={styles.invoiceCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.invoiceTitle}>${Number(inv.total_amount).toLocaleString()}</Text>
-                <Text style={styles.invoiceMeta}>{inv.invoice_number || `#${inv.id.slice(0, 6)}`} · {inv.status}</Text>
-              </View>
-            </View>
-          ))
+          <>
+            {/* Overview */}
+            {(() => {
+              const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+              const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.total_amount || 0), 0);
+              const outstanding = totalInvoiced - totalPaid;
+              return (
+                <View style={styles.invoiceOverview}>
+                  <View style={styles.invoiceStat}>
+                    <Text style={styles.invoiceStatLabel}>Invoiced</Text>
+                    <Text style={styles.invoiceStatValue}>${totalInvoiced.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.invoiceStatSep} />
+                  <View style={styles.invoiceStat}>
+                    <Text style={styles.invoiceStatLabel}>Paid</Text>
+                    <Text style={[styles.invoiceStatValue, { color: '#10B981' }]}>${totalPaid.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.invoiceStatSep} />
+                  <View style={styles.invoiceStat}>
+                    <Text style={styles.invoiceStatLabel}>Outstanding</Text>
+                    <Text style={[styles.invoiceStatValue, outstanding > 0 && { color: '#F59E0B' }]}>${outstanding.toLocaleString()}</Text>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {invoices.map((inv) => {
+              const status = inv.status || 'sent';
+              const pill = invStatusPill(status);
+              const isOpening = openingInvoiceId === inv.id;
+              return (
+                <TouchableOpacity
+                  key={inv.id}
+                  style={styles.invoiceRow}
+                  activeOpacity={0.7}
+                  onPress={() => onOpenInvoice(inv)}
+                  disabled={!inv.pdf_url || isOpening}
+                >
+                  <View style={[styles.invoiceIconWrap, { backgroundColor: pill.bg }]}>
+                    <Ionicons name="document-text-outline" size={18} color={pill.fg} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={styles.invoiceTitleRow}>
+                      <Text style={styles.invoiceAmount}>${Number(inv.total_amount).toLocaleString()}</Text>
+                      <View style={[styles.invoicePill, { backgroundColor: pill.bg }]}>
+                        <Text style={[styles.invoicePillText, { color: pill.fg }]}>{pill.label}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.invoiceMeta} numberOfLines={1}>
+                      {inv.invoice_number ? `#${inv.invoice_number}` : `#${inv.id.slice(0, 6)}`}
+                      {inv.submitted_at ? `  ·  Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
+                      {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
+                    </Text>
+                  </View>
+                  {isOpening
+                    ? <ActivityIndicator size="small" color={Colors.secondaryText} />
+                    : inv.pdf_url
+                      ? <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+                      : null}
+                </TouchableOpacity>
+              );
+            })}
+          </>
         )}
       </ScrollView>
 
@@ -583,6 +674,37 @@ const makeStyles = (Colors) => StyleSheet.create({
   },
   invoiceTitle: { fontSize: 15, fontWeight: '700', color: Colors.primaryText },
   invoiceMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 2 },
+  invoicesEmpty: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  invoicesEmptyText: { flex: 1, fontSize: 13, color: Colors.secondaryText },
+  invoiceOverview: {
+    flexDirection: 'row',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12, padding: 14, marginBottom: 8,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  invoiceStat: { flex: 1 },
+  invoiceStatSep: { width: 1, backgroundColor: Colors.border, marginHorizontal: 6 },
+  invoiceStatLabel: { fontSize: 10, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.4 },
+  invoiceStatValue: { fontSize: 17, fontWeight: '700', color: Colors.primaryText, marginTop: 4 },
+  invoiceRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  invoiceIconWrap: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  invoiceTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  invoiceAmount: { flex: 1, fontSize: 16, fontWeight: '700', color: Colors.primaryText },
+  invoicePill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
+  invoicePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: Colors.primaryText, marginBottom: 12 },

@@ -787,4 +787,124 @@ router.post('/invoices/:id/send', authenticateUser, async (req, res) => {
   }
 });
 
+// =============================================================================
+// POST /api/sub-portal/engagements/:id/upload-invoice
+// =============================================================================
+// Simplified PDF-upload invoice flow. Sub picks an amount + (optional)
+// due date + a PDF; backend stores the file, creates a sub_invoices row
+// with status='sent' (skips the draft step), and notifies the GC.
+// Body: { file_base64, file_name, amount, due_at?, notes? }
+
+router.post('/engagements/:id/upload-invoice', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(403).json({ error: 'No sub_organization linked' });
+
+    const { file_base64, file_name, amount, due_at, notes, invoice_number } = req.body || {};
+    if (!file_base64 || !file_name || amount == null) {
+      return res.status(400).json({ error: 'file_base64, file_name, and amount required' });
+    }
+
+    // Verify the sub owns this engagement
+    const { data: engagement } = await supabase
+      .from('sub_engagements')
+      .select('id, sub_organization_id, gc_user_id, trade, project_id, sub:sub_organizations(legal_name)')
+      .eq('id', req.params.id)
+      .eq('sub_organization_id', sub.id)
+      .maybeSingle();
+    if (!engagement) return res.status(404).json({ error: 'Engagement not found or not yours' });
+
+    // Upload PDF to storage
+    const buffer = Buffer.from(file_base64, 'base64');
+    const ext = (file_name.split('.').pop() || 'pdf').toLowerCase();
+    const stamp = Date.now();
+    const path = `sub-invoices/${engagement.id}/${stamp}.${ext}`;
+    const { error: upErr } = await supabase
+      .storage
+      .from('documents')
+      .upload(path, buffer, { contentType: 'application/pdf', upsert: false });
+    if (upErr) {
+      logger.error('[subPortal] invoice upload storage err:', upErr);
+      return res.status(500).json({ error: 'Storage upload failed' });
+    }
+
+    // Create sub_invoices row in 'sent' status
+    const totalAmount = Number(amount);
+    const { data: invoice, error: insErr } = await supabase
+      .from('sub_invoices')
+      .insert({
+        engagement_id: engagement.id,
+        invoice_number: invoice_number || null,
+        total_amount: totalAmount,
+        retention_amount: 0,
+        net_amount: totalAmount,
+        due_at: due_at || null,
+        notes: notes || null,
+        pdf_url: path,
+        status: 'sent',
+        submitted_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (insErr) {
+      logger.error('[subPortal] invoice insert err:', insErr);
+      await supabase.storage.from('documents').remove([path]).catch(() => {});
+      return res.status(500).json({ error: 'Could not save invoice' });
+    }
+
+    // Notify GC
+    try {
+      await supabase.from('notifications').insert({
+        user_id: engagement.gc_user_id,
+        title: `New invoice from ${engagement.sub?.legal_name || 'sub'}`,
+        body: `$${totalAmount.toLocaleString()} • ${engagement.trade}`,
+        type: 'sub_invoice_received',
+        icon: 'cash-outline',
+        color: '#10B981',
+        action_data: { engagement_id: engagement.id, invoice_id: invoice.id },
+      });
+    } catch (e) { logger.warn('[subPortal] invoice notify:', e.message); }
+
+    return res.json({ invoice });
+  } catch (err) {
+    logger.error('[subPortal] upload-invoice error:', err);
+    return res.status(500).json({ error: 'Failed to upload invoice' });
+  }
+});
+
+// =============================================================================
+// GET /api/sub-portal/engagements/:id/invoices/:invId/url — signed URL
+// =============================================================================
+
+router.get('/engagements/:id/invoices/:invId/url', authenticateUser, async (req, res) => {
+  try {
+    const sub = await loadSubOrgForUser(req.user.id);
+    if (!sub) return res.status(403).json({ error: 'No sub_organization linked' });
+
+    const { data: inv } = await supabase
+      .from('sub_invoices')
+      .select('pdf_url, engagement:sub_engagements(sub_organization_id, gc_user_id)')
+      .eq('id', req.params.invId)
+      .eq('engagement_id', req.params.id)
+      .maybeSingle();
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+
+    // Allow either the sub who owns the engagement OR the GC
+    const allowed = inv.engagement?.sub_organization_id === sub.id ||
+                    inv.engagement?.gc_user_id === req.user.id;
+    if (!allowed) return res.status(403).json({ error: 'Access denied' });
+    if (!inv.pdf_url) return res.status(404).json({ error: 'No file' });
+
+    const { data: signed, error } = await supabase
+      .storage
+      .from('documents')
+      .createSignedUrl(inv.pdf_url, 300);
+    if (error) throw error;
+    return res.json({ url: signed.signedUrl, expires_in: 300 });
+  } catch (err) {
+    logger.error('[subPortal] invoice url err:', err);
+    return res.status(500).json({ error: 'Failed to issue URL' });
+  }
+});
+
 module.exports = router;
