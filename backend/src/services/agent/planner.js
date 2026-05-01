@@ -15,6 +15,10 @@
  *     args:        object  (placeholders allowed: "{{s1.results[0].id}}")
  *     why:         string  (one line — for debug + user-facing reasoning trail)
  *     depends_on:  string[] (ids of earlier steps; '[]' for the first)
+ *     optional:    boolean (default false — when true, executor continues
+ *                            past failures of this step; useful for
+ *                            "send 3 reminders" where one bad email
+ *                            shouldn't kill the other two)
  *   }],
  *   needs_user_input: null | { question: string, options?: string[] },
  *   confidence: 0.0-1.0,
@@ -116,6 +120,7 @@ The placeholder must be a STRING literal in args — the Executor handles substi
 5. If the user mentioned a CHANGE ORDER, your plan MUST use create_change_order — never decompose a CO into create_project_phase + record_expense. A CO is one entity that bumps contract + extends schedule + handles phase placement on approval.
 6. confidence: 0.9+ if the plan is unambiguous, 0.7-0.9 if minor unknowns the Executor can resolve, 0.5-0.7 if guessing. Below 0.5 set needs_user_input instead.
 7. NEVER include prose outside the JSON. Output ONLY the object.
+8. OPTIONAL steps: when the request includes multiple INDEPENDENT items (e.g., "send 3 reminder emails", "remind everyone with overdue invoices"), mark each item's step with "optional": true. The executor will continue past individual failures so one bad email doesn't kill the rest. Steps that are part of a CRITICAL chain (e.g., search project → create CO → send CO) are NOT optional — they're sequential dependencies and must succeed.
 
 # EXAMPLES
 
@@ -337,6 +342,7 @@ function validatePlan(p, toolNames) {
         args: s.args || {},
         why: typeof s.why === 'string' ? s.why : '',
         depends_on: s.depends_on || [],
+        optional: s.optional === true,
       })),
       needs_user_input: normalizedNeedsInput,
       confidence,

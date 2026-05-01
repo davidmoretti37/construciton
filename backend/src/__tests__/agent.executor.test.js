@@ -214,6 +214,60 @@ describe('PEV executor', () => {
       expect(r.pendingApproval).toBeFalsy();
     });
 
+    test('optional step failure does NOT halt the plan', async () => {
+      const plan = {
+        goal: 'send 3 reminders',
+        steps: [
+          { id: 's1', tool: 'send_reminder', args: { id: 'inv-1' }, optional: true, depends_on: [] },
+          { id: 's2', tool: 'send_reminder', args: { id: 'inv-2' }, optional: true, depends_on: [] },
+          { id: 's3', tool: 'send_reminder', args: { id: 'inv-3' }, optional: true, depends_on: [] },
+        ],
+      };
+      const fakeTool = async (n, a) => {
+        if (a.id === 'inv-2') throw new Error('email bounced');
+        return { sent: true, id: a.id };
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(true);
+      expect(r.reachedSteps).toBe(3);
+      expect(r.stepResults).toHaveLength(3);
+      expect(r.stepResults[1].error).toBeTruthy(); // s2 failed
+      expect(r.stepResults[1].skipped).toBe(true); // marked as skipped (optional)
+      expect(r.stepResults[0].result.sent).toBe(true); // s1 succeeded
+      expect(r.stepResults[2].result.sent).toBe(true); // s3 succeeded
+    });
+
+    test('non-optional step failure DOES halt', async () => {
+      const plan = {
+        goal: 'critical chain',
+        steps: [
+          { id: 's1', tool: 'search_projects', args: {}, depends_on: [] },
+          { id: 's2', tool: 'create_change_order', args: {}, depends_on: ['s1'] },
+        ],
+      };
+      const fakeTool = async (n) => {
+        if (n === 'search_projects') return { results: [{ id: 'p1' }] };
+        throw new Error('CO creation failed');
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(false);
+      expect(r.reachedSteps).toBe(1);
+    });
+
+    test('optional soft error (result.error) also continues', async () => {
+      const plan = {
+        goal: 'soft tolerant',
+        steps: [
+          { id: 's1', tool: 'send_x', args: {}, optional: true, depends_on: [] },
+          { id: 's2', tool: 'send_y', args: {}, optional: true, depends_on: [] },
+        ],
+      };
+      const fakeTool = async () => ({ error: 'no recipient' });
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(true); // both failed but optional, plan completes
+      expect(r.stepResults.every((s) => s.skipped === true)).toBe(true);
+    });
+
     test('preToolCheck error halts (fail-closed)', async () => {
       const plan = {
         goal: 'x',

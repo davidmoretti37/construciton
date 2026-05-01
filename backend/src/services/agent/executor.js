@@ -169,8 +169,23 @@ async function execute({ plan, executeTool, userId, emit = () => {}, preToolChec
         args: resolvedArgs,
         error: { message: lastErr.message, class: cls },
         ms,
+        skipped: step.optional === true,
       });
-      emit({ type: 'step_error', stepId: step.id, error: lastErr.message, errorClass: cls, ms });
+      emit({
+        type: 'step_error',
+        stepId: step.id,
+        error: lastErr.message,
+        errorClass: cls,
+        ms,
+        optional: step.optional === true,
+      });
+      // Optional steps don't halt the plan — record the failure and continue.
+      // Useful for compound actions like "send N reminders" where individual
+      // failures shouldn't cascade.
+      if (step.optional === true) {
+        results.set(step.id, null); // explicit null so depends_on placeholders can still resolve to null gracefully
+        continue;
+      }
       return {
         ok: false,
         stepResults,
@@ -191,6 +206,7 @@ async function execute({ plan, executeTool, userId, emit = () => {}, preToolChec
         result, // include the raw result so the orchestrator/verifier can see suggestions
         error: { message: result.error, class: 'soft' },
         ms,
+        skipped: step.optional === true,
       });
       emit({
         type: 'step_error',
@@ -199,7 +215,12 @@ async function execute({ plan, executeTool, userId, emit = () => {}, preToolChec
         errorClass: 'soft',
         suggestions: result.suggestions || null,
         ms,
+        optional: step.optional === true,
       });
+      if (step.optional === true) {
+        results.set(step.id, null);
+        continue;
+      }
       return {
         ok: false,
         stepResults,
