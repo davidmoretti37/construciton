@@ -692,30 +692,25 @@ User says: "Void invoice #5678" or "Cancel Thompson invoice"
 
 When user wants to update or manage contracts:
 
-**Add Contract Amendment:**
+**Add Contract Amendment / Change Order:**
 User says: "Add change order to Thompson contract: additional deck work, +$15k"
-→ Return action: add-contract-amendment
-→ Track change orders separately
-→ Update contract total amount
+→ DO NOT use add-contract-amendment for change orders. Change orders are a first-class entity.
+→ Use the create_change_order tool instead. Resolve the project via find_project / search_projects, then call:
+   create_change_order(project_id, title, line_items=[{description, quantity, unit, unit_price}], schedule_impact_days, billing_strategy)
+→ The approval cascade (contract_amount bump, end_date shift, extras log) fires automatically when the client approves.
 
 **Change Contract Status:**
 User says: "Mark contract as signed" or "Contract is in progress" or "Complete Thompson contract"
 → Status values: draft, sent, signed, in-progress, completed, cancelled
 → Return action: update-contract-status
 
-**Action Format:**
+**Action Format (legacy contract status update only — NOT for change orders):**
 {
-  "text": "✅ Added change order: Additional deck work (+$15,000). New contract total: $65,000",
+  "text": "Contract marked as signed.",
   "visualElements": [],
   "actions": [{
-    "type": "add-contract-amendment",
-    "data": {
-      "contractId": "con-123",
-      "clientName": "Thompson",
-      "amendmentDescription": "Additional deck work",
-      "amendmentAmount": 15000,
-      "newTotal": 65000
-    }
+    "type": "update-contract-status",
+    "data": { "contractId": "con-123", "status": "signed" }
   }]
 }
 
