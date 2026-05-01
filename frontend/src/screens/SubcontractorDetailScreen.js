@@ -188,6 +188,8 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
   const [docs, setDocs] = useState([]);
   const [engagements, setEngagements] = useState([]);
   const [bidHistory, setBidHistory] = useState([]);
+  const [subInvoices, setSubInvoices] = useState([]);
+  const [openingInvId, setOpeningInvId] = useState(null);
   const [activeTab, setActiveTab] = useState('Overview');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -200,6 +202,24 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
 
   // Doc open
   const [openingDocId, setOpeningDocId] = useState(null);
+
+  const onOpenInvoice = useCallback(async (inv) => {
+    if (!inv?.pdf_url || openingInvId) return;
+    setOpeningInvId(inv.id);
+    try {
+      const res = await api.getEngagementInvoiceUrl(inv.engagement_id, inv.id);
+      if (!res?.url) throw new Error('No URL');
+      navigation.navigate('DocumentViewer', {
+        fileUrl: res.url,
+        fileName: inv.invoice_number ? `Invoice ${inv.invoice_number}` : `Invoice #${inv.id.slice(0, 6)}`,
+        fileType: 'pdf',
+      });
+    } catch (e) {
+      Alert.alert('Could not open', e.message || 'Try again');
+    } finally {
+      setOpeningInvId(null);
+    }
+  }, [navigation, openingInvId]);
 
   const onOpenDoc = useCallback(async (doc) => {
     if (!doc?.id) return;
@@ -228,7 +248,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
 
   const load = useCallback(async () => {
     try {
-      const [subRes, docList, engs, bidList] = await Promise.all([
+      const [subRes, docList, engs, bidList, allInvs] = await Promise.all([
         api.getSub(sub_organization_id),
         api.listComplianceDocs(sub_organization_id),
         api.listEngagements(),
@@ -236,11 +256,13 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
           console.warn('[SubcontractorDetail] bid-history failed:', err.message);
           return [];
         }),
+        api.listAllSubInvoices().catch(() => []),
       ]);
       setSub(subRes.sub_organization);
       setDocs(docList);
       setEngagements(engs.filter((e) => e.sub_organization_id === sub_organization_id));
       setBidHistory(bidList);
+      setSubInvoices((allInvs || []).filter((i) => i.sub_organization_id === sub_organization_id));
     } catch (e) {
       console.warn('[SubcontractorDetail] load:', e.message);
     } finally {
@@ -713,12 +735,85 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
         )}
 
         {activeTab === 'Invoices' && (
-          <View style={styles.emptyBig}>
-            <Ionicons name="cash-outline" size={42} color={Colors.secondaryText} />
-            <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>Invoices live on each job</Text>
-            <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
-              Tap a job under Activity to see invoices, payments, and balance.
-            </Text>
+          <View>
+            {subInvoices.length === 0 ? (
+              <View style={styles.emptyBig}>
+                <Ionicons name="cash-outline" size={42} color={Colors.secondaryText} />
+                <Text style={[styles.emptyBigTitle, { color: Colors.primaryText }]}>No invoices yet</Text>
+                <Text style={[styles.emptyBigBody, { color: Colors.secondaryText }]}>
+                  When this sub uploads invoices from their Jobs tab, they'll appear here.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Overview */}
+                {(() => {
+                  const totalInvoiced = subInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+                  const totalPaid = subInvoices.filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.total_amount || 0), 0);
+                  const outstanding = totalInvoiced - totalPaid;
+                  return (
+                    <View style={styles.invOverview}>
+                      <View style={styles.invStat}>
+                        <Text style={styles.invStatLabel}>Invoiced</Text>
+                        <Text style={styles.invStatValue}>${totalInvoiced.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.invStatSep} />
+                      <View style={styles.invStat}>
+                        <Text style={styles.invStatLabel}>Paid</Text>
+                        <Text style={[styles.invStatValue, { color: '#10B981' }]}>${totalPaid.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.invStatSep} />
+                      <View style={styles.invStat}>
+                        <Text style={styles.invStatLabel}>Outstanding</Text>
+                        <Text style={[styles.invStatValue, outstanding > 0 && { color: '#F59E0B' }]}>${outstanding.toLocaleString()}</Text>
+                      </View>
+                    </View>
+                  );
+                })()}
+
+                {subInvoices.map((inv) => {
+                  const total = Number(inv.total_amount || 0);
+                  const status = inv.status || 'sent';
+                  const isPaid = status === 'paid';
+                  const pillColor = isPaid ? '#10B981' : status === 'rejected' ? '#DC2626' : '#3B82F6';
+                  const isOpening = openingInvId === inv.id;
+                  return (
+                    <TouchableOpacity
+                      key={inv.id}
+                      style={styles.invRow}
+                      activeOpacity={0.7}
+                      onPress={() => onOpenInvoice(inv)}
+                      disabled={!inv.pdf_url}
+                    >
+                      <View style={[styles.invIcon, { backgroundColor: pillColor + '15' }]}>
+                        <Ionicons name="cash-outline" size={18} color={pillColor} />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <View style={styles.invTopRow}>
+                          <Text style={styles.invAmount}>${total.toLocaleString()}</Text>
+                          <View style={[styles.invPill, { backgroundColor: pillColor + '15' }]}>
+                            <Text style={[styles.invPillText, { color: pillColor }]}>{status.replace(/_/g, ' ')}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.invMeta} numberOfLines={1}>
+                          {inv.trade ? inv.trade : ''}
+                          {inv.project_name ? `${inv.trade ? '  ·  ' : ''}${inv.project_name}` : ''}
+                        </Text>
+                        <Text style={styles.invDate} numberOfLines={1}>
+                          {inv.submitted_at ? `Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
+                          {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
+                        </Text>
+                      </View>
+                      {isOpening
+                        ? <ActivityIndicator size="small" color={Colors.secondaryText} />
+                        : inv.pdf_url
+                          ? <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+                          : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
           </View>
         )}
       </ScrollView>
@@ -959,6 +1054,32 @@ const makeStyles = (Colors) => StyleSheet.create({
   bidMetaChipText: { fontSize: 11, color: Colors.secondaryText, fontWeight: '600' },
   awaitingText: { fontSize: 11, color: Colors.secondaryText, fontStyle: 'italic' },
   bidSentDate: { fontSize: 11, color: Colors.secondaryText, marginLeft: 'auto' },
+  invOverview: {
+    flexDirection: 'row',
+    backgroundColor: Colors.cardBackground || '#fff',
+    borderRadius: 12, padding: 14, marginBottom: 8,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  invStat: { flex: 1 },
+  invStatSep: { width: 1, backgroundColor: Colors.border, marginHorizontal: 6 },
+  invStatLabel: { fontSize: 10, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.4 },
+  invStatValue: { fontSize: 17, fontWeight: '700', color: Colors.primaryText, marginTop: 4 },
+  invRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.cardBackground || '#fff',
+    borderRadius: 12, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  invIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  invTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  invAmount: { flex: 1, fontSize: 16, fontWeight: '700', color: Colors.primaryText },
+  invPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
+  invPillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  invMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 3, textTransform: 'capitalize' },
+  invDate: { fontSize: 11, color: Colors.secondaryText, marginTop: 2 },
   scheduleCard: {
     flexDirection: 'row',
     alignItems: 'center',
