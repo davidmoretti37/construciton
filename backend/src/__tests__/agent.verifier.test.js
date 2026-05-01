@@ -139,4 +139,22 @@ describe('PEV verifier — short-circuit (no LLM)', () => {
     expect(r.satisfied).toBe(false);
     expect(r.suggestion).toMatch(/suggestions/i);
   });
+
+  test('memorySnapshot is accepted as an optional param without throwing', async () => {
+    // Smoke test that the new param doesn't break the existing API. Live
+    // LLM behavior is exercised in integration; here we just verify it
+    // accepts the param and short-circuits when execution failed.
+    const r = await verify({
+      userMessage: 'invoice Smith $5000',
+      plan: { goal: 'x', steps: [{ id: 's1', tool: 'create_invoice', args: {}, depends_on: [] }] },
+      executeResult: {
+        ok: false,
+        stoppedReason: 'something failed',
+        stepResults: [{ id: 's1', tool: 'create_invoice', error: { class: 'soft', message: 'failed' } }],
+      },
+      memorySnapshot: '/preferences/smith.md: Smith pays net-15',
+    });
+    expect(r.shortCircuit).toBe(true);
+    expect(r.satisfied).toBe(false);
+  });
 });

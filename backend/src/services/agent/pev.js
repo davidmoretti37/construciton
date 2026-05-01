@@ -217,6 +217,7 @@ async function runPev(input) {
       userMessage,
       plan: attemptedPlan,
       executeResult: lastExec,
+      memorySnapshot, // memory-aware verification: flag plans that violate stored business rules
     });
     trace.stages.push({
       stage: 'verify',

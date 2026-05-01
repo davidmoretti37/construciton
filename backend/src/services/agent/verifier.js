@@ -49,6 +49,11 @@ satisfied=false when:
   - Steps succeeded but a piece of the request wasn't addressed. Look for verbs/conjunctions in the user's request: "create X AND email/send Y", "find Z THEN do W". Each verb after AND/THEN/PLUS is its own deliverable. If the plan didn't include a step for it, satisfied=false.
   - Tool returned suggestions/ambiguous results that need user disambiguation
   - The plan never executed any of the steps the user actually wanted
+  - **The execution VIOLATES a business rule** the user has set previously
+    (visible in the optional KNOWN BUSINESS RULES section below). For
+    example: rules say "Smith pays net-15" but the plan created an
+    invoice for Smith with net-30. Or rules say "always charge 8.75% tax"
+    but the plan used 0%. Surface as a gap so the user can review.
 
 EXAMPLES:
 
@@ -71,15 +76,19 @@ GAP MUST BE CONCRETE. Don't say "more might be needed" — say specifically what
 Reply with ONLY the JSON. No prose, no markdown.`;
 
 /**
- * Verify whether an Execute pass satisfied the user's request.
+ * Verify whether an Execute pass satisfied the user's request AND
+ * doesn't violate any business rules pulled from memory.
  *
  * @param {Object} input
- *   userMessage  — original user request
- *   plan         — { goal, steps, ... } from Planner
- *   executeResult — { ok, stepResults[], reachedSteps, stoppedReason? } from Executor
- * @returns {Promise<{satisfied, gap, suggestion, confidence, latencyMs, fallback}>}
+ *   userMessage   — original user request
+ *   plan          — { goal, steps, ... } from Planner
+ *   executeResult — { ok, stepResults[], reachedSteps, stoppedReason? }
+ *   memorySnapshot — optional string of durable user facts, used for
+ *                    business rule checks (e.g., memory says "Smith
+ *                    pays net-15" → flag invoice for Smith with net-30)
+ * @returns {Promise<{satisfied, gap, suggestion, confidence, latencyMs, fallback, businessRuleViolations?}>}
  */
-async function verify({ userMessage, plan, executeResult }) {
+async function verify({ userMessage, plan, executeResult, memorySnapshot = '' }) {
   if (!process.env.OPENROUTER_API_KEY) {
     return safeFallback('no API key');
   }
@@ -127,7 +136,7 @@ async function verify({ userMessage, plan, executeResult }) {
       },
       body: JSON.stringify({
         model: VERIFIER_MODEL,
-        max_tokens: 250,
+        max_tokens: 350,
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [
@@ -135,7 +144,8 @@ async function verify({ userMessage, plan, executeResult }) {
           { role: 'user', content:
               `USER REQUEST:\n${userMessage.slice(0, 1500)}\n\n` +
               `PLAN GOAL:\n${plan.goal}\n\n` +
-              `EXECUTION:\n${summary}` },
+              `EXECUTION:\n${summary}` +
+              (memorySnapshot ? `\n\nKNOWN BUSINESS RULES (from memory):\n${memorySnapshot.slice(0, 1500)}` : '') },
         ],
       }),
       signal: controller.signal,
