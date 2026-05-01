@@ -793,6 +793,30 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     logger.error('Failed to record payment event:', auditError?.message);
   }
 
+  // Record an income transaction so project P&L picks up the payment.
+  // Webhook dedup at the top of the handler prevents this from inserting
+  // twice for the same Stripe event.
+  if (invoice.project_id) {
+    try {
+      await supabaseAdmin
+        .from('project_transactions')
+        .insert({
+          project_id: invoice.project_id,
+          type: 'income',
+          category: 'invoice_payment',
+          description: `Payment for ${invoice.invoice_number || 'invoice'}`,
+          amount: amountPaidDollars,
+          date: new Date().toISOString().split('T')[0],
+          payment_method: paymentMethod,
+          is_auto_generated: true,
+          created_by: invoice.user_id,
+          notes: `Stripe PaymentIntent ${paymentIntent.id}`,
+        });
+    } catch (txnError) {
+      logger.error('Failed to record income transaction:', txnError?.message);
+    }
+  }
+
   // ─── Notify the owner that money came in ───
   // In-app row + best-effort push. The contractor needs to know within
   // seconds — this is the whole point of the system.
