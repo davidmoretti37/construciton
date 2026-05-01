@@ -42,6 +42,10 @@ export const sendDrawNow = async (drawItemId, dueInDays = 30) => {
 export const nudgeInvoice = (invoiceId) =>
   authedFetch(`/api/portal-admin/invoices/${invoiceId}/nudge`, { method: 'POST' });
 
+/** Email the invoice to the client + create a portal notification. */
+export const sendInvoiceToClient = (invoiceId) =>
+  authedFetch(`/api/portal-admin/invoices/${invoiceId}/send`, { method: 'POST' });
+
 /** Resend a CO email to the client (re-fires the original send_change_order email) */
 export const resendChangeOrder = async (changeOrderId) => {
   const { sendChangeOrder } = await import('./changeOrders');
