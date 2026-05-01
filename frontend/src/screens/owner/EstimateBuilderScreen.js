@@ -34,6 +34,7 @@ import {
 } from '../../utils/storage/estimates';
 import { supabase } from '../../lib/supabase';
 import { API_URL } from '../../config/api';
+import LineItemEditor from '../../components/LineItemEditor';
 
 const SECTIONS = [
   { key: 'basics',    title: 'Estimate basics',  icon: 'document-text-outline' },
@@ -276,30 +277,6 @@ export default function EstimateBuilderScreen({ route, navigation }) {
     }
   }, [clientName, items, subtotal, paymentTerms, status]);
 
-  // ───── Line items handlers ──────────────────────────────────────
-  const updateItem = (idx, patch) => {
-    setItems((prev) => prev.map((it, i) => {
-      if (i !== idx) return it;
-      const next = { ...it, ...patch };
-      next.total = Number(next.quantity || 0) * Number(next.pricePerUnit || 0);
-      return next;
-    }));
-  };
-  const addItem = () => setItems((prev) => [...prev, { description: '', quantity: 1, unit: 'ea', pricePerUnit: 0, total: 0 }]);
-  const removeItem = (idx) => setItems((prev) => prev.length === 1 ? prev : prev.filter((_, i) => i !== idx));
-  const duplicateItem = (idx) => setItems((prev) => {
-    const copy = [...prev];
-    copy.splice(idx + 1, 0, { ...copy[idx] });
-    return copy;
-  });
-  const moveItem = (idx, dir) => setItems((prev) => {
-    const j = idx + dir;
-    if (j < 0 || j >= prev.length) return prev;
-    const copy = [...prev];
-    [copy[idx], copy[j]] = [copy[j], copy[idx]];
-    return copy;
-  });
-
   // ───── Send ──────────────────────────────────────────────────────
   const onSend = async () => {
     if (status !== 'draft') {
@@ -477,76 +454,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
           expanded={!!expanded.lineItems} chip={sectionChip('lineItems')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
-          {items.map((it, idx) => (
-            <View key={idx} style={styles.lineItemCard}>
-              <View style={styles.lineItemHeader}>
-                <Text style={styles.lineItemIndex}>{idx + 1}</Text>
-                <View style={{ flex: 1 }} />
-                <TouchableOpacity onPress={() => moveItem(idx, -1)} disabled={idx === 0} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="chevron-up" size={16} color={idx === 0 ? Colors.border : Colors.secondaryText} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => moveItem(idx, 1)} disabled={idx === items.length - 1} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="chevron-down" size={16} color={idx === items.length - 1 ? Colors.border : Colors.secondaryText} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => duplicateItem(idx)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="copy-outline" size={15} color={Colors.secondaryText} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => removeItem(idx)} disabled={items.length === 1} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="trash-outline" size={15} color={items.length === 1 ? Colors.border : '#DC2626'} />
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={[styles.input, { marginTop: 6 }]}
-                value={it.description}
-                onChangeText={(v) => updateItem(idx, { description: v })}
-                placeholder="Description"
-                placeholderTextColor={Colors.placeholder || '#9CA3AF'}
-              />
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.miniLabel}>Qty</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={String(it.quantity)}
-                    onChangeText={(v) => updateItem(idx, { quantity: Number(v) || 0 })}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.miniLabel}>Unit</Text>
-                  <TouchableOpacity
-                    style={styles.input}
-                    onPress={() => {
-                      Alert.alert('Unit', null, [
-                        ...UNITS.map((u) => ({ text: u, onPress: () => updateItem(idx, { unit: u }) })),
-                        { text: 'Cancel', style: 'cancel' },
-                      ]);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.inputText}>{it.unit || 'ea'}</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ flex: 1.3 }}>
-                  <Text style={styles.miniLabel}>Unit price</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={String(it.pricePerUnit)}
-                    onChangeText={(v) => updateItem(idx, { pricePerUnit: Number(v) || 0 })}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-              </View>
-              <View style={styles.lineItemTotalRow}>
-                <Text style={styles.miniLabel}>Total</Text>
-                <Text style={styles.lineItemTotal}>{fmt$(it.total)}</Text>
-              </View>
-            </View>
-          ))}
-          <TouchableOpacity style={styles.addItemBtn} onPress={addItem} activeOpacity={0.7}>
-            <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
-            <Text style={[styles.addItemBtnText, { color: Colors.primaryBlue }]}>Add line item</Text>
-          </TouchableOpacity>
+          <LineItemEditor items={items} onChange={setItems} Colors={Colors} />
         </Section>
 
         {/* Section 3 — Pricing */}

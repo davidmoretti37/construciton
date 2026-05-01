@@ -1957,6 +1957,18 @@ export default function ChatScreen({ navigation, route }) {
           draft: action.data,
         });
         break;
+      case 'configure-change-order-details':
+        navigation.navigate('ChangeOrderBuilder', {
+          co_id: action.data?.id || action.data?.coId,
+          draft: action.data,
+        });
+        break;
+      case 'configure-invoice-details':
+        navigation.navigate('InvoiceBuilder', {
+          invoice_id: action.data?.id || action.data?.invoiceId,
+          draft: action.data,
+        });
+        break;
       case 'create-estimate':
         const pName = action.projectName || action.data?.projectName;
         if (pName) handleSend(`create estimate for ${pName}`, false);

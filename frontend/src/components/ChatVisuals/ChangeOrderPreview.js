@@ -565,6 +565,13 @@ export default function ChangeOrderPreview({ data, onAction }) {
               <Ionicons name="create-outline" size={16} color={C.text} />
               <Text style={styles.btnGhostText}>Edit</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.btnGhost}
+              onPress={() => onAction?.({ type: 'configure-change-order-details', data: { ...data, id: data?.id || data?.coId } })}
+            >
+              <Ionicons name="options-outline" size={16} color={C.text} />
+              <Text style={styles.btnGhostText}>Configure</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.btnSecondary} onPress={handleSaveDraft} disabled={saving}>
               {saving
                 ? <ActivityIndicator size="small" color={C.text} />

@@ -152,12 +152,21 @@ export default function InvoicesDetailScreen({ navigation }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allInvoices')}</Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.navigate('InvoiceTemplate')}
-        >
-          <Ionicons name="create-outline" size={22} color={Colors.primaryBlue} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('InvoiceBuilder')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="add" size={26} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('InvoiceTemplate')}
+          >
+            <Ionicons name="create-outline" size={22} color={Colors.primaryBlue} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView

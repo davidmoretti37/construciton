@@ -315,6 +315,13 @@ export default function InvoicePreview({ data, onAction }) {
             >
               <Ionicons name="share-outline" size={22} color="#fff" />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: '#0F172A' }]}
+              onPress={() => onAction && onAction({ type: 'configure-invoice-details', data })}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="options-outline" size={22} color="#fff" />
+            </TouchableOpacity>
           </>
         ) : (
           <>
