@@ -621,7 +621,7 @@ async function get_project_billing(userId, args = {}) {
       .order('order_index', { ascending: true }),
     supabase
       .from('invoices')
-      .select('id, invoice_number, status, total, amount_paid, amount_due, due_date, paid_date, created_at, sent_date')
+      .select('id, invoice_number, status, total, amount_paid, amount_due, due_date, paid_date, created_at')
       .eq('project_id', project_id)
       .order('created_at', { ascending: false }),
     supabase
@@ -743,7 +743,7 @@ async function get_project_billing(userId, args = {}) {
       due_date: inv.due_date,
       days_overdue: isOverdue ? Math.floor((Date.now() - new Date(inv.due_date).getTime()) / 86400000) : 0,
       zone,
-      occurred_at: inv.paid_date || inv.sent_date || inv.created_at,
+      occurred_at: inv.paid_date || inv.created_at,
       action_type, cta_label,
     });
   }
