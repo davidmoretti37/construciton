@@ -225,21 +225,32 @@ router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
-  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
-    logger.error('Webhook rejected: missing signature header or STRIPE_WEBHOOK_SECRET env var');
+  if (!sig || (!process.env.STRIPE_WEBHOOK_SECRET && !process.env.STRIPE_WEBHOOK_SECRET_CONNECT)) {
+    logger.error('Webhook rejected: missing signature header or webhook secret env vars');
     return res.status(400).send('Webhook Error: missing signature or secret');
   }
 
-  // Verify webhook signature
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    logger.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+  // Two webhook endpoints share this URL: the platform-events one and the
+  // Connect-events one. They use different signing secrets, so try the
+  // platform secret first (most events) and fall back to Connect.
+  const secrets = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_WEBHOOK_SECRET_CONNECT,
+  ].filter(Boolean);
+
+  let lastErr = null;
+  for (const secret of secrets) {
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, secret);
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (!event) {
+    logger.error('Webhook signature verification failed:', lastErr?.message);
+    return res.status(400).send(`Webhook Error: ${lastErr?.message}`);
   }
 
   logger.info(`Webhook received: ${event.type}`);
