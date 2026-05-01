@@ -1616,6 +1616,28 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       recordPevTurn({ userId, pevResult, sessionId }).catch(() => {});
 
       if (!PEV_SHADOW) {
+        if (pevResult.handoff === 'approval') {
+          // PEV's executor hit a tool requiring user confirmation
+          // (destructive write or external send). Surface the inline
+          // approve/cancel card the frontend already renders for the
+          // legacy approval flow. User taps Approve → next turn becomes
+          // "yes confirm" and the PEV pipeline re-plans with confirmation.
+          const pa = pevResult.pendingApproval || {};
+          writer.emit({
+            type: 'pending_approval',
+            tool: pa.tool,
+            args: pa.args,
+            action_summary: pa.action_summary,
+            risk_level: pa.risk_level,
+            reason: pa.reason,
+          });
+          // Optional next-step hint for the user-facing copy
+          if (pa.next_step) {
+            writer.emit({ type: 'delta', content: pa.next_step });
+          }
+          writer.emit({ type: 'done' });
+          return;
+        }
         if (pevResult.handoff === 'ask') {
           // Halt and ask the user — surface the question as the agent's response.
           writer.emit({ type: 'delta', content: pevResult.question || 'Could you clarify?' });

@@ -32,18 +32,25 @@ const PER_STEP_TIMEOUT_MS = parseInt(process.env.PEV_STEP_TIMEOUT_MS, 10) || 30_
  * Run a plan.
  *
  * @param {Object} args
- *   plan         — { goal, steps, ... } from the Planner
- *   executeTool  — async (name, args, userId) => result
- *   userId       — string
- *   emit         — optional callback (event) => void for streaming
+ *   plan          — { goal, steps, ... } from the Planner
+ *   executeTool   — async (name, args, userId) => result
+ *   userId        — string
+ *   emit          — optional callback (event) => void for streaming
+ *   preToolCheck  — optional async ({tool, args}) => {verdict, reason, action_summary, ...}
+ *                   When verdict='BLOCK', the executor halts WITHOUT calling
+ *                   the tool and returns pendingApproval so the orchestrator
+ *                   can surface an inline confirm card to the user. Used to
+ *                   route writes through approvalGate (destructive writes,
+ *                   external writes like email/QBO mirror).
  * @returns {Promise<{
  *   ok: boolean,
  *   stepResults: Array<{id, tool, args, result?, error?, ms}>,
  *   reachedSteps: number,
  *   stoppedReason?: string,
+ *   pendingApproval?: { stepId, tool, args, gateResult },
  * }>}
  */
-async function execute({ plan, executeTool, userId, emit = () => {} }) {
+async function execute({ plan, executeTool, userId, emit = () => {}, preToolCheck = null }) {
   if (!plan || !Array.isArray(plan.steps)) {
     return { ok: false, stepResults: [], reachedSteps: 0, stoppedReason: 'no plan' };
   }
@@ -83,6 +90,51 @@ async function execute({ plan, executeTool, userId, emit = () => {} }) {
       tool: step.tool,
       why: step.why,
     });
+
+    // Pre-tool approval check (writes / external sends). Halts the plan
+    // and surfaces a pending_approval card to the user before the tool
+    // ever runs. Resumption happens in the next user turn (when they
+    // tap Approve, the message becomes "yes confirm" and PEV re-plans).
+    if (preToolCheck) {
+      try {
+        const check = await preToolCheck({ tool: step.tool, args: resolvedArgs });
+        if (check?.verdict === 'BLOCK') {
+          emit({
+            type: 'pev_pending_approval',
+            stepId: step.id,
+            tool: step.tool,
+            args: resolvedArgs,
+            risk_level: check.risk_level,
+            action_summary: check.action_summary,
+            reason: check.reason,
+          });
+          return {
+            ok: false,
+            stepResults,
+            reachedSteps: i,
+            stoppedReason: `step ${step.id} (${step.tool}) requires user confirmation`,
+            pendingApproval: {
+              stepId: step.id,
+              tool: step.tool,
+              args: resolvedArgs,
+              risk_level: check.risk_level,
+              action_summary: check.action_summary,
+              reason: check.reason,
+              next_step: check.next_step,
+            },
+          };
+        }
+      } catch (e) {
+        // Fail-closed: if the gate itself errors, halt rather than ship a
+        // potentially-destructive call. Surface the gate failure to the user.
+        return {
+          ok: false,
+          stepResults,
+          reachedSteps: i,
+          stoppedReason: `approval check failed for step ${step.id}: ${e.message}`,
+        };
+      }
+    }
 
     let result;
     let lastErr = null;

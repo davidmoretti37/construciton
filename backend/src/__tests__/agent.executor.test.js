@@ -171,5 +171,59 @@ describe('PEV executor', () => {
       expect(r.ok).toBe(true);
       expect(r.reachedSteps).toBe(0);
     });
+
+    test('preToolCheck BLOCK halts plan and returns pendingApproval', async () => {
+      const plan = {
+        goal: 'send invoice',
+        steps: [
+          { id: 's1', tool: 'search_projects', args: { q: 'Smith' }, why: 'find', depends_on: [] },
+          { id: 's2', tool: 'send_invoice', args: { id: 'inv-1' }, why: 'send', depends_on: ['s1'] },
+        ],
+      };
+      const calls = [];
+      const fakeTool = async (n, a) => {
+        calls.push({ n, a });
+        if (n === 'search_projects') return { results: [{ id: 'p1' }] };
+        return { sent: true };
+      };
+      // Block writes — only allow reads
+      const preToolCheck = async ({ tool }) => {
+        if (tool.startsWith('send_') || tool.startsWith('mirror_')) {
+          return { verdict: 'BLOCK', reason: 'external write', risk_level: 'external_write', action_summary: `Send ${tool}` };
+        }
+        return { verdict: 'PROCEED' };
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', preToolCheck });
+      expect(r.ok).toBe(false);
+      expect(r.pendingApproval).toBeTruthy();
+      expect(r.pendingApproval.tool).toBe('send_invoice');
+      expect(r.pendingApproval.risk_level).toBe('external_write');
+      // Search should have run (read), send should NOT have run (blocked)
+      expect(calls.map((c) => c.n)).toEqual(['search_projects']);
+    });
+
+    test('preToolCheck PROCEED runs the tool normally', async () => {
+      const plan = {
+        goal: 'x',
+        steps: [{ id: 's1', tool: 'search_projects', args: {}, why: '', depends_on: [] }],
+      };
+      const fakeTool = async () => ({ ok: true });
+      const preToolCheck = async () => ({ verdict: 'PROCEED' });
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', preToolCheck });
+      expect(r.ok).toBe(true);
+      expect(r.pendingApproval).toBeFalsy();
+    });
+
+    test('preToolCheck error halts (fail-closed)', async () => {
+      const plan = {
+        goal: 'x',
+        steps: [{ id: 's1', tool: 'search_projects', args: {}, why: '', depends_on: [] }],
+      };
+      const fakeTool = async () => ({ ok: true });
+      const preToolCheck = async () => { throw new Error('gate exploded'); };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', preToolCheck });
+      expect(r.ok).toBe(false);
+      expect(r.stoppedReason).toMatch(/approval check failed/);
+    });
   });
 });

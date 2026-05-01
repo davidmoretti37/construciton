@@ -35,6 +35,7 @@ const { plan: makePlan, planVerdict } = require('./planner');
 const { execute } = require('./executor');
 const { verify, MAX_VERIFY_LOOPS } = require('./verifier');
 const { respond } = require('./responder');
+const approvalGate = require('../approvalGate');
 
 // Default ON. Set PEV_ENABLED=0 to disable (kill switch).
 const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
@@ -131,9 +132,30 @@ async function runPev(input) {
     loops++;
 
     emit({ type: 'pev_execute_start', loop: loops });
-    lastExec = await execute({ plan: attemptedPlan, executeTool, userId, emit });
-    trace.stages.push({ stage: 'execute', loop: loops, ok: lastExec.ok, reachedSteps: lastExec.reachedSteps });
+    lastExec = await execute({
+      plan: attemptedPlan,
+      executeTool,
+      userId,
+      emit,
+      preToolCheck: async ({ tool, args }) => approvalGate.check({ toolName: tool, toolArgs: args, messages: [] }),
+    });
+    trace.stages.push({ stage: 'execute', loop: loops, ok: lastExec.ok, reachedSteps: lastExec.reachedSteps, pendingApproval: !!lastExec.pendingApproval });
     emit({ type: 'pev_execute_done', ok: lastExec.ok });
+
+    // Approval gate fired — halt and ask the user to confirm before any
+    // destructive/external write tool runs. Surface as a special handoff
+    // so the orchestrator's caller can emit a pending_approval SSE event
+    // matching the existing approval flow's wire format.
+    if (lastExec.pendingApproval) {
+      return {
+        handoff: 'approval',
+        pendingApproval: lastExec.pendingApproval,
+        plan: attemptedPlan,
+        stepResults: lastExec.stepResults,
+        trace,
+        totalMs: Date.now() - t0,
+      };
+    }
 
     emit({ type: 'pev_verify_start' });
     lastVerifier = await verify({
