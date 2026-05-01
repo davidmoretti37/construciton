@@ -78,6 +78,7 @@ async function create_change_order(userId, args = {}) {
     project_id, title, description, line_items = [],
     schedule_impact_days = 0, tax_rate = 0,
     signature_required = false, billing_strategy = 'invoice_now',
+    phase_placement = null, target_phase_id = null, new_phase_name = null,
   } = args;
 
   if (!project_id) return { error: 'project_id is required' };
@@ -125,6 +126,9 @@ async function create_change_order(userId, args = {}) {
       schedule_impact_days,
       signature_required: !!signature_required,
       billing_strategy,
+      phase_placement: phase_placement || null,
+      target_phase_id: target_phase_id || null,
+      new_phase_name: new_phase_name ? String(new_phase_name).trim() : null,
       status: 'draft',
     })
     .select()
@@ -252,6 +256,10 @@ async function get_change_order(userId, args = {}) {
       total_amount: parseFloat(co.total_amount || 0),
       schedule_impact_days: co.schedule_impact_days,
       billing_strategy: co.billing_strategy,
+      phase_placement: co.phase_placement,
+      target_phase_id: co.target_phase_id,
+      new_phase_name: co.new_phase_name,
+      applied_phase_id: co.applied_phase_id,
       signature_required: !!co.signature_required,
       status: co.status,
       sent_at: co.sent_at,
@@ -311,6 +319,9 @@ async function update_change_order(userId, args = {}) {
   if (args.tax_rate != null) updates.tax_rate = Number(args.tax_rate);
   if (args.signature_required != null) updates.signature_required = !!args.signature_required;
   if (args.billing_strategy != null) updates.billing_strategy = args.billing_strategy;
+  if (args.phase_placement !== undefined) updates.phase_placement = args.phase_placement || null;
+  if (args.target_phase_id !== undefined) updates.target_phase_id = args.target_phase_id || null;
+  if (args.new_phase_name !== undefined) updates.new_phase_name = args.new_phase_name ? String(args.new_phase_name).trim() : null;
 
   // Replace line items wholesale if provided
   let newSubtotal = null;

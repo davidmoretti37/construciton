@@ -45,6 +45,9 @@ export const saveChangeOrder = async (data) => {
     tax_rate: Number(data.taxRate ?? data.tax_rate ?? 0),
     signature_required: !!(data.signatureRequired ?? data.signature_required ?? false),
     billing_strategy: data.billingStrategy ?? data.billing_strategy ?? 'invoice_now',
+    phase_placement: data.phasePlacement ?? data.phase_placement ?? null,
+    target_phase_id: data.targetPhaseId ?? data.target_phase_id ?? null,
+    new_phase_name: data.newPhaseName ?? data.new_phase_name ?? null,
     line_items: (data.lineItems || data.line_items || []).map((li, idx) => ({
       description: li.description || '',
       quantity: Number(li.quantity ?? 1),
@@ -78,6 +81,15 @@ export const updateChangeOrder = async (id, data) => {
   if (data.billingStrategy !== undefined || data.billing_strategy !== undefined) {
     body.billing_strategy = data.billingStrategy ?? data.billing_strategy;
   }
+  if (data.phasePlacement !== undefined || data.phase_placement !== undefined) {
+    body.phase_placement = data.phasePlacement ?? data.phase_placement ?? null;
+  }
+  if (data.targetPhaseId !== undefined || data.target_phase_id !== undefined) {
+    body.target_phase_id = data.targetPhaseId ?? data.target_phase_id ?? null;
+  }
+  if (data.newPhaseName !== undefined || data.new_phase_name !== undefined) {
+    body.new_phase_name = data.newPhaseName ?? data.new_phase_name ?? null;
+  }
   if (Array.isArray(data.lineItems) || Array.isArray(data.line_items)) {
     body.line_items = (data.lineItems || data.line_items).map((li, idx) => ({
       description: li.description || '',
@@ -94,9 +106,17 @@ export const updateChangeOrder = async (id, data) => {
   });
 };
 
-export const sendChangeOrder = async (id) => {
+export const sendChangeOrder = async (id, overrides = {}) => {
   if (!id) throw new Error('No change order id');
-  return authedFetch(`/api/portal-admin/change-orders/${id}/send`, { method: 'POST' });
+  const body = {};
+  if (overrides.billing_strategy !== undefined) body.billing_strategy = overrides.billing_strategy;
+  if (overrides.phase_placement !== undefined) body.phase_placement = overrides.phase_placement;
+  if (overrides.target_phase_id !== undefined) body.target_phase_id = overrides.target_phase_id;
+  if (overrides.new_phase_name !== undefined) body.new_phase_name = overrides.new_phase_name;
+  return authedFetch(`/api/portal-admin/change-orders/${id}/send`, {
+    method: 'POST',
+    body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
+  });
 };
 
 export const recallChangeOrder = async (id) => {

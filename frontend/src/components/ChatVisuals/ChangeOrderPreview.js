@@ -11,9 +11,10 @@
 //   → tap Send → onAction('send-change-order', { id, ...data })
 // ChatScreen handles those actions.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
 
 const C = {
   primary: '#1E40AF', primaryLight: '#DBEAFE',
@@ -55,6 +56,22 @@ export default function ChangeOrderPreview({ data, onAction }) {
   const [billingStrategy, setBillingStrategy] = useState(
     data?.billingStrategy ?? data?.billing_strategy ?? 'invoice_now'
   );
+
+  // Phase placement: where this CO snaps into the project timeline.
+  // mode: 'inside_phase' | 'before_phase' | 'after_phase' | null
+  const [phasePlacement, setPhasePlacement] = useState(
+    data?.phasePlacement ?? data?.phase_placement ?? null
+  );
+  const [targetPhaseId, setTargetPhaseId] = useState(
+    data?.targetPhaseId ?? data?.target_phase_id ?? null
+  );
+  const [newPhaseName, setNewPhaseName] = useState(
+    data?.newPhaseName ?? data?.new_phase_name ?? ''
+  );
+  const [projectPhases, setProjectPhases] = useState(
+    Array.isArray(data?.projectPhases) ? data.projectPhases : []
+  );
+
   const [savedId, setSavedId] = useState(data?.id || null);
   const [status, setStatus] = useState(data?.status || 'draft');
   const [saving, setSaving] = useState(false);
@@ -62,6 +79,21 @@ export default function ChangeOrderPreview({ data, onAction }) {
 
   const projectId = data?.project_id;
   const projectName = data?.projectName || data?.project_name || '';
+
+  // Fetch phases when missing (agent typically populates them, but be resilient)
+  useEffect(() => {
+    if (!projectId || projectPhases.length > 0) return;
+    let alive = true;
+    (async () => {
+      const { data: rows, error } = await supabase
+        .from('project_phases')
+        .select('id, name, order_index, status')
+        .eq('project_id', projectId)
+        .order('order_index', { ascending: true });
+      if (alive && !error && Array.isArray(rows)) setProjectPhases(rows);
+    })();
+    return () => { alive = false; };
+  }, [projectId]);
   const currentContract = Number(data?.currentContractAmount ?? data?.contract_amount ?? 0);
   const currentEnd = data?.currentEndDate ?? data?.end_date ?? null;
 
@@ -96,6 +128,9 @@ export default function ChangeOrderPreview({ data, onAction }) {
     taxRate,
     signatureRequired,
     billingStrategy,
+    phasePlacement: phasePlacement || null,
+    targetPhaseId: targetPhaseId || null,
+    newPhaseName: newPhaseName?.trim() || null,
     lineItems: items.map((li) => ({
       description: li.description,
       quantity: Number(li.quantity || 0),
@@ -118,6 +153,19 @@ export default function ChangeOrderPreview({ data, onAction }) {
     }
     if (items.length === 0 || !items.some((li) => li.description.trim() && Number(li.unit_price) > 0)) {
       Alert.alert('Add line items', 'A change order needs at least one priced line item.');
+      return false;
+    }
+    // Phase placement is required when there's real work to schedule
+    const needsPlacement = projectPhases.length > 0 && (Number(scheduleImpactDays || 0) !== 0 || items.length > 0);
+    if (needsPlacement && !phasePlacement) {
+      Alert.alert(
+        'Where does this fit?',
+        'Pick where this change goes on the timeline — inside an existing phase, or as a new phase before/after one.'
+      );
+      return false;
+    }
+    if (phasePlacement && !targetPhaseId && projectPhases.length > 0) {
+      Alert.alert('Pick a phase', 'Choose which phase this attaches to.');
       return false;
     }
     return true;
@@ -152,7 +200,18 @@ export default function ChangeOrderPreview({ data, onAction }) {
         id = saved.id;
         setSavedId(id);
       }
-      const result = await onAction?.({ type: 'send-change-order', data: { id } });
+      // Pass the latest placement/strategy so any user edits after the initial save
+      // make it onto the row before the status flip.
+      const result = await onAction?.({
+        type: 'send-change-order',
+        data: {
+          id,
+          billing_strategy: billingStrategy,
+          phase_placement: phasePlacement || null,
+          target_phase_id: targetPhaseId || null,
+          new_phase_name: newPhaseName?.trim() || null,
+        },
+      });
       if (result?.sent || result?.status === 'pending_client') {
         setStatus('pending_client');
         Alert.alert('Sent', `Change order emailed${result?.email ? ` to ${result.email}` : ''}.`);
@@ -379,6 +438,87 @@ export default function ChangeOrderPreview({ data, onAction }) {
             trackColor={{ false: C.border, true: C.primary }}
             disabled={isSent}
           />
+        </View>
+      )}
+
+      {/* Phase placement picker — required when project has phases */}
+      {!isSent && projectPhases.length > 0 && (
+        <View style={styles.strategyBlock}>
+          <Text style={styles.strategyLabel}>Where does this fit on the timeline?</Text>
+          {[
+            { key: 'inside_phase', label: 'Inside an existing phase',
+              hint: 'Adds tasks + days to one of the phases below' },
+            { key: 'after_phase',  label: 'As a new phase AFTER',
+              hint: 'Inserts a new phase right after the one you pick' },
+            { key: 'before_phase', label: 'As a new phase BEFORE',
+              hint: 'Inserts a new phase right before the one you pick' },
+          ].map((opt) => {
+            const selected = phasePlacement === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.strategyRow, selected && styles.strategyRowSelected]}
+                onPress={() => setPhasePlacement(opt.key)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.radio, selected && styles.radioSelected]}>
+                  {selected && <View style={styles.radioDot} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.strategyOptLabel, selected && { color: C.primary }]}>{opt.label}</Text>
+                  <Text style={styles.strategyOptHint}>{opt.hint}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          {phasePlacement && (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.strategyOptHint}>
+                {phasePlacement === 'inside_phase' ? 'Merge into:' :
+                 phasePlacement === 'after_phase'  ? 'After which phase:' :
+                                                    'Before which phase:'}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
+                {projectPhases.map((p) => {
+                  const sel = targetPhaseId === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => setTargetPhaseId(p.id)}
+                      activeOpacity={0.7}
+                      style={{
+                        paddingVertical: 6, paddingHorizontal: 10,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: sel ? C.primary : C.border,
+                        backgroundColor: sel ? C.primaryLight : '#fff',
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, color: sel ? C.primary : C.text, fontWeight: sel ? '600' : '500' }}>
+                        {p.order_index != null ? `${p.order_index}. ` : ''}{p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {(phasePlacement === 'before_phase' || phasePlacement === 'after_phase') && (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.strategyOptHint}>New phase name (optional)</Text>
+                  <TextInput
+                    style={{
+                      borderWidth: 1, borderColor: C.border, borderRadius: 8,
+                      paddingHorizontal: 10, paddingVertical: 8, marginTop: 4,
+                      fontSize: 13, color: C.text, backgroundColor: '#fff',
+                    }}
+                    value={newPhaseName}
+                    onChangeText={setNewPhaseName}
+                    placeholder={title || 'New phase name'}
+                    placeholderTextColor={C.textMuted}
+                  />
+                </View>
+              )}
+            </View>
+          )}
         </View>
       )}
 

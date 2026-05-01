@@ -2441,7 +2441,8 @@ export default function ChatScreen({ navigation, route }) {
         const { sendChangeOrder } = await import('../utils/storage/changeOrders');
         try {
           if (!action.data?.id) throw new Error('Missing change order id');
-          return await sendChangeOrder(action.data.id);
+          const { id, ...overrides } = action.data;
+          return await sendChangeOrder(id, overrides);
         } catch (e) {
           Alert.alert('Send failed', e.message || 'Could not send the change order.');
           return null;

@@ -1147,6 +1147,9 @@ router.post('/change-orders', async (req, res) => {
       tax_rate = 0,
       signature_required = false,
       billing_strategy = 'invoice_now',
+      phase_placement = null,
+      target_phase_id = null,
+      new_phase_name = null,
     } = req.body;
 
     if (!project_id || !title) {
@@ -1180,6 +1183,9 @@ router.post('/change-orders', async (req, res) => {
         schedule_impact_days,
         signature_required,
         billing_strategy,
+        phase_placement: phase_placement || null,
+        target_phase_id: target_phase_id || null,
+        new_phase_name: new_phase_name ? String(new_phase_name).trim() : null,
         status: 'draft',
       })
       .select()
@@ -1241,7 +1247,7 @@ router.patch('/change-orders/:id', async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { id } = req.params;
-    const { title, description, line_items, schedule_impact_days, tax_rate, signature_required, billing_strategy } = req.body;
+    const { title, description, line_items, schedule_impact_days, tax_rate, signature_required, billing_strategy, phase_placement, target_phase_id, new_phase_name } = req.body;
 
     // Verify CO is draft + owned
     const { data: existing } = await supabase
@@ -1262,6 +1268,9 @@ router.patch('/change-orders/:id', async (req, res) => {
     if (tax_rate !== undefined) update.tax_rate = tax_rate;
     if (signature_required !== undefined) update.signature_required = signature_required;
     if (billing_strategy !== undefined) update.billing_strategy = billing_strategy;
+    if (phase_placement !== undefined) update.phase_placement = phase_placement || null;
+    if (target_phase_id !== undefined) update.target_phase_id = target_phase_id || null;
+    if (new_phase_name !== undefined) update.new_phase_name = new_phase_name ? String(new_phase_name).trim() : null;
 
     // Recompute totals if line items provided
     if (Array.isArray(line_items)) {
@@ -1349,6 +1358,24 @@ router.post('/change-orders/:id/send', async (req, res) => {
 
     if (!clientEmail) {
       return res.status(400).json({ error: 'No client email on project. Add one before sending.' });
+    }
+
+    // Allow last-minute overrides at send time: billing_strategy + phase placement.
+    // We persist BEFORE flipping status so the cascade (which fires on client approval)
+    // reads the final values.
+    const sendOverrides = { updated_at: new Date().toISOString() };
+    if (req.body?.billing_strategy !== undefined) sendOverrides.billing_strategy = req.body.billing_strategy;
+    if (req.body?.phase_placement !== undefined) sendOverrides.phase_placement = req.body.phase_placement || null;
+    if (req.body?.target_phase_id !== undefined) sendOverrides.target_phase_id = req.body.target_phase_id || null;
+    if (req.body?.new_phase_name !== undefined) sendOverrides.new_phase_name = req.body.new_phase_name ? String(req.body.new_phase_name).trim() : null;
+    if (Object.keys(sendOverrides).length > 1) {
+      const { error: ovErr } = await supabase
+        .from('change_orders')
+        .update(sendOverrides)
+        .eq('id', id)
+        .eq('owner_id', ownerId)
+        .eq('status', 'draft');
+      if (ovErr) return res.status(500).json({ error: ovErr.message });
     }
 
     // Flip status FIRST so the email link lands on a sendable record

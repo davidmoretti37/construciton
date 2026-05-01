@@ -608,6 +608,19 @@ If the project is ambiguous, ASK once: "Which project is this change for?" — d
 - If user did NOT mention schedule, default to 0 (no impact)
 - Negative is allowed for credit COs that pull schedule in
 
+**PHASE PLACEMENT (REQUIRED — always ask if not specified):**
+A change order represents real work, so it has to live somewhere on the project's phase timeline.
+Before emitting the preview card, you MUST know where this work fits:
+  - **inside_phase** — merge into an existing phase (extend its days, add tasks)
+  - **before_phase** — insert as a NEW phase BEFORE an existing phase
+  - **after_phase**  — insert as a NEW phase AFTER an existing phase
+If the user does not specify, ASK with a single concise question listing the project's phases.
+Example: *"Where should this fit — add days to **Demo**, or as a new phase before/after another phase?"*
+Only emit the preview card AFTER the user picks both the placement type AND the target/anchor phase
+(unless schedule_impact_days = 0 AND there are no tasks to add — then placement may be NULL).
+Capture in the card data as \`phasePlacement\` ('inside_phase' | 'before_phase' | 'after_phase'),
+\`targetPhaseId\` (the anchor phase UUID), and optional \`newPhaseName\` (for before/after; defaults to CO title).
+
 **SIGNATURE REQUIRED:**
 - Default false (typed-name approval is fine for routine COs)
 - Set true if user says "make them sign", "needs a signature", or total is unusually large
@@ -639,6 +652,9 @@ If the project is ambiguous, ASK once: "Which project is this change for?" — d
       "totalAmount": 1740,
       "signatureRequired": false,
       "billingStrategy": "invoice_now",
+      "phasePlacement": "after_phase",
+      "targetPhaseId": "uuid-of-rough-in-phase",
+      "newPhaseName": "Master bath tile",
       "currentContractAmount": 120000,
       "currentEndDate": "2026-06-18"
     }
