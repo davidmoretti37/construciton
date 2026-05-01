@@ -391,7 +391,11 @@ export default function EngagementDetailScreen({ route, navigation }) {
                     return v ? new Date(v + 'T12:00:00') : new Date();
                   })()}
                   mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  themeVariant="light"
+                  textColor={Colors.primaryText}
+                  accentColor={Colors.primaryBlue || '#3B82F6'}
+                  style={Platform.OS === 'ios' ? { alignSelf: 'stretch' } : undefined}
                   onChange={(event, selectedDate) => {
                     if (Platform.OS === 'android') setPickerField(null);
                     if (selectedDate) {
