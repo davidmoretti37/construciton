@@ -1424,6 +1424,16 @@ if (require.main === module) {
     logger.warn('Billing nudge job failed to start:', e.message);
   }
 
+  // Push dispatcher — every minute, ships any unpushed notifications to
+  // the user's device via Expo push. Respects per-category preferences
+  // and quiet hours. Single source of truth: notifications table.
+  try {
+    const { startPushDispatchJob } = require('./services/pushDispatchJob');
+    startPushDispatchJob();
+  } catch (e) {
+    logger.warn('Push dispatch job failed to start:', e.message);
+  }
+
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     logger.info(`Backend server running on port ${PORT}`);
