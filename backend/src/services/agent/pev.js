@@ -61,6 +61,44 @@ const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
 // classifying / planning so the rest of the pipeline doesn't get confused.
 const DRY_RUN_RE = /^\s*(?:dry[\s-]?run|test[\s-]?mode|preview\s+only|just\s+show\s+me\s+(?:the\s+)?plan)[:\s,.-]*/i;
 
+// Tools that are read-only — failures on these are usually environmental
+// (DB hiccup, transient connection) and the simple Foreman flow can often
+// recover. If PEV halts on the FIRST step and that step is a read tool,
+// fall back instead of asking the user something they can't answer.
+const READONLY_TOOLS = new Set([
+  'search_projects', 'get_project_details', 'get_project_summary',
+  'search_estimates', 'get_estimate_details',
+  'search_invoices', 'get_invoice_details',
+  'search_workers', 'get_workers', 'get_worker_details',
+  'list_change_orders', 'get_change_order',
+  'list_subs', 'get_sub', 'get_sub_compliance',
+  'list_engagements', 'get_engagement',
+  'global_search', 'query_event_history',
+  'get_transactions', 'get_financial_overview',
+  'get_daily_briefing',
+]);
+
+const GENERIC_ERROR_PATTERNS = [
+  /something went wrong/i,
+  /that action isn'?t available/i,
+  /unknown error/i,
+];
+
+function shouldFallbackToForeman(executeResult, plan) {
+  // Only fall back if execution halted on the FIRST step
+  if (!executeResult || executeResult.reachedSteps !== 0) return false;
+  if (!Array.isArray(executeResult.stepResults) || executeResult.stepResults.length !== 1) return false;
+  const sr = executeResult.stepResults[0];
+  if (!sr?.error) return false;
+  // Only fall back for read-only tools (writes need approval, fall-through is risky)
+  if (!READONLY_TOOLS.has(sr.tool)) return false;
+  // Only fall back on generic errors — specific errors (not_found, ambiguous)
+  // give the user good info via the Responder
+  const msg = String(sr.error.message || '').toLowerCase();
+  if (!GENERIC_ERROR_PATTERNS.some((re) => re.test(msg))) return false;
+  return true;
+}
+
 function detectDryRun(userMessage) {
   if (!userMessage || typeof userMessage !== 'string') return { dryRun: false, cleaned: userMessage };
   const m = userMessage.match(DRY_RUN_RE);
@@ -305,11 +343,28 @@ async function runPev(input) {
 
     if (lastVerifier.satisfied) break;
 
-    // Not satisfied: if execution actually failed, surface to user (don't
-    // just spin in re-verify loops — the gap is real and needs human input).
-    // ALWAYS humanize through the Responder so the user never sees raw
-    // technical strings like "step s1 (search_projects) returned error".
+    // Not satisfied AND execution failed. Two paths from here:
+    //   a) FALL BACK to Foreman if the failure is the FIRST step and it's
+    //      a read-only tool with a generic error. The simple Foreman flow
+    //      has the full system prompt and tool surface and might handle
+    //      the request without halting. This is the escape hatch for the
+    //      "agent got stupid" UX failure — when PEV is stuck, the user
+    //      gets the working agent back instead of a humanized "I dunno".
+    //   b) Otherwise, surface to user via Responder (humanized). For
+    //      mid-plan failures, multi-step plans, write tools, etc.
     if (!lastExec.ok) {
+      if (shouldFallbackToForeman(lastExec, attemptedPlan)) {
+        emit({ type: 'pev_fallback_foreman', reason: 'read-tool failure on first step' });
+        return {
+          handoff: 'foreman',
+          reason: 'pev stuck on first read step — letting Foreman handle it',
+          plan: attemptedPlan,
+          stepResults: lastExec.stepResults,
+          trace,
+          totalMs: Date.now() - t0,
+        };
+      }
+
       const responder = await respond({
         userMessage,
         outcome: 'ask',
