@@ -194,10 +194,11 @@ jobs:
   # ============================================================
   agent-evals:
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+    # Manual-only. Pre-launch we are the eval suite; auto-firing on every
+    # push burns OpenRouter credit for output nobody reads. Run ad-hoc
+    # before TestFlight / production release with:
+    #   gh workflow run ci.yml -f eval_suite=full
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
