@@ -225,11 +225,12 @@ jobs:
       - name: Decide suite + skip
         id: decide
         run: |
+          # Cost guard: every full eval run hits OpenRouter for ~2M tokens
+          # (~$0.50–$1 of Haiku). Avoid running full on every push to main.
+          # Full runs only on explicit workflow_dispatch; main pushes get a
+          # smoke suite (~10 cases) only when agent files actually changed.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "suite=${{ inputs.eval_suite }}" >> "$GITHUB_OUTPUT"
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "suite=full" >> "$GITHUB_OUTPUT"
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           elif [ "${{ steps.paths.outputs.agent_changed }}" = "true" ]; then
             echo "suite=smoke" >> "$GITHUB_OUTPUT"
