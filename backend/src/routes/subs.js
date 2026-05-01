@@ -105,6 +105,50 @@ router.get('/', authenticateUser, async (req, res) => {
 });
 
 // =============================================================================
+// GET /api/subs/invoices — every invoice from any sub on any of this GC's
+// engagements. MUST be declared BEFORE /:id, otherwise Express matches
+// "/invoices" as the :id param and returns 404.
+// =============================================================================
+
+router.get('/invoices', authenticateUser, async (req, res) => {
+  try {
+    const { data: engs } = await supabase
+      .from('sub_engagements')
+      .select('id, trade, sub:sub_organizations(id, legal_name), project:projects(id, name)')
+      .eq('gc_user_id', req.user.id);
+    const engById = {};
+    for (const e of (engs || [])) engById[e.id] = e;
+    const engIds = Object.keys(engById);
+    if (engIds.length === 0) return res.json({ invoices: [] });
+
+    const { data: invs, error: invErr } = await supabase
+      .from('sub_invoices')
+      .select('id, engagement_id, invoice_number, total_amount, status, pdf_url, due_at, submitted_at, created_at, paid_at')
+      .in('engagement_id', engIds)
+      .order('created_at', { ascending: false });
+    if (invErr) {
+      logger.error('[subs] /invoices query err:', invErr);
+      return res.status(500).json({ error: invErr.message });
+    }
+
+    const enriched = (invs || []).map((inv) => {
+      const e = engById[inv.engagement_id];
+      return {
+        ...inv,
+        sub_legal_name: e?.sub?.legal_name || null,
+        sub_organization_id: e?.sub?.id || null,
+        trade: e?.trade || null,
+        project_name: e?.project?.name || null,
+      };
+    });
+    return res.json({ invoices: enriched });
+  } catch (err) {
+    logger.error('[subs] /invoices error:', err);
+    return res.status(500).json({ error: 'Failed to load sub invoices' });
+  }
+});
+
+// =============================================================================
 // GET /api/subs/:id
 // =============================================================================
 
@@ -280,51 +324,6 @@ router.get('/:id/bid-history', authenticateUser, async (req, res) => {
   } catch (err) {
     logger.error('[subs] bid-history error:', err);
     return res.status(500).json({ error: 'Failed to load bid history' });
-  }
-});
-
-// =============================================================================
-// GET /api/subs/invoices — every invoice from any sub on any of this GC's
-// engagements. Used by the GC's global Invoices screen to surface all bills
-// owed to subs in one place.
-// =============================================================================
-
-router.get('/invoices', authenticateUser, async (req, res) => {
-  try {
-    // GC's engagements
-    const { data: engs } = await supabase
-      .from('sub_engagements')
-      .select('id, trade, sub:sub_organizations(id, legal_name), project:projects(id, name)')
-      .eq('gc_user_id', req.user.id);
-    const engById = {};
-    for (const e of (engs || [])) engById[e.id] = e;
-    const engIds = Object.keys(engById);
-    if (engIds.length === 0) return res.json({ invoices: [] });
-
-    const { data: invs, error: invErr } = await supabase
-      .from('sub_invoices')
-      .select('id, engagement_id, invoice_number, total_amount, status, pdf_url, due_at, submitted_at, created_at, paid_at')
-      .in('engagement_id', engIds)
-      .order('created_at', { ascending: false });
-    if (invErr) {
-      logger.error('[subs] /invoices query err:', invErr);
-      return res.status(500).json({ error: invErr.message });
-    }
-
-    const enriched = (invs || []).map((inv) => {
-      const e = engById[inv.engagement_id];
-      return {
-        ...inv,
-        sub_legal_name: e?.sub?.legal_name || null,
-        sub_organization_id: e?.sub?.id || null,
-        trade: e?.trade || null,
-        project_name: e?.project?.name || null,
-      };
-    });
-    return res.json({ invoices: enriched });
-  } catch (err) {
-    logger.error('[subs] /invoices error:', err);
-    return res.status(500).json({ error: 'Failed to load sub invoices' });
   }
 });
 
