@@ -74,6 +74,27 @@ export default function EngagementDetailScreen({ route, navigation }) {
 
   const [openingInvoiceId, setOpeningInvoiceId] = useState(null);
 
+  const onMarkPaid = (inv) => {
+    Alert.alert(
+      'Mark as paid?',
+      `Mark this $${Number(inv.total_amount).toLocaleString()} invoice paid? The sub will be notified.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark paid',
+          onPress: async () => {
+            try {
+              await api.markInvoicePaid(engagement_id, inv.id);
+              await load();
+            } catch (e) {
+              Alert.alert('Could not mark paid', e.message || 'Try again');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const onOpenInvoice = async (inv) => {
     if (!inv?.pdf_url || openingInvoiceId) return;
     setOpeningInvoiceId(inv.id);
@@ -394,7 +415,18 @@ export default function EngagementDetailScreen({ route, navigation }) {
                       {inv.invoice_number ? `#${inv.invoice_number}` : `#${inv.id.slice(0, 6)}`}
                       {inv.submitted_at ? `  ·  Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
                       {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
+                      {inv.paid_at ? `  ·  Paid ${new Date(inv.paid_at).toLocaleDateString()}` : ''}
                     </Text>
+                    {inv.status !== 'paid' && (
+                      <TouchableOpacity
+                        style={styles.markPaidPill}
+                        activeOpacity={0.7}
+                        onPress={(e) => { e.stopPropagation?.(); onMarkPaid(inv); }}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
+                        <Text style={styles.markPaidPillText}>Mark paid</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   {isOpening
                     ? <ActivityIndicator size="small" color={Colors.secondaryText} />
@@ -705,6 +737,15 @@ const makeStyles = (Colors) => StyleSheet.create({
   invoiceAmount: { flex: 1, fontSize: 16, fontWeight: '700', color: Colors.primaryText },
   invoicePill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
   invoicePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  markPaidPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#10B98115',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  markPaidPillText: { color: '#10B981', fontSize: 11, fontWeight: '700' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: Colors.primaryText, marginBottom: 12 },

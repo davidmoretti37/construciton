@@ -130,6 +130,13 @@ export const listAllSubInvoices = async () => {
   return json.invoices || [];
 };
 
+// GC marks a sub invoice paid (no Stripe — manual record)
+export const markInvoicePaid = (engagementId, invoiceId, payload = {}) =>
+  authedFetch(`/api/engagements/${engagementId}/invoices/${invoiceId}/mark-paid`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
 export const uploadBidAttachment = (bidRequestId, payload) =>
   authedFetch(`/api/bid-requests/${bidRequestId}/attachments`, {
     method: 'POST',

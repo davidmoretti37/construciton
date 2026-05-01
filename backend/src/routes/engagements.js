@@ -375,6 +375,76 @@ router.post('/:id/payments', authenticateUser, async (req, res) => {
 });
 
 // =============================================================================
+// POST /api/engagements/:id/invoices/:invId/mark-paid
+// =============================================================================
+// GC manually marks a sub invoice paid. Body (all optional):
+//   { method?: 'check'|'zelle'|'ach'|'cash'|'other', reference?, paid_at? }
+
+router.post('/:id/invoices/:invId/mark-paid', authenticateUser, async (req, res) => {
+  try {
+    const { data: eng } = await supabase
+      .from('sub_engagements')
+      .select('id, gc_user_id, sub:sub_organizations(auth_user_id, legal_name), trade')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (!eng) return res.status(404).json({ error: 'Engagement not found' });
+    if (eng.gc_user_id !== req.user.id) return res.status(403).json({ error: 'Access denied' });
+
+    const { data: inv } = await supabase
+      .from('sub_invoices')
+      .select('id, engagement_id, total_amount, status')
+      .eq('id', req.params.invId)
+      .eq('engagement_id', req.params.id)
+      .maybeSingle();
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+    if (inv.status === 'paid') return res.json({ invoice: inv, already_paid: true });
+
+    const paidAt = req.body?.paid_at || new Date().toISOString();
+    const { data: updated, error } = await supabase
+      .from('sub_invoices')
+      .update({ status: 'paid', paid_at: paidAt })
+      .eq('id', inv.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    const { method, reference } = req.body || {};
+    if (method || reference) {
+      try {
+        await supabase.from('payment_records').insert({
+          engagement_id: inv.engagement_id,
+          sub_invoice_id: inv.id,
+          amount: inv.total_amount,
+          paid_at: paidAt,
+          method: method || 'other',
+          reference: reference || null,
+          recorded_by: req.user.id,
+        });
+      } catch (e) { logger.warn('[engagements] payment_record insert:', e.message); }
+    }
+
+    if (eng.sub?.auth_user_id) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: eng.sub.auth_user_id,
+          title: `Invoice paid · $${Number(inv.total_amount).toLocaleString()}`,
+          body: `${eng.trade || 'Job'} · marked paid by the contractor`,
+          type: 'sub_invoice_paid',
+          icon: 'checkmark-circle-outline',
+          color: '#10B981',
+          action_data: { engagement_id: inv.engagement_id, invoice_id: inv.id },
+        });
+      } catch (e) { logger.warn('[engagements] mark-paid notify:', e.message); }
+    }
+
+    return res.json({ invoice: updated });
+  } catch (err) {
+    logger.error('[engagements] mark-paid err:', err);
+    return res.status(500).json({ error: 'Failed to mark paid' });
+  }
+});
+
+// =============================================================================
 // GET /api/engagements/:id/balance
 // =============================================================================
 

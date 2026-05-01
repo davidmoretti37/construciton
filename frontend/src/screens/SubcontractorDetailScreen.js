@@ -221,6 +221,27 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
     }
   }, [navigation, openingInvId]);
 
+  const onMarkPaid = (inv) => {
+    Alert.alert(
+      'Mark as paid?',
+      `Mark this $${Number(inv.total_amount).toLocaleString()} invoice paid? The sub will be notified.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark paid',
+          onPress: async () => {
+            try {
+              await api.markInvoicePaid(inv.engagement_id, inv.id);
+              await load();
+            } catch (e) {
+              Alert.alert('Could not mark paid', e.message || 'Try again');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const onOpenDoc = useCallback(async (doc) => {
     if (!doc?.id) return;
     setOpeningDocId(doc.id);
@@ -805,7 +826,18 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                         <Text style={styles.invDate} numberOfLines={1}>
                           {inv.submitted_at ? `Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
                           {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
+                          {inv.paid_at ? `  ·  Paid ${new Date(inv.paid_at).toLocaleDateString()}` : ''}
                         </Text>
+                        {inv.status !== 'paid' && (
+                          <TouchableOpacity
+                            style={styles.markPaidBtn}
+                            activeOpacity={0.7}
+                            onPress={(e) => { e.stopPropagation?.(); onMarkPaid(inv); }}
+                          >
+                            <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
+                            <Text style={styles.markPaidBtnText}>Mark paid</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                       {isOpening
                         ? <ActivityIndicator size="small" color={Colors.secondaryText} />
@@ -1083,6 +1115,15 @@ const makeStyles = (Colors) => StyleSheet.create({
   invPillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   invMeta: { fontSize: 12, color: Colors.secondaryText, marginTop: 3, textTransform: 'capitalize' },
   invDate: { fontSize: 11, color: Colors.secondaryText, marginTop: 2 },
+  markPaidBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#10B98115',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  markPaidBtnText: { color: '#10B981', fontSize: 11, fontWeight: '700' },
   scheduleCard: {
     flexDirection: 'row',
     alignItems: 'center',

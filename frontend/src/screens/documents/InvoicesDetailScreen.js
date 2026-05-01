@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchInvoices, deleteInvoice } from '../../utils/storage';
-import { listAllSubInvoices, getEngagementInvoiceUrl } from '../../services/subsService';
+import { listAllSubInvoices, getEngagementInvoiceUrl, markInvoicePaid } from '../../services/subsService';
 import InvoicePreview from '../../components/ChatVisuals/InvoicePreview';
 import AuditTrail from '../../components/AuditTrail';
 import SignatureSection from '../../components/SignatureSection';
@@ -64,6 +64,27 @@ export default function InvoicesDetailScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onMarkSubInvoicePaid = (inv) => {
+    Alert.alert(
+      'Mark as paid?',
+      `Mark this $${Number(inv.total_amount).toLocaleString()} invoice paid? The sub will be notified.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark paid',
+          onPress: async () => {
+            try {
+              await markInvoicePaid(inv.engagement_id, inv.id);
+              await loadInvoices();
+            } catch (e) {
+              Alert.alert('Could not mark paid', e.message || 'Try again');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const onOpenSubInvoice = async (inv) => {
@@ -191,7 +212,18 @@ export default function InvoicesDetailScreen({ navigation }) {
                     <Text style={[styles.subInvDate, { color: Colors.secondaryText }]} numberOfLines={1}>
                       {inv.submitted_at ? `Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
                       {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
+                      {inv.paid_at ? `  ·  Paid ${new Date(inv.paid_at).toLocaleDateString()}` : ''}
                     </Text>
+                    {inv.status !== 'paid' && (
+                      <TouchableOpacity
+                        style={styles.markPaidPill}
+                        activeOpacity={0.7}
+                        onPress={(e) => { e.stopPropagation?.(); onMarkSubInvoicePaid(inv); }}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
+                        <Text style={styles.markPaidPillText}>Mark paid</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   {isOpening
                     ? <ActivityIndicator size="small" color={Colors.secondaryText} />
@@ -513,6 +545,15 @@ const styles = StyleSheet.create({
   subInvPillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   subInvMeta: { fontSize: 12, marginTop: 3 },
   subInvDate: { fontSize: 11, marginTop: 2 },
+  markPaidPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#10B98115',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  markPaidPillText: { color: '#10B981', fontSize: 11, fontWeight: '700' },
   emptyState: {
     padding: 40,
     borderRadius: 12,
