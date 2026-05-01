@@ -2629,46 +2629,86 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'list_subs',
-      description: 'List subcontractors the user has worked with or invited. Use to answer "what subs do I have", "show me my subs", etc.',
-      parameters: { type: 'object', properties: { limit: { type: 'integer', description: 'Max rows (default 25)' } } }
+      description: 'List ALL subcontractor organizations the GC has worked with or invited (across every project). Returns name, trade, contact, and engagement count per sub. Use when the user asks "what subs do I have", "show me my plumbers", "list active subs". For ONE specific sub use get_sub. For sub × project work units (engagements) use list_engagements instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', description: 'Max rows to return. Default 25, max 100.' }
+        }
+      },
+      examples: [
+        { user: 'show me all my plumbers', call: { name: 'list_subs', args: {} } },
+        { user: 'who have I worked with as a sub?', call: { name: 'list_subs', args: { limit: 50 } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'get_sub',
-      description: 'Get full profile for a specific subcontractor by ID.',
-      parameters: { type: 'object', required: ['sub_organization_id'], properties: { sub_organization_id: { type: 'string' } } }
+      description: 'Fetch the full profile for ONE subcontractor: contact info, primary trade, certifications, payment terms history, total billed, engagement count. Use after list_subs when you need detail on one sub by id, or when the user names a specific sub ("tell me about ABC Plumbing"). Use get_sub_compliance instead if you specifically need their COI / W9 / license expiry data.',
+      parameters: {
+        type: 'object',
+        required: ['sub_organization_id'],
+        properties: {
+          sub_organization_id: { type: 'string', description: 'UUID of the sub_organizations row, or pass a name and it will be resolved.' }
+        }
+      },
+      examples: [
+        { user: "what's ABC Plumbing's contact info", call: { name: 'get_sub', args: { sub_organization_id: 'ABC Plumbing' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'get_sub_compliance',
-      description: "Get a sub's current compliance documents (COI, W9, license, etc.) with expiry status.",
-      parameters: { type: 'object', required: ['sub_organization_id'], properties: { sub_organization_id: { type: 'string' } } }
+      description: "Fetch all compliance documents for ONE sub (COI general liability, COI auto, W9, contractor license, etc.) with current status and expiry dates. Use when the user asks 'is ABC Plumbing covered?', 'what's the status on Smith's COI', 'when does the license expire'. For an across-the-board scan of expiring docs use list_expiring_compliance instead.",
+      parameters: {
+        type: 'object',
+        required: ['sub_organization_id'],
+        properties: {
+          sub_organization_id: { type: 'string', description: 'UUID of the sub_organizations row, or a sub name to resolve.' }
+        }
+      },
+      examples: [
+        { user: "is ABC Plumbing's COI current?", call: { name: 'get_sub_compliance', args: { sub_organization_id: 'ABC Plumbing' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'list_engagements',
-      description: 'List subcontractor engagements (sub × project work units). Filter by project_id or status.',
+      description: 'List sub × project work units (sub_engagements rows). One engagement = one sub awarded one trade scope on one project. Filter by project_id (every sub on the Smith job) or status (every sub still bidding). Use for "who is doing the plumbing on Smith?" or "what bids are still open?". For ALL the GC\'s subs across every project use list_subs.',
       parameters: {
         type: 'object',
         properties: {
-          project_id: { type: 'string' },
-          status: { type: 'string', enum: ['invited','bidding','awarded','contracted','mobilized','in_progress','substantially_complete','closed_out','cancelled'] }
+          project_id: { type: 'string', description: 'Optional. Filter engagements to one project (UUID or project name to resolve).' },
+          status: { type: 'string', enum: ['invited','bidding','awarded','contracted','mobilized','in_progress','substantially_complete','closed_out','cancelled'], description: 'Optional. Filter by engagement lifecycle status.' }
         }
-      }
+      },
+      examples: [
+        { user: 'who is doing the plumbing on the Smith job?', call: { name: 'list_engagements', args: { project_id: 'Smith', status: 'awarded' } } },
+        { user: 'what bids are still open?', call: { name: 'list_engagements', args: { status: 'bidding' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'get_engagement',
-      description: 'Get a specific engagement with computed compliance status (passes/blockers/warnings).',
-      parameters: { type: 'object', required: ['engagement_id'], properties: { engagement_id: { type: 'string' } } }
+      description: "Fetch ONE engagement with full detail: scope, contract amount, payment terms, current status, and a computed compliance check (passes/blockers/warnings — does the sub have valid COI, signed MSA, current license for this trade?). Use when the user names a specific sub × project ('how is ABC Plumbing doing on Smith?', 'is Bob cleared to start framing on Henderson?'). For all engagements on a project use list_engagements.",
+      parameters: {
+        type: 'object',
+        required: ['engagement_id'],
+        properties: {
+          engagement_id: { type: 'string', description: 'UUID of the sub_engagements row.' }
+        }
+      },
+      examples: [
+        { user: 'is ABC cleared to start on the Smith job?', call: { name: 'get_engagement', args: { engagement_id: '<uuid>' } } },
+      ],
     }
   },
   {
@@ -2699,111 +2739,135 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'add_sub_to_project',
-      description: 'Create a sub_engagement linking an existing sub to a project. The sub must already exist (use list_subs to find).',
+      description: 'Create a new sub_engagement that links an EXISTING sub to a project for a specific trade. The sub must already exist in sub_organizations — call list_subs first to find them, or onboard them through the UI before this tool. Use when the user says "add ABC Plumbing to the Smith job for plumbing", "put Bob on Henderson framing". For sending out a bid request use send_bid_invitation instead.',
       parameters: {
         type: 'object',
         required: ['sub_organization_id', 'project_id', 'trade'],
         properties: {
-          sub_organization_id: { type: 'string' },
-          project_id: { type: 'string' },
-          trade: { type: 'string', description: 'e.g., plumbing, electrical, HVAC' },
-          scope_summary: { type: 'string' },
-          contract_amount: { type: 'number' },
-          payment_terms: { type: 'string', enum: ['fifty_fifty','milestones','net_30','custom'], description: 'Default net_30' }
+          sub_organization_id: { type: 'string', description: 'UUID of the existing sub_organizations row, or sub name to resolve.' },
+          project_id: { type: 'string', description: 'UUID of the project, or project name to resolve.' },
+          trade: { type: 'string', description: 'Trade scope (e.g., plumbing, electrical, HVAC, framing, drywall).' },
+          scope_summary: { type: 'string', description: 'One-line scope description (e.g., "rough-in + finish plumbing for 3 baths").' },
+          contract_amount: { type: 'number', description: 'Agreed contract dollar amount for this engagement.' },
+          payment_terms: { type: 'string', enum: ['fifty_fifty','milestones','net_30','custom'], description: 'Payment cadence. Default net_30.' }
         }
-      }
+      },
+      examples: [
+        { user: 'add ABC Plumbing to Smith for plumbing, $12k, net 30',
+          call: { name: 'add_sub_to_project', args: { sub_organization_id: 'ABC Plumbing', project_id: 'Smith', trade: 'plumbing', contract_amount: 12000, payment_terms: 'net_30' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'record_compliance_doc',
-      description: 'Manually record a compliance doc for a sub (when GC has the file in hand and types in metadata).',
+      description: 'Manually record a compliance document for a sub (COI general liability, COI auto, W9, contractor license, etc.) when the GC has the file in hand and types in the metadata. Use for "I have ABC\'s COI, expires 6/30/27", "log the W9 from Bob". For requesting a sub UPLOAD a doc themselves use request_compliance_doc_from_sub. Updates the sub\'s computed compliance status used by get_sub_compliance.',
       parameters: {
         type: 'object',
         required: ['sub_organization_id','doc_type'],
         properties: {
-          sub_organization_id: { type: 'string' },
-          doc_type: { type: 'string', description: "e.g., 'coi_gl', 'w9', 'license_state'" },
-          doc_subtype: { type: 'string' },
-          file_url: { type: 'string' },
-          issuer: { type: 'string' },
-          policy_number: { type: 'string' },
-          expires_at: { type: 'string', description: 'YYYY-MM-DD' },
-          coverage_limits: { type: 'object' },
-          endorsements: { type: 'array', items: { type: 'string' } },
-          notes: { type: 'string' }
+          sub_organization_id: { type: 'string', description: 'UUID of the sub_organizations row, or sub name to resolve.' },
+          doc_type: { type: 'string', description: "Document category: 'coi_gl' (general liability), 'coi_auto' (auto liability), 'w9', 'license_state' (contractor license), 'license_local', 'workers_comp'." },
+          doc_subtype: { type: 'string', description: 'Optional refinement when doc_type alone is ambiguous.' },
+          file_url: { type: 'string', description: 'Optional URL to the stored file (uploaded via UI).' },
+          issuer: { type: 'string', description: 'Insurance carrier or issuing agency name.' },
+          policy_number: { type: 'string', description: 'Policy / license number from the document.' },
+          expires_at: { type: 'string', description: 'Expiration date in YYYY-MM-DD format.' },
+          coverage_limits: { type: 'object', description: 'Coverage limits as JSON (e.g., {gl_each_occurrence: 1000000, gl_aggregate: 2000000}).' },
+          endorsements: { type: 'array', items: { type: 'string' }, description: 'List of named endorsements present (e.g., "additional insured", "waiver of subrogation").' },
+          notes: { type: 'string', description: 'Free-text notes for human review.' }
         }
-      }
+      },
+      examples: [
+        { user: "I have ABC Plumbing's COI, expires June 30 2027",
+          call: { name: 'record_compliance_doc', args: { sub_organization_id: 'ABC Plumbing', doc_type: 'coi_gl', expires_at: '2027-06-30' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'record_payment',
-      description: 'Record a manual payment from GC to sub against an engagement. Notifies the sub.',
+      description: 'Record a manual payment the GC made to a sub against a specific engagement (check, ACH, Zelle, etc.). Updates the sub\'s billed/paid totals and notifies the sub. Use when the user says "I paid ABC $5k via check for the Smith job", "record the Zelle transfer to Bob on the Henderson job". For RECEIVING a payment from a client use the financial flow instead.',
       parameters: {
         type: 'object',
         required: ['engagement_id','amount','paid_at','method'],
         properties: {
-          engagement_id: { type: 'string' },
-          amount: { type: 'number' },
-          paid_at: { type: 'string', description: 'YYYY-MM-DD' },
-          method: { type: 'string', enum: ['check','ach','zelle','venmo','wire','cash','other'] },
-          reference: { type: 'string', description: 'Check #, ACH ID, etc.' },
-          sub_invoice_id: { type: 'string' },
-          notes: { type: 'string' }
+          engagement_id: { type: 'string', description: 'UUID of the sub_engagements row this payment is against.' },
+          amount: { type: 'number', description: 'Payment dollar amount.' },
+          paid_at: { type: 'string', description: 'Payment date in YYYY-MM-DD format.' },
+          method: { type: 'string', enum: ['check','ach','zelle','venmo','wire','cash','other'], description: 'Payment method.' },
+          reference: { type: 'string', description: 'Check number, ACH transaction id, Zelle confirmation, etc.' },
+          sub_invoice_id: { type: 'string', description: 'Optional UUID of the sub_invoice this pays against.' },
+          notes: { type: 'string', description: 'Free-text notes about the payment.' }
         }
-      }
+      },
+      examples: [
+        { user: 'paid ABC $5000 via check for the Smith job, check #1240',
+          call: { name: 'record_payment', args: { engagement_id: '<uuid>', amount: 5000, paid_at: '2026-05-01', method: 'check', reference: '1240' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'request_compliance_doc_from_sub',
-      description: 'EXTERNAL_WRITE — emails sub a magic link to upload a specific compliance doc. Requires user approval.',
+      description: 'EXTERNAL_WRITE — emails the sub a magic link to upload a specific compliance document themselves (COI, W9, license, etc.). Requires user approval before sending. Use when the user says "ask ABC for their COI", "send Bob a link to upload his W9". For manually entering a doc the GC already has use record_compliance_doc instead.',
       parameters: {
         type: 'object',
         required: ['sub_organization_id','doc_type'],
         properties: {
-          sub_organization_id: { type: 'string' },
-          doc_type: { type: 'string', description: "e.g., 'coi_gl' for general liability COI" }
+          sub_organization_id: { type: 'string', description: 'UUID of the sub_organizations row, or sub name to resolve.' },
+          doc_type: { type: 'string', description: "What to request: 'coi_gl' for general liability COI, 'w9', 'license_state', etc." }
         }
-      }
+      },
+      examples: [
+        { user: "ask ABC Plumbing for their COI",
+          call: { name: 'request_compliance_doc_from_sub', args: { sub_organization_id: 'ABC Plumbing', doc_type: 'coi_gl' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'request_msa_signature',
-      description: 'EXTERNAL_WRITE — generates an MSA subcontract for an engagement and emails sub for signature. Requires user approval.',
+      description: 'EXTERNAL_WRITE — generates a Master Subcontract Agreement for an engagement and emails the sub for e-signature. Requires user approval before sending. Use when the user says "send the MSA to ABC", "get Bob to sign the contract on Henderson". The signed MSA gates many other actions (payments, work start) — see get_engagement compliance status.',
       parameters: {
         type: 'object',
         required: ['engagement_id'],
         properties: {
-          engagement_id: { type: 'string' },
-          title: { type: 'string', description: 'Default: Master Subcontract Agreement' }
+          engagement_id: { type: 'string', description: 'UUID of the sub_engagements row to generate the MSA against.' },
+          title: { type: 'string', description: 'Optional contract title. Default: "Master Subcontract Agreement".' }
         }
-      }
+      },
+      examples: [
+        { user: 'send the MSA to ABC for the Smith job',
+          call: { name: 'request_msa_signature', args: { engagement_id: '<uuid>' } } },
+      ],
     }
   },
   {
     type: 'function',
     function: {
       name: 'send_bid_invitation',
-      description: 'EXTERNAL_WRITE — creates a bid request and invites multiple subs to bid. Requires user approval.',
+      description: 'EXTERNAL_WRITE — creates a bid request for a project trade scope and emails multiple subs to invite them to bid. Requires user approval before sending. Use when the user says "send out the plumbing bids on Smith", "invite three framers to bid Henderson". For ADDING an awarded sub directly without bidding use add_sub_to_project instead.',
       parameters: {
         type: 'object',
         required: ['project_id','trade','scope_summary','sub_organization_ids'],
         properties: {
-          project_id: { type: 'string' },
-          trade: { type: 'string' },
-          scope_summary: { type: 'string' },
-          sub_organization_ids: { type: 'array', items: { type: 'string' } },
-          due_at: { type: 'string' },
-          payment_terms: { type: 'string', enum: ['fifty_fifty','milestones','net_30','custom'] }
+          project_id: { type: 'string', description: 'UUID or name of the project being bid out.' },
+          trade: { type: 'string', description: 'Trade being bid (e.g., plumbing, electrical, HVAC).' },
+          scope_summary: { type: 'string', description: 'Scope description for the bid packet (e.g., "rough-in + finish plumbing for 3 bathrooms, ~120 fixtures").' },
+          sub_organization_ids: { type: 'array', items: { type: 'string' }, description: 'UUIDs of subs being invited (typically 3-5).' },
+          due_at: { type: 'string', description: 'Bid due date in YYYY-MM-DD format. Default 7 days out.' },
+          payment_terms: { type: 'string', enum: ['fifty_fifty','milestones','net_30','custom'], description: 'Proposed payment terms in the bid packet.' }
         }
-      }
+      },
+      examples: [
+        { user: 'send out plumbing bids for Smith to ABC, XYZ, and Acme',
+          call: { name: 'send_bid_invitation', args: { project_id: 'Smith', trade: 'plumbing', scope_summary: 'rough + finish plumbing', sub_organization_ids: ['<abc>', '<xyz>', '<acme>'] } } },
+      ],
     }
   },
   {

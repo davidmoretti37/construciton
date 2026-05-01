@@ -37,7 +37,13 @@
 
 const logger = require('../../utils/logger');
 
-const PLANNER_MODEL = process.env.PEV_PLANNER_MODEL || 'anthropic/claude-sonnet-4';
+// Default to Haiku — ~80% cheaper than Sonnet and good enough for typical
+// 1-3 step plans. Escalate to Sonnet (PEV_PLANNER_MODEL_BIG) only when the
+// Haiku plan comes back with low confidence. Set PEV_PLANNER_MODEL='anthropic/claude-sonnet-4'
+// to lock to Sonnet always.
+const PLANNER_MODEL = process.env.PEV_PLANNER_MODEL || 'anthropic/claude-haiku-4.5';
+const PLANNER_MODEL_BIG = process.env.PEV_PLANNER_MODEL_BIG || 'anthropic/claude-sonnet-4';
+const PLANNER_ESCALATE_BELOW = parseFloat(process.env.PEV_PLANNER_ESCALATE_BELOW) || 0.6;
 const PLANNER_TIMEOUT_MS = parseInt(process.env.PEV_PLANNER_TIMEOUT_MS, 10) || 25_000;
 const MIN_PLAN_CONFIDENCE = parseFloat(process.env.PEV_MIN_PLAN_CONFIDENCE) || 0.55;
 
@@ -207,6 +213,27 @@ async function plan({ userMessage, tools = [], businessContext = '', memorySnaps
   if (!process.env.OPENROUTER_API_KEY) return { ok: false, error: 'no API key', latencyMs: 0 };
   if (!tools || tools.length === 0) return { ok: false, error: 'no tools provided', latencyMs: 0 };
 
+  // Two-tier model strategy: try Haiku first (cheap); escalate to Sonnet
+  // only when the cheap plan has low confidence. Cuts planner cost ~80%
+  // for plans that don't need the bigger model's reasoning.
+  const first = await planWithModel(PLANNER_MODEL, { userMessage, tools, businessContext, memorySnapshot });
+  if (!first.ok) return first;
+
+  const conf = first.plan?.confidence ?? 0;
+  // Don't escalate if the plan needs user input — re-running won't change that.
+  if (first.plan?.needs_user_input || conf >= PLANNER_ESCALATE_BELOW) {
+    return first;
+  }
+
+  // Escalate to the bigger model when confidence is low. The first attempt
+  // is "wasted" but we only pay Haiku for it (~$0.001), and Sonnet's better
+  // reasoning is worth $0.012 when the cheap planner is genuinely uncertain.
+  const second = await planWithModel(PLANNER_MODEL_BIG, { userMessage, tools, businessContext, memorySnapshot });
+  if (second.ok) return { ...second, escalated: true };
+  return first; // Fall back to Haiku plan if Sonnet fails for any reason
+}
+
+async function planWithModel(model, { userMessage, tools, businessContext, memorySnapshot }) {
   const toolNames = new Set(tools.map((t) => (t.function || t).name));
   const toolCatalog = buildToolCatalog(tools);
   const sys = SYSTEM_PROMPT(toolCatalog, businessContext, memorySnapshot);
@@ -231,7 +258,7 @@ async function plan({ userMessage, tools = [], businessContext = '', memorySnaps
         'anthropic-beta': 'prompt-caching-2024-07-31',
       },
       body: JSON.stringify({
-        model: PLANNER_MODEL,
+        model,
         max_tokens: 1500,
         temperature: 0.1,
         response_format: { type: 'json_object' },
