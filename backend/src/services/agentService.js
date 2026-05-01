@@ -30,6 +30,13 @@ const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
 const { executeTool } = require('./tools/handlers');
 const { runMemoryCommand, prefetchMemorySnapshot } = require('./memoryTool');
+// Plan-Execute-Verify pipeline. Gated behind PEV_ENABLED=1. When off,
+// runPev short-circuits to handoff='foreman' and the existing flow runs
+// unchanged. When on, complex requests go through plan → execute → verify
+// before ever touching the main tool loop. Shadow-friendly: PEV_SHADOW=1
+// runs the pipeline for telemetry but doesn't take over the response.
+const { runPev, PEV_ENABLED } = require('./agent/pev');
+const PEV_SHADOW = process.env.PEV_SHADOW === '1';
 // destructiveGuard is still used internally by approvalGate; it's no
 // longer called directly from this file.
 const approvalGate = require('./approvalGate');
@@ -1565,6 +1572,75 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   }
 
   logger.info(`🤖 Agent processing message for user ${userId.substring(0, 8)}...`);
+
+  // ─────────────────────────────────────────────────────────────────
+  // PEV gate (Plan-Execute-Verify). Off by default; turn on with
+  // PEV_ENABLED=1. Shadow mode (PEV_SHADOW=1) runs the pipeline for
+  // telemetry only — the existing flow still produces the response.
+  // ─────────────────────────────────────────────────────────────────
+  if (PEV_ENABLED || PEV_SHADOW) {
+    try {
+      const pevHints = {
+        hasActivePreview: !!(userContext?.lastProjectPreview || userContext?.lastEstimatePreview || userContext?.lastServicePlanPreview),
+        hasDraftProject: !!userContext?.hasDraftProject,
+        // We can't easily detect "agent just asked a question" from server-side state,
+        // so leave that hint unset for now. Frontend can pass it explicitly later.
+      };
+      const pevResult = await runPev({
+        userMessage: routingMsg || lastUserMsg,
+        tools: filteredTools,
+        userId,
+        executeTool,
+        businessContext: userContext?.businessName ? `Business: ${userContext.businessName}` : '',
+        memorySnapshot: memorySnapshot || '',
+        hints: pevHints,
+        emit: (event) => {
+          // Forward PEV events to the SSE writer so the frontend can render
+          // a step-by-step reasoning trail. In shadow mode we skip emit so
+          // the user-visible flow stays unchanged.
+          if (!PEV_SHADOW) {
+            try { writer.emit({ type: 'pev', event }); } catch (_) {}
+          }
+        },
+      });
+
+      logger.info(
+        `[PEV] handoff=${pevResult.handoff} reason=${pevResult.reason || ''} totalMs=${pevResult.totalMs}`
+      );
+
+      if (!PEV_SHADOW) {
+        if (pevResult.handoff === 'ask') {
+          // Halt and ask the user — surface the question as the agent's response.
+          writer.emit({ type: 'delta', content: pevResult.question || 'Could you clarify?' });
+          if (pevResult.suggestion) {
+            writer.emit({ type: 'delta', content: `\n\n${pevResult.suggestion}` });
+          }
+          writer.emit({ type: 'done' });
+          return;
+        }
+        if (pevResult.handoff === 'response') {
+          // PEV resolved the request. We still let the main loop produce the
+          // final user-facing text (it's better at conversational framing),
+          // but we inject a "PEV ALREADY DID THESE STEPS" hint so the main
+          // loop doesn't redundantly call the same tools. Concretely: append
+          // a synthesized assistant-tool-result block to messages so the
+          // main LLM sees the work as already done.
+          const pevContext = pevResult.stepResults
+            .map((s) => {
+              if (s.error) return `step ${s.id} ${s.tool}: ERROR ${s.error.message}`;
+              return `step ${s.id} ${s.tool}: ${JSON.stringify(s.result || {}).slice(0, 400)}`;
+            }).join('\n');
+          messages.push({
+            role: 'assistant',
+            content: `[PEV pipeline pre-executed]\nGoal: ${pevResult.plan.goal}\n${pevContext}\n\nNow respond to the user with a brief summary of what was done.`,
+          });
+        }
+        // handoff='foreman' falls through to the existing flow unchanged.
+      }
+    } catch (e) {
+      logger.warn(`[PEV] gate threw, falling through to foreman flow: ${e.message}`);
+    }
+  }
 
   let toolRound = 0;
   // Replan tracking. When the verifier flags major divergence on the
