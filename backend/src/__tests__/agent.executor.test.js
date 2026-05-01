@@ -8,7 +8,7 @@
  *   - plan with no steps
  */
 
-const { execute, resolvePlaceholders, classifyError } = require('../services/agent/executor');
+const { execute, resolvePlaceholders, classifyError, computeWaves } = require('../services/agent/executor');
 
 describe('PEV executor', () => {
   describe('resolvePlaceholders', () => {
@@ -56,6 +56,138 @@ describe('PEV executor', () => {
       expect(resolvePlaceholders('plain string', results)).toBe('plain string');
       expect(resolvePlaceholders(42, results)).toBe(42);
       expect(resolvePlaceholders(null, results)).toBe(null);
+    });
+  });
+
+  describe('computeWaves', () => {
+    test('all-independent steps form one wave', () => {
+      const steps = [
+        { id: 's1', tool: 'a', depends_on: [] },
+        { id: 's2', tool: 'b', depends_on: [] },
+        { id: 's3', tool: 'c', depends_on: [] },
+      ];
+      const waves = computeWaves(steps);
+      expect(waves).toHaveLength(1);
+      expect(waves[0]).toHaveLength(3);
+    });
+
+    test('linear chain forms N waves of 1', () => {
+      const steps = [
+        { id: 's1', depends_on: [] },
+        { id: 's2', depends_on: ['s1'] },
+        { id: 's3', depends_on: ['s2'] },
+      ];
+      const waves = computeWaves(steps);
+      expect(waves).toHaveLength(3);
+      expect(waves.map((w) => w.length)).toEqual([1, 1, 1]);
+    });
+
+    test('diamond: 2 independent + 1 dependent', () => {
+      const steps = [
+        { id: 's1', depends_on: [] },
+        { id: 's2', depends_on: [] },
+        { id: 's3', depends_on: ['s1', 's2'] },
+      ];
+      const waves = computeWaves(steps);
+      expect(waves).toHaveLength(2);
+      expect(waves[0].map((s) => s.id).sort()).toEqual(['s1', 's2']);
+      expect(waves[1].map((s) => s.id)).toEqual(['s3']);
+    });
+
+    test('cycle returns partial waves (caller detects mismatch)', () => {
+      const steps = [
+        { id: 's1', depends_on: ['s2'] },
+        { id: 's2', depends_on: ['s1'] },
+      ];
+      const waves = computeWaves(steps);
+      // No step has its deps satisfied → no waves produced
+      expect(waves).toHaveLength(0);
+    });
+  });
+
+  describe('parallel execution', () => {
+    test('independent steps run concurrently (faster than sequential)', async () => {
+      const plan = {
+        goal: 'find 3 things in parallel',
+        steps: [
+          { id: 's1', tool: 'lookup', args: { q: 'a' }, depends_on: [] },
+          { id: 's2', tool: 'lookup', args: { q: 'b' }, depends_on: [] },
+          { id: 's3', tool: 'lookup', args: { q: 'c' }, depends_on: [] },
+        ],
+      };
+      let activeCalls = 0;
+      let maxConcurrent = 0;
+      const fakeTool = async (n, a) => {
+        activeCalls++;
+        maxConcurrent = Math.max(maxConcurrent, activeCalls);
+        await new Promise((r) => setTimeout(r, 30));
+        activeCalls--;
+        return { id: `id-${a.q}` };
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(true);
+      expect(r.reachedSteps).toBe(3);
+      // All three should have been in-flight simultaneously
+      expect(maxConcurrent).toBe(3);
+    });
+
+    test('dependent steps still run in order', async () => {
+      const plan = {
+        goal: 'chain',
+        steps: [
+          { id: 's1', tool: 'search', args: {}, depends_on: [] },
+          { id: 's2', tool: 'create', args: { id: '{{s1.id}}' }, depends_on: ['s1'] },
+        ],
+      };
+      const callOrder = [];
+      const fakeTool = async (n, a) => {
+        callOrder.push(n);
+        if (n === 'search') return { id: 'p1' };
+        return { ok: true, args: a };
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(true);
+      expect(callOrder).toEqual(['search', 'create']); // strict order preserved
+      expect(r.stepResults[1].args.id).toBe('p1'); // placeholder resolved
+    });
+
+    test('stepResults preserved in plan order despite parallel waves', async () => {
+      const plan = {
+        goal: 'parallel + ordered',
+        steps: [
+          { id: 's1', tool: 'slow', args: {}, depends_on: [] },
+          { id: 's2', tool: 'fast', args: {}, depends_on: [] },
+          { id: 's3', tool: 'mid', args: {}, depends_on: [] },
+        ],
+      };
+      const fakeTool = async (n) => {
+        const wait = n === 'slow' ? 50 : n === 'mid' ? 25 : 5;
+        await new Promise((r) => setTimeout(r, wait));
+        return { tool: n };
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      // Even though "fast" finished first, stepResults order matches plan order
+      expect(r.stepResults.map((s) => s.id)).toEqual(['s1', 's2', 's3']);
+      expect(r.stepResults.map((s) => s.tool)).toEqual(['slow', 'fast', 'mid']);
+    });
+
+    test('halt in parallel wave still surfaces first by plan order', async () => {
+      const plan = {
+        goal: 'one fails',
+        steps: [
+          { id: 's1', tool: 'a', args: {}, depends_on: [] },
+          { id: 's2', tool: 'b', args: {}, depends_on: [] },
+          { id: 's3', tool: 'c', args: {}, depends_on: [] },
+        ],
+      };
+      const fakeTool = async (n) => {
+        if (n === 'b') throw new Error('b exploded');
+        return { tool: n };
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(false);
+      // s2 failed in the wave; first halt by plan order is s2
+      expect(r.stoppedReason).toMatch(/s2.*b exploded/);
     });
   });
 
