@@ -81,6 +81,7 @@ const TOOL_HANDLERS = {
   get_change_order: changeOrders.get_change_order,
   update_change_order: changeOrders.update_change_order,
   send_change_order: changeOrders.send_change_order,
+  delete_change_order: changeOrders.delete_change_order,
 
   // Workers + supervisors + scheduling + clock
   get_workers: workers.get_workers,

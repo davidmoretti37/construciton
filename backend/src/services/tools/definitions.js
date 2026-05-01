@@ -2592,6 +2592,26 @@ const toolDefinitions = [
       }
     }
   },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_change_order',
+      description: 'Delete a change order completely, including all its side effects. Use this when the user wants to REMOVE a CO entirely — including the duplicate $X expense entry it added to a project, the contract bump, the schedule extension, and any spawned draws. This is the right tool for: "delete the duplicate $1600 tile expense" (when the expense came from a duplicated approved CO), "remove that change order", "kill CO-003". For approved COs, this reverses the cascade: removes the projects.extras entry (contract auto-recalculates), deletes spawned draw_schedule_items, reverses end_date shift. Phase placements (inserted/extended phases) are NOT auto-removed since the user may have tasks under them — a note is returned if manual cleanup is needed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          change_order_id: { type: 'string', description: 'UUID of the CO, "CO-002"/"2", or a title fragment to resolve.' },
+        },
+        required: ['change_order_id'],
+      },
+      examples: [
+        { user: 'delete the duplicate $1600 tile expense — it was a CO that got created twice',
+          call: { name: 'delete_change_order', args: { change_order_id: '<id-of-the-duplicate-CO>' } } },
+        { user: 'remove CO-003',
+          call: { name: 'delete_change_order', args: { change_order_id: 'CO-003' } } },
+      ],
+    }
+  },
 
   {
     type: 'function',

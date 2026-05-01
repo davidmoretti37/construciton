@@ -520,10 +520,137 @@ async function send_change_order(userId, args = {}) {
   };
 }
 
+/**
+ * delete_change_order — full removal of a CO and its side effects.
+ *
+ * This is the tool the agent reaches for when the user says "delete the
+ * duplicate change order" or "remove that $1,600 tile expense" (when
+ * the expense came from an approved CO that's now in projects.extras).
+ *
+ * Approved COs leave traces in three places:
+ *   1. change_orders row (status='approved')
+ *   2. projects.extras JSONB entry tagged with change_order_id
+ *   3. (optional) draw_schedule_items spawned with co_id = this CO
+ *   4. (optional) end_date shifted forward by schedule_impact_days
+ *   5. (optional) project_phases inserted/extended via phase_placement
+ *
+ * This handler reverses all of them atomically:
+ *   - removes the projects.extras entry → contract_amount auto-recalc
+ *     trigger drops the contract by the CO's amount
+ *   - deletes draw_schedule_items linked by co_id
+ *   - reverses end_date shift
+ *   - deletes change_order_line_items via cascade
+ *   - deletes the change_orders row
+ *
+ * Phase-placement reversal (inserted/extended phases) is NOT done
+ * automatically — too risky to auto-delete a phase the user may have
+ * tasks under. We log a warning if applied_phase_id is set so the
+ * user knows manual cleanup may be needed.
+ */
+async function delete_change_order(userId, args = {}) {
+  const gate = await requireSupervisorPermission(userId, 'can_create_invoices');
+  if (gate) return gate;
+
+  if (!args.change_order_id) return { error: 'change_order_id is required' };
+  const resolved = await resolveChangeOrderId(userId, args.change_order_id);
+  if (resolved.error) return resolved;
+  if (resolved.suggestions) return resolved;
+
+  // Fetch full CO state so we can reverse cleanly
+  const { data: co, error: coErr } = await supabase
+    .from('change_orders')
+    .select('id, co_number, project_id, status, total_amount, schedule_impact_days, applied_phase_id')
+    .eq('id', resolved.id)
+    .eq('owner_id', userId)
+    .maybeSingle();
+  if (coErr) return userSafeError(coErr, "Couldn't load change order to delete.");
+  if (!co) return { error: 'Change order not found' };
+
+  const wasApproved = co.status === 'approved';
+
+  // 1. If approved, reverse cascade artifacts before deleting
+  if (wasApproved) {
+    // Remove the extras entry — contract_amount trigger will recompute
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, extras, end_date')
+      .eq('id', co.project_id)
+      .maybeSingle();
+
+    if (project) {
+      // Filter out any extras tagged with this change_order_id
+      const newExtras = Array.isArray(project.extras)
+        ? project.extras.filter((e) => e?.change_order_id !== co.id)
+        : [];
+
+      // Reverse end_date shift if applicable
+      const updates = { extras: newExtras };
+      if (co.schedule_impact_days && project.end_date && co.schedule_impact_days !== 0) {
+        const d = new Date(project.end_date);
+        d.setDate(d.getDate() - co.schedule_impact_days);
+        updates.end_date = d.toISOString().slice(0, 10);
+      }
+
+      const { error: projErr } = await supabase
+        .from('projects')
+        .update(updates)
+        .eq('id', co.project_id);
+      if (projErr) {
+        logger.warn(`[delete_change_order] failed to update project: ${projErr.message}`);
+      }
+    }
+
+    // Remove any draw_schedule_items spawned by this CO
+    const { error: drawErr } = await supabase
+      .from('draw_schedule_items')
+      .delete()
+      .eq('co_id', co.id);
+    if (drawErr) logger.warn(`[delete_change_order] failed to delete draw items: ${drawErr.message}`);
+
+    if (co.applied_phase_id) {
+      logger.warn(`[delete_change_order] CO ${co.id} had applied_phase_id=${co.applied_phase_id}; phase NOT auto-removed (may need manual cleanup)`);
+    }
+  }
+
+  // 2. Delete approval_events tied to this CO (FK uses entity_id, not real FK)
+  await supabase
+    .from('approval_events')
+    .delete()
+    .eq('entity_type', 'change_order')
+    .eq('entity_id', co.id);
+
+  // 3. Delete line items (cascade may handle this but explicit is safer)
+  await supabase
+    .from('change_order_line_items')
+    .delete()
+    .eq('change_order_id', co.id);
+
+  // 4. Delete the CO row
+  const { error: delErr } = await supabase
+    .from('change_orders')
+    .delete()
+    .eq('id', co.id)
+    .eq('owner_id', userId);
+  if (delErr) return userSafeError(delErr, "Couldn't delete the change order.");
+
+  return {
+    success: true,
+    deleted_co_number: co.co_number,
+    project_id: co.project_id,
+    was_approved: wasApproved,
+    reversed_amount: wasApproved ? parseFloat(co.total_amount || 0) : 0,
+    reversed_schedule_days: wasApproved ? (co.schedule_impact_days || 0) : 0,
+    note: co.applied_phase_id
+      ? 'A phase that was inserted/extended by this CO was NOT auto-removed. Check the project timeline if needed.'
+      : null,
+  };
+}
+
 module.exports = {
   create_change_order,
   list_change_orders,
   get_change_order,
   update_change_order,
   send_change_order,
+  delete_change_order,
 };

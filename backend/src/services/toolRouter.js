@@ -45,7 +45,7 @@ const INTENT_PATTERNS = {
 const TOOL_GROUPS = {
   change_order: [
     'create_change_order', 'list_change_orders', 'get_change_order',
-    'update_change_order', 'send_change_order',
+    'update_change_order', 'send_change_order', 'delete_change_order',
     'search_projects', 'get_project_details',
   ],
   financial: [
@@ -120,7 +120,7 @@ const TOOL_GROUPS = {
     'get_worker_details', 'get_time_records',
     'record_expense', 'update_phase_progress', 'create_worker_task',
     'add_project_checklist', 'create_project_phase',
-    'create_change_order', 'list_change_orders', 'get_change_order',
+    'create_change_order', 'list_change_orders', 'get_change_order', 'delete_change_order',
     'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
     'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses',
     'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
