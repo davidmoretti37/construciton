@@ -24,8 +24,8 @@ const SUB_VIOLET = '#8B5CF6';
 
 const ITEMS = [
   { key: 'home',      icon: 'home' },
-  { key: 'documents', icon: 'folder' },
   { key: 'work',      icon: 'briefcase' },
+  { key: 'documents', icon: 'folder' },
   { key: 'settings',  icon: 'settings' },
 ];
 
