@@ -264,7 +264,10 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # CI-scoped OpenRouter key with its own daily spend cap. Falls
+          # back to the shared key if the CI key isn't configured, so
+          # forks / new clones don't suddenly start failing.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY_CI || secrets.OPENROUTER_API_KEY }}
           EVAL_TEST_USER_ID: ${{ secrets.EVAL_TEST_USER_ID }}
           GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
           EVAL_PASS_RATE_FLOOR: '0.7'
