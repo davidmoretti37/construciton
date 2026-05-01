@@ -19,7 +19,8 @@
  *                                    (capped at MAX_VERIFY_LOOPS)
  *                       on stuck: return { handoff: 'foreman' }
  *
- * Behind PEV_ENABLED env flag — defaults to off until proven in prod.
+ * Default: ON. Set PEV_ENABLED=0 to disable (kill switch — falls through
+ * to the existing Foreman flow with zero behavioral change).
  *
  * Returns one of:
  *   { handoff: 'foreman', reason }                — fall through to current flow
@@ -34,7 +35,8 @@ const { plan: makePlan, planVerdict } = require('./planner');
 const { execute } = require('./executor');
 const { verify, MAX_VERIFY_LOOPS } = require('./verifier');
 
-const PEV_ENABLED = process.env.PEV_ENABLED === '1';
+// Default ON. Set PEV_ENABLED=0 to disable (kill switch).
+const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
 
 /**
  * Run the PEV pipeline on a user message.

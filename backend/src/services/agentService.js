@@ -30,11 +30,14 @@ const logger = require('../utils/logger');
 const { toolDefinitions, getToolStatusMessage } = require('./tools/definitions');
 const { executeTool } = require('./tools/handlers');
 const { runMemoryCommand, prefetchMemorySnapshot } = require('./memoryTool');
-// Plan-Execute-Verify pipeline. Gated behind PEV_ENABLED=1. When off,
-// runPev short-circuits to handoff='foreman' and the existing flow runs
-// unchanged. When on, complex requests go through plan → execute → verify
-// before ever touching the main tool loop. Shadow-friendly: PEV_SHADOW=1
-// runs the pipeline for telemetry but doesn't take over the response.
+// Plan-Execute-Verify pipeline. Default ON; PEV_ENABLED=0 is the kill
+// switch (falls through to the existing Foreman flow with zero behavioral
+// change). When PEV is active, complex requests go through plan → execute
+// → verify before touching the main tool loop. PEV_SHADOW=1 is for
+// observation: pipeline runs for telemetry but doesn't take over the
+// response. Auto-fallbacks (no key, http 5xx, plan parse fail, executor
+// stuck after replan) all hand back to the foreman flow, so the worst
+// case is "same as before."
 const { runPev, PEV_ENABLED } = require('./agent/pev');
 const PEV_SHADOW = process.env.PEV_SHADOW === '1';
 // destructiveGuard is still used internally by approvalGate; it's no
