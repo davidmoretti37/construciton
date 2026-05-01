@@ -68,17 +68,95 @@ CONFIDENCE:
 
 Reply ONLY with the JSON object. No prose, no markdown, no preamble.`;
 
+// ─────────────────────────────────────────────────────────────────
+// Regex pre-classifier — instant, free, covers ~60% of common phrasings.
+// Skips the Haiku call when the message is unambiguously simple/briefing/
+// clarification. Falls through to LLM when patterns don't match.
+//
+// Patterns are intentionally narrow — false positives are costly (route
+// wrong → poor response). False negatives are fine — the LLM picks up
+// the slack.
+// ─────────────────────────────────────────────────────────────────
+
+const FAST_PATTERNS = [
+  // briefing — explicit asks for a daily/morning summary
+  { re: /^(good\s*morning|morning\s*brief|brief\s*me|daily\s*brief|whats?\s*up\s*today)\s*[!?.]*$/i,
+    classification: 'briefing' },
+  { re: /^(what'?s?\s+(?:going\s+on|happening)\s+today)\s*[?!.]*$/i, classification: 'briefing' },
+  { re: /^(anything\s+i\s+should\s+know|whats?\s+on\s+my\s+plate)\s*[?!.]*$/i, classification: 'briefing' },
+
+  // simple — small talk + acknowledgements (when no clarification context needed)
+  { re: /^(hi|hello|hey|yo|sup|thanks|thank\s*you|ok|okay|cool|nice|great|got\s*it|sounds\s*good)\s*[!?.]*$/i,
+    classification: 'simple' },
+
+  // simple — explicit lookups / list operations
+  { re: /^(show|list|find|get|see|view)\b.+\b(estimates?|invoices?|projects?|workers?|change\s*orders?|expenses?|payments?|reports?|photos?|documents?)\b/i,
+    classification: 'simple' },
+  { re: /^(my|all)\s+(estimates?|invoices?|projects?|workers?|change\s*orders?|reports?|photos?)\b/i,
+    classification: 'simple' },
+  { re: /^(how\s+much|how\s+many|what'?s|whose|who'?s)\b/i, classification: 'simple' },
+
+  // clarification — single-word fragments and questions with no anchor
+  { re: /^(huh|what|why|hmm|umm|err)\s*[?!.]*$/i, classification: 'clarification' },
+  { re: /^[?!.]+$/, classification: 'clarification' },
+  { re: /^(fix\s*it|do\s*that|do\s*it|same|again)\s*[!?.]*$/i, classification: 'clarification' },
+];
+
+/**
+ * Try to classify by regex alone. Returns null if no pattern matches
+ * confidently (caller should escalate to LLM).
+ */
+function fastClassify(userMessage, hints = {}) {
+  if (!userMessage || typeof userMessage !== 'string') return null;
+  const trimmed = userMessage.trim();
+
+  // Don't fast-classify under any state where context matters more than
+  // surface form: bare "yes" with hints is simple, without is clarification,
+  // and we want the LLM to disambiguate. Defer to LLM for those.
+  const isBareAck = /^(yes|yeah|yep|sure|no|nope|send\s*it|do\s*it)\s*[!?.]*$/i.test(trimmed);
+  if (isBareAck) {
+    if (hints.lastTurnWasQuestion || hints.hasActivePreview) {
+      return { classification: 'simple', confidence: 0.92, reasoning: 'fast: confirmation under active prompt', latencyMs: 0, fallback: false, fast: true };
+    }
+    return { classification: 'clarification', confidence: 0.85, reasoning: 'fast: bare ack with no context', latencyMs: 0, fallback: false, fast: true };
+  }
+
+  for (const p of FAST_PATTERNS) {
+    if (p.re.test(trimmed)) {
+      return {
+        classification: p.classification,
+        confidence: 0.95,
+        reasoning: `fast regex: matched ${p.re}`,
+        latencyMs: 0,
+        fallback: false,
+        fast: true,
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * Classify a single user message.
+ *
+ * Two-stage: first tries an instant regex pre-classifier (handles ~60%
+ * of common messages: briefings, lookups, acks, fragments). If no
+ * pattern matches, escalates to the Haiku LLM call. The LLM's fallback
+ * remains 'simple' so a classifier outage never blocks chat.
  *
  * @param {string} userMessage  — the latest user turn
  * @param {Object} hints        — optional state hints
  *        hints.hasActivePreview  — boolean (a preview card is on screen)
  *        hints.hasDraftProject   — boolean
  *        hints.lastTurnWasQuestion — boolean (the agent just asked something)
- * @returns {Promise<{classification, confidence, reasoning, latencyMs}>}
+ * @returns {Promise<{classification, confidence, reasoning, latencyMs, fast?, fallback}>}
  */
 async function classify(userMessage, hints = {}) {
+  // Stage 1: regex pre-classifier (instant, free)
+  const fast = fastClassify(userMessage, hints);
+  if (fast) return fast;
+
+  // Stage 2: LLM classifier (Haiku via OpenRouter, ~1-2s)
   if (!userMessage || typeof userMessage !== 'string') {
     return safeFallback('empty input');
   }

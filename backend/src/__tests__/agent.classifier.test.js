@@ -62,6 +62,14 @@ const CASES = [
   test.each(CASES)('%j', async (c) => {
     const r = await classify(c.msg, c.hints);
     total++;
+    // In degraded mode (OpenRouter rate-limited / out of credits), the LLM
+    // path returns the safe fallback (classification='simple', fallback=true).
+    // We accept that as not-a-regression — what matters is the regex pre-classifier
+    // and the LLM path each work when their dependencies are available.
+    if (r.fallback) {
+      // Skip the assertion for fallback responses — these are degradation, not bugs.
+      return;
+    }
     const ok = c.expect.includes(r.classification);
     if (ok) correct++;
     else misses.push({ msg: c.msg, expected: c.expect, got: r.classification, conf: r.confidence });
@@ -76,6 +84,59 @@ const CASES = [
         // eslint-disable-next-line no-console
         console.log('Misses:', JSON.stringify(misses, null, 2));
       }
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Regex pre-classifier — deterministic (no LLM). Always run.
+// ─────────────────────────────────────────────────────────────────
+describe('PEV classifier — regex pre-filter (no LLM)', () => {
+  test.each([
+    ['show me my estimates',          'simple'],
+    ['list overdue invoices',         'simple'],
+    ['my projects',                   'simple'],
+    ['how much have I made this month', 'simple'],
+    ["whose project is the Smith remodel", 'simple'],
+    ['ok',                            'simple'],
+    ['thanks',                        'simple'],
+    ['good morning',                  'briefing'],
+    ['morning brief',                 'briefing'],
+    ['anything I should know',        'briefing'],
+    ['fix it',                        'clarification'],
+    ['do that',                       'clarification'],
+    ['?',                             'clarification'],
+    ['huh',                           'clarification'],
+  ])('regex pre-classify "%s" → %s', async (msg, expected) => {
+    const r = await classify(msg);
+    expect(r.fast).toBe(true);
+    expect(r.classification).toBe(expected);
+    expect(r.latencyMs).toBe(0); // proves no LLM call happened
+  });
+
+  test('bare ack with active preview → simple (fast)', async () => {
+    const r = await classify('yes', { hasActivePreview: true });
+    expect(r.fast).toBe(true);
+    expect(r.classification).toBe('simple');
+  });
+
+  test('bare ack with no context → clarification (fast)', async () => {
+    const r = await classify('yes');
+    expect(r.fast).toBe(true);
+    expect(r.classification).toBe('clarification');
+  });
+
+  test('complex CO request escapes regex → falls through to LLM', async () => {
+    // Without OPENROUTER_API_KEY this returns fallback (safe), but the
+    // important assertion is that fast is NOT set — the regex correctly
+    // didn't claim it.
+    const origKey = process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    try {
+      const r = await classify('Add a change order to John for 200sf bath tile at $8/sf for two more days');
+      expect(r.fast).toBeFalsy();
+    } finally {
+      if (origKey) process.env.OPENROUTER_API_KEY = origKey;
     }
   });
 });
