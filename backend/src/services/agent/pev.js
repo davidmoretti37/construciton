@@ -56,9 +56,22 @@ const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
  *   emit            — optional event emitter for streaming
  * @returns {Promise<Object>}
  */
+// Detects "dry run", "test mode", "preview only" — message intent that
+// asks for the plan without execution. We strip the marker before
+// classifying / planning so the rest of the pipeline doesn't get confused.
+const DRY_RUN_RE = /^\s*(?:dry[\s-]?run|test[\s-]?mode|preview\s+only|just\s+show\s+me\s+(?:the\s+)?plan)[:\s,.-]*/i;
+
+function detectDryRun(userMessage) {
+  if (!userMessage || typeof userMessage !== 'string') return { dryRun: false, cleaned: userMessage };
+  const m = userMessage.match(DRY_RUN_RE);
+  if (m) {
+    return { dryRun: true, cleaned: userMessage.slice(m[0].length).trim() };
+  }
+  return { dryRun: false, cleaned: userMessage };
+}
+
 async function runPev(input) {
   const {
-    userMessage,
     tools,
     userId,
     executeTool,
@@ -67,6 +80,12 @@ async function runPev(input) {
     hints = {},
     emit = () => {},
   } = input;
+  // Dry-run mode: if message starts with "dry run:", "test mode:", etc.,
+  // we plan + verify the plan but DON'T execute. User sees what would
+  // happen without consequences. Useful for big invoices, COs, anything
+  // with side effects. Strip the marker so classification works on the
+  // remaining intent.
+  const { dryRun, cleaned: userMessage } = detectDryRun(input.userMessage);
 
   const trace = { stages: [] };
   const t0 = Date.now();
@@ -165,6 +184,24 @@ async function runPev(input) {
         totalMs: Date.now() - t0,
       };
     }
+  }
+
+  // ─────────── Dry-run mode: stop after planning, return the plan ───────────
+  if (dryRun) {
+    emit({ type: 'pev_dry_run', stepCount: planResult.plan.steps.length });
+    return {
+      handoff: 'response',
+      dryRun: true,
+      plan: planResult.plan,
+      stepResults: [],
+      response: {
+        text: formatDryRunSummary(planResult.plan),
+        visualElements: [],
+        fallback: false,
+      },
+      trace,
+      totalMs: Date.now() - t0,
+    };
   }
 
   // ─────────── Stages 2 + 3: Execute + Verify (with bounded retry loop) ───────────
@@ -297,4 +334,24 @@ async function runPev(input) {
   };
 }
 
-module.exports = { runPev, PEV_ENABLED };
+/**
+ * Human-readable dry-run plan summary. Lists each step + why so the user
+ * can review consequences before they happen.
+ */
+function formatDryRunSummary(plan) {
+  if (!plan || !Array.isArray(plan.steps)) return 'Dry run: no plan generated.';
+  const lines = [`Here's what I would do (dry run — nothing executed):`, ''];
+  lines.push(`Goal: ${plan.goal}`);
+  lines.push('');
+  for (let i = 0; i < plan.steps.length; i++) {
+    const s = plan.steps[i];
+    const optional = s.optional ? ' [optional]' : '';
+    lines.push(`${i + 1}. ${s.tool}${optional}`);
+    if (s.why) lines.push(`   ${s.why}`);
+  }
+  lines.push('');
+  lines.push(`Send the same message without "dry run" to execute.`);
+  return lines.join('\n');
+}
+
+module.exports = { runPev, PEV_ENABLED, detectDryRun };

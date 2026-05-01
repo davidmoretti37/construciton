@@ -12,7 +12,8 @@
     "predeploy": "bash ../scripts/pre-deploy.sh",
     "evals": "node evals/scripts/runEvals.js",
     "evals:smoke": "node evals/scripts/runEvals.js --suite smoke",
-    "evals:pull": "node evals/scripts/pull-candidates.js"
+    "evals:pull": "node evals/scripts/pull-candidates.js",
+    "evals:agent": "node -e \"require('./src/services/agent/evalHarness').runFile(require('path').resolve('src/__evals__/agent-cases.json')).then(r => process.exit(r.failed > 0 ? 1 : 0))\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

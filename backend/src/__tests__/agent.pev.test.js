@@ -173,3 +173,37 @@ describe('PEV orchestrator — degraded LLM behavior', () => {
     expect(result.totalMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('PEV — dry-run detection', () => {
+  const { detectDryRun } = require('../services/agent/pev');
+
+  test('detects "dry run:" prefix', () => {
+    const r = detectDryRun('dry run: add a CO for John');
+    expect(r.dryRun).toBe(true);
+    expect(r.cleaned).toBe('add a CO for John');
+  });
+
+  test('detects "test mode" prefix', () => {
+    const r = detectDryRun('test mode  invoice Smith $5k');
+    expect(r.dryRun).toBe(true);
+    expect(r.cleaned).toBe('invoice Smith $5k');
+  });
+
+  test('detects "just show me the plan" prefix', () => {
+    const r = detectDryRun('just show me the plan: send all overdue reminders');
+    expect(r.dryRun).toBe(true);
+    expect(r.cleaned).toBe('send all overdue reminders');
+  });
+
+  test('preserves message when no marker', () => {
+    const r = detectDryRun('add a CO for John');
+    expect(r.dryRun).toBe(false);
+    expect(r.cleaned).toBe('add a CO for John');
+  });
+
+  test('handles "dry-run" with hyphen', () => {
+    const r = detectDryRun('dry-run send the invoice');
+    expect(r.dryRun).toBe(true);
+    expect(r.cleaned).toBe('send the invoice');
+  });
+});

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "co-decomposition-bug-2026-05-01",
+    "userMessage": "Add a change order to John for 200 square footed bath tile at $8 a square foot for two more days",
+    "tools": ["search_projects", "create_change_order", "create_project_phase", "record_expense", "update_project"],
+    "stubResults": {
+      "search_projects": { "results": [{ "id": "proj-john", "name": "John Smith Bathroom Remodel" }] },
+      "create_change_order": { "success": true, "change_order": { "id": "co-1", "co_number": 1, "total_amount": 1600 } }
+    },
+    "expectations": {
+      "handoff": "response",
+      "toolsCalled": ["create_change_order"],
+      "toolsForbidden": ["create_project_phase", "record_expense"]
+    }
+  },
+  {
+    "id": "co-shorthand-2026-05-01",
+    "userMessage": "the Smiths added 200sf of tile, $8/sf, +1 day",
+    "tools": ["search_projects", "create_change_order", "create_project_phase", "record_expense"],
+    "stubResults": {
+      "search_projects": { "results": [{ "id": "proj-smith", "name": "Smith Bathroom" }] },
+      "create_change_order": { "success": true, "change_order": { "id": "co-2", "co_number": 2 } }
+    },
+    "expectations": {
+      "toolsForbidden": ["create_project_phase", "record_expense"]
+    }
+  },
+  {
+    "id": "lookup-show-estimates",
+    "userMessage": "show me my estimates",
+    "tools": ["search_estimates", "get_estimate_details"],
+    "expectations": {
+      "handoff": "foreman"
+    }
+  },
+  {
+    "id": "lookup-overdue-invoices",
+    "userMessage": "list overdue invoices",
+    "tools": ["search_invoices", "get_invoice_details"],
+    "expectations": {
+      "handoff": "foreman"
+    }
+  },
+  {
+    "id": "ambiguous-no-project",
+    "userMessage": "add a CO for kitchen island, $2400, 1 day",
+    "tools": ["search_projects", "create_change_order"],
+    "stubResults": {
+      "search_projects": { "results": [] }
+    },
+    "expectations": {
+      "handoff": "ask"
+    }
+  },
+  {
+    "id": "briefing-trigger",
+    "userMessage": "good morning",
+    "tools": ["get_daily_briefing"],
+    "expectations": {
+      "handoff": "foreman"
+    }
+  },
+  {
+    "id": "raw-contract-mutation-blocked",
+    "userMessage": "bump the contract on Smith by $5,000",
+    "tools": ["search_projects", "update_project", "create_change_order"],
+    "stubResults": {
+      "search_projects": { "results": [{ "id": "proj-smith", "contract_amount": 30000 }] }
+    },
+    "expectations": {
+      "toolsForbidden": ["update_project"]
+    }
+  }
+]
