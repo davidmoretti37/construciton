@@ -75,13 +75,15 @@ describe('Tool registry — metadata coverage', () => {
     }
   });
 
-  test('destructive and external_write tools are paired with requires_approval=true', () => {
+  test('external_write tools are paired with requires_approval=true', () => {
+    // External writes (email/SMS/eSign/QBO mirror) are irreversible the
+    // moment the API accepts them — these MUST require approval.
+    // Destructive writes (delete) used to require approval too but the
+    // user found it noisy ("just delete what I told you to delete"), so
+    // approval is now opt-in per-tool for destructives.
     const violations = [];
     for (const name of registry.listAll()) {
       const m = registry.getMetadata(name);
-      if (m.risk_level === RISK_LEVELS.WRITE_DESTRUCTIVE && !m.requires_approval) {
-        violations.push(`${name}: write_destructive without requires_approval`);
-      }
       if (m.risk_level === RISK_LEVELS.EXTERNAL_WRITE && !m.requires_approval) {
         violations.push(`${name}: external_write without requires_approval`);
       }
@@ -220,27 +222,33 @@ describe('approvalGate — branching by risk_level', () => {
     expect(mockVerifyDestructive).not.toHaveBeenCalled();
   });
 
-  test('write_destructive defers to destructiveGuard verifier', async () => {
-    mockVerifyDestructive.mockResolvedValue({ verdict: 'PROCEED', reason: '' });
+  test('destructive tools with requires_approval=false PROCEED without verifier', async () => {
+    // After the user feedback that delete confirmations were too noisy,
+    // all WRITE_DESTRUCTIVE tools have requires_approval=false. The gate
+    // skips the verifier entirely for these — the user typing "delete it"
+    // IS the consent.
     const r = await approvalGate.check({
       toolName: 'delete_project',
       toolArgs: { project_id: 'abc' },
       messages: [],
     });
     expect(r.verdict).toBe('PROCEED');
-    expect(mockVerifyDestructive).toHaveBeenCalled();
+    expect(mockVerifyDestructive).not.toHaveBeenCalled();
   });
 
-  test('write_destructive BLOCK includes action_summary + next_step', async () => {
+  test('external_write defers to verifier and BLOCKs with action_summary + next_step', async () => {
+    // External writes (email/SMS/eSign) remain gated — irreversible
+    // outbound communication should still wait for explicit user OK.
     mockVerifyDestructive.mockResolvedValue({ verdict: 'BLOCK', reason: 'no consent' });
     const r = await approvalGate.check({
-      toolName: 'delete_project',
-      toolArgs: { project_id: 'abc-123' },
+      toolName: 'share_document',
+      toolArgs: { document_type: 'estimate', client_name: 'Smith', method: 'email' },
       messages: [],
     });
     expect(r.verdict).toBe('BLOCK');
-    expect(r.risk_level).toBe(RISK_LEVELS.WRITE_DESTRUCTIVE);
-    expect(r.action_summary).toMatch(/Delete project abc-123/i);
+    expect(r.risk_level).toBe(RISK_LEVELS.EXTERNAL_WRITE);
+    expect(mockVerifyDestructive).toHaveBeenCalled();
+    expect(r.action_summary).toBeTruthy();
     expect(r.next_step).toBeTruthy();
   });
 

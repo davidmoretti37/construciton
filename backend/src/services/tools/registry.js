@@ -43,7 +43,7 @@ const TOOL_METADATA = Object.freeze({
   get_project_health:        { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['analytics'] },
   get_project_financials:    { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['financial'] },
   update_project:            { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
-  delete_project:            { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'cascade'] },
+  delete_project:            { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'cascade'] },
   create_project_phase:      { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   update_phase_progress:     { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   update_phase_budget:       { category: CATEGORIES.PROJECTS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
@@ -61,7 +61,7 @@ const TOOL_METADATA = Object.freeze({
   search_invoices:           { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
   get_invoice_details:       { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
   update_invoice:            { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
-  void_invoice:              { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
+  void_invoice:              { category: CATEGORIES.INVOICES, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
 
   // ───── Change orders ─────
   create_change_order:       { category: CATEGORIES.CHANGE_ORDERS, risk_level: RISK_LEVELS.WRITE_SAFE,        requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'financial'] },
@@ -101,7 +101,7 @@ const TOOL_METADATA = Object.freeze({
   // ───── Expenses (transactional) ─────
   record_expense:            { category: CATEGORIES.EXPENSES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   update_expense:            { category: CATEGORIES.EXPENSES, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
-  delete_expense:            { category: CATEGORIES.EXPENSES, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
+  delete_expense:            { category: CATEGORIES.EXPENSES, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
 
   // ───── Transactions / overviews ─────
   get_transactions:          { category: CATEGORIES.TRANSACTIONS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['financial'] },
@@ -144,7 +144,7 @@ const TOOL_METADATA = Object.freeze({
   get_service_plan_summary:  { category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
   get_service_plan_documents:{ category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
   update_service_plan:       { category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
-  delete_service_plan:       { category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'cascade'] },
+  delete_service_plan:       { category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'cascade'] },
   create_service_visit:      { category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   complete_visit:            { category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   get_billing_summary:       { category: CATEGORIES.SERVICE_PLANS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['financial'] },
@@ -159,11 +159,11 @@ const TOOL_METADATA = Object.freeze({
   get_project_documents:     { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
   upload_project_document:   { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   update_project_document:   { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
-  delete_project_document:   { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
+  delete_project_document:   { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   get_business_contracts:    { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
   request_signature:         { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'external'] },
   check_signature_status:    { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.READ, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: [] },
-  cancel_signature_request:  { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
+  cancel_signature_request:  { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.WRITE_DESTRUCTIVE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation'] },
   share_document:            { category: CATEGORIES.DOCUMENTS, risk_level: RISK_LEVELS.EXTERNAL_WRITE, requires_approval: true, model_tier_required: MODEL_TIERS.ANY, tags: ['mutation', 'external', 'communication'] },
 
   // ───── Reports / photos / checklists ─────
