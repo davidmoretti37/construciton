@@ -107,6 +107,106 @@ const RULES = [
   ruleNoToolNameLeak,
 ];
 
+// ─────────────────────────────────────────────────────────────────
+// PLAN-LEVEL RULES — run after the Planner emits a plan, before execute.
+// Each takes ({plan, userMessage}) and returns { ok: true } or
+// { ok: false, severity: 'block', rule, reason, fix? }.
+// ─────────────────────────────────────────────────────────────────
+
+const CO_TRIGGER_RE = /\b(change\s*order|\bCO\b|scope\s*change|extra\s*work|client\s+(added|wants|asked\s+for))\b/i;
+
+/**
+ * Rule: a Plan that says "this is a change order" must use the CO entity.
+ * If the user's message clearly mentions a change order AND the plan
+ * tries to satisfy it via create_project_phase / record_expense /
+ * update_phase_progress / update_project — block. The CO entity
+ * (create_change_order) is the only correct path, because it handles
+ * contract_amount + end_date + phase placement + draw spawn atomically
+ * on client approval.
+ *
+ * This was the bug class that motivated the PEV rebuild. Promoting it
+ * from a soft prompt rule to a hard structural check.
+ */
+function planRuleNoChangeOrderDecomposition({ plan, userMessage }) {
+  if (!plan || !Array.isArray(plan.steps)) return { ok: true };
+  if (!userMessage || !CO_TRIGGER_RE.test(userMessage)) return { ok: true };
+
+  const FORBIDDEN = new Set([
+    'create_project_phase',
+    'record_expense',
+    'record_transaction',
+    'update_phase_progress',
+    'update_phase_budget',
+  ]);
+  const violations = plan.steps.filter((s) => FORBIDDEN.has(s.tool));
+  if (violations.length === 0) return { ok: true };
+
+  const usesCo = plan.steps.some((s) => s.tool === 'create_change_order');
+  // A plan can have CO + an unrelated phase update for a different reason.
+  // We only block when the plan attempts to satisfy the CO via the
+  // forbidden tools (i.e., decomposing the CO scope). If CO tool is
+  // present, allow ancillary steps. If CO tool is absent and forbidden
+  // tools are being used, that IS the decomposition bug.
+  if (usesCo) return { ok: true };
+
+  return {
+    ok: false,
+    severity: 'block',
+    rule: 'no_change_order_decomposition',
+    reason: `Plan uses ${violations.map((v) => v.tool).join(', ')} to satisfy a change-order request. A CO is its own first-class entity — use create_change_order, which handles contract bump + schedule extension + phase placement atomically on approval.`,
+    fix: 'Re-plan using create_change_order. Resolve the project with search_projects first if needed.',
+  };
+}
+
+/**
+ * Rule: never directly mutate contract_amount via update_project.
+ * Contract amount changes are CO territory (the existing extras trigger
+ * recalculates contract_amount when projects.extras is appended). A
+ * raw update_project({contract_amount: ...}) bypasses the audit trail
+ * and the cascade.
+ */
+function planRuleNoRawContractMutation({ plan }) {
+  if (!plan || !Array.isArray(plan.steps)) return { ok: true };
+  const violations = plan.steps.filter((s) =>
+    s.tool === 'update_project' && s.args && s.args.contract_amount !== undefined
+  );
+  if (violations.length === 0) return { ok: true };
+  return {
+    ok: false,
+    severity: 'block',
+    rule: 'no_raw_contract_mutation',
+    reason: 'Plan tries to update contract_amount directly via update_project. Contract changes must go through create_change_order so the cascade fires (extras trigger recalculates contract_amount, audit row written, draw optionally spawned).',
+    fix: 'Re-plan using create_change_order with the additional scope as line items.',
+  };
+}
+
+const PLAN_RULES = [
+  planRuleNoChangeOrderDecomposition,
+  planRuleNoRawContractMutation,
+];
+
+/**
+ * Validate a plan against constitutional rules. Returns:
+ *   { ok: true }                         — ship the plan to execute
+ *   { ok: false, blocked: {...}, all }   — first violation that blocks;
+ *                                            caller should re-plan or surface
+ *                                            the reason to the user.
+ */
+function evaluatePlan({ plan, userMessage }) {
+  const violations = [];
+  for (const rule of PLAN_RULES) {
+    try {
+      const r = rule({ plan, userMessage });
+      if (!r.ok) violations.push(r);
+    } catch (e) {
+      logger.warn(`[constitution] plan rule threw: ${e.message}`);
+    }
+  }
+  if (violations.length === 0) return { ok: true, results: [] };
+  const blocked = violations.find((v) => v.severity === 'block');
+  return { ok: !blocked, results: violations, blocked };
+}
+
 /**
  * Run every rule against the agent's outgoing response. Returns:
  *   { ok: true }            — clean, ship as-is
@@ -129,4 +229,4 @@ function evaluate(ctx) {
   return { ok: false, results: violations, blocked };
 }
 
-module.exports = { evaluate, RULES };
+module.exports = { evaluate, RULES, evaluatePlan, PLAN_RULES };

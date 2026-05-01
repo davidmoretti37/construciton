@@ -36,6 +36,7 @@ const { execute } = require('./executor');
 const { verify, MAX_VERIFY_LOOPS } = require('./verifier');
 const { respond } = require('./responder');
 const approvalGate = require('../approvalGate');
+const { evaluatePlan } = require('../constitution');
 
 // Default ON. Set PEV_ENABLED=0 to disable (kill switch).
 const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
@@ -120,6 +121,49 @@ async function runPev(input) {
   }
   if (verdict === 'fallback') {
     return { handoff: 'foreman', reason: 'plan unactionable', trace, totalMs: Date.now() - t0 };
+  }
+
+  // Constitutional check on the plan. Hard rules that prose can't
+  // reliably enforce — e.g., "never decompose a change order into
+  // create_project_phase + record_expense" (the bug class that motivated
+  // the PEV rebuild). If a rule blocks, we re-plan ONCE with the rule's
+  // reason injected as feedback; if it still violates, hand off to the
+  // user with the reason.
+  const constCheck = evaluatePlan({ plan: planResult.plan, userMessage });
+  trace.stages.push({ stage: 'constitution', ok: !constCheck.blocked });
+  if (constCheck.blocked) {
+    emit({ type: 'pev_constitution_blocked', rule: constCheck.blocked.rule, reason: constCheck.blocked.reason });
+    // One repair attempt: feed the rule's reason back to the planner as
+    // explicit guidance and re-plan. If the second plan still violates,
+    // surface to the user.
+    const repaired = await makePlan({
+      userMessage: `${userMessage}\n\n[Plan rejected: ${constCheck.blocked.reason}\n${constCheck.blocked.fix || ''}]`,
+      tools,
+      businessContext,
+      memorySnapshot,
+    });
+    if (repaired.ok && planVerdict(repaired.plan) === 'execute') {
+      const repairedCheck = evaluatePlan({ plan: repaired.plan, userMessage });
+      if (!repairedCheck.blocked) {
+        emit({ type: 'pev_constitution_repaired', rule: constCheck.blocked.rule });
+        planResult.plan = repaired.plan; // proceed with the repaired plan
+      } else {
+        return {
+          handoff: 'ask',
+          question: `I tried to plan that but ran into a structural rule: ${constCheck.blocked.reason}`,
+          plan: repaired.plan,
+          trace,
+          totalMs: Date.now() - t0,
+        };
+      }
+    } else {
+      return {
+        handoff: 'ask',
+        question: `I'm not able to do that the way the request describes. ${constCheck.blocked.reason}`,
+        trace,
+        totalMs: Date.now() - t0,
+      };
+    }
   }
 
   // ─────────── Stages 2 + 3: Execute + Verify (with bounded retry loop) ───────────
