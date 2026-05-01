@@ -34,6 +34,7 @@ const { classify } = require('./classifier');
 const { plan: makePlan, planVerdict } = require('./planner');
 const { execute } = require('./executor');
 const { verify, MAX_VERIFY_LOOPS } = require('./verifier');
+const { respond } = require('./responder');
 
 // Default ON. Set PEV_ENABLED=0 to disable (kill switch).
 const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
@@ -190,11 +191,29 @@ async function runPev(input) {
     attemptedPlan = replanned.plan;
   }
 
+  // ─────────── Stage 4: Respond ───────────
+  // Compose the user-facing reply directly from plan + step results.
+  // Replaces the previous "inject synthetic msg into messages and let
+  // Foreman re-compose" path which round-tripped through a second LLM.
+  emit({ type: 'pev_respond_start' });
+  const responder = await respond({
+    userMessage,
+    plan: attemptedPlan,
+    stepResults: lastExec?.stepResults || [],
+  });
+  trace.stages.push({ stage: 'respond', latencyMs: responder.latencyMs, fallback: responder.fallback });
+  emit({ type: 'pev_respond_done', textLength: (responder.text || '').length });
+
   return {
     handoff: 'response',
     plan: attemptedPlan,
     stepResults: lastExec?.stepResults || [],
     verifier: lastVerifier,
+    response: {
+      text: responder.text,
+      visualElements: responder.visualElements || [],
+      fallback: responder.fallback,
+    },
     trace,
     totalMs: Date.now() - t0,
   };

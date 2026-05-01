@@ -1172,6 +1172,52 @@ export default function ChatScreen({ navigation, route }) {
             ? { ...msg, text: '', retryNote: reason || 'Re-checking my work.' }
             : msg));
         },
+        // PEV (Plan-Execute-Verify) pipeline events. Builds a step-by-step
+        // reasoning trail attached to the assistant message bubble so the
+        // user sees what the agent is doing in real time.
+        onPev: (pevEvent) => {
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages(prev => prev.map(msg => {
+            if (msg.id !== targetId) return msg;
+            const trail = msg.pevTrail || [];
+            // Update inline status text based on event type
+            let label = null;
+            switch (pevEvent?.type) {
+              case 'pev_classify_start': label = 'Classifying…'; break;
+              case 'pev_classify_done':
+                if (pevEvent.classification === 'complex') label = 'Planning…';
+                break;
+              case 'pev_plan_done':
+                label = `Plan: ${pevEvent.stepCount} step${pevEvent.stepCount === 1 ? '' : 's'}`;
+                break;
+              case 'plan_start':
+                label = `Goal: ${pevEvent.goal}`;
+                break;
+              case 'step_start':
+                label = `▸ ${pevEvent.stepIndex}. ${pevEvent.tool}${pevEvent.why ? ` — ${pevEvent.why}` : ''}`;
+                break;
+              case 'step_done':
+                label = `✓ ${pevEvent.tool} (${pevEvent.ms}ms)`;
+                break;
+              case 'step_error':
+                label = `✗ ${pevEvent.error}`;
+                break;
+              case 'pev_verify_start':
+                label = 'Verifying…';
+                break;
+              case 'pev_verify_done':
+                label = pevEvent.satisfied ? '✓ Verified' : `Gap: ${pevEvent.gap || 'incomplete'}`;
+                break;
+              case 'pev_respond_start':
+                label = 'Composing reply…';
+                break;
+              default:
+                break;
+            }
+            if (!label) return msg;
+            return { ...msg, pevTrail: [...trail, { ts: Date.now(), label }] };
+          }));
+        },
         // onChunk callback - Append small drip-fed chunks from aiService animation
         onChunk: (chunk) => {
           if (!chunk) return;
@@ -4003,6 +4049,32 @@ export default function ChatScreen({ navigation, route }) {
                       {message.approvalResolved === 'approve' ? '✓ Confirmed' : '✗ Cancelled'}
                     </Text>
                   ) : null}
+                  {/* PEV reasoning trail — inline log of what the agent is doing.
+                      Renders above the bubble for assistant messages that went
+                      through the Plan-Execute-Verify pipeline. */}
+                  {!message.isUser && Array.isArray(message.pevTrail) && message.pevTrail.length > 0 && (
+                    <View style={{
+                      paddingVertical: 6, paddingHorizontal: 10,
+                      marginBottom: 6, marginLeft: 4,
+                      borderLeftWidth: 2, borderLeftColor: Colors.primaryBlue,
+                      backgroundColor: 'rgba(30, 64, 175, 0.04)',
+                      borderRadius: 4,
+                    }}>
+                      {message.pevTrail.map((entry, i) => (
+                        <Text
+                          key={`${entry.ts}-${i}`}
+                          style={{
+                            fontSize: 11,
+                            color: Colors.secondaryText,
+                            fontFamily: 'SpaceMono-Regular',
+                            lineHeight: 15,
+                          }}
+                        >
+                          {entry.label}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
                   {message.text && message.text.trim() !== '' && (
                   <View>
             <TouchableOpacity

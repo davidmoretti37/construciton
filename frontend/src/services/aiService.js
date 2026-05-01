@@ -1939,7 +1939,7 @@ export const sendAgentMessage = async (
   rawAttachments = [],
   sessionId = null
 ) => {
-  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onPendingApproval, onStep, onTool, onRetrying, onAbortRef } = callbacks;
+  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onPendingApproval, onStep, onTool, onRetrying, onPev, onAbortRef } = callbacks;
   const startTime = Date.now();
 
   // Build the last user message — multipart if images are attached
@@ -2180,6 +2180,14 @@ export const sendAgentMessage = async (
               // show a brief "let me try that again" indicator and
               // expect the displayed text to be replaced.
               onRetrying?.({ attempt: event.attempt, reason: event.reason });
+              break;
+            case 'pev':
+              // Plan-Execute-Verify pipeline events. event.event has the
+              // inner shape: { type: 'pev_classify_done' | 'pev_plan_done'
+              // | 'plan_start' | 'step_start' | 'step_done' | 'step_error'
+              // | 'plan_complete' | 'pev_verify_done' | 'pev_respond_*' }.
+              // Frontend renders a "reasoning trail" inline in chat.
+              onPev?.(event.event);
               break;
             case 'done':
               streamDone = true;

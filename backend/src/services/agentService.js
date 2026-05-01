@@ -39,6 +39,7 @@ const { runMemoryCommand, prefetchMemorySnapshot } = require('./memoryTool');
 // stuck after replan) all hand back to the foreman flow, so the worst
 // case is "same as before."
 const { runPev, PEV_ENABLED } = require('./agent/pev');
+const { recordPevTurn } = require('./agent/telemetry');
 const PEV_SHADOW = process.env.PEV_SHADOW === '1';
 // destructiveGuard is still used internally by approvalGate; it's no
 // longer called directly from this file.
@@ -1611,6 +1612,9 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
         `[PEV] handoff=${pevResult.handoff} reason=${pevResult.reason || ''} totalMs=${pevResult.totalMs}`
       );
 
+      // Fire-and-forget structured telemetry. Doesn't block the user response.
+      recordPevTurn({ userId, pevResult, sessionId }).catch(() => {});
+
       if (!PEV_SHADOW) {
         if (pevResult.handoff === 'ask') {
           // Halt and ask the user — surface the question as the agent's response.
@@ -1622,21 +1626,17 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           return;
         }
         if (pevResult.handoff === 'response') {
-          // PEV resolved the request. We still let the main loop produce the
-          // final user-facing text (it's better at conversational framing),
-          // but we inject a "PEV ALREADY DID THESE STEPS" hint so the main
-          // loop doesn't redundantly call the same tools. Concretely: append
-          // a synthesized assistant-tool-result block to messages so the
-          // main LLM sees the work as already done.
-          const pevContext = pevResult.stepResults
-            .map((s) => {
-              if (s.error) return `step ${s.id} ${s.tool}: ERROR ${s.error.message}`;
-              return `step ${s.id} ${s.tool}: ${JSON.stringify(s.result || {}).slice(0, 400)}`;
-            }).join('\n');
-          messages.push({
-            role: 'assistant',
-            content: `[PEV pipeline pre-executed]\nGoal: ${pevResult.plan.goal}\n${pevContext}\n\nNow respond to the user with a brief summary of what was done.`,
-          });
+          // PEV pipeline resolved the request AND composed the user-facing
+          // reply (Responder stage). Stream the response directly — no
+          // round-trip through Foreman, no double LLM call. Saves ~$0.003
+          // and 2-5s per complex request and produces cleaner output.
+          const text = pevResult.response?.text || 'Done.';
+          writer.emit({ type: 'delta', content: text });
+          if (Array.isArray(pevResult.response?.visualElements) && pevResult.response.visualElements.length > 0) {
+            writer.emit({ type: 'metadata', visualElements: pevResult.response.visualElements, actions: [] });
+          }
+          writer.emit({ type: 'done' });
+          return;
         }
         // handoff='foreman' falls through to the existing flow unchanged.
       }
