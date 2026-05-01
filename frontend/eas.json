@@ -24,6 +24,7 @@
       },
       "env": {
         "EXPO_PUBLIC_BACKEND_URL": "https://construciton-production.up.railway.app",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51StJ20J4gs8XcXWe6Y5bbt6ZPnZdfLVug8MLSB0KPHtI7hDzwFi1jOoeNUlHImzRXJ3bpD00GXik9AuZVS3eGbRR00X8yX9N18",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
@@ -33,6 +34,7 @@
         "EXPO_PUBLIC_BACKEND_URL": "https://construciton-production.up.railway.app",
         "EXPO_PUBLIC_SUPABASE_URL": "https://dmhpzutqzqerfprstioc.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtaHB6dXRxenFlcmZwcnN0aW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMjQwMjEsImV4cCI6MjA3NzcwMDAyMX0.F7fb6jMU07xXJ1p36MOKf_UGD3Hz19bc3sXaGHyn64U",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51StJ20J4gs8XcXWe6Y5bbt6ZPnZdfLVug8MLSB0KPHtI7hDzwFi1jOoeNUlHImzRXJ3bpD00GXik9AuZVS3eGbRR00X8yX9N18",
         "EXPO_PUBLIC_SENTRY_DSN": "https://6f3f86801b86d99e7aa33850490f14a4@o4511094399041536.ingest.us.sentry.io/4511094403891200"
       }
     }

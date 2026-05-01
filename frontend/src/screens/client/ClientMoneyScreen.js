@@ -78,8 +78,15 @@ export default function ClientMoneyScreen({ navigation }) {
     try {
       setPaying(invoice.id);
 
+      // If the Stripe publishable key wasn't bundled into the build, the
+      // native Payment Sheet calls Stripe with no auth and surfaces a
+      // cryptic "no API key" error. Skip straight to browser checkout.
+      const hasStripeKey = !!process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
       // Try native Payment Sheet first
-      const intentData = await createPaymentIntent(invoice.id).catch(() => null);
+      const intentData = hasStripeKey
+        ? await createPaymentIntent(invoice.id).catch(() => null)
+        : null;
 
       if (intentData?.clientSecret) {
         // Native in-app payment
