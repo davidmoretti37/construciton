@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchInvoices, deleteInvoice } from '../../utils/storage';
+import { listAllSubInvoices, getEngagementInvoiceUrl } from '../../services/subsService';
 import InvoicePreview from '../../components/ChatVisuals/InvoicePreview';
 import AuditTrail from '../../components/AuditTrail';
 import SignatureSection from '../../components/SignatureSection';
@@ -28,6 +29,8 @@ export default function InvoicesDetailScreen({ navigation }) {
   const Colors = getColors(isDark) || LightColors;
 
   const [invoices, setInvoices] = useState([]);
+  const [subInvoices, setSubInvoices] = useState([]);
+  const [openingSubInvId, setOpeningSubInvId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -49,13 +52,35 @@ export default function InvoicesDetailScreen({ navigation }) {
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      const allInvoices = await fetchInvoices();
+      const [allInvoices, fromSubs] = await Promise.all([
+        fetchInvoices(),
+        listAllSubInvoices().catch(() => []),
+      ]);
       setInvoices(allInvoices || []);
+      setSubInvoices(fromSubs || []);
       setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading invoices:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onOpenSubInvoice = async (inv) => {
+    if (!inv?.pdf_url || openingSubInvId) return;
+    setOpeningSubInvId(inv.id);
+    try {
+      const res = await getEngagementInvoiceUrl(inv.engagement_id, inv.id);
+      if (!res?.url) throw new Error('No URL');
+      navigation.navigate('DocumentViewer', {
+        fileUrl: res.url,
+        fileName: inv.invoice_number ? `Invoice ${inv.invoice_number}` : `Invoice #${inv.id.slice(0, 6)}`,
+        fileType: 'pdf',
+      });
+    } catch (e) {
+      Alert.alert('Could not open', e.message || 'Try again');
+    } finally {
+      setOpeningSubInvId(null);
     }
   };
 
@@ -119,6 +144,66 @@ export default function InvoicesDetailScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* Bills from subcontractors — these are sub-uploaded PDF invoices */}
+        {subInvoices.length > 0 && (
+          <View style={styles.subInvoicesSection}>
+            <View style={styles.subInvoicesHeader}>
+              <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+                FROM SUBCONTRACTORS
+              </Text>
+              <Text style={[styles.sectionLabel, { color: Colors.secondaryText }]}>
+                {subInvoices.length}
+              </Text>
+            </View>
+            {subInvoices.map((inv) => {
+              const total = Number(inv.total_amount || 0);
+              const status = inv.status || 'sent';
+              const isPaid = status === 'paid';
+              const pillColor = isPaid ? '#10B981' : status === 'rejected' ? '#DC2626' : '#3B82F6';
+              const isOpening = openingSubInvId === inv.id;
+              return (
+                <TouchableOpacity
+                  key={inv.id}
+                  style={[styles.subInvoiceCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}
+                  activeOpacity={0.7}
+                  onPress={() => onOpenSubInvoice(inv)}
+                  disabled={!inv.pdf_url}
+                >
+                  <View style={[styles.subInvIcon, { backgroundColor: pillColor + '15' }]}>
+                    <Ionicons name="cash-outline" size={18} color={pillColor} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={styles.subInvTopRow}>
+                      <Text style={[styles.subInvAmount, { color: Colors.primaryText }]}>
+                        ${total.toLocaleString()}
+                      </Text>
+                      <View style={[styles.subInvPill, { backgroundColor: pillColor + '15' }]}>
+                        <Text style={[styles.subInvPillText, { color: pillColor }]}>
+                          {status.replace(/_/g, ' ')}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.subInvMeta, { color: Colors.secondaryText }]} numberOfLines={1}>
+                      {inv.sub_legal_name || 'Subcontractor'}
+                      {inv.trade ? `  ·  ${inv.trade}` : ''}
+                      {inv.project_name ? `  ·  ${inv.project_name}` : ''}
+                    </Text>
+                    <Text style={[styles.subInvDate, { color: Colors.secondaryText }]} numberOfLines={1}>
+                      {inv.submitted_at ? `Sent ${new Date(inv.submitted_at).toLocaleDateString()}` : ''}
+                      {inv.due_at ? `  ·  Due ${new Date(inv.due_at).toLocaleDateString()}` : ''}
+                    </Text>
+                  </View>
+                  {isOpening
+                    ? <ActivityIndicator size="small" color={Colors.secondaryText} />
+                    : inv.pdf_url
+                      ? <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+                      : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {/* Invoices List */}
         <View style={styles.listSection}>
           {invoices.length === 0 ? (
@@ -395,6 +480,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
+  subInvoicesSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  subInvoicesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  subInvoiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  subInvIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  subInvTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  subInvAmount: { flex: 1, fontSize: 16, fontWeight: '700' },
+  subInvPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
+  subInvPillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  subInvMeta: { fontSize: 12, marginTop: 3 },
+  subInvDate: { fontSize: 11, marginTop: 2 },
   emptyState: {
     padding: 40,
     borderRadius: 12,

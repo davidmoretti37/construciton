@@ -124,6 +124,12 @@ export const listBidHistoryForSub = async (subOrgId) => {
 export const getEngagementInvoiceUrl = (engagementId, invoiceId) =>
   authedFetch(`/api/sub-portal/engagements/${engagementId}/invoices/${invoiceId}/url`);
 
+// All invoices from subs across this GC's engagements
+export const listAllSubInvoices = async () => {
+  const json = await authedFetch('/api/subs/invoices');
+  return json.invoices || [];
+};
+
 export const uploadBidAttachment = (bidRequestId, payload) =>
   authedFetch(`/api/bid-requests/${bidRequestId}/attachments`, {
     method: 'POST',
