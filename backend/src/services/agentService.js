@@ -40,6 +40,7 @@ const { runMemoryCommand, prefetchMemorySnapshot } = require('./memoryTool');
 // case is "same as before."
 const { runPev, PEV_ENABLED } = require('./agent/pev');
 const { recordPevTurn } = require('./agent/telemetry');
+const { extractAndWrite: extractMemoryFromTurn } = require('./agent/memoryExtractor');
 const PEV_SHADOW = process.env.PEV_SHADOW === '1';
 // destructiveGuard is still used internally by approvalGate; it's no
 // longer called directly from this file.
@@ -1663,6 +1664,17 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             writer.emit({ type: 'metadata', visualElements: pevResult.response.visualElements, actions: [] });
           }
           writer.emit({ type: 'done' });
+
+          // Fire-and-forget: extract durable facts from this turn and write
+          // to memory. Runs AFTER the user response is sent so it can never
+          // delay or block. The agent gets sharper every conversation
+          // (supervisor names, pricing defaults, workflow preferences).
+          extractMemoryFromTurn({
+            userId,
+            userMessage: lastUserMsg,
+            responseText: text,
+          }).catch(() => {});
+
           return;
         }
         // handoff='foreman' falls through to the existing flow unchanged.

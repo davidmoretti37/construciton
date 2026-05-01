@@ -201,7 +201,13 @@ export default function EstimatesDetailScreen({ navigation, route }) {
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allEstimates')}</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate('EstimateBuilder')}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="add" size={28} color={Colors.primaryText} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -224,6 +230,10 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                 key={estimate.id}
                 style={[styles.estimateCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
                 onPress={() => {
+                  if (estimate.status === 'draft' || !estimate.status) {
+                    navigation.navigate('EstimateBuilder', { estimate_id: estimate.id });
+                    return;
+                  }
                   setSelectedEstimate(estimate);
                   setShowEstimateModal(true);
                 }}

@@ -1951,6 +1951,12 @@ export default function ChatScreen({ navigation, route }) {
       case 'configure-project-details':
         navigation.navigate('ProjectBuilder', { chatExtractedData: action.data });
         break;
+      case 'configure-estimate-details':
+        navigation.navigate('EstimateBuilder', {
+          estimate_id: action.data?.id || action.data?.estimateId,
+          draft: action.data,
+        });
+        break;
       case 'create-estimate':
         const pName = action.projectName || action.data?.projectName;
         if (pName) handleSend(`create estimate for ${pName}`, false);

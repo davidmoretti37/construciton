@@ -1046,6 +1046,15 @@ export default function EstimatePreview({ data, onAction }) {
             >
               <Ionicons name="eye-outline" size={22} color="#fff" />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: '#0F172A' }]}
+              onPress={() => {
+                if (onAction) onAction({ type: 'configure-estimate-details', data });
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="options-outline" size={22} color="#fff" />
+            </TouchableOpacity>
           </>
         ) : (
           <TouchableOpacity

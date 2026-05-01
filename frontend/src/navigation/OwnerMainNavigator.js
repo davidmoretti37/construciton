@@ -40,6 +40,7 @@ import PaywallScreen from '../screens/subscription/PaywallScreen';
 import PicturesScreen from '../screens/media/PicturesScreen';
 import ContractsScreen from '../screens/documents/ContractsScreen';
 import EstimatesDetailScreen from '../screens/documents/EstimatesDetailScreen';
+import EstimateBuilderScreen from '../screens/owner/EstimateBuilderScreen';
 import InvoicesDetailScreen from '../screens/documents/InvoicesDetailScreen';
 import InvoiceTemplateScreen from '../screens/documents/InvoiceTemplateScreen';
 
@@ -254,6 +255,10 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="EstimatesDetail"
         component={EstimatesDetailScreen}
+      />
+      <Stack.Screen
+        name="EstimateBuilder"
+        component={EstimateBuilderScreen}
       />
       <Stack.Screen
         name="InvoicesDetail"
