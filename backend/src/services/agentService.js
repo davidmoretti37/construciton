@@ -1264,7 +1264,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   // Prefer the async router (local Ollama on Mac Mini for nuanced
   // classification, regex fallback). Set OLLAMA_URL=disabled to force
   // regex-only — useful for CI runs where Ollama isn't available.
-  const { intent, tools: filteredTools, toolCount } = await routeToolsAsync(routingMsg || lastUserMsg, toolDefinitions, conversationHints);
+  const { intent, tools: filteredTools, pevTools, toolCount } = await routeToolsAsync(routingMsg || lastUserMsg, toolDefinitions, conversationHints);
 
   // Always include the Anthropic memory tool. It's first-class — the agent
   // checks /memories at the start of every conversation and writes durable
@@ -1592,7 +1592,12 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       };
       const pevResult = await runPev({
         userMessage: routingMsg || lastUserMsg,
-        tools: filteredTools,
+        // Wider tool surface for the planner — includes connective-tissue
+        // tools (search_*, get_*_details) so cross-cutting plans don't halt
+        // when the intent group misses one. Executor still validates against
+        // the registry at call time. Falls back to filteredTools when the
+        // router doesn't expose pevTools (older code path / tests).
+        tools: pevTools || filteredTools,
         userId,
         executeTool,
         businessContext: userContext?.businessName ? `Business: ${userContext.businessName}` : '',

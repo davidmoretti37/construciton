@@ -182,15 +182,35 @@ function categorizeIntent(userMessage) {
   return { primary: intents[0], secondary: intents[1] };
 }
 
+// Tools that are always useful as "connective tissue" regardless of
+// intent. The legacy Foreman flow doesn't need these (its tool-router
+// stays narrow for accuracy), but the PEV planner uses a wider surface
+// so compound requests like "create CO + assign worker + email client"
+// can be planned in a single shot instead of halting on the first
+// out-of-group tool. Executor still validates against the registry, so
+// risk is unchanged.
+const PEV_ALWAYS_AVAILABLE = [
+  'search_projects', 'get_project_details', 'get_project_summary',
+  'search_estimates', 'get_estimate_details',
+  'search_invoices', 'get_invoice_details',
+  'get_workers', 'get_worker_details',
+  'list_change_orders', 'get_change_order',
+  'global_search', 'query_event_history',
+];
+
 /**
  * Returns relevant tools based on intent category.
  * For compound intents, merges tool sets from both domains (deduplicated).
  *
  * @param {string|Object} intent - Intent string or { primary, secondary }
  * @param {Array} allTools - All available tool definitions
+ * @param {Object} [opts]
+ *   opts.forPev — when true, returns a wider tool surface that includes
+ *     PEV_ALWAYS_AVAILABLE so the planner can compose cross-cutting plans.
+ *     Default false (preserves existing tight Foreman routing).
  * @returns {Array} Filtered tool definitions
  */
-function selectTools(intent, allTools) {
+function selectTools(intent, allTools, opts = {}) {
   let selectedToolNames;
 
   if (typeof intent === 'object' && intent.primary) {
@@ -200,6 +220,14 @@ function selectTools(intent, allTools) {
     selectedToolNames = [...new Set([...primaryTools, ...secondaryTools])];
   } else {
     selectedToolNames = TOOL_GROUPS[intent] || TOOL_GROUPS.general;
+  }
+
+  // For the PEV planner, merge in always-available connective-tissue tools
+  // so cross-cutting plans don't halt because a search/lookup tool wasn't
+  // in the intent's group. The executor still enforces the registry at
+  // call time, so this only widens the planner's view, not what runs.
+  if (opts.forPev) {
+    selectedToolNames = [...new Set([...selectedToolNames, ...PEV_ALWAYS_AVAILABLE])];
   }
 
   return allTools.filter(tool =>
@@ -262,13 +290,16 @@ async function routeToolsAsync(userMessage, allTools, hints = {}) {
 
   if (localIntent && localIntent !== 'general' && TOOL_GROUPS[localIntent]) {
     const tools = selectTools(localIntent, allTools);
-    logger.info(`🎯 Tool Router (local): intent="${localIntent}", tools=${tools.length}/${allTools.length}`);
-    return { intent: localIntent, tools, toolCount: tools.length };
+    const pevTools = selectTools(localIntent, allTools, { forPev: true });
+    logger.info(`🎯 Tool Router (local): intent="${localIntent}", tools=${tools.length}/${allTools.length} (pev=${pevTools.length})`);
+    return { intent: localIntent, tools, pevTools, toolCount: tools.length };
   }
 
   const regexResult = routeTools(userMessage, allTools, hints);
-  logger.info(`🎯 Tool Router (regex): intent="${regexResult.intent}", tools=${regexResult.toolCount}/${allTools.length}`);
-  return regexResult;
+  // Augment with the PEV-wide tool set so the planner sees connective-tissue tools.
+  const pevTools = selectTools(regexResult.intent, allTools, { forPev: true });
+  logger.info(`🎯 Tool Router (regex): intent="${regexResult.intent}", tools=${regexResult.toolCount}/${allTools.length} (pev=${pevTools.length})`);
+  return { ...regexResult, pevTools };
 }
 
 module.exports = {
