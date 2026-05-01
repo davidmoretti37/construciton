@@ -21,7 +21,7 @@
 
 const logger = require('../../utils/logger');
 
-const CLASSIFIER_MODEL = process.env.PEV_CLASSIFIER_MODEL || 'anthropic/claude-haiku-4-5';
+const CLASSIFIER_MODEL = process.env.PEV_CLASSIFIER_MODEL || 'anthropic/claude-haiku-4.5';
 const CLASSIFIER_TIMEOUT_MS = parseInt(process.env.PEV_CLASSIFIER_TIMEOUT_MS, 10) || 4000;
 
 const VALID_CLASSIFICATIONS = ['simple', 'complex', 'clarification', 'briefing'];
