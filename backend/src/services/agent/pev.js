@@ -78,6 +78,7 @@ async function runPev(input) {
     businessContext = '',
     memorySnapshot = '',
     hints = {},
+    conversationHistory = [],
     emit = () => {},
   } = input;
   // Dry-run mode: if message starts with "dry run:", "test mode:", etc.,
@@ -92,7 +93,12 @@ async function runPev(input) {
 
   // ─────────── Stage 0: Classify ───────────
   emit({ type: 'pev_classify_start' });
-  const cls = await classify(userMessage, hints);
+  // Pass conversation history into hints so the classifier can disambiguate
+  // continuations ("just delete them") from fragments. Without this,
+  // follow-up turns get misrouted to 'clarification' even though the prior
+  // agent message gives full context.
+  const classifyHints = { ...hints, conversationHistory };
+  const cls = await classify(userMessage, classifyHints);
   trace.stages.push({ stage: 'classify', ...cls });
   emit({ type: 'pev_classify_done', classification: cls.classification, confidence: cls.confidence });
 
@@ -111,8 +117,13 @@ async function runPev(input) {
 
   // ─────────── Stage 1: Plan ───────────
   emit({ type: 'pev_plan_start' });
+  // If the user's message is a short continuation ("just delete them",
+  // "yeah do it"), bake in the prior agent question + the original user
+  // request so the planner has the full intent. Otherwise the planner
+  // sees a fragment and has to ask.
+  const enrichedUserMessage = enrichWithContext(userMessage, conversationHistory);
   const planResult = await makePlan({
-    userMessage,
+    userMessage: enrichedUserMessage,
     tools,
     businessContext,
     memorySnapshot,
@@ -332,6 +343,52 @@ async function runPev(input) {
     trace,
     totalMs: Date.now() - t0,
   };
+}
+
+/**
+ * If the current user message is a short continuation (under 80 chars) and
+ * the recent conversation has a longer user request, prepend the prior
+ * intent so the planner sees the full picture. Without this, "just delete
+ * them" gets planned in isolation and misses what to delete.
+ *
+ * Heuristic: short message + history with a longer user message in the
+ * last 4 turns + agent's last turn was a question → enrich.
+ */
+function enrichWithContext(userMessage, conversationHistory) {
+  if (!userMessage || userMessage.length > 80) return userMessage;
+  if (!Array.isArray(conversationHistory) || conversationHistory.length === 0) return userMessage;
+
+  // Find the last substantive user request (>40 chars) in recent history,
+  // and the last agent message
+  let priorRequest = null;
+  let priorAgentMsg = null;
+  for (let i = conversationHistory.length - 1; i >= Math.max(0, conversationHistory.length - 6); i--) {
+    const turn = conversationHistory[i];
+    if (!turn || typeof turn !== 'object') continue;
+    let text = '';
+    if (typeof turn.content === 'string') text = turn.content;
+    else if (Array.isArray(turn.content)) {
+      const t = turn.content.find((b) => b.type === 'text');
+      if (t) text = t.text || '';
+    }
+    if (!text) continue;
+    if (turn.role === 'user' && !priorRequest && text.length > 40 && text !== userMessage) {
+      priorRequest = text;
+    }
+    if (turn.role === 'assistant' && !priorAgentMsg) {
+      priorAgentMsg = text;
+    }
+    if (priorRequest && priorAgentMsg) break;
+  }
+
+  if (!priorRequest) return userMessage;
+
+  return [
+    `[Continuation of prior request]`,
+    `Original: ${priorRequest.slice(0, 500)}`,
+    priorAgentMsg ? `Agent asked: ${priorAgentMsg.slice(0, 300)}` : null,
+    `User now says: ${userMessage}`,
+  ].filter(Boolean).join('\n');
 }
 
 /**

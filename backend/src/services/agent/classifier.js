@@ -66,6 +66,19 @@ CONFIDENCE:
   0.5-0.7 — ambiguous, picking best guess
   <0.5    — really uncertain (caller may decide to ask the user)
 
+CONTEXT — when "RECENT CONVERSATION" is provided, USE IT:
+  - If the agent's last turn asked a question and the user's MESSAGE answers it (even partially, even with "I don't know") → classify based on the ORIGINAL request, not the fragment. Example:
+        user: "delete the duplicate $1600 expenses on the John tile phase"
+        agent: "which specific entries? give me dates or transaction IDs."
+        user: "I don't know, just delete them all"
+      → complex (the user is asking the agent to find + delete; not clarification)
+  - "yes / ok / do it / just do it / delete them / send it" after an agent question → simple confirmation OR complex continuation depending on the original request:
+      - If original was a SIMPLE action (send draft) → simple
+      - If original was COMPLEX (find + delete N items) → complex
+  - "no / different one / not that" after an agent question → clarification (user is REJECTING, agent should ask differently)
+  - Bare "I don't know" with no original request in history → clarification
+  - When in doubt with context, lean COMPLEX over CLARIFICATION — re-running the planner with the prior intent is better than asking the user to re-state.
+
 Reply ONLY with the JSON object. No prose, no markdown, no preamble.`;
 
 // ─────────────────────────────────────────────────────────────────
@@ -137,18 +150,25 @@ function fastClassify(userMessage, hints = {}) {
 }
 
 /**
- * Classify a single user message.
+ * Classify a single user message — with conversation context.
  *
  * Two-stage: first tries an instant regex pre-classifier (handles ~60%
  * of common messages: briefings, lookups, acks, fragments). If no
- * pattern matches, escalates to the Haiku LLM call. The LLM's fallback
- * remains 'simple' so a classifier outage never blocks chat.
+ * pattern matches, escalates to the Haiku LLM call.
+ *
+ * Context-aware: when conversationHistory is provided, the LLM stage
+ * sees the last agent turn so it can correctly classify continuations
+ * ("just delete them", "yeah do it", "no the other one") that look
+ * like fragments in isolation but are obviously complex/simple in
+ * context. Without this, follow-up turns get misrouted as
+ * 'clarification'.
  *
  * @param {string} userMessage  — the latest user turn
  * @param {Object} hints        — optional state hints
  *        hints.hasActivePreview  — boolean (a preview card is on screen)
  *        hints.hasDraftProject   — boolean
  *        hints.lastTurnWasQuestion — boolean (the agent just asked something)
+ *        hints.conversationHistory — array of {role, content} (last few turns)
  * @returns {Promise<{classification, confidence, reasoning, latencyMs, fast?, fallback}>}
  */
 async function classify(userMessage, hints = {}) {
@@ -168,11 +188,23 @@ async function classify(userMessage, hints = {}) {
   // clarification when there's an in-flight card or a recent agent question.
   const hintLine = describeHints(hints);
 
+  // Compose a context block from the last few turns so continuations
+  // ("just delete them", "yeah do it", "no the other one") classify
+  // correctly. Without this, the LLM sees a fragment and routes to
+  // 'clarification' even though the prior agent message gives full context.
+  const contextBlock = buildContextBlock(hints.conversationHistory);
+
   const t0 = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CLASSIFIER_TIMEOUT_MS);
 
   try {
+    const userPayload = [
+      hintLine ? `STATE: ${hintLine}` : null,
+      contextBlock ? `RECENT CONVERSATION:\n${contextBlock}` : null,
+      `MESSAGE: ${userMessage.slice(0, 2000)}`,
+    ].filter(Boolean).join('\n');
+
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -188,9 +220,7 @@ async function classify(userMessage, hints = {}) {
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: hintLine
-              ? `STATE: ${hintLine}\nMESSAGE: ${userMessage.slice(0, 2000)}`
-              : userMessage.slice(0, 2000) },
+          { role: 'user', content: userPayload },
         ],
       }),
       signal: controller.signal,
@@ -229,6 +259,39 @@ async function classify(userMessage, hints = {}) {
     logger.warn(`[PEV.classifier] error: ${e.message}`);
     return safeFallback(e.message, t0);
   }
+}
+
+/**
+ * Build a compact "RECENT CONVERSATION" block from the last 1-2 turns.
+ * Format:
+ *   user: ...prior message...
+ *   agent: ...prior agent reply...
+ * The classifier uses this to disambiguate continuations from fragments.
+ * Caps at 600 chars total to keep classifier prompt cheap.
+ */
+function buildContextBlock(history) {
+  if (!Array.isArray(history) || history.length === 0) return '';
+  // Take the last 2 turns (1 user + 1 agent, or 2 of either)
+  const tail = history.slice(-2);
+  const lines = [];
+  let totalLen = 0;
+  for (const turn of tail) {
+    if (!turn || typeof turn !== 'object') continue;
+    const role = turn.role === 'user' ? 'user' : 'agent';
+    let content = '';
+    if (typeof turn.content === 'string') content = turn.content;
+    else if (Array.isArray(turn.content)) {
+      const t = turn.content.find((b) => b.type === 'text');
+      if (t) content = t.text || '';
+    }
+    if (!content) continue;
+    const truncated = content.slice(0, 280);
+    const line = `${role}: ${truncated}`;
+    if (totalLen + line.length > 600) break;
+    lines.push(line);
+    totalLen += line.length;
+  }
+  return lines.join('\n');
 }
 
 function describeHints(hints) {

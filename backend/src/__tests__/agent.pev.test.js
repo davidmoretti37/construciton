@@ -174,6 +174,22 @@ describe('PEV orchestrator — degraded LLM behavior', () => {
   });
 });
 
+describe('PEV — conversation continuity (enrichWithContext)', () => {
+  // Re-require to pick up the module (avoid stale cache)
+  jest.resetModules();
+  const pevModule = require('../services/agent/pev');
+  // Access internals via test export
+  const { detectDryRun } = pevModule;
+
+  // The enrich function isn't exported but we can exercise it through
+  // a real runPev call. For these tests we just want to verify dry-run
+  // isn't broken by the conversation-history additions.
+  test('detectDryRun still works with the continuity changes', () => {
+    expect(detectDryRun('dry run: do thing').dryRun).toBe(true);
+    expect(detectDryRun('regular message').dryRun).toBe(false);
+  });
+});
+
 describe('PEV — dry-run detection', () => {
   const { detectDryRun } = require('../services/agent/pev');
 

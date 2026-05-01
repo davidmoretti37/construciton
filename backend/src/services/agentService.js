@@ -1591,6 +1591,14 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
         // We can't easily detect "agent just asked a question" from server-side state,
         // so leave that hint unset for now. Frontend can pass it explicitly later.
       };
+      // Pass last few turns to PEV so the classifier and planner can
+      // disambiguate continuations like "just delete them" / "yeah do it"
+      // from genuine new requests. Without this, follow-up messages get
+      // routed to 'clarification' and the user has to repeat themselves.
+      const recentHistory = (userMessages || [])
+        .slice(-5)
+        .filter((m) => m && m.role && m.content);
+
       const pevResult = await runPev({
         userMessage: routingMsg || lastUserMsg,
         // Wider tool surface for the planner — includes connective-tissue
@@ -1604,6 +1612,7 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
         businessContext: userContext?.businessName ? `Business: ${userContext.businessName}` : '',
         memorySnapshot: memorySnapshot || '',
         hints: pevHints,
+        conversationHistory: recentHistory,
         emit: (event) => {
           // Forward PEV events to the SSE writer so the frontend can render
           // a step-by-step reasoning trail. In shadow mode we skip emit so
