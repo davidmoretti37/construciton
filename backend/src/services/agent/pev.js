@@ -39,8 +39,16 @@ const approvalGate = require('../approvalGate');
 const { evaluatePlan } = require('../constitution');
 const { repair: repairArgs, isWorthRepairing } = require('./argRepair');
 
-// Default ON. Set PEV_ENABLED=0 to disable (kill switch).
-const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
+// Default OFF — the simple Foreman flow handles real chat traffic better
+// than the multi-stage pipeline. PEV introduces failure modes the legacy
+// flow never had (technical text leaks, approval cycles that lose state,
+// classifier mis-routing of confirmations). Until those are properly
+// covered by integration tests against real production conversations,
+// PEV stays off. Components remain in place and are individually used
+// (approval gate runs in legacy flow too, etc.).
+//
+// To re-enable: PEV_ENABLED=1 in Railway env. Use cautiously.
+const PEV_ENABLED = process.env.PEV_ENABLED === '1';
 
 /**
  * Run the PEV pipeline on a user message.
@@ -99,6 +107,20 @@ function shouldFallbackToForeman(executeResult, plan) {
   return true;
 }
 
+// Heuristics for "this isn't really a clarification request — it's a
+// confirmation or continuation that should go to Foreman with full
+// conversation context".
+function looksLikeConfirmation(msg) {
+  if (!msg || typeof msg !== 'string') return false;
+  return /\b(yes|yeah|yep|sure|confirm|do it|go ahead|send it|approved|do that|please do|ok do it)\b/i.test(msg);
+}
+function looksLikeContinuation(msg) {
+  if (!msg || typeof msg !== 'string') return false;
+  // Short reflexive answers like "I don't know", "the first one", "yes both"
+  if (msg.length > 80) return false;
+  return /\b(don'?t know|both|either|first one|second one|all of them|either way|whatever)\b/i.test(msg);
+}
+
 function detectDryRun(userMessage) {
   if (!userMessage || typeof userMessage !== 'string') return { dryRun: false, cleaned: userMessage };
   const m = userMessage.match(DRY_RUN_RE);
@@ -144,12 +166,17 @@ async function runPev(input) {
     return { handoff: 'foreman', reason: cls.classification, trace, totalMs: Date.now() - t0 };
   }
   if (cls.classification === 'clarification') {
-    return {
-      handoff: 'ask',
-      question: 'Could you say a bit more about what you want to do?',
-      trace,
-      totalMs: Date.now() - t0,
-    };
+    // If the user message looks like a confirmation ("yes, confirm. go
+    // ahead", "yes do it", "go for it") OR a continuation, the
+    // clarification classification is wrong — hand off to Foreman which
+    // has the full conversation history + system prompt and will
+    // interpret correctly.
+    if (looksLikeConfirmation(userMessage) || looksLikeContinuation(userMessage)) {
+      return { handoff: 'foreman', reason: 'classifier said clarification but message looks like a confirmation/continuation', trace, totalMs: Date.now() - t0 };
+    }
+    // Otherwise, hand off to Foreman too — the simple flow handles
+    // ambiguous follow-ups better than PEV's hardcoded "say more" fallback.
+    return { handoff: 'foreman', reason: 'classifier picked clarification — letting Foreman handle the conversational nuance', trace, totalMs: Date.now() - t0 };
   }
   // complex → plan
 
