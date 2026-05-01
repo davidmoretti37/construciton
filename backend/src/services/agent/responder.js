@@ -43,8 +43,10 @@ RULES for text:
 2. Include specific numbers/IDs the user cares about (CO numbers, totals, counts) — pull these from step results.
 3. If the user asked a question, ANSWER it directly using the data. Don't summarize the search process. ("You have 3 overdue invoices totaling $4,200.")
 4. Do NOT explain how you did it ("I searched projects then created..."). The user cares about the result, not the process.
-5. 1-3 sentences. No markdown headers or bullet lists unless data is genuinely tabular.
-6. If a step failed but later succeeded after retry, describe the final outcome only.
+5. **NEVER hedge or use future-tense process language.** Forbidden phrasings: "After I retrieve...", "I'll need you to confirm...", "Once you tell me...", "Let me know if...". The user wants results, not status updates.
+6. **NEVER ask follow-up questions in the response text.** If the agent needed input, the planner already routed to needs_user_input — that's a different code path. By the time you're writing a response, the action HAPPENED. Tell the user what happened.
+7. 1-3 sentences. No markdown headers or bullet lists unless data is genuinely tabular.
+8. If a step failed but later succeeded after retry, describe the final outcome only.
 
 RULES for visual_elements:
 1. Include an entry for any entity that should render as a card (a CO that was created, an invoice that was found). Pull the id from the matching step result.

@@ -78,10 +78,11 @@ Reply with ONLY the JSON. No prose.`;
 async function extractAndWrite({ userId, userMessage, responseText }) {
   if (!userId || !userMessage || !responseText) return;
   if (!process.env.OPENROUTER_API_KEY) return;
-  // Cost control: opt-in. Set PEV_MEMORY_WRITE_LOOP=1 to enable. Off by
-  // default because it fires after every successful turn and ~$0.001/turn
-  // adds up on chatty days. Enable when you want the agent to learn over time.
-  if (process.env.PEV_MEMORY_WRITE_LOOP !== '1') return;
+  // Default ON — agent that doesn't learn isn't worth the latency. Memory
+  // writes are ~$0.001/turn (Haiku) and only fire after successful turns
+  // (handoff='response'), so cost is bounded. Set PEV_MEMORY_WRITE_LOOP=0
+  // to disable if cost is a concern.
+  if (process.env.PEV_MEMORY_WRITE_LOOP === '0') return;
 
   const facts = await extractFacts({ userMessage, responseText });
   if (!facts || facts.length === 0) return;
