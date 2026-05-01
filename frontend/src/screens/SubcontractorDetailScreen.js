@@ -256,7 +256,10 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
           console.warn('[SubcontractorDetail] bid-history failed:', err.message);
           return [];
         }),
-        api.listAllSubInvoices().catch(() => []),
+        api.listAllSubInvoices().catch((err) => {
+          console.warn('[SubcontractorDetail] listAllSubInvoices failed:', err.message);
+          return [];
+        }),
       ]);
       setSub(subRes.sub_organization);
       setDocs(docList);

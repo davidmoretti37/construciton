@@ -301,11 +301,15 @@ router.get('/invoices', authenticateUser, async (req, res) => {
     const engIds = Object.keys(engById);
     if (engIds.length === 0) return res.json({ invoices: [] });
 
-    const { data: invs } = await supabase
+    const { data: invs, error: invErr } = await supabase
       .from('sub_invoices')
       .select('id, engagement_id, invoice_number, total_amount, status, pdf_url, due_at, submitted_at, created_at, paid_at')
       .in('engagement_id', engIds)
-      .order('submitted_at', { ascending: false, nullsLast: true });
+      .order('created_at', { ascending: false });
+    if (invErr) {
+      logger.error('[subs] /invoices query err:', invErr);
+      return res.status(500).json({ error: invErr.message });
+    }
 
     const enriched = (invs || []).map((inv) => {
       const e = engById[inv.engagement_id];
