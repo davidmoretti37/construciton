@@ -332,6 +332,214 @@ const TOOLS = [
       model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__create_vendor',
+      description: 'Create a new QuickBooks Vendor (subcontractor or supplier). Required before create_bill or create_purchase against a vendor that does not yet exist in QBO. Pass display_name and any of email/phone/address; flag is_1099 if you will issue a 1099 (typical for subs).',
+      parameters: {
+        type: 'object',
+        properties: {
+          display_name: { type: 'string' },
+          company_name: { type: 'string' },
+          email: { type: 'string' },
+          phone: { type: 'string' },
+          mobile: { type: 'string' },
+          billing_address_line1: { type: 'string' },
+          billing_city: { type: 'string' },
+          billing_state: { type: 'string' },
+          billing_postal_code: { type: 'string' },
+          is_1099: { type: 'boolean', description: 'True for subcontractors that need a 1099-NEC at year end.' },
+          tax_id: { type: 'string', description: 'Vendor SSN/EIN. Stored encrypted by Intuit; only send if the user provided it.' },
+        },
+        required: ['display_name'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__create_purchase',
+      description: 'Record a cash or credit-card expense in QuickBooks (e.g. Home Depot run, gas, materials paid on a card). Different from create_bill — Bills are unpaid AP, Purchases are already-paid expenses. Use payment_type=Cash for cash, CreditCard for cards, Check for checks. account_qbo_id is the BANK or CREDIT-CARD account the money came from (NOT the expense account — that goes on each line).',
+      parameters: {
+        type: 'object',
+        properties: {
+          payment_type: { type: 'string', enum: ['Cash', 'Check', 'CreditCard'], description: 'How the expense was paid.' },
+          account_qbo_id: { type: 'string', description: 'QBO Id of the bank/credit-card account that funded this expense (from list_accounts).' },
+          vendor_qbo_id: { type: 'string', description: 'Optional — QB Vendor.Id if the expense was paid to a known vendor (Home Depot, sub, etc).' },
+          customer_qbo_id: { type: 'string', description: 'Optional — set if this expense is billable to a specific customer/job.' },
+          txn_date: { type: 'string', description: 'ISO YYYY-MM-DD. Default today.' },
+          doc_number: { type: 'string', description: 'Optional — receipt or transaction reference number.' },
+          private_note: { type: 'string' },
+          lines: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                amount: { type: 'number' },
+                expense_account_qbo_id: { type: 'string', description: 'Expense account QBO Id (e.g. Job Materials, Subcontractors). From list_accounts.' },
+                billable: { type: 'boolean', description: 'True if billable to the customer on customer_qbo_id.' },
+              },
+              required: ['amount', 'expense_account_qbo_id'],
+            },
+          },
+        },
+        required: ['payment_type', 'account_qbo_id', 'lines'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__create_payment',
+      description: 'Record money received from a customer in QuickBooks and apply it against one or more invoices. Use to mirror payments collected via the client portal (Stripe) so QBO marks the matching invoice as paid. Pass customer_qbo_id, total_amount, and the list of invoice_qbo_id+amount pairs to apply against.',
+      parameters: {
+        type: 'object',
+        properties: {
+          customer_qbo_id: { type: 'string' },
+          total_amount: { type: 'number', description: 'Total payment amount. Should equal the sum of applied_to amounts unless leaving an unapplied credit.' },
+          txn_date: { type: 'string', description: 'ISO YYYY-MM-DD. Default today.' },
+          payment_method: { type: 'string', description: 'Free-text method label (e.g. "Stripe", "Check", "ACH"). Stored as PaymentMethodRef.name lookup; if not found in QBO it is ignored.' },
+          deposit_to_account_qbo_id: { type: 'string', description: 'Optional bank/Undeposited Funds account QBO Id. Defaults to QBO Undeposited Funds.' },
+          private_note: { type: 'string' },
+          applied_to: {
+            type: 'array',
+            description: 'Invoices this payment pays off. amount per line should not exceed the invoice balance.',
+            items: {
+              type: 'object',
+              properties: {
+                invoice_qbo_id: { type: 'string' },
+                amount: { type: 'number' },
+              },
+              required: ['invoice_qbo_id', 'amount'],
+            },
+          },
+        },
+        required: ['customer_qbo_id', 'total_amount'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__update_invoice',
+      description: 'Update an existing QuickBooks Invoice. Use after the user edits an invoice in our app and wants the change mirrored to QB. Pass qbo_id (required) plus only the fields that changed — the helper fetches the current SyncToken automatically and sends a sparse update so untouched fields are preserved. To replace line items, pass a new lines array; to leave them alone, omit lines.',
+      parameters: {
+        type: 'object',
+        properties: {
+          qbo_id: { type: 'string', description: 'The QBO Invoice.Id to update.' },
+          due_date: { type: 'string' },
+          customer_memo: { type: 'string' },
+          private_note: { type: 'string' },
+          doc_number: { type: 'string' },
+          lines: {
+            type: 'array',
+            description: 'Optional — if provided, replaces ALL line items. Same shape as create_invoice.',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                amount: { type: 'number' },
+                qty: { type: 'number' },
+                unit_price: { type: 'number' },
+                item_qbo_id: { type: 'string' },
+              },
+              required: ['description', 'amount'],
+            },
+          },
+        },
+        required: ['qbo_id'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__void_invoice',
+      description: 'Void a QuickBooks Invoice. The invoice stays in QB (audit trail) but balance becomes zero and it no longer counts toward AR. Use when the user cancels an invoice in our app. Cannot be undone.',
+      parameters: {
+        type: 'object',
+        properties: {
+          qbo_id: { type: 'string', description: 'The QBO Invoice.Id to void.' },
+        },
+        required: ['qbo_id'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__update_estimate',
+      description: 'Update an existing QuickBooks Estimate. Same sparse-update pattern as update_invoice. Pass qbo_id + only the fields that changed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          qbo_id: { type: 'string' },
+          expiration_date: { type: 'string' },
+          customer_memo: { type: 'string' },
+          doc_number: { type: 'string' },
+          status: { type: 'string', enum: ['Pending', 'Accepted', 'Rejected', 'Closed'], description: 'Estimate status — set Accepted when client approves, Closed when superseded by an invoice.' },
+          lines: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                amount: { type: 'number' },
+                qty: { type: 'number' },
+                unit_price: { type: 'number' },
+              },
+              required: ['description', 'amount'],
+            },
+          },
+        },
+        required: ['qbo_id'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation', 'financial'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'qbo__void_estimate',
+      description: 'Mark a QuickBooks Estimate as Closed (QB has no "void" for estimates — this is the equivalent: it stays in the audit trail but no longer convertible). Use when the user cancels an estimate in our app.',
+      parameters: {
+        type: 'object',
+        properties: {
+          qbo_id: { type: 'string' },
+        },
+        required: ['qbo_id'],
+      },
+    },
+    metadata: {
+      category: 'mcp_qbo', risk_level: 'external_write', requires_approval: true,
+      model_tier_required: 'any', tags: ['mcp', 'qbo', 'mutation'],
+    },
+  },
 ];
 
 function getTools() {
@@ -477,6 +685,13 @@ async function callTool(toolName, args, credential) {
     case 'qbo__create_invoice':    return createInvoice(credential, args);
     case 'qbo__create_bill':       return createBill(credential, args);
     case 'qbo__create_estimate':   return createEstimate(credential, args);
+    case 'qbo__create_vendor':     return createVendor(credential, args);
+    case 'qbo__create_purchase':   return createPurchase(credential, args);
+    case 'qbo__create_payment':    return createPayment(credential, args);
+    case 'qbo__update_invoice':    return updateInvoice(credential, args);
+    case 'qbo__void_invoice':      return voidInvoice(credential, args);
+    case 'qbo__update_estimate':   return updateEstimate(credential, args);
+    case 'qbo__void_estimate':     return voidEstimate(credential, args);
     default:
       return { error: `Unknown QBO tool: ${toolName}` };
   }
@@ -599,6 +814,177 @@ async function createEstimate(credential, args) {
   const e = json.Estimate;
   if (!e) return { error: 'QBO did not return an Estimate record' };
   return { success: true, qbo_id: e.Id, doc_number: e.DocNumber, total: parseFloat(e.TotalAmt) };
+}
+
+async function createVendor(credential, args) {
+  const body = {
+    DisplayName: args.display_name,
+    CompanyName: args.company_name || undefined,
+    PrimaryEmailAddr: args.email ? { Address: args.email } : undefined,
+    PrimaryPhone: args.phone ? { FreeFormNumber: args.phone } : undefined,
+    Mobile: args.mobile ? { FreeFormNumber: args.mobile } : undefined,
+    BillAddr: (args.billing_address_line1 || args.billing_city) ? {
+      Line1: args.billing_address_line1,
+      City: args.billing_city,
+      CountrySubDivisionCode: args.billing_state,
+      PostalCode: args.billing_postal_code,
+    } : undefined,
+    Vendor1099: args.is_1099 === true ? true : undefined,
+    TaxIdentifier: args.tax_id || undefined,
+  };
+  const json = await qboPost(credential, 'Vendor', body);
+  const v = json.Vendor;
+  if (!v) return { error: 'QBO did not return a Vendor record' };
+  return { success: true, qbo_id: v.Id, display_name: v.DisplayName };
+}
+
+async function createPurchase(credential, args) {
+  const lines = (args.lines || []).map((l) => ({
+    DetailType: 'AccountBasedExpenseLineDetail',
+    Amount: l.amount,
+    Description: l.description,
+    AccountBasedExpenseLineDetail: {
+      AccountRef: { value: l.expense_account_qbo_id },
+      ...(args.customer_qbo_id ? { CustomerRef: { value: args.customer_qbo_id } } : {}),
+      ...(l.billable === true && args.customer_qbo_id ? { BillableStatus: 'Billable' } : {}),
+    },
+  }));
+  const body = {
+    PaymentType: args.payment_type,
+    AccountRef: { value: args.account_qbo_id },
+    EntityRef: args.vendor_qbo_id ? { value: args.vendor_qbo_id, type: 'Vendor' } : undefined,
+    TxnDate: args.txn_date || undefined,
+    DocNumber: args.doc_number || undefined,
+    PrivateNote: args.private_note || undefined,
+    Line: lines,
+  };
+  const json = await qboPost(credential, 'Purchase', body);
+  const p = json.Purchase;
+  if (!p) return { error: 'QBO did not return a Purchase record' };
+  return { success: true, qbo_id: p.Id, total: parseFloat(p.TotalAmt) };
+}
+
+async function createPayment(credential, args) {
+  const linkedTxns = (args.applied_to || []).map((a) => ({
+    Amount: a.amount,
+    LinkedTxn: [{ TxnId: a.invoice_qbo_id, TxnType: 'Invoice' }],
+  }));
+  const body = {
+    CustomerRef: { value: args.customer_qbo_id },
+    TotalAmt: args.total_amount,
+    TxnDate: args.txn_date || undefined,
+    PaymentMethodRef: args.payment_method ? { name: args.payment_method } : undefined,
+    DepositToAccountRef: args.deposit_to_account_qbo_id ? { value: args.deposit_to_account_qbo_id } : undefined,
+    PrivateNote: args.private_note || undefined,
+    Line: linkedTxns.length ? linkedTxns : undefined,
+  };
+  const json = await qboPost(credential, 'Payment', body);
+  const p = json.Payment;
+  if (!p) return { error: 'QBO did not return a Payment record' };
+  return { success: true, qbo_id: p.Id, total: parseFloat(p.TotalAmt), unapplied: parseFloat(p.UnappliedAmt || 0) };
+}
+
+/**
+ * Fetch the current SyncToken for an entity. QBO requires the latest
+ * SyncToken on every update; we fetch it server-side so callers don't
+ * have to track it. Returns `{ Id, SyncToken }` minimum.
+ */
+async function qboGetEntity(credential, entity, id) {
+  const json = await qboQuery(credential, `SELECT * FROM ${entity} WHERE Id = '${String(id).replace(/'/g, "''")}'`);
+  const list = json.QueryResponse?.[entity];
+  if (!list || !list.length) {
+    throw new Error(`${entity} ${id} not found in QBO`);
+  }
+  return list[0];
+}
+
+async function updateInvoice(credential, args) {
+  const current = await qboGetEntity(credential, 'Invoice', args.qbo_id);
+  const body = {
+    Id: current.Id,
+    SyncToken: current.SyncToken,
+    sparse: true,
+    DueDate: args.due_date || undefined,
+    DocNumber: args.doc_number || undefined,
+    PrivateNote: args.private_note || undefined,
+    CustomerMemo: args.customer_memo ? { value: args.customer_memo } : undefined,
+  };
+  if (Array.isArray(args.lines) && args.lines.length) {
+    body.Line = args.lines.map((l) => ({
+      DetailType: 'SalesItemLineDetail',
+      Amount: l.amount,
+      Description: l.description,
+      SalesItemLineDetail: {
+        Qty: l.qty || 1,
+        UnitPrice: l.unit_price != null ? l.unit_price : l.amount,
+        ...(l.item_qbo_id ? { ItemRef: { value: l.item_qbo_id } } : {}),
+      },
+    }));
+  }
+  const json = await qboPost(credential, 'Invoice', body);
+  const inv = json.Invoice;
+  if (!inv) return { error: 'QBO did not return an Invoice record' };
+  return { success: true, qbo_id: inv.Id, doc_number: inv.DocNumber, total: parseFloat(inv.TotalAmt) };
+}
+
+async function voidInvoice(credential, args) {
+  const current = await qboGetEntity(credential, 'Invoice', args.qbo_id);
+  const url = realmUrl(credential, `/invoice?operation=void&minorversion=70`);
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { ...authHeaders(credential), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ Id: current.Id, SyncToken: current.SyncToken }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`QBO void Invoice failed (${resp.status}): ${text.slice(0, 400)}`);
+  }
+  const json = await resp.json();
+  const inv = json.Invoice;
+  if (!inv) return { error: 'QBO did not return a voided Invoice record' };
+  return { success: true, qbo_id: inv.Id, status: 'voided', balance: parseFloat(inv.Balance || 0) };
+}
+
+async function updateEstimate(credential, args) {
+  const current = await qboGetEntity(credential, 'Estimate', args.qbo_id);
+  const body = {
+    Id: current.Id,
+    SyncToken: current.SyncToken,
+    sparse: true,
+    ExpirationDate: args.expiration_date || undefined,
+    DocNumber: args.doc_number || undefined,
+    CustomerMemo: args.customer_memo ? { value: args.customer_memo } : undefined,
+    TxnStatus: args.status || undefined,
+  };
+  if (Array.isArray(args.lines) && args.lines.length) {
+    body.Line = args.lines.map((l) => ({
+      DetailType: 'SalesItemLineDetail',
+      Amount: l.amount,
+      Description: l.description,
+      SalesItemLineDetail: {
+        Qty: l.qty || 1,
+        UnitPrice: l.unit_price != null ? l.unit_price : l.amount,
+      },
+    }));
+  }
+  const json = await qboPost(credential, 'Estimate', body);
+  const e = json.Estimate;
+  if (!e) return { error: 'QBO did not return an Estimate record' };
+  return { success: true, qbo_id: e.Id, doc_number: e.DocNumber, total: parseFloat(e.TotalAmt), status: e.TxnStatus };
+}
+
+async function voidEstimate(credential, args) {
+  const current = await qboGetEntity(credential, 'Estimate', args.qbo_id);
+  const body = {
+    Id: current.Id,
+    SyncToken: current.SyncToken,
+    sparse: true,
+    TxnStatus: 'Closed',
+  };
+  const json = await qboPost(credential, 'Estimate', body);
+  const e = json.Estimate;
+  if (!e) return { error: 'QBO did not return an Estimate record' };
+  return { success: true, qbo_id: e.Id, status: e.TxnStatus };
 }
 
 function mapPurchase(p) {
