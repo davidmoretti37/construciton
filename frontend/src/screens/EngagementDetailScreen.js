@@ -8,8 +8,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, TextInput, Alert, Modal,
+  ActivityIndicator, RefreshControl, TextInput, Alert, Modal, Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
@@ -38,6 +39,7 @@ export default function EngagementDetailScreen({ route, navigation }) {
   const [mobDate, setMobDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [savingDates, setSavingDates] = useState(false);
+  const [pickerField, setPickerField] = useState(null); // 'mob' | 'end' | null
 
   const onSaveDates = async () => {
     const isValidDate = (s) => !s || /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
@@ -218,10 +220,12 @@ export default function EngagementDetailScreen({ route, navigation }) {
 
         {/* Action buttons */}
         <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.primaryBlue }]} onPress={onRequestMSA}>
+          <TouchableOpacity style={styles.actionBtn} onPress={onRequestMSA} activeOpacity={0.7}>
+            <Ionicons name="document-text-outline" size={16} color={Colors.primaryText} style={{ marginRight: 6 }} />
             <Text style={styles.actionBtnText}>Send MSA</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.successGreen }]} onPress={() => setPaymentModalOpen(true)}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setPaymentModalOpen(true)} activeOpacity={0.7}>
+            <Ionicons name="cash-outline" size={16} color={Colors.primaryText} style={{ marginRight: 6 }} />
             <Text style={styles.actionBtnText}>Record payment</Text>
           </TouchableOpacity>
         </View>
@@ -317,41 +321,113 @@ export default function EngagementDetailScreen({ route, navigation }) {
       </Modal>
 
       {/* Schedule edit modal */}
-      <Modal visible={datesModalOpen} animationType="slide" transparent>
+      <Modal visible={datesModalOpen} animationType="slide" transparent onRequestClose={() => !savingDates && setDatesModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: Colors.cardBackground || '#fff' }]}>
-            <Text style={styles.modalTitle}>Schedule</Text>
-            <Text style={styles.modalLabel}>Mobilization date</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={mobDate}
-              onChangeText={setMobDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.secondaryText}
-              autoCapitalize="none"
-            />
-            <Text style={styles.modalLabel}>Completion target</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.secondaryText}
-              autoCapitalize="none"
-            />
-            <View style={styles.modalRow}>
-              <TouchableOpacity style={styles.modalBtn} onPress={() => setDatesModalOpen(false)}>
-                <Text style={{ color: Colors.primaryText, fontWeight: '600' }}>Cancel</Text>
+          <View style={[styles.scheduleSheet, { backgroundColor: Colors.cardBackground || '#fff' }]}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Schedule this job</Text>
+              <TouchableOpacity onPress={() => !savingDates && setDatesModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={22} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.sheetSubtitle}>
+              When does Lana start and when's it due? The sub sees these dates on their job package.
+            </Text>
+
+            {/* Mobilization */}
+            <TouchableOpacity
+              style={styles.dateField}
+              activeOpacity={0.7}
+              onPress={() => setPickerField('mob')}
+            >
+              <View style={styles.dateFieldIcon}>
+                <Ionicons name="play-outline" size={16} color={Colors.primaryText} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dateFieldLabel}>Mobilization</Text>
+                <Text style={[styles.dateFieldValue, !mobDate && styles.dateFieldEmpty]}>
+                  {mobDate ? new Date(mobDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Tap to set'}
+                </Text>
+              </View>
+              {mobDate ? (
+                <TouchableOpacity onPress={() => setMobDate('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={18} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+              )}
+            </TouchableOpacity>
+
+            {/* Completion */}
+            <TouchableOpacity
+              style={styles.dateField}
+              activeOpacity={0.7}
+              onPress={() => setPickerField('end')}
+            >
+              <View style={styles.dateFieldIcon}>
+                <Ionicons name="flag-outline" size={16} color={Colors.primaryText} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dateFieldLabel}>Completion</Text>
+                <Text style={[styles.dateFieldValue, !endDate && styles.dateFieldEmpty]}>
+                  {endDate ? new Date(endDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Tap to set'}
+                </Text>
+              </View>
+              {endDate ? (
+                <TouchableOpacity onPress={() => setEndDate('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={18} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />
+              )}
+            </TouchableOpacity>
+
+            {pickerField && (
+              <View style={Platform.OS === 'ios' ? styles.iosPickerWrap : null}>
+                <DateTimePicker
+                  value={(() => {
+                    const v = pickerField === 'mob' ? mobDate : endDate;
+                    return v ? new Date(v + 'T12:00:00') : new Date();
+                  })()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, selectedDate) => {
+                    if (Platform.OS === 'android') setPickerField(null);
+                    if (selectedDate) {
+                      const iso = selectedDate.toISOString().split('T')[0];
+                      if (pickerField === 'mob') setMobDate(iso);
+                      else setEndDate(iso);
+                    }
+                  }}
+                />
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity onPress={() => setPickerField(null)} style={styles.iosPickerDone}>
+                    <Text style={styles.iosPickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            <View style={styles.sheetActions}>
+              <TouchableOpacity
+                style={styles.sheetCancel}
+                onPress={() => !savingDates && setDatesModalOpen(false)}
+                disabled={savingDates}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sheetCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: Colors.primaryBlue, opacity: savingDates ? 0.6 : 1 }]}
+                style={[styles.sheetSave, savingDates && { opacity: 0.6 }]}
                 onPress={onSaveDates}
                 disabled={savingDates}
+                activeOpacity={0.85}
               >
                 {savingDates ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Save</Text>
+                  <Text style={styles.sheetSaveText}>Save schedule</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -365,26 +441,30 @@ export default function EngagementDetailScreen({ route, navigation }) {
 const makeStyles = (Colors) => StyleSheet.create({
   root: { flex: 1 },
   center: { justifyContent: 'center', alignItems: 'center' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingTop: 4 },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8, paddingTop: 4, paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border,
+  },
   backBtn: { padding: 8 },
-  heading: { fontSize: 22, fontWeight: '700', color: Colors.primaryText },
-  meta: { fontSize: 13, color: Colors.secondaryText, marginTop: 2 },
+  heading: { fontSize: 18, fontWeight: '700', color: Colors.primaryText, textTransform: 'capitalize' },
+  meta: { fontSize: 13, color: Colors.secondaryText, marginTop: 2, textTransform: 'capitalize' },
   body: { padding: 16, paddingBottom: 80 },
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 14,
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
+    borderWidth: 1, marginBottom: 14,
   },
-  bannerText: { fontSize: 13, fontWeight: '600' },
+  bannerText: { fontSize: 12, fontWeight: '600', flex: 1 },
   balanceCard: {
-    backgroundColor: Colors.cardBackground, borderRadius: 14, padding: 16, marginBottom: 14,
-    shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+    backgroundColor: Colors.cardBackground, borderRadius: 12, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: Colors.border,
   },
-  balanceLabel: { fontSize: 12, color: Colors.secondaryText, textTransform: 'uppercase' },
-  balanceValue: { fontSize: 28, fontWeight: '700', color: Colors.primaryText, marginVertical: 4 },
-  balanceRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  balanceMeta: { fontSize: 14, color: Colors.secondaryText },
-  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
+  balanceLabel: { fontSize: 11, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.4 },
+  balanceValue: { fontSize: 26, fontWeight: '700', color: Colors.primaryText, marginVertical: 6 },
+  balanceRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  balanceMeta: { fontSize: 13, color: Colors.secondaryText },
+  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   scheduleCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.cardBackground,
@@ -409,8 +489,13 @@ const makeStyles = (Colors) => StyleSheet.create({
   taskTitle: { fontSize: 14, fontWeight: '600', color: Colors.primaryText, lineHeight: 19 },
   taskDesc: { fontSize: 12, color: Colors.secondaryText, marginTop: 4, lineHeight: 17 },
   taskDates: { fontSize: 11, color: Colors.secondaryText, marginTop: 4, fontWeight: '500' },
-  actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  actionBtnText: { color: '#fff', fontWeight: '700' },
+  actionBtn: {
+    flex: 1, flexDirection: 'row',
+    paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.cardBackground,
+  },
+  actionBtnText: { color: Colors.primaryText, fontWeight: '600', fontSize: 14 },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', color: Colors.secondaryText,
     textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 6, marginBottom: 8,
@@ -436,4 +521,61 @@ const makeStyles = (Colors) => StyleSheet.create({
   },
   methodChipText: { fontSize: 13, color: Colors.primaryText },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+
+  // ── Schedule sheet ──────────────────────────────────────────────────────
+  scheduleSheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 30,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.border,
+    marginBottom: 14,
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sheetTitle: { fontSize: 19, fontWeight: '700', color: Colors.primaryText },
+  sheetSubtitle: { fontSize: 13, color: Colors.secondaryText, marginTop: 6, marginBottom: 18, lineHeight: 19 },
+  dateField: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 14, paddingHorizontal: 14,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
+    marginBottom: 10,
+  },
+  dateFieldIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: Colors.cardBackground,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  dateFieldLabel: { fontSize: 11, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.4 },
+  dateFieldValue: { fontSize: 15, fontWeight: '600', color: Colors.primaryText, marginTop: 2 },
+  dateFieldEmpty: { color: Colors.secondaryText, fontWeight: '400', fontStyle: 'italic' },
+  iosPickerWrap: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12, marginBottom: 10,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  iosPickerDone: {
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+    alignItems: 'center',
+  },
+  iosPickerDoneText: { color: Colors.primaryBlue || '#3B82F6', fontWeight: '700', fontSize: 15 },
+  sheetActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  sheetCancel: {
+    paddingVertical: 14, paddingHorizontal: 22,
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.cardBackground,
+  },
+  sheetCancelText: { color: Colors.primaryText, fontWeight: '600', fontSize: 14 },
+  sheetSave: {
+    flex: 1,
+    paddingVertical: 14, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0F172A',
+  },
+  sheetSaveText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
