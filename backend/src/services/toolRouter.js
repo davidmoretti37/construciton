@@ -8,8 +8,17 @@
 
 const logger = require('../utils/logger');
 
-// Intent patterns — each keyword scores 1 point for its intent
+// Intent patterns — each keyword scores 1 point for its intent.
+// change_order patterns are weighted heavily (3pt each) so a CO query wins
+// over the broader project/financial intents that share keywords like "phase"
+// or dollar amounts. Without this the LLM gets project/financial tools and
+// decomposes "add a change order" into create_project_phase + record_expense,
+// which is structurally wrong (a CO is its own first-class entity).
 const INTENT_PATTERNS = {
+  change_order: [
+    /change\s*orders?/g, /\bcos?\b/g, /scope\s*change/g, /extra\s*work/g,
+    /\bchange\s*order/g,
+  ],
   financial: [/invoice/g, /payment/g, /bill/g, /paid/g, /due/g, /owe/g, /collect/g, /deposit/g, /expense/g, /spent/g, /income/g, /financial/g, /profit/g, /loss/g, /receipt/g, /charge/g, /aging/g, /receivable/g, /overdue/g, /tax/g, /deduction/g, /1099/g, /payroll/g, /cash flow/g, /recurring/g],
   // Project intent: keep keywords UNAMBIGUOUS — words that only project-based
   // businesses use. Don't add generic room/space words like "bathroom" or
@@ -27,8 +36,18 @@ const INTENT_PATTERNS = {
   service_plan: [/service plan/g, /service route/g, /daily route/g, /today.s route/g, /visit/g, /pest/g, /cleaning/g, /lawn/g, /pool/g, /hvac/g, /scheduled visit/g, /unbilled/g, /service location/g],
 };
 
-// Tool groups for each intent
+// Tool groups for each intent.
+// change_order: TIGHTLY scoped — only the CO entity tools + the lookup tools
+// needed to populate the preview card (project + phases). Crucially does NOT
+// include create_project_phase, record_expense, update_phase_progress, or
+// update_project. The CO entity owns contract bump + schedule extension +
+// phase placement atomically on client approval; decomposing it is a bug.
 const TOOL_GROUPS = {
+  change_order: [
+    'create_change_order', 'list_change_orders', 'get_change_order',
+    'update_change_order', 'send_change_order',
+    'search_projects', 'get_project_details',
+  ],
   financial: [
     'search_invoices', 'get_invoice_details', 'update_invoice', 'void_invoice',
     'convert_estimate_to_invoice', 'record_expense', 'get_financial_overview',
@@ -101,6 +120,7 @@ const TOOL_GROUPS = {
     'get_worker_details', 'get_time_records',
     'record_expense', 'update_phase_progress', 'create_worker_task',
     'add_project_checklist', 'create_project_phase',
+    'create_change_order', 'list_change_orders', 'get_change_order',
     'get_bank_transactions', 'assign_bank_transaction', 'get_reconciliation_summary',
     'get_ar_aging', 'get_tax_summary', 'get_payroll_summary', 'get_cash_flow', 'get_recurring_expenses',
     'get_project_documents', 'upload_project_document', 'update_project_document', 'delete_project_document',
@@ -122,6 +142,14 @@ const TOOL_GROUPS = {
  * @param {string} userMessage - The user's message
  * @returns {string|Object} Intent string or { primary, secondary }
  */
+// Per-intent weight multiplier. change_order is heavily boosted because its
+// triggers ("change order", "CO", "scope change") are unambiguous — when they
+// appear, the answer is always the CO entity, regardless of how many other
+// keywords (phase, $X, etc.) the message also carries.
+const INTENT_WEIGHTS = {
+  change_order: 5,
+};
+
 function categorizeIntent(userMessage) {
   const msg = userMessage.toLowerCase();
   const scores = {};
@@ -134,13 +162,20 @@ function categorizeIntent(userMessage) {
       const matches = msg.match(pattern);
       if (matches) score += matches.length;
     }
-    if (score > 0) scores[intent] = score;
+    if (score > 0) scores[intent] = score * (INTENT_WEIGHTS[intent] || 1);
   }
 
   const intents = Object.keys(scores);
 
   if (intents.length === 0) return 'general';
   if (intents.length === 1) return intents[0];
+
+  // change_order is exclusive — never compound it with another intent.
+  // Mixing in project/financial tools is exactly what caused the
+  // record_expense + create_project_phase decomposition bug.
+  if (scores.change_order && scores.change_order >= 5) {
+    return 'change_order';
+  }
 
   // Multiple intents matched — return top 2 by score
   intents.sort((a, b) => scores[b] - scores[a]);

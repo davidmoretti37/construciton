@@ -24,7 +24,7 @@ const DISABLED = URL === 'disabled';
 const ALLOWED = new Set([
   'financial', 'project', 'worker', 'estimate', 'briefing',
   'search', 'reports', 'settings', 'bank', 'document',
-  'service_plan', 'general',
+  'service_plan', 'change_order', 'general',
 ]);
 
 // Tiny in-memory cache so a chatty user doesn't re-classify the same
@@ -59,6 +59,7 @@ function saveCache(key, intent) {
 const SYSTEM_PROMPT = `You classify the user's chat message into ONE intent for a service-business management app. Reply with ONLY a JSON object: {"intent":"<one of the allowed values>"}.
 
 ALLOWED INTENTS:
+- change_order — MID-PROJECT scope/price/schedule additions to an EXISTING active project. Triggers: "change order", "CO", "scope change", "extra work", "client wants more", "add ... for ... days", "added X for $Y" on a running project. ALWAYS pick this when the user says "change order" — it overrides project/financial.
 - financial — invoices, expenses, payments, P&L, A/R, taxes, payroll, cash flow
 - project — anything about ONE-OFF JOBS with phases (remodels, renovations, builds, custom installs)
 - service_plan — RECURRING SERVICES (cleaning, lawn, pest, pool, HVAC service, route-based work)
@@ -73,11 +74,13 @@ ALLOWED INTENTS:
 - general — fallback when nothing else fits
 
 DISAMBIGUATION HINTS:
+- "add a change order for John for 200sf at $8/sf" → change_order (NOT project, NOT financial)
+- "the Smiths added 200sf of tile" (mid-project) → change_order
 - "kitchen remodel for Smith" → project (one-off renovation)
 - "weekly cleaning for Smith" → service_plan (recurring)
 - "what's on my route today" → service_plan
 - "create an estimate" → estimate
-- Mentions of phases, timelines, "full gut" → project
+- Mentions of phases, timelines, "full gut" → project (NEW project planning, not mid-project additions)
 - Mentions of every Tuesday, biweekly, monthly visits, routes → service_plan
 
 Just JSON. No prose.`;
