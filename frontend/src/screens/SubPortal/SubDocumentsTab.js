@@ -202,12 +202,12 @@ export default function SubDocumentsTab({ navigation }) {
     >
       <Text style={styles.headerTitle}>Documents</Text>
       <Text style={styles.headerSub}>
-        Compliance docs (W-9, COI, licenses) live in your vault — uploaded once,
-        visible to every contractor who hires you.
+        Your compliance vault. Upload once — visible to every contractor who hires you.
+        {'\n\n'}Project-specific files (signed contracts, invoices, photos) live inside each job under Jobs → tap a job.
       </Text>
 
       {/* Compliance — On file */}
-      <Text style={styles.sectionTitle}>Compliance · on file</Text>
+      <Text style={styles.sectionTitle}>On file</Text>
       {presentCompliance.length === 0 ? (
         <View style={styles.emptyBlock}>
           <Ionicons name="folder-open-outline" size={26} color={Colors.secondaryText} />
@@ -255,7 +255,7 @@ export default function SubDocumentsTab({ navigation }) {
       {/* Compliance — Missing */}
       {missingCompliance.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Compliance · add</Text>
+          <Text style={styles.sectionTitle}>Add</Text>
           {missingCompliance.map((t) => (
             <TouchableOpacity
               key={t}
@@ -278,59 +278,7 @@ export default function SubDocumentsTab({ navigation }) {
         </>
       )}
 
-      {/* Project files — uploaded by sub, visible to GCs */}
-      <Text style={styles.sectionTitle}>Project files</Text>
-      <Text style={styles.subsectionHint}>
-        Send a signed contract, invoice PDF, change order, photos, or anything else to your contractor.
-      </Text>
-
-      {projectFiles.length > 0 && projectFiles.map((d) => {
-        const isOpening = openingDocId === d.id;
-        return (
-          <TouchableOpacity
-            key={d.id}
-            style={styles.docCard}
-            activeOpacity={0.7}
-            onPress={() => onOpenDoc(d)}
-            disabled={isOpening}
-          >
-            <View style={styles.docIconWrap}>
-              <Ionicons name={DOC_ICONS[d.doc_type] || 'document-outline'} size={20} color={Colors.primaryText} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.docTitle} numberOfLines={1}>
-                {PROJECT_FILE_LABELS[d.doc_type] || d.doc_type}
-              </Text>
-              <Text style={styles.fileMeta} numberOfLines={1}>
-                {d.file_name || ''}{d.created_at ? `  ·  ${new Date(d.created_at).toLocaleDateString()}` : ''}
-              </Text>
-            </View>
-            {isOpening
-              ? <ActivityIndicator size="small" color={Colors.secondaryText} />
-              : <Ionicons name="chevron-forward" size={16} color={Colors.secondaryText} />}
-          </TouchableOpacity>
-        );
-      })}
-
-      {projectFileTypes.map((t) => (
-        <TouchableOpacity
-          key={t}
-          style={styles.addCard}
-          onPress={() => onUpload(t)}
-          disabled={uploadingType === t}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.docIconWrap, styles.addIconWrap]}>
-            <Ionicons name={DOC_ICONS[t] || 'add'} size={20} color={Colors.secondaryText} />
-          </View>
-          <Text style={styles.addCardLabel}>Send {PROJECT_FILE_LABELS[t]?.toLowerCase()}</Text>
-          {uploadingType === t ? (
-            <ActivityIndicator size="small" color={Colors.secondaryText} />
-          ) : (
-            <Ionicons name="cloud-upload-outline" size={20} color={Colors.secondaryText} />
-          )}
-        </TouchableOpacity>
-      ))}
+      <View style={{ height: 80 }} />
     </ScrollView>
   );
 }
