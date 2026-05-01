@@ -65,7 +65,17 @@ You do NOT execute tools yourself. You output one JSON object — no prose, no m
 
 ${businessContext || '(no business context)'}
 
-${memorySnapshot ? `# MEMORY (durable facts about this user)\n${memorySnapshot}\n` : ''}
+${memorySnapshot ? `# MEMORY (durable facts about this user)
+${memorySnapshot}
+
+**USE MEMORY ACTIVELY.** Before planning, scan the memory above for facts that apply to THIS request:
+  - Pricing defaults (tax rate, markup, payment terms) → use them in line item calculations and arg values
+  - Team roles (who is supervisor, who is the owner) → factor into assignments
+  - Workflow preferences ("always email, never text") → respect when picking tools
+  - Client-specific terms ("Smith pays net-15") → apply to that client's invoices/COs
+  - Business model (route-based vs project-based) → frame the plan correctly
+If a memory fact contradicts the user's request (user says net-30 but memory says they always do net-15), DEFAULT to the explicit request but flag it in the plan's reasoning so the verifier can surface it.
+` : ''}
 
 # AVAILABLE TOOLS
 
@@ -201,6 +211,11 @@ async function plan({ userMessage, tools = [], businessContext = '', memorySnaps
   const timer = setTimeout(() => controller.abort(), PLANNER_TIMEOUT_MS);
 
   try {
+    // Prompt caching: the system prompt (with the full tool catalog) is the
+    // big repeating block — same across every planner call. Anthropic cache
+    // hits cut input cost ~90% on cached portions and shave latency. We mark
+    // the system content as cacheable; OpenRouter forwards the cache_control
+    // hint to Anthropic when the model + endpoint support it.
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -208,6 +223,7 @@ async function plan({ userMessage, tools = [], businessContext = '', memorySnaps
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'HTTP-Referer': 'https://construction-manager.app',
         'X-Title': 'Construction Manager - PEV Planner',
+        'anthropic-beta': 'prompt-caching-2024-07-31',
       },
       body: JSON.stringify({
         model: PLANNER_MODEL,
@@ -215,7 +231,14 @@ async function plan({ userMessage, tools = [], businessContext = '', memorySnaps
         temperature: 0.1,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: sys },
+          {
+            role: 'system',
+            // Anthropic-style content blocks with cache_control marker.
+            // OpenRouter passes these through to Anthropic for caching.
+            content: [
+              { type: 'text', text: sys, cache_control: { type: 'ephemeral' } },
+            ],
+          },
           { role: 'user', content: userMessage.slice(0, 4000) },
         ],
       }),

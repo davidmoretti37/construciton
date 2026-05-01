@@ -29,18 +29,29 @@ const SYSTEM_PROMPT = `You are the RESPONDER stage of an agentic pipeline. You r
   • The plan that was executed (goal + steps)
   • The actual outputs from each step
 
-Write the user-facing reply. Be brief, natural, and concrete.
+Reply with ONLY this JSON shape:
 
-RULES:
-1. Lead with what got done, in plain language. ("Created CO-004 on John Smith Bathroom Remodel for $1,600.")
-2. Mention any specific numbers/IDs the user cares about (CO numbers, totals, counts) — these come from step results.
-3. If a step returned an entity that should be shown in the UI as a card (estimate, invoice, change_order, project), end your reply with: VISUAL: <type> <id>  on its own line. The frontend will hydrate the card. Types: estimate, invoice, change_order, project, draw, daily_report.
-4. If the user asked a question, ANSWER it directly using the data — don't summarize the search process. ("You have 3 overdue invoices totaling $4,200.")
-5. Do NOT explain how you did it ("I searched projects then created..."). The user doesn't care about the process — they care about the result.
-6. 1-3 sentences. No markdown headers or bullet lists unless data is genuinely tabular.
-7. If a step failed but later succeeded after retry, just describe the final outcome — don't mention the retry.
+{
+  "text": "the user-facing reply (1-3 sentences, plain language)",
+  "visual_elements": [
+    { "type": "change_order" | "estimate" | "invoice" | "project" | "draw" | "daily_report", "id": "<uuid-from-step-results>" }
+  ]
+}
 
-Reply with PLAIN TEXT only (with the optional VISUAL: line at the end).`;
+RULES for text:
+1. Lead with what got done, plain language. ("Created CO-004 on John Smith Bathroom Remodel for $1,600.")
+2. Include specific numbers/IDs the user cares about (CO numbers, totals, counts) — pull these from step results.
+3. If the user asked a question, ANSWER it directly using the data. Don't summarize the search process. ("You have 3 overdue invoices totaling $4,200.")
+4. Do NOT explain how you did it ("I searched projects then created..."). The user cares about the result, not the process.
+5. 1-3 sentences. No markdown headers or bullet lists unless data is genuinely tabular.
+6. If a step failed but later succeeded after retry, describe the final outcome only.
+
+RULES for visual_elements:
+1. Include an entry for any entity that should render as a card (a CO that was created, an invoice that was found). Pull the id from the matching step result.
+2. If no card is warranted (read-only summary, no entity changed), return an empty array.
+3. NEVER invent ids — only use values that appear in step results.
+
+Reply with ONLY the JSON object. No prose, no markdown.`;
 
 /**
  * Compose the user-facing reply.
@@ -76,8 +87,9 @@ async function respond({ userMessage, plan, stepResults }) {
       },
       body: JSON.stringify({
         model: RESPONDER_MODEL,
-        max_tokens: 400,
+        max_tokens: 500,
         temperature: 0.3,
+        response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content:
@@ -96,11 +108,18 @@ async function respond({ userMessage, plan, stepResults }) {
     }
     const json = await resp.json();
     const content = json?.choices?.[0]?.message?.content || '';
-    const { text, visualElements } = parseResponse(content);
+    const parsed = parseJsonResponse(content);
+
+    if (!parsed) {
+      // Couldn't parse JSON — fall back to templated reply rather than ship
+      // raw model output that might leak the JSON structure.
+      logger.warn(`[PEV.responder] unparseable JSON, falling back: ${content.slice(0, 120)}`);
+      return safeFallback('unparseable', plan, stepResults, t0);
+    }
 
     return {
-      text: text || templatedFallback(plan, stepResults),
-      visualElements,
+      text: parsed.text || templatedFallback(plan, stepResults),
+      visualElements: parsed.visualElements,
       latencyMs: Date.now() - t0,
       fallback: false,
     };
@@ -143,16 +162,45 @@ function compactResult(r) {
   return JSON.stringify(cleaned).slice(0, 500);
 }
 
-const VISUAL_LINE_RE = /^\s*VISUAL:\s*(\w+)\s+([\w-]+)\s*$/im;
+const VALID_VISUAL_TYPES = new Set([
+  'change_order', 'estimate', 'invoice', 'project', 'draw', 'daily_report',
+]);
 
-function parseResponse(content) {
+/**
+ * Parse the responder's JSON output into { text, visualElements }.
+ * Tolerant of:
+ *   - Markdown fence wrappers (```json...```)
+ *   - Extra prose around the JSON object
+ *   - Slightly malformed visual_elements entries (filters bad ones, keeps good ones)
+ * Returns null on hard parse failure so the caller can fall back.
+ */
+function parseJsonResponse(content) {
+  if (!content) return null;
+  // Strip optional markdown fences
+  const cleaned = content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (_) {
+    // Try to extract the first {...} block
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    try { parsed = JSON.parse(m[0]); } catch { return null; }
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const text = typeof parsed.text === 'string' ? parsed.text.trim() : '';
+  // Whitelist the visual_elements array. Anything malformed is dropped
+  // silently — better to miss a card than to crash rendering.
   const visualElements = [];
-  let text = content || '';
-  // Pull out any "VISUAL: <type> <id>" lines
-  let m;
-  while ((m = text.match(VISUAL_LINE_RE)) !== null) {
-    visualElements.push({ type: m[1], data: { id: m[2] } });
-    text = text.replace(m[0], '').trim();
+  if (Array.isArray(parsed.visual_elements)) {
+    for (const v of parsed.visual_elements) {
+      if (!v || typeof v !== 'object') continue;
+      const type = String(v.type || '').toLowerCase();
+      const id = typeof v.id === 'string' ? v.id : null;
+      if (!VALID_VISUAL_TYPES.has(type) || !id) continue;
+      visualElements.push({ type, data: { id } });
+    }
   }
   return { text, visualElements };
 }
