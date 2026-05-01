@@ -37,6 +37,7 @@ const { verify, MAX_VERIFY_LOOPS } = require('./verifier');
 const { respond } = require('./responder');
 const approvalGate = require('../approvalGate');
 const { evaluatePlan } = require('../constitution');
+const { repair: repairArgs, isWorthRepairing } = require('./argRepair');
 
 // Default ON. Set PEV_ENABLED=0 to disable (kill switch).
 const PEV_ENABLED = process.env.PEV_ENABLED !== '0';
@@ -182,6 +183,16 @@ async function runPev(input) {
       userId,
       emit,
       preToolCheck: async ({ tool, args }) => approvalGate.check({ toolName: tool, toolArgs: args, messages: [] }),
+      // LLM-assisted argument repair: when a tool returns bad_args, run a
+      // small Haiku call to fix the args and retry once. Pre-filtered to
+      // bad_args-shaped errors only so we don't burn LLM calls on
+      // not-found / auth / ambiguous failures that arg massaging can't fix.
+      repairArgs: async ({ tool, args, error }) => {
+        if (!isWorthRepairing(error)) return { repaired: false, reason: 'not arg-repairable' };
+        const toolDef = (tools || []).find((t) => (t.function || t).name === tool);
+        const schema = toolDef?.function?.parameters || toolDef?.parameters;
+        return repairArgs({ tool, args, error, schema });
+      },
     });
     trace.stages.push({ stage: 'execute', loop: loops, ok: lastExec.ok, reachedSteps: lastExec.reachedSteps, pendingApproval: !!lastExec.pendingApproval });
     emit({ type: 'pev_execute_done', ok: lastExec.ok });

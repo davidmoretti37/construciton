@@ -268,6 +268,64 @@ describe('PEV executor', () => {
       expect(r.stepResults.every((s) => s.skipped === true)).toBe(true);
     });
 
+    test('repairArgs fixes a bad_args error and retries successfully', async () => {
+      const plan = {
+        goal: 'create CO',
+        steps: [{ id: 's1', tool: 'create_change_order', args: { uid: 'p1', title: 'x' }, depends_on: [] }],
+      };
+      let calls = 0;
+      const fakeTool = async (n, a) => {
+        calls++;
+        if (calls === 1) {
+          // First call: tool throws because project_id is required and missing.
+          // (This matches real Supabase tool behavior for arg validation.)
+          throw new Error('project_id is required');
+        }
+        // Second call (after repair): success
+        if (a.project_id !== 'p1') throw new Error('repair did not fix args');
+        return { success: true, change_order: { id: 'co-1' } };
+      };
+      const repairArgs = async ({ args, error }) => {
+        if (error.includes('project_id is required') && args.uid) {
+          return { repaired: true, args: { project_id: args.uid, title: args.title } };
+        }
+        return { repaired: false };
+      };
+      const events = [];
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', repairArgs, emit: (e) => events.push(e) });
+      expect(r.ok).toBe(true);
+      expect(calls).toBe(2);
+      expect(r.stepResults[0].repaired).toBe(true);
+      expect(events.find((e) => e.type === 'step_repair_done')).toBeTruthy();
+    });
+
+    test('repairArgs that says not-repairable falls through to halt', async () => {
+      const plan = {
+        goal: 'x',
+        steps: [{ id: 's1', tool: 't', args: {}, depends_on: [] }],
+      };
+      const fakeTool = async () => { throw new Error('project_id is required'); };
+      const repairArgs = async () => ({ repaired: false, reason: 'not enough info' });
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', repairArgs });
+      expect(r.ok).toBe(false);
+    });
+
+    test('repairArgs not called on not-found errors (pre-filtered upstream)', async () => {
+      // The pre-filter (isWorthRepairing) lives in pev.js; here we just verify
+      // the executor passes through whatever the callback returns.
+      const plan = {
+        goal: 'x',
+        steps: [{ id: 's1', tool: 't', args: {}, depends_on: [] }],
+      };
+      const fakeTool = async () => ({ error: 'project not found' });
+      let repairCalled = false;
+      const repairArgs = async () => { repairCalled = true; return { repaired: false }; };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', repairArgs });
+      // Soft errors classify as 'soft', not 'bad_args', so repair shouldn't fire
+      expect(repairCalled).toBe(false);
+      expect(r.ok).toBe(false);
+    });
+
     test('preToolCheck error halts (fail-closed)', async () => {
       const plan = {
         goal: 'x',

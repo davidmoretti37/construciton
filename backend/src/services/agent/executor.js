@@ -50,7 +50,7 @@ const PER_STEP_TIMEOUT_MS = parseInt(process.env.PEV_STEP_TIMEOUT_MS, 10) || 30_
  *   pendingApproval?: { stepId, tool, args, gateResult },
  * }>}
  */
-async function execute({ plan, executeTool, userId, emit = () => {}, preToolCheck = null }) {
+async function execute({ plan, executeTool, userId, emit = () => {}, preToolCheck = null, repairArgs = null }) {
   if (!plan || !Array.isArray(plan.steps)) {
     return { ok: false, stepResults: [], reachedSteps: 0, stoppedReason: 'no plan' };
   }
@@ -163,20 +163,60 @@ async function execute({ plan, executeTool, userId, emit = () => {}, preToolChec
 
     if (lastErr) {
       const cls = classifyError(lastErr);
+
+      // Try LLM-assisted argument repair on bad_args errors. One repair
+      // attempt only — if the repaired args also fail, halt or skip per
+      // optional flag. Burns ~300-600ms + ~$0.0008 but saves a user
+      // clarification round-trip when the planner's args were just slightly off.
+      if (cls === 'bad_args' && repairArgs && lastErr.message) {
+        const repairStart = Date.now();
+        emit({ type: 'step_repair_start', stepId: step.id, error: lastErr.message });
+        try {
+          const repair = await repairArgs({ tool: step.tool, args: resolvedArgs, error: lastErr.message });
+          if (repair?.repaired && repair.args) {
+            emit({ type: 'step_repair_done', stepId: step.id, ms: Date.now() - repairStart });
+            try {
+              const retried = await Promise.race([
+                executeTool(step.tool, repair.args, userId),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('step timeout after repair')), PER_STEP_TIMEOUT_MS)),
+              ]);
+              if (retried && typeof retried === 'object' && retried.error) {
+                // Repaired args still failed — proceed to error handling below
+                lastErr = new Error(retried.error);
+              } else {
+                // Repair succeeded
+                results.set(step.id, retried);
+                stepResults.push({ id: step.id, tool: step.tool, args: repair.args, result: retried, ms: Date.now() - t0, repaired: true });
+                emit({ type: 'step_done', stepId: step.id, tool: step.tool, ms: Date.now() - t0, summary: summarizeResult(retried), repaired: true });
+                continue;
+              }
+            } catch (retryErr) {
+              lastErr = retryErr;
+            }
+          } else {
+            emit({ type: 'step_repair_skipped', stepId: step.id, reason: repair?.reason || 'not repairable' });
+          }
+        } catch (e) {
+          // Repair stage failure must not change behavior — fall through
+          // to the original error handling.
+          logger.debug(`[executor] repair stage threw: ${e.message}`);
+        }
+      }
+
       stepResults.push({
         id: step.id,
         tool: step.tool,
         args: resolvedArgs,
-        error: { message: lastErr.message, class: cls },
-        ms,
+        error: { message: lastErr.message, class: classifyError(lastErr) },
+        ms: Date.now() - t0,
         skipped: step.optional === true,
       });
       emit({
         type: 'step_error',
         stepId: step.id,
         error: lastErr.message,
-        errorClass: cls,
-        ms,
+        errorClass: classifyError(lastErr),
+        ms: Date.now() - t0,
         optional: step.optional === true,
       });
       // Optional steps don't halt the plan — record the failure and continue.
