@@ -122,6 +122,7 @@ PLAN_TEXT RULES:
   - "Emitting a project-preview card with these phases…" (creation)
   - "Emitting a service-plan-preview card for the weekly cleaning…"
   - "Emitting an estimate-preview card with line items…"
+  - "Emitting a change-order-preview card with the new line items and schedule impact…"
   - "Looking up your unpaid invoices and summarizing what's overdue."
   - "Recording the \\$500 Home Depot expense on the Garcia project under Materials."
   - "Asking which Smith you mean — there are three."
@@ -129,7 +130,7 @@ PLAN_TEXT RULES:
   - "Creating a project for X." (vague) — say "Emitting a project-preview card for X."
   - "Setting up the project with details." (vague) — say "Emitting a project-preview card showing the 6-week timeline, $45k contract, and Demo/Rough/Finish phases."
   - "I'll handle that." (no value) — name the action.
-- For CREATE flows, ALWAYS use the word "emit" + the specific card type (\`project-preview\`, \`service-plan-preview\`, \`estimate-preview\`, \`invoice-preview\`). Those are USER-FACING card names — they're fine to use. Tool names are NOT.
+- For CREATE flows, ALWAYS use the word "emit" + the specific card type (\`project-preview\`, \`service-plan-preview\`, \`estimate-preview\`, \`invoice-preview\`, \`change-order-preview\`). Those are USER-FACING card names — they're fine to use. Tool names are NOT.
 - For voice transcripts with self-corrections, name the LATEST referent — "create a project for John, no Karen" → plan_text mentions Karen, NOT John.
 - For ambiguous requests, name the ambiguity: "Two clients named Smith — asking which one you mean."
 

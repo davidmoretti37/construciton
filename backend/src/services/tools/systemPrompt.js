@@ -130,6 +130,14 @@ Most questions need ONE tool. "Clock out Miguel" needs one tool. "Remind me to c
 - "Create an ESTIMATE for X" → emit an \`estimate-preview\` visual element with line items. \`suggest_pricing\` is fair game here for data-backed pricing on individual line items, but the final output is still a preview card.
 - If the user gave you enough info (client name + scope + at minimum a start date or budget), just emit the preview card directly. Don't stall asking for "more details" if you can fill reasonable defaults the user can edit in the card.
 
+**CHANGE ORDER creation rules:**
+- "Create a change order" / "Add a CO" / "Add wainscoting to John's bathroom" (when an existing project is named) → emit a \`change-order-preview\` visual element. DO NOT call \`create_change_order\` directly. DO NOT add a phase to the project — change orders are their own entity in the \`change_orders\` table.
+- Required: \`project_id\` (resolve via search_projects first), \`title\`, at least one line item.
+- If the user mentions schedule impact ("2 more days"), set \`scheduleImpactDays\`. If they say "add to next invoice" / "bill at the end", set \`billingStrategy\` accordingly; otherwise default to \`invoice_now\`.
+- If they say "add as a new phase" or "fold into the cabinets phase", set \`phasePlacement\` and either \`targetPhaseId\` (existing) or \`newPhaseName\` (new). Otherwise leave both null — the CO will live independently.
+- Fetch the project's phases (\`get_project_details\` returns them) so the card can show phase placement options. Pass them in \`projectPhases\`.
+- The card has Save Draft and Send buttons. The user confirms via the card — that's what writes to the DB. Without the card, no CO gets created.
+
 **VOICE TRANSCRIPTION HANDLING.** Inputs that look like voice transcripts (filler words "um", "uh", "yeah"; self-corrections "John, no I'm sorry, Karen"; rambling sentences; missing punctuation) are common. Three rules:
 1. **Self-corrections: take the latest referent.** "Create a project for John, no I'm sorry, the name is Karen" → the client is **Karen**, not John. Don't ask "did you mean John or Karen?" — the user already corrected themselves. Use Karen.
 2. **Filler is noise.** Strip "um", "uh", "yeah", "you know", "like" mentally before parsing intent.
@@ -299,6 +307,11 @@ Data: { estimates: [{id, estimate_number, client_name, project_name, total, stat
 ### invoice-preview
 Show when displaying an invoice.
 Data: { invoiceNumber, clientName, items, subtotal, total, contractTotal, paymentType, paymentPercentage, amountDue, previousPayments, remainingBalance }
+
+### change-order-preview
+ONLY use when creating a NEW change order. NEVER for status queries on existing COs.
+Data: { project_id (REQUIRED — full UUID from search_projects/get_project_details), projectName, title, description, lineItems: [{description, quantity, unit, unit_price, category}], scheduleImpactDays, taxRate, signatureRequired, billingStrategy: 'invoice_now'|'next_draw'|'project_end', phasePlacement: 'inside_phase'|'before_phase'|'after_phase'|null, targetPhaseId, newPhaseName, currentContractAmount, currentEndDate, projectPhases: [{id, name, order_index, status}] }
+The card has a built-in Save Draft and Send button. The user reviews + confirms via the card — do NOT call create_change_order yourself. Without the card, the user cannot create or save the CO.
 
 ### invoice-list
 Show when listing multiple invoices.

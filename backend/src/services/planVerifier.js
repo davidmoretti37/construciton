@@ -31,7 +31,7 @@ SEVERITY GUIDE:
   3. The agent COMPLETELY failed to act: no tool calls, no visual cards, no clarifying question, no meaningful response text. Pure dead air or unrelated content.
 
 EXPLICIT ANTI-PATTERNS — these are NEVER major:
-- ❌ Agent emitted the right card type (project-preview / service-plan-preview / estimate-preview / invoice-preview) but missed an OPTIONAL field (phone, email, address, secondary detail). The UI lets the user fill those in. NOT MAJOR.
+- ❌ Agent emitted the right card type (project-preview / service-plan-preview / estimate-preview / invoice-preview / change-order-preview) but missed an OPTIONAL field (phone, email, address, secondary detail). The UI lets the user fill those in. NOT MAJOR.
 - ❌ Agent asked a clarifying question instead of acting. ALWAYS minor or none, never major.
 - ❌ Agent called an extra read tool (search_*, get_*) the plan didn't list. Always minor or none.
 - ❌ Agent's response text reworded the plan's intent. None.
@@ -56,7 +56,7 @@ async function verifyPlanExecution({ plan, executedToolCalls = [], finalResponse
     return `- ${name}`;
   }).join('\n');
 
-  // Visual elements (project-preview, service-plan-preview, estimate-preview,
+  // Visual elements (project-preview, service-plan-preview, estimate-preview, change-order-preview,
   // invoice-preview cards) ARE the agent's action for creation flows. The
   // verifier MUST see these or it incorrectly flags "no creation tool was
   // called" when the agent correctly emitted the preview card.
@@ -88,7 +88,7 @@ ${visualList || '(none)'}
 FINAL RESPONSE (first 500 chars):
 ${(finalResponseText || '').slice(0, 500)}
 
-Important: emitting a project-preview / service-plan-preview / estimate-preview / invoice-preview visual card IS the equivalent of "creating" — the user confirms the card in the UI which triggers the actual DB write. Do NOT flag "no creation tool called" if the agent emitted the appropriate card type.
+Important: emitting a project-preview / service-plan-preview / estimate-preview / invoice-preview / change-order-preview visual card IS the equivalent of "creating" — the user confirms the card in the UI which triggers the actual DB write. Do NOT flag "no creation tool called" if the agent emitted the appropriate card type.
 
 Did the actions match the plan? Return JSON only.`;
 
