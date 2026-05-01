@@ -151,6 +151,14 @@ RIGHT: "visualElements": [{ "type": "budget-chart", ... }]
 ## Task: record_transaction
 When processing financial updates, you MUST collect payment method before recording.
 
+**🚨 NOT FOR CHANGE ORDERS:**
+If the user mentioned "change order", "CO", "extra work", "scope change", "client wants more",
+"client added X", or any mid-project addition with a dollar amount tied to scope of work —
+this is NOT a transaction. Do NOT call record_transaction. Route to EstimateInvoiceAgent
+which emits a change-order-preview card. A CO is contract revenue (not an expense), and
+the CO entity handles the contract bump, schedule extension, and phase placement atomically
+on client approval. See coreAgentPrompt's STOP section.
+
 **Step 1: Identify transaction details**
 - Amount (from user input)
 - Project (from context or ask if multiple)

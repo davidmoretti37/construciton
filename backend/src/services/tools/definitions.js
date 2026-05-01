@@ -507,7 +507,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_project_phase',
-      description: 'Create a new phase/stage for an existing project with optional checklist tasks. Use when user says "add a demolition phase" or "create a plumbing phase with these tasks".',
+      description: 'Create a new phase/stage for an existing project with optional checklist tasks. Use when user says "add a demolition phase" or "create a plumbing phase with these tasks". DO NOT use this for change orders — if the user mentioned "change order", "CO", "extra work", "scope change", "client added X", or any mid-project addition with a dollar amount, use create_change_order instead. The CO cascade handles phase placement (new phase before/after, or merge into existing) atomically on client approval.',
       parameters: {
         type: 'object',
         properties: {

@@ -94,6 +94,35 @@ Output ONLY valid JSON. No explanations. No reasoning. No markdown.
 - manage_invoice_template: Configure invoice templates
 - query_settings: View current settings
 
+# 🚨 STOP: CHANGE ORDER DETECTION (read this FIRST, before any other routing)
+
+If the user's message contains ANY of: "change order", "CO", "extra work", "scope change",
+"client wants more", "added [scope] for [$ amount]", "add ... for ... days", or describes
+mid-project additions/credits to an EXISTING project — the answer is ALWAYS:
+  → EstimateInvoiceAgent → emit a change-order-preview visual element
+
+**A change order is NOT:**
+- ❌ NOT an expense — never call \`record_transaction\` for it
+- ❌ NOT a phase creation — never call \`create_project_phase\` directly for it
+- ❌ NOT a phase progress update — never call \`update_phase_progress\` for it
+- ❌ NOT a project field update — never call \`update_project\` for the contract bump
+
+A change order IS its own first-class entity. The CO entity (and ONLY the CO entity)
+handles: contract revenue increase, schedule extension, and phase placement — all atomically
+on client approval. Do not decompose a CO into expense + phase + transaction calls.
+The owner's "I added 200sf of tile at $8/sf for 2 more days" is one CO, not three operations.
+
+**The correct flow:** EstimateInvoiceAgent emits a change-order-preview card with these fields
+(see CHANGE ORDER section in EstimateInvoiceAgent's prompt for the full spec):
+  - project_id, title, lineItems, scheduleImpactDays, billingStrategy
+  - phasePlacement: 'inside_phase' | 'before_phase' | 'after_phase' (REQUIRED — ASK if unspecified)
+  - targetPhaseId: which existing phase the CO attaches to / inserts around
+  - newPhaseName: optional label when creating a new phase
+
+If you are about to call create_project_phase, record_transaction, or update_project
+because of a "change order" / "extra work" / "client added scope" message — STOP, you are
+on the wrong path. Route to EstimateInvoiceAgent and let the CO entity handle it.
+
 # CRITICAL: ESTIMATE vs PROJECT ROUTING
 
 **ESTIMATES (pricing quotes) → EstimateInvoiceAgent:**
@@ -161,13 +190,25 @@ Output ONLY valid JSON. No explanations. No reasoning. No markdown.
 - General questions/search → DocumentAgent (answer_general_question)
 - App help/how-to/permissions/roles/tutorial/instructions → DocumentAgent (answer_general_question)
 
-**Change order routing:**
-- "change order" / "CO" / "extra work" / "scope change" / "client wants more" → DocumentAgent → use the change_order tools directly:
-  - **Create**: create_change_order(project_id, title, line_items, ...). Always created as draft. Confirm the user wants to create with the parsed details before firing.
-  - **List/find**: list_change_orders (with optional project_id / status filter) or get_change_order for one specific.
-  - **Edit a draft**: update_change_order — only works while status='draft'. Locked once sent.
-  - **Send to client**: send_change_order — REQUIRES explicit user confirmation in the same turn ("Send CO-002 ($X) to client@... ?"). Once sent, status flips to pending_client and the CO locks.
-- After client approves/rejects via portal, the system auto-applies the contract delta — no agent action needed.
+**Change order routing (see also the STOP section at the top of this prompt):**
+- CREATE a CO ("change order", "CO", "extra work", "scope change", "client wants more",
+  "added X for Y", "extra Z days for $A") → **EstimateInvoiceAgent** → emits a
+  change-order-preview visual element. The agent MUST ask the owner where the CO fits
+  on the phase timeline (inside / before / after which phase) before emitting the card.
+- LIST/FIND existing COs → DocumentAgent → list_change_orders / get_change_order
+- EDIT a draft CO → DocumentAgent → update_change_order (only while status='draft')
+- SEND a draft CO → DocumentAgent → send_change_order (REQUIRES explicit user confirmation
+  in the same turn: "Send CO-002 ($X) to client@... ?")
+- After client approves/rejects via portal, the cascade auto-applies contract delta,
+  end_date shift, phase placement, and (if invoice_now) spawns a ready draw.
+  No agent action needed.
+
+**ABSOLUTE PROHIBITIONS for CO creation (do not do any of these — they are bugs):**
+- Do NOT call create_project_phase to satisfy the schedule impact of a CO.
+- Do NOT call record_transaction to satisfy the dollar impact of a CO.
+- Do NOT call update_project / update_phase_progress / update_phase_budget to satisfy any
+  part of a CO.
+- A change order is ONE preview card emitted by EstimateInvoiceAgent. Period.
 
 **Default fallback:**
 If no specific agent matches → DocumentAgent (answer_general_question)
