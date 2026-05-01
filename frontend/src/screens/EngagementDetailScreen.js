@@ -16,6 +16,24 @@ import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
 
+const DOC_TYPE_LABELS = {
+  w9: 'IRS Form W-9',
+  coi_gl: 'General Liability COI',
+  coi_wc: 'Workers Comp COI',
+  coi_auto: 'Commercial Auto COI',
+  coi_umbrella: 'Umbrella COI',
+  ai_endorsement: 'Additional Insured Endorsement',
+  waiver_subrogation: 'Waiver of Subrogation',
+  license_state: 'State Contractor License',
+  license_business: 'Business License',
+  drug_policy: 'Drug Testing Policy',
+  msa: 'Master Subcontract Agreement',
+};
+
+function prettyDocType(t) {
+  return DOC_TYPE_LABELS[t] || (t || '').toUpperCase();
+}
+
 export default function EngagementDetailScreen({ route, navigation }) {
   const { engagement_id } = route.params || {};
   const { isDark = false } = useTheme() || {};
@@ -153,20 +171,45 @@ export default function EngagementDetailScreen({ route, navigation }) {
         contentContainerStyle={styles.body}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
       >
-        {/* Compliance banner */}
-        {!compliance.passes && (
-          <View style={[styles.banner, { backgroundColor: Colors.errorRed + '20', borderColor: Colors.errorRed }]}>
-            <Ionicons name="alert-circle" size={20} color={Colors.errorRed} />
-            <Text style={[styles.bannerText, { color: Colors.errorRed }]}>
-              {compliance.blockers.length} compliance issue{compliance.blockers.length === 1 ? '' : 's'} blocking payment
-            </Text>
-          </View>
-        )}
-        {compliance.passes && compliance.warnings.length > 0 && (
-          <View style={[styles.banner, { backgroundColor: Colors.warningOrange + '20', borderColor: Colors.warningOrange }]}>
-            <Ionicons name="alert-circle-outline" size={20} color={Colors.warningOrange} />
-            <Text style={[styles.bannerText, { color: Colors.warningOrange }]}>
-              {compliance.warnings.length} compliance warning{compliance.warnings.length === 1 ? '' : 's'}
+        {/* Compliance card — itemized, not blocking */}
+        {((compliance.blockers || []).length + (compliance.warnings || []).length) > 0 && (
+          <View style={styles.complianceCard}>
+            <View style={styles.complianceHeader}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={Colors.secondaryText} />
+              <Text style={styles.complianceTitle}>Compliance</Text>
+              <View style={{ flex: 1 }} />
+              <Text style={styles.complianceMeta}>
+                {(compliance.blockers || []).length + (compliance.warnings || []).length} item{((compliance.blockers || []).length + (compliance.warnings || []).length) === 1 ? '' : 's'}
+              </Text>
+            </View>
+            {[...(compliance.blockers || []), ...(compliance.warnings || [])].map((issue, idx) => {
+              const isBlocker = (compliance.blockers || []).includes(issue);
+              return (
+                <TouchableOpacity
+                  key={`${issue.doc_type}-${idx}`}
+                  style={[styles.complianceRow, idx === 0 && styles.complianceRowFirst]}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (engagement?.sub?.id || engagement?.sub_organization_id) {
+                      navigation.navigate('SubcontractorDetail', {
+                        sub_organization_id: engagement.sub?.id || engagement.sub_organization_id,
+                      });
+                    }
+                  }}
+                >
+                  <View style={[styles.complianceDot, { backgroundColor: isBlocker ? '#DC2626' : '#F59E0B' }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.complianceDocType}>{prettyDocType(issue.doc_type)}</Text>
+                    <Text style={styles.complianceReason} numberOfLines={2}>
+                      {issue.detail || issue.reason}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={Colors.secondaryText} />
+                </TouchableOpacity>
+              );
+            })}
+            <Text style={styles.complianceFootnote}>
+              These are heads-ups — payment isn't blocked. Tap a row to request the doc from the sub.
             </Text>
           </View>
         )}
@@ -460,6 +503,35 @@ const makeStyles = (Colors) => StyleSheet.create({
     borderWidth: 1, marginBottom: 14,
   },
   bannerText: { fontSize: 12, fontWeight: '600', flex: 1 },
+  complianceCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  complianceHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingBottom: 8,
+  },
+  complianceTitle: { fontSize: 11, fontWeight: '700', color: Colors.secondaryText, textTransform: 'uppercase', letterSpacing: 0.4 },
+  complianceMeta: { fontSize: 11, color: Colors.secondaryText },
+  complianceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+  },
+  complianceRowFirst: { borderTopWidth: 0 },
+  complianceDot: { width: 6, height: 6, borderRadius: 3 },
+  complianceDocType: { fontSize: 14, fontWeight: '600', color: Colors.primaryText },
+  complianceReason: { fontSize: 12, color: Colors.secondaryText, marginTop: 2, lineHeight: 17 },
+  complianceFootnote: {
+    fontSize: 11, color: Colors.secondaryText, marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+    fontStyle: 'italic',
+  },
   balanceCard: {
     backgroundColor: Colors.cardBackground, borderRadius: 12, padding: 16, marginBottom: 12,
     borderWidth: 1, borderColor: Colors.border,
