@@ -1,0 +1,175 @@
+/**
+ * Executor tests — pure logic, no LLM calls. Verifies:
+ *   - placeholder resolution (single + interpolated + array indexing)
+ *   - normal execution path (multi-step plan, results chain)
+ *   - error classification + retry-on-transient
+ *   - halt on soft tool errors (result.error)
+ *   - halt on hard exceptions
+ *   - plan with no steps
+ */
+
+const { execute, resolvePlaceholders, classifyError } = require('../services/agent/executor');
+
+describe('PEV executor', () => {
+  describe('resolvePlaceholders', () => {
+    test('whole-string placeholder preserves type', () => {
+      const results = new Map([['s1', { id: 'abc-123', count: 5 }]]);
+      expect(resolvePlaceholders('{{s1.id}}', results)).toBe('abc-123');
+      expect(resolvePlaceholders('{{s1.count}}', results)).toBe(5);
+    });
+
+    test('array indexing', () => {
+      const results = new Map([['s1', { results: [{ id: 'p1', name: 'Smith' }, { id: 'p2' }] }]]);
+      expect(resolvePlaceholders('{{s1.results[0].id}}', results)).toBe('p1');
+      expect(resolvePlaceholders('{{s1.results[1].id}}', results)).toBe('p2');
+    });
+
+    test('interpolated string', () => {
+      const results = new Map([['s1', { name: 'Wilson' }]]);
+      expect(resolvePlaceholders('Project: {{s1.name}}', results)).toBe('Project: Wilson');
+    });
+
+    test('nested object args', () => {
+      const results = new Map([['s1', { id: 'abc' }]]);
+      const args = {
+        project_id: '{{s1.id}}',
+        line_items: [{ description: 'Tile for {{s1.id}}', quantity: 200 }],
+      };
+      const resolved = resolvePlaceholders(args, results);
+      expect(resolved.project_id).toBe('abc');
+      expect(resolved.line_items[0].description).toBe('Tile for abc');
+      expect(resolved.line_items[0].quantity).toBe(200);
+    });
+
+    test('throws on missing step id', () => {
+      const results = new Map([['s1', { id: 'abc' }]]);
+      expect(() => resolvePlaceholders('{{s99.id}}', results)).toThrow(/missing step/);
+    });
+
+    test('throws on null path traversal', () => {
+      const results = new Map([['s1', { id: null }]]);
+      expect(() => resolvePlaceholders('{{s1.id.deeper}}', results)).toThrow(/null/);
+    });
+
+    test('non-placeholder strings pass through', () => {
+      const results = new Map();
+      expect(resolvePlaceholders('plain string', results)).toBe('plain string');
+      expect(resolvePlaceholders(42, results)).toBe(42);
+      expect(resolvePlaceholders(null, results)).toBe(null);
+    });
+  });
+
+  describe('classifyError', () => {
+    test('transient errors', () => {
+      expect(classifyError(new Error('connection timeout'))).toBe('transient');
+      expect(classifyError(new Error('ECONNRESET'))).toBe('transient');
+      expect(classifyError(Object.assign(new Error('x'), { transient: true }))).toBe('transient');
+    });
+    test('not_found', () => {
+      expect(classifyError(new Error('Project not found'))).toBe('not_found');
+      expect(classifyError(new Error('no match'))).toBe('not_found');
+    });
+    test('bad_args', () => {
+      expect(classifyError(new Error('project_id is required'))).toBe('bad_args');
+      expect(classifyError(new Error('invalid status'))).toBe('bad_args');
+    });
+    test('fatal', () => {
+      expect(classifyError(new Error('something exploded'))).toBe('fatal');
+    });
+  });
+
+  describe('execute', () => {
+    test('runs a simple plan and chains results via placeholders', async () => {
+      const plan = {
+        goal: 'create a CO on John\'s project',
+        steps: [
+          { id: 's1', tool: 'search_projects', args: { q: 'John' }, why: 'find', depends_on: [] },
+          {
+            id: 's2', tool: 'create_change_order',
+            args: {
+              project_id: '{{s1.results[0].id}}',
+              title: 'Bath tile',
+              line_items: [{ description: 'Tile', quantity: 200, unit_price: 8 }],
+            },
+            why: 'create',
+            depends_on: ['s1'],
+          },
+        ],
+      };
+      const calls = [];
+      const fakeTool = async (name, args) => {
+        calls.push({ name, args });
+        if (name === 'search_projects') {
+          return { results: [{ id: 'proj-abc', name: 'Smith' }] };
+        }
+        if (name === 'create_change_order') {
+          expect(args.project_id).toBe('proj-abc'); // placeholder resolved
+          return { success: true, change_order: { id: 'co-1', co_number: 1 } };
+        }
+        throw new Error('unexpected');
+      };
+      const events = [];
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', emit: (e) => events.push(e) });
+
+      expect(r.ok).toBe(true);
+      expect(r.reachedSteps).toBe(2);
+      expect(calls).toHaveLength(2);
+      // events: plan_start, step_start, step_done, step_start, step_done, plan_complete
+      expect(events[0].type).toBe('plan_start');
+      expect(events.filter((e) => e.type === 'step_done')).toHaveLength(2);
+      expect(events[events.length - 1].type).toBe('plan_complete');
+    });
+
+    test('retries on transient error then succeeds', async () => {
+      const plan = {
+        goal: 'x',
+        steps: [{ id: 's1', tool: 't', args: {}, why: '', depends_on: [] }],
+      };
+      let calls = 0;
+      const fakeTool = async () => {
+        calls++;
+        if (calls === 1) throw Object.assign(new Error('timeout'), { transient: true });
+        return { ok: true };
+      };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(true);
+      expect(calls).toBe(2);
+    });
+
+    test('halts on hard exception', async () => {
+      const plan = {
+        goal: 'x',
+        steps: [
+          { id: 's1', tool: 't', args: {}, why: '', depends_on: [] },
+          { id: 's2', tool: 't', args: {}, why: '', depends_on: ['s1'] },
+        ],
+      };
+      const fakeTool = async () => { throw new Error('something exploded'); };
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1' });
+      expect(r.ok).toBe(false);
+      expect(r.reachedSteps).toBe(0);
+      expect(r.stepResults).toHaveLength(1); // only s1 attempted
+      expect(r.stoppedReason).toMatch(/something exploded/);
+    });
+
+    test('halts on soft tool error (result.error)', async () => {
+      const plan = {
+        goal: 'x',
+        steps: [{ id: 's1', tool: 't', args: {}, why: '', depends_on: [] }],
+      };
+      const fakeTool = async () => ({ error: 'No project matches "John"' });
+      const events = [];
+      const r = await execute({ plan, executeTool: fakeTool, userId: 'u1', emit: (e) => events.push(e) });
+      expect(r.ok).toBe(false);
+      expect(r.stepResults[0].error.class).toBe('soft');
+      const errEvent = events.find((e) => e.type === 'step_error');
+      expect(errEvent).toBeTruthy();
+    });
+
+    test('rejects empty plan', async () => {
+      const r = await execute({ plan: { goal: 'x', steps: [] }, executeTool: async () => {}, userId: 'u1' });
+      expect(r.ok).toBe(true);
+      expect(r.reachedSteps).toBe(0);
+    });
+  });
+});
