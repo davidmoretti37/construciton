@@ -16,7 +16,11 @@
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../../utils/logger');
 
-const TELEMETRY_TABLE = process.env.PEV_TELEMETRY_TABLE || null;
+// Defaults to 'pev_turns' (the table created by 20260501_pev_telemetry.sql).
+// Set PEV_TELEMETRY_TABLE='' to disable persistence (always-on logs continue).
+const TELEMETRY_TABLE = process.env.PEV_TELEMETRY_TABLE !== undefined
+  ? (process.env.PEV_TELEMETRY_TABLE || null)
+  : 'pev_turns';
 
 let supabase = null;
 function getSupabase() {

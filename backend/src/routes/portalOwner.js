@@ -2124,4 +2124,54 @@ router.post('/invoices/:invoiceId/nudge', async (req, res) => {
   }
 });
 
+/**
+ * GET /pev-telemetry — last-7-day PEV pipeline rollup for the current user.
+ *
+ * Returns:
+ *   {
+ *     summary: { turns, handoff_*, class_*, p50_total_ms, p95_total_ms, ... },
+ *     topTools: [{ tool_name, call_count }, ...],
+ *     recent: [{ created_at, handoff, classification, total_ms, tools_used }, ...]
+ *   }
+ *
+ * No data leaks across users — all queries filter by req.user.id, and the
+ * underlying view (pev_telemetry_7d) is RLS-gated to auth.uid() = user_id.
+ */
+router.get('/pev-telemetry', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [summaryRes, toolsRes, recentRes] = await Promise.all([
+      supabase
+        .from('pev_telemetry_7d')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle(),
+      supabase
+        .from('pev_tool_usage_7d')
+        .select('*')
+        .eq('user_id', userId)
+        .order('call_count', { ascending: false })
+        .limit(15),
+      supabase
+        .from('pev_turns')
+        .select('created_at, handoff, classification, classification_confidence, total_ms, step_count, tools_used, verify_satisfied')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
+
+    res.json({
+      summary: summaryRes.data || {
+        turns: 0,
+        handoff_foreman: 0, handoff_response: 0, handoff_ask: 0, handoff_approval: 0,
+      },
+      topTools: toolsRes.data || [],
+      recent: recentRes.data || [],
+    });
+  } catch (error) {
+    logger.error('[PortalAdmin] PEV telemetry error:', error.message);
+    res.status(500).json({ error: 'Failed to load telemetry' });
+  }
+});
+
 module.exports = router;
