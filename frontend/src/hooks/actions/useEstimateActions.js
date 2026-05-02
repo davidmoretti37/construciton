@@ -355,9 +355,16 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
   // for invoices.
   const handleSendEstimateToClient = useCallback(async (data) => {
     try {
-      if (!data?.id) {
-        Alert.alert('Save First', 'Please save the estimate before sending to client.');
-        return false;
+      let workingData = data;
+      // No id yet — save the estimate first so we have a row to send.
+      if (!workingData?.id) {
+        const { saveEstimate: persistEstimate } = require('../../utils/storage/estimates');
+        const saved = await persistEstimate(workingData);
+        if (!saved?.id) {
+          Alert.alert('Could not save', 'Failed to save the estimate before sending.');
+          return false;
+        }
+        workingData = { ...workingData, id: saved.id, ...saved };
       }
       const { supabase } = require('../../lib/supabase');
       const { data: { session } } = await supabase.auth.getSession();
@@ -373,7 +380,7 @@ export default function useEstimateActions({ addMessage, setMessages, messages }
       } else if (typeof data.signatureRequired === 'boolean') {
         body.signature_required = data.signatureRequired;
       }
-      const res = await fetch(`${API_URL}/api/portal-admin/estimates/${data.id}/send`, {
+      const res = await fetch(`${API_URL}/api/portal-admin/estimates/${workingData.id}/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
