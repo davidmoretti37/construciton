@@ -83,6 +83,8 @@ export const respondToEstimate = (estimateId, response) =>
     method: 'PATCH',
     body: JSON.stringify(response),
   });
+export const fetchEstimateSigningLink = (estimateId) =>
+  portalFetch(`/estimates/${estimateId}/signing-link`);
 
 // Messages
 export const fetchMessages = (projectId) => portalFetch(`/projects/${projectId}/messages`);

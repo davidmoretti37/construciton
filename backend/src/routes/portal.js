@@ -573,6 +573,62 @@ router.get('/projects/:projectId/estimates', verifyProjectAccess, async (req, re
 });
 
 /**
+ * GET /estimates/:estimateId/signing-link
+ * Returns the active signing URL for an estimate that requires signature.
+ * Caller must be the authenticated client viewer of this estimate's project.
+ */
+router.get('/estimates/:estimateId/signing-link', async (req, res) => {
+  try {
+    const { estimateId } = req.params;
+
+    const { data: estimate } = await supabase
+      .from('estimates')
+      .select('id, project_id, signature_required, status, client_email')
+      .eq('id', estimateId)
+      .single();
+    if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
+    if (!estimate.signature_required) return res.status(400).json({ error: 'No signature required' });
+
+    // Authorize: caller must be a client on this project
+    const { data: link } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('client_id', req.client.id)
+      .eq('project_id', estimate.project_id)
+      .maybeSingle();
+    if (!link) return res.status(403).json({ error: 'Access denied' });
+
+    const { data: sig } = await supabase
+      .from('signatures')
+      .select('id, status')
+      .eq('document_id', estimateId)
+      .eq('document_type', 'estimate')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!sig) return res.status(404).json({ error: 'No signature request found' });
+    if (sig.status === 'completed') return res.status(400).json({ error: 'Already signed', already_signed: true });
+
+    const { data: tok } = await supabase
+      .from('signature_tokens')
+      .select('token, expires_at, consumed_at')
+      .eq('signature_id', sig.id)
+      .is('consumed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!tok) return res.status(404).json({ error: 'No active signing token (expired or already used)' });
+
+    const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
+    const signing_url = `${PORTAL_URL.replace(/\/portal$/, '')}/sign/${tok.token}`;
+    res.json({ signing_url, expires_at: tok.expires_at });
+  } catch (error) {
+    logger.error('[Portal] signing-link error:', error.message);
+    res.status(500).json({ error: 'Failed to get signing link' });
+  }
+});
+
+/**
  * PATCH /estimates/:estimateId/respond
  * Client approves, rejects, or requests changes on an estimate.
  * Body: { action: 'accepted' | 'rejected' | 'changes_requested', notes? }

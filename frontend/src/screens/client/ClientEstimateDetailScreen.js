@@ -5,12 +5,13 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator,
+  TextInput, Alert, ActivityIndicator, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { respondToEstimate, fetchProjectEstimates } from '../../services/clientPortalApi';
+import { respondToEstimate, fetchProjectEstimates, fetchEstimateSigningLink } from '../../services/clientPortalApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 const C = {
@@ -48,6 +49,8 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
   const [showAccept, setShowAccept] = useState(false);
   const [showDecline, setShowDecline] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
+  const [signingUrl, setSigningUrl] = useState(null);
+  const [loadingSigningUrl, setLoadingSigningUrl] = useState(false);
   const [acceptName, setAcceptName] = useState(profile?.full_name || '');
   const [declineReason, setDeclineReason] = useState('');
   const [changesNotes, setChangesNotes] = useState('');
@@ -133,6 +136,37 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
       return;
     }
     respond('rejected', reason);
+  };
+
+  const handleOpenSigning = async () => {
+    if (loadingSigningUrl) return;
+    try {
+      setLoadingSigningUrl(true);
+      const res = await fetchEstimateSigningLink(estimate.id);
+      if (res?.signing_url) {
+        setSigningUrl(res.signing_url);
+      } else if (res?.already_signed) {
+        Alert.alert('Already signed', 'This estimate has already been signed.');
+      } else {
+        Alert.alert('Cannot sign', res?.error || 'No active signing link.');
+      }
+    } catch (e) {
+      Alert.alert('Sign failed', e?.message || 'Could not load the signing page.');
+    } finally {
+      setLoadingSigningUrl(false);
+    }
+  };
+
+  const handleSigningClose = async () => {
+    setSigningUrl(null);
+    // Refetch to pick up signed status if signing completed
+    try {
+      if (estimate?.project_id || project?.id) {
+        const list = await fetchProjectEstimates(estimate?.project_id || project?.id);
+        const fresh = (list || []).find((e) => e.id === estimate.id);
+        if (fresh) setEstimate((prev) => ({ ...prev, ...fresh }));
+      }
+    } catch {}
   };
 
   const handleRequestChanges = () => {
@@ -359,15 +393,13 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
             <Text style={styles.changesActionText}>Request Changes</Text>
           </TouchableOpacity>
           {estimate?.signature_required ? (
-            <TouchableOpacity
-              style={styles.acceptAction}
-              onPress={() => Alert.alert(
-                'Signature required',
-                'Your contractor sent you an email with a signing link. Open the email and tap "Review & Sign" to accept this estimate.'
+            <TouchableOpacity style={styles.acceptAction} onPress={handleOpenSigning} disabled={loadingSigningUrl}>
+              {loadingSigningUrl ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Ionicons name="create-outline" size={18} color="#fff" />
+                  <Text style={styles.acceptActionText}>Sign Estimate</Text>
+                </>
               )}
-            >
-              <Ionicons name="mail-outline" size={18} color="#fff" />
-              <Text style={styles.acceptActionText}>Sign via Email</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.acceptAction} onPress={() => setShowAccept(true)}>
@@ -377,6 +409,31 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           )}
         </SafeAreaView>
       )}
+
+      {/* Signing modal — embeds the web /sign/<token> page */}
+      <Modal visible={!!signingUrl} animationType="slide" onRequestClose={handleSigningClose}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
+          <View style={styles.signHeader}>
+            <TouchableOpacity onPress={handleSigningClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={26} color={C.text} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Sign Estimate</Text>
+            <View style={{ width: 26 }} />
+          </View>
+        </SafeAreaView>
+        {signingUrl && (
+          <WebView
+            source={{ uri: signingUrl }}
+            style={{ flex: 1 }}
+            startInLoadingState
+            renderLoading={() => (
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator />
+              </View>
+            )}
+          />
+        )}
+      </Modal>
     </View>
   );
 }
@@ -388,6 +445,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
   },
   headerTitle: { fontSize: 17, fontWeight: '700', color: C.text },
+  signHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
+  },
   scrollContent: { padding: 16 },
 
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
