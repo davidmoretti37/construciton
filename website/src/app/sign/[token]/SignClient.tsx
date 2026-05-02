@@ -4,7 +4,9 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SignatureCanvas from 'react-signature-canvas';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+// Same-origin proxy. Avoids CORS / env-var-in-browser-bundle issues when the
+// page loads inside the mobile WebView. The proxy at /api/esign/sign/<token>
+// forwards server-side to the real backend.
 
 export default function SignClient({
   token,
@@ -36,7 +38,7 @@ export default function SignClient({
     setSubmitting(true);
     try {
       const dataUrl = sigRef.current!.getCanvas().toDataURL('image/png');
-      const res = await fetch(`${BACKEND_URL}/api/esign/sign/${token}`, {
+      const res = await fetch(`/api/esign/sign/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -56,7 +58,7 @@ export default function SignClient({
   const handleDecline = async () => {
     if (!confirm('Decline to sign this document?')) return;
     try {
-      await fetch(`${BACKEND_URL}/api/esign/decline/${token}`, {
+      await fetch(`/api/esign/decline/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
