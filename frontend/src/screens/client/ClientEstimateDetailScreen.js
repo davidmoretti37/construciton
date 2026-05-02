@@ -358,10 +358,23 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           <TouchableOpacity style={styles.changesAction} onPress={() => setShowChanges(true)}>
             <Text style={styles.changesActionText}>Request Changes</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.acceptAction} onPress={() => setShowAccept(true)}>
-            <Ionicons name="checkmark-circle" size={18} color="#fff" />
-            <Text style={styles.acceptActionText}>Accept</Text>
-          </TouchableOpacity>
+          {estimate?.signature_required ? (
+            <TouchableOpacity
+              style={styles.acceptAction}
+              onPress={() => Alert.alert(
+                'Signature required',
+                'Your contractor sent you an email with a signing link. Open the email and tap "Review & Sign" to accept this estimate.'
+              )}
+            >
+              <Ionicons name="mail-outline" size={18} color="#fff" />
+              <Text style={styles.acceptActionText}>Sign via Email</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.acceptAction} onPress={() => setShowAccept(true)}>
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={styles.acceptActionText}>Accept</Text>
+            </TouchableOpacity>
+          )}
         </SafeAreaView>
       )}
     </View>
