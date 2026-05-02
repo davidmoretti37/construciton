@@ -109,7 +109,21 @@ describe('selectTools', () => {
     const names = tools.map(t => t.function.name);
     expect(names).toContain('search_invoices');
     expect(names).toContain('get_financial_overview');
+    // Tools clearly outside both the intent group AND ALWAYS_AVAILABLE
+    // should not be present. (get_daily_briefing was previously asserted
+    // here, but is now intentionally in ALWAYS_AVAILABLE because morning-
+    // briefing-shaped lookups appear in many financial-flavored queries.)
+    expect(names).not.toContain('clock_in_worker');
+    expect(names).not.toContain('manage_schedule_event');
+  });
+
+  test('opt-out via skipAlwaysAvailable returns ONLY the intent group', () => {
+    const tools = selectTools('financial', mockTools, { skipAlwaysAvailable: true });
+    const names = tools.map(t => t.function.name);
+    expect(names).toContain('search_invoices');
+    // ALWAYS_AVAILABLE entries should NOT appear
     expect(names).not.toContain('get_daily_briefing');
+    expect(names).not.toContain('global_search');
   });
 
   test('compound intent merges both tool sets', () => {

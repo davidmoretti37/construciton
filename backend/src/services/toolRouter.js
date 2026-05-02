@@ -183,31 +183,52 @@ function categorizeIntent(userMessage) {
 }
 
 // Tools that are always useful as "connective tissue" regardless of
-// intent. The legacy Foreman flow doesn't need these (its tool-router
-// stays narrow for accuracy), but the PEV planner uses a wider surface
-// so compound requests like "create CO + assign worker + email client"
-// can be planned in a single shot instead of halting on the first
-// out-of-group tool. Executor still validates against the registry, so
-// risk is unchanged.
-const PEV_ALWAYS_AVAILABLE = [
+// intent — the search/lookup/list tools the agent reaches for to wire
+// things together (find a project, check an invoice, look up a worker).
+//
+// Originally added for the PEV planner only, but the catalog is now 137
+// tools (was ~50 when the 8-12-per-query heuristic was set), so the
+// legacy Foreman flow ALSO benefits from a wider surface. Filtering to
+// 8-12 was missing tools the model needed.
+//
+// This adds ~17 tools to every query's surface for ~2.5K extra tokens.
+// Sonnet input cost: ~$0.008 extra per call. The wins:
+//   - "I can't find that" failures drop sharply
+//   - Cross-cutting requests (CO + worker + invoice) work in one turn
+//   - The list is STABLE across turns → prompt caching kicks in
+const ALWAYS_AVAILABLE = [
+  // Project / project-detail lookups
   'search_projects', 'get_project_details', 'get_project_summary',
+  // Estimate / invoice / CO lookups (read-only — cheap to include)
   'search_estimates', 'get_estimate_details',
   'search_invoices', 'get_invoice_details',
-  'get_workers', 'get_worker_details',
   'list_change_orders', 'get_change_order',
+  // Worker lookups
+  'get_workers', 'get_worker_details',
+  // Cross-cutting search / event history
   'global_search', 'query_event_history',
+  // Common cross-domain reads the agent reaches for naturally
+  'get_transactions', 'get_financial_overview',
+  'get_daily_briefing',
 ];
+
+// Backwards compat: PEV path still imports the old name
+const PEV_ALWAYS_AVAILABLE = ALWAYS_AVAILABLE;
 
 /**
  * Returns relevant tools based on intent category.
  * For compound intents, merges tool sets from both domains (deduplicated).
+ * ALSO merges in ALWAYS_AVAILABLE (~17 read/lookup tools) so the agent
+ * has connective-tissue tools regardless of intent.
  *
  * @param {string|Object} intent - Intent string or { primary, secondary }
  * @param {Array} allTools - All available tool definitions
  * @param {Object} [opts]
- *   opts.forPev — when true, returns a wider tool surface that includes
- *     PEV_ALWAYS_AVAILABLE so the planner can compose cross-cutting plans.
- *     Default false (preserves existing tight Foreman routing).
+ *   opts.forPev — preserved for backward compat; behavior is now the
+ *     same as the default since ALWAYS_AVAILABLE is merged in either way.
+ *   opts.skipAlwaysAvailable — set true to opt-out (rare; e.g. a tightly
+ *     scoped specialist call where you really want exactly the intent's
+ *     tools and nothing else).
  * @returns {Array} Filtered tool definitions
  */
 function selectTools(intent, allTools, opts = {}) {
@@ -222,12 +243,10 @@ function selectTools(intent, allTools, opts = {}) {
     selectedToolNames = TOOL_GROUPS[intent] || TOOL_GROUPS.general;
   }
 
-  // For the PEV planner, merge in always-available connective-tissue tools
-  // so cross-cutting plans don't halt because a search/lookup tool wasn't
-  // in the intent's group. The executor still enforces the registry at
-  // call time, so this only widens the planner's view, not what runs.
-  if (opts.forPev) {
-    selectedToolNames = [...new Set([...selectedToolNames, ...PEV_ALWAYS_AVAILABLE])];
+  // Merge in always-available connective-tissue tools so the agent has
+  // search/lookup tools regardless of intent. Stable across turns → cache.
+  if (!opts.skipAlwaysAvailable) {
+    selectedToolNames = [...new Set([...selectedToolNames, ...ALWAYS_AVAILABLE])];
   }
 
   return allTools.filter(tool =>
