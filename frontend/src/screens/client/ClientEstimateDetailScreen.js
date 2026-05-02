@@ -67,7 +67,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         const list = await fetchProjectEstimates(project.id);
         if (cancelled || !Array.isArray(list)) return;
         const fresh = list.find(e => e.id === estimate.id);
-        if (fresh && fresh.status !== estimate.status) {
+        if (fresh) {
           setEstimate(prev => ({ ...prev, ...fresh }));
         }
       } catch (_) {

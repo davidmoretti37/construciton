@@ -559,7 +559,7 @@ router.get('/projects/:projectId/estimates', verifyProjectAccess, async (req, re
 
     const { data: estimates, error } = await supabase
       .from('estimates')
-      .select('id, estimate_number, project_name, items, subtotal, tax_rate, tax_amount, total, valid_until, payment_terms, notes, status, sent_date, viewed_date, accepted_date, rejected_date, created_at')
+      .select('id, project_id, estimate_number, project_name, items, subtotal, tax_rate, tax_amount, total, valid_until, payment_terms, notes, status, signature_required, sent_date, viewed_date, accepted_date, rejected_date, created_at')
       .eq('project_id', projectId)
       .neq('status', 'draft')
       .order('created_at', { ascending: false });
@@ -1771,7 +1771,7 @@ router.get('/projects/:projectId/billing', verifyProjectAccess, async (req, res)
         .single(),
       supabase
         .from('estimates')
-        .select('id, estimate_number, total, status, created_at, accepted_date')
+        .select('id, project_id, estimate_number, total, status, signature_required, created_at, accepted_date')
         .eq('project_id', projectId)
         .neq('status', 'draft')
         .order('created_at', { ascending: false }),
