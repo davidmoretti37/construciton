@@ -1299,17 +1299,28 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     },
   };
   // P5: dispatch_subagent — orchestration tool injected at runtime.
-  // Lets the orchestrator delegate complex sub-tasks to a specialist
-  // (Researcher / Builder / Bookkeeper / Communicator) with a
-  // restricted tool set + dedicated prompt + iteration cap. Same
-  // injection pattern as the memory tool above.
   //
-  // P6: extended to accept an array of dispatches for parallel
-  // execution. Single-dispatch and multi-dispatch shapes are both
-  // valid — pass `kind` + `task` for one, or `dispatches: [...]` for
-  // many. The runner fans them out via Promise.all and the orchestrator
-  // gets all summaries back at once.
-  const dispatchSubagentDef = {
+  // DISABLED 2026-05-02: User feedback — "Delegating to specialist..."
+  // showed up TWICE on a simple delete-4-projects request, ate ~12s of
+  // overhead, and the dispatched specialist (Builder) didn't even have
+  // delete_project in its restricted tool set. Foreman gave up and
+  // told the user to delete manually in the UI.
+  //
+  // The dispatch model has been a net negative:
+  //   - Each dispatch = full LLM call wrapped around the actual work
+  //     (5-7s per dispatch on top of the tool call itself)
+  //   - Specialists' restricted tool sets cause failure modes the
+  //     single-Foreman flow doesn't have (no delete_project for
+  //     Builder, no send_change_order for Bookkeeper, etc.)
+  //   - Foreman often dispatches when it could just call the tool
+  //     directly — the system prompt's threshold for "complex enough
+  //     to dispatch" is too loose
+  //
+  // Set ENABLE_SUBAGENT_DISPATCH=1 to re-enable for testing/iteration.
+  // Specialist code (subAgents/specialists.js, subAgents/runner.js)
+  // is preserved — only the runtime injection is disabled.
+  const ENABLE_SUBAGENT_DISPATCH = process.env.ENABLE_SUBAGENT_DISPATCH === '1';
+  const dispatchSubagentDef = !ENABLE_SUBAGENT_DISPATCH ? null : {
     type: 'function',
     function: {
       name: 'dispatch_subagent',
@@ -1367,7 +1378,9 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     logger.warn('[agentService] MCP integration load failed (proceeding without):', e?.message);
   }
 
-  const toolsWithMemory = [memoryToolDef, dispatchSubagentDef, skillToolDef, ...mcpTools, ...filteredTools];
+  // Compose the final tool list. dispatchSubagentDef is null when the
+  // dispatch system is disabled (default) — filter() drops it cleanly.
+  const toolsWithMemory = [memoryToolDef, dispatchSubagentDef, skillToolDef, ...mcpTools, ...filteredTools].filter(Boolean);
 
   // PHASE 1.5 — Planner. Quick Haiku call that reads the user message +
   // recent conversation and emits a structured plan (text shown to user,
