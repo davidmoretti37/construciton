@@ -3017,22 +3017,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       );
                       const result = await res.json().catch(() => ({}));
                       if (result.sent) {
-                        const lines = ['Estimate is now available in the client portal.'];
-                        if (result.portal_notified) {
-                          lines.push(`In-app notification sent to ${result.portal_recipient}.`);
-                        }
-                        if (result.email_sent) {
-                          lines.push(`Also emailed to ${result.email_recipient}.`);
-                        } else if (!result.portal_notified) {
-                          lines.push('No client account is linked to this project yet — they\'ll see it when they sign in.');
-                        }
-                        if (result.signature_required) {
-                          lines.push(result.signature_request
-                            ? 'Signing link sent — client must sign to accept.'
-                            : 'Signature required, but the signing link could not be created.');
-                        }
-                        Alert.alert('Shared to portal', lines.join('\n\n'));
+                        // Silent send — close modal and refresh so the
+                        // BillingCard immediately shows the estimate as sent
+                        // instead of draft.
                         setShowEstimateModal(false);
+                        onRefreshNeeded && onRefreshNeeded();
                       } else {
                         Alert.alert('Send Failed', result.error || 'Could not send estimate.');
                       }
