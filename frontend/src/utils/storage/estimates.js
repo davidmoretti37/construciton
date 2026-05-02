@@ -297,7 +297,6 @@ export const updateEstimate = async (estimateData) => {
         payment_terms: estimateData.paymentTerms || 'Net 30',
         notes: estimateData.notes || '',
         updated_at: new Date().toISOString(),
-        updated_by: userId,
       })
       .eq('id', estimateId)
       .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
