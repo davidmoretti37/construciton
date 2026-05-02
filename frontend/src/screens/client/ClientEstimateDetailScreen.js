@@ -7,7 +7,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, ActivityIndicator, Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -42,6 +42,7 @@ const CHANGE_REASONS = [
 export default function ClientEstimateDetailScreen({ route, navigation }) {
   const { estimate: estimateProp, project } = route.params || {};
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // Local copy so status updates re-render immediately
   const [estimate, setEstimate] = useState(estimateProp);
@@ -412,15 +413,15 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
 
       {/* Signing modal — embeds the web /sign/<token> page */}
       <Modal visible={!!signingUrl} animationType="slide" onRequestClose={handleSigningClose}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
+        <View style={{ paddingTop: insets.top, backgroundColor: C.surface }}>
           <View style={styles.signHeader}>
-            <TouchableOpacity onPress={handleSigningClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="close" size={26} color={C.text} />
+            <TouchableOpacity onPress={handleSigningClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}>
+              <Ionicons name="close" size={28} color={C.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Sign Estimate</Text>
-            <View style={{ width: 26 }} />
+            <View style={{ width: 28 }} />
           </View>
-        </SafeAreaView>
+        </View>
         {signingUrl && (
           <WebView
             source={{ uri: signingUrl }}
