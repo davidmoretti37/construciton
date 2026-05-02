@@ -1717,6 +1717,7 @@ router.get('/projects/:projectId/billing', verifyProjectAccess, async (req, res)
         .from('estimates')
         .select('id, estimate_number, total, status, created_at, accepted_date')
         .eq('project_id', projectId)
+        .neq('status', 'draft')
         .order('created_at', { ascending: false }),
       supabase
         .from('draw_schedules')
