@@ -3056,22 +3056,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   }
 
                   // Convert-to-invoice button on accepted estimates.
+                  // Bill it all now → convert silently and close. Existing invoices
+                  // are returned by the storage helper (idempotent), so re-tapping
+                  // doesn't error — the user just lands back on a refreshed Billing.
                   if (action?.type === 'convert-estimate-to-invoice') {
                     try {
                       const { createInvoiceFromEstimate } = require('../utils/storage/estimates');
                       const inv = await createInvoiceFromEstimate(action.data?.id || action.data?.estimateId);
+                      setShowEstimateModal(false);
                       if (inv) {
-                        Alert.alert(
-                          'Invoice Created',
-                          `Invoice ${inv.invoice_number} created from this estimate.`,
-                          [{ text: 'OK', onPress: () => {
-                            setShowEstimateModal(false);
-                            // Refresh project so new invoice appears in BillingCard
-                            onRefreshNeeded && onRefreshNeeded();
-                          }}]
-                        );
+                        onRefreshNeeded && onRefreshNeeded();
                       } else {
-                        Alert.alert('Error', 'Could not create invoice. The estimate may already be converted.');
+                        Alert.alert('Could not bill', 'The estimate has no invoice mapping. Try again or open the estimate to verify.');
                       }
                     } catch (e) {
                       Alert.alert('Error', e.message || 'Failed to create invoice');

@@ -290,23 +290,11 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
 
         // Email the client + create a portal notification. Best-effort —
         // a delivery failure shouldn't block the optimistic UI swap.
-        let sendResult = null;
-        try {
-          sendResult = await sendInvoiceToClient(inv.id);
-        } catch (e) {
-          sendResult = { sent: false, error: e?.message };
-        }
+        sendInvoiceToClient(inv.id).catch(() => {});
 
-        const sentTo = sendResult?.sent ? sendResult.email : null;
-        Alert.alert(
-          sentTo ? 'Invoice Sent' : 'Invoice Created',
-          sentTo
-            ? `Invoice ${inv.invoice_number} sent to ${sentTo}.`
-            : `Invoice ${inv.invoice_number} created. ${sendResult?.error === 'no_api_key' ? 'Email service not configured — share the invoice manually.' : "Couldn't email the client automatically — open the invoice to send it."}`
-        );
-
-        // Fire the refetch in the background — the optimistic state has
-        // already updated the UI so the user sees instant feedback.
+        // Silent success — the optimistic state already swapped the row, no
+        // need to interrupt with an alert. The new invoice will appear in
+        // BillingCard's HISTORY zone after the refresh.
         load().catch(() => {});
         onRefresh?.();
       } else {
