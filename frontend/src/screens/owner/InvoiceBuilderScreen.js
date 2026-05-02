@@ -504,14 +504,22 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
             <Text style={styles.reviewSub}>{items.length} line item{items.length === 1 ? '' : 's'} · due {dueDate} · {paymentTerms}</Text>
           </View>
           {!readOnly && (
-            <TouchableOpacity
-              style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue }]}
-              onPress={handleSend}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="paper-plane" size={18} color="#fff" />
-              <Text style={styles.sendBtnText}>Send to client</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue }]}
+                onPress={async () => {
+                  await flushSaveRef.current();
+                  navigation.goBack();
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="checkmark" size={18} color="#fff" />
+                <Text style={styles.sendBtnText}>Save</Text>
+              </TouchableOpacity>
+              <Text style={{ marginTop: 10, fontSize: 12, color: Colors.secondaryText, textAlign: 'center' }}>
+                Send, share, or preview from the chat preview card.
+              </Text>
+            </>
           )}
         </Section>
 

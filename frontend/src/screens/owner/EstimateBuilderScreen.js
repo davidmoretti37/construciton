@@ -529,22 +529,20 @@ export default function EstimateBuilderScreen({ route, navigation }) {
           </View>
 
           <TouchableOpacity
-            style={[styles.sendBtn, (sending || status !== 'draft') && { opacity: 0.5 }]}
-            onPress={onSend}
-            disabled={sending || status !== 'draft'}
+            style={[styles.sendBtn, (saveState === 'saving') && { opacity: 0.5 }]}
+            onPress={async () => {
+              await flushSaveRef.current();
+              navigation.goBack();
+            }}
+            disabled={saveState === 'saving'}
             activeOpacity={0.85}
           >
-            {sending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="paper-plane" size={18} color="#fff" />
-                <Text style={styles.sendBtnText}>
-                  {status === 'draft' ? 'Send to client' : `Already ${status}`}
-                </Text>
-              </>
-            )}
+            <Ionicons name="checkmark" size={18} color="#fff" />
+            <Text style={styles.sendBtnText}>Save</Text>
           </TouchableOpacity>
+          <Text style={{ marginTop: 10, fontSize: 12, color: Colors.secondaryText, textAlign: 'center' }}>
+            Send to client, share, or preview from the chat preview card.
+          </Text>
         </Section>
 
         <View style={{ height: 60 }} />
