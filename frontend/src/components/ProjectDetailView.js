@@ -144,6 +144,27 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
   const [loadingEstimates, setLoadingEstimates] = useState(false);
   const [selectedEstimate, setSelectedEstimate] = useState(null);
   const [showEstimateModal, setShowEstimateModal] = useState(false);
+  const [estimateSignature, setEstimateSignature] = useState(null);
+
+  useEffect(() => {
+    setEstimateSignature(null);
+    if (!selectedEstimate?.id || !showEstimateModal) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const { API_URL } = require('../config/api');
+        const res = await fetch(`${API_URL}/api/esign/status/estimate/${selectedEstimate.id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && json?.status === 'signed') setEstimateSignature(json);
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [selectedEstimate?.id, showEstimateModal]);
 
   // Calculated financial totals (from transactions)
   const [calculatedExpenses, setCalculatedExpenses] = useState(cachedDetail?.calculatedExpenses ?? null);
@@ -3062,6 +3083,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   setShowEstimateModal(false);
                 }}
               />
+            )}
+            {estimateSignature && (
+              <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 8, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, letterSpacing: 0.5, marginBottom: 12 }}>SIGNATURE</Text>
+                {estimateSignature.signaturePngUrl && (
+                  <Image source={{ uri: estimateSignature.signaturePngUrl }} style={{ width: '100%', height: 140, marginBottom: 12, backgroundColor: '#FAFAFA', borderRadius: 8 }} resizeMode="contain" />
+                )}
+                <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }}>{estimateSignature.signerName}</Text>
+                <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 4 }}>
+                  Signed {estimateSignature.signedAt ? new Date(estimateSignature.signedAt).toLocaleString() : ''}
+                </Text>
+              </View>
             )}
             <View style={{ height: 40 }} />
           </ScrollView>
