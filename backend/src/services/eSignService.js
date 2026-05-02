@@ -356,7 +356,7 @@ function documentTitle(documentType, doc) {
 /**
  * Owner-initiated. Snapshots the original PDF, hashes it, mints token, sends email.
  */
-async function createSignatureRequest({ ownerId, documentType, documentId, signerName, signerEmail, signerPhone }) {
+async function createSignatureRequest({ ownerId, documentType, documentId, signerName, signerEmail, signerPhone, sendEmail = false }) {
   if (!VALID_DOC_TYPES.has(documentType)) throw new Error('Invalid document_type');
   if (!documentId) throw new Error('document_id required');
 
@@ -402,8 +402,11 @@ async function createSignatureRequest({ ownerId, documentType, documentId, signe
 
   const signingUrl = `${PORTAL_URL.replace(/\/portal$/, '')}/sign/${tok.token}`;
 
-  // Best-effort email; failure does not block the request (owner can resend via SMS share)
-  if (signerEmail) {
+  // Email is opt-in — defaults to OFF. The mobile client portal has an
+  // in-app "Sign Estimate" button that opens the same /sign/<token> URL
+  // in a WebView, so most owners don't need to send a redundant email.
+  // Pass sendEmail: true at the call site to override.
+  if (sendEmail && signerEmail) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('business_name, full_name')
