@@ -14,6 +14,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 import {
   fetchProjectBilling, sendDrawNow, nudgeInvoice, resendChangeOrder, billChangeOrderNow,
   sendInvoiceToClient,
@@ -211,6 +213,24 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Refresh whenever the screen regains focus — owner sees client-side
+  // status changes (estimate accepted, signed, etc.) without a manual pull.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Realtime: subscribe to estimate / invoice / change_order row changes on
+  // this project so the BillingCard updates the moment a client accepts,
+  // signs, or pays — no polling, no manual refresh.
+  useEffect(() => {
+    if (!projectId) return;
+    const channel = supabase
+      .channel(`billing:${projectId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'estimates', filter: `project_id=eq.${projectId}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `project_id=eq.${projectId}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'change_orders', filter: `project_id=eq.${projectId}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [projectId, load]);
 
   const handleAction = async (event) => {
     if (busyAction) return;
