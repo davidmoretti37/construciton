@@ -10,7 +10,9 @@ import {
   TextInput,
   Modal,
   Alert,
+  Image,
 } from 'react-native';
+import { API_URL } from '../../config/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -41,6 +43,25 @@ export default function EstimatesDetailScreen({ navigation, route }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedEstimate, setSelectedEstimate] = useState(null);
   const [showEstimateModal, setShowEstimateModal] = useState(false);
+  const [signature, setSignature] = useState(null);
+
+  useEffect(() => {
+    setSignature(null);
+    if (!selectedEstimate?.id || !showEstimateModal) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${API_URL}/api/esign/status/estimate/${selectedEstimate.id}`, {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && json?.status === 'signed') setSignature(json);
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [selectedEstimate?.id, showEstimateModal]);
 
   useFocusEffect(
     useCallback(() => {
@@ -358,17 +379,26 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                 }}
               />
             )}
-            {/* E-signature UI disabled — re-enable when backend is deployed.
-            {selectedEstimate?.id && (
-              <SignatureSection
-                documentType="estimate"
-                documentId={selectedEstimate.id}
-                defaultSignerName={selectedEstimate.client_name || selectedEstimate.clientName}
-                defaultSignerEmail={selectedEstimate.client_email || selectedEstimate.clientEmail}
-                defaultSignerPhone={selectedEstimate.client_phone || selectedEstimate.clientPhone}
-              />
+            {signature && (
+              <View style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.secondaryText, letterSpacing: 0.5, marginBottom: 12 }}>SIGNATURE</Text>
+                {signature.signaturePngUrl && (
+                  <Image source={{ uri: signature.signaturePngUrl }} style={{ width: '100%', height: 140, marginBottom: 12 }} resizeMode="contain" />
+                )}
+                <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }}>{signature.signerName}</Text>
+                <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 4 }}>
+                  Signed {signature.signedAt ? new Date(signature.signedAt).toLocaleString() : ''}
+                </Text>
+                {signature.signedPdfUrl && (
+                  <TouchableOpacity
+                    style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: Colors.primaryBlue, alignSelf: 'flex-start' }}
+                    onPress={() => navigation.navigate('DocumentViewer', { url: signature.signedPdfUrl, title: 'Signed Estimate' })}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>View signed PDF</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
-            */}
             {selectedEstimate?.id && (
               <AuditTrail entityType="estimate" entityId={selectedEstimate.id} />
             )}

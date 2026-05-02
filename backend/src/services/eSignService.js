@@ -749,6 +749,10 @@ async function getSignatureStatus({ documentType, documentId, ownerId }) {
   if (sig.signed_pdf_path) {
     try { signedPdfUrl = await signedUrlForDocuments(sig.signed_pdf_path); } catch (_) {}
   }
+  let signaturePngUrl = null;
+  if (sig.signature_png_path) {
+    try { signaturePngUrl = await signedUrlForDocuments(sig.signature_png_path, 60 * 60); } catch (_) {}
+  }
 
   return {
     signatureId: sig.id,
@@ -757,6 +761,7 @@ async function getSignatureStatus({ documentType, documentId, ownerId }) {
     signerEmail: sig.signer_email,
     signedAt: sig.signed_at,
     signedPdfUrl,
+    signaturePngUrl,
     auditTrail: sig.audit_json || {},
   };
 }
