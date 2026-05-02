@@ -27,11 +27,11 @@ export const saveEstimate = async (estimateData) => {
       .insert({
         user_id: userId,
         project_id: projectId,
-        client_name: estimateData.client?.name || estimateData.client || estimateData.clientName || 'Unnamed Client',
-        client_phone: estimateData.client?.phone || estimateData.clientPhone || null,
-        client_email: estimateData.client?.email || estimateData.clientEmail || null,
-        client_address: estimateData.client?.address || estimateData.clientAddress || null,
-        project_name: estimateData.projectName || null,
+        client_name: estimateData.client?.name || estimateData.client || estimateData.clientName || estimateData.client_name || 'Unnamed Client',
+        client_phone: estimateData.client?.phone || estimateData.clientPhone || estimateData.client_phone || null,
+        client_email: estimateData.client?.email || estimateData.clientEmail || estimateData.client_email || null,
+        client_address: estimateData.client?.address || estimateData.clientAddress || estimateData.client_address || null,
+        project_name: estimateData.projectName || estimateData.project_name || null,
         items: estimateData.lineItems || estimateData.items || [],
         phases: estimateData.phases || [],
         schedule: estimateData.schedule || {},
@@ -276,28 +276,35 @@ export const updateEstimate = async (estimateData) => {
       return null;
     }
 
+    const updatePayload = {
+      project_id: estimateData.projectId || estimateData.project_id || null,
+      client_name: estimateData.client?.name || estimateData.client || estimateData.clientName || estimateData.client_name || 'Unnamed Client',
+      client_phone: estimateData.client?.phone || estimateData.clientPhone || estimateData.client_phone || null,
+      client_email: estimateData.client?.email || estimateData.clientEmail || estimateData.client_email || null,
+      client_address: estimateData.client?.address || estimateData.clientAddress || estimateData.client_address || null,
+      project_name: estimateData.projectName || estimateData.project_name || null,
+      items: estimateData.lineItems || estimateData.items || [],
+      phases: estimateData.phases || [],
+      schedule: estimateData.schedule || {},
+      scope: estimateData.scope || {},
+      subtotal: estimateData.subtotal || 0,
+      tax_rate: estimateData.taxRate ?? estimateData.tax_rate ?? 0,
+      tax_amount: estimateData.taxAmount ?? estimateData.tax_amount ?? 0,
+      total: estimateData.total || 0,
+      valid_until: estimateData.validUntil || estimateData.valid_until || null,
+      payment_terms: estimateData.paymentTerms || estimateData.payment_terms || 'Net 30',
+      notes: estimateData.notes || '',
+      updated_at: new Date().toISOString(),
+    };
+    // Only include optional fields when actually provided — avoid overwriting
+    // previously-set values with null on partial updates.
+    const sigReq = estimateData.signatureRequired ?? estimateData.signature_required;
+    if (typeof sigReq === 'boolean') updatePayload.signature_required = sigReq;
+    if (estimateData.status) updatePayload.status = estimateData.status;
+
     const { data, error } = await supabase
       .from('estimates')
-      .update({
-        project_id: estimateData.projectId || null,
-        client_name: estimateData.client?.name || estimateData.client || estimateData.clientName || 'Unnamed Client',
-        client_phone: estimateData.client?.phone || estimateData.clientPhone || null,
-        client_email: estimateData.client?.email || estimateData.clientEmail || null,
-        client_address: estimateData.client?.address || estimateData.clientAddress || null,
-        project_name: estimateData.projectName || null,
-        items: estimateData.lineItems || estimateData.items || [],
-        phases: estimateData.phases || [],
-        schedule: estimateData.schedule || {},
-        scope: estimateData.scope || {},
-        subtotal: estimateData.subtotal || 0,
-        tax_rate: estimateData.taxRate || 0,
-        tax_amount: estimateData.taxAmount || 0,
-        total: estimateData.total || 0,
-        valid_until: estimateData.validUntil || null,
-        payment_terms: estimateData.paymentTerms || 'Net 30',
-        notes: estimateData.notes || '',
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', estimateId)
       .select('id, estimate_number, project_id, project_name, client_name, client_email, client_phone, client_address, items, subtotal, tax_rate, tax_amount, total, status, valid_until, notes, payment_terms, phases, schedule, scope, labor_estimate, created_at, updated_at, user_id')
       .single();
