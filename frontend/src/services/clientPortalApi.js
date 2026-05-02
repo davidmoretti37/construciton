@@ -85,6 +85,8 @@ export const respondToEstimate = (estimateId, response) =>
   });
 export const fetchEstimateSigningLink = (estimateId) =>
   portalFetch(`/estimates/${estimateId}/signing-link`);
+export const fetchEstimateSignature = (estimateId) =>
+  portalFetch(`/estimates/${estimateId}/signature`);
 
 // Messages
 export const fetchMessages = (projectId) => portalFetch(`/projects/${projectId}/messages`);

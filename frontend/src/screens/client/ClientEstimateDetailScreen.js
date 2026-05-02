@@ -5,13 +5,13 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Modal,
+  TextInput, Alert, ActivityIndicator, Modal, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { respondToEstimate, fetchProjectEstimates, fetchEstimateSigningLink } from '../../services/clientPortalApi';
+import { respondToEstimate, fetchProjectEstimates, fetchEstimateSigningLink, fetchEstimateSignature } from '../../services/clientPortalApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 const C = {
@@ -52,6 +52,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
   const [showChanges, setShowChanges] = useState(false);
   const [signingUrl, setSigningUrl] = useState(null);
   const [loadingSigningUrl, setLoadingSigningUrl] = useState(false);
+  const [signature, setSignature] = useState(null);
   const [acceptName, setAcceptName] = useState(profile?.full_name || '');
   const [declineReason, setDeclineReason] = useState('');
   const [changesNotes, setChangesNotes] = useState('');
@@ -73,6 +74,13 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
         }
       } catch (_) {
         // best-effort
+      }
+      // Load signature if accepted + signature_required
+      try {
+        const sig = await fetchEstimateSignature(estimate.id);
+        if (!cancelled && sig?.signer_name) setSignature(sig);
+      } catch (_) {
+        // 404 = not signed yet, fine
       }
     })();
     return () => { cancelled = true; };
@@ -297,6 +305,26 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* Signature card — visible after the client has signed */}
+        {signature?.signer_name && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>SIGNATURE</Text>
+            <View style={styles.signatureCard}>
+              {signature.signature_png_url && (
+                <Image
+                  source={{ uri: signature.signature_png_url }}
+                  style={styles.signatureImg}
+                  resizeMode="contain"
+                />
+              )}
+              <Text style={styles.signatureName}>{signature.signer_name}</Text>
+              <Text style={styles.signatureMeta}>
+                Signed {signature.signed_at ? new Date(signature.signed_at).toLocaleString() : ''}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Accept Sheet */}
         {showAccept && (
           <View style={styles.actionSheet}>
@@ -450,6 +478,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
   },
+  signatureCard: {
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    borderRadius: 12, padding: 16, alignItems: 'center',
+  },
+  signatureImg: {
+    width: '100%', height: 140, marginBottom: 12,
+  },
+  signatureName: { fontSize: 16, fontWeight: '700', color: C.text },
+  signatureMeta: { fontSize: 12, color: C.textSec, marginTop: 4 },
   scrollContent: { padding: 16 },
 
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },

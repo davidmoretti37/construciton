@@ -573,6 +573,73 @@ router.get('/projects/:projectId/estimates', verifyProjectAccess, async (req, re
 });
 
 /**
+ * GET /estimates/:estimateId/signature
+ * Returns the signature record + short-lived signed URLs for the signature
+ * PNG and the stamped signed PDF, if the estimate has been signed.
+ */
+router.get('/estimates/:estimateId/signature', async (req, res) => {
+  try {
+    const { estimateId } = req.params;
+
+    const { data: estimate } = await supabase
+      .from('estimates')
+      .select('id, project_id')
+      .eq('id', estimateId)
+      .single();
+    if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
+
+    const { data: link } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('client_id', req.client.id)
+      .eq('project_id', estimate.project_id)
+      .maybeSingle();
+    if (!link) return res.status(403).json({ error: 'Access denied' });
+
+    const { data: sig } = await supabase
+      .from('signatures')
+      .select('id, signer_name, status, signed_at, signature_png_path, signed_pdf_path')
+      .eq('document_id', estimateId)
+      .eq('document_type', 'estimate')
+      .eq('status', 'signed')
+      .order('signed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!sig) return res.status(404).json({ error: 'No signature found' });
+
+    const eSign = require('../services/eSignService');
+    let signature_png_url = null;
+    let signed_pdf_url = null;
+    if (sig.signature_png_path) {
+      try {
+        const { data } = await supabase.storage
+          .from('documents')
+          .createSignedUrl(sig.signature_png_path, 60 * 60);
+        signature_png_url = data?.signedUrl || null;
+      } catch (_) {}
+    }
+    if (sig.signed_pdf_path) {
+      try {
+        const { data } = await supabase.storage
+          .from('documents')
+          .createSignedUrl(sig.signed_pdf_path, 60 * 60);
+        signed_pdf_url = data?.signedUrl || null;
+      } catch (_) {}
+    }
+
+    res.json({
+      signer_name: sig.signer_name,
+      signed_at: sig.signed_at,
+      signature_png_url,
+      signed_pdf_url,
+    });
+  } catch (error) {
+    logger.error('[Portal] signature error:', error.message);
+    res.status(500).json({ error: 'Failed to load signature' });
+  }
+});
+
+/**
  * GET /estimates/:estimateId/signing-link
  * Returns the active signing URL for an estimate that requires signature.
  * Caller must be the authenticated client viewer of this estimate's project.
