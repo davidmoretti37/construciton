@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, fetchProjectBilling, fetchProjectEstimates, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
+import { supabase } from '../../lib/supabase';
 import ClientHeader from '../../components/ClientHeader';
 
 const C = {
@@ -73,6 +74,22 @@ export default function ClientMoneyScreen({ navigation }) {
   }, []);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  // Realtime: when an invoice on the active project flips to paid (Stripe
+  // webhook fires server-side), reload the summary so the row swaps from
+  // DUE to PAID immediately. Same for estimate / CO row changes — accept,
+  // sign, etc. all reflect without manual refresh.
+  useEffect(() => {
+    const projectId = activeProject?.id;
+    if (!projectId) return;
+    const channel = supabase
+      .channel(`client-money:${projectId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `project_id=eq.${projectId}` }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'estimates', filter: `project_id=eq.${projectId}` }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'change_orders', filter: `project_id=eq.${projectId}` }, () => loadData())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeProject?.id, loadData]);
 
   const handlePay = async (invoice) => {
     try {
