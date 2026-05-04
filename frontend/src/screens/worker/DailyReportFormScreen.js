@@ -16,7 +16,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useTranslation } from 'react-i18next';
+import { analyzeJobsitePhoto } from '../../services/aiService';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -363,18 +365,53 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
   const toggle = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
+  /**
+   * After the FIRST photo is added and workDone is still empty, run vision
+   * on it and pre-fill workDone with a short summary. Silent on failure —
+   * user can always type manually. Idempotent: only fires once per session
+   * to avoid overwriting on subsequent photo additions.
+   */
+  const [didAutoFillWorkDone, setDidAutoFillWorkDone] = useState(false);
+  const autoFillFromPhoto = async (uri) => {
+    if (didAutoFillWorkDone) return;
+    if (workDone && workDone.trim().length > 5) return; // user already wrote something
+    try {
+      setDidAutoFillWorkDone(true);
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const r = await analyzeJobsitePhoto(base64);
+      if (r?.workDone && (!workDone || workDone.trim().length < 5)) {
+        setWorkDone(r.workDone);
+      }
+      // If a safety concern surfaced, prepend to the safety field
+      if (r?.safetyNote) {
+        setSafety(prev => prev ? `${prev}\n${r.safetyNote}` : r.safetyNote);
+      }
+    } catch (e) {
+      // Silent — non-fatal. Reset the gate so the next photo can retry.
+      setDidAutoFillWorkDone(false);
+    }
+  };
+
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission needed', 'Photo library access is required'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: true, quality: 0.8 });
-    if (!result.canceled) setPhotos(prev => [...prev, ...result.assets.map(a => a.uri)]);
+    if (!result.canceled) {
+      const uris = result.assets.map(a => a.uri);
+      setPhotos(prev => [...prev, ...uris]);
+      if (uris[0]) autoFillFromPhoto(uris[0]); // fire-and-forget
+    }
   };
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission needed', 'Camera access is required'); return; }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled) setPhotos(prev => [...prev, result.assets[0].uri]);
+    if (!result.canceled) {
+      const uri = result.assets[0].uri;
+      setPhotos(prev => [...prev, uri]);
+      autoFillFromPhoto(uri);
+    }
   };
 
   const addListItem = (setter, defaultItem) => setter(prev => [...prev, defaultItem]);

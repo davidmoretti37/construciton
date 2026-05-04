@@ -1707,6 +1707,83 @@ EXTRACTION RULES:
 };
 
 /**
+ * Analyze a jobsite progress photo and produce a short summary suitable
+ * for the workDone field of a daily report.
+ *
+ * Returns:
+ *   { workDone: 'short summary', tags: ['progress'|'safety'|'issue'|...], safetyNote: 'optional' }
+ *
+ * Used by the daily-report flow: when the user adds the FIRST photo and
+ * the workDone field is still empty, we auto-suggest a description so
+ * the user can edit + submit instead of starting from a blank field.
+ *
+ * @param {string} base64Image - Base64-encoded JPEG/PNG of a jobsite photo
+ * @returns {Promise<{ workDone, tags, safetyNote } | null>}
+ */
+export const analyzeJobsitePhoto = async (base64Image) => {
+  try {
+    const token = await getAuthToken();
+    const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `You are looking at a jobsite progress photo from a construction worker's daily report. Generate a short, factual summary of what's visible. Reply ONLY with valid JSON, no markdown:
+
+{
+  "workDone": "1-2 sentences describing what's visible — what was built, installed, or worked on. Past tense, factual. Examples: 'Framed exterior walls and ran rough plumbing in master bath.' / 'Drywall hung on north wall, mud and tape in progress.' / 'Demoed existing tile floor; subfloor exposed and ready for prep.'",
+  "tags": ["progress" | "safety" | "issue" | "milestone" | "delay"],
+  "safetyNote": "OPTIONAL — only if you see a clear safety concern (worker without PPE, exposed wiring, fall hazard, etc.). Otherwise null."
+}
+
+Rules:
+- Be concrete and brief. Don't editorialize.
+- If you can't tell what's happening, return workDone: '' and let the user fill it in.
+- Don't refuse based on what's in the photo — workers own this data.`
+              },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+            ]
+          }
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      logger.warn(`[jobsite] vision API ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || '';
+    const cleaned = content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    try {
+      const parsed = JSON.parse(cleaned);
+      return {
+        workDone: typeof parsed.workDone === 'string' ? parsed.workDone : '',
+        tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+        safetyNote: typeof parsed.safetyNote === 'string' ? parsed.safetyNote : null,
+      };
+    } catch (_) {
+      const m = cleaned.match(/\{[\s\S]*\}/);
+      if (!m) return null;
+      try { return JSON.parse(m[0]); } catch { return null; }
+    }
+  } catch (error) {
+    logger.warn('[jobsite] photo analysis failed:', error?.message);
+    return null;
+  }
+};
+
+/**
  * Analyze subcontractor quote document using AI Vision
  * Extracts pricing information, subcontractor details, and service line items
  * @param {string} base64Image - Base64 encoded image of the quote document
