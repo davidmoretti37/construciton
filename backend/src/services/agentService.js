@@ -354,10 +354,9 @@ function createJobWriter(jobId, res, traceCtx = null) {
  * Both paths produce IDENTICAL writer.emit() calls and return shape:
  *     { message: { content, tool_calls }, finishReason }
  */
-async function callClaudeStreaming(messages, tools, writer, model = 'claude-haiku-4.5', toolChoice = 'auto') {
-  // Note: writer is already normalizer-wrapped at processAgentRequest
-  // entry, so every metadata emit downstream — including PEV and
-  // safety-net paths — gets normalized for free.
+async function callClaudeStreaming(messages, tools, writer, model = 'claude-haiku-4.5', toolChoice = 'auto', userId = null) {
+  // userId threaded through so the SDK and OpenRouter sub-paths can
+  // run normalizeVisualElements inline before emitting metadata.
   const workhorseOverride = process.env.WORKHORSE_MODEL;
   const isHaikuModel = model && model.includes('haiku');
   const usingWorkhorseOverride = !!(workhorseOverride && isHaikuModel);
@@ -366,7 +365,7 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
   // SDK path conditions: SDK key set + we'd be hitting Anthropic anyway.
   if (sdkAvailable && !usingWorkhorseOverride) {
     try {
-      return await callClaudeStreamingSDK(messages, tools, writer, model, toolChoice);
+      return await callClaudeStreamingSDK(messages, tools, writer, model, toolChoice, userId);
     } catch (err) {
       // Don't fall back on actual errors that indicate config problems
       // (auth, malformed request) — those should surface. Only fall
@@ -385,7 +384,7 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
   }
 
   // OpenRouter path (original).
-  return callClaudeStreamingOpenRouter(messages, tools, writer, model, toolChoice);
+  return callClaudeStreamingOpenRouter(messages, tools, writer, model, toolChoice, userId);
 }
 
 /**
@@ -433,7 +432,7 @@ function wrapWriterWithNormalizer(writer, userId) {
  *  - Streaming events are typed: 'content_block_delta' for text/json,
  *    'message_delta' carries usage on the final chunk.
  */
-async function callClaudeStreamingSDK(messages, tools, writer, model, toolChoice) {
+async function callClaudeStreamingSDK(messages, tools, writer, model, toolChoice, userId = null) {
   const SDK = require('@anthropic-ai/sdk');
   const Anthropic = SDK.default || SDK.Anthropic || SDK;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -680,6 +679,12 @@ async function callClaudeStreamingSDK(messages, tools, writer, model, toolChoice
     }
 
     if (visualElements.length > 0 || actions.length > 0) {
+      // Run normalization SYNCHRONOUSLY before emit so writer.visualElements
+      // is populated before any downstream complete() can read it.
+      if (userId && visualElements.length > 0) {
+        try { await normalizeVisualElements(visualElements, userId); }
+        catch (e) { logger.warn('[ve-normalizer sdk] failed:', e.message); }
+      }
       writer.emit({ type: 'metadata', visualElements, actions });
       logger.info(`📦 Emitted metadata (sdk): ${visualElements.length} visualElements, ${actions.length} actions`);
     }
@@ -710,7 +715,7 @@ async function callClaudeStreamingSDK(messages, tools, writer, model, toolChoice
  * the fallback when ANTHROPIC_API_KEY isn't set, when the workhorse
  * model override is active, or when the SDK path errors transiently.
  */
-async function callClaudeStreamingOpenRouter(messages, tools, writer, model, toolChoice) {
+async function callClaudeStreamingOpenRouter(messages, tools, writer, model, toolChoice, userId = null) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
 
@@ -941,7 +946,7 @@ async function callClaudeStreamingOpenRouter(messages, tools, writer, model, too
       }
     });
 
-    response.body.on('end', () => {
+    response.body.on('end', async () => {
       clearTimeout(timeoutId);
       clearInterval(keepaliveId);
 
@@ -1027,6 +1032,12 @@ async function callClaudeStreamingOpenRouter(messages, tools, writer, model, too
         }
 
         if (visualElements.length > 0 || actions.length > 0) {
+          // Inline normalize so writer.visualElements is set BEFORE
+          // any complete() can fire — kills the agent_jobs empty-row race.
+          if (userId && visualElements.length > 0) {
+            try { await normalizeVisualElements(visualElements, userId); }
+            catch (e) { logger.warn('[ve-normalizer or] failed:', e.message); }
+          }
           writer.emit({ type: 'metadata', visualElements, actions });
           logger.info(`📦 Emitted metadata: ${visualElements.length} visualElements, ${actions.length} actions`);
         } else if (contentBuffer.includes('visualElements')) {
@@ -1252,13 +1263,16 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   const traceCtx = newTraceContext({ jobId });
   const rawWriter = createJobWriter(jobId, res, traceCtx);
 
-  // Wrap the writer so every metadata emit (any code path: streaming
-  // tool loop, PEV pipeline, safety-net JSON recovery) runs through the
-  // visualElement normalizer. Resolves missing project_id and fills
-  // client contact fields by exact-match against the user's projects
-  // table — keeps the model's hallucinations from corrupting downstream
-  // saves.
-  const writer = wrapWriterWithNormalizer(rawWriter, userId);
+  // The previous wrapWriterWithNormalizer caused a race: emit({metadata})
+  // queued an async normalize, returned immediately, and complete() ran
+  // before the queue did — persisting agent_jobs.visual_elements as []
+  // every time. The trigger's recovery path then had nothing to read.
+  //
+  // Instead: use the rawWriter directly here, and run normalization
+  // inline (synchronously awaited) at the few metadata emit sites
+  // where it matters. Slower per emit by one DB query, but eliminates
+  // the race entirely.
+  const writer = rawWriter;
 
   // Track client disconnection — writer continues but stops SSE writes
   if (req) {
@@ -1763,6 +1777,9 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
           const text = pevResult.response?.text || 'Done.';
           writer.emit({ type: 'delta', content: text });
           if (Array.isArray(pevResult.response?.visualElements) && pevResult.response.visualElements.length > 0) {
+            // Inline normalize so writer.visualElements is set BEFORE complete()
+            try { await normalizeVisualElements(pevResult.response.visualElements, userId); }
+            catch (e) { logger.warn('[ve-normalizer pev] failed:', e.message); }
             writer.emit({ type: 'metadata', visualElements: pevResult.response.visualElements, actions: [] });
           }
           writer.emit({ type: 'done' });
@@ -1836,15 +1853,18 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       const toolChoice = toolRound === 1 ? 'required' : 'auto';
 
       // Call Claude with filtered tools (+ memory tool) and selected model.
-      // The writer is already normalizer-wrapped at processAgentRequest
-      // entry, so every metadata emit gets normalized before reaching
-      // the frontend.
+      // userId threaded so visualElements get inline-normalized at each
+      // metadata emit site — synchronously, before writer.emit fires —
+      // which guarantees writer.visualElements is populated before any
+      // complete() can read it. Kills the previous race where
+      // agent_jobs.visual_elements was persisted as [] every time.
       const { message, finishReason } = await callClaudeStreaming(
         messages,
         toolsWithMemory, // Includes memory tool + the routed subset
         writer,
         model, // Use smart model selection (Haiku or Sonnet)
-        toolChoice
+        toolChoice,
+        userId
       );
 
       // Check if Claude wants to call tools
@@ -2422,6 +2442,8 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
                 if (arrEnd !== -1) {
                   const extracted = JSON.parse(finalContent.substring(arrStart, arrEnd + 1));
                   if (extracted.length > 0) {
+                    try { await normalizeVisualElements(extracted, userId); }
+                    catch (e) { logger.warn('[ve-normalizer safety] failed:', e.message); }
                     writer.emit({ type: 'metadata', visualElements: extracted, actions: [] });
                     logger.info(`🔧 Safety net recovered ${extracted.length} visualElements`);
                   }
