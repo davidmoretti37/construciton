@@ -23,7 +23,9 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { analyzeBlueprintForEstimate } from '../services/aiService';
 import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
@@ -56,7 +58,7 @@ const ACTION_CONFIG = {
   },
 };
 
-const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
+const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtract }) => {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const insets = useSafeAreaInsets();
@@ -66,6 +68,7 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
   const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [extractingPhoto, setExtractingPhoto] = useState(false);
 
   // Pulse animation for recording
   const pulseScale = useSharedValue(1);
@@ -122,6 +125,55 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
     onSubmit(message);
     setInputText('');
     if (actionType) AsyncStorage.removeItem(`@quickaction_draft_${actionType}`);
+  };
+
+  /**
+   * Estimate-only path: snap a blueprint / sketch / handwritten notes,
+   * extract line items via AI, jump straight to EstimateBuilder
+   * pre-filled. Bypasses the chat round-trip entirely so the user goes
+   * from photo → editable estimate in one tap.
+   */
+  const handleSnapForEstimate = async () => {
+    Alert.alert('Snap to estimate', 'Take a photo of a blueprint, sketch, or handwritten notes — we\'ll extract line items.', [
+      { text: 'Take Photo', onPress: async () => {
+        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+        if (!result.canceled && result.assets?.[0]) await runPhotoExtract(result.assets[0].uri);
+      }},
+      { text: 'Choose from Gallery', onPress: async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+        if (!result.canceled && result.assets?.[0]) await runPhotoExtract(result.assets[0].uri);
+      }},
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const runPhotoExtract = async (uri) => {
+    if (!onPhotoExtract) return;
+    try {
+      setExtractingPhoto(true);
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const r = await analyzeBlueprintForEstimate(base64);
+      if (!r || !Array.isArray(r.items) || r.items.length === 0) {
+        Alert.alert('Nothing extracted', 'I couldn\'t pull line items from that photo. Try a clearer image, or describe it instead.');
+        return;
+      }
+      const items = r.items.map((it) => ({
+        description: String(it.description || '').trim(),
+        quantity: Number(it.quantity || 1),
+        unit: it.unit || 'ea',
+        pricePerUnit: Number(it.pricePerUnit || 0),
+        total: Number(it.total || (Number(it.quantity || 1) * Number(it.pricePerUnit || 0))),
+      })).filter((it) => it.description);
+      // Hand off to navigator → EstimateBuilder with seed draft
+      onPhotoExtract({ items, notes: r.notes || '' });
+      // Clear the typed draft since we're going to a different flow
+      setInputText('');
+      if (actionType) AsyncStorage.removeItem(`@quickaction_draft_${actionType}`);
+    } catch (e) {
+      Alert.alert('Couldn\'t read photo', 'Try a clearer image, or describe the estimate manually.');
+    } finally {
+      setExtractingPhoto(false);
+    }
   };
 
   const handleClose = () => {
@@ -311,6 +363,33 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit }) => {
 
           {/* Content - Input Container with integrated controls */}
           <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
+            {/* Estimate-only: snap-to-extract shortcut */}
+            {actionType === 'estimate' && onPhotoExtract && (
+              <TouchableOpacity
+                onPress={handleSnapForEstimate}
+                disabled={extractingPhoto}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  gap: 8, paddingVertical: 12, paddingHorizontal: 14,
+                  borderRadius: 10, borderWidth: 1, borderStyle: 'dashed',
+                  borderColor: extractingPhoto ? '#94A3B8' : OWNER_PRIMARY,
+                  backgroundColor: extractingPhoto ? '#F1F5F9' : '#EFF6FF',
+                  marginBottom: Spacing.md,
+                }}
+                activeOpacity={0.7}
+              >
+                {extractingPhoto ? (
+                  <Animated.View>
+                    <Ionicons name="hourglass-outline" size={18} color={OWNER_PRIMARY} />
+                  </Animated.View>
+                ) : (
+                  <Ionicons name="camera-outline" size={18} color={OWNER_PRIMARY} />
+                )}
+                <Text style={{ color: OWNER_PRIMARY, fontSize: 13, fontWeight: '600' }}>
+                  {extractingPhoto ? 'Reading photo…' : 'Snap blueprint / sketch / notes instead'}
+                </Text>
+              </TouchableOpacity>
+            )}
             <View style={[
               styles.inputContainer,
               {

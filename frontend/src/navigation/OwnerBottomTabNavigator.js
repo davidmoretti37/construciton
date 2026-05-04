@@ -61,6 +61,13 @@ const OwnerNavContainer = ({ fabRef, fabContainerRef, menuItemRefs, ...props }) 
     setShowSheet(false);
   };
 
+  // Photo-extract path for estimate type — bypass chat entirely, jump to
+  // EstimateBuilder pre-filled with the extracted line items + notes.
+  const handlePhotoExtract = (draft) => {
+    setShowSheet(false);
+    props.navigation.navigate('EstimateBuilder', { draft });
+  };
+
   return (
     <>
       <View style={styles.navContainer}>
@@ -79,6 +86,7 @@ const OwnerNavContainer = ({ fabRef, fabContainerRef, menuItemRefs, ...props }) 
         actionType={actionType}
         onClose={() => setShowSheet(false)}
         onSubmit={handleSheetSubmit}
+        onPhotoExtract={handlePhotoExtract}
       />
     </>
   );
