@@ -932,6 +932,12 @@ export default function ChatScreen({ navigation, route }) {
     setMessages((prev) => [...prev, userMessage, aiMessage]);
     let messageCreated = true;
 
+    // Clear the input box for the next message. Without this, anything the
+    // user typed lingers after sending — easy to accidentally re-send the
+    // same text. Scoped to the current session via draftKey so other
+    // session drafts aren't touched.
+    setDraftValue('');
+
     // Save messageId and session to AsyncStorage immediately (before any async work)
     await AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
     await AsyncStorage.setItem('activeAgentSessionId', currentSessionId);

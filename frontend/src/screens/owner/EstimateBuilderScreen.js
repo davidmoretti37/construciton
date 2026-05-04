@@ -464,12 +464,12 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
             />
           </Field>
-          <Field label="Link to existing project (optional)" Colors={Colors} styles={styles}>
+          <Field label="Linked project" Colors={Colors} styles={styles}>
             <TouchableOpacity style={styles.input} onPress={() => setShowProjectPicker(true)} activeOpacity={0.7}>
               <Text style={[styles.inputText, !projectId && styles.placeholderText]}>
                 {projectId
                   ? (projectsList.find((p) => p.id === projectId)?.name || 'Linked')
-                  : 'No project linked'}
+                  : 'Tap to link a project'}
               </Text>
             </TouchableOpacity>
           </Field>
