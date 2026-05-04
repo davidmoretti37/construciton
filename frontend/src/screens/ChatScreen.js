@@ -2870,40 +2870,51 @@ export default function ChatScreen({ navigation, route }) {
         }
       }
 
-      // Check if phases are missing tasks (common AI issue)
-      const actionHasTasks = estimateData.phases?.some(p => p.tasks?.length > 0);
-
-      if (!actionHasTasks) {
-
-        // Find the most recent message with estimate preview
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const msg = messages[i];
-          if (!msg.isUser && msg.visualElements) {
-            const estimatePreview = msg.visualElements.find(ve => ve.type === 'estimate-preview');
-            if (estimatePreview && estimatePreview.data) {
-              const previewHasTasks = estimatePreview.data.phases?.some(p => p.tasks?.length > 0);
-
-              if (previewHasTasks) {
-                // Keep already-resolved projectId (don't overwrite null with bad preview data)
-                const resolvedProjectId = completeEstimateData.projectId;
-                completeEstimateData = {
-                  ...estimateData,
-                  // Use preview phases (has tasks)
-                  phases: estimatePreview.data.phases || estimateData.phases,
-                  // Use preview schedule (has phaseSchedule)
-                  schedule: estimatePreview.data.schedule || estimateData.schedule,
-                  // Use preview scope (complete data)
-                  scope: estimatePreview.data.scope || estimateData.scope,
-                  // Use preview line items if missing
-                  lineItems: estimateData.lineItems || estimatePreview.data.items || [],
-                  // Keep the already-resolved projectId
-                  projectId: resolvedProjectId,
-                };
-                break;
-              }
-            }
-          }
+      // Always look at the most recent estimate-preview visualElement and
+      // backfill any fields the action.data forgot. The agent often emits
+      // a complete preview (with client name, project name, phases, items)
+      // but the action handler receives only a partial subset — we want
+      // the saved record to match what the user reviewed in chat.
+      let previewData = null;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (!msg.isUser && msg.visualElements) {
+          const estimatePreview = msg.visualElements.find(ve => ve.type === 'estimate-preview');
+          if (estimatePreview?.data) { previewData = estimatePreview.data; break; }
         }
+      }
+
+      if (previewData) {
+        const previewHasTasks = previewData.phases?.some(p => p.tasks?.length > 0);
+        const actionHasTasks = estimateData.phases?.some(p => p.tasks?.length > 0);
+        // Resolve client name from the preview's flexible field shape
+        // (matches how EstimatePreview itself reads it).
+        const previewClientName = previewData.clientName
+          || (typeof previewData.client === 'string' ? previewData.client : previewData.client?.name)
+          || previewData.client_name
+          || null;
+        const previewProjectName = previewData.projectName || previewData.project_name || null;
+        const previewProjectId = previewData.project_id || previewData.projectId || null;
+
+        completeEstimateData = {
+          ...estimateData,
+          // Phases / schedule / scope: prefer preview when richer
+          phases: (!actionHasTasks && previewHasTasks)
+            ? previewData.phases
+            : (estimateData.phases || previewData.phases || []),
+          schedule: estimateData.schedule || previewData.schedule || {},
+          scope: estimateData.scope || previewData.scope || {},
+          lineItems: estimateData.lineItems || estimateData.items || previewData.items || previewData.lineItems || [],
+          // Client info — backfill ONLY when missing on the action so we
+          // don't clobber explicit user edits. Same for project.
+          clientName: estimateData.clientName || estimateData.client_name || previewClientName || null,
+          clientPhone: estimateData.clientPhone || estimateData.client_phone || previewData.clientPhone || previewData.client_phone || null,
+          clientEmail: estimateData.clientEmail || estimateData.client_email || previewData.clientEmail || previewData.client_email || null,
+          clientAddress: estimateData.clientAddress || estimateData.client_address || previewData.clientAddress || previewData.client_address || null,
+          projectName: estimateData.projectName || estimateData.project_name || previewProjectName || null,
+          // Critical: keep the resolved id; only fall back to preview when missing
+          projectId: completeEstimateData.projectId || previewProjectId || null,
+        };
       }
 
       // If no valid projectId, try to get it from saved project in conversation state
