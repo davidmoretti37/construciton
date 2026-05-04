@@ -4207,6 +4207,7 @@ export default function ChatScreen({ navigation, route }) {
             onSubmit={handleSend}
             onFileSelect={handleFileSelect}
             onCameraPress={handleCameraOpen}
+            onOpenIntegrations={() => navigation.navigate('Integrations')}
             attachments={chatAttachments}
             onRemoveAttachment={(index) => setChatAttachments(prev => prev.filter((_, i) => i !== index))}
             // Controlled text: parent owns per-session draft so switching

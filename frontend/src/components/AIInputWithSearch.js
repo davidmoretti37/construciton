@@ -33,6 +33,7 @@ import { getSelectedLanguage } from '../utils/storage';
 import { API_URL as BACKEND_URL } from '../config/api';
 import { supabase } from '../lib/supabase';
 import OrbitalLoader from './OrbitalLoader';
+import AddMenuSheet from './AddMenuSheet';
 import { setVoiceMode } from '../services/aiService';
 
 /**
@@ -56,7 +57,10 @@ const AIInputWithSearch = ({
   placeholder = 'Type a message...',
   onSubmit,
   onFileSelect,
-  onCameraPress,
+  onCameraPress,            // legacy: opens "take vs choose" alert (still used as fallback)
+  onTakePhoto,              // optional: skip the alert, take photo immediately
+  onChoosePhoto,            // optional: skip the alert, open library immediately
+  onOpenIntegrations,       // navigate to IntegrationsScreen
   onPopulateInput, // New prop to expose setValue to parent
   attachments = [], // Array of { uri, name, mimeType }
   onRemoveAttachment, // Callback (index) => void
@@ -78,6 +82,8 @@ const AIInputWithSearch = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recording, setRecording] = useState(null);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [selectedIntegration, setSelectedIntegration] = useState(null); // { type, name }
   const inputRef = useRef(null);
   const buttonWidth = useSharedValue(80);
   const textOpacity = useSharedValue(1);
@@ -119,10 +125,17 @@ const AIInputWithSearch = ({
 
   const handleSubmit = () => {
     if (!hasContent) return;
-    const textToSend = (value && value.trim()) ? value.trim() : '';
+    const baseText = (value && value.trim()) ? value.trim() : '';
+    // Prepend an integration hint so the agent knows to route through
+    // the user's chosen integration. Subtle but explicit — survives the
+    // model's planning step.
+    const textToSend = selectedIntegration
+      ? `[Use ${selectedIntegration.name}] ${baseText}`.trim()
+      : baseText;
     onSubmit?.(textToSend, false, attachments.length > 0 ? attachments : null);
-    // Clear input and force re-render
+    // Clear input + integration chip and force re-render
     setValue('');
+    setSelectedIntegration(null);
     setInputKey(prev => prev + 1);
   };
 
@@ -389,11 +402,14 @@ const AIInputWithSearch = ({
 
 
       if (text.trim()) {
-        // Auto-send the transcribed text
+        // Populate input with transcribed text — user reviews/edits then
+        // hits Send. If there's existing text, append with a space.
         setIsTranscribing(false);
         animateBackToInput();
-        onSubmit?.(text, false);
-        // Clear input is handled by onSubmit in parent
+        const existing = (value || '').trim();
+        setValue(existing ? `${existing} ${text.trim()}` : text.trim());
+        // Refocus the input so the user can edit immediately
+        setTimeout(() => inputRef.current?.focus(), 50);
       } else {
         Alert.alert(t('alerts.noSpeech'), t('messages.couldNotDetectSpeech'));
         setIsTranscribing(false);
@@ -641,64 +657,70 @@ const AIInputWithSearch = ({
                 blurOnSubmit={false}
               />
 
+              {/* Selected integration chip — sits above the controls */}
+              {selectedIntegration && (
+                <View style={styles.integrationChipRow}>
+                  <View style={[styles.integrationChip, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue + '40' }]}>
+                    <Ionicons name="link" size={12} color={Colors.primaryBlue} style={{ marginRight: 4 }} />
+                    <Text style={[styles.integrationChipText, { color: Colors.primaryBlue }]} numberOfLines={1}>
+                      Using {selectedIntegration.name}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setSelectedIntegration(null)}
+                      style={styles.integrationChipRemove}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Ionicons name="close" size={12} color={Colors.primaryBlue} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               {/* Bottom Controls Bar */}
               <View style={styles.controlsBar}>
-                {/* Left Side Controls - Document & Camera */}
+                {/* Left Side Controls - single "+" add button */}
                 <View style={styles.leftControls}>
-                  {/* Paperclip/Document Button */}
                   <TouchableOpacity
                     style={[styles.iconButton, { backgroundColor: iconBgColor }]}
-                    onPress={onFileSelect}
+                    onPress={() => setShowAddMenu(true)}
                     activeOpacity={0.7}
                   >
                     <Ionicons
-                      name="attach"
-                      size={22}
+                      name="add"
+                      size={26}
                       color={iconColor}
                     />
                   </TouchableOpacity>
+                </View>
 
-                  {/* Camera Button */}
+                {/* Right Side - Microphone always visible; Send appears when there's content */}
+                <View style={styles.rightControls}>
+                  {/* Microphone — always visible (except while transcribing) so
+                      users can dictate even mid-typing. Tapping appends to the
+                      existing draft. */}
                   {!isTranscribing && (
                     <TouchableOpacity
                       style={[styles.iconButton, { backgroundColor: iconBgColor }]}
-                      onPress={onCameraPress}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name="camera"
-                        size={22}
-                        color={iconColor}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* Right Side - Microphone (isolated) or Send */}
-                <View style={styles.rightControls}>
-                  {/* Show microphone when no text and no attachment */}
-                  {!hasContent && !isTranscribing && (
-                    <TouchableOpacity
-                      style={[styles.micButton, { backgroundColor: iconBgColor }]}
                       onPress={handleMicrophonePress}
                       activeOpacity={0.7}
                     >
                       <Ionicons
                         name="mic-outline"
-                        size={24}
+                        size={22}
                         color={iconColor}
                       />
                     </TouchableOpacity>
                   )}
 
-                  {/* Show transcribing indicator */}
+                  {/* Transcribing indicator replaces both buttons briefly */}
                   {isTranscribing && (
                     <View style={styles.transcribingContainer}>
                       <OrbitalLoader size={32} color={Colors.primaryBlue} />
                     </View>
                   )}
 
-                  {/* Show send button when there's text or attachment */}
+                  {/* Send button appears alongside mic when there's content */}
                   {hasContent && !isTranscribing && (
                     <TouchableOpacity
                       style={[
@@ -720,6 +742,17 @@ const AIInputWithSearch = ({
             </>
           )}
         </Animated.View>
+
+        {/* Add menu — replaces the old camera + paperclip buttons */}
+        <AddMenuSheet
+          visible={showAddMenu}
+          onClose={() => setShowAddMenu(false)}
+          onTakePhoto={onTakePhoto || onCameraPress}
+          onChoosePhoto={onChoosePhoto || onCameraPress}
+          onAddDocument={onFileSelect}
+          onSelectIntegration={(integ) => setSelectedIntegration({ type: integ.type, name: integ.name })}
+          onOpenIntegrations={onOpenIntegrations}
+        />
     </View>
   );
 };
@@ -843,6 +876,34 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  integrationChipRow: {
+    paddingTop: 8,
+    paddingHorizontal: 12,
+  },
+  integrationChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 8,
+    paddingRight: 4,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    maxWidth: '100%',
+  },
+  integrationChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  integrationChipRemove: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   controlsBar: {
     position: 'absolute',
