@@ -1058,10 +1058,26 @@ export default function ChatScreen({ navigation, route }) {
         {  // callbacks object:
         // onAbortRef - Store abort function so session switch can kill XHR
         onAbortRef: (ref) => { activeXhrAbortRef.current = ref; },
-        // onJobId callback - Track background job for resume on disconnect
+        // onJobId callback - Track background job for resume on disconnect.
+        // Also kick off polling immediately so visualElements arrive even
+        // when the SSE stream closes before the backend finishes computing
+        // them (the "card appears only after swiping notifications + back"
+        // bug). Polling no-ops while the job is still 'processing' and
+        // commits the result the moment it's 'completed' — matches the
+        // app-state-change handler's recovery path, just without making
+        // the user kick the app first.
         onJobId: (jobId) => {
           activeJobIdRef.current = jobId;
           AsyncStorage.setItem('activeAgentJobId', jobId);
+          AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
+          // Defer slightly so the polling doesn't race the streaming
+          // onComplete in the common fast-path case (most turns finish
+          // streaming before the first 2-second poll tick).
+          setTimeout(() => {
+            if (activeJobIdRef.current === jobId) {
+              startJobPolling(jobId, aiMessageId);
+            }
+          }, 1500);
         },
         // onPlan callback — planner stage emits a one-line intent before
         // tools fire. Stored on the streaming message so the UI can show
@@ -1255,18 +1271,34 @@ export default function ChatScreen({ navigation, route }) {
         },
         // onComplete callback - Add visual elements
         onComplete: (parsedResponse) => {
+          // If the SSE stream closed before the backend computed
+          // visualElements (common with multi-tool turns), the card data
+          // hasn't arrived yet — keep the polling running so it can pick
+          // up the response from agent_jobs in the next tick. Otherwise
+          // tear it down: streaming delivered everything we need.
+          const streamHasVisuals = Array.isArray(parsedResponse.visualElements) && parsedResponse.visualElements.length > 0;
+          const polling = pollingIntervalRef.current;
+          if (streamHasVisuals && polling) {
+            clearInterval(polling);
+            pollingIntervalRef.current = null;
+          }
+
           setIsAIThinking(false);
           setIsStreaming(false); // CRITICAL: Set to false ONLY when streaming actually completes
           setStatusMessage(null); // Clear status on complete
           setShowCardSkeleton(false);
           streamingMessageIdRef.current = null;
 
-          // Clear background job tracking
-          activeJobIdRef.current = null;
-          activeXhrAbortRef.current = null;
-          AsyncStorage.removeItem('activeAgentJobId');
-          AsyncStorage.removeItem('activeAgentMessageId');
-          AsyncStorage.removeItem('activeAgentSessionId');
+          // Clear background job tracking ONLY when the response we have
+          // is final. If visualElements are missing and polling is still
+          // active, leave the job markers in place so polling can resolve.
+          if (streamHasVisuals || !pollingIntervalRef.current) {
+            activeJobIdRef.current = null;
+            activeXhrAbortRef.current = null;
+            AsyncStorage.removeItem('activeAgentJobId');
+            AsyncStorage.removeItem('activeAgentMessageId');
+            AsyncStorage.removeItem('activeAgentSessionId');
+          }
 
           // Disable voice mode after response completes
           // This ensures next typed message uses standard (powerful) model
