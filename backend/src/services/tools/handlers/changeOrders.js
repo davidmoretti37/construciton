@@ -145,6 +145,23 @@ async function create_change_order(userId, args = {}) {
     }
   }
 
+  // Auto-pin: this CO is now in flight. Fire-and-forget so a slow
+  // pinning write never blocks the user's response. Pinning the same
+  // key replaces the value, so creating a second CO updates the pin
+  // to the most recent one (which is the right behavior — the agent
+  // tracks "currently working on" state, not a list).
+  try {
+    const { pinFact } = require('../../pinnedFacts');
+    pinFact(userId, {
+      key: 'pending_co',
+      value: `CO-${String(co.co_number).padStart(3, '0')} (${co.title}) on ${project.name} — draft, $${parseFloat(co.total_amount).toFixed(2)}`,
+    }).catch(() => {});
+    pinFact(userId, {
+      key: 'active_project',
+      value: project.name,
+    }).catch(() => {});
+  } catch (_) { /* never fail the create due to pinning */ }
+
   return {
     success: true,
     change_order: {
@@ -509,6 +526,17 @@ async function send_change_order(userId, args = {}) {
     });
   } catch {}
 
+  // Auto-pin: CO is now awaiting client response. Replaces the "draft"
+  // pin from create_change_order with a more specific "sent" state.
+  try {
+    const { pinFact } = require('../../pinnedFacts');
+    const today = new Date().toISOString().slice(0, 10);
+    pinFact(userId, {
+      key: 'pending_co',
+      value: `CO-${String(co.co_number).padStart(3, '0')} (${co.title}) sent to ${clientEmail} ${today} — awaiting client response`,
+    }).catch(() => {});
+  } catch (_) { /* never fail the send due to pinning */ }
+
   return {
     success: true,
     change_order_id: resolved.id,
@@ -632,6 +660,17 @@ async function delete_change_order(userId, args = {}) {
     .eq('id', co.id)
     .eq('owner_id', userId);
   if (delErr) return userSafeError(delErr, "Couldn't delete the change order.");
+
+  // Auto-pin: track the deletion as last_action and clear pending_co if it referenced this CO
+  try {
+    const { pinFact, unpinFact } = require('../../pinnedFacts');
+    const coLabel = `CO-${String(co.co_number).padStart(3, '0')}`;
+    pinFact(userId, {
+      key: 'last_action',
+      value: `deleted ${coLabel} (${co.title || 'untitled'})${wasApproved ? ` — reversed ${parseFloat(co.total_amount || 0).toFixed(2)}` : ''}`,
+    }).catch(() => {});
+    unpinFact(userId, 'pending_co').catch(() => {});
+  } catch (_) { /* never fail the delete due to pinning */ }
 
   return {
     success: true,
