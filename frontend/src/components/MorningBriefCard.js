@@ -5,17 +5,22 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { fetchLatestBusinessInsights } from '../utils/storage/insights';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, getColors } from '../constants/theme';
+import { routeForBriefItem } from '../utils/notificationRouter';
 
 // Phase-3 surface: top-of-home anomaly briefing. Designed to read as a
 // premium dashboard card — neutral surface, single subtle accent stripe
 // on the leading edge, severity carried by tags rather than background tint.
 
+// Display metadata for each insight kind. Routing is handled by
+// routeForBriefItem() so taps land on a screen where the user can ACT
+// on the issue (force clock-out, force-resolve project, drill into AR
+// for the specific client) — not a generic tab.
 const KIND_META = {
-  forgotten_clock_out: { icon: 'time-outline',          label: 'Forgotten clock-out', screen: 'Workers' },
-  worker_silent:       { icon: 'document-text-outline', label: 'Reports overdue',     screen: 'Workers' },
-  budget_burn:         { icon: 'trending-up-outline',   label: 'Budget burn',         screen: 'Projects' },
-  project_stale:       { icon: 'pulse-outline',         label: 'No recent activity',  screen: 'Projects' },
-  invoice_overdue:     { icon: 'wallet-outline',        label: 'Receivable overdue',  screen: 'Invoices' },
+  forgotten_clock_out: { icon: 'time-outline',          label: 'Forgotten clock-out' },
+  worker_silent:       { icon: 'document-text-outline', label: 'Reports overdue' },
+  budget_burn:         { icon: 'trending-up-outline',   label: 'Budget burn' },
+  project_stale:       { icon: 'pulse-outline',         label: 'No recent activity' },
+  invoice_overdue:     { icon: 'wallet-outline',        label: 'Receivable overdue' },
 };
 
 export default function MorningBriefCard() {
@@ -113,7 +118,7 @@ export default function MorningBriefCard() {
       {/* Items */}
       <View style={[styles.itemList, { borderTopColor: border }]}>
         {visible.map((item, idx) => {
-          const meta = KIND_META[item.kind] || { icon: 'alert-circle-outline', label: item.kind, screen: null };
+          const meta = KIND_META[item.kind] || { icon: 'alert-circle-outline', label: item.kind };
           const isHigh = item.severity === 'high';
           return (
             <TouchableOpacity
@@ -124,9 +129,8 @@ export default function MorningBriefCard() {
               ]}
               activeOpacity={0.55}
               onPress={() => {
-                if (meta.screen) {
-                  try { navigation.navigate(meta.screen); } catch { /* tab unavailable for this user */ }
-                }
+                try { routeForBriefItem(item, navigation); }
+                catch (e) { /* nav can fail mid-transition; ignore */ }
               }}
             >
               <View style={[styles.itemIcon, { backgroundColor: isDark ? '#FFFFFF08' : '#0000000A' }]}>

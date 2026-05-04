@@ -96,6 +96,9 @@ export default function SubHomeTab({ navigation, onNavigateTab }) {
         body: 'Tap to review and sign.',
         icon: 'create-outline',
         color: '#3B82F6',
+        onPress: r.engagement_id
+          ? () => navigation?.navigate?.('SubEngagementDetail', { engagementId: r.engagement_id })
+          : () => onNavigateTab?.('work'),
       });
     } else if (r.scope === 'submit_bid') {
       pending.push({

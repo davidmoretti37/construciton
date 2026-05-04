@@ -16,6 +16,7 @@ import {
 } from '../utils/notificationStorage';
 import logger from '../utils/logger';
 import { navigate } from '../lib/navigationRef';
+import { routeForNotification } from '../utils/notificationRouter';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
@@ -205,16 +206,18 @@ export const NotificationProvider = ({ children }) => {
     // Handle notification response (user tapped notification)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       logger.debug('Notification tapped:', response);
-      const data = response.notification.request.content.data;
-
-      // Handle navigation based on notification data. Inbound SMS pushes
-      // come in with { screen: 'Thread', params: { customerId, ... } }.
-      if (data?.screen) {
-        try {
-          navigate(data.screen, data.params || {});
-        } catch (e) {
-          logger.warn('Notification navigate failed:', e?.message);
-        }
+      const data = response.notification.request.content.data || {};
+      // Push payloads pack the same shape as the in-app notifications row:
+      // { type, ...action_data fields }. Adapt to the router's expected
+      // shape and reuse the same routing logic so push and bell stay in sync.
+      const notification = {
+        type: data.type,
+        action_data: { ...data, type: undefined }, // strip type from action_data
+      };
+      try {
+        routeForNotification(notification, { navigate });
+      } catch (e) {
+        logger.warn('Notification navigate failed:', e?.message);
       }
     });
 

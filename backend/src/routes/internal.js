@@ -99,6 +99,11 @@ router.post('/compliance/run-alerts', async (req, res) => {
           type: titleType,
           icon: 'shield-half-outline',
           color: daysToExpiry < 0 ? '#DC2626' : '#F59E0B',
+          action_data: {
+            sub_organization_id: doc.sub_organization_id,
+            document_id: doc.id,
+            doc_type: doc.doc_type,
+          },
         });
         notificationsCreated++;
       }
@@ -112,6 +117,11 @@ router.post('/compliance/run-alerts', async (req, res) => {
           type: 'sub_doc_expiring',
           icon: 'cloud-upload-outline',
           color: daysToExpiry < 0 ? '#DC2626' : '#F59E0B',
+          action_data: {
+            sub_organization_id: doc.sub_organization_id,
+            document_id: doc.id,
+            doc_type: doc.doc_type,
+          },
         });
         notificationsCreated++;
       }

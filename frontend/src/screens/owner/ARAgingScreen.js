@@ -41,11 +41,16 @@ export default function ARAgingScreen() {
   // By-Project view. Null/undefined = company-wide (all projects).
   const projectId = route?.params?.projectId || null;
   const projectName = route?.params?.projectName || null;
+  // Optional pre-filter to a single client — set when navigating from
+  // Morning Brief's "Receivable overdue" row. Auto-expands that client's
+  // invoices on first load.
+  const clientFilter = route?.params?.clientFilter || null;
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedClient, setExpandedClient] = useState(null);
+  const autoExpandedRef = React.useRef(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -58,6 +63,18 @@ export default function ARAgingScreen() {
       setRefreshing(false);
     }
   }, [projectId]);
+
+  // Auto-expand the filtered client once data loads (one-shot)
+  React.useEffect(() => {
+    if (autoExpandedRef.current || !clientFilter || !data?.clients) return;
+    const match = data.clients.find(
+      (c) => c.client_name && c.client_name.toLowerCase() === clientFilter.toLowerCase()
+    );
+    if (match) {
+      setExpandedClient(match.client_name);
+      autoExpandedRef.current = true;
+    }
+  }, [clientFilter, data]);
 
   useFocusEffect(
     useCallback(() => {

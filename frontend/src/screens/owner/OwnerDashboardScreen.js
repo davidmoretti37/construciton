@@ -393,7 +393,7 @@ export default function OwnerDashboardScreen() {
         color: ACCENT.warning,
         bg: `${ACCENT.warning}12`,
         text: `${forgottenCount} team member${forgottenCount > 1 ? 's' : ''} may have forgotten to clock out (${names}${forgottenCount > 3 ? '...' : ''})`,
-        onPress: () => navigation.navigate('Workers', { initialTab: 'team' }),
+        onPress: () => navigation.navigate('ClockOuts'),
       });
     }
     return items;

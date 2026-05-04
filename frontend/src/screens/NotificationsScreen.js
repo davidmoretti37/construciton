@@ -19,6 +19,7 @@ import NotificationItem from '../components/NotificationItem';
 import AppointmentPopup from '../components/AppointmentPopup';
 import { updateScheduleEvent, deleteScheduleEvent } from '../utils/storage/schedules';
 import { supabase } from '../lib/supabase';
+import { routeForNotification } from '../utils/notificationRouter';
 
 // Filter options
 const FILTERS = [
@@ -80,13 +81,11 @@ export default function NotificationsScreen({ navigation }) {
       }
     }
 
-    // Navigate based on action_data
+    // Appointment reminders still pop the inline detail modal — useful
+    // for scheduling actions (reschedule / cancel) without leaving the bell.
     const actionData = notification.action_data || {};
-
-    // Check if this is an appointment notification
-    const eventId = actionData.params?.eventId || notification.schedule_event_id;
-    if (eventId && (notification.type === 'appointment_reminder' || actionData.screen === 'Schedule' || actionData.screen === 'Chat')) {
-      // Fetch appointment data and show popup instead of navigating to Chat
+    const eventId = actionData.params?.eventId || actionData.appointment_id || notification.schedule_event_id;
+    if (eventId && notification.type === 'appointment_reminder') {
       try {
         setAppointmentLoading(true);
         const { data, error } = await supabase
@@ -94,13 +93,10 @@ export default function NotificationsScreen({ navigation }) {
           .select('*')
           .eq('id', eventId)
           .single();
-
         if (error) {
-          console.error('Error fetching appointment:', error);
           Alert.alert(t('alerts.error'), t('messages.failedToLoad', { item: 'appointment details' }));
           return;
         }
-
         if (data) {
           setSelectedAppointment(data);
           setShowAppointmentPopup(true);
@@ -114,34 +110,15 @@ export default function NotificationsScreen({ navigation }) {
       return;
     }
 
-    if (actionData.screen) {
-      // Map old/invalid screen names to valid ones
-      const screenMapping = {
-        'Schedule': 'Chat', // Schedule screen doesn't exist, use Chat instead
-      };
-      const targetScreen = screenMapping[actionData.screen] || actionData.screen;
-
-      // Screens that are inside the BottomTabNavigator need nested navigation
-      const tabScreens = ['Home', 'Projects', 'Workers', 'Chat', 'More'];
-
-      try {
-        if (tabScreens.includes(targetScreen)) {
-          // Navigate to nested tab screen
-          navigation.navigate('MainTabs', {
-            screen: targetScreen,
-            params: actionData.params || {}
-          });
-        } else {
-          // Direct navigation for screens in MainNavigator
-          navigation.navigate(targetScreen, actionData.params || {});
-        }
-      } catch (error) {
-        console.warn(`Could not navigate to ${targetScreen}:`, error);
-        // Fallback to Chat tab
-        navigation.navigate('MainTabs', { screen: 'Chat' });
-      }
+    // Single source of truth for every other type. Handles tab-screen
+    // wrapping, Class B/C type → screen mapping, and a safe fallback.
+    try {
+      routeForNotification(notification, navigation);
+    } catch (e) {
+      console.warn('Notification routing failed:', e);
+      navigation.navigate('MainTabs', { screen: 'Chat' });
     }
-  }, [markNotificationAsRead, navigation]);
+  }, [markNotificationAsRead, navigation, t]);
 
   const handleMarkAllRead = useCallback(async () => {
     await markAllNotificationsAsRead();
