@@ -253,10 +253,15 @@ function createJobWriter(jobId, res, traceCtx = null) {
   function scheduleFlush(immediate) {
     if (flushTimer) clearTimeout(flushTimer);
     const doFlush = () => {
+      // CRITICAL: pass the array directly. JSON.stringify(arr) makes
+      // Postgres store the value as a jsonb-typed STRING, not a
+      // jsonb-typed ARRAY — which silently breaks any downstream
+      // jsonb_array_elements() consumer (notably the trigger that
+      // recovers estimate fields from agent_jobs).
       supabase.from('agent_jobs').update({
         accumulated_text: accumulatedText,
-        visual_elements: JSON.stringify(visualElements),
-        actions: JSON.stringify(actions),
+        visual_elements: visualElements,
+        actions: actions,
         updated_at: new Date().toISOString(),
       }).eq('id', jobId).then(({ error }) => {
         if (error) logger.error('JobWriter flush error:', error.message);
@@ -302,8 +307,11 @@ function createJobWriter(jobId, res, traceCtx = null) {
       const { error } = await supabase.from('agent_jobs').update({
         status: 'completed',
         accumulated_text: accumulatedText,
-        visual_elements: JSON.stringify(visualElements),
-        actions: JSON.stringify(actions),
+        // Pass the array directly (NOT JSON.stringify'd). See doFlush
+        // for the explanation — stringifying breaks jsonb_array_elements
+        // in the recovery trigger.
+        visual_elements: visualElements,
+        actions: actions,
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
