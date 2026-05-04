@@ -51,6 +51,7 @@ const { createStepTracker } = require('./stepTracker');
 const { verifyPlanExecution } = require('./planVerifier');
 const { annotateVoiceTranscript } = require('./voicePreprocessor');
 const { emit: emitEvent, EVENT_TYPES } = require('./eventEmitter');
+const { buildDomainContextBlock } = require('./domainContextBlock');
 
 // Mapping from tool name → canonical domain event type. Adding a new
 // mutation tool? Add it here so the world model captures it. If a tool
@@ -1547,10 +1548,27 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   // turn (cache key = exact text). Splitting recovers ~80% input savings
   // on cache hits — biggest single cost lever in the agent.
   const staticSystemPrompt = buildSystemPrompt(promptContext);
+
+  // Domain context — list of the user's actual projects and clients so the
+  // model can SELECT from real entities instead of INVENTING new ones.
+  // Single biggest hallucination defense: when the model sees "Sarah
+  // Bathroom Remodel" listed, it can't make up "Sarah Johnson Kitchen
+  // Remodel" without obviously contradicting context.
+  let domainContextBlock = '';
+  try {
+    const ownerForDomain = userContext?.isSupervisor
+      ? (userContext?.ownerId || userId)
+      : userId;
+    domainContextBlock = await buildDomainContextBlock(ownerForDomain);
+  } catch (e) {
+    logger.warn('[agentService] domain context fetch failed:', e?.message);
+  }
+
   // Pinned facts go RIGHT AFTER the static system prompt — they're the
   // "what's in flight RIGHT NOW" the agent should consult before doing
-  // anything. Order: durable memory → pinned facts → recalled context.
-  const dynamicMemorySection = memorySnapshot + pinnedFactsBlock + memoryContext + recalledContext;
+  // anything. Order: durable memory → domain context → pinned facts →
+  // recalled context.
+  const dynamicMemorySection = memorySnapshot + domainContextBlock + pinnedFactsBlock + memoryContext + recalledContext;
 
   // P2: complex plans inject a CURRENT PLAN section so the orchestrator
   // sees its own checklist and follows step order. Concatenated into the
