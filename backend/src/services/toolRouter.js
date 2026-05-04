@@ -210,6 +210,8 @@ const ALWAYS_AVAILABLE = [
   // Common cross-domain reads the agent reaches for naturally
   'get_transactions', 'get_financial_overview',
   'get_daily_briefing',
+  // In-flight state mechanism (short-lived facts pinned across turns)
+  'pin_fact', 'unpin_fact',
 ];
 
 // Backwards compat: PEV path still imports the old name

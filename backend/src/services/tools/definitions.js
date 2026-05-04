@@ -2689,7 +2689,43 @@ const toolDefinitions = [
         }
       }
     }
-  }
+  },
+
+  // ==================== PINNED FACTS (short-lived in-flight state) ====================
+  // These are NOT for long-term durable facts (use the memory tool for that).
+  // Pins are short-lived state the agent reads from the system prompt every
+  // turn — e.g., "active project", "pending CO awaiting client", "in-flight estimate".
+  // Default TTL 7 days. Cap 12 pins per user (oldest evicted).
+  {
+    type: 'function',
+    function: {
+      name: 'pin_fact',
+      description: 'Pin a short-lived fact the agent should remember across turns until the work is done. NOT for long-term durable facts (use `memory` for those). Use for in-flight state: "active_project", "pending_co", "in_flight_estimate", "last_action". Pinning the same key REPLACES the value. Default expiry 7 days; pass ttl_days=0 to never expire.\n\nExamples:\n  pin_fact({key:"active_project", value:"Smith Bathroom Remodel"})\n  pin_fact({key:"pending_co", value:"CO-007 awaiting client response since 5/2"})\n  pin_fact({key:"last_action", value:"deleted CO-005 (duplicate)"})',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Stable id like "active_project". Pin same key twice = replace.' },
+          value: { type: 'string', description: 'The fact, ≤500 chars. Keep it terse — this goes in every system prompt.' },
+          ttl_days: { type: 'number', description: 'Days until auto-expire. Default 7. Pass 0 for permanent.' },
+        },
+        required: ['key', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'unpin_fact',
+      description: 'Remove a pinned fact when the work is done or the state is stale. Use after completing the in-flight task: e.g., after sending CO-007, call unpin_fact({key:"pending_co"}). No-op if the key doesn\'t exist.',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'The pin to remove.' },
+        },
+        required: ['key'],
+      },
+    },
+  },
 ];
 
 /**
@@ -2844,6 +2880,9 @@ const TOOL_STATUS_MESSAGES = {
   request_signature: 'Sending signature request...',
   check_signature_status: 'Checking signature status...',
   cancel_signature_request: 'Cancelling signature request...',
+  // Pinned facts (in-flight state)
+  pin_fact: 'Pinning that…',
+  unpin_fact: 'Unpinning…',
 };
 
 function getToolStatusMessage(toolName) {

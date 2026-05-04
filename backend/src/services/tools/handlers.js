@@ -33,6 +33,7 @@ const briefings = require('./handlers/briefings');
 const searchTools = require('./handlers/search');
 const subs = require('./handlers/subs');
 const changeOrders = require('./handlers/changeOrders');
+const pinnedFacts = require('./handlers/pinnedFacts');
 // SMS handlers exist but are not registered in TOOL_HANDLERS — disabled at
 // the product level. Keep this require so re-enabling is one line below.
 // eslint-disable-next-line no-unused-vars
@@ -82,6 +83,8 @@ const TOOL_HANDLERS = {
   update_change_order: changeOrders.update_change_order,
   send_change_order: changeOrders.send_change_order,
   delete_change_order: changeOrders.delete_change_order,
+  pin_fact: pinnedFacts.pin_fact,
+  unpin_fact: pinnedFacts.unpin_fact,
 
   // Workers + supervisors + scheduling + clock
   get_workers: workers.get_workers,

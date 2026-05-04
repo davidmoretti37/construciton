@@ -1467,6 +1467,17 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
     logger.warn('memory prefetch failed (non-fatal):', e.message);
   }
 
+  // Pinned facts — short-lived in-flight state. Auto-loads into the system
+  // prompt every turn so the agent sees what's pending without calling a
+  // tool. Different from `memory` (long-term durable). See pinnedFacts.js.
+  let pinnedFactsBlock = '';
+  try {
+    const { buildSystemPromptBlock } = require('./pinnedFacts');
+    pinnedFactsBlock = await buildSystemPromptBlock(userId);
+  } catch (e) {
+    logger.warn('pinnedFacts prefetch failed (non-fatal):', e.message);
+  }
+
   // Persistent semantic + user-level memory recall (best-effort, non-blocking).
   // When pgvector + an embedding API key are present this surfaces past messages,
   // image captions, and learned facts; otherwise it falls back to recency-based.
@@ -1536,7 +1547,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   // turn (cache key = exact text). Splitting recovers ~80% input savings
   // on cache hits — biggest single cost lever in the agent.
   const staticSystemPrompt = buildSystemPrompt(promptContext);
-  const dynamicMemorySection = memorySnapshot + memoryContext + recalledContext;
+  // Pinned facts go RIGHT AFTER the static system prompt — they're the
+  // "what's in flight RIGHT NOW" the agent should consult before doing
+  // anything. Order: durable memory → pinned facts → recalled context.
+  const dynamicMemorySection = memorySnapshot + pinnedFactsBlock + memoryContext + recalledContext;
 
   // P2: complex plans inject a CURRENT PLAN section so the orchestrator
   // sees its own checklist and follows step order. Concatenated into the

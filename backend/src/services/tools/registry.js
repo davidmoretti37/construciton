@@ -198,6 +198,8 @@ const TOOL_METADATA = Object.freeze({
   // The memory tool is added at runtime in agentService; metadata is here so
   // the registry knows about it.
   memory:                    { category: CATEGORIES.MEMORY, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['system'] },
+  pin_fact:                  { category: CATEGORIES.MEMORY, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['system', 'state'] },
+  unpin_fact:                { category: CATEGORIES.MEMORY, risk_level: RISK_LEVELS.WRITE_SAFE, requires_approval: false, model_tier_required: MODEL_TIERS.ANY, tags: ['system', 'state'] },
 
   // ───── Sub-agent dispatch (P5) ─────
   // dispatch_subagent is itself a tool — the orchestrator calls it to
