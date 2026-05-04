@@ -1079,10 +1079,23 @@ export default function ChatScreen({ navigation, route }) {
           // Defer slightly so the polling doesn't race the streaming
           // onComplete in the common fast-path case (most turns finish
           // streaming before the first 2-second poll tick).
-          setTimeout(() => {
-            if (activeJobIdRef.current === jobId) {
-              startJobPolling(jobId, aiMessageId);
-            }
+          //
+          // CRITICAL: resolve the message id at fire time, not closure
+          // time. If anything else creates a new aiMessage between
+          // onJobId and the timeout (rapid follow-up, re-render, etc),
+          // the closure-captured aiMessageId points at a stale row and
+          // visualElements get attached to the wrong message — the
+          // exact failure mode where the card "didn't render until I
+          // backgrounded the app". streamingMessageIdRef tracks the
+          // currently-streaming assistant message; falling back to
+          // AsyncStorage matches what the app-state recovery path uses.
+          setTimeout(async () => {
+            if (activeJobIdRef.current !== jobId) return;
+            const liveId =
+              streamingMessageIdRef.current
+              || (await AsyncStorage.getItem('activeAgentMessageId'))
+              || aiMessageId;
+            startJobPolling(jobId, liveId);
           }, 1500);
         },
         // onPlan callback — planner stage emits a one-line intent before

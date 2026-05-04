@@ -52,6 +52,7 @@ const { verifyPlanExecution } = require('./planVerifier');
 const { annotateVoiceTranscript } = require('./voicePreprocessor');
 const { emit: emitEvent, EVENT_TYPES } = require('./eventEmitter');
 const { buildDomainContextBlock } = require('./domainContextBlock');
+const { normalizeVisualElements } = require('./visualElementNormalizer');
 
 // Mapping from tool name → canonical domain event type. Adding a new
 // mutation tool? Add it here so the world model captures it. If a tool
@@ -346,6 +347,9 @@ function createJobWriter(jobId, res, traceCtx = null) {
  *     { message: { content, tool_calls }, finishReason }
  */
 async function callClaudeStreaming(messages, tools, writer, model = 'claude-haiku-4.5', toolChoice = 'auto') {
+  // Note: writer is already normalizer-wrapped at processAgentRequest
+  // entry, so every metadata emit downstream — including PEV and
+  // safety-net paths — gets normalized for free.
   const workhorseOverride = process.env.WORKHORSE_MODEL;
   const isHaikuModel = model && model.includes('haiku');
   const usingWorkhorseOverride = !!(workhorseOverride && isHaikuModel);
@@ -374,6 +378,35 @@ async function callClaudeStreaming(messages, tools, writer, model = 'claude-haik
 
   // OpenRouter path (original).
   return callClaudeStreamingOpenRouter(messages, tools, writer, model, toolChoice);
+}
+
+/**
+ * Wrap a writer so that emit({ type: 'metadata', visualElements, ... })
+ * runs through the normalizer before being forwarded. Async-safe: if
+ * normalization is in flight, subsequent emits are queued and flushed
+ * in order (otherwise a fast follow-on metadata event could leapfrog).
+ *
+ * Non-metadata emits pass through synchronously with no overhead.
+ */
+function wrapWriterWithNormalizer(writer, userId) {
+  let queue = Promise.resolve();
+  return {
+    ...writer,
+    emit: (event) => {
+      if (event && event.type === 'metadata' && Array.isArray(event.visualElements) && event.visualElements.length > 0) {
+        queue = queue.then(async () => {
+          try {
+            await normalizeVisualElements(event.visualElements, userId);
+          } catch (e) {
+            logger.warn('[ve-normalizer] failed:', e.message);
+          }
+          writer.emit(event);
+        });
+        return;
+      }
+      writer.emit(event);
+    },
+  };
 }
 
 /**
@@ -1209,7 +1242,15 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
   // turn_id rotates on replan via writer.setTraceContext(nextTurn(...)).
   const { newTraceContext } = require('./traceContext');
   const traceCtx = newTraceContext({ jobId });
-  const writer = createJobWriter(jobId, res, traceCtx);
+  const rawWriter = createJobWriter(jobId, res, traceCtx);
+
+  // Wrap the writer so every metadata emit (any code path: streaming
+  // tool loop, PEV pipeline, safety-net JSON recovery) runs through the
+  // visualElement normalizer. Resolves missing project_id and fills
+  // client contact fields by exact-match against the user's projects
+  // table — keeps the model's hallucinations from corrupting downstream
+  // saves.
+  const writer = wrapWriterWithNormalizer(rawWriter, userId);
 
   // Track client disconnection — writer continues but stops SSE writes
   if (req) {
@@ -1786,7 +1827,10 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       // instead of answering from stale conversation history
       const toolChoice = toolRound === 1 ? 'required' : 'auto';
 
-      // Call Claude with filtered tools (+ memory tool) and selected model
+      // Call Claude with filtered tools (+ memory tool) and selected model.
+      // The writer is already normalizer-wrapped at processAgentRequest
+      // entry, so every metadata emit gets normalized before reaching
+      // the frontend.
       const { message, finishReason } = await callClaudeStreaming(
         messages,
         toolsWithMemory, // Includes memory tool + the routed subset
