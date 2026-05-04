@@ -40,6 +40,7 @@ import { supabase } from '../lib/supabase';
 import { fetchProjectsBasic } from '../utils/storage/projects';
 import CoreAgent from '../services/agents/core/CoreAgent';
 import { ProjectCard, ProjectPreview, WorkerList, BudgetChart, PhotoGallery, EstimatePreview, EstimateList, InvoicePreview, InvoiceList, ChangeOrderPreview, ProjectSelector, ExpenseCard, ProjectOverview, PhaseOverview, ContractPreview, ContractList, DocumentPicker as ChatDocumentPicker, WorkerPaymentCard, DailyReportList, AppointmentCard, TimeTrackingMap, ServicePlanPreview, PnLReportCard } from '../components/ChatVisuals';
+import DrawsPreview from '../components/ChatVisuals/DrawsPreview';
 import ChatHistorySidebar from '../components/ChatHistorySidebar';
 import { chatHistoryService } from '../services/chatHistoryService';
 import { formatEstimate } from '../utils/estimateFormatter';
@@ -2513,6 +2514,21 @@ export default function ChatScreen({ navigation, route }) {
         }
       }
 
+      // Draw schedule — agent emits draws-preview, user confirms, we upsert.
+      // Returns { ok, schedule, items } so the card can flip to SAVED state
+      // without a re-fetch round-trip.
+      case 'save-draw-schedule': {
+        const { upsertDrawSchedule } = await import('../utils/storage/projectDraws');
+        try {
+          const { project_id, ...payload } = action.data || {};
+          if (!project_id) throw new Error('Missing project id');
+          return await upsertDrawSchedule(project_id, payload);
+        } catch (e) {
+          Alert.alert('Save failed', e.message || 'Could not save the draw schedule.');
+          return { ok: false, error: e.message };
+        }
+      }
+
       // Report Actions (from useReportActions)
       case 'save-daily-report':
         await reportActions.handleSaveDailyReport(action.data);
@@ -3849,6 +3865,9 @@ export default function ChatScreen({ navigation, route }) {
         return <InvoicePreview key={k} data={element.data} onAction={handleAction} />;
       case 'change-order-preview':
         return <ChangeOrderPreview key={k} data={element.data} onAction={handleAction} />;
+      case 'draws-preview':
+      case 'draw-schedule-preview':
+        return <DrawsPreview key={k} data={element.data} onAction={handleAction} />;
       case 'invoice-list':
         return <InvoiceList key={k} data={element.data} onAction={handleAction} />;
       case 'contract-preview':

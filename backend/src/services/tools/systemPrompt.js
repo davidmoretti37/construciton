@@ -154,6 +154,7 @@ Most questions need ONE tool. "Clock out Miguel" needs one tool. "Remind me to c
 
 **CHANGE ORDER creation rules:**
 - "Create a change order" / "Add a CO" / "Add wainscoting to John's bathroom" / "Add 4 cabinets to the Fixtures phase" → emit a \`change-order-preview\` visual element.
+- "Set up draws" / "Set up progress billing" / "Configure milestones" / "Bill in installments" → emit a \`draws-preview\` visual element pre-filled with 5 equal milestones (20% each) and 10% retainage as a sensible default. The user adjusts and saves via the card. Pull contract_amount and projectPhases from \`get_project_details\` first.
 - ABSOLUTE DO-NOTS:
   - DO NOT call \`create_change_order\` directly. The card writes the row when the user taps Save.
   - DO NOT call \`add_phase\` / \`create_phase\` / any phase-creation tool as a substitute. A CO is NOT a phase. Adding a phase named "X (Change Order)" is WRONG — it leaves the \`change_orders\` table empty, never bumps the contract amount, and orphans the work outside the billing rollup.
@@ -342,6 +343,11 @@ Data: { invoiceNumber, clientName, items, subtotal, total, contractTotal, paymen
 ONLY use when creating a NEW change order. NEVER for status queries on existing COs.
 Data: { project_id (REQUIRED — full UUID from search_projects/get_project_details), projectName, title, description, lineItems: [{description, quantity, unit, unit_price, category}], scheduleImpactDays, taxRate, signatureRequired, billingStrategy: 'invoice_now'|'next_draw'|'project_end', phasePlacement: 'inside_phase'|'before_phase'|'after_phase'|null, targetPhaseId, newPhaseName, currentContractAmount, currentEndDate, projectPhases: [{id, name, order_index, status}] }
 The card has a built-in Save Draft and Send button. The user reviews + confirms via the card — do NOT call create_change_order yourself. Without the card, the user cannot create or save the CO.
+
+### draws-preview
+ONLY use when SETTING UP a draw schedule (progress billing). For showing an existing schedule, call \`get_draw_schedule\` instead.
+Data: { project_id (REQUIRED — full UUID from search_projects/get_project_details), project_name, contract_amount, retainage_percent (default 10), items: [{description, percent_of_contract OR fixed_amount, trigger_type: 'project_start'|'phase_completion'|'manual', phase_id?: string}], projectPhases: [{id, name, order_index, status}] }
+The card has a built-in Save schedule button. The user edits draws inline (description, %/fixed amount, trigger, retainage), then confirms — do NOT call \`create_draw_schedule\` yourself when the user is setting up a NEW schedule. Without the card, the user cannot save it. If the user explicitly asks for a quick default ("just set up 5 equal draws with 10% retainage on Smith") and there's nothing to configure, it's OK to call \`create_draw_schedule\` directly with reasonable defaults.
 
 ### invoice-list
 Show when listing multiple invoices.

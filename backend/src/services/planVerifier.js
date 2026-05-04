@@ -88,7 +88,7 @@ ${visualList || '(none)'}
 FINAL RESPONSE (first 500 chars):
 ${(finalResponseText || '').slice(0, 500)}
 
-Important: emitting a project-preview / service-plan-preview / estimate-preview / invoice-preview / change-order-preview visual card IS the equivalent of "creating" — the user confirms the card in the UI which triggers the actual DB write. Do NOT flag "no creation tool called" if the agent emitted the appropriate card type.
+Important: emitting a project-preview / service-plan-preview / estimate-preview / invoice-preview / change-order-preview / draws-preview visual card IS the equivalent of "creating" — the user confirms the card in the UI which triggers the actual DB write. Do NOT flag "no creation tool called" if the agent emitted the appropriate card type.
 
 Did the actions match the plan? Return JSON only.`;
 
