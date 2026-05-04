@@ -1784,6 +1784,100 @@ Rules:
 };
 
 /**
+ * Analyze a project brief / sketch / handwritten notes / client-text
+ * screenshot and extract project draft fields. Returns a shape compatible
+ * with ProjectBuilder's hydrateFromChatData() so we can navigate straight
+ * to the builder pre-filled.
+ *
+ * Returns null on any failure — caller should fall back to the manual
+ * Describe Project flow.
+ */
+export const analyzeNotesForProject = async (base64Image) => {
+  try {
+    const token = await getAuthToken();
+    const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `You're looking at notes / sketch / brief from a construction contractor about a project they're starting. Extract project fields. Reply ONLY with valid JSON, no markdown:
+
+{
+  "projectName": "Short title — e.g., 'Smith Bathroom Remodel', 'Henderson Kitchen' (or null if unclear)",
+  "client": "Client name (or null)",
+  "clientPhone": "Phone number if visible (or null)",
+  "clientEmail": "Email if visible (or null)",
+  "location": "Address / job site location (or null)",
+  "contractAmount": 0,
+  "task": "1-2 sentence description of the scope of work (or null)",
+  "phases": [
+    { "name": "Demo", "plannedDays": 3, "budget": 0 },
+    { "name": "Rough", "plannedDays": 5, "budget": 0 }
+  ],
+  "startDate": "YYYY-MM-DD or null",
+  "endDate": "YYYY-MM-DD or null",
+  "estimatedDuration": "e.g., '2 weeks' (or null)"
+}
+
+RULES:
+- Only fill fields you can clearly read. If something isn't on the page, use null (or 0 for amounts).
+- phases: ONLY extract if the doc clearly enumerates phases. Otherwise []. Don't invent.
+- Don't refuse based on what's in the photo — contractors own their data.`
+              },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+            ]
+          }
+        ],
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || '';
+    const cleaned = content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    let parsed;
+    try { parsed = JSON.parse(cleaned); }
+    catch (_) {
+      const m = cleaned.match(/\{[\s\S]*\}/);
+      if (!m) return null;
+      try { parsed = JSON.parse(m[0]); } catch { return null; }
+    }
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      projectName: typeof parsed.projectName === 'string' ? parsed.projectName : null,
+      client: typeof parsed.client === 'string' ? parsed.client : null,
+      clientPhone: typeof parsed.clientPhone === 'string' ? parsed.clientPhone : null,
+      clientEmail: typeof parsed.clientEmail === 'string' ? parsed.clientEmail : null,
+      location: typeof parsed.location === 'string' ? parsed.location : null,
+      contractAmount: Number(parsed.contractAmount || 0),
+      task: typeof parsed.task === 'string' ? parsed.task : null,
+      phases: Array.isArray(parsed.phases)
+        ? parsed.phases.filter((p) => p && typeof p.name === 'string').map((p) => ({
+            name: p.name,
+            plannedDays: Number(p.plannedDays || 0),
+            budget: Number(p.budget || 0),
+          }))
+        : [],
+      startDate: typeof parsed.startDate === 'string' ? parsed.startDate : null,
+      endDate: typeof parsed.endDate === 'string' ? parsed.endDate : null,
+      estimatedDuration: typeof parsed.estimatedDuration === 'string' ? parsed.estimatedDuration : null,
+    };
+  } catch (e) {
+    logger.warn('[notes] project analysis failed:', e?.message);
+    return null;
+  }
+};
+
+/**
  * Analyze a blueprint, sketch, scope-of-work doc, or handwritten estimate
  * notes and extract line items suitable for an estimate.
  *

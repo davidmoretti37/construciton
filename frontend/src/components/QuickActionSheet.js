@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { analyzeBlueprintForEstimate } from '../services/aiService';
+import { analyzeBlueprintForEstimate, analyzeNotesForProject } from '../services/aiService';
 import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
@@ -128,13 +128,15 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
   };
 
   /**
-   * Estimate-only path: snap a blueprint / sketch / handwritten notes,
-   * extract line items via AI, jump straight to EstimateBuilder
-   * pre-filled. Bypasses the chat round-trip entirely so the user goes
-   * from photo → editable estimate in one tap.
+   * Snap a photo of a blueprint / sketch / handwritten brief, extract
+   * structured fields with AI, and jump straight to the right builder
+   * (EstimateBuilder or ProjectBuilder) pre-filled. Bypasses chat.
    */
-  const handleSnapForEstimate = async () => {
-    Alert.alert('Snap to estimate', 'Take a photo of a blueprint, sketch, or handwritten notes — we\'ll extract line items.', [
+  const handleSnap = async () => {
+    const promptCopy = actionType === 'project'
+      ? 'Take a photo of a project brief, sketch, or notes — we\'ll pull out client, scope, phases, and amount.'
+      : 'Take a photo of a blueprint, sketch, or handwritten notes — we\'ll extract line items.';
+    Alert.alert('Snap to extract', promptCopy, [
       { text: 'Take Photo', onPress: async () => {
         const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
         if (!result.canceled && result.assets?.[0]) await runPhotoExtract(result.assets[0].uri);
@@ -152,25 +154,47 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
     try {
       setExtractingPhoto(true);
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      const r = await analyzeBlueprintForEstimate(base64);
-      if (!r || !Array.isArray(r.items) || r.items.length === 0) {
-        Alert.alert('Nothing extracted', 'I couldn\'t pull line items from that photo. Try a clearer image, or describe it instead.');
-        return;
+
+      if (actionType === 'estimate') {
+        const r = await analyzeBlueprintForEstimate(base64);
+        if (!r || !Array.isArray(r.items) || r.items.length === 0) {
+          Alert.alert('Nothing extracted', 'I couldn\'t pull line items from that photo. Try a clearer image, or describe it instead.');
+          return;
+        }
+        const items = r.items.map((it) => ({
+          description: String(it.description || '').trim(),
+          quantity: Number(it.quantity || 1),
+          unit: it.unit || 'ea',
+          pricePerUnit: Number(it.pricePerUnit || 0),
+          total: Number(it.total || (Number(it.quantity || 1) * Number(it.pricePerUnit || 0))),
+        })).filter((it) => it.description);
+        onPhotoExtract('estimate', { items, notes: r.notes || '' });
+      } else if (actionType === 'project') {
+        const r = await analyzeNotesForProject(base64);
+        if (!r || (!r.projectName && !r.client && !r.task)) {
+          Alert.alert('Nothing extracted', 'I couldn\'t pull project details from that photo. Try a clearer image, or describe it instead.');
+          return;
+        }
+        // Map to the chatExtractedData shape ProjectBuilder hydrates from
+        const draft = {
+          projectName: r.projectName || '',
+          client: r.client || '',
+          clientPhone: r.clientPhone || '',
+          email: r.clientEmail || '',
+          location: r.location || '',
+          contractAmount: r.contractAmount || 0,
+          phases: r.phases || [],
+          startDate: r.startDate || null,
+          endDate: r.endDate || null,
+          scope: r.task ? { description: r.task } : undefined,
+        };
+        onPhotoExtract('project', draft);
       }
-      const items = r.items.map((it) => ({
-        description: String(it.description || '').trim(),
-        quantity: Number(it.quantity || 1),
-        unit: it.unit || 'ea',
-        pricePerUnit: Number(it.pricePerUnit || 0),
-        total: Number(it.total || (Number(it.quantity || 1) * Number(it.pricePerUnit || 0))),
-      })).filter((it) => it.description);
-      // Hand off to navigator → EstimateBuilder with seed draft
-      onPhotoExtract({ items, notes: r.notes || '' });
       // Clear the typed draft since we're going to a different flow
       setInputText('');
       if (actionType) AsyncStorage.removeItem(`@quickaction_draft_${actionType}`);
     } catch (e) {
-      Alert.alert('Couldn\'t read photo', 'Try a clearer image, or describe the estimate manually.');
+      Alert.alert('Couldn\'t read photo', 'Try a clearer image, or describe it manually.');
     } finally {
       setExtractingPhoto(false);
     }
@@ -363,10 +387,10 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
 
           {/* Content - Input Container with integrated controls */}
           <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.md }]}>
-            {/* Estimate-only: snap-to-extract shortcut */}
-            {actionType === 'estimate' && onPhotoExtract && (
+            {/* Snap-to-extract shortcut for project + estimate flows */}
+            {(actionType === 'estimate' || actionType === 'project') && onPhotoExtract && (
               <TouchableOpacity
-                onPress={handleSnapForEstimate}
+                onPress={handleSnap}
                 disabled={extractingPhoto}
                 style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -386,7 +410,11 @@ const QuickActionSheet = ({ visible, actionType, onClose, onSubmit, onPhotoExtra
                   <Ionicons name="camera-outline" size={18} color={OWNER_PRIMARY} />
                 )}
                 <Text style={{ color: OWNER_PRIMARY, fontSize: 13, fontWeight: '600' }}>
-                  {extractingPhoto ? 'Reading photo…' : 'Snap blueprint / sketch / notes instead'}
+                  {extractingPhoto
+                    ? 'Reading photo…'
+                    : actionType === 'project'
+                      ? 'Snap project brief / sketch / notes instead'
+                      : 'Snap blueprint / sketch / notes instead'}
                 </Text>
               </TouchableOpacity>
             )}

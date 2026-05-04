@@ -61,11 +61,17 @@ const OwnerNavContainer = ({ fabRef, fabContainerRef, menuItemRefs, ...props }) 
     setShowSheet(false);
   };
 
-  // Photo-extract path for estimate type — bypass chat entirely, jump to
-  // EstimateBuilder pre-filled with the extracted line items + notes.
-  const handlePhotoExtract = (draft) => {
+  // Photo-extract path — bypass chat entirely, jump to the right builder
+  // pre-filled. Dispatches by kind so each action's photo flow lands in
+  // its own builder (estimate → EstimateBuilder, project → ProjectBuilder).
+  const handlePhotoExtract = (kind, draft) => {
     setShowSheet(false);
-    props.navigation.navigate('EstimateBuilder', { draft });
+    if (kind === 'project') {
+      props.navigation.navigate('ProjectBuilder', { chatExtractedData: draft });
+    } else {
+      // default to estimate
+      props.navigation.navigate('EstimateBuilder', { draft });
+    }
   };
 
   return (
