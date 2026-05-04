@@ -176,11 +176,15 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
       clockOutTime = getLocalTimestamp();
     }
 
+    // LEFT joins on workers + projects so an orphan time entry (project
+    // deleted, or project_id null) still loads. The inner-join version
+    // returned PGRST116 "no rows" and blocked clock-out for any worker
+    // whose linked project had been removed.
     const { data: timeEntry, error: fetchError } = await supabase
       .from('time_tracking')
       .select(`
         id, worker_id, project_id, clock_in, clock_out, notes,
-        workers!inner (
+        workers (
           id,
           full_name,
           payment_type,
@@ -189,7 +193,7 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
           weekly_salary,
           project_rate
         ),
-        projects!inner (
+        projects (
           id,
           name
         )
@@ -220,6 +224,11 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
     const hoursWorked = (clockOutDate - clockInTime) / (1000 * 60 * 60);
 
     const worker = timeEntry.workers;
+    if (!worker) {
+      // Worker row missing (deleted) — clock-out already updated above,
+      // skip the labor cost transaction
+      return { success: true, hours: hoursWorked, laborCost: 0 };
+    }
     let laborCost = 0;
     let costDescription = '';
 
@@ -247,7 +256,9 @@ export const clockOut = async (timeTrackingId, notes = null, customTime = null) 
         return { success: true, hours: hoursWorked, laborCost: 0 };
     }
 
-    if (laborCost > 0) {
+    // Skip labor cost transaction if there's no project to charge it to
+    // (orphan time entry — project was deleted). Worker is still clocked out.
+    if (laborCost > 0 && timeEntry.project_id) {
       const { error: transactionError } = await supabase
         .from('project_transactions')
         .insert({
