@@ -310,6 +310,24 @@ export const generateDrawInvoice = async (scheduleItemId, dueInDays = 30) => {
       .eq('id', item.id)
       .eq('user_id', userId);
 
+    // Auto-email the client + create a portal notification. Best-effort —
+    // a delivery failure shouldn't roll back the invoice (the owner can
+    // resend manually from the invoice detail screen if needed).
+    let emailSent = false;
+    let emailError = null;
+    if (item.project.client_email) {
+      try {
+        const { sendInvoiceToClient } = await import('./projectBilling');
+        const result = await sendInvoiceToClient(invoice.id);
+        emailSent = !!result?.sent;
+        if (!emailSent && result?.error) emailError = result.error;
+      } catch (e) {
+        emailError = e?.message || 'Could not email client';
+      }
+    } else {
+      emailError = 'No client email on project — invoice was created but not emailed.';
+    }
+
     return {
       ok: true,
       invoice: {
@@ -320,6 +338,8 @@ export const generateDrawInvoice = async (scheduleItemId, dueInDays = 30) => {
         retainage_held: retainage,
         due_date: dueStr,
       },
+      emailSent,
+      emailError,
     };
   } catch (e) {
     console.error('[projectDraws] generateDrawInvoice error:', e);

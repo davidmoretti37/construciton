@@ -238,20 +238,32 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
     try {
       let result;
       switch (event.action_type) {
-        case 'send_draw':
+        case 'send_draw': {
           // Confirmation modal — sending an invoice is a real-world action
-          await new Promise((resolve, reject) => {
+          const confirmed = await new Promise((resolve) => {
             Alert.alert(
               'Send invoice?',
-              `Generate an invoice for ${event.label}: ${fmt$$(event.amount)}\n${event.description}`,
+              `Generate an invoice for ${event.label}: ${fmt$$(event.amount)}\n${event.description}\n\nThe client will be emailed automatically.`,
               [
-                { text: 'Cancel', style: 'cancel', onPress: reject },
-                { text: 'Send', style: 'default', onPress: resolve },
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Send', style: 'default', onPress: () => resolve(true) },
               ]
             );
-          }).catch(() => null);
+          });
+          if (!confirmed) { setBusyAction(null); return; }
           result = await sendDrawNow(event.source_id);
+          // Surface delivery state. The invoice was always created — only the
+          // email side might have failed (no client_email, Resend down, etc.).
+          if (result?.ok) {
+            const inv = result.invoice;
+            const headline = result.emailSent ? 'Draw invoice sent' : 'Draw invoice created';
+            const detail = result.emailSent
+              ? `${inv?.invoice_number || 'Invoice'} for ${fmt$$(inv?.total)} emailed to client.`
+              : (result.emailError || 'Email could not be delivered. Open the invoice to resend.');
+            Alert.alert(headline, detail);
+          }
           break;
+        }
         case 'nudge_invoice':
           result = await nudgeInvoice(event.source_id);
           break;
