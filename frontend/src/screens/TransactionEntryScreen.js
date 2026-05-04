@@ -19,6 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { analyzeReceipt } from '../services/aiService';
 import { addProjectTransaction, updateTransaction } from '../utils/storage';
 import { fetchProjects } from '../utils/storage/projects';
 import { getCurrentUserId } from '../utils/storage/auth';
@@ -51,6 +53,9 @@ export default function TransactionEntryScreen({ route, navigation }) {
   const [saving, setSaving] = useState(false);
   const [receiptUri, setReceiptUri] = useState(transaction?.receipt_url || null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  // True while the AI is reading the receipt photo and pre-filling fields.
+  // Locks the form so the user doesn't fight overwrites mid-extraction.
+  const [analyzingReceipt, setAnalyzingReceipt] = useState(false);
 
   // Project picker state (for quick action flow)
   const [projects, setProjects] = useState([]);
@@ -170,15 +175,51 @@ export default function TransactionEntryScreen({ route, navigation }) {
     { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
   ];
 
+  /**
+   * Run AI vision on a receipt image and pre-fill the form fields.
+   * Only fires for NEW receipts (skip when editing an existing transaction).
+   * Failures are tolerated — user can still fill the form manually.
+   */
+  const autoExtractFromReceipt = async (imageUri) => {
+    if (!imageUri || imageUri.startsWith('http')) return; // already-uploaded receipt → skip
+    if (isEditing) return; // don't clobber existing values
+    try {
+      setAnalyzingReceipt(true);
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const extracted = await analyzeReceipt(base64);
+      // Pre-fill fields, but only when we got a real value back
+      if (extracted?.totalAmount && !amount) setAmount(String(extracted.totalAmount));
+      if (extracted?.description && !description.trim()) setDescription(extracted.description);
+      if (extracted?.category) setCategory(extracted.category);
+      if (extracted?.subcategory) setSubcategory(extracted.subcategory);
+      if (extracted?.date) setDate(extracted.date);
+    } catch (e) {
+      // Silent: user can still type. Logged for debugging.
+      console.log('[receipt] auto-extract failed (non-fatal):', e.message);
+    } finally {
+      setAnalyzingReceipt(false);
+    }
+  };
+
   const handlePickReceipt = () => {
     Alert.alert('Add Receipt', null, [
       { text: 'Take Photo', onPress: async () => {
         const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-        if (!result.canceled && result.assets?.[0]) setReceiptUri(result.assets[0].uri);
+        if (!result.canceled && result.assets?.[0]) {
+          const uri = result.assets[0].uri;
+          setReceiptUri(uri);
+          autoExtractFromReceipt(uri); // fire-and-forget pre-fill
+        }
       }},
       { text: 'Choose from Gallery', onPress: async () => {
         const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-        if (!result.canceled && result.assets?.[0]) setReceiptUri(result.assets[0].uri);
+        if (!result.canceled && result.assets?.[0]) {
+          const uri = result.assets[0].uri;
+          setReceiptUri(uri);
+          autoExtractFromReceipt(uri);
+        }
       }},
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -903,15 +944,26 @@ export default function TransactionEntryScreen({ route, navigation }) {
             {receiptUri ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Image source={{ uri: receiptUri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
-                <View style={{ gap: 8 }}>
-                  <TouchableOpacity onPress={handlePickReceipt} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="swap-horizontal" size={16} color="#3B82F6" />
-                    <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 13 }}>Replace</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setReceiptUri(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                    <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>Remove</Text>
-                  </TouchableOpacity>
+                <View style={{ gap: 8, flex: 1 }}>
+                  {analyzingReceipt ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <ActivityIndicator size="small" color="#3B82F6" />
+                      <Text style={{ color: '#3B82F6', fontSize: 13, fontWeight: '600' }}>
+                        Reading receipt…
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <TouchableOpacity onPress={handlePickReceipt} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="swap-horizontal" size={16} color="#3B82F6" />
+                        <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 13 }}>Replace</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setReceiptUri(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                        <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>Remove</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </View>
             ) : (
@@ -920,7 +972,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 onPress={handlePickReceipt}
               >
                 <Ionicons name="camera-outline" size={20} color={Colors.secondaryText} />
-                <Text style={{ color: Colors.secondaryText, fontSize: 14 }}>Add receipt photo or document</Text>
+                <Text style={{ color: Colors.secondaryText, fontSize: 14 }}>Add receipt photo — auto-fills the form</Text>
               </TouchableOpacity>
             )}
           </View>
