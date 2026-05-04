@@ -49,7 +49,7 @@ async function normalizeEstimatePreview(ve, userId) {
     try {
       const { data: proj } = await supabase
         .from('projects')
-        .select('id, name, client_name, client_phone, client_email, client_address')
+        .select('id, name, client_name, client_phone, client_email, client_address, contract_amount')
         .eq('id', projectId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -60,6 +60,8 @@ async function normalizeEstimatePreview(ve, userId) {
         if (!data.clientPhone && !data.client_phone) data.clientPhone = proj.client_phone;
         if (!data.clientEmail) data.clientEmail = proj.client_email;
         if (!data.clientAddress) data.clientAddress = proj.client_address;
+        // Fill empty prices using the project's contract_amount
+        ensureItemsArePriced(data, proj.contract_amount);
       }
     } catch (e) {
       logger.warn('[ve-normalizer] enrich-by-id failed:', e.message);
@@ -95,7 +97,7 @@ async function normalizeEstimatePreview(ve, userId) {
     if (!matched && clientName) {
       const { data: byClient } = await supabase
         .from('projects')
-        .select('id, name, client_name, client_phone, client_email, client_address')
+        .select('id, name, client_name, client_phone, client_email, client_address, contract_amount')
         .eq('user_id', userId)
         .ilike('client_name', clientName)
         .neq('status', 'archived')
@@ -111,6 +113,7 @@ async function normalizeEstimatePreview(ve, userId) {
       if (!data.clientPhone && !data.client_phone) data.clientPhone = matched.client_phone;
       if (!data.clientEmail) data.clientEmail = matched.client_email;
       if (!data.clientAddress) data.clientAddress = matched.client_address;
+      ensureItemsArePriced(data, matched.contract_amount);
       logger.info(`[ve-normalizer] resolved estimate-preview → project ${matched.name} (${matched.id})`);
     } else {
       logger.warn(`[ve-normalizer] could not resolve estimate-preview project — projectName="${projectName}" clientName="${clientName}"`);
@@ -118,6 +121,64 @@ async function normalizeEstimatePreview(ve, userId) {
   } catch (e) {
     logger.warn('[ve-normalizer] resolve-by-name failed:', e.message);
   }
+}
+
+/**
+ * If the model emitted line items but left every price at 0, distribute
+ * the project's contract_amount across the items so the user sees a
+ * useful starting point instead of TOTAL: $0.00. Default to equal split.
+ *
+ * This is the system handling pricing instead of relying on the model
+ * to do it via a follow-up suggest_pricing call (which it routinely
+ * skips). The user can edit any line in the EstimateBuilder afterward;
+ * the goal is to never ship a $0 card.
+ */
+function ensureItemsArePriced(data, contractAmount) {
+  const items = Array.isArray(data.items) ? data.items : Array.isArray(data.lineItems) ? data.lineItems : null;
+  if (!items || items.length === 0) return;
+
+  // Compute the current total. Each item may use price/total/unit_price/pricePerUnit/amount.
+  const itemValue = (it) => {
+    const qty = Number(it.quantity ?? 1) || 1;
+    const unit = Number(it.unit_price ?? it.unitPrice ?? it.pricePerUnit ?? it.price ?? 0) || 0;
+    const direct = Number(it.total ?? it.amount ?? 0) || 0;
+    return direct > 0 ? direct : qty * unit;
+  };
+
+  const currentTotal = items.reduce((sum, it) => sum + itemValue(it), 0);
+  if (currentTotal > 0) {
+    // Already priced. Just make sure subtotal/total reflect it.
+    if (!Number(data.subtotal)) data.subtotal = currentTotal;
+    if (!Number(data.total)) data.total = currentTotal;
+    return;
+  }
+
+  const contract = Number(contractAmount) || 0;
+  if (contract <= 0) return; // nothing to distribute
+
+  // Equal split. Round to 2 decimal places. Last item gets the rounding remainder
+  // so the sum exactly equals contract.
+  const per = Math.floor((contract / items.length) * 100) / 100;
+  let runningSum = 0;
+  items.forEach((it, idx) => {
+    const isLast = idx === items.length - 1;
+    const value = isLast ? Math.round((contract - runningSum) * 100) / 100 : per;
+    runningSum += value;
+    it.quantity = it.quantity ?? 1;
+    it.unit = it.unit ?? 'job';
+    // Set every common shape so EstimatePreview renders the price no
+    // matter which field it reads.
+    it.unit_price = value;
+    it.unitPrice = value;
+    it.pricePerUnit = value;
+    it.price = value;
+    it.total = value;
+    it.amount = value;
+  });
+
+  data.subtotal = contract;
+  data.total = contract;
+  logger.info(`[ve-normalizer] auto-priced estimate: split $${contract} across ${items.length} items`);
 }
 
 module.exports = { normalizeVisualElements };
