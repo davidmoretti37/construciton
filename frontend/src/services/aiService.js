@@ -1784,6 +1784,85 @@ Rules:
 };
 
 /**
+ * Analyze a blueprint, sketch, scope-of-work doc, or handwritten estimate
+ * notes and extract line items suitable for an estimate.
+ *
+ * Returns:
+ *   { items: [{description, quantity, unit, pricePerUnit, total}], notes }
+ * or null on failure.
+ *
+ * Used by EstimateBuilder's "Extract from photo" flow.
+ */
+export const analyzeBlueprintForEstimate = async (base64Image) => {
+  try {
+    const token = await getAuthToken();
+    const response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `You're looking at a blueprint, sketch, scope-of-work document, or handwritten estimate notes from a construction contractor. Extract scope items the contractor will price out and bill the client for. Reply ONLY with valid JSON, no markdown:
+
+{
+  "items": [
+    {
+      "description": "Specific scope item (e.g., 'Install 200 sf porcelain tile in master bath', 'Frame interior walls').",
+      "quantity": 1,
+      "unit": "ea | sf | lf | sy | cy | hr | day | lot",
+      "pricePerUnit": 0,
+      "total": 0
+    }
+  ],
+  "notes": "Optional 1-line summary of overall scope or anything the contractor should review."
+}
+
+RULES:
+- Extract scope items, NOT raw measurements. Each item should be billable work.
+- If the doc shows quantities (sq ft, linear ft, room counts), capture them as quantity.
+- Standard units: 'ea', 'sf', 'lf', 'sy' (sq yard), 'cy' (cubic yard), 'hr', 'day', 'lot'.
+- pricePerUnit and total can be 0 when the doc is scope-only — the contractor will price it.
+- If pricing IS visible in the doc, capture it.
+- Don't invent items not on the doc. Better to return fewer accurate items than many guessed ones.
+- If the image is unreadable or has no scope content, return { items: [], notes: '' }.`
+              },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+            ]
+          }
+        ],
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || '';
+    const cleaned = content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    let parsed;
+    try { parsed = JSON.parse(cleaned); }
+    catch (_) {
+      const m = cleaned.match(/\{[\s\S]*\}/);
+      if (!m) return null;
+      try { parsed = JSON.parse(m[0]); } catch { return null; }
+    }
+    return {
+      items: Array.isArray(parsed?.items) ? parsed.items.filter((it) => it && typeof it.description === 'string' && it.description.trim()) : [],
+      notes: typeof parsed?.notes === 'string' ? parsed.notes : '',
+    };
+  } catch (e) {
+    logger.warn('[blueprint] analysis failed:', e?.message);
+    return null;
+  }
+};
+
+/**
  * Analyze subcontractor quote document using AI Vision
  * Extracts pricing information, subcontractor details, and service line items
  * @param {string} base64Image - Base64 encoded image of the quote document

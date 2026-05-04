@@ -29,11 +29,14 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   saveEstimate, updateEstimate, getEstimate, updateEstimateStatus,
 } from '../../utils/storage/estimates';
 import { supabase } from '../../lib/supabase';
 import { API_URL } from '../../config/api';
+import { analyzeBlueprintForEstimate } from '../../services/aiService';
 import LineItemEditor from '../../components/LineItemEditor';
 
 const SECTIONS = [
@@ -112,6 +115,54 @@ export default function EstimateBuilderScreen({ route, navigation }) {
         }))
       : [{ description: '', quantity: 1, unit: 'ea', pricePerUnit: 0, total: 0 }],
   );
+  const [extractingFromPhoto, setExtractingFromPhoto] = useState(false);
+
+  /**
+   * Capture a blueprint / scope sketch / handwritten notes image and let
+   * the AI extract line items into the estimate. Merges into the existing
+   * items array (replaces the single empty placeholder if that's all
+   * there is; otherwise appends).
+   */
+  const handleExtractFromPhoto = useCallback(async () => {
+    Alert.alert('Extract from photo', 'Snap a blueprint, sketch, or handwritten notes — we\'ll pull out line items.', [
+      { text: 'Take Photo', onPress: async () => {
+        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+        if (!result.canceled && result.assets?.[0]) await runExtraction(result.assets[0].uri);
+      }},
+      { text: 'Choose from Gallery', onPress: async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+        if (!result.canceled && result.assets?.[0]) await runExtraction(result.assets[0].uri);
+      }},
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [items]);
+
+  const runExtraction = async (uri) => {
+    try {
+      setExtractingFromPhoto(true);
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const r = await analyzeBlueprintForEstimate(base64);
+      if (!r || !Array.isArray(r.items) || r.items.length === 0) {
+        Alert.alert('Nothing extracted', 'I couldn\'t pull line items from that photo. You can still add them manually.');
+        return;
+      }
+      const extracted = r.items.map((it) => ({
+        description: String(it.description || '').trim(),
+        quantity: Number(it.quantity || 1),
+        unit: it.unit || 'ea',
+        pricePerUnit: Number(it.pricePerUnit || 0),
+        total: Number(it.total || (Number(it.quantity || 1) * Number(it.pricePerUnit || 0))),
+      })).filter((it) => it.description);
+      // If existing array is just the empty placeholder, replace it; otherwise append
+      const isJustPlaceholder = items.length === 1 && !items[0].description && !items[0].pricePerUnit;
+      setItems(isJustPlaceholder ? extracted : [...items, ...extracted]);
+      Alert.alert('Extracted', `Pulled ${extracted.length} line item${extracted.length === 1 ? '' : 's'}. Review and adjust as needed.${r.notes ? `\n\nNote: ${r.notes}` : ''}`);
+    } catch (e) {
+      Alert.alert('Couldn\'t read photo', 'Try a clearer image, or add line items manually.');
+    } finally {
+      setExtractingFromPhoto(false);
+    }
+  };
 
   // Section 3 — Pricing
   const [taxRate, setTaxRate] = useState(seedDraft?.tax_rate ? String(seedDraft.tax_rate) : '0');
@@ -454,6 +505,29 @@ export default function EstimateBuilderScreen({ route, navigation }) {
           expanded={!!expanded.lineItems} chip={sectionChip('lineItems')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
+          {/* Extract-from-photo button */}
+          <TouchableOpacity
+            onPress={handleExtractFromPhoto}
+            disabled={extractingFromPhoto}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+              gap: 8, paddingVertical: 12, paddingHorizontal: 14,
+              borderRadius: 8, borderWidth: 1, borderStyle: 'dashed',
+              borderColor: extractingFromPhoto ? '#94A3B8' : '#1E40AF',
+              backgroundColor: extractingFromPhoto ? '#F1F5F9' : '#EFF6FF',
+              marginBottom: 12,
+            }}
+            activeOpacity={0.7}
+          >
+            {extractingFromPhoto ? (
+              <ActivityIndicator size="small" color="#1E40AF" />
+            ) : (
+              <Ionicons name="camera-outline" size={18} color="#1E40AF" />
+            )}
+            <Text style={{ color: '#1E40AF', fontSize: 13, fontWeight: '600' }}>
+              {extractingFromPhoto ? 'Reading photo…' : 'Snap blueprint / sketch / notes — extract line items'}
+            </Text>
+          </TouchableOpacity>
           <LineItemEditor items={items} onChange={setItems} Colors={Colors} />
         </Section>
 
