@@ -2189,7 +2189,7 @@ export const sendAgentMessage = async (
   rawAttachments = [],
   sessionId = null
 ) => {
-  const { onChunk, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onPendingApproval, onStep, onTool, onRetrying, onPev, onAbortRef } = callbacks;
+  const { onChunk, onClear, onComplete, onError, onStatus, onJobId, onMetadata, onPlan, onPlanVerified, onPlanDiverged, onPendingApproval, onStep, onTool, onRetrying, onPev, onAbortRef } = callbacks;
   const startTime = Date.now();
 
   // Build the last user message — multipart if images are attached
@@ -2340,7 +2340,11 @@ export const sendAgentMessage = async (
               });
               break;
             case 'clear':
-              // Backend says: discard text from tool call round, it's not the final response
+              // Backend says: discard text from tool call round, it's not the
+              // final response. Reset the internal buffer AND tell the UI to
+              // wipe whatever preamble is already visible — otherwise the
+              // bubble shows "Let me search..." until onComplete swaps it for
+              // the final answer, which looks like a flicker.
               displayedText = '';
               sentLength = 0;
               pendingVisualElements = [];
@@ -2349,6 +2353,7 @@ export const sendAgentMessage = async (
                 clearInterval(animationTimer);
                 animationTimer = null;
               }
+              onClear?.();
               break;
             case 'delta':
               // Content is already clean text (backend extracted from JSON "text" field)
