@@ -932,11 +932,14 @@ export default function ChatScreen({ navigation, route }) {
     setMessages((prev) => [...prev, userMessage, aiMessage]);
     let messageCreated = true;
 
-    // Clear the input box for the next message. Without this, anything the
-    // user typed lingers after sending — easy to accidentally re-send the
-    // same text. Scoped to the current session via draftKey so other
-    // session drafts aren't touched.
-    setDraftValue('');
+    // Clear the input box for the next message. Wipe ALL draft keys
+    // (not just the current draftKey) — when the user sends in a brand-new
+    // chat, the current key is '__none' but the session-creation effect
+    // moves the draft to '<sessionId>' before our clear runs, so a
+    // single-key clear leaves the migrated draft alive and the input
+    // resurfaces the old text. Wiping everything is safe here: a sent
+    // message can't have a draft left over.
+    setDrafts({});
 
     // Save messageId and session to AsyncStorage immediately (before any async work)
     await AsyncStorage.setItem('activeAgentMessageId', aiMessageId);
