@@ -20,7 +20,56 @@ export const saveEstimate = async (estimateData) => {
     }
 
     // Support both snake_case and camelCase for project_id
-    const projectId = estimateData.projectId || estimateData.project_id || null;
+    let projectId = estimateData.projectId || estimateData.project_id || null;
+
+    // SAFETY NET — if no project link came in but we have a project_name or
+    // client_name that matches an existing project, resolve it. The agent's
+    // system prompt requires it pass project_id when a project exists, but
+    // models occasionally drop it. Better to auto-link than save orphaned.
+    if (!projectId) {
+      const candidateProjectName = estimateData.projectName || estimateData.project_name;
+      const candidateClientName =
+        estimateData.client?.name ||
+        (typeof estimateData.client === 'string' ? estimateData.client : null) ||
+        estimateData.clientName ||
+        estimateData.client_name;
+      if (candidateProjectName || candidateClientName) {
+        try {
+          // Match by exact project name first (most specific), then fall back
+          // to client name (catches "create estimate for Sarah" → Sarah's
+          // project even when the projectName field is missing).
+          let matched = null;
+          if (candidateProjectName) {
+            const { data } = await supabase
+              .from('projects')
+              .select('id, name, client_name')
+              .eq('user_id', userId)
+              .ilike('name', candidateProjectName)
+              .limit(1);
+            if (data?.length) matched = data[0];
+          }
+          if (!matched && candidateClientName) {
+            const { data } = await supabase
+              .from('projects')
+              .select('id, name, client_name')
+              .eq('user_id', userId)
+              .ilike('client_name', candidateClientName)
+              .order('created_at', { ascending: false })
+              .limit(1);
+            if (data?.length) matched = data[0];
+          }
+          if (matched?.id) {
+            projectId = matched.id;
+            // Also fill in project_name for display consistency
+            if (!estimateData.projectName && !estimateData.project_name) {
+              estimateData.projectName = matched.name;
+            }
+          }
+        } catch (e) {
+          console.warn('[saveEstimate] auto-link resolve failed:', e?.message);
+        }
+      }
+    }
 
     const { data, error } = await supabase
       .from('estimates')

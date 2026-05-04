@@ -2914,58 +2914,19 @@ export default function ChatScreen({ navigation, route }) {
         }
       }
 
-      // If estimate has a linked project, give user clear save options
-      if (completeEstimateData.projectId) {
-        const existingProject = await getProject(completeEstimateData.projectId);
-
-        if (existingProject) {
-          // Project exists - give user 2 clear options
-          Alert.alert(
-            t('common:alerts.confirm'),
-            t('common:messages.pleaseSelect', { item: 'how to save this estimate' }),
-            [
-              {
-                text: t('common:buttons.cancel'),
-                style: 'cancel'
-              },
-              {
-                text: t('common:buttons.save'),
-                onPress: async () => {
-                  // Save estimate without linking to project
-                  const savedEstimate = await saveEstimate({
-                    ...completeEstimateData,
-                    projectId: null // Remove link to prevent project update
-                  });
-                  if (savedEstimate) {
-                    Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
-                  }
-                }
-              },
-              {
-                text: t('common:buttons.save') + ' & Add to Project',
-                onPress: async () => {
-                  // Save estimate and update the project
-                  const savedEstimate = await saveEstimate(completeEstimateData);
-                  if (savedEstimate) {
-                    Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
-                  }
-                }
-              }
-            ]
-          );
-        } else {
-          // Project doesn't exist - just save the estimate
-          const savedEstimate = await saveEstimate(completeEstimateData);
-          if (savedEstimate) {
-            Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
-          }
-        }
-      } else {
-        // No linked project - just save the estimate
-        const savedEstimate = await saveEstimate(completeEstimateData);
-        if (savedEstimate) {
-          Alert.alert(t('common:alerts.success'), t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` }));
-        }
+      // If a project link came from the agent (e.g. "create estimate for Sarah" →
+      // resolved to her existing project), KEEP it. Earlier this prompted the
+      // user with a "Save" vs "Save & Link" alert, which silently dropped the
+      // link if they tapped Save. Wrong intent — the agent already chose the
+      // project on the user's behalf, so persist it automatically. The user
+      // can still detach via the Estimate Builder's "Link to project" field
+      // if they actually want a standalone estimate.
+      const savedEstimate = await saveEstimate(completeEstimateData);
+      if (savedEstimate) {
+        Alert.alert(
+          t('common:alerts.success'),
+          t('common:messages.savedSuccessfully', { item: `Estimate ${savedEstimate.estimate_number}` })
+        );
       }
     } catch (error) {
       console.error('Error saving estimate:', error);
