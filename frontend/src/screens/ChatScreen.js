@@ -1241,6 +1241,18 @@ export default function ChatScreen({ navigation, route }) {
             )
           );
         },
+        // onClear callback — backend says the text streamed so far is preamble
+        // (e.g. "Let me search for that...") and should be discarded before the
+        // real answer arrives. Wipe the streaming bubble's text so the user
+        // doesn't see preamble + final concatenated, then snap to final.
+        onClear: () => {
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === targetId ? { ...msg, text: '' } : msg
+            )
+          );
+        },
         // onComplete callback - Add visual elements
         onComplete: (parsedResponse) => {
           setIsAIThinking(false);
