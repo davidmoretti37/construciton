@@ -1765,15 +1765,33 @@ export default function ChatScreen({ navigation, route }) {
             }
           }
         },
-        // onMetadata callback - Show skeleton loader when visual elements are incoming
+        // onMetadata - commit visualElements to the message IMMEDIATELY.
+        //
+        // This used to only show a skeleton and wait for onComplete to land
+        // the actual card. That caused the "card doesn't render until I
+        // background+foreground the app" bug: if the SSE stream closed
+        // weirdly, onComplete fired with empty visualElements and the card
+        // never rendered, even though metadata HAD arrived. The user had
+        // to trigger AppStateChange's recovery path to repoll the job and
+        // re-commit.
+        //
+        // Now: as soon as we get the metadata event, write the cards onto
+        // the streaming message via setMessages. onComplete still runs
+        // but is now idempotent — it sees the same visualElements already
+        // in place and is a no-op for the card-render path.
         onMetadata: ({ visualElements }) => {
-          if (visualElements && visualElements.length > 0) {
-            setShowCardSkeleton(true);
-            // Safety timeout: hide skeleton after 10s if card never renders
-            setTimeout(() => {
-              setShowCardSkeleton(false);
-            }, 10000);
-          }
+          if (!Array.isArray(visualElements) || visualElements.length === 0) return;
+          setShowCardSkeleton(false); // we have real data, drop the skeleton
+          const targetId = streamingMessageIdRef.current || aiMessageId;
+          setMessages((prev) => prev.map((msg) => {
+            if (msg.id !== targetId) return msg;
+            return {
+              ...msg,
+              visualElements,
+              isThinking: false,
+              lastUpdated: Date.now(),
+            };
+          }));
         }
         },
         rawAttachmentsForUpload,
