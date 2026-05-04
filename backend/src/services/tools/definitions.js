@@ -71,35 +71,16 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'update_project',
-      description: 'Modify a project\'s top-level fields: contract amount, budget, status, start/end dates. Use for changes that apply to the WHOLE project, not a specific phase. For phase-level changes use `update_phase_progress` (mark a phase % done) or `update_phase_budget` (change one phase\'s budget allocation). Always include project_id; only include the fields the user actually wants changed.',
+      description: 'Modify project top-level fields (contract_amount, budget, status, start/end dates). Project-wide changes only — for phase % use update_phase_progress; for phase budget use update_phase_budget. Pass only fields user wants changed. Dates YYYY-MM-DD.',
       parameters: {
         type: 'object',
         properties: {
-          project_id: {
-            type: 'string',
-            description: 'The project UUID (from search_projects or get_project_details)'
-          },
-          contract_amount: {
-            type: 'number',
-            description: 'New contract amount (optional)'
-          },
-          status: {
-            type: 'string',
-            enum: ['draft', 'on-track', 'behind', 'over-budget', 'completed'],
-            description: 'New project status (optional)'
-          },
-          budget: {
-            type: 'number',
-            description: 'New budget amount (optional)'
-          },
-          start_date: {
-            type: 'string',
-            description: 'New start date in YYYY-MM-DD format (optional)'
-          },
-          end_date: {
-            type: 'string',
-            description: 'New end date in YYYY-MM-DD format (optional)'
-          }
+          project_id: { type: 'string' },
+          contract_amount: { type: 'number' },
+          status: { type: 'string', enum: ['draft', 'on-track', 'behind', 'over-budget', 'completed'] },
+          budget: { type: 'number' },
+          start_date: { type: 'string' },
+          end_date: { type: 'string' }
         },
         required: ['project_id']
       }
@@ -111,52 +92,20 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'record_expense',
-      description: 'Record an expense or income transaction for a project or service plan. Call this when the user wants to log materials purchased, labor costs, payments received, deposits, etc. Provide either project_id OR service_plan_name — not both.',
+      description: 'Log an expense or income transaction for a project or service plan. Use for "logged $X at Home Depot", "received $5k deposit", "paid Bob $800 labor". Pass project_id OR service_plan_name (not both). For expenses, pass either phase_id or phase_name; if user did not specify a phase, omit both and the tool returns available phases to ask.\n\nsubcategory hints by category (optional but useful):\n  labor → wages, overtime, payroll_taxes, workers_comp, benefits\n  materials → lumber, concrete_cement, drywall, paint, hardware, fixtures, plumbing_supplies, electrical_supplies\n  equipment → rental, purchase, fuel_gas, maintenance_repair, small_tools\n  subcontractor → sub_plumbing, sub_electrical, sub_hvac, sub_concrete, sub_framing\n  permits → building_permit, inspection_fee, impact_fee, utility_connection\n  misc → office_supplies, vehicle_transport, insurance, cleanup_disposal, professional_fees\n  income → contract_payment, change_order, deposit, retainage_release',
       parameters: {
         type: 'object',
         properties: {
-          project_id: {
-            type: 'string',
-            description: 'Project name or UUID to record the transaction against. Names are resolved automatically.'
-          },
-          service_plan_name: {
-            type: 'string',
-            description: 'Service plan name to record the transaction against. Use this instead of project_id for service plan expenses. Resolved automatically.'
-          },
-          type: {
-            type: 'string',
-            enum: ['expense', 'income'],
-            description: 'Whether this is an expense (money spent) or income (money received/deposit)'
-          },
-          amount: {
-            type: 'number',
-            description: 'Dollar amount of the transaction'
-          },
-          category: {
-            type: 'string',
-            enum: ['materials', 'labor', 'equipment', 'permits', 'subcontractor', 'misc', 'payment', 'deposit'],
-            description: 'Transaction category'
-          },
-          description: {
-            type: 'string',
-            description: 'Description of the transaction (e.g., "Home Depot - drywall materials")'
-          },
-          subcategory: {
-            type: 'string',
-            description: 'Optional subcategory for detailed tracking. For expenses: wages, overtime, payroll_taxes, workers_comp, benefits (labor); lumber, concrete_cement, plumbing_supplies, electrical_supplies, drywall, paint, hardware, roofing, flooring, fixtures (materials); rental, purchase, fuel_gas, maintenance_repair, small_tools (equipment); sub_plumbing, sub_electrical, sub_hvac, sub_painting, sub_concrete, sub_framing, sub_roofing, sub_landscaping, sub_demolition (subcontractor); building_permit, inspection_fee, impact_fee, utility_connection (permits); office_supplies, vehicle_transport, insurance, cleanup_disposal, professional_fees (misc). For income: contract_payment, change_order, deposit, retainage_release, income_other.'
-          },
-          phase_id: {
-            type: 'string',
-            description: 'UUID of the project phase this transaction belongs to. REQUIRED for expenses (unless subcategory is provided). Use phase_name instead if you only have the phase name — the backend will resolve it.'
-          },
-          phase_name: {
-            type: 'string',
-            description: 'Name of the project phase this transaction belongs to (e.g. "Demolition", "Framing", "Drywall"). Alternative to phase_id — the backend resolves the name to an id. If the name matches multiple phases, the tool returns the options so you can ask the user which one. If the user did NOT tell you which phase, do NOT guess — omit this and the tool will return the list of phases for you to ask.'
-          },
-          date: {
-            type: 'string',
-            description: 'Transaction date in YYYY-MM-DD format. Defaults to today if not specified.'
-          }
+          project_id: { type: 'string' },
+          service_plan_name: { type: 'string' },
+          type: { type: 'string', enum: ['expense', 'income'] },
+          amount: { type: 'number' },
+          category: { type: 'string', enum: ['materials', 'labor', 'equipment', 'permits', 'subcontractor', 'misc', 'payment', 'deposit'] },
+          description: { type: 'string', description: 'e.g., "Home Depot - drywall materials"' },
+          subcategory: { type: 'string' },
+          phase_id: { type: 'string' },
+          phase_name: { type: 'string', description: 'Phase name (e.g. "Demolition"). Alternative to phase_id; resolved server-side.' },
+          date: { type: 'string', description: 'YYYY-MM-DD; defaults to today.' },
         },
         required: ['project_id', 'type', 'amount', 'category', 'description']
       }
@@ -334,37 +283,13 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_draw_schedule',
-      description: 'Set up a progress billing (draw) schedule on a project — used when a job is too large for one-shot invoicing (new construction, $50K+ remodels). Define the milestones the contractor will bill against (e.g. "25% deposit, 25% rough-in, 25% drywall, 25% final"). Replaces any existing schedule on the project. Call when the user says things like "set up a draw schedule", "bill this in draws", or "this is a $200K job, let\'s do progress draws".',
+      description: 'Set up progress billing (draw) schedule on a project. Use for jobs too large for one-shot invoicing ($50K+ remodels, new construction). Replaces existing schedule.\n\nitems: Array<{description, trigger_type: "phase_completion"|"project_start"|"manual", percent_of_contract?: number (1-100, floats with contract), fixed_amount?: number (flat $), phase_id?: string (REQUIRED if trigger_type=phase_completion)}>\nEach draw must have percent_of_contract OR fixed_amount (not both).\nretainage_percent: 0-20, typical 10. Default 0.',
       parameters: {
         type: 'object',
         properties: {
-          project_id: {
-            type: 'string',
-            description: 'Project name, address, or UUID. Names are resolved automatically.'
-          },
-          retainage_percent: {
-            type: 'number',
-            description: 'Percent held back per draw (typical: 10). Range 0–20. Defaults to 0 if omitted.'
-          },
-          items: {
-            type: 'array',
-            description: 'Ordered list of draws. Each draw must have either percent_of_contract OR fixed_amount (not both), AND a trigger_type that decides when the draw auto-flips to "ready to send".',
-            items: {
-              type: 'object',
-              properties: {
-                description: { type: 'string', description: 'Milestone description, e.g. "Deposit at signing", "Foundation complete", "Rough-in (frame/electrical/plumbing)".' },
-                percent_of_contract: { type: 'number', description: 'Percent of project contract_amount (1–100). Use this for %-based draws. Floats with the contract so change orders flow through.' },
-                fixed_amount: { type: 'number', description: 'Fixed dollar amount for this draw. Use for flat-amount draws like a $5,000 deposit.' },
-                trigger_type: {
-                  type: 'string',
-                  enum: ['phase_completion', 'project_start', 'manual'],
-                  description: 'When should this draw auto-flip to ready? phase_completion = when the linked phase completes (default for milestone draws, requires phase_id). project_start = when the project becomes active (use for deposits). manual = owner flips it themselves (last resort — needs daily-briefing reminders).'
-                },
-                phase_id: { type: 'string', description: 'UUID of the project phase this draw is tied to. REQUIRED when trigger_type = phase_completion.' }
-              },
-              required: ['description', 'trigger_type']
-            }
-          }
+          project_id: { type: 'string' },
+          retainage_percent: { type: 'number' },
+          items: { type: 'array', items: { type: 'object', properties: { description: { type: 'string' }, percent_of_contract: { type: 'number' }, fixed_amount: { type: 'number' }, trigger_type: { type: 'string', enum: ['phase_completion', 'project_start', 'manual'] }, phase_id: { type: 'string' } }, required: ['description', 'trigger_type'] } }
         },
         required: ['project_id', 'items']
       }
@@ -442,38 +367,17 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_work_schedule',
-      description: 'Create a work schedule entry for a worker on a project. Use when the user says "schedule Jose on the bathroom project next week" or "put Carlos on site Monday through Friday".',
+      description: 'Schedule a worker on a project. Use for "schedule Jose on the bathroom project next week", "put Carlos on site Mon-Fri". end_date defaults to start_date for single-day. Times optional (e.g., "07:00", "4:00 PM"). All dates YYYY-MM-DD.',
       parameters: {
         type: 'object',
         properties: {
-          worker: {
-            type: 'string',
-            description: 'Worker name or UUID. Names are resolved automatically.'
-          },
-          project: {
-            type: 'string',
-            description: 'Project name or UUID. Names are resolved automatically.'
-          },
-          start_date: {
-            type: 'string',
-            description: 'Start date in YYYY-MM-DD format'
-          },
-          end_date: {
-            type: 'string',
-            description: 'End date in YYYY-MM-DD format. Defaults to start_date for single-day schedules.'
-          },
-          start_time: {
-            type: 'string',
-            description: 'Start time (e.g., "07:00", "8:00 AM"). Optional.'
-          },
-          end_time: {
-            type: 'string',
-            description: 'End time (e.g., "16:00", "4:00 PM"). Optional.'
-          },
-          notes: {
-            type: 'string',
-            description: 'Optional notes about this schedule entry'
-          }
+          worker: { type: 'string' },
+          project: { type: 'string' },
+          start_date: { type: 'string' },
+          end_date: { type: 'string' },
+          start_time: { type: 'string' },
+          end_time: { type: 'string' },
+          notes: { type: 'string' }
         },
         required: ['worker', 'project', 'start_date']
       }
@@ -507,28 +411,15 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_project_phase',
-      description: 'Create a new phase/stage for an existing project with optional checklist tasks. Use when user says "add a demolition phase" or "create a plumbing phase with these tasks". DO NOT use this for change orders — if the user mentioned "change order", "CO", "extra work", "scope change", "client added X", or any mid-project addition with a dollar amount, use create_change_order instead. The CO cascade handles phase placement (new phase before/after, or merge into existing) atomically on client approval.',
+      description: 'Add a phase to an existing project, optionally with checklist tasks. Use for "add a demolition phase". DO NOT use for change orders (use create_change_order — its cascade handles phase placement). planned_days defaults to 5. tasks: Array<string>. budget: dollars (default 0).',
       parameters: {
         type: 'object',
         properties: {
-          project_id: {
-            type: 'string',
-            description: 'Project name or UUID. Names are resolved automatically.'
-          },
-          phase_name: {
-            type: 'string',
-            description: 'Name of the phase (e.g., "Demolition", "Rough Plumbing", "Finish Work")'
-          },
-          planned_days: {
-            type: 'number',
-            description: 'Estimated number of working days for this section. Defaults to 5.'
-          },
-          tasks: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Optional array of checklist task descriptions for this phase'
-          },
-          budget: { type: 'number', description: 'Dollar budget allocated to this phase (optional, default 0).' }
+          project_id: { type: 'string' },
+          phase_name: { type: 'string' },
+          planned_days: { type: 'number' },
+          tasks: { type: 'array', items: { type: 'string' } },
+          budget: { type: 'number' }
         },
         required: ['project_id', 'phase_name']
       }
@@ -626,46 +517,19 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'add_project_document',
-      description: 'Attach an already-uploaded file as a project document with role-aware visibility. Use when the user says things like "share the plans with Lana" or "add this contract to Smith Bath visible to subs". The file must already exist in storage (file_url is the storage path or signed URL).',
+      description: 'Attach an already-uploaded file as a project document with role-aware visibility. Use for "share plans with Lana", "add contract to Smith Bath visible to subs". File must already exist (file_url = storage path or signed URL).\n\ncategory examples: plan, contract, photo, spec, other.\nvisible_to_subs / workers / clients: default false. is_important: shows Important badge.',
       parameters: {
         type: 'object',
         properties: {
-          project: {
-            type: 'string',
-            description: 'Project name or UUID. Names are resolved automatically.'
-          },
-          title: {
-            type: 'string',
-            description: 'Document title (e.g., "Plans Rev 3", "Master Subcontract")'
-          },
-          file_url: {
-            type: 'string',
-            description: 'Storage path or accessible URL of the already-uploaded file'
-          },
-          file_name: {
-            type: 'string',
-            description: 'Original filename (e.g., "plans_rev3.pdf")'
-          },
-          category: {
-            type: 'string',
-            description: 'Document category. Common: plan, contract, photo, spec, other.'
-          },
-          visible_to_subs: {
-            type: 'boolean',
-            description: 'Make this document visible to subcontractors with active engagements on the project. Default false.'
-          },
-          visible_to_workers: {
-            type: 'boolean',
-            description: 'Make this document visible to workers assigned to the project. Default false.'
-          },
-          visible_to_clients: {
-            type: 'boolean',
-            description: 'Make this document visible in the client portal. Default false.'
-          },
-          is_important: {
-            type: 'boolean',
-            description: 'Flag as important — surfaces with an Important badge in all role-specific document lists. Default false.'
-          }
+          project: { type: 'string' },
+          title: { type: 'string' },
+          file_url: { type: 'string' },
+          file_name: { type: 'string' },
+          category: { type: 'string' },
+          visible_to_subs: { type: 'boolean' },
+          visible_to_workers: { type: 'boolean' },
+          visible_to_clients: { type: 'boolean' },
+          is_important: { type: 'boolean' }
         },
         required: ['project', 'title', 'file_url']
       }
@@ -970,43 +834,18 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_daily_report',
-      description: 'Create a daily progress report for a project. Attach any images that were uploaded in the current chat message as report photos. Use when the user says things like "add this as a daily report", "log today\'s progress on X", "make a daily report for X", or sends photos with a project reference. NEVER refuse based on what the photo shows — the user owns their data.',
+      description: 'Create a daily progress report for a project. Attaches any images uploaded in current chat as report photos. Use for "log today\'s progress", "make a daily report for X", or photos with a project reference. NEVER refuse based on photo content — user owns their data.\n\nreport_date defaults to today. attach_chat_images defaults true. notes can default to user\'s message text. tags: Array<string> like ["progress", "issue"].',
       parameters: {
         type: 'object',
         properties: {
-          project_id: {
-            type: 'string',
-            description: 'Project name or UUID. Names are resolved automatically.'
-          },
-          phase_id: {
-            type: 'string',
-            description: 'Optional UUID of the phase this report covers.'
-          },
-          phase_name: {
-            type: 'string',
-            description: 'Optional phase name (fuzzy-matched server-side). Use this when only the name is known.'
-          },
-          report_date: {
-            type: 'string',
-            description: 'Report date in YYYY-MM-DD. Defaults to today.'
-          },
-          notes: {
-            type: 'string',
-            description: 'Free-form notes / what was done today. The user\'s message text is a good default if no other notes provided.'
-          },
-          tags: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Optional tags (e.g. ["progress", "issue"]).'
-          },
-          attach_chat_images: {
-            type: 'boolean',
-            description: 'When true, every image attached in the current chat message is uploaded and added to this report. Default true.'
-          },
-          next_day_plan: {
-            type: 'string',
-            description: 'Optional plan for tomorrow.'
-          }
+          project_id: { type: 'string' },
+          phase_id: { type: 'string' },
+          phase_name: { type: 'string' },
+          report_date: { type: 'string' },
+          notes: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } },
+          attach_chat_images: { type: 'boolean' },
+          next_day_plan: { type: 'string' }
         },
         required: ['project_id']
       }
@@ -1196,34 +1035,16 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'query_event_history',
-      description: "Search the owner's event history (everything that's ever happened in their business — projects created, expenses recorded, scope changes, plan generations, agent decisions). Returns past events ranked by semantic similarity to the query. Use when the user asks things like 'when did we last...?', 'how often does X happen?', 'why did we...?', 'show me every scope change on Smith bath', 'how many callbacks has Carlos had?', 'what happened with the Davis project last week?'. The event log is the world model — query it whenever the answer depends on history rather than current state.",
+      description: "Search owner's event history via semantic match — everything that's happened (projects created, expenses, scope changes, agent decisions). Use for 'when did we last...?', 'how often X?', 'why did we...?', 'every scope change on Smith bath'. The event log is the world model — query when the answer depends on history not current state.\n\nentity_type: project|expense|invoice|worker|supervisor|service_plan|phase|estimate|daily_report|document\nevent_category: project|financial|crew|scheduling|service_plan|documentation|communication|agent\nlimit: default 8, max 25.",
       parameters: {
         type: 'object',
         properties: {
-          query: {
-            type: 'string',
-            description: 'Natural-language description of what to look for. Will be embedded and matched against past event summaries.'
-          },
-          entity_type: {
-            type: 'string',
-            description: "Optional filter — restrict to events about one entity type ('project', 'expense', 'invoice', 'worker', 'supervisor', 'service_plan', 'phase', 'estimate', 'daily_report', 'document')."
-          },
-          entity_id: {
-            type: 'string',
-            description: 'Optional filter — restrict to events about one specific entity (UUID).'
-          },
-          event_category: {
-            type: 'string',
-            description: "Optional filter — restrict to a category ('project', 'financial', 'crew', 'scheduling', 'service_plan', 'documentation', 'communication', 'agent')."
-          },
-          since_days: {
-            type: 'integer',
-            description: 'Optional — only return events from the last N days. Omit for all-time.'
-          },
-          limit: {
-            type: 'integer',
-            description: 'Max events to return. Default 8, max 25.'
-          }
+          query: { type: 'string' },
+          entity_type: { type: 'string' },
+          entity_id: { type: 'string' },
+          event_category: { type: 'string' },
+          since_days: { type: 'integer' },
+          limit: { type: 'integer' }
         },
         required: ['query']
       }
@@ -1262,20 +1083,12 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'suggest_pricing',
-      description: "ESTIMATE LINE-ITEM PRICING ONLY. Returns historical average/high/low prices for specific services (e.g. 'install porcelain tile', 'rough plumbing for shower'). Call this AFTER you've decided to build an estimate and need to fill in per-item costs. DO NOT call this for project creation, project setup, or anything that produces a project-preview card — projects use a contract amount the user typed, not historical line-item averages. If the user says 'create a project for X' or is confirming details on a project (continuations like 'yeah the client name is Sarah, $55k, starts Monday'), DO NOT call this tool. If the user said 'create an ESTIMATE for X', this is the right tool to enrich the line items.",
+      description: "ESTIMATE LINE-ITEM PRICING ONLY. Returns historical avg/high/low prices for services. Call AFTER deciding to build an estimate, to fill per-item costs. DO NOT use for project creation/preview (projects use the contract amount user typed). DO NOT use for continuations like 'yeah client is Sarah, $55k'. items: array of service descriptions like ['Install porcelain tile', 'Paint walls 2 coats'].",
       parameters: {
         type: 'object',
         properties: {
-          items: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Array of service/work descriptions to get pricing for (e.g., ["Install porcelain tile", "Rough plumbing for shower", "Paint walls 2 coats"])'
-          },
-          complexity: {
-            type: 'string',
-            enum: ['simple', 'moderate', 'complex'],
-            description: 'Job complexity — used to adjust pricing suggestions up or down'
-          }
+          items: { type: 'array', items: { type: 'string' } },
+          complexity: { type: 'string', enum: ['simple', 'moderate', 'complex'] }
         },
         required: ['items']
       }
@@ -1560,39 +1373,17 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'assign_bank_transaction',
-      description: 'Assign an unmatched bank/card transaction to a project as an expense. Creates a new project_transaction and links it to the bank transaction. Use when owner says "put that Home Depot charge on the Smith project" or "assign the $432 transaction to the kitchen remodel". For expense assignments you MUST pass either phase_name (preferred) or phase_id. Newly-created phases (via create_project_phase) are immediately valid — no refresh needed.',
+      description: 'Assign unmatched bank/card transaction to a project as expense. Use for "put that Home Depot charge on Smith project". MUST pass phase_name (preferred) OR phase_id; if user did not name a phase, OMIT both — tool returns available_phases to ask. Suggest category from merchant name when possible. bank_transaction_id accepts merchant/amount/UUID (auto-resolves).',
       parameters: {
         type: 'object',
         properties: {
-          bank_transaction_id: {
-            type: 'string',
-            description: 'Bank transaction description, merchant name, amount, or UUID. Will auto-resolve to the best match.'
-          },
-          project_id: {
-            type: 'string',
-            description: 'Project name or UUID to assign the expense to.'
-          },
-          category: {
-            type: 'string',
-            enum: ['materials', 'labor', 'equipment', 'permits', 'subcontractor', 'misc'],
-            description: 'Expense category. Suggest based on merchant name if possible.'
-          },
-          description: {
-            type: 'string',
-            description: 'Optional override for the expense description. Defaults to bank transaction description.'
-          },
-          subcategory: {
-            type: 'string',
-            description: 'Optional subcategory for detailed tracking (see record_expense for valid values). Only use when no phase fits.'
-          },
-          phase_id: {
-            type: 'string',
-            description: 'UUID of the project phase to attach this expense to. REQUIRED for expenses (unless subcategory is supplied). Use phase_name instead if you only have the phase name — the backend will resolve it.'
-          },
-          phase_name: {
-            type: 'string',
-            description: 'Name of the project phase to attach this expense to (e.g. "Demolition", "Garage remodel", "Drywall"). Alternative to phase_id — the backend fuzzy-matches it. If the user did NOT name a phase, OMIT this and the tool will return available_phases for you to ask the user. NEVER guess.'
-          }
+          bank_transaction_id: { type: 'string' },
+          project_id: { type: 'string' },
+          category: { type: 'string', enum: ['materials', 'labor', 'equipment', 'permits', 'subcontractor', 'misc'] },
+          description: { type: 'string' },
+          subcategory: { type: 'string' },
+          phase_id: { type: 'string' },
+          phase_name: { type: 'string' }
         },
         required: ['bank_transaction_id', 'project_id']
       }
@@ -1692,26 +1483,14 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'get_profit_loss',
-      description: 'Generate a Profit & Loss report for a date range. Returns revenue, costs by category (labor/materials/subcontractor/equipment/permits/misc), gross profit, gross margin, prorated overhead, net profit, outstanding receivables, and per-project breakdown. Use when the user asks for a "P&L", "profit and loss", "financial report", "what we netted", or "show me the numbers" for a project or for the whole company. The response includes a `visualElement` of type pnl-report — render it so the user can review and download a PDF directly from chat.',
+      description: 'Generate P&L report for a date range. Returns revenue, costs by category, gross profit/margin, prorated overhead, net profit, outstanding receivables, per-project breakdown. Use for "P&L", "profit and loss", "what we netted", "show me the numbers". Response includes pnl-report visualElement — render it.\n\ndates: YYYY-MM-DD (parse natural language: "Q1" → 2026-01-01, "last month" → first day prev month).\nproject_id: optional, scopes to one project. Omit for company-wide.',
       parameters: {
         type: 'object',
         properties: {
-          start_date: {
-            type: 'string',
-            description: 'Start of the reporting window (YYYY-MM-DD). Required. Parse natural language: "Q1" → 2026-01-01, "last month" → first day of previous month, "April 1" → 2026-04-01.'
-          },
-          end_date: {
-            type: 'string',
-            description: 'End of the reporting window (YYYY-MM-DD). Required. "today" → today; "Q1" → 2026-03-31; "last month" → last day of previous month.'
-          },
-          project_id: {
-            type: 'string',
-            description: 'Optional project name or UUID. If supplied, the report is scoped to that single project. Omit for company-wide P&L.'
-          },
-          include_projects: {
-            type: 'boolean',
-            description: 'If true, include the per-project breakdown array even when company-wide. Default behavior: company-wide always includes the breakdown; project-scoped does not.'
-          }
+          start_date: { type: 'string' },
+          end_date: { type: 'string' },
+          project_id: { type: 'string' },
+          include_projects: { type: 'boolean' }
         },
         required: ['start_date', 'end_date']
       }
@@ -2029,38 +1808,14 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'setup_daily_checklist',
-      description: 'Set up the RECURRING daily checklist items and labor roles for a project or service plan. These are items the crew checks off EVERY workday for the life of the project — head counts, PPE checks, daily progress quantities (linear ft / sqft / bundles installed today), site photos, end-of-day cleanup, materials staged for tomorrow. NEVER include phase-completion milestones here (e.g. "Pressure test passed", "Rough-in complete", "Cabinets installed") — those belong in phase tasks, not daily checks.',
+      description: 'Configure recurring daily checklist + labor roles for a project/service plan. Items the crew checks EVERY workday: head counts, PPE, daily quantities (linear ft, bags), site photos, cleanup. NEVER use for phase milestones ("Pressure test passed", "Rough-in complete") — those belong in phase tasks.\n\nchecklist_items: Array<{title, item_type?: "checkbox"|"quantity" (default checkbox), quantity_unit?: string, requires_photo?: boolean}>\nlabor_roles: Array<{role_name, default_quantity?: int}>\nProvide project_id OR service_plan_id (not both).',
       parameters: {
         type: 'object',
         properties: {
-          project_id: { type: 'string', description: 'UUID of the project (provide this OR service_plan_id, not both)' },
-          service_plan_id: { type: 'string', description: 'UUID of the service plan (provide this OR project_id, not both)' },
-          checklist_items: {
-            type: 'array',
-            description: 'Array of RECURRING daily checklist items the crew fills out EVERY workday. Forbidden: phase milestones, one-time deliverables, or anything that only happens once per project.',
-            items: {
-              type: 'object',
-              properties: {
-                title: { type: 'string', description: 'Item name. GOOD: "Crew head count", "PPE check completed", "Site photo — end of day", "Linear feet of pipe installed today", "Work area cleaned & tools secured". BAD (do not use): "All plumbing pressure tested" (milestone), "Rough-in complete" (milestone), "Cabinets installed" (one-time deliverable).' },
-                item_type: { type: 'string', enum: ['checkbox', 'quantity'], description: 'checkbox = done/not done, quantity = number + unit. Default: checkbox' },
-                quantity_unit: { type: 'string', description: 'Unit label for quantity items, e.g. "feet", "bags", "gallons", "sq ft"' },
-                requires_photo: { type: 'boolean', description: 'Whether a photo is required for this item. Default: false' }
-              },
-              required: ['title']
-            }
-          },
-          labor_roles: {
-            type: 'array',
-            description: 'Array of labor roles that show up on this job daily',
-            items: {
-              type: 'object',
-              properties: {
-                role_name: { type: 'string', description: 'Role name, e.g. "Fiber Splicer", "Laborer", "Flagman", "Foreman"' },
-                default_quantity: { type: 'integer', description: 'Default headcount for this role. Default: 1' }
-              },
-              required: ['role_name']
-            }
-          }
+          project_id: { type: 'string' },
+          service_plan_id: { type: 'string' },
+          checklist_items: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, item_type: { type: 'string', enum: ['checkbox', 'quantity'] }, quantity_unit: { type: 'string' }, requires_photo: { type: 'boolean' } }, required: ['title'] } },
+          labor_roles: { type: 'array', items: { type: 'object', properties: { role_name: { type: 'string' }, default_quantity: { type: 'integer' } }, required: ['role_name'] } }
         },
         required: ['checklist_items']
       }
@@ -2494,35 +2249,21 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_change_order',
-      description: 'Create a draft change order on a project. CO_number auto-increments per project. Use for mid-project additions, scope expansions, client requests beyond the original contract. Always created as draft — call send_change_order separately to send it to the client.',
+      description: 'Create a draft change order on a project. CO# auto-increments. Use for mid-project additions / scope changes beyond the original contract. Always draft — call send_change_order separately.\n\nline_items: Array<{description, unit_price, quantity?=1, unit?, category?}>\nbilling_strategy: invoice_now (separate invoice on approval) | add_to_contract (rolls into contract_amount) | final_invoice (lumped into final). Default invoice_now.\nphase_placement: inside_phase | before_phase | after_phase. REQUIRED when CO has tasks or schedule_impact_days != 0. Ask user if unspecified. target_phase_id pairs with this. new_phase_name optional (defaults to CO title) for before/after.',
       parameters: {
         type: 'object',
         properties: {
-          project_id: { type: 'string', description: 'Project name, address, or UUID. Resolved automatically.' },
-          title: { type: 'string', description: 'Short title — e.g. "Extra island cabinets" or "Kitchen rough-in upgrade".' },
-          description: { type: 'string', description: 'Optional details about the scope change.' },
-          line_items: {
-            type: 'array',
-            description: 'At least one line item.',
-            items: {
-              type: 'object',
-              properties: {
-                description: { type: 'string' },
-                quantity: { type: 'number', description: 'Defaults to 1.' },
-                unit: { type: 'string', description: 'Optional ("each", "lf", "sqft", "hr").' },
-                unit_price: { type: 'number' },
-                category: { type: 'string', description: 'Optional ("labor", "materials", "subcontractor", etc.)' },
-              },
-              required: ['description', 'unit_price'],
-            },
-          },
-          schedule_impact_days: { type: 'number', description: 'Days the project end_date pushes by. Default 0.' },
-          tax_rate: { type: 'number', description: 'Decimal (0.08 for 8%). Default 0.' },
-          signature_required: { type: 'boolean', description: 'If true, send_change_order also fires an e-signature request. Default false.' },
-          billing_strategy: { type: 'string', enum: ['invoice_now', 'add_to_contract', 'final_invoice'], description: 'invoice_now: separate invoice on approval. add_to_contract: rolls into contract_amount. final_invoice: lumped into the final invoice. Default invoice_now.' },
-          phase_placement: { type: 'string', enum: ['inside_phase', 'before_phase', 'after_phase'], description: 'Where the CO snaps into the phase timeline on approval. inside_phase: merge tasks + days into target phase. before_phase / after_phase: insert new phase relative to target. Required if the CO has tasks or schedule_impact_days != 0 — ask the user before drafting if unspecified.' },
-          target_phase_id: { type: 'string', description: 'UUID of the anchor phase (the phase being merged into, or the one the new phase sits before/after). Required when phase_placement is set.' },
-          new_phase_name: { type: 'string', description: 'Optional name for the new phase when phase_placement is before_phase / after_phase. Defaults to the CO title.' },
+          project_id: { type: 'string' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          line_items: { type: 'array', items: { type: 'object', properties: { description: { type: 'string' }, quantity: { type: 'number' }, unit: { type: 'string' }, unit_price: { type: 'number' }, category: { type: 'string' } }, required: ['description', 'unit_price'] } },
+          schedule_impact_days: { type: 'number' },
+          tax_rate: { type: 'number' },
+          signature_required: { type: 'boolean' },
+          billing_strategy: { type: 'string', enum: ['invoice_now', 'add_to_contract', 'final_invoice'] },
+          phase_placement: { type: 'string', enum: ['inside_phase', 'before_phase', 'after_phase'] },
+          target_phase_id: { type: 'string' },
+          new_phase_name: { type: 'string' },
         },
         required: ['project_id', 'title', 'line_items'],
       },
