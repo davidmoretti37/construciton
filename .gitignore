@@ -54,3 +54,4 @@ uploads/
 
 # Vim swap
 *.swp
+/website/
