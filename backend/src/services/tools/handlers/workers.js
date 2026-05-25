@@ -1001,17 +1001,24 @@ async function clock_out_worker(userId, args) {
 
   if (wrkErr || !worker) return { error: 'Worker not found or access denied' };
 
-  // Find active session
+  // Find the most recent open session. LEFT joins on both `projects` and
+  // `service_plans` so we can close any open clock-in regardless of
+  // target. The earlier `projects!inner` join made orphan rows (no
+  // project, or service-plan time) permanently invisible — the worker
+  // would appear clocked in on the worker-detail screen forever but
+  // every agent attempt would error "not currently clocked in."
   const { data: activeSession, error: sessionErr } = await supabase
     .from('time_tracking')
     .select(`
-      id, worker_id, project_id, clock_in,
-      projects!inner ( id, name )
+      id, worker_id, project_id, service_plan_id, clock_in,
+      projects ( id, name ),
+      service_plans ( id, name )
     `)
     .eq('worker_id', worker_id)
     .is('clock_out', null)
+    .order('clock_in', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (sessionErr || !activeSession) {
     return { error: `${worker.full_name} is not currently clocked in.` };
@@ -1058,7 +1065,10 @@ async function clock_out_worker(userId, args) {
       break;
   }
 
-  if (laborCost > 0) {
+  // Only post a labor transaction if the session was attached to a
+  // project. Service-plan time and orphan sessions (no target) do not
+  // belong on any project ledger.
+  if (laborCost > 0 && activeSession.project_id) {
     const { error: txnErr } = await supabase
       .from('project_transactions')
       .insert({
@@ -1080,10 +1090,18 @@ async function clock_out_worker(userId, args) {
     }
   }
 
+  // Build a context label for the response. Project takes precedence,
+  // then service plan, then "unscheduled session" for orphans.
   const projectName = activeSession.projects?.name || '';
+  const servicePlanName = activeSession.service_plans?.name || '';
+  const contextLabel = projectName
+    ? projectName
+    : servicePlanName
+      ? `service plan ${servicePlanName}`
+      : 'an unscheduled session';
 
   // Send notification (fire and forget)
-  const clockOutBody = `${worker.full_name} clocked out from ${projectName} (${formatHoursMinutes(hoursWorked)})`;
+  const clockOutBody = `${worker.full_name} clocked out from ${contextLabel} (${formatHoursMinutes(hoursWorked)})`;
   sendNotification({
     userId: ownerId,
     title: 'Worker Clocked Out',
@@ -1092,23 +1110,27 @@ async function clock_out_worker(userId, args) {
     data: { screen: 'Workers' },
     workerId: worker_id,
   });
-  const clockOutSupId = await resolveSupervisorRecipient(activeSession.project_id, ownerId, 'can_manage_workers');
-  if (clockOutSupId && clockOutSupId !== userId) {
-    sendNotification({
-      userId: clockOutSupId,
-      title: 'Worker Clocked Out',
-      body: clockOutBody,
-      type: 'worker_update',
-      data: { screen: 'Workers' },
-      workerId: worker_id,
-    });
+  // Supervisor notifications only when a project context exists.
+  if (activeSession.project_id) {
+    const clockOutSupId = await resolveSupervisorRecipient(activeSession.project_id, ownerId, 'can_manage_workers');
+    if (clockOutSupId && clockOutSupId !== userId) {
+      sendNotification({
+        userId: clockOutSupId,
+        title: 'Worker Clocked Out',
+        body: clockOutBody,
+        type: 'worker_update',
+        data: { screen: 'Workers' },
+        workerId: worker_id,
+      });
+    }
   }
 
   return {
     success: true,
-    message: `${worker.full_name} clocked out from ${projectName} — ${formatHoursMinutes(hoursWorked)} worked`,
+    message: `${worker.full_name} clocked out from ${contextLabel} — ${formatHoursMinutes(hoursWorked)} worked`,
     workerName: worker.full_name,
-    projectName,
+    projectName: projectName || null,
+    servicePlanName: servicePlanName || null,
     hoursWorked: Math.round(hoursWorked * 100) / 100,
     laborCost: Math.round(laborCost * 100) / 100,
   };
