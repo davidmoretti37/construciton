@@ -53,6 +53,12 @@ const { annotateVoiceTranscript } = require('./voicePreprocessor');
 const { emit: emitEvent, EVENT_TYPES } = require('./eventEmitter');
 const { buildDomainContextBlock } = require('./domainContextBlock');
 const { normalizeVisualElements } = require('./visualElementNormalizer');
+// Response sealing layer (2026-05-25): deterministic claim-vs-trace
+// check + durable per-turn audit. The verifier rewrites the response
+// when the agent claims an action that didn't have a successful
+// matching tool call. The audit logs everything for later analysis.
+const { verifyResponse: verifyAgentResponse } = require('./agent/responseVerifier');
+const { writeTurn: writeAgentTurnAudit } = require('./agentAudit');
 
 // Mapping from tool name → canonical domain event type. Adding a new
 // mutation tool? Add it here so the world model captures it. If a tool
@@ -2311,13 +2317,48 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       // This is the self-correction property that separates SOTA agents
       // from chatbots.
       let verifierVerdict = null;
-      // P6: constitution layer — runs before the verifier. Catches
-      // hard-rule violations (claims an SMS was sent when SMS is off,
-      // claims a destructive op completed when none did, leaks tool
-      // names). Violations are logged as warnings; if a rule is
-      // severity='block' we substitute the response with the rule's
-      // fix text. The verifier still runs after — these are layered
-      // checks, not alternatives.
+
+      // Build a richer tool-call list with results correlated by
+      // tool_call_id. Used by both the deterministic response verifier
+      // (sealing layer) and the per-turn audit writer.
+      const toolResultById = new Map();
+      for (const m of messages) {
+        if (m.role !== 'tool' || !m.tool_call_id) continue;
+        try {
+          const parsed = JSON.parse(m.content);
+          toolResultById.set(m.tool_call_id, parsed && typeof parsed === 'object' && 'data' in parsed ? parsed.data : parsed);
+        } catch {
+          toolResultById.set(m.tool_call_id, m.content);
+        }
+      }
+      const toolCallsWithResults = [];
+      for (const m of messages) {
+        if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) continue;
+        for (const tc of m.tool_calls) {
+          let parsedArgs = {};
+          try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch {}
+          toolCallsWithResults.push({
+            id: tc.id,
+            name: tc.function?.name,
+            args: parsedArgs,
+            result: toolResultById.get(tc.id),
+          });
+        }
+      }
+
+      // Effective response text — starts as the model's output, gets
+      // replaced if constitution blocks or the response verifier
+      // rewrites for a claim/trace mismatch.
+      let effectiveFinalContent = finalContent;
+      let verifierIntervention = { occurred: false, type: null };
+      let responseVerifierResult = null;
+      let constitutionBlocked = false;
+
+      // P6: constitution layer — runs before the response verifier.
+      // Catches hard-rule violations (SMS claims when SMS is off,
+      // destructive false claims, tool-name leaks). Violations are
+      // logged; severity='block' substitutes the response with the
+      // rule's fix text.
       try {
         const constitution = require('./constitution');
         const verdict = constitution.evaluate({
@@ -2331,15 +2372,65 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
             writer.emit({ type: 'constitution_warning', rule: v.rule, severity: v.severity, reason: v.reason });
           }
           if (verdict.blocked) {
-            // Substitute the response stream with the safe fix.
+            constitutionBlocked = true;
+            const fixText = verdict.blocked.fix || "I can't do that in this build.";
             writer.emit({ type: 'clear' });
-            for (const ch of (verdict.blocked.fix || 'I can\'t do that in this build.').split('')) {
+            for (const ch of fixText.split('')) {
               writer.emit({ type: 'delta', content: ch });
             }
+            effectiveFinalContent = fixText;
+            verifierIntervention = {
+              occurred: true,
+              type: 'constitution_block',
+              rule: verdict.blocked.rule,
+              original_text: finalContent,
+              replacement_text: fixText,
+            };
           }
         }
       } catch (err) {
         logger.warn('[constitution] evaluation error:', err.message);
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // Response Verifier — deterministic claim-vs-trace check.
+      // The sealing layer. Catches "I sent the estimate" hallucinations
+      // by checking that every action claim in the response text maps
+      // to a successful tool call. Mismatches → rewrite the response
+      // from the actual trace. Pure code, no LLM in the loop.
+      // ─────────────────────────────────────────────────────────────────
+      if (!constitutionBlocked && effectiveFinalContent) {
+        try {
+          const vr = verifyAgentResponse({
+            responseText: effectiveFinalContent,
+            executedToolCalls: toolCallsWithResults,
+            userMessage: lastUserMsg,
+          });
+          responseVerifierResult = vr;
+          if (!vr.passed && vr.rewrite) {
+            logger.warn(`[responseVerifier] mismatch — rewriting. mismatches=${vr.mismatches.length} gap=${vr.capabilityGap?.detected}`);
+            writer.emit({
+              type: 'verifier_intervention',
+              mismatches: vr.mismatches,
+              capability_gap: vr.capabilityGap,
+            });
+            writer.emit({ type: 'clear' });
+            for (const ch of vr.rewrite.split('')) {
+              writer.emit({ type: 'delta', content: ch });
+            }
+            verifierIntervention = {
+              occurred: true,
+              type: 'response_rewrite',
+              original_text: effectiveFinalContent,
+              replacement_text: vr.rewrite,
+              mismatches: vr.mismatches,
+              capability_gap: vr.capabilityGap,
+            };
+            effectiveFinalContent = vr.rewrite;
+          }
+        } catch (err) {
+          logger.warn('[responseVerifier] evaluation error:', err.message);
+        }
       }
 
       const shouldVerify = plan?.needs_verification && plan.plan_text && replanCount < MAX_REPLANS;
@@ -2459,6 +2550,27 @@ async function processAgentRequest(userMessages, userId, userContext, res, req, 
       // Signal completion
       writer.emit({ type: 'done' });
       await writer.complete();
+
+      // Fire-and-forget per-turn audit. One durable row per turn captures
+      // user message, tool calls + results, final response (after any
+      // rewrite), claims extracted, consistency verdict, and any
+      // intervention applied. Never blocks the user-facing response.
+      try {
+        writeAgentTurnAudit({
+          jobId,
+          userId,
+          sessionId,
+          userMessage: lastUserMsg,
+          toolCalls: toolCallsWithResults,
+          finalResponse: effectiveFinalContent,
+          verifyResult: responseVerifierResult,
+          intervention: verifierIntervention,
+          model,
+          totalDurationMs: Date.now() - startTime,
+        });
+      } catch (e) {
+        logger.warn('[audit] dispatch failed:', e.message);
+      }
 
       // Persist this turn's user + assistant messages to chat_messages so future
       // turns can recall them. Fire-and-forget so the user-facing response isn't
