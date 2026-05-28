@@ -2071,6 +2071,7 @@ router.post('/invoices/:invoiceId/nudge', async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { invoiceId } = req.params;
+    const providedEmail = (req.body?.email || '').trim();
 
     const { data: invoice, error: invErr } = await supabase
       .from('invoices')
@@ -2079,7 +2080,28 @@ router.post('/invoices/:invoiceId/nudge', async (req, res) => {
       .eq('user_id', ownerId)
       .single();
     if (invErr || !invoice) return res.status(404).json({ error: 'Invoice not found' });
-    if (!invoice.client_email) return res.status(400).json({ error: 'No client email on invoice' });
+
+    // Resolve the recipient. If the invoice has no email on file, accept one
+    // from the caller (the [Nudge client] button prompts for it) and persist
+    // it so future nudges/sends just work. Returns a `code` so the frontend
+    // can offer the inline add-email flow instead of dead-ending.
+    let recipientEmail = invoice.client_email;
+    if (!recipientEmail && providedEmail) {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(providedEmail)) {
+        return res.status(400).json({ error: "That email doesn't look valid.", code: 'BAD_EMAIL' });
+      }
+      const { error: upErr } = await supabase
+        .from('invoices')
+        .update({ client_email: providedEmail })
+        .eq('id', invoiceId)
+        .eq('user_id', ownerId);
+      if (upErr) return res.status(500).json({ error: 'Could not save the email.' });
+      recipientEmail = providedEmail;
+      invoice.client_email = providedEmail;
+    }
+    if (!recipientEmail) {
+      return res.status(400).json({ error: 'No client email on this invoice yet.', code: 'NO_EMAIL' });
+    }
     if (parseFloat(invoice.amount_due || 0) <= 0) {
       return res.status(400).json({ error: 'Invoice has no outstanding balance' });
     }

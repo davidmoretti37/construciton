@@ -20,7 +20,12 @@ async function authedFetch(path, options = {}) {
   const text = await res.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
-  if (!res.ok) throw new Error(body?.error || `Request failed: ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(body?.error || `Request failed: ${res.status}`);
+    err.code = body?.code || null;
+    err.status = res.status;
+    throw err;
+  }
   return body;
 }
 
@@ -38,9 +43,15 @@ export const sendDrawNow = async (drawItemId, dueInDays = 30) => {
   return generateDrawInvoice(drawItemId, dueInDays);
 };
 
-/** Send a polite reminder email for an overdue invoice */
-export const nudgeInvoice = (invoiceId) =>
-  authedFetch(`/api/portal-admin/invoices/${invoiceId}/nudge`, { method: 'POST' });
+/**
+ * Send a polite reminder email for an overdue invoice. If the invoice has no
+ * email on file, pass `email` — the backend persists it and sends in one shot.
+ */
+export const nudgeInvoice = (invoiceId, email) =>
+  authedFetch(`/api/portal-admin/invoices/${invoiceId}/nudge`, {
+    method: 'POST',
+    ...(email ? { body: JSON.stringify({ email }) } : {}),
+  });
 
 /** Email the invoice to the client + create a portal notification. */
 export const sendInvoiceToClient = (invoiceId) =>

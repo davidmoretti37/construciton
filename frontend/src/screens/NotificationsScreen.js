@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -131,6 +132,53 @@ export default function NotificationsScreen({ navigation }) {
   // One-tap inline action: dispatch billing actions without leaving the
   // notifications screen. Marks the notification as read on success so the
   // CTA disappears (the unread state controls visibility).
+  // Nudge an overdue invoice. If the invoice has no client email, the backend
+  // returns code NO_EMAIL — rather than dead-ending, prompt for the email and
+  // retry (the backend saves it so future nudges work). iOS uses the native
+  // Alert.prompt; Android (no prompt primitive) routes the user to the invoice
+  // screen to add the email there.
+  const nudgeWithEmailFallback = useCallback(async (invoiceId, navigation) => {
+    const { nudgeInvoice } = await import('../utils/storage/projectBilling');
+    try {
+      await nudgeInvoice(invoiceId);
+      return { ok: true };
+    } catch (e) {
+      if (e?.code !== 'NO_EMAIL' && e?.code !== 'BAD_EMAIL') {
+        return { ok: false, error: e?.message || 'Could not send the reminder' };
+      }
+      // No email on file — collect one and retry.
+      if (Platform.OS === 'ios') {
+        const email = await new Promise((resolve) => {
+          Alert.prompt(
+            'Add client email',
+            "This invoice has no email yet. Enter the client's email and I'll send the reminder.",
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+              { text: 'Send reminder', onPress: (val) => resolve((val || '').trim()) },
+            ],
+            'plain-text',
+            '',
+            'email-address'
+          );
+        });
+        if (!email) return { ok: true, skipped: true };
+        try {
+          await nudgeInvoice(invoiceId, email);
+          return { ok: true };
+        } catch (e2) {
+          return { ok: false, error: e2?.message || 'Could not send the reminder' };
+        }
+      }
+      // Android fallback: send them to the invoice to add the email.
+      Alert.alert(
+        'No client email',
+        'Add the client\'s email on the invoice, then tap Nudge again.',
+        [{ text: 'OK' }]
+      );
+      return { ok: true, skipped: true };
+    }
+  }, []);
+
   const handleNotificationAction = useCallback(async (notification) => {
     const action = notification.action_type;
     const data = notification.action_data || {};
@@ -154,9 +202,12 @@ export default function NotificationsScreen({ navigation }) {
           result = await billing.sendDrawNow(data.draw_item_id);
           break;
         }
-        case 'nudge_invoice':
-          result = await billing.nudgeInvoice(data.invoice_id);
+        case 'nudge_invoice': {
+          const nudgeRes = await nudgeWithEmailFallback(data.invoice_id);
+          if (nudgeRes.skipped) return; // user cancelled the email prompt
+          result = nudgeRes.ok ? {} : { error: nudgeRes.error };
           break;
+        }
         case 'resend_co':
           result = await billing.resendChangeOrder(data.change_order_id);
           break;
@@ -175,7 +226,7 @@ export default function NotificationsScreen({ navigation }) {
     } catch (e) {
       Alert.alert('Action failed', e.message || 'Could not complete the action');
     }
-  }, [markNotificationAsRead]);
+  }, [markNotificationAsRead, nudgeWithEmailFallback]);
 
   // Appointment popup handlers
   const handleReschedule = useCallback(async (eventId, updates) => {
