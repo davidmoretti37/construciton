@@ -44,14 +44,13 @@ export const sendDrawNow = async (drawItemId, dueInDays = 30) => {
 };
 
 /**
- * Send a polite reminder email for an overdue invoice. If the invoice has no
- * email on file, pass `email` — the backend persists it and sends in one shot.
+ * Nudge the client about an overdue invoice IN THE PORTAL (message thread +
+ * push) — not by email. Returns { sent, delivered: ['message','push'], client }
+ * on success; throws with err.code 'NO_PORTAL_CLIENT' when the client has no
+ * portal access yet.
  */
-export const nudgeInvoice = (invoiceId, email) =>
-  authedFetch(`/api/portal-admin/invoices/${invoiceId}/nudge`, {
-    method: 'POST',
-    ...(email ? { body: JSON.stringify({ email }) } : {}),
-  });
+export const nudgeInvoice = (invoiceId) =>
+  authedFetch(`/api/portal-admin/invoices/${invoiceId}/nudge`, { method: 'POST' });
 
 /** Email the invoice to the client + create a portal notification. */
 export const sendInvoiceToClient = (invoiceId) =>

@@ -2064,14 +2064,20 @@ router.get('/projects/:projectId/billing', async (req, res) => {
 
 /**
  * POST /invoices/:invoiceId/nudge
- * Sends a polite reminder email to the client about an unpaid invoice.
+ * Reminds the client about an unpaid invoice IN THE PORTAL — not by email.
+ * Delivery is two channels, both best-effort:
+ *   1. A reminder message posted into the project's portal conversation
+ *      thread (only when the invoice is tied to a project shared with the
+ *      client — project-less invoices have no thread).
+ *   2. A push notification to the client's device(s) via the
+ *      send-push-notification edge function (explicit — there is no
+ *      auto-trigger on notification inserts).
  * Used by the one-tap [Nudge client] button on overdue notifications + BillingCard.
  */
 router.post('/invoices/:invoiceId/nudge', async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { invoiceId } = req.params;
-    const providedEmail = (req.body?.email || '').trim();
 
     const { data: invoice, error: invErr } = await supabase
       .from('invoices')
@@ -2080,30 +2086,37 @@ router.post('/invoices/:invoiceId/nudge', async (req, res) => {
       .eq('user_id', ownerId)
       .single();
     if (invErr || !invoice) return res.status(404).json({ error: 'Invoice not found' });
-
-    // Resolve the recipient. If the invoice has no email on file, accept one
-    // from the caller (the [Nudge client] button prompts for it) and persist
-    // it so future nudges/sends just work. Returns a `code` so the frontend
-    // can offer the inline add-email flow instead of dead-ending.
-    let recipientEmail = invoice.client_email;
-    if (!recipientEmail && providedEmail) {
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(providedEmail)) {
-        return res.status(400).json({ error: "That email doesn't look valid.", code: 'BAD_EMAIL' });
-      }
-      const { error: upErr } = await supabase
-        .from('invoices')
-        .update({ client_email: providedEmail })
-        .eq('id', invoiceId)
-        .eq('user_id', ownerId);
-      if (upErr) return res.status(500).json({ error: 'Could not save the email.' });
-      recipientEmail = providedEmail;
-      invoice.client_email = providedEmail;
-    }
-    if (!recipientEmail) {
-      return res.status(400).json({ error: 'No client email on this invoice yet.', code: 'NO_EMAIL' });
-    }
     if (parseFloat(invoice.amount_due || 0) <= 0) {
       return res.status(400).json({ error: 'Invoice has no outstanding balance' });
+    }
+
+    // Resolve the portal client. The portal links invoices to clients by
+    // email (then name) — the same matching the client dashboard uses. No
+    // portal client = nobody to reach in the portal.
+    let client = null;
+    if (invoice.client_email) {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, user_id, full_name')
+        .eq('owner_id', ownerId)
+        .eq('email', invoice.client_email)
+        .maybeSingle();
+      client = data || null;
+    }
+    if (!client && invoice.client_name) {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, user_id, full_name')
+        .eq('owner_id', ownerId)
+        .eq('full_name', invoice.client_name)
+        .maybeSingle();
+      client = data || null;
+    }
+    if (!client) {
+      return res.status(400).json({
+        error: "This client isn't on your portal yet. Invite them to the portal, then you can nudge them there.",
+        code: 'NO_PORTAL_CLIENT',
+      });
     }
 
     const { data: profile } = await supabase
@@ -2113,13 +2126,71 @@ router.post('/invoices/:invoiceId/nudge', async (req, res) => {
       .single();
     const businessName = profile?.business_name || profile?.full_name || 'Your contractor';
 
-    // Reuse invoice email template (same content, different subject prefix)
-    const { sendInvoiceEmail } = require('../services/emailService');
-    const result = await sendInvoiceEmail({
-      invoice: { ...invoice, _isReminder: true },
-      businessName,
-      pdfUrl: invoice.pdf_url,
-    });
+    const amountLabel = `$${parseFloat(invoice.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const dueClause = invoice.due_date ? ` (due ${invoice.due_date})` : '';
+    const messageText = `Friendly reminder: invoice ${invoice.invoice_number} for ${amountLabel} is still outstanding${dueClause}. You can review and pay it anytime in your portal.`;
+
+    const delivered = [];
+
+    // 1) Portal message thread — only when the invoice is on a project that's
+    //    shared with this client. Owner-authored (sender_id set) renders as
+    //    "Contractor" in the client's portal Messages.
+    if (invoice.project_id) {
+      const { data: share } = await supabase
+        .from('project_clients')
+        .select('project_id')
+        .eq('project_id', invoice.project_id)
+        .eq('client_id', client.id)
+        .maybeSingle();
+      if (share) {
+        let { data: conversation } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('project_id', invoice.project_id)
+          .maybeSingle();
+        if (!conversation) {
+          const { data: newConvo } = await supabase
+            .from('conversations')
+            .insert({ project_id: invoice.project_id, name: 'Client Portal' })
+            .select('id')
+            .single();
+          conversation = newConvo || null;
+        }
+        if (conversation) {
+          const { error: msgErr } = await supabase.from('messages').insert({
+            conversation_id: conversation.id,
+            sender_id: ownerId,
+            content: messageText,
+          });
+          if (!msgErr) delivered.push('message');
+        }
+      }
+    }
+
+    // 2) Push to the client's device(s). Best-effort; no auto-trigger exists.
+    if (client.user_id) {
+      try {
+        await supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: client.user_id,
+            title: `Payment reminder from ${businessName}`,
+            body: `Invoice ${invoice.invoice_number} (${amountLabel}) is outstanding. Tap to view in your portal.`,
+            type: 'invoice_overdue',
+            data: { invoiceId, screen: 'PortalInvoices' },
+          },
+        });
+        delivered.push('push');
+      } catch (e) {
+        logger.warn('[PortalAdmin] nudge push failed:', e.message);
+      }
+    }
+
+    if (delivered.length === 0) {
+      return res.status(502).json({
+        error: "Couldn't reach this client in the portal — no shared project thread and no registered device.",
+        code: 'NOT_DELIVERED',
+      });
+    }
 
     // Audit
     await supabase.from('approval_events').insert({
@@ -2129,7 +2200,7 @@ router.post('/invoices/:invoiceId/nudge', async (req, res) => {
       action: 'sent',
       actor_type: 'owner',
       actor_id: ownerId,
-      notes: `Nudge sent to ${invoice.client_email}`,
+      notes: `Portal nudge to ${client.full_name} (${delivered.join(' + ')})`,
     });
 
     // Mark any matching invoice_overdue notification as read so it dismisses
@@ -2139,10 +2210,10 @@ router.post('/invoices/:invoiceId/nudge', async (req, res) => {
       .eq('type', 'invoice_overdue')
       .eq('action_data->>invoice_id', invoiceId);
 
-    res.json({ sent: result.sent, email: invoice.client_email, error: result.error });
+    res.json({ sent: true, delivered, client: client.full_name });
   } catch (error) {
     logger.error('[PortalAdmin] Invoice nudge error:', error.message);
-    res.status(500).json({ error: 'Failed to send invoice reminder' });
+    res.status(500).json({ error: 'Failed to send portal reminder' });
   }
 });
 

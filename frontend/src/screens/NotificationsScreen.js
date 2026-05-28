@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -132,50 +131,32 @@ export default function NotificationsScreen({ navigation }) {
   // One-tap inline action: dispatch billing actions without leaving the
   // notifications screen. Marks the notification as read on success so the
   // CTA disappears (the unread state controls visibility).
-  // Nudge an overdue invoice. If the invoice has no client email, the backend
-  // returns code NO_EMAIL — rather than dead-ending, prompt for the email and
-  // retry (the backend saves it so future nudges work). iOS uses the native
-  // Alert.prompt; Android (no prompt primitive) routes the user to the invoice
-  // screen to add the email there.
-  const nudgeWithEmailFallback = useCallback(async (invoiceId, navigation) => {
+  // Nudge an overdue invoice IN THE PORTAL (message thread + push to the
+  // client's device) — not by email. If the client has no portal access yet
+  // (code NO_PORTAL_CLIENT) we tell the owner to invite them rather than
+  // dead-ending with a raw error.
+  const nudgeClientInPortal = useCallback(async (invoiceId) => {
     const { nudgeInvoice } = await import('../utils/storage/projectBilling');
     try {
-      await nudgeInvoice(invoiceId);
+      const res = await nudgeInvoice(invoiceId);
+      const channels = res?.delivered || [];
+      const where = channels.includes('message') && channels.includes('push')
+        ? 'their portal and phone'
+        : channels.includes('message')
+          ? 'their portal'
+          : 'their phone';
+      Alert.alert('Reminder sent', `Nudged ${res?.client || 'the client'} in ${where}.`);
       return { ok: true };
     } catch (e) {
-      if (e?.code !== 'NO_EMAIL' && e?.code !== 'BAD_EMAIL') {
-        return { ok: false, error: e?.message || 'Could not send the reminder' };
+      if (e?.code === 'NO_PORTAL_CLIENT') {
+        Alert.alert(
+          'Client not on portal',
+          "This client doesn't have portal access yet. Invite them to the portal, then you can nudge them there.",
+          [{ text: 'OK' }]
+        );
+        return { ok: true, skipped: true };
       }
-      // No email on file — collect one and retry.
-      if (Platform.OS === 'ios') {
-        const email = await new Promise((resolve) => {
-          Alert.prompt(
-            'Add client email',
-            "This invoice has no email yet. Enter the client's email and I'll send the reminder.",
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-              { text: 'Send reminder', onPress: (val) => resolve((val || '').trim()) },
-            ],
-            'plain-text',
-            '',
-            'email-address'
-          );
-        });
-        if (!email) return { ok: true, skipped: true };
-        try {
-          await nudgeInvoice(invoiceId, email);
-          return { ok: true };
-        } catch (e2) {
-          return { ok: false, error: e2?.message || 'Could not send the reminder' };
-        }
-      }
-      // Android fallback: send them to the invoice to add the email.
-      Alert.alert(
-        'No client email',
-        'Add the client\'s email on the invoice, then tap Nudge again.',
-        [{ text: 'OK' }]
-      );
-      return { ok: true, skipped: true };
+      return { ok: false, error: e?.message || 'Could not send the reminder' };
     }
   }, []);
 
@@ -203,9 +184,10 @@ export default function NotificationsScreen({ navigation }) {
           break;
         }
         case 'nudge_invoice': {
-          const nudgeRes = await nudgeWithEmailFallback(data.invoice_id);
-          if (nudgeRes.skipped) return; // user cancelled the email prompt
-          result = nudgeRes.ok ? {} : { error: nudgeRes.error };
+          const nudgeRes = await nudgeClientInPortal(data.invoice_id);
+          if (nudgeRes.skipped) return;   // handled inline (e.g. not on portal)
+          if (nudgeRes.ok) return;        // success alert already shown
+          result = { error: nudgeRes.error };
           break;
         }
         case 'resend_co':
@@ -226,7 +208,7 @@ export default function NotificationsScreen({ navigation }) {
     } catch (e) {
       Alert.alert('Action failed', e.message || 'Could not complete the action');
     }
-  }, [markNotificationAsRead, nudgeWithEmailFallback]);
+  }, [markNotificationAsRead, nudgeClientInPortal]);
 
   // Appointment popup handlers
   const handleReschedule = useCallback(async (eventId, updates) => {
