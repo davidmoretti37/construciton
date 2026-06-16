@@ -21,6 +21,11 @@ router.post('/transcribe', authenticateUser, async (req, res) => {
       return res.status(400).json({ error: 'Audio data is required' });
     }
 
+    // C6: payload size guard — 5MB base64 ≈ 3.7MB audio ≈ 10 min recording
+    if (typeof audio !== 'string' || audio.length > 5_000_000) {
+      return res.status(413).json({ error: 'Audio payload too large (max 5MB base64)' });
+    }
+
     // Convert base64 to binary buffer
     const audioBuffer = Buffer.from(audio, 'base64');
 

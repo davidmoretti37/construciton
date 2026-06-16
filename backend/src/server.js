@@ -1435,6 +1435,26 @@ if (require.main === module) {
     logger.warn('Push dispatch job failed to start:', e.message);
   }
 
+  // Invoice reminder cron — daily tier (3-day pre-due, due, 7/14/30 overdue)
+  // emails to clients on portal-shared projects with invoice_reminders=true.
+  // Idempotent via invoice_reminder_log unique index.
+  try {
+    const { startInvoiceReminderJob } = require('./services/invoiceReminderJob');
+    startInvoiceReminderJob();
+  } catch (e) {
+    logger.warn('Invoice reminder job failed to start:', e.message);
+  }
+
+  // Weekly AI summary cron — every Monday, generates a draft summary for
+  // each project with weekly_summary_enabled=true, then notifies the owner
+  // to review. Owner approves to send (manual gate).
+  try {
+    const { startWeeklySummaryJob } = require('./services/weeklySummaryJob');
+    startWeeklySummaryJob();
+  } catch (e) {
+    logger.warn('Weekly summary job failed to start:', e.message);
+  }
+
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     logger.info(`Backend server running on port ${PORT}`);

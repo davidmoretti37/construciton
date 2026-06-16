@@ -14,6 +14,7 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { reconcileTransactions } = require('../services/reconciliationService');
 const { parseCSV } = require('../services/csvParserService');
+const { encryptSecret, decryptSecret } = require('../services/crypto');
 
 // Initialize Teller mTLS agent (skip for sandbox — sandbox uses token auth only)
 // Supports certs from files (local dev) or base64 env vars (Railway/production)
@@ -712,7 +713,7 @@ router.post('/connect-page/:sessionId/complete', express.json(), async (req, res
         .from('connected_bank_accounts')
         .insert({
           user_id: userId,
-          teller_access_token: access_token,
+          teller_access_token: encryptSecret(access_token), // C5: encrypted at rest
           teller_enrollment_id: enrollment.id,
           teller_institution_id: institutionId,
           institution_name: account.institution?.name || institutionName,
@@ -833,7 +834,7 @@ router.post('/save-enrollment', async (req, res) => {
         .from('connected_bank_accounts')
         .insert({
           user_id: userId,
-          teller_access_token: access_token,
+          teller_access_token: encryptSecret(access_token), // C5: encrypted at rest
           teller_enrollment_id: enrollment.id,
           teller_institution_id: enrollment.institution?.id || null,
           institution_name: enrollment.institution?.name || 'Unknown Bank',
@@ -912,7 +913,7 @@ router.delete('/accounts/:accountId', async (req, res) => {
     // Delete account via Teller API (if Teller-connected)
     if (account.teller_access_token && account.teller_account_id) {
       try {
-        await tellerFetch(account.teller_access_token, `/accounts/${account.teller_account_id}`, 'DELETE');
+        await tellerFetch(decryptSecret(account.teller_access_token), `/accounts/${account.teller_account_id}`, 'DELETE'); // C5
       } catch (tellerError) {
         logger.warn('Teller account delete warning:', tellerError.message);
       }
@@ -1690,7 +1691,7 @@ async function syncAccountTransactions(userId, account, overrideFromDate = null)
         path += `&from_id=${fromId}`;
       }
 
-      const transactions = await tellerFetch(account.teller_access_token, path);
+      const transactions = await tellerFetch(decryptSecret(account.teller_access_token), path); // C5
 
       if (!transactions || transactions.length === 0) break;
 

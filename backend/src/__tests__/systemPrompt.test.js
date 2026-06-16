@@ -88,11 +88,29 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('Paint');
   });
 
-  test('empty context → no undefined/null strings in output', () => {
+  test('empty context → no undefined/null template-leak strings in output', () => {
     const prompt = buildSystemPrompt({});
 
+    // Hard fail: any occurrence of the literal string "undefined" indicates a
+    // template variable that JS coerced via String(undefined). Never legitimate.
     expect(prompt).not.toContain('undefined');
-    expect(prompt).not.toContain('null');
+
+    // For "null", only flag interpolation-leak patterns. The prompt legitimately
+    // contains the literal token "null" in field documentation (e.g.
+    // `phasePlacement: null`). A real template leak looks like ": null" appearing
+    // immediately after a known context label (Business, Phone, Email, etc.).
+    const leakPatterns = [
+      /Business name:\s*null/i,
+      /Phone:\s*null/i,
+      /Email:\s*null/i,
+      /Address:\s*null/i,
+      /User name:\s*null/i,
+      /Owner:\s*null/i,
+      /\n\s*null\s*\n/,
+    ];
+    for (const pat of leakPatterns) {
+      expect(prompt).not.toMatch(pat);
+    }
   });
 
   test('userName is included when provided', () => {

@@ -688,9 +688,68 @@ router.get('/estimates/:estimateId/signing-link', async (req, res) => {
 
     const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
     const signing_url = `${PORTAL_URL.replace(/\/portal$/, '')}/sign/${tok.token}`;
-    res.json({ signing_url, expires_at: tok.expires_at });
+    // token enables the native in-app SignDocumentScreen; signing_url is the web fallback.
+    res.json({ token: tok.token, signing_url, expires_at: tok.expires_at });
   } catch (error) {
     logger.error('[Portal] signing-link error:', error.message);
+    res.status(500).json({ error: 'Failed to get signing link' });
+  }
+});
+
+/**
+ * GET /change-orders/:coId/signing-link
+ * Returns the active single-use signing token + URL for a signature-required
+ * change order, so the app can drive the native in-app signing screen without
+ * depending on the web portal. Caller must be an authenticated client on the
+ * change order's project. Mirrors the estimate signing-link endpoint.
+ */
+router.get('/change-orders/:coId/signing-link', async (req, res) => {
+  try {
+    const { coId } = req.params;
+
+    const { data: co } = await supabase
+      .from('change_orders')
+      .select('id, project_id, signature_required')
+      .eq('id', coId)
+      .single();
+    if (!co) return res.status(404).json({ error: 'Change order not found' });
+    if (!co.signature_required) return res.status(400).json({ error: 'No signature required' });
+
+    // Authorize: caller must be a client on this change order's project
+    const { data: link } = await supabase
+      .from('project_clients')
+      .select('id')
+      .eq('client_id', req.client.id)
+      .eq('project_id', co.project_id)
+      .maybeSingle();
+    if (!link) return res.status(403).json({ error: 'Access denied' });
+
+    const { data: sig } = await supabase
+      .from('signatures')
+      .select('id, status')
+      .eq('document_id', coId)
+      .eq('document_type', 'change_order')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!sig) return res.status(404).json({ error: 'No signature request found' });
+    if (sig.status === 'completed') return res.status(400).json({ error: 'Already signed', already_signed: true });
+
+    const { data: tok } = await supabase
+      .from('signature_tokens')
+      .select('token, expires_at, consumed_at')
+      .eq('signature_id', sig.id)
+      .is('consumed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!tok) return res.status(404).json({ error: 'No active signing token (expired or already used)' });
+
+    const PORTAL_URL = process.env.PORTAL_URL || 'https://sylkapp.ai/portal';
+    const signing_url = `${PORTAL_URL.replace(/\/portal$/, '')}/sign/${tok.token}`;
+    res.json({ token: tok.token, signing_url, expires_at: tok.expires_at });
+  } catch (error) {
+    logger.error('[Portal] CO signing-link error:', error.message);
     res.status(500).json({ error: 'Failed to get signing link' });
   }
 });
@@ -1786,6 +1845,16 @@ router.get('/projects/:projectId/approvals', verifyProjectAccess, async (req, re
 router.get('/projects/:projectId/documents', verifyProjectAccess, async (req, res) => {
   try {
     const { projectId } = req.params;
+
+    const { data: settings } = await supabase
+      .from('client_portal_settings')
+      .select('show_documents')
+      .eq('project_id', projectId)
+      .single();
+
+    if (!settings?.show_documents) {
+      return res.status(403).json({ error: 'Document access is not enabled for this project' });
+    }
 
     const { data, error } = await supabase
       .from('project_documents')

@@ -8,7 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
-const { fetchOpenRouter } = require('../utils/fetchWithRetry');
+const { generateWeeklySummaryDraft } = require('../services/weeklySummaryHelper');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -541,6 +541,49 @@ router.patch('/requests/:id/respond', async (req, res) => {
 // ============================================================
 
 /**
+ * GET /projects/:projectId/materials
+ * Owner: list a project's material selections + the project's primary client
+ * (so the owner can author new selections without a separate lookup). Owner-auth.
+ */
+router.get('/projects/:projectId/materials', async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const { projectId } = req.params;
+
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, user_id, name')
+      .eq('id', projectId)
+      .single();
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (project.user_id !== ownerId) return res.status(403).json({ error: 'Access denied' });
+
+    const { data: selections } = await supabase
+      .from('material_selections')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+
+    const { data: pc } = await supabase
+      .from('project_clients')
+      .select('client_id, clients(id, full_name, email)')
+      .eq('project_id', projectId)
+      .limit(1)
+      .maybeSingle();
+
+    res.json({
+      selections: selections || [],
+      client: pc?.clients
+        ? { id: pc.clients.id, name: pc.clients.full_name, email: pc.clients.email }
+        : null,
+    });
+  } catch (error) {
+    logger.error('[PortalAdmin] List materials error:', error.message);
+    res.status(500).json({ error: 'Failed to load material selections' });
+  }
+});
+
+/**
  * POST /materials
  * Create a material selection request for a client.
  * Body: { projectId, clientId, title, description?, options, dueDate? }
@@ -631,117 +674,29 @@ router.patch('/materials/:id/confirm', async (req, res) => {
 router.post('/summaries/generate', async (req, res) => {
   try {
     const ownerId = req.user.id;
-    const { projectId } = req.body;
+    const { projectId, weekStart, weekEnd } = req.body;
 
     if (!projectId) {
       return res.status(400).json({ error: 'projectId is required' });
     }
 
-    // Calculate week range (default: last 7 days)
-    const weekEnd = req.body.weekEnd || new Date().toISOString().split('T')[0];
-    const weekStartDate = new Date(weekEnd);
-    weekStartDate.setDate(weekStartDate.getDate() - 6);
-    const weekStart = req.body.weekStart || weekStartDate.toISOString().split('T')[0];
-
-    // Get project info
-    const { data: project } = await supabase
-      .from('projects')
-      .select('name, status, percent_complete')
-      .eq('id', projectId)
-      .eq('user_id', ownerId)
-      .single();
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    // Get daily reports for the week
-    const { data: reports } = await supabase
-      .from('daily_reports')
-      .select('report_date, notes, work_performed, weather, materials, delays, next_day_plan')
-      .eq('project_id', projectId)
-      .gte('report_date', weekStart)
-      .lte('report_date', weekEnd)
-      .order('report_date');
-
-    if (!reports || reports.length === 0) {
-      return res.status(400).json({ error: 'No daily reports found for this week' });
-    }
-
-    // Get phases for context
-    const { data: phases } = await supabase
-      .from('project_phases')
-      .select('name, status, completion_percentage')
-      .eq('project_id', projectId)
-      .order('order_index');
-
-    // Generate summary with AI
-    const prompt = `You are writing a weekly project update for a homeowner client. Be clear, friendly, and non-technical. Use simple language. Focus on progress and what's coming next.
-
-Project: ${project.name}
-Overall Progress: ${project.percent_complete}%
-Status: ${project.status}
-
-${phases ? `Current Phases:\n${phases.map(p => `- ${p.name}: ${p.completion_percentage}% (${p.status})`).join('\n')}` : ''}
-
-Daily Reports from ${weekStart} to ${weekEnd}:
-${reports.map(r => {
-  let entry = `\n${r.report_date}:`;
-  if (r.work_performed) entry += `\nWork: ${JSON.stringify(r.work_performed)}`;
-  if (r.notes) entry += `\nNotes: ${r.notes}`;
-  if (r.weather) entry += `\nWeather: ${JSON.stringify(r.weather)}`;
-  if (r.materials) entry += `\nMaterials: ${JSON.stringify(r.materials)}`;
-  if (r.delays) entry += `\nDelays: ${JSON.stringify(r.delays)}`;
-  return entry;
-}).join('\n')}
-
-Write a concise 3-5 paragraph weekly summary. Include:
-1. What was accomplished this week
-2. Current status of the project
-3. What's planned for next week
-4. Any delays or issues the client should know about (frame positively)
-
-Also provide 3-5 bullet point highlights.
-
-Respond in JSON format:
-{
-  "summary": "the full summary text",
-  "highlights": ["highlight 1", "highlight 2", "highlight 3"]
-}`;
-
-    const aiResponse = await fetchOpenRouter(prompt, {
-      model: 'anthropic/claude-sonnet-4-20250514',
-      max_tokens: 1000,
+    const result = await generateWeeklySummaryDraft({
+      projectId,
+      ownerId,
+      weekStart,
+      weekEnd,
     });
 
-    let parsed;
-    try {
-      // Extract JSON from response
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch {
-      parsed = { summary: aiResponse, highlights: [] };
+    if (result.skipped) {
+      const status = result.reason === 'project_not_found' ? 404
+        : result.reason === 'no_daily_reports' ? 400
+        : result.reason === 'anthropic_unavailable' ? 503
+        : 500;
+      return res.status(status).json({ error: result.reason, details: result.error });
     }
 
-    // Save as draft
-    const { data: summary, error: saveError } = await supabase
-      .from('ai_weekly_summaries')
-      .upsert({
-        project_id: projectId,
-        owner_id: ownerId,
-        week_start: weekStart,
-        week_end: weekEnd,
-        summary_text: parsed.summary,
-        highlights: parsed.highlights,
-        status: 'draft',
-      }, { onConflict: 'idx_weekly_summaries_unique_week' })
-      .select()
-      .single();
-
-    if (saveError) throw saveError;
-
-    logger.info(`[PortalAdmin] Weekly summary generated for ${project.name}`);
-    res.status(201).json(summary);
+    logger.info(`[PortalAdmin] Weekly summary generated for project ${projectId}`);
+    res.status(201).json(result.summary);
   } catch (error) {
     logger.error('[PortalAdmin] Generate summary error:', error.message);
     res.status(500).json({ error: 'Failed to generate summary' });
@@ -1421,6 +1376,7 @@ router.post('/change-orders/:id/send', async (req, res) => {
           documentId: id,
           signerName: pc?.clients?.full_name || project.client_name || 'Client',
           signerEmail: clientEmail,
+          sendEmail: true,
         });
       } catch (sigErr) {
         logger.error('[PortalAdmin] CO signature request failed:', sigErr.message);
@@ -1878,6 +1834,7 @@ router.post('/estimates/:estimateId/send', authenticateUser, async (req, res) =>
             documentId: estimateId,
             signerName,
             signerEmail,
+            sendEmail: true,
           });
         }
       } catch (sigErr) {

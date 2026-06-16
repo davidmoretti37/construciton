@@ -142,10 +142,20 @@ export default function ClientPortalCard({ project, navigation }) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="globe-outline" size={18} color="#3B82F6" />
+        <View style={styles.headerLeft}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="globe-outline" size={18} color="#3B82F6" />
+          </View>
+          <Text style={styles.title}>Client Portal</Text>
         </View>
-        <Text style={styles.title}>Client Portal</Text>
+        <TouchableOpacity
+          style={styles.settingsBtn}
+          onPress={() => navigation?.navigate('ClientVisibility', { projectId: project?.id, projectName: project?.name })}
+          accessibilityLabel="Client portal settings"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="settings-outline" size={20} color="#6B7280" />
+        </TouchableOpacity>
       </View>
 
       {portalData ? (
@@ -255,7 +265,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingsBtn: {
+    padding: 4,
   },
   iconContainer: {
     width: 32,

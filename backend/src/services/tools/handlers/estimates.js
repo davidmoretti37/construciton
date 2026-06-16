@@ -92,11 +92,13 @@ async function update_estimate(userId, args = {}) {
   }
 
   // Auto-update project contract_amount when linking estimate to project
+  // C2: ownership check — prevent IDOR via project_id from cascading update
   if (project_id && data.total) {
     const { error: projectError } = await supabase
       .from('projects')
       .update({ contract_amount: data.total })
-      .eq('id', project_id);
+      .eq('id', project_id)
+      .eq('user_id', userId);
 
     if (projectError) {
       logger.error('Failed to update project contract_amount:', projectError);
@@ -234,6 +236,26 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
     .single();
 
   if (estErr || !estimate) return { error: 'Estimate not found' };
+
+  // C4: idempotency — block double-conversion and return existing invoice if already converted
+  if (estimate.status === 'accepted' || estimate.status === 'invoiced' || estimate.status === 'paid') {
+    const { data: existing } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, client_name, project_name, total, due_date, status, items')
+      .eq('estimate_id', estimate.id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existing) {
+      return {
+        success: true,
+        alreadyConverted: true,
+        invoice: { ...existing, total: parseFloat(existing.total) },
+      };
+    }
+  }
+  if (estimate.status && !['pending', 'draft', 'sent', 'viewed'].includes(estimate.status)) {
+    return { error: `Estimate is in status "${estimate.status}" and cannot be converted.` };
+  }
 
   // Calculate due date (30 days from now)
   const dueDate = new Date();

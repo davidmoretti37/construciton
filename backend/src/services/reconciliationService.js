@@ -101,22 +101,20 @@ async function reconcileTransactions(userId, bankAccountId, supabase) {
     }
 
     if (bestScore >= 0.85 && bestMatch) {
-      // Auto-match
-      await supabase
-        .from('bank_transactions')
-        .update({
-          match_status: 'auto_matched',
-          matched_transaction_id: bestMatch.id,
-          match_confidence: bestScore,
-          matched_at: new Date().toISOString(),
-          matched_by: 'auto',
-        })
-        .eq('id', bankTx.id);
+      // C7: atomic — single PG transaction via RPC so crash mid-flow can't leave inconsistent state
+      const { error: rpcErr } = await supabase.rpc('reconcile_bank_to_project_atomic', {
+        p_bank_tx_id: bankTx.id,
+        p_project_tx_id: bestMatch.id,
+        p_user_id: userId,
+        p_match_confidence: bestScore,
+        p_matched_by: 'auto',
+      });
 
-      await supabase
-        .from('project_transactions')
-        .update({ bank_transaction_id: bankTx.id })
-        .eq('id', bestMatch.id);
+      if (rpcErr) {
+        // Don't increment autoMatched if the atomic update failed
+        console.error('[reconcile] atomic match failed', { bankTxId: bankTx.id, projectTxId: bestMatch.id, error: rpcErr.message });
+        continue;
+      }
 
       matchedPlatformIds.add(bestMatch.id);
       autoMatched++;

@@ -407,8 +407,125 @@ async function sendSubInvitationEmail({ subEmail, subName, businessName, ownerNa
   }
 }
 
+/**
+ * Send an invoice reminder email to a client. Tone scales with reminderType:
+ *   pre_due_3   — friendly heads-up, 3 days before due date
+ *   due_today   — gentle reminder, due_date == today
+ *   overdue_7   — past-due notice, 1 week
+ *   overdue_14  — firm reminder, 2 weeks
+ *   overdue_30  — final-attempt language, 1 month
+ */
+async function sendInvoiceReminderEmail({ invoice, businessName, reminderType }) {
+  if (!invoice?.client_email) {
+    return { sent: false, reason: 'no_email' };
+  }
+  if (!process.env.RESEND_API_KEY) {
+    return { sent: false, reason: 'no_api_key' };
+  }
+
+  const amountDue = parseFloat(invoice.amount_due || invoice.total || 0)
+    .toLocaleString('en-US', { minimumFractionDigits: 2 });
+  const dueDate = invoice.due_date
+    ? new Date(invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : 'Upon receipt';
+
+  const COPY = {
+    pre_due_3: {
+      subjectPrefix: 'Friendly reminder',
+      heading: 'Payment due soon',
+      body: `This is a friendly reminder that invoice ${esc(invoice.invoice_number || '')} for $${amountDue} is due on ${dueDate}.`,
+      accent: '#3B82F6',
+    },
+    due_today: {
+      subjectPrefix: 'Payment due today',
+      heading: 'Due today',
+      body: `Invoice ${esc(invoice.invoice_number || '')} for $${amountDue} is due today (${dueDate}).`,
+      accent: '#3B82F6',
+    },
+    overdue_7: {
+      subjectPrefix: 'Past due',
+      heading: 'Invoice past due',
+      body: `Invoice ${esc(invoice.invoice_number || '')} for $${amountDue} was due on ${dueDate} and is now past due. Please submit payment at your earliest convenience.`,
+      accent: '#F59E0B',
+    },
+    overdue_14: {
+      subjectPrefix: 'Past due — please remit',
+      heading: 'Invoice 2 weeks past due',
+      body: `Invoice ${esc(invoice.invoice_number || '')} for $${amountDue} (due ${dueDate}) is now over 2 weeks past due. Please remit payment to keep this project on track.`,
+      accent: '#F59E0B',
+    },
+    overdue_30: {
+      subjectPrefix: 'Final reminder',
+      heading: 'Invoice over 30 days past due',
+      body: `Invoice ${esc(invoice.invoice_number || '')} for $${amountDue} (due ${dueDate}) is now over 30 days past due. Please contact us immediately to arrange payment.`,
+      accent: '#DC2626',
+    },
+  };
+
+  const copy = COPY[reminderType] || COPY.due_today;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #F8FAFC; color: #0F172A; }
+    .container { max-width: 560px; margin: 0 auto; padding: 40px 20px; }
+    .card { background: #FFFFFF; border-radius: 16px; padding: 32px; box-shadow: 0 2px 8px rgba(15,23,42,0.06); }
+    .business-name { font-size: 14px; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+    .heading { font-size: 22px; font-weight: 700; color: ${copy.accent}; margin: 8px 0 16px; text-align: center; }
+    .body { font-size: 15px; line-height: 1.5; color: #0F172A; }
+    .amount-card { background: #F8FAFC; border-radius: 12px; padding: 16px; margin: 20px 0; text-align: center; }
+    .amount-label { font-size: 12px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; }
+    .amount-value { font-size: 28px; font-weight: 700; color: #0F172A; margin-top: 4px; }
+    .due-date { font-size: 13px; color: #64748B; margin-top: 4px; }
+    .pay-btn { display: block; background: ${copy.accent}; color: #FFFFFF !important; text-decoration: none; text-align: center; font-size: 16px; font-weight: 600; padding: 16px; border-radius: 12px; margin-top: 24px; }
+    .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #94A3B8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="business-name">${esc(businessName || 'Your Contractor')}</div>
+      <div class="heading">${copy.heading}</div>
+      <div class="body">${copy.body}</div>
+      <div class="amount-card">
+        <div class="amount-label">Amount Due</div>
+        <div class="amount-value">$${amountDue}</div>
+        <div class="due-date">Due ${dueDate}</div>
+      </div>
+      <a href="${PORTAL_URL}" class="pay-btn">View &amp; Pay Invoice</a>
+    </div>
+    <div class="footer">Sent via <strong>Sylk</strong><br>${esc(businessName || '')}</div>
+  </div>
+</body>
+</html>`;
+
+  try {
+    const subject = `${copy.subjectPrefix}: Invoice ${invoice.invoice_number || ''} — $${amountDue}`;
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [invoice.client_email],
+      subject,
+      html,
+    });
+    if (error) {
+      logger.error('[Email] Reminder Resend error:', error);
+      return { sent: false, error: error.message };
+    }
+    logger.info(`[Email] Reminder ${reminderType} sent for invoice ${invoice.invoice_number} to ${invoice.client_email}`);
+    return { sent: true, emailId: data?.id, email: invoice.client_email };
+  } catch (err) {
+    logger.error('[Email] Reminder send failed:', err.message);
+    return { sent: false, error: err.message };
+  }
+}
+
 module.exports = {
   sendInvoiceEmail,
+  sendInvoiceReminderEmail,
   sendEstimateEmail,
   sendChangeOrderEmail,
   sendSignatureRequestEmail,

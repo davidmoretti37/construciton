@@ -278,8 +278,10 @@ router.post('/webhook', async (req, res) => {
       logger.info(`Webhook already processed (concurrent): ${event.id}`);
       return res.json({ received: true, deduplicated: true });
     }
-    // For other errors (e.g. table doesn't exist yet), log but continue processing
-    logger.warn('Webhook idempotency check failed, proceeding:', idempotencyError?.message);
+    // C8: fail closed — if the idempotency check itself errors (DB down, table missing, etc),
+    // return 500 so Stripe retries when the DB is healthy. Treating it as new = duplicate writes.
+    logger.error('Webhook idempotency check errored, telling Stripe to retry:', idempotencyError?.message);
+    return res.status(500).json({ error: 'Idempotency check failed' });
   }
 
   try {
