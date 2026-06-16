@@ -64,6 +64,13 @@ export const fetchProjectApprovals = (projectId) => portalFetch(`/projects/${pro
 // Change Orders
 export const fetchChangeOrders = (projectId) => portalFetch(`/projects/${projectId}/change-orders`);
 export const fetchChangeOrderSigningLink = (coId) => portalFetch(`/change-orders/${coId}/signing-link`);
+
+// Material selections
+export const selectMaterial = (id, selectedOptionIndex, notes) =>
+  portalFetch(`/materials/${id}/select`, {
+    method: 'PATCH',
+    body: JSON.stringify({ selectedOptionIndex, notes }),
+  });
 export const respondToChangeOrder = (coId, action, name, reason) =>
   portalFetch(`/change-orders/${coId}/respond`, {
     method: 'POST',

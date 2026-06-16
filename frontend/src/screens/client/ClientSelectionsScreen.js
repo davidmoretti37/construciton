@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { fetchDashboard } from '../../services/clientPortalApi';
+import { fetchDashboard, selectMaterial } from '../../services/clientPortalApi';
 import { useClientProject } from '../../contexts/ClientProjectContext';
 import { supabase } from '../../lib/supabase';
 import { API_URL } from '../../config/api';
@@ -75,12 +75,9 @@ export default function ClientSelectionsScreen({ navigation }) {
   const handleSelect = async (selectionId, optionIndex) => {
     try {
       setSubmitting(true);
-      const { error } = await supabase
-        .from('material_selections')
-        .update({ selected_option_index: optionIndex, status: 'selected' })
-        .eq('id', selectionId);
-
-      if (error) throw error;
+      // Route through the portal endpoint (service-role + ownership check). A
+      // direct supabase write is blocked by RLS ('Owners manage') → 0 rows.
+      await selectMaterial(selectionId, optionIndex);
       Alert.alert('Selection Submitted', 'Your contractor will confirm availability.');
       loadData();
     } catch (e) {
