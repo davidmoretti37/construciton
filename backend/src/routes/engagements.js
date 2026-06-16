@@ -313,6 +313,7 @@ router.post('/:id/subcontracts/:subId/request-esign', authenticateUser, async (r
       documentId: sub.id,
       signerName: resolvedName || 'Subcontractor',
       signerEmail: resolvedEmail,
+      sendEmail: true,
     });
 
     // Flip status to 'sent' so the sub-portal reflects the active request

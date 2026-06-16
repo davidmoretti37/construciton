@@ -335,6 +335,9 @@ async function request_signature(userId, args = {}) {
       signerName: signer_name,
       signerEmail: signer_email,
       signerPhone: signer_phone,
+      // The success message tells the user "Sent a signing link to <email>",
+      // so we must actually send it.
+      sendEmail: true,
     });
     return {
       success: true,

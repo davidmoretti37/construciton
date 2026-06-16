@@ -43,7 +43,7 @@ async function requireOwner(req, res, next) {
 // =============================================================================
 
 router.post('/request', requireOwner, async (req, res) => {
-  const { documentType, documentId, signerName, signerEmail, signerPhone } = req.body || {};
+  const { documentType, documentId, signerName, signerEmail, signerPhone, sendEmail } = req.body || {};
   try {
     const result = await eSign.createSignatureRequest({
       ownerId: req.userId,
@@ -52,6 +52,9 @@ router.post('/request', requireOwner, async (req, res) => {
       signerName,
       signerEmail,
       signerPhone,
+      // Explicit "request signature" action → email the signer the link unless
+      // the caller opts out. Pass sendEmail:false to suppress (e.g. in-app only).
+      sendEmail: sendEmail !== false,
     });
     res.json(result);
   } catch (err) {
