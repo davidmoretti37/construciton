@@ -329,7 +329,10 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
     );
   }
 
-  const readOnly = status !== 'draft';
+  // Editable while unsent/unpaid; locked once money has moved (partial/paid) or
+  // the invoice is cancelled/void. Invoices persist with status 'unpaid' (the DB
+  // CHECK has no 'draft'), so gating on === 'draft' wrongly locked every saved one.
+  const readOnly = !['draft', 'unpaid'].includes(status);
   const pill = pillForStatus(status);
 
   return (
@@ -507,17 +510,24 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
             <>
               <TouchableOpacity
                 style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue }]}
+                onPress={handleSend}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="paper-plane-outline" size={18} color="#fff" />
+                <Text style={styles.sendBtnText}>Send Invoice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { borderColor: Colors.border }]}
                 onPress={async () => {
                   await flushSaveRef.current();
                   navigation.goBack();
                 }}
                 activeOpacity={0.85}
               >
-                <Ionicons name="checkmark" size={18} color="#fff" />
-                <Text style={styles.sendBtnText}>Save</Text>
+                <Text style={[styles.secondaryBtnText, { color: Colors.primaryText }]}>Save & Close</Text>
               </TouchableOpacity>
               <Text style={{ marginTop: 10, fontSize: 12, color: Colors.secondaryText, textAlign: 'center' }}>
-                Send, share, or preview from the chat preview card.
+                Sending emails the client a payment link. You can also send from the chat preview card.
               </Text>
             </>
           )}
@@ -703,6 +713,12 @@ const makeStyles = (Colors) => StyleSheet.create({
     marginTop: 6,
   },
   sendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  secondaryBtn: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 14, borderRadius: 12, borderWidth: 1.5,
+    marginTop: 10,
+  },
+  secondaryBtnText: { fontSize: 15, fontWeight: '700' },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalCard: { borderRadius: 16, maxHeight: '70%' },
