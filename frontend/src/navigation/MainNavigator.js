@@ -16,6 +16,7 @@ import TransactionEntryScreen from '../screens/TransactionEntryScreen';
 import TransactionDetailScreen from '../screens/TransactionDetailScreen';
 import ManualProjectCreateScreen from '../screens/owner/ManualProjectCreateScreen';
 import ClientVisibilityScreen from '../screens/owner/ClientVisibilityScreen';
+import OwnerSelectionsScreen from '../screens/owner/OwnerSelectionsScreen';
 import SignDocumentScreen from '../screens/shared/SignDocumentScreen';
 import ChangeOrdersListScreen from '../screens/owner/ChangeOrdersListScreen';
 
@@ -130,6 +131,11 @@ export default function MainNavigator() {
       <Stack.Screen
         name="ClientVisibility"
         component={ClientVisibilityScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="OwnerSelections"
+        component={OwnerSelectionsScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

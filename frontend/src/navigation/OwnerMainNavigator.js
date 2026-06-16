@@ -86,6 +86,7 @@ import GoogleDriveScreen from '../screens/owner/GoogleDriveScreen';
 
 // Import client portal screens
 import ClientVisibilityScreen from '../screens/owner/ClientVisibilityScreen';
+import OwnerSelectionsScreen from '../screens/owner/OwnerSelectionsScreen';
 import ClientsScreen from '../screens/owner/ClientsScreen';
 
 // Audit log
@@ -160,6 +161,10 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="ClientVisibility"
         component={ClientVisibilityScreen}
+      />
+      <Stack.Screen
+        name="OwnerSelections"
+        component={OwnerSelectionsScreen}
       />
       <Stack.Screen
         name="Clients"

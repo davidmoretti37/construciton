@@ -2710,6 +2710,18 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             </Text>
           </TouchableOpacity>
 
+          {/* Material Selections */}
+          <TouchableOpacity
+            style={styles.deleteProjectLink}
+            onPress={() => navigation?.navigate('OwnerSelections', { projectId: project?.id, projectName: project?.name })}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="color-palette-outline" size={14} color={'#6366F1' + '80'} />
+            <Text style={[styles.deleteProjectLinkText, { color: '#6366F180' }]}>
+              {t('buttons.materialSelections', 'Material Selections')}
+            </Text>
+          </TouchableOpacity>
+
           {/* Delete Project - subtle link */}
           <TouchableOpacity
             style={styles.deleteProjectLink}
