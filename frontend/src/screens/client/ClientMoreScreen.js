@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { fetchDashboard } from '../../services/clientPortalApi';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const C = {
   amber: '#F59E0B',
@@ -13,6 +14,7 @@ const C = {
 };
 
 export default function ClientMoreScreen({ navigation }) {
+  const { selectedProjectId, setProjects } = useClientProject();
   const [projectId, setProjectId] = useState(null);
   const [branding, setBranding] = useState(null);
 
@@ -21,11 +23,15 @@ export default function ClientMoreScreen({ navigation }) {
       try {
         const data = await fetchDashboard();
         const projects = data?.projects || [];
-        if (projects.length > 0) setProjectId(projects[0].id);
+        if (projects.length > 0) {
+          setProjects(projects);
+          const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+          setProjectId(activeProject.id);
+        }
         setBranding(data?.branding || null);
       } catch {}
     })();
-  }, []));
+  }, [selectedProjectId]));
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [

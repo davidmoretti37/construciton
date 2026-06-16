@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../contexts/NotificationContext';
+import ClientProjectSwitcher from './ClientProjectSwitcher';
 
 const C = {
   amber: '#F59E0B',
@@ -28,6 +29,7 @@ export default function ClientHeader({ title, subtitle, navigation, gradient = t
         <View style={{ flex: 1 }}>
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+          <ClientProjectSwitcher light />
         </View>
         <View style={styles.actions}>
           <TouchableOpacity

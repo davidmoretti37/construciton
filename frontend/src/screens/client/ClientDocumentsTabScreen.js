@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard, fetchProjectBilling, fetchProjectDocuments, fetchProjectApprovals } from '../../services/clientPortalApi';
 import ClientHeader from '../../components/ClientHeader';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -89,6 +90,7 @@ function DocumentRow({ doc }) {
 }
 
 export default function ClientDocumentsTabScreen({ navigation }) {
+  const { selectedProjectId, setProjects } = useClientProject();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeProject, setActiveProject] = useState(null);
@@ -108,7 +110,8 @@ export default function ClientDocumentsTabScreen({ navigation }) {
         setApprovals([]);
         return;
       }
-      const proj = projects[0];
+      setProjects(projects);
+      const proj = projects.find((p) => p.id === selectedProjectId) || projects[0];
       setActiveProject(proj);
 
       // Track each fetch independently so partial failures don't blank the screen.
@@ -134,7 +137,7 @@ export default function ClientDocumentsTabScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

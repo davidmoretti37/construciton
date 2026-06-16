@@ -17,6 +17,7 @@ import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, fetchProjectBilling, fetchProjectEstimates, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
 import { supabase } from '../../lib/supabase';
 import ClientHeader from '../../components/ClientHeader';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -45,22 +46,25 @@ export default function ClientMoneyScreen({ navigation }) {
   const [paying, setPaying] = useState(null);
   const [openingEstimate, setOpeningEstimate] = useState(null);  // tap-guard against double-fire
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { selectedProjectId, setProjects } = useClientProject();
 
   const loadData = useCallback(async () => {
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
+        setProjects(projects);
+        const activeProj = projects.find((p) => p.id === selectedProjectId) || projects[0];
         const [data, cos, drawsData, billingData, estsDirect] = await Promise.all([
-          fetchMoneySummary(projects[0].id),
-          fetchChangeOrders(projects[0].id).catch(() => []),
-          fetchProjectDraws(projects[0].id).catch(() => null),
-          fetchProjectBilling(projects[0].id).catch(() => null),
-          fetchProjectEstimates(projects[0].id).catch(() => []),
+          fetchMoneySummary(activeProj.id),
+          fetchChangeOrders(activeProj.id).catch(() => []),
+          fetchProjectDraws(activeProj.id).catch(() => null),
+          fetchProjectBilling(activeProj.id).catch(() => null),
+          fetchProjectEstimates(activeProj.id).catch(() => []),
         ]);
         setSummary(data);
         setChangeOrders(cos || []);
-        setActiveProject(projects[0]);
+        setActiveProject(activeProj);
         setDraws(drawsData?.has_schedule ? drawsData : null);
         setBilling(billingData);
         setEstimatesDirect(Array.isArray(estsDirect) ? estsDirect : []);
@@ -71,7 +75,7 @@ export default function ClientMoneyScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 

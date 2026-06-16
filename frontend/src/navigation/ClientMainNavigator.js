@@ -11,6 +11,7 @@ import ClientPhotosScreen from '../screens/client/ClientPhotosScreen';
 import ClientAISummariesScreen from '../screens/client/ClientAISummariesScreen';
 import ClientSelectionsScreen from '../screens/client/ClientSelectionsScreen';
 import SignDocumentScreen from '../screens/shared/SignDocumentScreen';
+import { ClientProjectProvider } from '../contexts/ClientProjectContext';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 
@@ -18,6 +19,7 @@ const Stack = createStackNavigator();
 
 export default function ClientMainNavigator() {
   return (
+    <ClientProjectProvider>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {/* Tab navigator is the root */}
       <Stack.Screen name="ClientTabs" component={ClientTabNavigator} />
@@ -36,5 +38,6 @@ export default function ClientMainNavigator() {
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
+    </ClientProjectProvider>
   );
 }

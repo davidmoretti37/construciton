@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard, fetchProjectPhotos } from '../../services/clientPortalApi';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const { width: SW } = Dimensions.get('window');
 const COL_GAP = 4;
@@ -34,13 +35,16 @@ export default function ClientPhotosScreen({ navigation }) {
   const [photos, setPhotos] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [showViewer, setShowViewer] = useState(false);
+  const { selectedProjectId, setProjects } = useClientProject();
 
   const loadData = useCallback(async () => {
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const data = await fetchProjectPhotos(projects[0].id);
+        setProjects(projects);
+        const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+        const data = await fetchProjectPhotos(activeProject.id);
         const flat = (data || []).flat().filter(p => p.url || typeof p === 'string');
         setPhotos(flat.map(p => p.url || p));
       }
@@ -50,7 +54,7 @@ export default function ClientPhotosScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 

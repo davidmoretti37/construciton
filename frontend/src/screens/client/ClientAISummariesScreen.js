@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard, fetchProjectSummaries } from '../../services/clientPortalApi';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7', amberText: '#92400E',
@@ -36,13 +37,16 @@ export default function ClientAISummariesScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [summaries, setSummaries] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
+  const { selectedProjectId, setProjects } = useClientProject();
 
   const loadData = useCallback(async () => {
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const data = await fetchProjectSummaries(projects[0].id);
+        setProjects(projects);
+        const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+        const data = await fetchProjectSummaries(activeProject.id);
         setSummaries(data || []);
         // Auto-expand the latest one
         if (data?.length > 0 && !expandedId) setExpandedId(data[0].id);
@@ -53,7 +57,7 @@ export default function ClientAISummariesScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedProjectId]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 

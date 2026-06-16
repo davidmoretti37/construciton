@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard } from '../../services/clientPortalApi';
 import { supabase } from '../../lib/supabase';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const portalFetchDocs = async (projectId) => {
   const { data: { session } } = await supabase.auth.getSession();
@@ -63,13 +64,16 @@ export default function ClientDocumentsScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
+  const { selectedProjectId, setProjects } = useClientProject();
 
   const loadData = useCallback(async () => {
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const docs = await portalFetchDocs(projects[0].id);
+        setProjects(projects);
+        const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+        const docs = await portalFetchDocs(activeProject.id);
         setDocuments(docs || []);
       }
     } catch (e) {
@@ -78,7 +82,7 @@ export default function ClientDocumentsScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 

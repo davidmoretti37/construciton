@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard, fetchProject, fetchProjectPhotos, fetchProjectSummaries } from '../../services/clientPortalApi';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -31,6 +32,7 @@ const shadowMd = { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, s
 
 export default function ClientDashboardScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { selectedProjectId, setProjects } = useClientProject();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
@@ -47,11 +49,15 @@ export default function ClientDashboardScreen({ navigation }) {
 
       // If single project, load detail before showing anything
       const projects = result?.projects || [];
+      if (projects.length > 0) {
+        setProjects(projects);
+      }
+      const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
       if (projects.length === 1) {
         const [detail, photoData, summaryData] = await Promise.all([
-          fetchProject(projects[0].id).catch(() => null),
-          fetchProjectPhotos(projects[0].id).catch(() => []),
-          fetchProjectSummaries(projects[0].id).catch(() => []),
+          fetchProject(activeProject.id).catch(() => null),
+          fetchProjectPhotos(activeProject.id).catch(() => []),
+          fetchProjectSummaries(activeProject.id).catch(() => []),
         ]);
         setProjectDetail(detail);
         setPhotos(photoData || []);
@@ -67,7 +73,7 @@ export default function ClientDashboardScreen({ navigation }) {
     } catch (e) {
       console.error('Dashboard load error:', e);
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -85,6 +91,7 @@ export default function ClientDashboardScreen({ navigation }) {
   }
 
   const projects = data?.projects || [];
+  const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
   const servicePlans = data?.servicePlans || data?.service_plans || [];
   const outstandingInvoices = data?.outstandingInvoices || data?.outstanding_invoices || [];
   const pendingEstimates = data?.pendingEstimates || data?.pending_estimates || [];
@@ -131,7 +138,7 @@ export default function ClientDashboardScreen({ navigation }) {
           {outstandingInvoices.length > 0 && (
             <TouchableOpacity
               style={styles.invoiceBanner}
-              onPress={() => projects.length > 0 && navigation.getParent()?.navigate('ClientInvoices', { projectId: projects[0].id })}
+              onPress={() => projects.length > 0 && navigation.getParent()?.navigate('ClientInvoices', { projectId: activeProject.id })}
               activeOpacity={0.8}
             >
               <View style={{ flex: 1 }}>
@@ -168,11 +175,11 @@ export default function ClientDashboardScreen({ navigation }) {
 
               {/* Action Buttons */}
               <View style={styles.actions}>
-                <TouchableOpacity style={styles.actionPrimary} onPress={() => navigation.getParent()?.navigate('ClientInvoices', { projectId: projects[0].id })} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.actionPrimary} onPress={() => navigation.getParent()?.navigate('ClientInvoices', { projectId: activeProject.id })} activeOpacity={0.8}>
                   <Ionicons name="receipt-outline" size={18} color="#fff" />
                   <Text style={styles.actionPrimaryText}>Invoices</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.getParent()?.navigate('ClientMessages', { projectId: projects[0].id, projectName: projectDetail.name })} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.getParent()?.navigate('ClientMessages', { projectId: activeProject.id, projectName: projectDetail.name })} activeOpacity={0.8}>
                   <Ionicons name="chatbubbles-outline" size={18} color={C.text} />
                   <Text style={styles.actionSecondaryText}>Messages</Text>
                 </TouchableOpacity>

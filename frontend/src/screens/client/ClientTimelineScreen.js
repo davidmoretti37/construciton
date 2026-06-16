@@ -15,6 +15,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { fetchDashboard, fetchProject, fetchProjectCalendar } from '../../services/clientPortalApi';
 import AppleCalendarMonth from '../../components/AppleCalendarMonth';
 import ClientHeader from '../../components/ClientHeader';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 
 const C = {
   amber: '#F59E0B', amberDark: '#D97706', amberLight: '#FEF3C7',
@@ -40,6 +41,7 @@ const getMonthRange = (date) => {
 export default function ClientTimelineScreen({ navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
+  const { selectedProjectId, setProjects } = useClientProject();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,9 +60,11 @@ export default function ClientTimelineScreen({ navigation }) {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        const pid = projects[0].id;
+        setProjects(projects);
+        const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+        const pid = activeProject.id;
         setProjectId(pid);
-        setProjectName(projects[0].name);
+        setProjectName(activeProject.name);
 
         const { start, end } = getMonthRange(month || currentMonth);
         try {
@@ -79,7 +83,7 @@ export default function ClientTimelineScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [currentMonth]);
+  }, [currentMonth, selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 

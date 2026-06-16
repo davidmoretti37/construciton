@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard } from '../../services/clientPortalApi';
+import { useClientProject } from '../../contexts/ClientProjectContext';
 import { supabase } from '../../lib/supabase';
 import { API_URL } from '../../config/api';
 
@@ -42,6 +43,7 @@ const STATUS_MAP = {
 };
 
 export default function ClientSelectionsScreen({ navigation }) {
+  const { selectedProjectId, setProjects } = useClientProject();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selections, setSelections] = useState([]);
@@ -54,8 +56,10 @@ export default function ClientSelectionsScreen({ navigation }) {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
-        setProjectId(projects[0].id);
-        const data = await portalFetchSelections(projects[0].id);
+        setProjects(projects);
+        const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+        setProjectId(activeProject.id);
+        const data = await portalFetchSelections(activeProject.id);
         setSelections(data || []);
       }
     } catch (e) {
@@ -64,7 +68,7 @@ export default function ClientSelectionsScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
