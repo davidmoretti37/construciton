@@ -59,7 +59,11 @@ export default function SignDocumentScreen() {
       Alert.alert(
         t('esign.signed_title', 'Signed'),
         t('esign.signed_body', 'Thank you. The signed document has been saved.'),
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        [{ text: 'OK', onPress: () => {
+          // Let the caller (e.g. CO/estimate detail) refresh its state.
+          try { route.params?.onSigned?.(); } catch (_) {}
+          navigation.goBack();
+        } }]
       );
     } catch (err) {
       Alert.alert(t('common.error', 'Error'), err.message);

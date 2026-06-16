@@ -127,7 +127,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
     if (estimate?.signature_required) {
       Alert.alert(
         'Signature required',
-        'This estimate needs your signature. Check your email for the signing link the contractor sent, or ask them to resend it.'
+        'This estimate needs your signature. Tap "Sign Estimate" to sign it securely in the app.'
       );
       return;
     }
@@ -152,15 +152,19 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
     try {
       setLoadingSigningUrl(true);
       const res = await fetchEstimateSigningLink(estimate.id);
-      if (res?.signing_url) {
-        setSigningUrl(res.signing_url);
+      if (res?.token) {
+        // Native in-app signing — no dependency on the web portal.
+        navigation.navigate('SignDocument', {
+          token: res.token,
+          onSigned: () => setEstimate((prev) => ({ ...prev, status: 'accepted', accepted_date: new Date().toISOString() })),
+        });
       } else if (res?.already_signed) {
         Alert.alert('Already signed', 'This estimate has already been signed.');
       } else {
         Alert.alert('Cannot sign', res?.error || 'No active signing link.');
       }
     } catch (e) {
-      Alert.alert('Sign failed', e?.message || 'Could not load the signing page.');
+      Alert.alert('Sign failed', e?.message || 'Could not start signing.');
     } finally {
       setLoadingSigningUrl(false);
     }
@@ -215,7 +219,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           <View style={styles.signatureNotice}>
             <Ionicons name="shield-checkmark-outline" size={16} color="#1E40AF" />
             <Text style={styles.signatureNoticeText}>
-              Your contractor requested a signature. Check your email for the signing link.
+              This estimate requires your signature. Tap "Sign Estimate" below to sign it securely in the app.
             </Text>
           </View>
         )}

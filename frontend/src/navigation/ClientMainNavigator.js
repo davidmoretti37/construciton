@@ -10,6 +10,7 @@ import ClientDocumentsScreen from '../screens/client/ClientDocumentsScreen';
 import ClientPhotosScreen from '../screens/client/ClientPhotosScreen';
 import ClientAISummariesScreen from '../screens/client/ClientAISummariesScreen';
 import ClientSelectionsScreen from '../screens/client/ClientSelectionsScreen';
+import SignDocumentScreen from '../screens/shared/SignDocumentScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 
@@ -31,6 +32,7 @@ export default function ClientMainNavigator() {
       <Stack.Screen name="ClientPhotos" component={ClientPhotosScreen} />
       <Stack.Screen name="ClientAISummaries" component={ClientAISummariesScreen} />
       <Stack.Screen name="ClientSelections" component={ClientSelectionsScreen} />
+      <Stack.Screen name="SignDocument" component={SignDocumentScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { respondToChangeOrder } from '../../services/clientPortalApi';
+import { respondToChangeOrder, fetchChangeOrderSigningLink } from '../../services/clientPortalApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 const C = {
@@ -45,13 +45,15 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
   const [selectedChip, setSelectedChip] = useState(null);
   const [approvalName, setApprovalName] = useState(profile?.full_name || '');
   const [responded, setResponded] = useState(!['pending_client', 'viewed'].includes(changeOrder.status));
+  // Local status mirror so the badge/actions update immediately after approve/sign/decline.
+  const [localStatus, setLocalStatus] = useState(changeOrder.status);
 
   const co = changeOrder;
-  const status = STATUS_MAP[co.status] || STATUS_MAP.draft;
+  const status = STATUS_MAP[localStatus] || STATUS_MAP.draft;
   // Server now joins line items under `change_order_line_items`. Tolerate either
   // shape so old cached data and the new server response both render.
   const lineItems = co.change_order_line_items || co.line_items || [];
-  const isPending = ['pending_client', 'viewed'].includes(co.status) && !responded;
+  const isPending = ['pending_client', 'viewed'].includes(localStatus) && !responded;
   const scheduleDays = Number(co.schedule_impact_days ?? co.days_added ?? 0);
   const requiresSignature = !!co.signature_required;
   // Compute new end date for the schedule callout
@@ -59,15 +61,33 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
     ? new Date(new Date(project.end_date).getTime() + scheduleDays * 86400000)
     : null;
 
+  const handleSign = async () => {
+    try {
+      setSubmitting(true);
+      const res = await fetchChangeOrderSigningLink(co.id);
+      if (res?.token) {
+        navigation.navigate('SignDocument', {
+          token: res.token,
+          onSigned: () => { setResponded(true); setLocalStatus('approved'); },
+        });
+      } else if (res?.already_signed) {
+        setResponded(true);
+        setLocalStatus('approved');
+        Alert.alert('Already signed', 'This change order has already been signed.');
+      } else {
+        Alert.alert('Cannot sign', res?.error || 'No active signing link. Ask your contractor to resend it.');
+      }
+    } catch (e) {
+      Alert.alert('Sign failed', e?.message || 'Could not start signing.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleApprove = async () => {
-    // Signature-required COs cannot be approved by typed name — server enforces.
-    // Tell the client the contractor will email a signing link.
+    // Signature-required COs must be e-signed in-app (server blocks typed-name approval).
     if (requiresSignature) {
-      Alert.alert(
-        'Signature required',
-        'This change order needs your signature. Check your email for the signing link the contractor sent, or ask them to resend it.'
-      );
-      return;
+      return handleSign();
     }
     if (!approvalName.trim()) {
       Alert.alert('Name Required', 'Please type your name to approve.');
@@ -77,6 +97,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
       setSubmitting(true);
       await respondToChangeOrder(co.id, 'approve', approvalName.trim());
       setResponded(true);
+      setLocalStatus('approved');
       setShowApprove(false);
       Alert.alert('Approved', 'Change order has been approved.', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -94,6 +115,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
       setSubmitting(true);
       await respondToChangeOrder(co.id, 'reject', null, reason);
       setResponded(true);
+      setLocalStatus('rejected');
       setShowDecline(false);
       Alert.alert('Declined', 'Change order has been declined.', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -174,7 +196,7 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           <View style={styles.signatureNotice}>
             <Ionicons name="shield-checkmark-outline" size={16} color={C.blue} />
             <Text style={styles.signatureNoticeText}>
-              Your contractor requested a signature. Check your email for the signing link.
+              This change order requires your signature. Tap "Review & Sign" below to sign it securely in the app.
             </Text>
           </View>
         )}
@@ -318,9 +340,13 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           <TouchableOpacity style={styles.declineAction} onPress={() => setShowDecline(true)}>
             <Text style={styles.declineActionText}>Decline</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.approveAction} onPress={() => setShowApprove(true)}>
-            <Ionicons name="checkmark-circle" size={18} color="#fff" />
-            <Text style={styles.approveActionText}>Review & Approve</Text>
+          <TouchableOpacity
+            style={styles.approveAction}
+            onPress={requiresSignature ? handleSign : () => setShowApprove(true)}
+            disabled={submitting}
+          >
+            <Ionicons name={requiresSignature ? 'create-outline' : 'checkmark-circle'} size={18} color="#fff" />
+            <Text style={styles.approveActionText}>{requiresSignature ? 'Review & Sign' : 'Review & Approve'}</Text>
           </TouchableOpacity>
         </SafeAreaView>
       )}
