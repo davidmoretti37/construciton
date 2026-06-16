@@ -7,7 +7,7 @@
 const {
   supabase, logger, userSafeError,
   toDate, today, getTodayBounds,
-  resolveOwnerId,
+  resolveOwnerId, resolveProjectId,
 } = require('./_shared');
 
 async function get_financial_overview(userId, args = {}) {

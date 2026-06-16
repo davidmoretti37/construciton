@@ -73,23 +73,40 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
   if (notes !== undefined) updates.notes = notes;
   if (payment_method) updates.payment_method = payment_method;
 
+  // When a manual (check/cash/ACH/etc.) payment is recorded here, post an income
+  // project_transaction for the PAYMENT DELTA so P&L / cash-flow / tax see it.
+  // Card payments arrive via the Stripe webhook, which posts its own income row;
+  // the delta math means re-marking an already-paid invoice posts $0 (no double-count).
+  let incomePost = null;
   if (amount_paid !== undefined) {
-    updates.amount_paid = parseFloat(amount_paid);
+    const newPaid = parseFloat(amount_paid);
+    updates.amount_paid = newPaid;
 
-    // Fetch total to derive status
+    // Fetch total (status) + prior amount_paid (delta) + project linkage
     const { data: inv } = await supabase
       .from('invoices')
-      .select('total')
+      .select('total, amount_paid, project_id, invoice_number, user_id')
       .eq('id', resolved.id)
       .single();
 
     if (inv) {
       const total = parseFloat(inv.total);
-      if (parseFloat(amount_paid) >= total) {
+      if (newPaid >= total) {
         updates.status = 'paid';
         updates.paid_date = new Date().toISOString();
-      } else if (parseFloat(amount_paid) > 0) {
+      } else if (newPaid > 0) {
         updates.status = 'partial';
+      }
+
+      const priorPaid = parseFloat(inv.amount_paid || 0);
+      const delta = +(newPaid - priorPaid).toFixed(2);
+      if (delta > 0 && inv.project_id) {
+        incomePost = {
+          project_id: inv.project_id,
+          invoice_number: inv.invoice_number,
+          owner_id: inv.user_id,
+          amount: delta,
+        };
       }
     }
   }
@@ -113,6 +130,26 @@ async function update_invoice(userId, { invoice_id, status, due_date, payment_te
     .single();
 
   if (error) return userSafeError(error, "Couldn't update that invoice.");
+
+  // Record income for a manual payment delta so non-card payments hit the books.
+  if (incomePost) {
+    try {
+      await supabase.from('project_transactions').insert({
+        project_id: incomePost.project_id,
+        type: 'income',
+        category: 'invoice_payment',
+        description: `Payment for ${incomePost.invoice_number || 'invoice'}`,
+        amount: incomePost.amount,
+        date: new Date().toISOString().split('T')[0],
+        payment_method: payment_method || 'manual',
+        is_auto_generated: true,
+        created_by: incomePost.owner_id,
+        notes: 'Manual payment recorded via update_invoice',
+      });
+    } catch (txnErr) {
+      logger.error('Failed to record manual invoice income:', txnErr?.message);
+    }
+  }
 
   // Cascade to linked draw_schedule_item, if any. paid invoice → draw paid;
   // cancelled invoice → draw goes back to pending and detaches.
