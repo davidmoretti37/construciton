@@ -41,12 +41,17 @@ export default function SubscriptionSettingsScreen({ navigation }) {
     isTrialing,
     getProjectLimitDisplay,
     subscription,
+    isLoading,
+    refreshSubscription,
   } = useSubscription();
 
   const handleManageSubscription = async () => {
     try {
       setLoading(true);
       await subscriptionService.openCustomerPortal();
+      // The in-app browser overlay doesn't reliably background the app on iOS,
+      // so re-fetch subscription state once the portal sheet closes.
+      await refreshSubscription();
     } catch (error) {
       Alert.alert(
         t('subscription.error', 'Error'),
@@ -86,6 +91,32 @@ export default function SubscriptionSettingsScreen({ navigation }) {
   };
 
   const statusBadge = getStatusBadge();
+
+  // While the subscription is still loading on first mount, avoid rendering the
+  // wrong state (Inactive badge / Subscribe paywall) before the real plan arrives.
+  if (isLoading && !subscription) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+            {t('subscriptionSettings.title')}
+          </Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primaryBlue} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
@@ -271,6 +302,11 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     borderRadius: BorderRadius.lg,

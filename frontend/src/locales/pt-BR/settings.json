@@ -238,5 +238,9 @@
     "hour": "/ hora",
     "unit": "/ unidade",
     "saveChanges": "Salvar Alterações"
+  },
+  "loadError": "Não foi possível carregar algumas configurações.",
+  "common": {
+    "retry": "Tentar novamente"
   }
 }

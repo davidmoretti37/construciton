@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -36,18 +36,60 @@ export default function EditBusinessInfoScreen({ navigation }) {
   const [logoUrl, setLogoUrl] = useState(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
+  // Snapshot of the loaded values, used to detect unsaved changes.
+  const initialValues = useRef({ businessName: '', phone: '', email: '', logoUrl: null });
+  // Set to true once we save (or confirm discard) so the leave guard is skipped.
+  const allowLeave = useRef(false);
+
   useEffect(() => {
     loadBusinessInfo();
   }, []);
+
+  // Warn before leaving if there are unsaved changes.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const initial = initialValues.current;
+      const isDirty =
+        businessName !== initial.businessName ||
+        phone !== initial.phone ||
+        email !== initial.email ||
+        logoUrl !== initial.logoUrl;
+
+      if (allowLeave.current || !isDirty) {
+        return;
+      }
+
+      e.preventDefault();
+      Alert.alert(
+        tCommon('alerts.confirm'),
+        tCommon('alerts.unsavedChanges'),
+        [
+          { text: tCommon('buttons.cancel'), style: 'cancel' },
+          {
+            text: tCommon('buttons.confirm'),
+            style: 'destructive',
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, businessName, phone, email, logoUrl, tCommon]);
 
   const loadBusinessInfo = async () => {
     try {
       const profile = await getUserProfile();
       if (profile && profile.businessInfo) {
-        setBusinessName(profile.businessInfo.name || '');
-        setPhone(profile.businessInfo.phone || '');
-        setEmail(profile.businessInfo.email || '');
-        setLogoUrl(profile.businessInfo.logoUrl || null);
+        const name = profile.businessInfo.name || '';
+        const loadedPhone = profile.businessInfo.phone || '';
+        const loadedEmail = profile.businessInfo.email || '';
+        const loadedLogo = profile.businessInfo.logoUrl || null;
+        setBusinessName(name);
+        setPhone(loadedPhone);
+        setEmail(loadedEmail);
+        setLogoUrl(loadedLogo);
+        initialValues.current = { businessName: name, phone: loadedPhone, email: loadedEmail, logoUrl: loadedLogo };
       }
     } catch (error) {
       console.error('Error loading business info:', error);
@@ -87,8 +129,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
 
-      const fileName = `logo_${user.id}_${Date.now()}.jpg`;
-      const filePath = `logos/${fileName}`;
+      // Deterministic per-user path so re-uploads overwrite in place (no orphans).
+      const filePath = `logos/${user.id}.jpg`;
 
       const response = await fetch(uri);
       const blob = await response.blob();
@@ -118,6 +160,19 @@ export default function EditBusinessInfoScreen({ navigation }) {
       Alert.alert('Error', 'Failed to upload logo');
     } finally {
       setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.storage.from('business-logos').remove([`logos/${user.id}.jpg`]);
+      }
+    } catch (error) {
+      console.error('Error removing logo:', error);
+    } finally {
+      setLogoUrl(null);
     }
   };
 
@@ -169,6 +224,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
         return;
       }
 
+      // Saved OK — allow leaving without the unsaved-changes prompt, then confirm.
+      allowLeave.current = true;
       Alert.alert(tCommon('alerts.success'), tCommon('messages.updatedSuccessfully', { item: 'Business information' }), [
         {
           text: 'OK',
@@ -251,7 +308,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
                 )}
               </TouchableOpacity>
               {logoUrl && (
-                <TouchableOpacity onPress={() => setLogoUrl(null)} style={styles.removeLogo}>
+                <TouchableOpacity onPress={handleRemoveLogo} style={styles.removeLogo}>
                   <Ionicons name="trash-outline" size={14} color="#EF4444" />
                   <Text style={styles.removeLogoText}>Remove logo</Text>
                 </TouchableOpacity>

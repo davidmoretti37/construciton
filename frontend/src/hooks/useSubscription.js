@@ -26,6 +26,8 @@ export function useSubscription() {
         return 'Business';
       case 'worker':
         return 'Team Member';
+      case 'testing':
+        return 'Testing';
       default:
         return 'No Plan';
     }
@@ -42,6 +44,8 @@ export function useSubscription() {
         return 79;
       case 'business':
         return 149;
+      case 'testing':
+        return 0;
       default:
         return 0;
     }

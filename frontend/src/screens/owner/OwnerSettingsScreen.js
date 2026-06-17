@@ -61,6 +61,8 @@ export default function OwnerSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
+  const [loadError, setLoadError] = useState(false);
   const [connectStatus, setConnectStatus] = useState(null);
 
   // User data state
@@ -74,13 +76,18 @@ export default function OwnerSettingsScreen() {
   const [projectInstructions, setProjectInstructions] = useState('');
   const [aiExpanded, setAiExpanded] = useState(false);
   const saveTimeoutRef = useRef(null);
+  // Latest AI settings, so a pending debounced save can be flushed on unmount.
+  const latestAISettingsRef = useRef({ aboutYou: '', responseStyle: '', projectInstructions: '' });
 
   // Supervisor permissions state
 
   // Load data
   const loadData = async () => {
     try {
-      setLoading(true);
+      // Only show the full-screen spinner on the very first load —
+      // subsequent focus refreshes update in place without flicker.
+      if (!hasLoadedOnceRef.current) setLoading(true);
+      setLoadError(false);
 
       // Load user profile
       const loadedProfile = await getUserProfile();
@@ -101,11 +108,14 @@ export default function OwnerSettingsScreen() {
 
           if (!error) {
             setUserServices(services || []);
+          } else {
+            console.error('Error loading user services:', error);
+            setLoadError(true);
           }
         }
       } catch (error) {
         console.error('Error loading user services:', error);
-        setUserServices([]);
+        setLoadError(true);
       }
 
       // Load current language
@@ -117,6 +127,11 @@ export default function OwnerSettingsScreen() {
       setAboutYou(aiSettings?.aboutYou || '');
       setResponseStyle(aiSettings?.responseStyle || '');
       setProjectInstructions(aiSettings?.projectInstructions || '');
+      latestAISettingsRef.current = {
+        aboutYou: aiSettings?.aboutYou || '',
+        responseStyle: aiSettings?.responseStyle || '',
+        projectInstructions: aiSettings?.projectInstructions || '',
+      };
 
       // Auto-expand if user has AI settings configured
       if (aiSettings?.aboutYou || aiSettings?.responseStyle || aiSettings?.projectInstructions) {
@@ -129,9 +144,11 @@ export default function OwnerSettingsScreen() {
         setConnectStatus(status);
       } catch {}
 
+      hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
     } catch (error) {
       console.error('Error loading data:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -177,15 +194,10 @@ export default function OwnerSettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!hasLoadedOnce) {
-        loadData();
-        return;
-      }
-      // Re-check Connect status on focus if account exists but not yet approved
-      if (connectStatus?.accountId && !connectStatus?.onboardingComplete) {
-        connectService.getStatus().then(setConnectStatus).catch(() => {});
-      }
-    }, [hasLoadedOnce, connectStatus?.accountId, connectStatus?.onboardingComplete])
+      // Reload on every focus so returning from edit screens
+      // (business info, services, language) reflects fresh data.
+      loadData();
+    }, [])
   );
 
   const onRefresh = useCallback(async () => {
@@ -198,29 +210,43 @@ export default function OwnerSettingsScreen() {
   const handleAboutYouChange = (text) => {
     const trimmed = text.slice(0, 500);
     setAboutYou(trimmed);
+    latestAISettingsRef.current = { ...latestAISettingsRef.current, aboutYou: trimmed };
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateAISettings({ aboutYou: trimmed, responseStyle, projectInstructions });
+      updateAISettings({ ...latestAISettingsRef.current });
     }, 1000);
   };
 
   const handleResponseStyleChange = (text) => {
     const trimmed = text.slice(0, 300);
     setResponseStyle(trimmed);
+    latestAISettingsRef.current = { ...latestAISettingsRef.current, responseStyle: trimmed };
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateAISettings({ aboutYou, responseStyle: trimmed, projectInstructions });
+      updateAISettings({ ...latestAISettingsRef.current });
     }, 1000);
   };
 
   const handleProjectInstructionsChange = (text) => {
     const trimmed = text.slice(0, 2000);
     setProjectInstructions(trimmed);
+    latestAISettingsRef.current = { ...latestAISettingsRef.current, projectInstructions: trimmed };
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateAISettings({ aboutYou, responseStyle, projectInstructions: trimmed });
+      updateAISettings({ ...latestAISettingsRef.current });
     }, 1000);
   };
+
+  // Flush any pending debounced AI save on unmount so the last edit isn't lost.
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+        updateAISettings({ ...latestAISettingsRef.current });
+      }
+    };
+  }, []);
 
   const handleLogout = async () => {
     Alert.alert(
@@ -261,7 +287,9 @@ export default function OwnerSettingsScreen() {
   };
 
   const getLanguageDisplay = () => {
-    return LANGUAGE_NAMES[currentLanguage] || 'English';
+    // Read from the live i18n instance so the subtitle updates immediately
+    // after returning from ChangeLanguage, not from cached state.
+    return LANGUAGE_NAMES[i18n.language] || LANGUAGE_NAMES[currentLanguage] || 'English';
   };
 
   // MenuItem component
@@ -338,6 +366,24 @@ export default function OwnerSettingsScreen() {
             <Ionicons name="pencil" size={16} color={OWNER_COLORS.primary} />
           </TouchableOpacity>
         </View>
+
+        {/* Load error banner — surfaces failures that would otherwise leave
+            the services list silently empty, with an explicit Retry. */}
+        {loadError && (
+          <TouchableOpacity
+            style={[styles.errorBanner, { backgroundColor: OWNER_COLORS.dangerLight }]}
+            onPress={loadData}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="alert-circle-outline" size={20} color={OWNER_COLORS.danger} />
+            <Text style={[styles.errorBannerText, { color: OWNER_COLORS.danger }]}>
+              {t('loadError', "Couldn't load some settings.")}
+            </Text>
+            <Text style={[styles.errorBannerRetry, { color: OWNER_COLORS.danger }]}>
+              {t('common.retry', 'Retry')}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* AI Personality Card */}
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
@@ -912,6 +958,26 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
   },
+  // Load error banner
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 8,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  errorBannerRetry: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
   // Theme Toggle
   themeToggle: {
     width: 36,

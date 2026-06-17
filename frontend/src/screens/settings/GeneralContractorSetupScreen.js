@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getAllTrades, getTradeById, getDefaultPricing } from '../../constants/trades';
-import { addTrade, saveUserProfile, getUserProfile, saveSubcontractorQuote } from '../../utils/storage';
+import { addTrade, saveUserProfile, getUserProfile, saveSubcontractorQuote, addUserService } from '../../utils/storage';
 import { analyzeSubcontractorQuote } from '../../services/aiService';
 
 export default function GeneralContractorSetupScreen({ navigation }) {
@@ -35,6 +35,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
 
   // Step 3: Quote upload state
   const [uploadingQuote, setUploadingQuote] = useState(false);
+  const [savingQuote, setSavingQuote] = useState(false);
   const [analyzingQuote, setAnalyzingQuote] = useState(false);
   const [currentQuoteData, setCurrentQuoteData] = useState(null);
   const [currentTradeForQuote, setCurrentTradeForQuote] = useState(null);
@@ -175,7 +176,9 @@ export default function GeneralContractorSetupScreen({ navigation }) {
 
   const handleSaveQuote = async (isPreferred = false) => {
     if (!currentQuoteData) return;
+    if (savingQuote) return; // Guard against double-tap saving the same quote twice
 
+    setSavingQuote(true);
     try {
       const quoteToSave = {
         tradeId: currentTradeForQuote,
@@ -211,6 +214,8 @@ export default function GeneralContractorSetupScreen({ navigation }) {
     } catch (error) {
       console.error('Error saving quote:', error);
       Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'quote' }));
+    } finally {
+      setSavingQuote(false);
     }
   };
 
@@ -252,25 +257,21 @@ export default function GeneralContractorSetupScreen({ navigation }) {
     try {
       const profile = await getUserProfile();
 
-      // Add General Contractor trade
-      if (!profile.trades.includes('generalContractor')) {
-        profile.trades.push('generalContractor');
-      }
+      // Mark the profile as onboarded for the GC flow
+      profile.isOnboarded = true;
+      const profileSaved = await saveUserProfile(profile);
 
-      // Add all selected services
-      selectedServices.forEach(serviceId => {
-        if (!profile.trades.includes(serviceId)) {
-          profile.trades.push(serviceId);
-        }
-      });
+      // Persist the selected services to the user_services table.
+      // GC itself uses empty pricing (subcontractor quotes drive pricing),
+      // while each managed service stores its default pricing template.
+      const gcSaved = await addUserService('generalContractor', {});
+      const serviceResults = await Promise.all(
+        selectedServices.map(serviceId =>
+          addUserService(serviceId, pricing[serviceId] || {})
+        )
+      );
 
-      // Update pricing - GC doesn't use traditional pricing, subcontractor quotes instead
-      profile.pricing = {
-        ...profile.pricing,
-        generalContractor: {}, // Empty pricing for GC itself
-      };
-
-      const success = await saveUserProfile(profile);
+      const success = profileSaved && gcSaved && serviceResults.every(Boolean);
 
       if (success) {
         const quotesCount = Object.values(uploadedQuotes).reduce((sum, quotes) => sum + quotes.length, 0);
@@ -560,8 +561,9 @@ export default function GeneralContractorSetupScreen({ navigation }) {
               {/* Action Buttons */}
               <View style={styles.quoteActions}>
                 <TouchableOpacity
-                  style={[styles.quoteActionButton, styles.savePreferred, { backgroundColor: '#F59E0B' }]}
+                  style={[styles.quoteActionButton, styles.savePreferred, { backgroundColor: '#F59E0B', opacity: savingQuote ? 0.6 : 1 }]}
                   onPress={() => handleSaveQuote(true)}
+                  disabled={savingQuote}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="star" size={18} color="#fff" />
@@ -569,8 +571,9 @@ export default function GeneralContractorSetupScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.quoteActionButton, { backgroundColor: Colors.primaryBlue }]}
+                  style={[styles.quoteActionButton, { backgroundColor: Colors.primaryBlue, opacity: savingQuote ? 0.6 : 1 }]}
                   onPress={() => handleSaveQuote(false)}
+                  disabled={savingQuote}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="checkmark" size={18} color="#fff" />
@@ -795,7 +798,7 @@ export default function GeneralContractorSetupScreen({ navigation }) {
             ) : (
               <TouchableOpacity
                 style={[styles.navButton, styles.primaryButton, { backgroundColor: Colors.primaryBlue, opacity: saving ? 0.6 : 1, marginLeft: isFirstService ? 0 : Spacing.sm }]}
-                onPress={handleSave}
+                onPress={handleCompleteSave}
                 disabled={saving}
                 activeOpacity={0.8}
               >

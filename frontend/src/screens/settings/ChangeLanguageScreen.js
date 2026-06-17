@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +29,8 @@ export default function ChangeLanguageScreen({ navigation }) {
   const Colors = getColors(isDark) || LightColors;
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadCurrentLanguage();
@@ -37,8 +40,10 @@ export default function ChangeLanguageScreen({ navigation }) {
     try {
       const language = await getSelectedLanguage();
       setSelectedLanguage(language || 'en');
+      setLoadFailed(false);
     } catch (error) {
       console.error('Error loading language:', error);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -49,6 +54,8 @@ export default function ChangeLanguageScreen({ navigation }) {
   };
 
   const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
     try {
       const success = await saveLanguage(selectedLanguage);
       if (success) {
@@ -70,6 +77,8 @@ export default function ChangeLanguageScreen({ navigation }) {
     } catch (error) {
       console.error('Error saving language:', error);
       Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'language' }));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -77,7 +86,7 @@ export default function ChangeLanguageScreen({ navigation }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>{tCommon('status.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -131,14 +140,40 @@ export default function ChangeLanguageScreen({ navigation }) {
           ))}
         </ScrollView>
 
+        {/* Load failure banner */}
+        {loadFailed && (
+          <TouchableOpacity
+            style={styles.errorBanner}
+            onPress={loadCurrentLanguage}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
+            <Text style={[styles.errorText, { color: Colors.error }]}>
+              {tCommon('messages.failedToLoad', { item: t('account.language') })}
+            </Text>
+            <Text style={[styles.retryText, { color: Colors.primaryBlue }]}>{tCommon('buttons.retry')}</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Save Button */}
         <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
+          style={[
+            styles.saveButton,
+            { backgroundColor: Colors.primaryBlue },
+            (saving || loadFailed) && styles.saveButtonDisabled,
+          ]}
           onPress={handleSave}
           activeOpacity={0.8}
+          disabled={saving || loadFailed}
         >
-          <Text style={styles.saveText}>Save Changes</Text>
-          <Ionicons name="checkmark" size={20} color="#fff" />
+          {saving ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Text style={styles.saveText}>{tCommon('buttons.saveChanges')}</Text>
+              <Ionicons name="checkmark" size={20} color="#fff" />
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -206,6 +241,20 @@ const styles = StyleSheet.create({
   nativeName: {
     fontSize: FontSizes.small,
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: FontSizes.small,
+  },
+  retryText: {
+    fontSize: FontSizes.small,
+    fontWeight: '600',
+  },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -213,6 +262,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.lg,
     gap: Spacing.sm,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   saveText: {
     color: '#fff',
