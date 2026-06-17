@@ -38,7 +38,9 @@ import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
 import { NetworkProvider } from './src/contexts/NetworkContext';
-import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
+import { SubscriptionProvider, useSubscription } from './src/contexts/SubscriptionContext';
+import PaywallScreen from './src/screens/subscription/PaywallScreen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { isOnboarded, saveLanguage, checkAndStartScheduledProjects } from './src/utils/storage';
 import { supabase } from './src/lib/supabase';
 import { navigationRef } from './src/lib/navigationRef';
@@ -77,6 +79,9 @@ function AppContent() {
     refreshProfile,
     retryProfileLoad,
   } = useAuth();
+  // Subscription gate for owners (paywall). Non-owners are never gated
+  // (SubscriptionContext short-circuits workers/supervisors to active).
+  const { hasActiveSubscription, isLoading: subLoading } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [languageSelected, setLanguageSelected] = useState(null); // null = not yet determined
   const [userOnboarded, setUserOnboarded] = useState(null); // null = not yet determined
@@ -307,6 +312,27 @@ function AppContent() {
 
     // Fully set up → Show role-specific main app
     if (role === 'owner') {
+      // Paywall gate: an onboarded owner must have an active (or trialing)
+      // subscription to use the app. While we don't yet know, show loading so
+      // we never flash the app or the paywall incorrectly. This single gate
+      // covers onboarding-exit, trial expiry, and cancellation.
+      if (subLoading) {
+        logger.debug('Showing: SUBSCRIPTION LOADING');
+        return <AppLoadingScreen timeoutMs={15000} />;
+      }
+      if (!hasActiveSubscription) {
+        logger.debug('Showing: PAYWALL GATE (owner has no active subscription)');
+        // Wrap in SafeAreaProvider since this renders outside the navigators
+        // (which normally supply the safe-area context PaywallScreen needs).
+        return (
+          <SafeAreaProvider>
+            <PaywallScreen
+              onSubscribed={() => {}}
+              onClose={() => { supabase.auth.signOut(); }}
+            />
+          </SafeAreaProvider>
+        );
+      }
       logger.debug('Showing: OWNER BOSS VIEW');
       return <OwnerMainWrapper key="owner-main" />;
     } else if (role === 'supervisor') {

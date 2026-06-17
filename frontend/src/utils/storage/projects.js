@@ -237,9 +237,11 @@ export const saveProject = async (projectData) => {
     let result;
     const isNewProject = !projectData.id || projectData.id.startsWith('temp-');
 
-    // Check subscription limit before creating a new project
-    // Skip in development/testing mode (matches TESTING_MODE in SubscriptionContext)
-    const skipLimitCheck = true;
+    // Check subscription limit before creating a new project.
+    // Dev escape hatch matches the paywall bypass in SubscriptionContext.
+    // NOTE: this is the client-side check (UX); the DB trigger
+    // enforce_project_subscription_limit is the unbypassable server-side gate.
+    const skipLimitCheck = process.env.EXPO_PUBLIC_BYPASS_PAYWALL === 'true';
     if (isNewProject && !skipLimitCheck) {
       try {
         const limitCheck = await subscriptionService.canCreateProject();
