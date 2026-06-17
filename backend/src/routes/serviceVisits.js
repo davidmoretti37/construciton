@@ -926,7 +926,7 @@ router.patch('/:id/checklist/:itemId', async (req, res) => {
         .from('visit_checklist_items')
         .select('id')
         .eq('id', itemId)
-        .eq('visit_id', visitId)
+        .eq('service_visit_id', visitId)
         .single();
 
       if (!item) {
@@ -963,6 +963,7 @@ router.patch('/:id/checklist/:itemId', async (req, res) => {
       .from('visit_checklist_items')
       .update(updates)
       .eq('id', itemId)
+      .eq('service_visit_id', visitId)
       .select()
       .single();
 

@@ -12,6 +12,7 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { reconcileTransactions } = require('../services/reconciliationService');
 const { parseCSV } = require('../services/csvParserService');
+const { encryptSecret, decryptSecret } = require('../services/crypto');
 
 // Initialize Plaid (only if keys are configured)
 let plaidClient = null;
@@ -246,7 +247,7 @@ router.post('/exchange-token', requirePlaid, async (req, res) => {
         .from('connected_bank_accounts')
         .insert({
           user_id: userId,
-          plaid_access_token: accessToken,
+          plaid_access_token: encryptSecret(accessToken), // encrypted at rest
           plaid_item_id: itemId,
           plaid_institution_id: institution?.institution_id || null,
           institution_name: institution?.name || 'Unknown Bank',
@@ -334,7 +335,7 @@ router.delete('/accounts/:accountId', async (req, res) => {
     if (account.plaid_access_token && plaidClient) {
       try {
         await plaidClient.itemRemove({
-          access_token: account.plaid_access_token,
+          access_token: decryptSecret(account.plaid_access_token), // decrypt at use
         });
       } catch (plaidError) {
         logger.warn('Plaid item remove warning:', plaidError.message);
@@ -451,6 +452,28 @@ router.patch('/transactions/:txId/match', async (req, res) => {
 
     if (!project_transaction_id) {
       return res.status(400).json({ error: 'project_transaction_id is required' });
+    }
+
+    // Verify the project_transaction belongs to the user (via owning project)
+    const { data: projectTx } = await supabaseAdmin
+      .from('project_transactions')
+      .select('id, project_id')
+      .eq('id', project_transaction_id)
+      .single();
+
+    if (!projectTx) {
+      return res.status(404).json({ error: 'Project transaction not found' });
+    }
+
+    const { data: ownerProject } = await supabaseAdmin
+      .from('projects')
+      .select('id')
+      .eq('id', projectTx.project_id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!ownerProject) {
+      return res.status(404).json({ error: 'Project transaction not found' });
     }
 
     // Update bank transaction
@@ -628,6 +651,20 @@ router.post('/transactions/batch-assign', async (req, res) => {
         if (!bankTx) {
           errorCount++;
           results.push({ bank_transaction_id, error: 'Not found' });
+          continue;
+        }
+
+        // Verify project belongs to user (mirror /assign)
+        const { data: project } = await supabaseAdmin
+          .from('projects')
+          .select('id, name')
+          .eq('id', project_id)
+          .eq('user_id', userId)
+          .single();
+
+        if (!project) {
+          errorCount++;
+          results.push({ bank_transaction_id, error: 'Project not found' });
           continue;
         }
 
@@ -905,7 +942,7 @@ async function syncAccountTransactions(userId, account) {
   try {
     while (hasMore) {
       const response = await plaidClient.transactionsSync({
-        access_token: account.plaid_access_token,
+        access_token: decryptSecret(account.plaid_access_token), // decrypt at use
         cursor: cursor || undefined,
         count: 500,
       });

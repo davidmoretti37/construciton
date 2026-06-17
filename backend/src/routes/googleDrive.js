@@ -422,6 +422,18 @@ router.post('/import', requireGoogleDrive, authenticateUser, async (req, res) =>
       return res.status(400).json({ error: 'driveFileId, projectId, and fileName are required' });
     }
 
+    // Verify the project belongs to the authenticated user
+    const { data: ownedProject } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!ownedProject) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
     const drive = await getGoogleDriveClient(userId);
     if (!drive) {
       return res.status(400).json({
@@ -435,6 +447,19 @@ router.post('/import', requireGoogleDrive, authenticateUser, async (req, res) =>
       { fileId: driveFileId, alt: 'media' },
       { responseType: 'arraybuffer' }
     );
+
+    // Guard the global drive_file_id upsert: if a row already exists for this
+    // drive_file_id under a different project, refuse rather than overwrite
+    // another tenant's record.
+    const { data: existingDoc } = await supabase
+      .from('project_documents')
+      .select('project_id')
+      .eq('drive_file_id', driveFileId)
+      .maybeSingle();
+
+    if (existingDoc && existingDoc.project_id !== projectId) {
+      return res.status(409).json({ error: 'This Drive file is already linked to another project' });
+    }
 
     const fileBuffer = Buffer.from(driveResponse.data);
     const fileExt = fileName.split('.').pop()?.toLowerCase() || '';
@@ -550,10 +575,22 @@ router.post('/export', requireGoogleDrive, authenticateUser, async (req, res) =>
       });
     }
 
-    // Get document record
+    // Get project info — scoped to the authenticated user (ownership check)
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, name, drive_folder_id')
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Get document record — must belong to the (now verified-owned) project
     const { data: doc, error: docError } = await supabase
       .from('project_documents')
-      .select('id, file_name, file_url, file_type')
+      .select('id, file_name, file_url, file_type, project_id, uploaded_by')
       .eq('id', documentId)
       .single();
 
@@ -561,15 +598,10 @@ router.post('/export', requireGoogleDrive, authenticateUser, async (req, res) =>
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    // Get project info
-    const { data: project } = await supabase
-      .from('projects')
-      .select('id, name, drive_folder_id')
-      .eq('id', projectId)
-      .single();
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
+    // Reject documents that don't belong to the user's project and weren't
+    // uploaded by the user — prevents exporting another tenant's document.
+    if (doc.project_id !== projectId && doc.uploaded_by !== userId) {
+      return res.status(404).json({ error: 'Document not found' });
     }
 
     // Download file from Supabase Storage using signed URL

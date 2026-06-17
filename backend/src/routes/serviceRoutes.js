@@ -484,6 +484,16 @@ router.post('/:id/stops', async (req, res) => {
 
     if (!route) return res.status(404).json({ error: 'Route not found' });
 
+    // Verify visit ownership
+    const { data: visit } = await supabase
+      .from('service_visits')
+      .select('id')
+      .eq('id', visit_id)
+      .eq('owner_id', ownerId)
+      .single();
+
+    if (!visit) return res.status(404).json({ error: 'Visit not found' });
+
     // Insert stop
     const { data: stop, error } = await supabase
       .from('route_stops')

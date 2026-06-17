@@ -375,6 +375,15 @@ router.patch('/settings/:projectId', async (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
+    // Verify the project belongs to the caller before mutating its settings
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, user_id')
+      .eq('id', projectId)
+      .single();
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (project.user_id !== ownerId) return res.status(403).json({ error: 'Access denied' });
+
     // Upsert settings
     const { data, error } = await supabase
       .from('client_portal_settings')
@@ -596,6 +605,24 @@ router.post('/materials', async (req, res) => {
     if (!projectId || !clientId || !title || !options?.length) {
       return res.status(400).json({ error: 'projectId, clientId, title, and options are required' });
     }
+
+    // Verify the project belongs to the caller
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, user_id')
+      .eq('id', projectId)
+      .single();
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (project.user_id !== ownerId) return res.status(403).json({ error: 'Access denied' });
+
+    // Verify the client belongs to the caller
+    const { data: client } = await supabase
+      .from('clients')
+      .select('id, owner_id')
+      .eq('id', clientId)
+      .single();
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (client.owner_id !== ownerId) return res.status(403).json({ error: 'Access denied' });
 
     const { data, error } = await supabase
       .from('material_selections')
