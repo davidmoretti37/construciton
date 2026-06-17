@@ -236,6 +236,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
     client_address: clientAddress,
     project_name: projectName,
     project_id: projectId,
+    date_issued: dateIssued || null,
     valid_until: validUntil || null,
     notes,
     items,
@@ -248,7 +249,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
     status: 'draft',
   }), [
     clientName, clientEmail, clientPhone, clientAddress,
-    projectName, projectId, validUntil, notes, items,
+    projectName, projectId, dateIssued, validUntil, notes, items,
     taxRate, taxAmount, subtotal, total, paymentTerms, signatureRequired,
   ]);
 
@@ -289,7 +290,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
   }, [
     bootstrapping,
     clientName, clientEmail, clientPhone, clientAddress,
-    projectName, projectId, validUntil, notes,
+    projectName, projectId, dateIssued, validUntil, notes,
     items, taxRate, paymentTerms, signatureRequired,
   ]);
 
@@ -603,16 +604,29 @@ export default function EstimateBuilderScreen({ route, navigation }) {
           </View>
 
           <TouchableOpacity
-            style={[styles.sendBtn, (saveState === 'saving') && { opacity: 0.5 }]}
+            style={[styles.sendBtn, (sending || status !== 'draft') && { opacity: 0.5 }]}
+            onPress={onSend}
+            disabled={sending || status !== 'draft'}
+            activeOpacity={0.85}
+          >
+            {sending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="paper-plane-outline" size={18} color="#fff" />
+            )}
+            <Text style={styles.sendBtnText}>{sending ? 'Sending…' : 'Send to client'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.saveBtn, (saveState.kind === 'saving') && { opacity: 0.5 }]}
             onPress={async () => {
               await flushSaveRef.current();
               navigation.goBack();
             }}
-            disabled={saveState === 'saving'}
+            disabled={saveState.kind === 'saving'}
             activeOpacity={0.85}
           >
-            <Ionicons name="checkmark" size={18} color="#fff" />
-            <Text style={styles.sendBtnText}>Save</Text>
+            <Ionicons name="checkmark" size={18} color={Colors.primaryText} />
+            <Text style={styles.saveBtnText}>Save draft</Text>
           </TouchableOpacity>
           <Text style={{ marginTop: 10, fontSize: 12, color: Colors.secondaryText, textAlign: 'center' }}>
             Send to client, share, or preview from the chat preview card.
@@ -879,6 +893,14 @@ const makeStyles = (Colors) => StyleSheet.create({
     paddingVertical: 16, borderRadius: 12,
   },
   sendBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  saveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.background,
+    paddingVertical: 14, borderRadius: 12, marginTop: 10,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  saveBtnText: { color: Colors.primaryText, fontWeight: '700', fontSize: 15 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: {

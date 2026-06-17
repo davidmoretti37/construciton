@@ -50,6 +50,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
   const styles = makeStyles(Colors);
 
   const [docs, setDocs] = useState([]);
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -69,6 +70,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
 
   const load = useCallback(async () => {
     if (!projectId) { setLoading(false); return; }
+    setLoadError(false);
     try {
       const { data, error } = await supabase
         .from('project_documents')
@@ -79,6 +81,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
       setDocs(data || []);
     } catch (e) {
       console.warn('[ProjectDocuments] load:', e.message);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -327,7 +330,21 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
 
       {/* List */}
       <ScrollView contentContainerStyle={styles.listScroll}>
-        {filtered.length === 0 ? (
+        {loadError && docs.length === 0 ? (
+          <View style={styles.empty}>
+            <Ionicons name="cloud-offline-outline" size={42} color={Colors.secondaryText} />
+            <Text style={styles.emptyTitle}>Couldn't load documents</Text>
+            <Text style={styles.emptyBody}>Check your connection and try again.</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => { setLoading(true); load(); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="refresh" size={18} color="#fff" />
+              <Text style={styles.submitBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="folder-open-outline" size={42} color={Colors.secondaryText} />
             <Text style={styles.emptyTitle}>
@@ -571,6 +588,12 @@ const makeStyles = (Colors) => StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24, gap: 6 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: Colors.primaryText, marginTop: 10 },
   emptyBody: { fontSize: 13, color: Colors.secondaryText, textAlign: 'center', lineHeight: 19 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primaryBlue,
+    borderRadius: 14, paddingVertical: 12, paddingHorizontal: 24, marginTop: 16,
+    gap: 8,
+  },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: {

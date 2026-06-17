@@ -27,7 +27,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { API_URL as EXPO_PUBLIC_BACKEND_URL } from '../config/api';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask, addTaskToPhase, assignProjectToSupervisor, removeWorkerFromProject } from '../utils/storage';
+import { upsertProjectPhases, fetchProjectPhases, getProjectWorkers, fetchDailyReports, updatePhaseProgress, fetchEstimatesByProjectId, getEstimate, getProjectTransactionSummary, fetchProjectDocuments, uploadProjectDocument, deleteProjectDocument, updateProjectWorkingDays, addNonWorkingDate, removeNonWorkingDate, safeParseDateToObject, safeParseDateToString, redistributeAllTasksWithAI, getCurrentUserId, redistributeTasksFromDayWithAI, restoreTasksToOriginalDay, moveTasksFromSpecificDate, restoreTasksToSpecificDate, calculateProjectProgressFromTasks, completeTask, uncompleteTask, addTaskToPhase, assignProjectToSupervisor, removeWorkerFromProject, saveProject } from '../utils/storage';
 import { SkeletonBox, SkeletonCard } from './SkeletonLoader';
 import PhaseTimeline from './PhaseTimeline';
 import AuditTrail from './AuditTrail';
@@ -485,6 +485,67 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
     if (modalVisible) refreshDrawSchedule();
   }, [modalVisible, refreshDrawSchedule]);
 
+  // Re-fetch ONLY the financial slice (income/expenses + trade budget spend).
+  // The nav-state "back from ProjectTransactions" path calls onRefreshNeeded()
+  // which only re-fetches the project ROW in the parent — it does NOT re-run
+  // getProjectTransactionSummary, so the financial card + Budget Breakdown
+  // would otherwise show stale totals after a transaction is added. This runs
+  // the same aggregation as loadData() (transaction summary + trade budgets +
+  // per-subcategory/phase spend) against the current `phases` state.
+  const refreshFinancials = useCallback(async () => {
+    if (!project?.id || isDemo) return;
+    try {
+      const [transactionResult, tradeBudgetsResult, tradeExpensesResult] = await Promise.allSettled([
+        getProjectTransactionSummary(project.id),
+        supabase.from('project_trade_budgets').select('*').eq('project_id', project.id).order('created_at', { ascending: true }),
+        supabase.from('project_transactions').select('subcategory, amount, phase_id').eq('project_id', project.id).eq('type', 'expense'),
+      ]);
+
+      if (transactionResult.status === 'fulfilled') {
+        setCalculatedExpenses(transactionResult.value?.totalExpenses || 0);
+        setCalculatedIncome(transactionResult.value?.totalIncome || 0);
+      } else {
+        setCalculatedExpenses(null);
+        setCalculatedIncome(null);
+      }
+
+      const budgets = tradeBudgetsResult.status === 'fulfilled' ? (tradeBudgetsResult.value?.data || []) : [];
+      const txns = tradeExpensesResult.status === 'fulfilled' ? (tradeExpensesResult.value?.data || []) : [];
+      const paidByPhaseId = {};
+      const paidByKey = {};
+      txns.forEach(tx => {
+        const amt = parseFloat(tx.amount) || 0;
+        if (tx.phase_id) {
+          paidByPhaseId[tx.phase_id] = (paidByPhaseId[tx.phase_id] || 0) + amt;
+        }
+        const key = (tx.subcategory || '').toLowerCase().trim();
+        if (key) {
+          paidByKey[key] = (paidByKey[key] || 0) + amt;
+        }
+      });
+      txns.forEach(tx => {
+        if (!tx.phase_id) return;
+        const matchPhase = phases.find(p => p.id === tx.phase_id);
+        if (!matchPhase) return;
+        const nameKey = String(matchPhase.name || '').toLowerCase().trim();
+        if ((tx.subcategory || '').toLowerCase().trim() === nameKey) return;
+        paidByKey[nameKey] = (paidByKey[nameKey] || 0) + (parseFloat(tx.amount) || 0);
+      });
+      setSpentBySubcategory(paidByKey);
+      if (budgets.length > 0) {
+        setTradeBudgets(budgets.map(b => ({
+          ...b,
+          paid: paidByKey[b.trade_name.toLowerCase()] || 0,
+          remaining: (parseFloat(b.budget_amount) || 0) - (paidByKey[b.trade_name.toLowerCase()] || 0),
+        })));
+      } else {
+        setTradeBudgets([]);
+      }
+    } catch (e) {
+      console.warn('[ProjectDetailView] refreshFinancials failed', e);
+    }
+  }, [project?.id, isDemo, phases]);
+
   const handleSendDraw = useCallback(async (drawItem) => {
     if (!drawItem?.id || drawSending) return;
     const contract = parseFloat(project?.contract_amount || 0);
@@ -559,6 +620,10 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           setTimeout(() => {
             setModalVisible(true);
             wasNavigatingRef.current = false;
+            // Re-fetch the financial slice locally so the card + Budget
+            // Breakdown reflect any transaction just added — onRefreshNeeded
+            // only refreshes the project row, not the transaction summary.
+            refreshFinancials();
             // Refresh project data to get updated expense/income totals
             if (onRefreshNeeded) {
               onRefreshNeeded();
@@ -575,9 +640,9 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
     // Also listen for state changes
     const unsubscribe = navigation.addListener('state', checkRoute);
-    
+
     return unsubscribe;
-  }, [navigation, visible]);
+  }, [navigation, visible, refreshFinancials]);
 
   // When entering edit mode, initialize phase progress values
   useEffect(() => {

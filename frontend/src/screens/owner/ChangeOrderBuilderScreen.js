@@ -456,18 +456,23 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
             <>
               <TouchableOpacity
                 style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue }]}
+                onPress={handleSend}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="paper-plane" size={18} color="#fff" />
+                <Text style={styles.sendBtnText}>Send to client</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendBtn, styles.secondaryBtn]}
                 onPress={async () => {
                   await flushSaveRef.current();
                   navigation.goBack();
                 }}
                 activeOpacity={0.85}
               >
-                <Ionicons name="checkmark" size={18} color="#fff" />
-                <Text style={styles.sendBtnText}>Save</Text>
+                <Ionicons name="checkmark" size={18} color={Colors.primaryBlue} />
+                <Text style={[styles.sendBtnText, { color: Colors.primaryBlue }]}>Save & close</Text>
               </TouchableOpacity>
-              <Text style={{ marginTop: 10, fontSize: 12, color: Colors.secondaryText, textAlign: 'center' }}>
-                Send, share, or preview from the chat preview card.
-              </Text>
             </>
           )}
         </Section>
@@ -629,6 +634,7 @@ const makeStyles = (Colors) => StyleSheet.create({
     marginTop: 6,
   },
   sendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  secondaryBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.primaryBlue, marginTop: 10 },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalCard: { borderRadius: 16, maxHeight: '70%' },
