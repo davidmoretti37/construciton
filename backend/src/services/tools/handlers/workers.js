@@ -9,7 +9,7 @@ const {
   toDate, today, getTodayBounds,
   resolveOwnerId, resolveProjectId, resolveWorkerId,
   enrichLocationWithAddress,
-  sendNotification, resolveSupervisorRecipient,
+  sendNotification, resolveSupervisorRecipient, buildWordSearch,
 } = require('./_shared');
 
 async function get_workers(userId, args = {}) {
