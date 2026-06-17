@@ -17,13 +17,14 @@
  * Route params: { engagementId }
  */
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, Linking, Platform, Image, Modal, FlatList, Dimensions,
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
@@ -40,6 +41,7 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [pkg, setPkg] = useState(null);
   const [imageUrls, setImageUrls] = useState({});
   const [openingDocId, setOpeningDocId] = useState(null);
@@ -48,10 +50,15 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
 
+  // Synchronous guard against task double-submit (the async updatingTaskId
+  // state can't block a second tap fired before the re-render).
+  const togglingTaskRef = useRef(false);
+
   const load = useCallback(async () => {
     if (!engagementId) return;
     try {
       const data = await api.getEngagementDetail(engagementId);
+      setError(false);
       setPkg(data);
 
       // Prefetch URLs for photo attachments
@@ -66,14 +73,16 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
       }));
       setImageUrls(urlMap);
     } catch (e) {
-      Alert.alert('Could not load', e.message || 'Try again');
+      // Distinguish a transient load failure from a genuine missing engagement:
+      // keep stale pkg in place so a focus/pull refetch can recover the live view.
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [engagementId]);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const e = pkg?.engagement;
   const bidAttachments = pkg?.bid_attachments || [];
@@ -187,15 +196,24 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
   };
 
   const toggleTask = async (task) => {
+    if (togglingTaskRef.current) return;
+    togglingTaskRef.current = true;
     setUpdatingTaskId(task.id);
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     try {
       await api.updateTask(task.id, { status: newStatus });
-      await load();
+      // Update just this task in place instead of a full load() — a full reload
+      // re-signs every photo URL and momentarily blanks the gallery tiles.
+      setPkg((prev) => prev && {
+        ...prev,
+        tasks: (prev.tasks || []).map((t) =>
+          t.id === task.id ? { ...t, status: newStatus } : t),
+      });
     } catch (err) {
       Alert.alert('Could not update task', err.message || 'Try again');
     } finally {
       setUpdatingTaskId(null);
+      togglingTaskRef.current = false;
     }
   };
 
@@ -207,14 +225,25 @@ export default function SubEngagementDetailScreen({ route, navigation }) {
     );
   }
   if (!e) {
+    // A transient load failure (network/auth/500) is reported separately from a
+    // genuine missing engagement so the sub gets a Retry instead of a false
+    // "cancelled" message that loses the live view on any blip.
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
         <Ionicons name="alert-circle-outline" size={42} color={Colors.errorRed || '#DC2626'} />
-        <Text style={styles.errorTitle}>Job not found</Text>
-        <Text style={styles.errorBody}>This engagement may have been cancelled.</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.primaryBtn, { paddingHorizontal: 32, marginTop: 20 }]}>
-          <Text style={styles.primaryBtnText}>Go back</Text>
-        </TouchableOpacity>
+        <Text style={styles.errorTitle}>{error ? "Couldn't load this job" : 'Job not found'}</Text>
+        <Text style={styles.errorBody}>
+          {error ? 'Something went wrong loading this job. Check your connection and try again.' : 'This engagement may have been cancelled.'}
+        </Text>
+        {error ? (
+          <TouchableOpacity onPress={() => { setLoading(true); load(); }} style={[styles.primaryBtn, { paddingHorizontal: 32, marginTop: 20 }]}>
+            <Text style={styles.primaryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.primaryBtn, { paddingHorizontal: 32, marginTop: 20 }]}>
+            <Text style={styles.primaryBtnText}>Go back</Text>
+          </TouchableOpacity>
+        )}
       </SafeAreaView>
     );
   }

@@ -61,6 +61,7 @@ export default function SubUploadPage({ route, navigation }) {
   const [uploading, setUploading] = useState(false);
   const [pickedFile, setPickedFile] = useState(null);
   const [expiresAt, setExpiresAt] = useState('');
+  const [expiresError, setExpiresError] = useState('');
   const [policyNumber, setPolicyNumber] = useState('');
   const [done, setDone] = useState(false);
 
@@ -121,8 +122,10 @@ export default function SubUploadPage({ route, navigation }) {
         quality: 0.8,
       });
       if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset) return;
       setPickedFile({
-        uri: result.assets[0].uri,
+        uri: asset.uri,
         name: `${docType || 'doc'}-${Date.now()}.jpg`,
         mimeType: 'image/jpeg',
       });
@@ -138,6 +141,20 @@ export default function SubUploadPage({ route, navigation }) {
       Alert.alert('Pick a file first');
       return;
     }
+    // Validate optional expiry: must be a real YYYY-MM-DD date if provided.
+    if (expiresAt) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(expiresAt.trim());
+      const d = m ? new Date(expiresAt.trim()) : null;
+      const valid = m && d && !Number.isNaN(d.getTime()) &&
+        d.getUTCFullYear() === Number(m[1]) &&
+        d.getUTCMonth() + 1 === Number(m[2]) &&
+        d.getUTCDate() === Number(m[3]);
+      if (!valid) {
+        setExpiresError('Use the format YYYY-MM-DD (e.g. 2026-12-31).');
+        return;
+      }
+    }
+    setExpiresError('');
     setUploading(true);
     try {
       const base64 = await FileSystem.readAsStringAsync(pickedFile.uri, {
@@ -184,6 +201,21 @@ export default function SubUploadPage({ route, navigation }) {
         <Ionicons name="alert-circle-outline" size={48} color={Colors.errorRed} />
         <Text style={styles.errorTitle}>Link invalid or expired</Text>
         <Text style={styles.errorBody}>Ask the contractor to send you a new link.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Magic-link path: public/unauthenticated upload isn't wired in v1. Don't
+  // render the picker + Upload button (it would always fail) — show guidance.
+  if (!isInApp) {
+    return (
+      <SafeAreaView style={[styles.center, { backgroundColor: Colors.background }]}>
+        <Ionicons name="lock-closed-outline" size={48} color={Colors.primaryBlue} />
+        <Text style={styles.successTitle}>Open Sylk to upload</Text>
+        <Text style={styles.successBody}>
+          To upload {docLabel}{orgName ? ` for ${orgName}` : ''}, open the Sylk app and
+          sign in. You'll find this request in your Documents.
+        </Text>
       </SafeAreaView>
     );
   }
@@ -245,13 +277,14 @@ export default function SubUploadPage({ route, navigation }) {
 
         <Text style={styles.label}>Expiration date</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, expiresError && styles.inputError]}
           value={expiresAt}
-          onChangeText={setExpiresAt}
+          onChangeText={(t) => { setExpiresAt(t); if (expiresError) setExpiresError(''); }}
           placeholder="YYYY-MM-DD"
           placeholderTextColor={Colors.placeholder || '#9CA3AF'}
           autoCapitalize="none"
         />
+        {expiresError ? <Text style={styles.fieldError}>{expiresError}</Text> : null}
 
         <Text style={styles.label}>Policy / license number (optional)</Text>
         <TextInput
@@ -321,6 +354,8 @@ const makeStyles = (Colors) => StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: 14, fontSize: 15,
     backgroundColor: Colors.cardBackground, color: Colors.primaryText,
   },
+  inputError: { borderColor: Colors.errorRed },
+  fieldError: { fontSize: 12, color: Colors.errorRed, marginTop: 6 },
   primaryBtn: {
     backgroundColor: SUB_VIOLET, borderRadius: 14,
     paddingVertical: 16, alignItems: 'center', marginTop: 28,

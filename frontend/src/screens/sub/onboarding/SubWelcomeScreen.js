@@ -11,7 +11,7 @@
  * Refresh and Back-to-role-selection buttons.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../../constants/theme';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -69,9 +70,14 @@ export default function SubWelcomeScreen() {
     }
   }, [user?.email]);
 
-  useEffect(() => {
-    checkForInvite();
-  }, [checkForInvite]);
+  // Re-check on focus so the screen self-updates when the invitation
+  // arrives (e.g. the sub asks their contractor to invite them while sitting
+  // on the "Waiting" screen), in addition to the manual Refresh button.
+  useFocusEffect(
+    useCallback(() => {
+      checkForInvite();
+    }, [checkForInvite])
+  );
 
   const handleAccept = async () => {
     if (!user?.id) return;
@@ -93,11 +99,15 @@ export default function SubWelcomeScreen() {
         throw new Error(json.error || 'Failed to accept invitation');
       }
 
-      // Mark onboarded so App.js routes to the portal
-      await supabase
+      // Mark onboarded so App.js routes to the portal.
+      // Supabase returns errors rather than throwing, so check explicitly —
+      // otherwise a failed write (RLS denial / transient) would silently
+      // advance the UI while App.js bounces the user back into onboarding.
+      const { error: profErr } = await supabase
         .from('profiles')
         .update({ is_onboarded: true })
         .eq('id', user.id);
+      if (profErr) throw profErr;
 
       await refreshProfile();
       if (onComplete) onComplete();
