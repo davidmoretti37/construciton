@@ -125,6 +125,9 @@ export default function FinancialReportScreen() {
     loadData();
   }, [loadData]);
 
+  const { startDate, endDate } = getDateRangeForPeriod(period);
+  const pnl = aggregatePnL(transactions, projects, startDate, endDate);
+
   const handleExportPDF = useCallback(async () => {
     if (exporting) return;
     setExporting(true);
@@ -166,8 +169,6 @@ export default function FinancialReportScreen() {
     }
   }, [period]);
 
-  const { startDate, endDate } = getDateRangeForPeriod(period);
-  const pnl = aggregatePnL(transactions, projects, startDate, endDate);
   const netProfit = pnl.grossProfit - monthlyOverhead;
   const netMargin = pnl.totalRevenue > 0 ? (netProfit / pnl.totalRevenue) * 100 : 0;
 

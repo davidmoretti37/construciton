@@ -148,7 +148,11 @@ export default function NotificationSettingsScreen({ navigation }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveNotificationPreferences(preferences);
+      const ok = await saveNotificationPreferences(preferences);
+      if (!ok) {
+        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'preferences' }));
+        return;
+      }
       Alert.alert(tCommon('alerts.success'), tCommon('messages.savedSuccessfully', { item: 'Notification preferences' }), [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);

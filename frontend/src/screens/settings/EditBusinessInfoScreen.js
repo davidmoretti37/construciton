@@ -156,13 +156,18 @@ export default function EditBusinessInfoScreen({ navigation }) {
       const currentProfile = await getUserProfile();
       const currentBusinessInfo = currentProfile?.businessInfo || {};
 
-      await updateBusinessInfo({
+      const ok = await updateBusinessInfo({
         ...currentBusinessInfo,
         name: businessName.trim(),
         phone: phone.trim(),
         email: email.trim(),
         logoUrl: logoUrl,
       });
+
+      if (!ok) {
+        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'business information' }));
+        return;
+      }
 
       Alert.alert(tCommon('alerts.success'), tCommon('messages.updatedSuccessfully', { item: 'Business information' }), [
         {

@@ -261,7 +261,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
           const { data: { user } } = await supabase.auth.getUser();
           if (user?.id) {
             if (validChecklist.length > 0) {
-              await supabase.from('daily_checklist_templates').insert(
+              const { error: checklistError } = await supabase.from('daily_checklist_templates').insert(
                 validChecklist.map((item, i) => ({
                   project_id: saved.id,
                   owner_id: user.id,
@@ -272,9 +272,13 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   sort_order: i,
                 }))
               );
+              if (checklistError) {
+                console.error('Checklist/labor save error:', checklistError);
+                Alert.alert('Heads up', 'The project was created, but the daily checklist could not be saved.');
+              }
             }
             if (validLabor.length > 0) {
-              await supabase.from('labor_role_templates').insert(
+              const { error: laborError } = await supabase.from('labor_role_templates').insert(
                 validLabor.map((role, i) => ({
                   project_id: saved.id,
                   owner_id: user.id,
@@ -283,6 +287,10 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   sort_order: i,
                 }))
               );
+              if (laborError) {
+                console.error('Checklist/labor save error:', laborError);
+                Alert.alert('Heads up', 'The project was created, but the labor roles could not be saved.');
+              }
             }
           }
         } catch (e) {
@@ -310,12 +318,16 @@ export default function ManualProjectCreateScreen({ navigation }) {
           try {
             const { data: { user } } = await supabase.auth.getUser();
             if (user?.id) {
-              await supabase.from('project_assignments').insert(
+              const { error: assignmentError } = await supabase.from('project_assignments').insert(
                 selectedWorkerIds.map(wId => ({
                   project_id: saved.id,
                   worker_id: wId,
                 }))
               );
+              if (assignmentError) {
+                console.error('Project assignments error:', assignmentError);
+                Alert.alert('Heads up', 'The project was created, but assigning workers failed. They may not see this project.');
+              }
             }
           } catch (e) {
             console.error('Project assignments error:', e);
@@ -355,7 +367,11 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 });
               }
               if (events.length > 0) {
-                await supabase.from('schedule_events').insert(events);
+                const { error: eventsError } = await supabase.from('schedule_events').insert(events);
+                if (eventsError) {
+                  console.error('Schedule events error:', eventsError);
+                  Alert.alert('Heads up', 'The project was created, but the calendar milestones could not be saved.');
+                }
               }
             }
           } catch (e) {
