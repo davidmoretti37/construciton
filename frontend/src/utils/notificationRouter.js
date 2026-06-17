@@ -75,12 +75,11 @@ export function routeForNotification(notification, navigation) {
 
     case 'appointment_reminder':
       // Land in Schedule with the event focused — NOT in Chat with an
-      // AI prompt (the old behavior).
-      return navTo(navigation, 'MainTabs', undefined) ||
-        navigation.navigate('MainTabs', {
-          screen: 'Home',
-          params: { focusEventId: a.appointment_id || a.event_id },
-        });
+      // AI prompt (the old behavior). Navigate exactly once to the tab
+      // (navTo wraps it in MainTabs) with the focus param.
+      return navTo(navigation, 'Home', {
+        focusEventId: a.appointment_id || a.event_id,
+      });
 
     case 'signature_declined':
       // Document-specific destination by documentType

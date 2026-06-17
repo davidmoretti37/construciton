@@ -58,7 +58,7 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
             <Text style={styles.valueMedium}>{count}</Text>
             <View style={styles.mediumContent}>
               <Text style={styles.titleMedium}>Invoices</Text>
-              <Text style={styles.labelMedium}>{count > 0 ? 'OVERDUE' : 'ALL CURRENT'}</Text>
+              <Text style={styles.labelMedium}>{count > 0 ? 'OUTSTANDING' : 'ALL PAID'}</Text>
               <Text style={styles.amountText}>{fmtK(amount)} outstanding</Text>
             </View>
             <Ionicons name="alert-circle" size={20} color="rgba(255,255,255,0.3)" />
@@ -90,7 +90,7 @@ export default function OverdueInvoicesWidget({ count, amount, size, editMode, o
               <Text style={styles.amountPillText}>{fmtK(amount)}</Text>
             </View>
           )}
-          <Text style={styles.label}>{count > 0 ? 'OVERDUE' : 'ALL CURRENT'}</Text>
+          <Text style={styles.label}>{count > 0 ? 'OUTSTANDING' : 'ALL PAID'}</Text>
         </LinearGradient>
       </Animated.View>
     </TouchableOpacity>

@@ -83,6 +83,7 @@ export default function OwnerDashboardScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [stats, setStats] = useState({
     totalSupervisors: 0,
     totalProjects: 0,
@@ -155,6 +156,7 @@ export default function OwnerDashboardScreen() {
 
   const fetchDashboardData = useCallback(async () => {
     if (!user?.id) return;
+    setLoadError(false);
     try {
       const [projects, workers, supervisorList] = await Promise.all([
         fetchProjectsForOwner(),
@@ -307,6 +309,7 @@ export default function OwnerDashboardScreen() {
       } catch (e) { setPipeline({ estimates: { draft: 0, sent: 0, accepted: 0 }, invoices: { unpaid: 0, partial: 0, paid: 0 } }); }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -512,7 +515,7 @@ export default function OwnerDashboardScreen() {
             onPress={() => navigation.navigate('Projects')}
             topProjects={topActiveProjectsForWidget}
             onProjectPress={(projectId) =>
-              navigation.navigate('Projects', { screen: 'ProjectDetail', params: { projectId } })
+              navigation.navigate('ProjectDetail', { projectId })
             }
           />
         );
@@ -598,7 +601,7 @@ export default function OwnerDashboardScreen() {
             onPress={() => navigation.navigate('Projects')}
             topProjects={topProjectsByContract}
             onProjectPress={(projectId) =>
-              navigation.navigate('Projects', { screen: 'ProjectDetail', params: { projectId } })
+              navigation.navigate('ProjectDetail', { projectId })
             }
           />
         );
@@ -811,6 +814,22 @@ export default function OwnerDashboardScreen() {
           {/* Phase-3 Morning Brief — surfaces the nightly anomaly snapshot */}
           <MorningBriefCard />
 
+          {/* Core stats failed to load — offer a retry */}
+          {loadError && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => { setLoading(true); fetchDashboardData(); }}
+              style={styles.errorCard}
+            >
+              <Ionicons name="alert-circle" size={18} color={ACCENT.error} />
+              <View style={styles.errorTextWrap}>
+                <Text style={styles.errorTitle}>Couldn't load dashboard</Text>
+                <Text style={styles.errorSubtitle}>Some stats may be out of date. Tap to retry.</Text>
+              </View>
+              <Ionicons name="refresh" size={18} color={ACCENT.error} />
+            </TouchableOpacity>
+          )}
+
           {/* Company Info Card */}
           <TouchableOpacity
             ref={walkthrough?.overheadRef}
@@ -836,13 +855,15 @@ export default function OwnerDashboardScreen() {
                 <Text style={[styles.companyStatValue, { color: '#6EE7B7' }]}>
                   ${Math.round(pnl.revenue).toLocaleString()}
                 </Text>
+                <Text style={styles.companyStatSuffix}>all time</Text>
               </View>
               <View style={styles.companyStatDivider} />
               <View style={styles.companyStat}>
-                <Text style={styles.companyStatLabel}>Net Profit</Text>
-                <Text style={[styles.companyStatValue, { color: (pnl.profit - monthlyOverhead) >= 0 ? '#6EE7B7' : '#FCA5A5' }]}>
-                  ${Math.round(pnl.profit - monthlyOverhead).toLocaleString()}
+                <Text style={styles.companyStatLabel}>Gross Profit</Text>
+                <Text style={[styles.companyStatValue, { color: pnl.profit >= 0 ? '#6EE7B7' : '#FCA5A5' }]}>
+                  ${Math.round(pnl.profit).toLocaleString()}
                 </Text>
+                <Text style={styles.companyStatSuffix}>all time</Text>
               </View>
             </View>
 
@@ -1048,6 +1069,34 @@ const createStyles = (Colors, isDark) => StyleSheet.create({
   },
   customizeIconBtn: {
     padding: 8,
+  },
+
+  // Error / retry card (core stats failed to load)
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: `${ACCENT.error}12`,
+    borderWidth: 1,
+    borderColor: `${ACCENT.error}33`,
+  },
+  errorTextWrap: {
+    flex: 1,
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.primaryText,
+  },
+  errorSubtitle: {
+    fontSize: 12,
+    color: Colors.secondaryText,
+    marginTop: 2,
   },
 
   // Company card — same dark style as PnL widget

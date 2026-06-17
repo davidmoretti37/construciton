@@ -25,7 +25,7 @@ import { SUPERVISOR_PERMISSIONS, DEFAULT_SUPERVISOR_PERMISSIONS } from '../../co
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -324,7 +324,7 @@ export default function SupervisorsScreen() {
         try {
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
-            .select('id, business_name, business_phone, is_onboarded, created_at')
+            .select('id, business_name, business_email, business_phone, is_onboarded, created_at')
             .eq('owner_id', user.id)
             .eq('role', 'supervisor');
 
@@ -364,9 +364,11 @@ export default function SupervisorsScreen() {
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    fetchSupervisors();
-  }, [fetchSupervisors]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSupervisors();
+    }, [fetchSupervisors])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
