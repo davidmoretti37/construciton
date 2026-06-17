@@ -70,18 +70,20 @@ export default function PhaseDetailScreen({ navigation, route }) {
     }
   }, [phase]);
 
+  // Load workers (reusable so we can refresh after assign/unassign)
+  const loadWorkers = useCallback(async () => {
+    try {
+      const phaseWorkers = await getPhaseWorkers(phaseId);
+      setWorkers(phaseWorkers || []);
+    } catch (error) {
+      console.error('Error loading workers:', error);
+    }
+  }, [phaseId]);
+
   // Load workers on mount
   useEffect(() => {
-    const loadWorkers = async () => {
-      try {
-        const phaseWorkers = await getPhaseWorkers(phaseId);
-        setWorkers(phaseWorkers || []);
-      } catch (error) {
-        console.error('Error loading workers:', error);
-      }
-    };
     loadWorkers();
-  }, [phaseId]);
+  }, [loadWorkers]);
 
   const loadPhaseDetails = () => {
     reloadPhase(true);
@@ -89,6 +91,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
 
   const handleWorkersUpdated = () => {
     loadPhaseDetails();
+    loadWorkers();
   };
 
   const getInitials = (name) => {
@@ -100,7 +103,9 @@ export default function PhaseDetailScreen({ navigation, route }) {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const handleToggleTask = (taskIndex) => {
+  const handleToggleTask = (taskId) => {
+    const taskIndex = tasks.findIndex((x) => x.id === taskId);
+    if (taskIndex === -1) return;
     const previousTasks = [...tasks];
     const updatedTasks = [...tasks];
     const task = { ...updatedTasks[taskIndex] };
@@ -134,7 +139,9 @@ export default function PhaseDetailScreen({ navigation, route }) {
       });
   };
 
-  const handleCycleTaskStatus = (taskIndex) => {
+  const handleCycleTaskStatus = (taskId) => {
+    const taskIndex = tasks.findIndex((x) => x.id === taskId);
+    if (taskIndex === -1) return;
     const previousTasks = [...tasks];
     const updatedTasks = [...tasks];
     const task = { ...updatedTasks[taskIndex] };
@@ -239,7 +246,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
       });
   };
 
-  const handleDeleteTask = async (taskIndex) => {
+  const handleDeleteTask = async (taskId) => {
     Alert.alert(
       t('alerts.confirm'),
       t('alerts.deleteConfirm'),
@@ -250,7 +257,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
           style: 'destructive',
           onPress: () => {
             const previousTasks = [...tasks];
-            const updatedTasks = tasks.filter((_, index) => index !== taskIndex);
+            const updatedTasks = tasks.filter((x) => x.id !== taskId);
             updatedTasks.forEach((task, index) => { task.order = index + 1; });
 
             // Optimistic: remove instantly
@@ -276,7 +283,9 @@ export default function PhaseDetailScreen({ navigation, route }) {
     );
   };
 
-  const openEditTask = (taskIndex) => {
+  const openEditTask = (taskId) => {
+    const taskIndex = tasks.findIndex((x) => x.id === taskId);
+    if (taskIndex === -1) return;
     setEditingTaskIndex(taskIndex);
     setTaskInput(tasks[taskIndex].description);
     setShowEditTask(true);
@@ -602,7 +611,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
           ) : (
-            tasks
+            [...tasks]
               .sort((a, b) => (a.order || 0) - (b.order || 0))
               .map((task, index) => {
                 const status = getTaskStatus(task);
@@ -618,7 +627,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
                 >
                   <TouchableOpacity
                     style={styles.taskContent}
-                    onPress={() => handleToggleTask(index)}
+                    onPress={() => handleToggleTask(task.id)}
                     activeOpacity={0.7}
                   >
                     <View
@@ -657,7 +666,7 @@ export default function PhaseDetailScreen({ navigation, route }) {
                   {/* Status Badge — tap to cycle */}
                   <TouchableOpacity
                     style={[styles.statusBadge, { backgroundColor: statusDef.color + '18' }]}
-                    onPress={() => handleCycleTaskStatus(index)}
+                    onPress={() => handleCycleTaskStatus(task.id)}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.statusDot, { backgroundColor: statusDef.color }]} />
@@ -669,13 +678,13 @@ export default function PhaseDetailScreen({ navigation, route }) {
                   <View style={styles.taskActions}>
                     <TouchableOpacity
                       style={[styles.taskActionButton, { backgroundColor: Colors.primaryBlue + '15' }]}
-                      onPress={() => openEditTask(index)}
+                      onPress={() => openEditTask(task.id)}
                     >
                       <Ionicons name="pencil" size={16} color={Colors.primaryBlue} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.taskActionButton, { backgroundColor: Colors.errorRed + '15' }]}
-                      onPress={() => handleDeleteTask(index)}
+                      onPress={() => handleDeleteTask(task.id)}
                     >
                       <Ionicons name="trash-outline" size={16} color={Colors.errorRed} />
                     </TouchableOpacity>

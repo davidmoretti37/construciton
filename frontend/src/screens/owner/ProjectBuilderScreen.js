@@ -760,58 +760,74 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           // is linked, otherwise manual. Avoid surfacing this drift to the
           // user — the picker keeps it explicit going forward.
           const trigger = d.trigger_type
-            || (d.phase_id ? 'phase_completion' : 'manual');
+            || (d.phase_id || typeof d.phase_order_index === 'number' ? 'phase_completion' : 'manual');
+          // Resolve phase_id at save time. The draw may be linked by
+          // order_index (new-project flow) before its phase has a real UUID —
+          // map it through the current phases array so the link persists once
+          // phases are saved. Falls back to any already-resolved phase_id.
+          let resolvedPhaseId = d.phase_id || null;
+          if (!resolvedPhaseId && typeof d.phase_order_index === 'number') {
+            const p = phases[d.phase_order_index];
+            if (p && p.id && typeof p.id === 'string' && !String(p.id).startsWith('draft-')) {
+              resolvedPhaseId = p.id;
+            }
+          }
           return {
             id: d.id || undefined,
             description: (d.description || '').trim(),
             percent_of_contract: hasPct ? parseFloat(pct) : null,
             fixed_amount: hasFixed ? parseFloat(fixed) : null,
             // Only attach phase_id when it's actually used.
-            phase_id: trigger === 'phase_completion' ? (d.phase_id || null) : null,
+            phase_id: trigger === 'phase_completion' ? resolvedPhaseId : null,
             trigger_type: trigger,
             _hasValue: hasPct || hasFixed,
-            _validTrigger: trigger !== 'phase_completion' || !!d.phase_id,
+            // Persist phase_completion draws only once a real phase_id exists.
+            // Before that (phase not yet saved) the row is held back; the
+            // resolution effect + next autosave land it automatically.
+            _validTrigger: trigger !== 'phase_completion' || !!resolvedPhaseId,
           };
         })
         .filter((d) => d.description && d._hasValue && d._validTrigger)
         .map(({ _hasValue, _validTrigger, ...row }) => row),
     };
-  }, [billInDraws, retainagePercent, draws]);
+  }, [billInDraws, retainagePercent, draws, phases]);
 
-  // After phases get persisted (and gain real UUIDs), resolve any draws
-  // that came in from chat with phase_name but no phase_id. Also re-runs
-  // when the user renames a phase so the link stays attached.
+  // After phases get persisted (and gain real UUIDs), resolve any draws that
+  // are linked by phase_name (chat extraction) or phase_order_index (the
+  // per-draw picker in the new-project flow) but don't yet have a phase_id.
+  // Also re-runs when the user renames a phase so the link stays attached.
+  const isRealPhaseId = (id) => id && typeof id === 'string' && !String(id).startsWith('draft-');
+  // Find the persisted phase a draw should resolve to: prefer order_index
+  // (explicit picker choice), fall back to phase_name (chat extraction).
+  const resolvePhaseForDraw = useCallback(
+    (d) => {
+      if (typeof d.phase_order_index === 'number') {
+        const p = phases[d.phase_order_index];
+        if (p && isRealPhaseId(p.id)) return p;
+      }
+      if (d.phase_name) {
+        return phases.find(
+          (p) => isRealPhaseId(p.id) && p.name && p.name.toLowerCase() === d.phase_name.toLowerCase()
+        );
+      }
+      return null;
+    },
+    [phases]
+  );
   useEffect(() => {
     if (!billInDraws || draws.length === 0) return;
     const resolvable = draws.some(
-      (d) =>
-        d.trigger_type === 'phase_completion' &&
-        !d.phase_id &&
-        d.phase_name &&
-        phases.some(
-          (p) =>
-            p.id &&
-            typeof p.id === 'string' &&
-            !String(p.id).startsWith('draft-') &&
-            p.name &&
-            p.name.toLowerCase() === d.phase_name.toLowerCase()
-        )
+      (d) => d.trigger_type === 'phase_completion' && !d.phase_id && !!resolvePhaseForDraw(d)
     );
     if (!resolvable) return;
     setDraws((prev) =>
       prev.map((d) => {
-        if (d.trigger_type !== 'phase_completion' || d.phase_id || !d.phase_name) return d;
-        const match = phases.find(
-          (p) =>
-            p.id &&
-            !String(p.id).startsWith('draft-') &&
-            p.name &&
-            p.name.toLowerCase() === d.phase_name.toLowerCase()
-        );
+        if (d.trigger_type !== 'phase_completion' || d.phase_id) return d;
+        const match = resolvePhaseForDraw(d);
         return match ? { ...d, phase_id: match.id, phase_name: null } : d;
       })
     );
-  }, [phases, billInDraws, draws]);
+  }, [phases, billInDraws, draws, resolvePhaseForDraw]);
 
   // Draw row helpers (mirror handleAddPhase / updatePhase / removePhase).
   // New rows start in % mode with empty values so the user can tap and type
@@ -823,12 +839,16 @@ export default function ProjectBuilderScreen({ navigation, route }) {
   const handleAddDraw = useCallback(() => {
     setDraws((prev) => {
       const isFirst = prev.length === 0;
-      const taken = new Set(prev.map((d) => d.phase_id).filter(Boolean));
-      const persistedPhases = phases.filter(
-        (p) => p.id && typeof p.id === 'string' && !p.id.startsWith('draft-')
+      // Auto-pick the next phase nothing else is linked to. Link by
+      // order_index so this works before phases are persisted (new-project
+      // flow); phase_id resolves at save time if a real UUID exists yet.
+      const takenIdx = new Set(
+        prev.map((d) => (typeof d.phase_order_index === 'number' ? d.phase_order_index : null)).filter((x) => x != null)
       );
-      const nextPhase = persistedPhases.find((p) => !taken.has(p.id));
-      const triggerType = isFirst ? 'project_start' : (nextPhase ? 'phase_completion' : 'manual');
+      const nextIdx = phases.findIndex((_p, idx) => !takenIdx.has(idx));
+      const hasPhase = !isFirst && nextIdx >= 0;
+      const chosenPhase = hasPhase ? phases[nextIdx] : null;
+      const triggerType = isFirst ? 'project_start' : (hasPhase ? 'phase_completion' : 'manual');
       return [
         ...prev,
         {
@@ -836,7 +856,12 @@ export default function ProjectBuilderScreen({ navigation, route }) {
           percent_of_contract: '',
           fixed_amount: null,
           trigger_type: triggerType,
-          phase_id: triggerType === 'phase_completion' ? nextPhase?.id || null : null,
+          phase_order_index: triggerType === 'phase_completion' ? nextIdx : null,
+          phase_id:
+            triggerType === 'phase_completion' &&
+            chosenPhase && chosenPhase.id && !String(chosenPhase.id).startsWith('draft-')
+              ? chosenPhase.id
+              : null,
           status: 'pending',
         },
       ];
@@ -1036,9 +1061,13 @@ export default function ProjectBuilderScreen({ navigation, route }) {
         );
         if (anyEmpty) return { kind: 'amber', label: '⚠' };
         // Trigger must be valid: phase_completion needs a phase, others don't.
+        // A phase is "linked" via a resolved phase_id OR via phase_order_index
+        // pointing at an existing phase (new-project flow, pre-persist).
         const anyBadTrigger = draws.some((d) => {
-          const t = d.trigger_type || (d.phase_id ? 'phase_completion' : 'manual');
-          return t === 'phase_completion' && !d.phase_id;
+          const t = d.trigger_type || (d.phase_id || typeof d.phase_order_index === 'number' ? 'phase_completion' : 'manual');
+          if (t !== 'phase_completion') return false;
+          const linked = !!d.phase_id || (typeof d.phase_order_index === 'number' && !!phases[d.phase_order_index]);
+          return !linked;
         });
         if (anyBadTrigger) return { kind: 'amber', label: '⚠' };
         const pctSum = draws
@@ -2013,18 +2042,34 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             <TouchableOpacity
                               disabled={locked}
                               onPress={() => {
-                                const persisted = phases.filter(
-                                  (p) => p.id && typeof p.id === 'string' && !String(p.id).startsWith('draft-')
+                                // Link by order_index so this works even before
+                                // phases are persisted (new-project chat flow).
+                                // phase_id resolves from phase_order_index once
+                                // the phase gains a real UUID (see resolution
+                                // effect + buildDrawsPayload).
+                                const takenIdx = new Set(
+                                  draws
+                                    .map((d, idx) => (idx !== i && typeof d.phase_order_index === 'number' ? d.phase_order_index : null))
+                                    .filter((x) => x != null)
                                 );
-                                const taken = new Set(
-                                  draws.map((d, idx) => (idx !== i ? d.phase_id : null)).filter(Boolean)
-                                );
-                                const nextPhase = draw.phase_id
+                                const alreadyLinked =
+                                  typeof draw.phase_order_index === 'number' || draw.phase_id;
+                                const nextIdx = alreadyLinked
                                   ? null
-                                  : (persisted.find((p) => !taken.has(p.id)) || persisted[0]);
+                                  : (phases.findIndex((_p, idx) => !takenIdx.has(idx)));
+                                const chosenIdx =
+                                  typeof draw.phase_order_index === 'number'
+                                    ? draw.phase_order_index
+                                    : (nextIdx != null && nextIdx >= 0 ? nextIdx : (phases.length > 0 ? 0 : null));
+                                const chosenPhase = chosenIdx != null ? phases[chosenIdx] : null;
                                 updateDraw(i, {
                                   trigger_type: 'phase_completion',
-                                  phase_id: draw.phase_id || nextPhase?.id || null,
+                                  phase_order_index: chosenIdx,
+                                  phase_id:
+                                    draw.phase_id ||
+                                    (chosenPhase && chosenPhase.id && !String(chosenPhase.id).startsWith('draft-')
+                                      ? chosenPhase.id
+                                      : null),
                                 });
                               }}
                               style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
@@ -2047,31 +2092,42 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             </TouchableOpacity>
 
                             {/* phase dropdown (only when phase_completion is selected) */}
+                            {/* Lists ALL phases (including in-memory ones with no
+                                UUID yet) and selects by order_index, so linking
+                                works in the new-project flow before the first
+                                save. phase_id is resolved at save time. */}
                             {draw.trigger_type === 'phase_completion' && (
                               <View style={{ marginLeft: 28, marginBottom: 8 }}>
-                                {phases.filter((p) => p.id && !String(p.id).startsWith('draft-')).length === 0 ? (
+                                {phases.length === 0 ? (
                                   <Text style={{ color: '#DC2626', fontSize: 11, marginTop: 4 }}>
                                     Add a phase in the Phases section first, then come back here.
                                   </Text>
                                 ) : (
                                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                    {phases
-                                      .filter((p) => p.id && !String(p.id).startsWith('draft-'))
-                                      .map((p) => (
+                                    {phases.map((p, pIdx) => {
+                                      const selected =
+                                        (typeof draw.phase_order_index === 'number' && draw.phase_order_index === pIdx) ||
+                                        (draw.phase_id && p.id && draw.phase_id === p.id);
+                                      return (
                                         <TouchableOpacity
-                                          key={p.id}
+                                          key={p.id || `phase-idx-${pIdx}`}
                                           disabled={locked}
-                                          onPress={() => updateDraw(i, { phase_id: p.id })}
+                                          onPress={() => updateDraw(i, {
+                                            phase_order_index: pIdx,
+                                            phase_id:
+                                              p.id && !String(p.id).startsWith('draft-') ? p.id : null,
+                                          })}
                                           style={[styles.chipButton, {
-                                            backgroundColor: draw.phase_id === p.id ? Colors.primaryBlue : Colors.lightGray,
+                                            backgroundColor: selected ? Colors.primaryBlue : Colors.lightGray,
                                             borderColor: Colors.border,
                                           }]}
                                         >
-                                          <Text style={{ color: draw.phase_id === p.id ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>
-                                            {p.name}
+                                          <Text style={{ color: selected ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>
+                                            {p.name || `Phase ${pIdx + 1}`}
                                           </Text>
                                         </TouchableOpacity>
-                                      ))}
+                                      );
+                                    })}
                                   </ScrollView>
                                 )}
                               </View>
@@ -2080,7 +2136,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             {/* project_start */}
                             <TouchableOpacity
                               disabled={locked}
-                              onPress={() => updateDraw(i, { trigger_type: 'project_start', phase_id: null })}
+                              onPress={() => updateDraw(i, { trigger_type: 'project_start', phase_id: null, phase_order_index: null })}
                               style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
                             >
                               <View style={{
@@ -2103,7 +2159,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             {/* manual */}
                             <TouchableOpacity
                               disabled={locked}
-                              onPress={() => updateDraw(i, { trigger_type: 'manual', phase_id: null })}
+                              onPress={() => updateDraw(i, { trigger_type: 'manual', phase_id: null, phase_order_index: null })}
                               style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
                             >
                               <View style={{
@@ -2376,6 +2432,22 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             />
             {expandedSections.documents && (
               <View style={styles.sectionBody}>
+                {/* Documents attach to a saved project row. In the new-project
+                    (chat) flow nothing is persisted until the user taps Create
+                    Project, so there's no row to attach a file to yet. Rather
+                    than show a dead "Upload Document" button that only Alerts
+                    "Save first", explain the gate up front. Once the project is
+                    saved (projectId exists), the uploader appears. */}
+                {!projectId ? (
+                  <View style={[styles.emptyStub, { backgroundColor: Colors.lightGray }]}>
+                    <Ionicons name="lock-closed-outline" size={28} color={Colors.secondaryText} />
+                    <Text style={{ color: Colors.primaryText, fontWeight: '600', marginTop: 6 }}>Save the project first</Text>
+                    <Text style={{ color: Colors.secondaryText, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                      Tap Create Project below, then come back here to upload contracts, plans, permits, or photos.
+                    </Text>
+                  </View>
+                ) : (
+                  <>
                 <TouchableOpacity
                   style={[styles.addRowButton, { borderColor: Colors.primaryBlue, opacity: uploadingDoc ? 0.6 : 1 }]}
                   onPress={handleUploadDocument}
@@ -2463,6 +2535,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       );
                     })}
                   </View>
+                )}
+                  </>
                 )}
               </View>
             )}

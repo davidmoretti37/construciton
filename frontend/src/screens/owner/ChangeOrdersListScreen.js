@@ -102,11 +102,28 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
         }},
       ]);
     }});
-    if (options.length === 0) return;
+    const display = STATUS_DISPLAY[co.status] || STATUS_DISPLAY.draft;
+    const days = Number(co.schedule_impact_days || 0);
+    const summaryLines = [
+      co.title || 'Change order',
+      '',
+      `Status: ${display.label}`,
+      `Amount: ${fmt$(co.total_amount)}`,
+      days !== 0 ? `Schedule: ${days > 0 ? '+' : ''}${days} day${Math.abs(days) === 1 ? '' : 's'}` : null,
+    ].filter(Boolean).join('\n');
+
+    if (options.length === 0) {
+      Alert.alert(
+        `CO-${String(co.co_number || 0).padStart(3, '0')}`,
+        `${summaryLines}\n\nNo actions available.`,
+        [{ text: 'OK', style: 'cancel' }]
+      );
+      return;
+    }
 
     Alert.alert(
       `CO-${String(co.co_number || 0).padStart(3, '0')}`,
-      co.title || 'Change order',
+      summaryLines,
       [
         ...options.map((o) => ({ text: o.label, style: o.danger ? 'destructive' : 'default', onPress: o.fn })),
         { text: 'Cancel', style: 'cancel' },

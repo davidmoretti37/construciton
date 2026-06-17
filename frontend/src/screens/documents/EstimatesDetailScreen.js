@@ -185,9 +185,12 @@ export default function EstimatesDetailScreen({ navigation, route }) {
   // Filter estimates
   const filteredEstimates = estimates.filter(est => {
     const matchesStatus = statusFilter === 'All' || est.status?.toLowerCase() === statusFilter.toLowerCase();
+    const q = searchQuery.toLowerCase();
+    const clientName = est.clientName || est.client_name || '';
+    const projectName = est.projectName || est.project_name || '';
     const matchesSearch = searchQuery === '' ||
-      est.clientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      est.projectName?.toLowerCase().includes(searchQuery.toLowerCase());
+      clientName.toLowerCase().includes(q) ||
+      projectName.toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
   });
 
@@ -236,6 +239,57 @@ export default function EstimatesDetailScreen({ navigation, route }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* Search */}
+        <View style={styles.searchSection}>
+          <View style={[styles.searchBar, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
+            <Ionicons name="search" size={18} color={Colors.secondaryText} />
+            <TextInput
+              style={[styles.searchInput, { color: Colors.primaryText }]}
+              placeholder="Search estimates..."
+              placeholderTextColor={Colors.secondaryText}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery !== '' && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color={Colors.secondaryText} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Status Filter */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+        >
+          {['All', 'Draft', 'Sent', 'Accepted', 'Rejected'].map((status) => {
+            const isActive = statusFilter === status;
+            return (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: isActive ? Colors.primaryBlue : Colors.lightGray,
+                  },
+                ]}
+                onPress={() => setStatusFilter(status)}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    { color: isActive ? '#fff' : Colors.secondaryText },
+                  ]}
+                >
+                  {t(`status.${status.toLowerCase()}`)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Estimates List */}
         <View style={styles.listSection}>
           {filteredEstimates.length === 0 ? (

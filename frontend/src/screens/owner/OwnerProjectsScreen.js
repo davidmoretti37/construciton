@@ -70,15 +70,18 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   // Load projects
   const loadProjects = useCallback(async () => {
     try {
       const data = await fetchProjectsForOwner();
       setProjects(data || []);
+      setLoadError(false);
       setHasLoadedOnce(true);
     } catch (error) {
       logger.error('Error loading projects:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -148,6 +151,13 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
     const projectsToGroup = filteredProjects.length === 0 && hasLoadedOnce && activeFilter === 'all'
       ? [DEMO_PROJECT]
       : filteredProjects;
+
+    // Nothing to show (e.g. a non-'all' filter with zero matches) — return no
+    // sections so SectionList's ListEmptyComponent fires instead of rendering an
+    // orphan header with a '0' badge.
+    if (projectsToGroup.length === 0) {
+      return [];
+    }
 
     // "All" filter — flat list, everything mixed together
     if (activeFilter === 'all' || activeFilter !== 'assigned') {
@@ -243,19 +253,52 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
   ), [handleProjectCardPress]);
 
   // Empty state
-  const renderEmptyComponent = useCallback(() => (
-    <View style={styles.emptyState}>
-      <View style={[styles.emptyIcon, { backgroundColor: `${OWNER_COLORS.primary}10` }]}>
-        <Ionicons name="folder-outline" size={48} color={OWNER_COLORS.primary} />
+  const renderEmptyComponent = useCallback(() => {
+    // Distinct error/retry view — a load failure is not the same as an empty account
+    if (loadError) {
+      return (
+        <View style={styles.emptyState}>
+          <View style={[styles.emptyIcon, { backgroundColor: `${OWNER_COLORS.primary}10` }]}>
+            <Ionicons name="cloud-offline-outline" size={48} color={OWNER_COLORS.primary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
+            {t('loadErrorTitle', "Couldn't load projects")}
+          </Text>
+          <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
+            {t('loadErrorHint', 'Check your connection and try again')}
+          </Text>
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: OWNER_COLORS.primary }]}
+            onPress={() => loadProjects()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="refresh" size={18} color="#FFFFFF" />
+            <Text style={styles.retryButtonText}>{t('retry', 'Try again')}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // Filter-aware empty copy — a filtered view with no matches is not "no projects yet"
+    const isFiltered = activeFilter !== 'all';
+    return (
+      <View style={styles.emptyState}>
+        <View style={[styles.emptyIcon, { backgroundColor: `${OWNER_COLORS.primary}10` }]}>
+          <Ionicons name="folder-outline" size={48} color={OWNER_COLORS.primary} />
+        </View>
+        <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
+          {isFiltered
+            ? t('noMatchingProjects', 'No matching projects')
+            : t('noProjects', 'No projects yet')}
+        </Text>
+        <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
+          {isFiltered
+            ? t('noMatchingProjectsHint', 'Try a different filter to see more projects')
+            : t('noProjectsHint', 'Create your first project to get started')}
+        </Text>
       </View>
-      <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
-        {t('noProjects', 'No projects yet')}
-      </Text>
-      <Text style={[styles.emptySubtext, { color: Colors.secondaryText }]}>
-        {t('noProjectsHint', 'Create your first project to get started')}
-      </Text>
-    </View>
-  ), [Colors, t]);
+    );
+  }, [Colors, t, loadError, activeFilter, loadProjects]);
 
   // Loading state
   if (loading && !hasLoadedOnce) {
@@ -499,6 +542,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
     lineHeight: 22,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
