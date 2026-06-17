@@ -7,7 +7,7 @@ const {
   supabase, logger, userSafeError, crypto,
   validateUpload, requireSupervisorPermission, safeStorageKey,
   toDate, today, getTodayBounds,
-  resolveOwnerId, resolveServicePlanId, resolveWorkerId,
+  resolveOwnerId, resolveProjectId, resolveServicePlanId, resolveWorkerId,
 } = require('./_shared');
 
 async function update_service_pricing(userId, { service_name, item_name, price, unit }) {

@@ -6,7 +6,7 @@
 const {
   supabase, logger, userSafeError,
   requireSupervisorPermission,
-  resolveOwnerId, resolveProjectId, resolveEstimateId,
+  resolveOwnerId, resolveProjectId, resolveEstimateId, buildWordSearch,
 } = require('./_shared');
 
 async function search_estimates(userId, args = {}) {

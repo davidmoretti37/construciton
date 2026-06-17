@@ -7,7 +7,7 @@ const {
   supabase, logger, userSafeError,
   requireSupervisorPermission,
   toDate, today, getTodayBounds,
-  resolveOwnerId, resolveProjectId,
+  resolveOwnerId, resolveProjectId, buildWordSearch,
   recalculatePhaseProgress,
   redistributeTasksForProject,
   sendNotification, resolveSupervisorRecipient,

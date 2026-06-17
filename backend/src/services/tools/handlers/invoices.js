@@ -6,7 +6,7 @@
 const {
   supabase, logger, userSafeError,
   requireSupervisorPermission, sendNotification, resolveSupervisorRecipient,
-  resolveOwnerId, resolveProjectId, resolveInvoiceId, resolveEstimateId,
+  resolveOwnerId, resolveProjectId, resolveInvoiceId, resolveEstimateId, buildWordSearch,
 } = require('./_shared');
 
 async function search_invoices(userId, args = {}) {
