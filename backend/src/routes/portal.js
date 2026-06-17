@@ -2039,7 +2039,7 @@ router.get('/projects/:projectId/billing', verifyProjectAccess, async (req, res)
     const collected = events
       .filter(e => (e.source === 'draw' && e.invoice?.status === 'paid')
         || (e.source === 'invoice' && e.status === 'paid'))
-      .reduce((s, e) => s + (e.gross || e.amount || 0), 0);
+      .reduce((s, e) => s + (e.source === 'draw' ? (e.amount || 0) : (e.gross || e.amount || 0)), 0);
 
     const action = events.filter(e => e.zone === 'action')
       .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));

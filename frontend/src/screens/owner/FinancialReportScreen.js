@@ -168,7 +168,20 @@ export default function FinancialReportScreen() {
 
   const { startDate, endDate } = getDateRangeForPeriod(period);
   const pnl = aggregatePnL(transactions, projects, startDate, endDate);
-  const netProfit = pnl.grossProfit - monthlyOverhead;
+  // Prorate monthly overhead to the selected period (matches Foreman agent's
+  // get_profit_loss, which prorates by inclusive days in range / 30.44).
+  // For 'all' (startDate === null), span from the earliest transaction date to endDate.
+  const overheadStart = startDate || (transactions.length > 0
+    ? transactions.reduce((min, tx) => (tx.date && tx.date < min ? tx.date : min), endDate)
+    : endDate);
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const periodDaysInclusive = Math.max(
+    1,
+    Math.round((new Date(endDate).getTime() - new Date(overheadStart).getTime()) / msPerDay) + 1
+  );
+  const periodMonths = periodDaysInclusive / 30.44;
+  const periodOverhead = monthlyOverhead * periodMonths;
+  const netProfit = pnl.grossProfit - periodOverhead;
   const netMargin = pnl.totalRevenue > 0 ? (netProfit / pnl.totalRevenue) * 100 : 0;
 
   const profitColor = pnl.grossProfit >= 0 ? OWNER_COLORS.success : OWNER_COLORS.error;
@@ -351,7 +364,7 @@ export default function FinancialReportScreen() {
                   <View style={{ height: 8 }} />
                   <View style={styles.isRow}>
                     <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Company Overhead</Text>
-                    <Text style={[styles.isValue, { color: OWNER_COLORS.error }]}>({formatCurrency(monthlyOverhead)})</Text>
+                    <Text style={[styles.isValue, { color: OWNER_COLORS.error }]}>({formatCurrency(periodOverhead)})</Text>
                   </View>
                   {overheadItems.filter(i => i.is_active).map(item => {
                     const amt = parseFloat(item.amount || 0);
