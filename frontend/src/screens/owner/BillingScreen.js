@@ -35,20 +35,24 @@ export default function BillingScreen({ route: navRoute }) {
   const [toDate, setToDate] = useState(defaultTo);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [creating, setCreating] = useState(false);
   const [invoiceCreated, setInvoiceCreated] = useState(null);
 
   const loadPreview = useCallback(async () => {
+    if (!plan?.id) return;
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await fetchBillingPreview(plan.id, fromDate, toDate);
       setPreview(data);
     } catch (e) {
       console.error('[Billing] Preview error:', e);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [plan.id, fromDate, toDate]);
+  }, [plan?.id, fromDate, toDate]);
 
   useEffect(() => {
     loadPreview();
@@ -77,7 +81,7 @@ export default function BillingScreen({ route: navRoute }) {
 
     Alert.alert(
       'Create Invoice',
-      `Create invoice for $${preview.total_amount.toFixed(2)} (${preview.total_visits} visits)?`,
+      `Create invoice for $${preview.total_amount?.toFixed(2) ?? '0.00'} (${preview.total_visits} visits)?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -89,8 +93,8 @@ export default function BillingScreen({ route: navRoute }) {
               setInvoiceCreated(result);
               Alert.alert(
                 'Invoice Created',
-                `Invoice ${result.invoice_number} for $${result.total.toFixed(2)} — ${result.visits_invoiced} visits.`,
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
+                `Invoice ${result.invoice_number} for $${result.total?.toFixed(2) ?? '0.00'} — ${result.visits_invoiced} visits.`,
+                [{ text: 'OK' }]
               );
             } catch (e) {
               Alert.alert('Error', e.message || 'Failed to create invoice');
@@ -108,6 +112,28 @@ export default function BillingScreen({ route: navRoute }) {
     monthly: 'Monthly',
     quarterly: 'Quarterly',
   };
+
+  if (!plan?.id) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Billing</Text>
+          </View>
+        </View>
+        <View style={styles.emptyState}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.secondaryText} />
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Plan Not Found</Text>
+          <Text style={[styles.emptySubtitle, { color: Colors.secondaryText, textAlign: 'center' }]}>
+            No service plan was provided for billing.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
@@ -230,9 +256,19 @@ export default function BillingScreen({ route: navRoute }) {
             )}
           </>
         ) : (
-          <Text style={[styles.emptySubtitle, { color: Colors.secondaryText, textAlign: 'center', marginTop: 40 }]}>
-            Failed to load billing preview
-          </Text>
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={48} color={Colors.secondaryText} />
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
+              {loadError ? 'Failed to Load' : 'No Data'}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: Colors.secondaryText, textAlign: 'center' }]}>
+              Failed to load billing preview
+            </Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={loadPreview}>
+              <Ionicons name="refresh" size={18} color="#fff" />
+              <Text style={styles.createBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         <View style={{ height: 120 }} />
@@ -285,6 +321,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E40AF', paddingVertical: 16, borderRadius: BorderRadius.lg, marginTop: Spacing.lg,
   },
   createBtnText: { color: '#fff', fontSize: FontSizes.body, fontWeight: '700' },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#1E40AF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: BorderRadius.lg, marginTop: Spacing.md,
+  },
   successCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: Spacing.lg, borderRadius: BorderRadius.lg, marginTop: Spacing.lg,

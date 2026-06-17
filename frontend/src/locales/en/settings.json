@@ -238,5 +238,9 @@
     "hour": "/ hour",
     "unit": "/ unit",
     "saveChanges": "Save Changes"
+  },
+  "loadError": "Couldn't load some settings.",
+  "common": {
+    "retry": "Retry"
   }
 }

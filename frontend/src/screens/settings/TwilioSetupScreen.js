@@ -28,12 +28,14 @@ export default function TwilioSetupScreen({ navigation }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     loadTwilioConfig();
   }, []);
 
   const loadTwilioConfig = async () => {
+    setLoadError(false);
     try {
       const profile = await getUserProfile();
       if (profile) {
@@ -44,6 +46,8 @@ export default function TwilioSetupScreen({ navigation }) {
           .eq('id', (await supabase.auth.getUser()).data.user?.id)
           .single();
 
+        if (error) throw error;
+
         if (data) {
           setAccountSid(data.twilio_account_sid || '');
           setAuthToken(data.twilio_auth_token || '');
@@ -52,6 +56,7 @@ export default function TwilioSetupScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading Twilio config:', error);
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -183,6 +188,19 @@ export default function TwilioSetupScreen({ navigation }) {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Load Error Banner */}
+        {loadError && (
+          <TouchableOpacity
+            style={[styles.errorBanner, { backgroundColor: Colors.error + '15', borderColor: Colors.error + '30' }]}
+            onPress={loadTwilioConfig}
+          >
+            <Ionicons name="warning-outline" size={24} color={Colors.error} />
+            <Text style={[styles.errorText, { color: Colors.error }]}>
+              {t('messages.failedToLoad', { item: 'configuration' })} — {t('buttons.retry')}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Info Banner */}
         <View style={[styles.infoBanner, { backgroundColor: Colors.primaryBlue + '15', borderColor: Colors.primaryBlue + '30' }]}>
           <Ionicons name="information-circle" size={24} color={Colors.primaryBlue} />
@@ -369,6 +387,20 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   infoText: {
+    flex: 1,
+    fontSize: FontSizes.small,
+    lineHeight: 20,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  errorText: {
     flex: 1,
     fontSize: FontSizes.small,
     lineHeight: 20,

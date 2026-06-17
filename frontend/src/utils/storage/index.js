@@ -38,6 +38,7 @@ export {
   hasUserAcknowledgedInviteInfo,
   setInviteInfoAcknowledged,
   getUserServices,
+  addUserService,
   updateUserServices,
   resetUserProfile,
   updateTradePricing,

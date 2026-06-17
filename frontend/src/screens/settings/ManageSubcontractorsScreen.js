@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
-  Modal,
-  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -32,14 +31,13 @@ export default function ManageSubcontractorsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [quotesGrouped, setQuotesGrouped] = useState({});
-  const [selectedTrade, setSelectedTrade] = useState(null);
   const [expandedTrades, setExpandedTrades] = useState(new Set());
-  const [selectedQuote, setSelectedQuote] = useState(null);
-  const [showQuoteModal, setShowQuoteModal] = useState(false);
 
-  useEffect(() => {
-    loadQuotes();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadQuotes();
+    }, [])
+  );
 
   const loadQuotes = async () => {
     try {
@@ -98,11 +96,6 @@ export default function ManageSubcontractorsScreen({ navigation }) {
     );
   };
 
-  const handleQuotePress = (quote) => {
-    setSelectedQuote(quote);
-    setShowQuoteModal(true);
-  };
-
   const toggleTradeExpansion = (tradeId) => {
     const newExpanded = new Set(expandedTrades);
     if (newExpanded.has(tradeId)) {
@@ -130,7 +123,7 @@ export default function ManageSubcontractorsScreen({ navigation }) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primaryBlue} />
           <Text style={[styles.loadingText, { color: Colors.secondaryText }]}>
-            Loading quotes...
+            {t('status.loading')}
           </Text>
         </View>
       </SafeAreaView>
@@ -253,7 +246,6 @@ export default function ManageSubcontractorsScreen({ navigation }) {
                       <SubcontractorQuoteCard
                         key={quote.id}
                         quote={quote}
-                        onPress={() => handleQuotePress(quote)}
                         onTogglePreferred={handleTogglePreferred}
                         onDelete={() => handleDeleteQuote(quote.id, quote.subcontractor_name)}
                       />

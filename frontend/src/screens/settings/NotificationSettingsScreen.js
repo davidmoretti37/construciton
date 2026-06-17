@@ -31,6 +31,11 @@ export default function NotificationSettingsScreen({ navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // True when getNotificationPreferences returned null (read error / no user)
+  // rather than real prefs or the "no row yet" defaults object. We block Save
+  // in that case so the hardcoded local defaults can't clobber stored prefs
+  // that simply failed to load.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(null); // 'start' or 'end'
   const [preferences, setPreferences] = useState({
     push_enabled: true,
@@ -60,6 +65,7 @@ export default function NotificationSettingsScreen({ navigation }) {
     try {
       const prefs = await getNotificationPreferences();
       if (prefs) {
+        setLoadFailed(false);
         // Strip null values so they don't clobber sensible defaults
         // (`appointment_reminder_minutes: null` was rendering as "null minutes"
         // in the slider value label).
@@ -67,9 +73,15 @@ export default function NotificationSettingsScreen({ navigation }) {
           Object.entries(prefs).filter(([, v]) => v !== null && v !== undefined)
         );
         setPreferences(prev => ({ ...prev, ...cleaned }));
+      } else {
+        // null = read failed (Supabase error or no user). Don't silently keep
+        // local defaults — a later Save would overwrite stored prefs with them.
+        setLoadFailed(true);
+        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'notification preferences' }));
       }
     } catch (error) {
       console.error('Error loading preferences:', error);
+      setLoadFailed(true);
       Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'notification preferences' }));
     } finally {
       setLoading(false);
@@ -146,9 +158,22 @@ export default function NotificationSettingsScreen({ navigation }) {
   };
 
   const handleSave = async () => {
+    // Preferences never loaded (read failed) — saving now would overwrite the
+    // user's real stored prefs with hardcoded local defaults. Block it.
+    if (loadFailed) {
+      Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToLoad', { item: 'notification preferences' }));
+      return;
+    }
     setSaving(true);
     try {
-      await saveNotificationPreferences(preferences);
+      // saveNotificationPreferences returns false (it does NOT throw) on a
+      // Supabase write error or when no user is logged in. Treat that as a
+      // failure so we don't show success + navigate back on a silent no-op.
+      const ok = await saveNotificationPreferences(preferences);
+      if (!ok) {
+        Alert.alert(tCommon('alerts.error'), tCommon('messages.failedToSave', { item: 'preferences' }));
+        return;
+      }
       Alert.alert(tCommon('alerts.success'), tCommon('messages.savedSuccessfully', { item: 'Notification preferences' }), [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);

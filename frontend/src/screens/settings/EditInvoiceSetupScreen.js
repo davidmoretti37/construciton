@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -91,14 +92,27 @@ export default function EditInvoiceSetupScreen({ navigation }) {
   const [venmoInfo, setVenmoInfo] = useState('');
   const [cashAppInfo, setCashAppInfo] = useState('');
 
-  useEffect(() => {
-    loadInvoiceData();
-  }, []);
+  // Re-load on focus so the form reflects the latest persisted businessInfo
+  // (e.g. after editing the same fields in EditBusinessInfoScreen) before any save.
+  useFocusEffect(
+    useCallback(() => {
+      loadInvoiceData();
+    }, [])
+  );
 
   const loadInvoiceData = async () => {
     try {
       const profile = await getUserProfile();
 
+      // Reset payment toggles before reconstructing them from the saved data,
+      // otherwise a previously-enabled method would stay on across reloads.
+      setEnabledPayments({
+        zelle: false,
+        bank: false,
+        paypal: false,
+        venmo: false,
+        cashapp: false,
+      });
 
       if (profile && profile.businessInfo) {
         const { businessInfo } = profile;
@@ -138,7 +152,6 @@ export default function EditInvoiceSetupScreen({ navigation }) {
             } else {
               setZelleInfo(match[1].trim());
             }
-          } else {
           }
 
           if (paymentInfo.includes('Bank Transfer')) {
@@ -186,9 +199,7 @@ export default function EditInvoiceSetupScreen({ navigation }) {
               setCashAppInfo(match[1].trim());
             }
           }
-        } else {
         }
-      } else {
       }
     } catch (error) {
       console.error('Error loading invoice data:', error);
@@ -329,6 +340,30 @@ export default function EditInvoiceSetupScreen({ navigation }) {
   };
 
   const handleSave = async () => {
+    // Validate that any enabled payment method has its required values filled in.
+    // enabledPayments toggles are independent of the value fields, so without this
+    // check an enabled-but-empty method is silently dropped from paymentInfo.
+    const missing = [];
+    if (enabledPayments.zelle && !zelleInfo.trim()) {
+      missing.push('Zelle is enabled but the email/phone is empty');
+    }
+    if (enabledPayments.bank && (!bankName.trim() || !accountNumber.trim())) {
+      missing.push('Bank Transfer is enabled but Bank Name or Account Number is empty');
+    }
+    if (enabledPayments.paypal && !paypalInfo.trim()) {
+      missing.push('PayPal is enabled but the email/link is empty');
+    }
+    if (enabledPayments.venmo && !venmoInfo.trim()) {
+      missing.push('Venmo is enabled but the username/phone is empty');
+    }
+    if (enabledPayments.cashapp && !cashAppInfo.trim()) {
+      missing.push('Cash App is enabled but the $cashtag is empty');
+    }
+    if (missing.length > 0) {
+      Alert.alert(t('alerts.missingInfo'), missing.join('\n'));
+      return;
+    }
+
     setSaving(true);
     try {
       // Build payment info string
@@ -844,11 +879,28 @@ export default function EditInvoiceSetupScreen({ navigation }) {
             <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice Preview</Text>
             <View style={{ width: 40 }} />
           </View>
-          <WebView
-            originWhitelist={['*']}
-            source={{ html: generatePreviewHTML() }}
-            style={{ flex: 1 }}
-          />
+          {showPreview && (
+            <WebView
+              originWhitelist={['*']}
+              source={{ html: generatePreviewHTML() }}
+              style={{ flex: 1 }}
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.previewLoading}>
+                  <ActivityIndicator size="large" color={Colors.primaryBlue} />
+                </View>
+              )}
+              renderError={() => (
+                <View style={styles.previewLoading}>
+                  <Text style={[styles.previewErrorText, { color: Colors.secondaryText }]}>
+                    Unable to load invoice preview.
+                  </Text>
+                </View>
+              )}
+              onError={() => {}}
+              onHttpError={() => {}}
+            />
+          )}
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -1055,5 +1107,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  previewLoading: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  previewErrorText: {
+    fontSize: 15,
+    textAlign: 'center',
   },
 });
