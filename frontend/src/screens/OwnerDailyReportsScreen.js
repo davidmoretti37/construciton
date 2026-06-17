@@ -29,6 +29,7 @@ export default function OwnerDailyReportsScreen({ navigation }) {
     // owns AND reports for projects they're assigned to as supervisor.
     // Without the .or(...) here, supervisors see "No Reports Yet" even when
     // the home-screen widget shows real reports.
+    // 1) Project-scoped reports (owner or assigned supervisor) — unchanged.
     const { data, error } = await supabase
       .from('daily_reports')
       .select(`
@@ -41,7 +42,42 @@ export default function OwnerDailyReportsScreen({ navigation }) {
       .order('report_date', { ascending: false })
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+
+    // 2) Service-plan reports (project_id null → excluded by the inner join
+    //    above). Best-effort + additive: a failure here must NOT break the
+    //    project-reports list, so it is wrapped and falls back to [].
+    let planReports = [];
+    try {
+      const { data: myPlans } = await supabase
+        .from('service_plans')
+        .select('id')
+        .eq('owner_id', currentUserId);
+      const planIds = (myPlans || []).map((p) => p.id);
+      if (planIds.length > 0) {
+        const { data: planData } = await supabase
+          .from('daily_reports')
+          .select(`
+            *,
+            service_plans (id, name),
+            project_phases (id, name),
+            workers (id, full_name, trade)
+          `)
+          .in('service_plan_id', planIds)
+          .order('report_date', { ascending: false })
+          .order('created_at', { ascending: false });
+        if (Array.isArray(planData)) planReports = planData;
+      }
+    } catch (_) {
+      /* service-plan reports are supplementary — never block the main list */
+    }
+
+    // Merge + de-dupe by id, newest first.
+    const byId = new Map();
+    for (const r of [...(data || []), ...planReports]) byId.set(r.id, r);
+    return Array.from(byId.values()).sort((a, b) => {
+      const dd = (b.report_date || '').localeCompare(a.report_date || '');
+      return dd !== 0 ? dd : (b.created_at || '').localeCompare(a.created_at || '');
+    });
   }, []);
 
   const { data: reports, loading, refreshing, error, refresh } = useCachedFetch(
@@ -148,7 +184,7 @@ export default function OwnerDailyReportsScreen({ navigation }) {
         </View>
 
         <Text style={[styles.projectName, { color: Colors.primaryText }]}>
-          {report.projects?.name || t('reports.unknownProject')}
+          {report.projects?.name || report.service_plans?.name || t('reports.unknownProject')}
         </Text>
 
         <View style={styles.reporterRow}>

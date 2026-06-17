@@ -130,9 +130,12 @@ async function autoLinkSubOrgByEmail(authUser) {
   // Make sure the user has a profiles row with role='sub' (sign-up may
   // have used the default 'owner' role; we promote to 'sub' here so the
   // app can route them to the sub portal).
+  // is_onboarded is set here (server-side) so onboarding completion is atomic
+  // with the link — the client-side write in SubWelcomeScreen is now only a
+  // guarded fallback, not the sole thing flipping the flag.
   await supabase
     .from('profiles')
-    .upsert({ id: authUser.id, role: 'sub', subscription_tier: 'free', business_email: authUser.email }, { onConflict: 'id' });
+    .upsert({ id: authUser.id, role: 'sub', subscription_tier: 'free', business_email: authUser.email, is_onboarded: true }, { onConflict: 'id' });
 
   return subOrgService.linkSubToAuthUser({
     subOrganizationId: unclaimed.id,
@@ -152,6 +155,11 @@ router.post('/accept-invite', authenticateUser, async (req, res) => {
   try {
     const existing = await loadSubOrgForUser(req.user.id);
     if (existing) {
+      // Ensure the onboarding flag is set server-side even on the already-linked
+      // path. This repairs a sub whose earlier (client-side) is_onboarded write
+      // failed: without it, App.js would bounce them back into onboarding and
+      // every retry hits this branch — an unrepairable loop.
+      await supabase.from('profiles').update({ is_onboarded: true }).eq('id', req.user.id);
       return res.json({ sub_organization: existing, already_linked: true });
     }
 
