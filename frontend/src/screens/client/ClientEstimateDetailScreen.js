@@ -5,10 +5,9 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Modal, Image,
+  TextInput, Alert, ActivityIndicator, Image,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { respondToEstimate, fetchProjectEstimates, fetchEstimateSigningLink, fetchEstimateSignature } from '../../services/clientPortalApi';
@@ -24,7 +23,7 @@ const C = {
 };
 
 const STATUS_MAP = {
-  draft: { bg: C.border, text: C.textSec, label: 'DRAFT' },
+  draft: { bg: C.border, text: C.textSec, label: 'PREPARING' },
   sent: { bg: C.amberLight, text: C.amberText, label: 'AWAITING REVIEW' },
   viewed: { bg: C.amberLight, text: C.amberText, label: 'AWAITING REVIEW' },
   accepted: { bg: C.greenBg, text: C.greenText, label: 'ACCEPTED' },
@@ -42,7 +41,6 @@ const CHANGE_REASONS = [
 export default function ClientEstimateDetailScreen({ route, navigation }) {
   const { estimate: estimateProp, project } = route.params || {};
   const { profile } = useAuth();
-  const insets = useSafeAreaInsets();
 
   // Local copy so status updates re-render immediately
   const [estimate, setEstimate] = useState(estimateProp);
@@ -50,7 +48,6 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
   const [showAccept, setShowAccept] = useState(false);
   const [showDecline, setShowDecline] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
-  const [signingUrl, setSigningUrl] = useState(null);
   const [loadingSigningUrl, setLoadingSigningUrl] = useState(false);
   const [signature, setSignature] = useState(null);
   const [acceptName, setAcceptName] = useState(profile?.full_name || '');
@@ -87,7 +84,7 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
   }, [estimate?.id, estimate?.status, project?.id]));
 
   const status = STATUS_MAP[estimate?.status] || STATUS_MAP.sent;
-  const isPending = ['sent', 'viewed', 'draft'].includes(estimate?.status);
+  const isPending = ['sent', 'viewed'].includes(estimate?.status);
   const lineItems = estimate?.items || [];
   const subtotal = parseFloat(estimate?.subtotal || 0);
   const taxAmount = parseFloat(estimate?.tax_amount || estimate?.taxAmount || 0);
@@ -168,18 +165,6 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
     } finally {
       setLoadingSigningUrl(false);
     }
-  };
-
-  const handleSigningClose = async () => {
-    setSigningUrl(null);
-    // Refetch to pick up signed status if signing completed
-    try {
-      if (estimate?.project_id || project?.id) {
-        const list = await fetchProjectEstimates(estimate?.project_id || project?.id);
-        const fresh = (list || []).find((e) => e.id === estimate.id);
-        if (fresh) setEstimate((prev) => ({ ...prev, ...fresh }));
-      }
-    } catch {}
   };
 
   const handleRequestChanges = () => {
@@ -442,31 +427,6 @@ export default function ClientEstimateDetailScreen({ route, navigation }) {
           )}
         </SafeAreaView>
       )}
-
-      {/* Signing modal — embeds the web /sign/<token> page */}
-      <Modal visible={!!signingUrl} animationType="slide" onRequestClose={handleSigningClose}>
-        <View style={{ paddingTop: insets.top, backgroundColor: C.surface }}>
-          <View style={styles.signHeader}>
-            <TouchableOpacity onPress={handleSigningClose} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}>
-              <Ionicons name="close" size={28} color={C.text} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Sign Estimate</Text>
-            <View style={{ width: 28 }} />
-          </View>
-        </View>
-        {signingUrl && (
-          <WebView
-            source={{ uri: signingUrl }}
-            style={{ flex: 1 }}
-            startInLoadingState
-            renderLoading={() => (
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator />
-              </View>
-            )}
-          />
-        )}
-      </Modal>
     </View>
   );
 }
@@ -478,10 +438,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
   },
   headerTitle: { fontSize: 17, fontWeight: '700', color: C.text },
-  signHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
-  },
   signatureCard: {
     backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
     borderRadius: 12, padding: 16, alignItems: 'center',

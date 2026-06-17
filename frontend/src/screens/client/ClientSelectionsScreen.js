@@ -20,11 +20,11 @@ import { API_URL } from '../../config/api';
 
 const portalFetchSelections = async (projectId) => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return [];
+  if (!session?.access_token) throw new Error('Not signed in');
   const res = await fetch(`${API_URL}/api/portal/projects/${projectId}/materials`, {
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Failed to load selections (${res.status})`);
   return res.json();
 };
 
@@ -50,20 +50,30 @@ export default function ClientSelectionsScreen({ navigation }) {
   const [projectId, setProjectId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submittingKey, setSubmittingKey] = useState(null);
+  const [error, setError] = useState(false);
+  const [hasProject, setHasProject] = useState(true);
 
   const loadData = useCallback(async () => {
+    setError(false);
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
+        setHasProject(true);
         setProjects(projects);
         const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
         setProjectId(activeProject.id);
         const data = await portalFetchSelections(activeProject.id);
         setSelections(data || []);
+      } else {
+        setHasProject(false);
+        setProjectId(null);
+        setSelections([]);
       }
     } catch (e) {
       console.error('Selections load error:', e);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -73,8 +83,10 @@ export default function ClientSelectionsScreen({ navigation }) {
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const handleSelect = async (selectionId, optionIndex) => {
+    if (submitting) return;
     try {
       setSubmitting(true);
+      setSubmittingKey(`${selectionId}:${optionIndex}`);
       // Route through the portal endpoint (service-role + ownership check). A
       // direct supabase write is blocked by RLS ('Owners manage') → 0 rows.
       await selectMaterial(selectionId, optionIndex);
@@ -84,6 +96,7 @@ export default function ClientSelectionsScreen({ navigation }) {
       Alert.alert('Error', e.message || 'Failed to submit selection');
     } finally {
       setSubmitting(false);
+      setSubmittingKey(null);
     }
   };
 
@@ -137,7 +150,26 @@ export default function ClientSelectionsScreen({ navigation }) {
           </View>
         )}
 
-        {selections.length === 0 ? (
+        {error ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={48} color={C.border} />
+            <Text style={styles.emptyTitle}>Couldn't load selections</Text>
+            <Text style={styles.emptySub}>Pull to retry, or tap the button below</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => { setLoading(true); loadData(); }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !hasProject ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="home-outline" size={48} color={C.border} />
+            <Text style={styles.emptyTitle}>No active project found</Text>
+            <Text style={styles.emptySub}>Selections will appear here once your contractor sets up a project for you</Text>
+          </View>
+        ) : selections.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="color-palette-outline" size={48} color={C.border} />
             <Text style={styles.emptyTitle}>No selections yet</Text>
@@ -183,6 +215,14 @@ export default function ClientSelectionsScreen({ navigation }) {
                   <View style={styles.optionsContainer}>
                     {options.map((option, i) => {
                       const isSelected = sel.selected_option_index === i;
+                      const isSubmittingOption = submittingKey === `${sel.id}:${i}`;
+                      let priceText = null;
+                      if (option.price != null) {
+                        const p = Number(option.price);
+                        if (Number.isFinite(p)) {
+                          priceText = `$${p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        }
+                      }
                       return (
                         <TouchableOpacity
                           key={i}
@@ -197,15 +237,16 @@ export default function ClientSelectionsScreen({ navigation }) {
                           <View style={styles.optionInfo}>
                             <Text style={styles.optionName}>{option.name || option.title || `Option ${i + 1}`}</Text>
                             {option.description && <Text style={styles.optionDesc} numberOfLines={2}>{option.description}</Text>}
-                            {option.price && <Text style={styles.optionPrice}>${parseFloat(option.price).toLocaleString()}</Text>}
+                            {priceText && <Text style={styles.optionPrice}>{priceText}</Text>}
                           </View>
-                          {isSelected && (
+                          {isSubmittingOption ? (
+                            <ActivityIndicator size="small" color={C.amber} />
+                          ) : isSelected ? (
                             <View style={styles.selectedCheck}>
                               <Ionicons name="checkmark-circle" size={24} color={C.amber} />
                             </View>
-                          )}
-                          {isPending && !isSelected && (
-                            <Text style={styles.selectLabel}>Select</Text>
+                          ) : (
+                            isPending && <Text style={styles.selectLabel}>Select</Text>
                           )}
                         </TouchableOpacity>
                       );
@@ -271,4 +312,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 80, paddingHorizontal: 32 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: '#374151', marginTop: 12 },
   emptySub: { fontSize: 14, color: C.textMuted, marginTop: 4, textAlign: 'center' },
+
+  retryButton: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, backgroundColor: C.amber },
+  retryButtonText: { fontSize: 14, fontWeight: '600', color: C.surface },
 });

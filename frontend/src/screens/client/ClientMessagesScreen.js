@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,21 +26,36 @@ const C = {
 };
 
 export default function ClientMessagesScreen({ route, navigation }) {
-  const { projectId, projectName } = route.params;
+  const { projectId, projectName } = route.params || {};
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState([]);
+  const [error, setError] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const flatListRef = useRef(null);
   const sendScale = useRef(new Animated.Value(1)).current;
 
   const loadMessages = useCallback(async () => {
+    if (!projectId) { setLoading(false); return; }
+    // Don't clobber an in-flight optimistic send with a poll.
+    if (sendingRef.current) return;
     try {
       const data = await fetchMessages(projectId);
-      setMessages((data || []).reverse());
+      const next = (data || []).reverse();
+      // Reconcile: keep any optimistic temp-* messages the server hasn't echoed yet.
+      setMessages(prev => {
+        const temps = prev.filter(
+          m => String(m.id).startsWith('temp-') &&
+            !next.some(n => n.content === m.content && n.sender_type === m.sender_type)
+        );
+        return [...next, ...temps];
+      });
+      setError(false);
     } catch (e) {
       console.error('Messages load error:', e);
+      setError(true);
     } finally { setLoading(false); }
   }, [projectId]);
 
@@ -71,13 +87,20 @@ export default function ClientMessagesScreen({ route, navigation }) {
     setText('');
 
     try {
+      sendingRef.current = true;
       setSending(true);
       await sendMessage(projectId, content);
+      sendingRef.current = false;
       await loadMessages();
     } catch (e) {
+      console.error('Message send error:', e);
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setText(content);
-    } finally { setSending(false); }
+      Alert.alert('Failed to send', 'Your message could not be sent. Please try again.');
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
   };
 
   // Cluster timestamps: only show if >15 min gap
@@ -141,6 +164,19 @@ export default function ClientMessagesScreen({ route, navigation }) {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {loading ? (
           <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 100 }} />
+        ) : error ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={44} color={C.textMuted} />
+            <Text style={styles.emptyText}>Couldn't load messages</Text>
+            <Text style={styles.emptySubtext}>Check your connection and try again</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => { setLoading(true); loadMessages(); }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <FlatList
             ref={flatListRef}
@@ -231,4 +267,8 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingTop: 100 },
   emptyText: { fontSize: 16, fontWeight: '600', color: C.textSec, marginTop: 12 },
   emptySubtext: { fontSize: 13, color: C.textMuted, marginTop: 4 },
+  retryBtn: {
+    marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, backgroundColor: C.amber,
+  },
+  retryBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 });

@@ -35,13 +35,16 @@ export default function ClientInvoicesScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [paying, setPaying] = useState(null);
+  const [error, setError] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
+      setError(false);
       const data = await fetchProjectInvoices(projectId);
       setInvoices(data || []);
     } catch (e) {
       console.error('Invoices load error:', e);
+      setError(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, [projectId]);
 
@@ -53,7 +56,10 @@ export default function ClientInvoicesScreen({ route, navigation }) {
       const result = await payInvoice(invoice.id);
       if (result?.url) {
         await Linking.openURL(result.url);
-        setTimeout(() => loadData(), 2000);
+        // useFocusEffect reloads when the client returns from checkout.
+      } else {
+        Alert.alert('Payment', result?.message || 'Unable to start payment right now.');
+        loadData();
       }
     } catch (e) {
       Alert.alert('Payment Error', e.message || 'Failed to start payment');
@@ -82,7 +88,17 @@ export default function ClientInvoicesScreen({ route, navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={C.amber} />}
         showsVerticalScrollIndicator={false}
       >
-        {invoices.length === 0 ? (
+        {error ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="cloud-offline-outline" size={40} color={C.textMuted} />
+            </View>
+            <Text style={styles.emptyTitle}>Couldn't load invoices</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()} activeOpacity={0.8}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : invoices.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
               <Ionicons name="receipt-outline" size={40} color={C.textMuted} />
@@ -92,6 +108,9 @@ export default function ClientInvoicesScreen({ route, navigation }) {
         ) : (
           invoices.map((invoice) => {
             const status = STATUS[invoice.status] || STATUS.unpaid;
+            const dateVal = invoice.due_date || invoice.date;
+            const d = dateVal ? new Date(dateVal) : null;
+            const dateLabel = d && !isNaN(d.getTime()) ? d.toLocaleDateString() : '';
             const amount = parseFloat(invoice.total || invoice.amount || 0);
             const paid = parseFloat(invoice.amount_paid || 0);
             const remaining = amount - paid;
@@ -102,9 +121,7 @@ export default function ClientInvoicesScreen({ route, navigation }) {
                 {/* Row 1: Invoice # and date */}
                 <View style={styles.cardRow}>
                   <Text style={styles.invoiceNum}>{invoice.invoice_number || 'INV'}</Text>
-                  <Text style={styles.invoiceDate}>
-                    {invoice.date || invoice.due_date ? new Date(invoice.due_date || invoice.date).toLocaleDateString() : ''}
-                  </Text>
+                  <Text style={styles.invoiceDate}>{dateLabel}</Text>
                 </View>
 
                 {/* Row 2: Project name */}
@@ -180,4 +197,6 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 80 },
   emptyIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  retryBtn: { marginTop: 16, backgroundColor: C.amber, paddingVertical: 11, paddingHorizontal: 28, borderRadius: 12 },
+  retryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

@@ -14,30 +14,42 @@ const C = {
 };
 
 export default function ClientMoreScreen({ navigation }) {
-  const { selectedProjectId, setProjects } = useClientProject();
-  const [projectId, setProjectId] = useState(null);
+  const { setProjects } = useClientProject();
   const [branding, setBranding] = useState(null);
+  const [brandingLoading, setBrandingLoading] = useState(true);
+  const [brandingFailed, setBrandingFailed] = useState(false);
+
+  const loadBranding = useCallback(async () => {
+    setBrandingLoading(true);
+    setBrandingFailed(false);
+    try {
+      const data = await fetchDashboard();
+      const projects = data?.projects || [];
+      if (projects.length > 0) {
+        setProjects(projects);
+      }
+      setBranding(data?.branding || null);
+    } catch {
+      setBrandingFailed(true);
+    } finally {
+      setBrandingLoading(false);
+    }
+  }, [setProjects]);
 
   useFocusEffect(useCallback(() => {
-    (async () => {
-      try {
-        const data = await fetchDashboard();
-        const projects = data?.projects || [];
-        if (projects.length > 0) {
-          setProjects(projects);
-          const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
-          setProjectId(activeProject.id);
-        }
-        setBranding(data?.branding || null);
-      } catch {}
-    })();
-  }, [selectedProjectId]));
+    loadBranding();
+  }, [loadBranding]));
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: async () => {
-        await supabase.auth.signOut();
+        try {
+          const { error } = await supabase.auth.signOut();
+          if (error) throw error;
+        } catch {
+          Alert.alert('Sign Out', 'Could not sign you out. Please try again.');
+        }
       }},
     ]);
   };
@@ -47,27 +59,34 @@ export default function ClientMoreScreen({ navigation }) {
     const phone = branding?.phone || null;
     const email = branding?.email || null;
 
-    const buttons = [];
-    if (phone) buttons.push({ text: `Call ${phone}`, onPress: () => Linking.openURL(`tel:${phone}`) });
-    if (email) buttons.push({ text: `Email ${email}`, onPress: () => Linking.openURL(`mailto:${email}`) });
-    buttons.push({ text: 'Close', style: 'cancel' });
-
-    if (!phone && !email) {
-      Alert.alert(name, 'Contact information not available. Use the Messages tab to reach your contractor.');
-    } else {
+    if (phone || email) {
+      const buttons = [];
+      if (phone) buttons.push({ text: `Call ${phone}`, onPress: () => Linking.openURL(`tel:${phone}`) });
+      if (email) buttons.push({ text: `Email ${email}`, onPress: () => Linking.openURL(`mailto:${email}`) });
+      buttons.push({ text: 'Close', style: 'cancel' });
       Alert.alert(name, 'How would you like to get in touch?', buttons);
+      return;
     }
+
+    if (brandingLoading) {
+      Alert.alert('Contact Info', 'Still loading contact information. Please try again in a moment.');
+      return;
+    }
+
+    if (brandingFailed) {
+      Alert.alert('Contact Info', "Couldn't load contact information.", [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Retry', onPress: () => loadBranding() },
+      ]);
+      return;
+    }
+
+    Alert.alert(name, 'Contact information not available. Use the Messages tab to reach your contractor.');
   };
 
   const handlePress = (item) => {
     if (item.action) {
       item.action();
-      return;
-    }
-    if (item.screen && item.needsProjectId) {
-      if (projectId) {
-        navigation.getParent()?.navigate(item.screen, { projectId, ...(item.params || {}) });
-      }
       return;
     }
     if (item.screen) {

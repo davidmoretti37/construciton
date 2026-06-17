@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -37,9 +37,12 @@ export default function ClientAISummariesScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [summaries, setSummaries] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
+  const [error, setError] = useState(false);
+  const hasAutoExpanded = useRef(false);
   const { selectedProjectId, setProjects } = useClientProject();
 
   const loadData = useCallback(async () => {
+    setError(false);
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
@@ -48,11 +51,15 @@ export default function ClientAISummariesScreen({ navigation }) {
         const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
         const data = await fetchProjectSummaries(activeProject.id);
         setSummaries(data || []);
-        // Auto-expand the latest one
-        if (data?.length > 0 && !expandedId) setExpandedId(data[0].id);
+        // Auto-expand the latest one (only once, never re-open a collapsed card on refresh)
+        if (data?.length > 0 && !hasAutoExpanded.current) {
+          hasAutoExpanded.current = true;
+          setExpandedId(data[0].id);
+        }
       }
     } catch (e) {
       console.error('Summaries load error:', e);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -62,8 +69,10 @@ export default function ClientAISummariesScreen({ navigation }) {
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const formatWeekLabel = (start, end) => {
+    if (!start || !end) return 'Recent update';
     const s = new Date(start + 'T12:00:00');
     const e = new Date(end + 'T12:00:00');
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 'Recent update';
     const sMonth = s.toLocaleDateString('en-US', { month: 'short' });
     const eMonth = e.toLocaleDateString('en-US', { month: 'short' });
     const sDay = s.getDate();
@@ -73,7 +82,10 @@ export default function ClientAISummariesScreen({ navigation }) {
   };
 
   const getWeeksAgo = (end) => {
-    const diff = Math.floor((new Date() - new Date(end + 'T12:00:00')) / (1000 * 60 * 60 * 24));
+    if (!end) return '';
+    const endDate = new Date(end + 'T12:00:00');
+    if (isNaN(endDate.getTime())) return '';
+    const diff = Math.floor((new Date() - endDate) / (1000 * 60 * 60 * 24));
     if (diff < 7) return 'This week';
     if (diff < 14) return 'Last week';
     return `${Math.floor(diff / 7)} weeks ago`;
@@ -110,7 +122,19 @@ export default function ClientAISummariesScreen({ navigation }) {
           <Text style={styles.aiBadgeText}>AI-generated summaries from your project activity</Text>
         </View>
 
-        {summaries.length === 0 ? (
+        {error ? (
+          <View style={styles.emptyState}>
+            <View style={styles.errorIcon}>
+              <Ionicons name="cloud-offline-outline" size={40} color={C.red} />
+            </View>
+            <Text style={styles.emptyTitle}>Couldn't load updates</Text>
+            <Text style={styles.emptySub}>Something went wrong while loading your weekly updates. Check your connection and try again.</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); loadData(); }} activeOpacity={0.7}>
+              <Ionicons name="refresh" size={18} color="#fff" />
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : summaries.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
               <Ionicons name="sparkles-outline" size={40} color={C.textMuted} />
@@ -245,4 +269,15 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text },
   emptySub: { fontSize: 14, color: C.textMuted, marginTop: 8, textAlign: 'center', lineHeight: 20 },
+
+  // Error
+  errorIcon: {
+    width: 72, height: 72, borderRadius: 36, backgroundColor: C.redBg,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+  },
+  retryButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.amber, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24, marginTop: 20,
+  },
+  retryButtonText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });

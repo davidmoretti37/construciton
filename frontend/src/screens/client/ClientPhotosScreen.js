@@ -32,12 +32,15 @@ const C = {
 export default function ClientPhotosScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [photos, setPhotos] = useState([]);
+  const [failedUris, setFailedUris] = useState({});
   const [viewerIndex, setViewerIndex] = useState(0);
   const [showViewer, setShowViewer] = useState(false);
   const { selectedProjectId, setProjects } = useClientProject();
 
   const loadData = useCallback(async () => {
+    setError(false);
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
@@ -45,11 +48,12 @@ export default function ClientPhotosScreen({ navigation }) {
         setProjects(projects);
         const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
         const data = await fetchProjectPhotos(activeProject.id);
-        const flat = (data || []).flat().filter(p => p.url || typeof p === 'string');
+        const flat = (data || []).flat().filter(p => p && (typeof p === 'string' || p.url));
         setPhotos(flat.map(p => p.url || p));
       }
     } catch (e) {
       console.error('Photos load error:', e);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -83,7 +87,17 @@ export default function ClientPhotosScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={C.amber} />}
       >
-        {photos.length === 0 ? (
+        {error ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={48} color={C.border} />
+            <Text style={styles.emptyTitle}>Couldn't load photos</Text>
+            <Text style={styles.emptySub}>Something went wrong. Please try again.</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); loadData(); }} activeOpacity={0.8}>
+              <Ionicons name="refresh" size={18} color={C.surface} />
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : photos.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="images-outline" size={48} color={C.border} />
             <Text style={styles.emptyTitle}>No photos yet</Text>
@@ -93,7 +107,19 @@ export default function ClientPhotosScreen({ navigation }) {
           <View style={styles.grid}>
             {photos.map((url, i) => (
               <TouchableOpacity key={i} onPress={() => { setViewerIndex(i); setShowViewer(true); }} activeOpacity={0.8}>
-                <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
+                {failedUris[url] ? (
+                  <View style={[styles.photo, styles.photoFallback]}>
+                    <Ionicons name="image-outline" size={24} color={C.textMuted} />
+                    <Text style={styles.photoFallbackText}>Unavailable</Text>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: url }}
+                    style={styles.photo}
+                    resizeMode="cover"
+                    onError={() => setFailedUris((prev) => ({ ...prev, [url]: true }))}
+                  />
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -114,8 +140,20 @@ export default function ClientPhotosScreen({ navigation }) {
             onMomentumScrollEnd={(e) => setViewerIndex(Math.round(e.nativeEvent.contentOffset.x / SW))}
             keyExtractor={(_, i) => String(i)}
             renderItem={({ item }) => (
-              <View style={{ width: SW, flex: 1, justifyContent: 'center' }}>
-                <Image source={{ uri: item }} style={{ width: SW, height: '100%' }} resizeMode="contain" />
+              <View style={{ width: SW, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                {failedUris[item] ? (
+                  <View style={styles.viewerFallback}>
+                    <Ionicons name="image-outline" size={48} color="#666" />
+                    <Text style={styles.viewerFallbackText}>Image unavailable</Text>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: item }}
+                    style={{ width: SW, height: '100%' }}
+                    resizeMode="contain"
+                    onError={() => setFailedUris((prev) => ({ ...prev, [item]: true }))}
+                  />
+                )}
               </View>
             )}
           />
@@ -146,6 +184,14 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: COL_GAP },
   photo: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 8 },
+  photoFallback: { backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  photoFallbackText: { fontSize: 11, color: C.textMuted, marginTop: 4 },
+
+  viewerFallback: { alignItems: 'center', justifyContent: 'center' },
+  viewerFallbackText: { fontSize: 14, color: '#999', marginTop: 8 },
+
+  retryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: C.amber, borderRadius: 10 },
+  retryText: { fontSize: 15, fontWeight: '600', color: C.surface },
 
   viewer: { flex: 1, backgroundColor: '#000' },
   viewerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },

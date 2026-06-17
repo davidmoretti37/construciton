@@ -7,7 +7,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Linking,
+  RefreshControl, ActivityIndicator, Linking, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -45,6 +45,21 @@ const ENTITY_LABEL = {
   material_selection: 'Material',
 };
 
+// Safe date formatter — returns '—' for missing/unparseable timestamps
+// instead of rendering the literal string 'Invalid Date'.
+function fmtDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+}
+
+// Timestamp coalesced to a sortable number (0 when missing/unparseable),
+// so NaN never enters the activity-feed comparator.
+function sortTime(value) {
+  const t = new Date(value).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
 function ActivityRow({ event }) {
   const v = ACTIVITY_VISUAL[event.action] || ACTIVITY_VISUAL.viewed;
   const entityLabel = ENTITY_LABEL[event.entity_type] || event.entity_type;
@@ -59,7 +74,7 @@ function ActivityRow({ event }) {
           {event.actor_type === 'client' ? ' by you' : ''}
         </Text>
         <Text style={styles.activitySub} numberOfLines={2}>
-          {event.notes || `${entityLabel} ${event.entity_id?.slice(0, 8)}`} · {new Date(event.created_at).toLocaleDateString()}
+          {event.notes || `${entityLabel} ${event.entity_id?.slice(0, 8)}`} · {fmtDate(event.created_at)}
         </Text>
       </View>
     </View>
@@ -68,23 +83,37 @@ function ActivityRow({ event }) {
 
 function DocumentRow({ doc }) {
   const isImage = doc.mime_type?.startsWith('image/');
+  const ready = !!doc.download_url;
+
+  const openDoc = async () => {
+    if (!ready) {
+      Alert.alert('Not ready yet', "This document isn't ready to view yet — pull down to refresh.");
+      return;
+    }
+    try {
+      await Linking.openURL(doc.download_url);
+    } catch (e) {
+      Alert.alert('Couldn’t open file', "We couldn't open this file. Please try again later.");
+    }
+  };
+
   return (
     <TouchableOpacity
-      style={styles.docRow}
-      onPress={() => doc.download_url && Linking.openURL(doc.download_url)}
+      style={[styles.docRow, !ready && styles.docRowDisabled]}
+      onPress={openDoc}
       activeOpacity={0.7}
     >
       <View style={[styles.docIcon, { backgroundColor: isImage ? '#F3E8FF' : '#DBEAFE' }]}>
         <Ionicons name={isImage ? 'image-outline' : 'document-text-outline'} size={18} color={isImage ? '#8B5CF6' : C.blue} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.docTitle} numberOfLines={1}>{doc.title || doc.file_name}</Text>
+        <Text style={styles.docTitle} numberOfLines={1}>{doc.title || doc.file_name || 'Untitled document'}</Text>
         <Text style={styles.docSub}>
           {doc.category ? doc.category[0].toUpperCase() + doc.category.slice(1) : 'Document'} ·
-          {' '}{new Date(doc.created_at).toLocaleDateString()}
+          {' '}{fmtDate(doc.created_at)}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+      {ready && <Ionicons name="chevron-forward" size={18} color={C.textMuted} />}
     </TouchableOpacity>
   );
 }
@@ -141,9 +170,20 @@ export default function ClientDocumentsTabScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Combine approval events + history events into a single timeline
-  const activityFeed = [...approvals]
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  // Combine approval events + billing history into a single timeline.
+  // Billing rows have a different shape ({ source, label, description,
+  // status, occurred_at }) so map them into the {action, entity_type,
+  // created_at, notes} shape ActivityRow expects.
+  const billingEvents = billingHistory.map((evt) => ({
+    id: 'billing-' + (evt.id || evt.source_id),
+    action: evt.status === 'paid' ? 'paid' : 'sent',
+    entity_type: evt.source === 'change_order' ? 'change_order' : 'invoice',
+    created_at: evt.occurred_at,
+    notes: evt.description || evt.label,
+  }));
+
+  const activityFeed = [...approvals, ...billingEvents]
+    .sort((a, b) => sortTime(b.created_at) - sortTime(a.created_at))
     .slice(0, 30);
 
   if (loading) {
@@ -229,6 +269,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface, padding: 14, borderRadius: 12, marginBottom: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4,
   },
+  docRowDisabled: { opacity: 0.55 },
   docIcon: {
     width: 36, height: 36, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',

@@ -35,6 +35,28 @@ const STATUS_MAP = {
 
 const REASON_CHIPS = ['Too expensive', 'Need more info', 'Out of scope', 'Discuss first', 'Other'];
 
+// Signed currency: credits (negatives) keep their minus sign so a -$500 credit
+// never reads identical to a +$500 charge.
+const fmtSigned = (value) => {
+  const n = parseFloat(value);
+  const amount = Number.isFinite(n) ? n : 0;
+  return `${amount < 0 ? '-' : '+'}$${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+// Unsigned currency (always positive magnitude, e.g. unit price display).
+const fmtUnsigned = (value) => {
+  const n = parseFloat(value);
+  const amount = Number.isFinite(n) ? n : 0;
+  return `$${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+// Guard date display so a missing/bad timestamp never renders "Invalid Date".
+const fmtDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+};
+
 export default function ClientChangeOrderDetailScreen({ route, navigation }) {
   const { changeOrder, project } = route.params;
   const { profile } = useAuth();
@@ -47,8 +69,12 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
   const [responded, setResponded] = useState(!['pending_client', 'viewed'].includes(changeOrder.status));
   // Local status mirror so the badge/actions update immediately after approve/sign/decline.
   const [localStatus, setLocalStatus] = useState(changeOrder.status);
+  // Optimistic approval metadata so the DETAILS rows render after an in-app approve/sign,
+  // since the screen reads from cached route.params and never re-fetches.
+  const [localApproval, setLocalApproval] = useState(null);
 
-  const co = changeOrder;
+  // Merge any optimistic approval metadata over the cached CO.
+  const co = localApproval ? { ...changeOrder, ...localApproval } : changeOrder;
   const status = STATUS_MAP[localStatus] || STATUS_MAP.draft;
   // Server now joins line items under `change_order_line_items`. Tolerate either
   // shape so old cached data and the new server response both render.
@@ -57,9 +83,12 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
   const scheduleDays = Number(co.schedule_impact_days ?? co.days_added ?? 0);
   const requiresSignature = !!co.signature_required;
   // Compute new end date for the schedule callout
-  const newEndDate = (project?.end_date && scheduleDays)
-    ? new Date(new Date(project.end_date).getTime() + scheduleDays * 86400000)
-    : null;
+  const newEndDate = (() => {
+    if (!project?.end_date || !scheduleDays) return null;
+    const base = new Date(project.end_date).getTime();
+    if (isNaN(base)) return null;
+    return new Date(base + scheduleDays * 86400000);
+  })();
 
   const handleSign = async () => {
     try {
@@ -68,11 +97,22 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
       if (res?.token) {
         navigation.navigate('SignDocument', {
           token: res.token,
-          onSigned: () => { setResponded(true); setLocalStatus('approved'); },
+          onSigned: () => {
+            setResponded(true);
+            setLocalStatus('approved');
+            setLocalApproval({
+              approved_at: new Date().toISOString(),
+              approved_by_name: approvalName.trim() || profile?.full_name || co.approved_by_name || null,
+            });
+          },
         });
       } else if (res?.already_signed) {
         setResponded(true);
         setLocalStatus('approved');
+        setLocalApproval({
+          approved_at: co.approved_at || new Date().toISOString(),
+          approved_by_name: approvalName.trim() || profile?.full_name || co.approved_by_name || null,
+        });
         Alert.alert('Already signed', 'This change order has already been signed.');
       } else {
         Alert.alert('Cannot sign', res?.error || 'No active signing link. Ask your contractor to resend it.');
@@ -98,6 +138,10 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
       await respondToChangeOrder(co.id, 'approve', approvalName.trim());
       setResponded(true);
       setLocalStatus('approved');
+      setLocalApproval({
+        approved_at: new Date().toISOString(),
+        approved_by_name: approvalName.trim(),
+      });
       setShowApprove(false);
       Alert.alert('Approved', 'Change order has been approved.', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -167,10 +211,8 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
 
         {/* Cost Breakdown */}
         <View style={styles.costCard}>
-          <Text style={styles.costLabel}>CHANGE AMOUNT</Text>
-          <Text style={styles.costAmount}>
-            {co.total_amount >= 0 ? '+' : ''}${Math.abs(parseFloat(co.total_amount || 0)).toLocaleString()}
-          </Text>
+          <Text style={styles.costLabel}>{parseFloat(co.total_amount) < 0 ? 'CREDIT' : 'CHANGE AMOUNT'}</Text>
+          <Text style={styles.costAmount}>{fmtSigned(co.total_amount)}</Text>
           {scheduleDays !== 0 && (
             <Text style={styles.costDays}>
               {scheduleDays > 0 ? '+' : ''}{scheduleDays} day{Math.abs(scheduleDays) !== 1 ? 's' : ''} to schedule
@@ -218,17 +260,17 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
                       <Text style={styles.lineItemDesc}>{item.description}</Text>
                       {showQtyLine && (
                         <Text style={styles.lineItemMeta}>
-                          {qty}{unit ? ` ${unit}` : ''}{unitPrice != null ? ` × $${unitPrice.toLocaleString()}` : ''}
+                          {qty}{unit ? ` ${unit}` : ''}{unitPrice != null ? ` × ${fmtUnsigned(unitPrice)}` : ''}
                         </Text>
                       )}
                     </View>
-                    <Text style={styles.lineItemAmount}>${itemAmount.toLocaleString()}</Text>
+                    <Text style={styles.lineItemAmount}>{fmtSigned(itemAmount)}</Text>
                   </View>
                 );
               })}
               <View style={[styles.lineItem, styles.lineItemTotal]}>
                 <Text style={styles.lineItemTotalLabel}>Total</Text>
-                <Text style={styles.lineItemTotalAmount}>${parseFloat(co.total_amount || 0).toLocaleString()}</Text>
+                <Text style={styles.lineItemTotalAmount}>{fmtSigned(co.total_amount)}</Text>
               </View>
             </View>
           </View>
@@ -251,12 +293,12 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
           <Text style={styles.sectionLabel}>DETAILS</Text>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Submitted</Text>
-            <Text style={styles.detailValue}>{new Date(co.created_at).toLocaleDateString()}</Text>
+            <Text style={styles.detailValue}>{fmtDate(co.created_at)}</Text>
           </View>
           {co.approved_at && (
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Approved</Text>
-              <Text style={[styles.detailValue, { color: C.green }]}>{new Date(co.approved_at).toLocaleDateString()}</Text>
+              <Text style={[styles.detailValue, { color: C.green }]}>{fmtDate(co.approved_at)}</Text>
             </View>
           )}
           {co.approved_by_name && (
@@ -277,7 +319,11 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         {showApprove && (
           <View style={styles.actionSheet}>
             <Text style={styles.actionTitle}>Approve Change Order</Text>
-            <Text style={styles.actionSubtitle}>This will add ${parseFloat(co.total_amount || 0).toLocaleString()} to your project total</Text>
+            <Text style={styles.actionSubtitle}>
+              {parseFloat(co.total_amount) < 0
+                ? `This will credit ${fmtUnsigned(co.total_amount)} to your project total`
+                : `This will add ${fmtUnsigned(co.total_amount)} to your project total`}
+            </Text>
             <TextInput
               style={styles.nameInput}
               placeholder="Type your full name to approve"

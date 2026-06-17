@@ -11,9 +11,10 @@ import { LightColors, getColors } from '../constants/theme';
  * Props:
  *  - onConfirm(pngBase64)  required — base64 (no data: prefix)
  *  - onCancel()            optional
+ *  - onEmpty()             optional — called when Confirm is tapped on a blank canvas
  *  - height                optional, default 220
  */
-export default function SignaturePad({ onConfirm, onCancel, height = 220 }) {
+export default function SignaturePad({ onConfirm, onCancel, onEmpty, height = 220 }) {
   const { t } = useTranslation();
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -33,6 +34,7 @@ export default function SignaturePad({ onConfirm, onCancel, height = 220 }) {
   const handleOK = (signature) => {
     // signature is a data URL like "data:image/png;base64,...."
     const base64 = signature?.replace(/^data:image\/[a-z]+;base64,/, '');
+    if (!base64) { onEmpty?.(); return; }
     setSubmitting(true);
     Promise.resolve(onConfirm?.(base64)).finally(() => setSubmitting(false));
   };
@@ -43,7 +45,7 @@ export default function SignaturePad({ onConfirm, onCancel, height = 220 }) {
         <Signature
           ref={ref}
           onOK={handleOK}
-          onEmpty={() => {}}
+          onEmpty={() => onEmpty?.()}
           descriptionText=""
           webStyle={webStyle}
           backgroundColor={Colors.card || '#FFFFFF'}
