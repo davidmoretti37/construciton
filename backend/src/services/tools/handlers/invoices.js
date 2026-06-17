@@ -847,7 +847,7 @@ async function get_project_billing(userId, args = {}) {
     .reduce((s, e) => s + (e.gross || 0), 0);
   const collected = events
     .filter(e => (e.source === 'draw' && e.invoice?.status === 'paid') || (e.source === 'invoice' && e.status === 'paid'))
-    .reduce((s, e) => s + (e.gross || e.amount || 0), 0);
+    .reduce((s, e) => s + (e.source === 'draw' ? (e.amount || 0) : (e.gross || e.amount || 0)), 0);
   const outstanding = contract - collected;
 
   // Sort each zone by occurred_at desc (history) / asc (upcoming)
