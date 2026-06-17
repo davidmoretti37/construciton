@@ -193,7 +193,7 @@ async function upsertClient(userId, c, dryRun) {
     return 'updated';
   }
   const { error } = await supabase.from('clients').insert({
-    user_id: userId,
+    user_id: null,
     owner_id: userId,
     full_name: fullName,
     email: c.email || null,
@@ -864,7 +864,7 @@ async function csvUpsertClient(userId, get, dryRun) {
     return 'updated';
   }
   const { error } = await supabase.from('clients').insert({
-    user_id: userId, owner_id: userId,
+    user_id: null, owner_id: userId,
     full_name: fullName, email, phone,
     import_source: stamp,
   });
@@ -1442,7 +1442,7 @@ async function applyKeepSeparate(userId, conflict) {
       || 'Imported contact';
     const stamp = importStamp(conflict.source_platform, conflict.external_id);
     const { data: created, error } = await supabase.from('clients').insert({
-      user_id: userId,
+      user_id: null,
       owner_id: userId,
       full_name: fullName,
       email: ext.email || null,
