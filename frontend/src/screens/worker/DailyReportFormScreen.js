@@ -30,6 +30,7 @@ import {
   getCurrentUserId
 } from '../../utils/storage';
 import { supabase } from '../../lib/supabase';
+import { invalidateCacheKey } from '../../hooks/useCachedFetch';
 import { useNetwork } from '../../contexts/NetworkContext';
 import { queueAction } from '../../services/offlineQueue';
 import TodaysChecklistSection from '../../components/TodaysChecklistSection';
@@ -426,18 +427,34 @@ export default function DailyReportFormScreen({ navigation, route }) {
     if (!isServicePlanMode && !selectedProject) { Alert.alert('Required', 'Select a project or service plan'); return; }
     if (!workDone.trim()) { Alert.alert('Required', 'Describe what was done today'); return; }
 
-    const isSelectedPlan = isServicePlanMode || selectedProject?.isServicePlan;
-    const parentId = isServicePlanMode ? routeServicePlanId : selectedProject.id;
     const parentOwnerId = isServicePlanMode ? servicePlan?.owner_id : (selectedProject.user_id || selectedProject.owner_id || null);
 
     try {
       setSubmitting(true);
 
-      // Upload photos
+      // Upload photos. uploadPhoto returns null (does not throw) on failure,
+      // so track failures and let the user decide before saving a report with
+      // a shorter/empty photos array.
       const uploadedUrls = [];
+      let failedPhotos = 0;
       for (const uri of photos) {
-        const url = await uploadPhoto(uri, parentId);
+        const url = await uploadPhoto(uri, 'daily-reports');
         if (url) uploadedUrls.push(url);
+        else failedPhotos += 1;
+      }
+
+      if (failedPhotos > 0) {
+        const proceed = await new Promise((resolve) => {
+          Alert.alert(
+            'Photo upload failed',
+            `${failedPhotos} photo${failedPhotos > 1 ? 's' : ''} failed to upload. Submit the report without ${failedPhotos > 1 ? 'them' : 'it'}?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Submit anyway', onPress: () => resolve(true) },
+            ]
+          );
+        });
+        if (!proceed) { setSubmitting(false); return; }
       }
 
       // Build report with new fields
@@ -506,11 +523,24 @@ export default function DailyReportFormScreen({ navigation, route }) {
             if (existing) {
               reportId = existing.id;
             } else {
+              // Resolve the project/plan OWNER explicitly. selectedProject (from
+              // getWorkerAssignments) doesn't include user_id, so parentOwnerId is
+              // null in project mode and would fall back to the worker's own id.
+              let resolvedOwnerId = parentOwnerId;
+              if (!resolvedOwnerId && !isServicePlanMode && selectedProject?.id) {
+                const { data: ownerRow } = await supabase
+                  .from('projects')
+                  .select('user_id')
+                  .eq('id', selectedProject.id)
+                  .single();
+                resolvedOwnerId = ownerRow?.user_id || null;
+              }
+
               const { data: newReport } = await supabase
                 .from('daily_service_reports')
                 .insert({
                   ...parentFilter,
-                  owner_id: parentOwnerId || userId,
+                  owner_id: resolvedOwnerId || userId,
                   reporter_id: userId,
                   report_date: today,
                 })
@@ -586,6 +616,10 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
         await updateQuery;
       }
+
+      // Invalidate the owner Reports cache so an already-mounted owner Reports
+      // tab refreshes with this freshly submitted report.
+      await invalidateCacheKey('owner:dailyReports');
 
       Alert.alert('Success', 'Daily report submitted', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (error) {

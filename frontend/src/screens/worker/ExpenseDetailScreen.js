@@ -23,13 +23,12 @@ const CATEGORY_CONFIG = {
 export default function ExpenseDetailScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { expense } = route.params;
-
-  const categoryConfig = CATEGORY_CONFIG[expense.category] || CATEGORY_CONFIG.misc;
+  const { expense } = route.params || {};
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Unknown date';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Unknown date';
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -37,6 +36,32 @@ export default function ExpenseDetailScreen({ navigation, route }) {
       day: 'numeric'
     });
   };
+
+  if (!expense) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Expense Details</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.emptyState}>
+          <Ionicons name="receipt-outline" size={48} color={Colors.secondaryText} />
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Expense not found</Text>
+          <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+            This expense is no longer available.
+          </Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.emptyButton, { backgroundColor: Colors.primaryBlue }]}>
+            <Text style={styles.emptyButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const categoryConfig = CATEGORY_CONFIG[expense.category] || CATEGORY_CONFIG.misc;
 
   const formatCurrency = (amount) => {
     return `$${parseFloat(amount || 0).toFixed(2)}`;
@@ -167,17 +192,19 @@ export default function ExpenseDetailScreen({ navigation, route }) {
         )}
 
         {/* Metadata */}
-        <View style={[styles.metadataSection, { backgroundColor: Colors.lightBackground }]}>
-          <Text style={[styles.metadataText, { color: Colors.secondaryText }]}>
-            Submitted on {new Date(expense.created_at).toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit'
-            })}
-          </Text>
-        </View>
+        {expense.created_at && !isNaN(new Date(expense.created_at).getTime()) && (
+          <View style={[styles.metadataSection, { backgroundColor: Colors.lightBackground }]}>
+            <Text style={[styles.metadataText, { color: Colors.secondaryText }]}>
+              Submitted on {new Date(expense.created_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+              })}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -325,5 +352,32 @@ const styles = StyleSheet.create({
   },
   metadataText: {
     fontSize: FontSizes.small,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: FontSizes.title,
+    fontWeight: '700',
+    marginTop: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.body,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
+  emptyButton: {
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.body,
+    fontWeight: '600',
   },
 });

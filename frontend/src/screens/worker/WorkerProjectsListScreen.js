@@ -31,6 +31,11 @@ import { getCurrentUserId } from '../../utils/storage/auth';
 // Module-level snapshot so switching tabs (Clock ↔ Projects) keeps the
 // last-seen list on screen instead of flashing a spinner. Refreshed in
 // the background on every focus; pull-to-refresh forces a reload.
+//
+// Scoped by userId so a previous worker's projects never flash on the next
+// worker's screen after a sign-out / account switch (the RN bundle is not
+// reloaded on sign-out, so this module var would otherwise survive). Shape:
+// { userId, data } — only honored when it matches the current user.
 let cachedProjects = null;
 
 export default function WorkerProjectsListScreen() {
@@ -38,9 +43,12 @@ export default function WorkerProjectsListScreen() {
   const Colors = getColors(isDark) || LightColors;
   const navigation = useNavigation();
 
-  const [projects, setProjects] = useState(cachedProjects || []);
+  const [projects, setProjects] = useState(cachedProjects?.data || []);
   const [loading, setLoading] = useState(cachedProjects === null);
   const [refreshing, setRefreshing] = useState(false);
+  // Set when a load fails (network / RLS / query error) so we can show a
+  // distinct error+retry state instead of the misleading "no projects" copy.
+  const [loadError, setLoadError] = useState(false);
   // Per-card collapse state for the Today's items list — starts expanded so
   // nothing appears hidden on first load; user can minimize to just the
   // "Today · N items" header.
@@ -48,35 +56,71 @@ export default function WorkerProjectsListScreen() {
   // Tracks whether the first load has completed, to distinguish cold start
   // (show spinner) from silent background revalidation (no spinner).
   const hasLoadedRef = useRef(cachedProjects !== null);
+  // Owner of the synchronously-seeded cache, validated against the live user
+  // inside loadProjects before any stale list is trusted on screen.
+  const seededUserIdRef = useRef(cachedProjects?.userId || null);
 
   const loadProjects = useCallback(async () => {
     try {
       const userId = await getCurrentUserId();
       if (!userId) { setLoading(false); return; }
 
-      const { data: workerData } = await supabase
+      // Drop any synchronously-seeded list that belongs to a different user
+      // (sign-out / account switch doesn't reload the bundle, so the module
+      // cache can outlive the previous worker). Clearing here, before the
+      // fetch resolves, prevents worker-A's projects flashing for worker-B.
+      if (seededUserIdRef.current && seededUserIdRef.current !== userId) {
+        seededUserIdRef.current = null;
+        hasLoadedRef.current = false;
+        cachedProjects = null;
+        setProjects([]);
+        setLoading(true);
+      }
+
+      const { data: workerData, error: workerErr } = await supabase
         .from('workers')
         .select('id, owner_id')
         .eq('user_id', userId)
         .single();
-      if (!workerData?.id) { setProjects([]); setLoading(false); return; }
+      // PGRST116 = no row matched; that's a legitimately-unprovisioned worker,
+      // not a failure — fall through to the empty state, not the error state.
+      if (workerErr && workerErr.code !== 'PGRST116') throw workerErr;
+      if (!workerData?.id) {
+        setProjects([]);
+        cachedProjects = { userId, data: [] };
+        seededUserIdRef.current = userId;
+        hasLoadedRef.current = true;
+        setLoadError(false);
+        setLoading(false);
+        return;
+      }
 
-      const { data: assignments } = await supabase
+      const { data: assignments, error: assignErr } = await supabase
         .from('project_assignments')
         .select('project_id')
         .eq('worker_id', workerData.id)
         .not('project_id', 'is', null);
+      if (assignErr) throw assignErr;
 
       const projectIds = [...new Set((assignments || []).map(a => a.project_id).filter(Boolean))];
-      if (projectIds.length === 0) { setProjects([]); setLoading(false); return; }
+      if (projectIds.length === 0) {
+        setProjects([]);
+        cachedProjects = { userId, data: [] };
+        seededUserIdRef.current = userId;
+        hasLoadedRef.current = true;
+        setLoadError(false);
+        setLoading(false);
+        return;
+      }
 
       // Worker-safe columns only — NO contract_amount, NO budget fields.
-      const { data: rows } = await supabase
+      const { data: rows, error: rowsErr } = await supabase
         .from('projects')
         .select('id, name, client_name, client_phone, location, status, start_date, end_date')
         .in('id', projectIds)
         .neq('status', 'archived')
         .order('created_at', { ascending: false });
+      if (rowsErr) throw rowsErr;
 
       const enriched = await Promise.all((rows || []).map(async (p) => {
         const today = new Date().toISOString().split('T')[0];
@@ -181,11 +225,18 @@ export default function WorkerProjectsListScreen() {
       }));
 
       setProjects(enriched);
-      cachedProjects = enriched;
+      cachedProjects = { userId, data: enriched };
+      seededUserIdRef.current = userId;
       hasLoadedRef.current = true;
+      setLoadError(false);
     } catch (e) {
       console.error('[WorkerProjects] load error:', e?.message);
-      if (!hasLoadedRef.current) setProjects([]);
+      // Distinguish a real failure from "genuinely no assignments": surface an
+      // error state with retry rather than the misleading empty-state copy.
+      if (!hasLoadedRef.current) {
+        setProjects([]);
+        setLoadError(true);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -200,7 +251,14 @@ export default function WorkerProjectsListScreen() {
   }, [loadProjects]));
 
   const onRefresh = () => {
+    setLoadError(false);
     setRefreshing(true);
+    loadProjects();
+  };
+
+  const onRetry = () => {
+    setLoadError(false);
+    setLoading(true);
     loadProjects();
   };
 
@@ -327,6 +385,17 @@ export default function WorkerProjectsListScreen() {
     emptyState: { alignItems: 'center', padding: Spacing.xl, gap: 8 },
     emptyTitle: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.primaryText },
     emptyText: { fontSize: FontSizes.sm, color: Colors.secondaryText, textAlign: 'center' },
+    retryButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 4,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: BorderRadius.lg,
+      backgroundColor: '#059669',
+    },
+    retryButtonText: { fontSize: FontSizes.sm, fontWeight: '700', color: '#FFFFFF' },
   });
 
   const renderCard = ({ item }) => {
@@ -572,13 +641,27 @@ export default function WorkerProjectsListScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#059669" />}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="folder-open-outline" size={48} color={(Colors.secondaryText || '#666') + '80'} />
-            <Text style={styles.emptyTitle}>No projects yet</Text>
-            <Text style={styles.emptyText}>
-              When your supervisor assigns you to a project, it'll show up here.
-            </Text>
-          </View>
+          loadError ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cloud-offline-outline" size={48} color={(Colors.secondaryText || '#666') + '80'} />
+              <Text style={styles.emptyTitle}>Couldn't load your projects</Text>
+              <Text style={styles.emptyText}>
+                Something went wrong reaching the server. Check your connection and try again.
+              </Text>
+              <TouchableOpacity style={styles.retryButton} activeOpacity={0.7} onPress={onRetry}>
+                <Ionicons name="refresh" size={16} color="#FFFFFF" />
+                <Text style={styles.retryButtonText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="folder-open-outline" size={48} color={(Colors.secondaryText || '#666') + '80'} />
+              <Text style={styles.emptyTitle}>No projects yet</Text>
+              <Text style={styles.emptyText}>
+                When your supervisor assigns you to a project, it'll show up here.
+              </Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>

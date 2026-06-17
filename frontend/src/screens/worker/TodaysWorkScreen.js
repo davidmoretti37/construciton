@@ -38,6 +38,8 @@ export default function TodaysWorkScreen() {
   const [viewMode, setViewMode] = useState('today'); // 'today' | 'calendar'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [workerId, setWorkerId] = useState(null);
+  const [userId, setUserId] = useState(null);
 
   // Data
   const [projectCards, setProjectCards] = useState([]); // { id, name, location, tasks: [], user_id }
@@ -65,19 +67,21 @@ export default function TodaysWorkScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const userId = await getCurrentUserId();
-      if (!userId) return;
+      const currentUserId = await getCurrentUserId();
+      setUserId(currentUserId);
+      if (!currentUserId) return;
 
       const { data: workerData } = await supabase
         .from('workers')
         .select('id, owner_id')
-        .eq('user_id', userId)
+        .eq('user_id', currentUserId)
         .single();
       if (!workerData) { setLoading(false); return; }
 
       const today = new Date().toISOString().split('T')[0];
       const workerId = workerData.id;
       const ownerId = workerData.owner_id;
+      setWorkerId(workerId);
 
       // Get assignments
       const { data: assignments } = await supabase
@@ -200,11 +204,11 @@ export default function TodaysWorkScreen() {
       tasks: p.tasks.map(t => t.id === task.id ? { ...t, status: newStatus } : t),
     })));
     try {
-      if (task.status === 'completed') {
-        await uncompleteTask(task.id);
-      } else {
-        await completeTask(task.id);
-      }
+      const res = task.status === 'completed'
+        ? await uncompleteTask(task.id)
+        : await completeTask(task.id, workerId);
+      // Utils return null (not throw) on a real DB failure — treat that as an error
+      if (!res) throw new Error('save failed');
     } catch (e) {
       // Revert on failure
       setProjectCards(prev => prev.map(p => ({
@@ -351,7 +355,7 @@ export default function TodaysWorkScreen() {
                       projectId={proj.id}
                       ownerId={proj.user_id}
                       userRole="worker"
-                      userId={profile?.id}
+                      userId={userId || profile?.id}
                       onCountsChange={handleChecklistCounts(proj.id)}
                     />
 
@@ -430,7 +434,7 @@ export default function TodaysWorkScreen() {
                       servicePlanId={plan.id}
                       ownerId={plan.owner_id}
                       userRole="worker"
-                      userId={profile?.id}
+                      userId={userId || profile?.id}
                     />
 
                     {/* Details link */}

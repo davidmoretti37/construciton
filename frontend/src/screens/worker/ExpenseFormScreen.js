@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -68,9 +69,14 @@ export default function ExpenseFormScreen({ navigation }) {
   const [phaseId, setPhaseId] = useState(null);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
-  useEffect(() => {
-    loadProjects();
-  }, [isWorker, isSupervisor, isOwner]);
+  // Reload assignments/projects on every focus so a freshly-added (or removed)
+  // assignment shows up without a remount — the "No assigned projects" empty
+  // state would otherwise stay stale while the app is open.
+  useFocusEffect(
+    useCallback(() => {
+      loadProjects();
+    }, [isWorker, isSupervisor, isOwner])
+  );
 
   // Fetch phases first; trade budgets only as fallback when no phases exist.
   // Re-runs whenever the selected project changes so a freshly-added phase
@@ -144,13 +150,25 @@ export default function ExpenseFormScreen({ navigation }) {
 
         if (error) throw error;
 
-        const { data: plans } = await supabase
-          .from('service_plans')
-          .select('id, name, service_type, status')
-          .eq('status', 'active')
-          .order('name', { ascending: true });
+        // Scope service plans to the owner this supervisor belongs to, so we
+        // don't leak (or let them post expenses against) other companies' plans.
+        const { data: supProfile } = await supabase
+          .from('profiles')
+          .select('owner_id')
+          .eq('id', currentUserId)
+          .single();
+        const supOwnerId = supProfile?.owner_id;
 
-        const planItems = (plans || []).map(p => ({ ...p, isServicePlan: true }));
+        let planItems = [];
+        if (supOwnerId) {
+          const { data: plans } = await supabase
+            .from('service_plans')
+            .select('id, name, service_type, status, owner_id')
+            .eq('owner_id', supOwnerId)
+            .eq('status', 'active')
+            .order('name', { ascending: true });
+          planItems = (plans || []).map(p => ({ ...p, isServicePlan: true }));
+        }
         setAssignedProjects([...(projects || []), ...planItems]);
       } else {
         // Owner: get all their projects + service plans
@@ -159,6 +177,7 @@ export default function ExpenseFormScreen({ navigation }) {
         const { data: plans } = await supabase
           .from('service_plans')
           .select('id, name, service_type, status, owner_id')
+          .eq('owner_id', currentUserId)
           .eq('status', 'active')
           .order('name', { ascending: true });
 
@@ -264,7 +283,7 @@ export default function ExpenseFormScreen({ navigation }) {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (skipReceipt = false) => {
     setAttemptedSubmit(true);
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert(t('alerts.missingInfo'), t('messages.pleaseEnter', { item: 'valid amount' }));
@@ -296,10 +315,35 @@ export default function ExpenseFormScreen({ navigation }) {
     try {
       setSubmitting(true);
 
-      // Upload receipt image
+      // Upload receipt image. uploadPhoto returns null (does not throw) on any
+      // failure, so we must check the result and abort the success path —
+      // otherwise the expense saves with receipt_url null while the worker is
+      // told it saved, and the local photo URI is gone.
       let receiptUrl = null;
-      if (receiptImage) {
+      if (receiptImage && !skipReceipt) {
         receiptUrl = await uploadPhoto(receiptImage, 'expense-receipts');
+        if (!receiptUrl) {
+          setSubmitting(false);
+          Alert.alert(
+            'Receipt upload failed',
+            "We couldn't upload your receipt photo. Try again, or submit without it.",
+            [
+              { text: 'Try again', style: 'cancel' },
+              {
+                text: 'Submit without receipt',
+                style: 'destructive',
+                // Pass skipReceipt=true so the recursive call provably bypasses the
+                // upload regardless of state-update timing (setReceiptImage(null) only
+                // schedules an update and won't be visible to this captured closure).
+                onPress: () => {
+                  setReceiptImage(null);
+                  handleSubmit(true);
+                },
+              },
+            ]
+          );
+          return;
+        }
       }
 
       // Normalize line items: drop empty rows, coerce total to number.
@@ -562,7 +606,20 @@ export default function ExpenseFormScreen({ navigation }) {
                       { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.lightBackground }
                     ]}
                     value={amount}
-                    onChangeText={setAmount}
+                    onChangeText={(text) => {
+                      // Match the line-item inputs: keep only digits and dots,
+                      // and collapse to a single decimal point so parseFloat
+                      // can't silently truncate '12.5.5' / '12abc' into a
+                      // different number than the worker typed.
+                      const cleaned = text.replace(/[^0-9.]/g, '');
+                      const firstDot = cleaned.indexOf('.');
+                      const normalized =
+                        firstDot === -1
+                          ? cleaned
+                          : cleaned.slice(0, firstDot + 1) +
+                            cleaned.slice(firstDot + 1).replace(/\./g, '');
+                      setAmount(normalized);
+                    }}
                     placeholder="0.00"
                     placeholderTextColor={Colors.secondaryText}
                     keyboardType="decimal-pad"
@@ -860,7 +917,7 @@ export default function ExpenseFormScreen({ navigation }) {
                     styles.submitButton,
                     { backgroundColor: submitting ? Colors.lightGray : Colors.primaryBlue }
                   ]}
-                  onPress={handleSubmit}
+                  onPress={() => handleSubmit()}
                   disabled={submitting}
                 >
                   {submitting ? (

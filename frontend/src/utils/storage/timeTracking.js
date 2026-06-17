@@ -60,6 +60,14 @@ export const clockIn = async (workerId, projectId, location = null, customTime =
       localTimestamp = getLocalTimestamp();
     }
 
+    // Guard against a double clock-in: if there is already an open session
+    // (clock_out IS NULL) for this worker, return it instead of inserting a
+    // second open row, which would corrupt today's hours and labor cost.
+    const existingOpen = await getActiveClockIn(workerId);
+    if (existingOpen) {
+      return { ...existingOpen, alreadyClockedIn: true };
+    }
+
     // First, insert the clock-in record
     const insertPayload = {
       worker_id: workerId,
