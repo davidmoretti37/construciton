@@ -2249,7 +2249,7 @@ const toolDefinitions = [
     type: 'function',
     function: {
       name: 'create_change_order',
-      description: 'Create a draft change order on a project. CO# auto-increments. Use for mid-project additions / scope changes beyond the original contract. Always draft — call send_change_order separately.\n\nline_items: Array<{description, unit_price, quantity?=1, unit?, category?}>\nbilling_strategy: invoice_now (separate invoice on approval) | add_to_contract (rolls into contract_amount) | final_invoice (lumped into final). Default invoice_now.\nphase_placement: inside_phase | before_phase | after_phase. REQUIRED when CO has tasks or schedule_impact_days != 0. Ask user if unspecified. target_phase_id pairs with this. new_phase_name optional (defaults to CO title) for before/after.',
+      description: 'Create a draft change order on a project. CO# auto-increments. Use for mid-project additions / scope changes beyond the original contract. Always draft — call send_change_order separately.\n\nline_items: Array<{description, unit_price, quantity?=1, unit?, category?}>\nbilling_strategy: invoice_now (bill immediately on approval) | next_draw (add to the next progress draw) | project_end (bill at project end). Default invoice_now.\nphase_placement: inside_phase | before_phase | after_phase. REQUIRED when CO has tasks or schedule_impact_days != 0. Ask user if unspecified. target_phase_id pairs with this. new_phase_name optional (defaults to CO title) for before/after.',
       parameters: {
         type: 'object',
         properties: {
@@ -2260,7 +2260,7 @@ const toolDefinitions = [
           schedule_impact_days: { type: 'number' },
           tax_rate: { type: 'number' },
           signature_required: { type: 'boolean' },
-          billing_strategy: { type: 'string', enum: ['invoice_now', 'add_to_contract', 'final_invoice'] },
+          billing_strategy: { type: 'string', enum: ['invoice_now', 'next_draw', 'project_end'] },
           phase_placement: { type: 'string', enum: ['inside_phase', 'before_phase', 'after_phase'] },
           target_phase_id: { type: 'string' },
           new_phase_name: { type: 'string' },
@@ -2313,7 +2313,7 @@ const toolDefinitions = [
           schedule_impact_days: { type: 'number' },
           tax_rate: { type: 'number' },
           signature_required: { type: 'boolean' },
-          billing_strategy: { type: 'string', enum: ['invoice_now', 'add_to_contract', 'final_invoice'] },
+          billing_strategy: { type: 'string', enum: ['invoice_now', 'next_draw', 'project_end'] },
         },
         required: ['change_order_id'],
       }

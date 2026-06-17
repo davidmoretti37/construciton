@@ -38,6 +38,24 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Map a Stripe subscription.status to a value allowed by the
+// subscriptions_status_check DB constraint. Stripe can emit statuses
+// (incomplete, incomplete_expired, paused, ...) that the CHECK rejects,
+// which would otherwise cause a 23514 check_violation and drop the write.
+function mapSubscriptionStatus(stripeStatus) {
+  const map = {
+    incomplete: 'inactive',
+    incomplete_expired: 'inactive',
+    paused: 'past_due',
+    trialing: 'trialing',
+    active: 'active',
+    past_due: 'past_due',
+    canceled: 'canceled',
+    unpaid: 'unpaid',
+  };
+  return map[stripeStatus] || 'inactive';
+}
+
 // Price ID mapping
 const PRICE_IDS = {
   starter: process.env.STRIPE_STARTER_PRICE_ID,
@@ -388,7 +406,7 @@ async function handleCheckoutComplete(session) {
       stripe_subscription_id: subscriptionId,
       stripe_price_id: priceId,
       plan_tier: tier,
-      status: subscription.status,
+      status: mapSubscriptionStatus(subscription.status),
       trial_ends_at: subscription.trial_end
         ? new Date(subscription.trial_end * 1000).toISOString()
         : null,
@@ -413,7 +431,7 @@ async function handleSubscriptionUpdate(subscription) {
     .update({
       stripe_price_id: priceId,
       plan_tier: tier,
-      status: subscription.status,
+      status: mapSubscriptionStatus(subscription.status),
       trial_ends_at: subscription.trial_end
         ? new Date(subscription.trial_end * 1000).toISOString()
         : null,
@@ -652,7 +670,7 @@ router.post('/link-pending-subscription', authenticateUser, async (req, res) => 
         stripe_subscription_id: pending.stripe_subscription_id,
         stripe_price_id: pending.stripe_price_id,
         plan_tier: pending.plan_tier,
-        status: pending.status,
+        status: mapSubscriptionStatus(pending.status),
         trial_ends_at: pending.trial_ends_at,
       }, { onConflict: 'user_id' });
 

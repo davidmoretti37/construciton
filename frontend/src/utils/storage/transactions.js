@@ -26,6 +26,7 @@ export const addProjectTransaction = async (transaction) => {
       .insert({
         project_id: transaction.project_id || null,
         service_plan_id: transaction.service_plan_id || null,
+        phase_id: transaction.phase_id || null,
         type: transaction.type,
         category: transaction.category,
         subcategory: transaction.subcategory || null,
@@ -41,7 +42,7 @@ export const addProjectTransaction = async (transaction) => {
         is_auto_generated: false,
         created_by: userId
       })
-      .select('id, project_id, type, category, subcategory, tax_category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
+      .select('id, project_id, phase_id, type, category, subcategory, tax_category, description, amount, date, worker_id, payment_method, notes, receipt_url, line_items, is_auto_generated, created_by, created_at')
       .single();
 
     if (error) throw error;
@@ -107,6 +108,7 @@ export const updateTransaction = async (transactionId, updates) => {
         type: updates.type,
         category: updates.category,
         subcategory: updates.subcategory,
+        phase_id: updates.phase_id || null,
         description: updates.description,
         amount,
         date: updates.date,
@@ -115,7 +117,7 @@ export const updateTransaction = async (transactionId, updates) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', transactionId)
-      .select('id, project_id, type, category, subcategory, description, amount, date, payment_method, notes, updated_at, created_at')
+      .select('id, project_id, phase_id, type, category, subcategory, description, amount, date, payment_method, notes, updated_at, created_at')
       .single();
 
     if (error) throw error;
