@@ -1836,9 +1836,6 @@ export default function ChatScreen({ navigation, route }) {
     }
   };
 
-  const [showProjectPickerModal, setShowProjectPickerModal] = useState(false);
-  const [pendingAttachFile, setPendingAttachFile] = useState(null);
-  const [projectsList, setProjectsList] = useState([]);
   const [chatAttachments, setChatAttachments] = useState([]);
 
   const handleFileSelect = async () => {
@@ -4326,65 +4323,6 @@ export default function ChatScreen({ navigation, route }) {
         onAdd={handleCustomServiceAdd}
         tradeName="Custom"
       />
-
-      {/* Project Picker Modal for Attach to Project */}
-      <Modal
-        visible={showProjectPickerModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowProjectPickerModal(false);
-          setPendingAttachFile(null);
-        }}
-      >
-        <View style={styles.projectPickerOverlay}>
-          <View style={[styles.projectPickerContainer, { backgroundColor: Colors.cardBackground }]}>
-            <View style={styles.projectPickerHeader}>
-              <Text style={[styles.projectPickerTitle, { color: Colors.primaryText }]}>
-                {t('common:alerts.selectProject')}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowProjectPickerModal(false);
-                  setPendingAttachFile(null);
-                }}
-              >
-                <Ionicons name="close" size={24} color={Colors.secondaryText} />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={projectsList}
-              keyExtractor={(item) => item.id?.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.projectPickerItem, { borderBottomColor: Colors.border }]}
-                  onPress={() => handleProjectSelectedForAttach(item)}
-                >
-                  <View style={styles.projectPickerItemContent}>
-                    <Ionicons name="folder-outline" size={20} color={Colors.primaryBlue} />
-                    <View style={styles.projectPickerItemText}>
-                      <Text style={[styles.projectPickerItemName, { color: Colors.primaryText }]} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      {item.client && (
-                        <Text style={[styles.projectPickerItemClient, { color: Colors.secondaryText }]} numberOfLines={1}>
-                          {item.client}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.secondaryText} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={[styles.projectPickerEmpty, { color: Colors.secondaryText }]}>
-                  {t('common:alerts.noProjectsToAttach')}
-                </Text>
-              }
-            />
-          </View>
-        </View>
-      </Modal>
 
       {/* Chat History Sidebar */}
       <ChatHistorySidebar

@@ -192,14 +192,13 @@ export default function ChangeOrderPreview({ data, onAction }) {
     if (!validate()) return;
     try {
       setSending(true);
-      // If never saved, save first
-      let id = savedId;
-      if (!id) {
-        const saved = await onAction?.({ type: 'save-change-order', data: buildPayload() });
-        if (!saved?.id) throw new Error('Save failed before send');
-        id = saved.id;
-        setSavedId(id);
-      }
+      // Always save first — flushes ALL edits (line items, title, description,
+      // schedule impact, tax, signature, placement, strategy) onto the row before
+      // the status flip, so the client never receives stale values.
+      const saved = await onAction?.({ type: 'save-change-order', data: buildPayload() });
+      if (!saved?.id) throw new Error('Save failed before send');
+      const id = saved.id;
+      setSavedId(id);
       // Pass the latest placement/strategy so any user edits after the initial save
       // make it onto the row before the status flip.
       const result = await onAction?.({

@@ -109,7 +109,13 @@ export default function DrawsPreview({ data, onAction }) {
   }, [draws, retainage, contract]);
 
   const percentRows = draws.filter((d) => d.percent_of_contract != null);
-  const percentTotalOk = percentRows.length === 0 || Math.abs(totals.percentSum - 100) < 0.5;
+  // When fixed-amount draws cover part of the contract, percent rows only need to
+  // fill the remainder — so gate on (percentSum + fixed-as-percent) ≈ 100, not percentSum alone.
+  const fixedAsPercent = contract > 0 ? (totals.fixedSum / contract) * 100 : 0;
+  const combinedPercent = totals.percentSum + fixedAsPercent;
+  const percentTotalOk = percentRows.length === 0
+    ? totals.fixedSum <= 0 || Math.abs(combinedPercent - 100) < 0.5
+    : Math.abs(combinedPercent - 100) < 0.5;
 
   // ---------- editing ----------
   const updateDraw = (idx, field, value) => {
@@ -200,10 +206,10 @@ export default function DrawsPreview({ data, onAction }) {
       }
     }
     if (!percentTotalOk) {
-      Alert.alert(
-        '% draws should total 100',
-        `Right now percent draws sum to ${totals.percentSum}%. Adjust them to hit exactly 100% so the project bills the full contract.`
-      );
+      const msg = totals.fixedSum > 0
+        ? `Right now percent draws (${totals.percentSum}%) plus fixed draws (${fmt$(totals.fixedSum)} ≈ ${Math.round(fixedAsPercent * 10) / 10}%) cover ${Math.round(combinedPercent * 10) / 10}% of the contract. Adjust them to total 100% so the project bills the full contract.`
+        : `Right now percent draws sum to ${totals.percentSum}%. Adjust them to hit exactly 100% so the project bills the full contract.`;
+      Alert.alert('Draws should total the contract', msg);
       return false;
     }
     return true;

@@ -53,7 +53,7 @@ export default function InvoicePreview({ data, onAction }) {
   } = safeData;
 
   // For partial payment invoices, use amountDue; otherwise calculate from total - paid
-  const actualAmountDue = amountDue !== undefined ? amountDue : (total - amountPaid);
+  const actualAmountDue = Number(amountDue ?? (total - amountPaid)) || 0;
 
   // Check if this is a partial payment invoice
   const isPartialPayment = paymentType && paymentType !== 'final' && paymentPercentage && paymentPercentage < 100;
@@ -215,7 +215,7 @@ export default function InvoicePreview({ data, onAction }) {
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('invoice.contractTotal')}</Text>
             <Text style={[styles.summaryValue, { color: Colors.primaryText }]}>
-              ${displayContractTotal.toFixed(2)}
+              ${(Number(displayContractTotal) || 0).toFixed(2)}
             </Text>
           </View>
         )}
@@ -227,7 +227,7 @@ export default function InvoicePreview({ data, onAction }) {
               {t('invoice.previousPayments')}
             </Text>
             <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
-              -${previousPayments.toFixed(2)}
+              -${(Number(previousPayments) || 0).toFixed(2)}
             </Text>
           </View>
         )}
@@ -262,7 +262,7 @@ export default function InvoicePreview({ data, onAction }) {
               {t('invoice.remainingBalance')}
             </Text>
             <Text style={[styles.summaryValue, { color: Colors.secondaryText }]}>
-              ${remainingBalance.toFixed(2)}
+              ${(Number(remainingBalance) || 0).toFixed(2)}
             </Text>
           </View>
         )}
@@ -275,7 +275,7 @@ export default function InvoicePreview({ data, onAction }) {
                 {t('invoice.paid')}
               </Text>
               <Text style={[styles.summaryValue, { color: '#22C55E' }]}>
-                -${amountPaid.toFixed(2)}
+                -${(Number(amountPaid) || 0).toFixed(2)}
               </Text>
             </View>
             <View style={[styles.summaryRow, styles.dueRow]}>
@@ -283,7 +283,7 @@ export default function InvoicePreview({ data, onAction }) {
                 {t('invoice.balanceDue')}
               </Text>
               <Text style={[styles.summaryValue, { color: status === 'overdue' ? '#EF4444' : Colors.primaryText, fontWeight: '700' }]}>
-                ${(total - amountPaid).toFixed(2)}
+                ${(Number(total - amountPaid) || 0).toFixed(2)}
               </Text>
             </View>
           </>
