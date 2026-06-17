@@ -148,6 +148,61 @@ export default function HomeScreen({ navigation }) {
     loadServicePlans();
   }, []);
 
+  // Load supervisor's hours worked today and recent history
+  const loadSupervisorTimeData = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      // Fetch timesheet and forgotten clock-outs in parallel (independent queries)
+      const [timesheet, forgotten] = await Promise.all([
+        getSupervisorTimesheet(user.id),
+        checkForgottenClockOuts(10).catch(() => ({ workers: [], supervisors: [] })),
+      ]);
+
+      // Calculate today's hours
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayEntries = timesheet.filter(entry => {
+        const entryDate = new Date(entry.clock_in);
+        return entryDate >= today;
+      });
+      const totalHours = todayEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
+      setSupervisorTodayHours(totalHours);
+
+      // Store recent history (last 10 completed entries)
+      const completedEntries = timesheet.filter(e => e.clock_out).slice(0, 10);
+      setSupervisorTimeHistory(completedEntries);
+
+      setForgottenClockOuts(forgotten);
+    } catch (error) {
+      console.error('Error loading supervisor time data:', error);
+    }
+  }, [user?.id]);
+
+  // ── Widget data fetches ──
+  const loadWidgetData = useCallback(async () => {
+    try {
+      const [workers, reports, clocked] = await Promise.all([
+        fetchWorkers().catch(() => []),
+        fetchDailyReportsWithFilters({ limit: 5 }).catch(() => []),
+        getClockedInWorkersToday().catch(() => []),
+      ]);
+      setWorkerCount((workers || []).length);
+      setRecentReportsForWidget(reports || []);
+      // Normalize the time_tracking rows to the shape WorkersWidget expects
+      setActiveClockIns(
+        (clocked || [])
+          .filter(t => !!t.workers)
+          .map(t => ({
+            id: t.workers?.id || t.worker_id,
+            name: t.workers?.full_name || 'Worker',
+            projectName: t.projects?.name || t.service_plans?.name || '',
+          }))
+      );
+    } catch (e) {
+      // non-fatal — widgets render with stale/empty data
+    }
+  }, []);
+
   // On focus: show cached data instantly, refresh stale data in background
   useFocusEffect(
     useCallback(() => {
@@ -232,61 +287,6 @@ export default function HomeScreen({ navigation }) {
       setClockLoading(false);
     }
   };
-
-  // Load supervisor's hours worked today and recent history
-  const loadSupervisorTimeData = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      // Fetch timesheet and forgotten clock-outs in parallel (independent queries)
-      const [timesheet, forgotten] = await Promise.all([
-        getSupervisorTimesheet(user.id),
-        checkForgottenClockOuts(10).catch(() => ({ workers: [], supervisors: [] })),
-      ]);
-
-      // Calculate today's hours
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayEntries = timesheet.filter(entry => {
-        const entryDate = new Date(entry.clock_in);
-        return entryDate >= today;
-      });
-      const totalHours = todayEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
-      setSupervisorTodayHours(totalHours);
-
-      // Store recent history (last 10 completed entries)
-      const completedEntries = timesheet.filter(e => e.clock_out).slice(0, 10);
-      setSupervisorTimeHistory(completedEntries);
-
-      setForgottenClockOuts(forgotten);
-    } catch (error) {
-      console.error('Error loading supervisor time data:', error);
-    }
-  }, [user?.id]);
-
-  // ── Widget data fetches ──
-  const loadWidgetData = useCallback(async () => {
-    try {
-      const [workers, reports, clocked] = await Promise.all([
-        fetchWorkers().catch(() => []),
-        fetchDailyReportsWithFilters({ limit: 5 }).catch(() => []),
-        getClockedInWorkersToday().catch(() => []),
-      ]);
-      setWorkerCount((workers || []).length);
-      setRecentReportsForWidget(reports || []);
-      // Normalize the time_tracking rows to the shape WorkersWidget expects
-      setActiveClockIns(
-        (clocked || [])
-          .filter(t => !!t.workers)
-          .map(t => ({
-            id: t.workers?.id || t.worker_id,
-            name: t.workers?.full_name || 'Worker',
-            projectName: t.projects?.name || t.service_plans?.name || '',
-          }))
-      );
-    } catch (e) {
-      // non-fatal — widgets render with stale/empty data
-    }
-  }, []);
 
   // ── Edit-mode handlers ──
   const enterEditMode = useCallback(() => {
