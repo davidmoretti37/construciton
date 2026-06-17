@@ -613,12 +613,7 @@ async function redistributeTasksForProject(projectId) {
       if (picked.length === 0) return phase;
       return { ...phase, start_date: picked[0], end_date: picked[picked.length - 1] };
     });
-    // Delete phase-owned tasks only, rebuild.
-    await supabase
-      .from('worker_tasks')
-      .delete()
-      .eq('project_id', projectId)
-      .not('phase_task_id', 'is', null);
+    // Phase-owned tasks are atomically replaced via RPC below.
     const inserts = [];
     for (const phase of resolvedPhases) {
       const tasks = Array.isArray(phase.tasks) ? phase.tasks.filter((t) => t && (t.description || t.name || t.title)) : [];
@@ -656,8 +651,14 @@ async function redistributeTasksForProject(projectId) {
         cur += span;
       }
     }
-    if (inserts.length > 0) {
-      await supabase.from('worker_tasks').insert(inserts);
+    // Atomic replace: single RPC deletes phase-owned tasks and reinserts in
+    // one transaction. Manual rows (phase_task_id IS NULL) are never touched.
+    const { error: rpcErr } = await supabase.rpc('replace_project_phase_tasks', {
+      p_project_id: projectId,
+      p_tasks: inserts,
+    });
+    if (rpcErr) {
+      logger.warn('[redistribute-backend] replace_project_phase_tasks failed:', rpcErr.message);
     }
   } catch (e) {
     logger.warn('[redistribute-backend] failed:', e?.message);

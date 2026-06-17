@@ -138,24 +138,15 @@ const applyRedistribution = async (projectId) => {
     };
   });
 
-  // 6. Transaction-ish: delete phase-owned tasks, reinsert from scratch.
-  //    Manual rows (phase_task_id IS NULL) are never touched.
-  const { error: delErr } = await supabase
-    .from('worker_tasks')
-    .delete()
-    .eq('project_id', projectId)
-    .not('phase_task_id', 'is', null);
-  if (delErr) {
-    logger?.warn?.('[redistribute] delete failed:', delErr.message);
-    return { ok: false, reason: delErr.message };
-  }
-
-  if (inserts.length === 0) return { ok: true, written: 0, warnings };
-
-  const { error: insErr } = await supabase.from('worker_tasks').insert(inserts);
-  if (insErr) {
-    logger?.error?.('[redistribute] insert failed:', insErr.message);
-    return { ok: false, reason: insErr.message };
+  // 6. Atomic replace: single RPC deletes phase-owned tasks and reinserts in
+  //    one transaction. Manual rows (phase_task_id IS NULL) are never touched.
+  const { error: rpcErr } = await supabase.rpc('replace_project_phase_tasks', {
+    p_project_id: projectId,
+    p_tasks: inserts,
+  });
+  if (rpcErr) {
+    logger?.error?.('[redistribute] replace_project_phase_tasks failed:', rpcErr.message);
+    return { ok: false, reason: rpcErr.message };
   }
 
   return { ok: true, written: inserts.length, warnings };

@@ -290,23 +290,39 @@ async function convert_estimate_to_invoice(userId, { estimate_id }) {
   if (invErr) return userSafeError(invErr, "Couldn't create that invoice.");
 
   // Update estimate status to accepted
-  await supabase
+  const { error: statusErr } = await supabase
     .from('estimates')
     .update({ status: 'accepted', accepted_date: new Date().toISOString() })
-    .eq('id', estimate.id);
+    .eq('id', estimate.id)
+    .eq('user_id', userId);
+
+  const invoicePayload = {
+    id: invoice.id,
+    invoice_number: invoice.invoice_number,
+    client_name: invoice.client_name,
+    project_name: invoice.project_name,
+    total: parseFloat(invoice.total),
+    due_date: invoice.due_date,
+    status: invoice.status,
+    items: invoice.items,
+  };
+
+  if (statusErr) {
+    console.error('convert_estimate_to_invoice: invoice created but estimate status update failed', {
+      estimate_id: estimate.id,
+      invoice_id: invoice.id,
+      error: statusErr,
+    });
+    return {
+      success: true,
+      invoice: invoicePayload,
+      warning: 'invoice created but estimate status not updated',
+    };
+  }
 
   return {
     success: true,
-    invoice: {
-      id: invoice.id,
-      invoice_number: invoice.invoice_number,
-      client_name: invoice.client_name,
-      project_name: invoice.project_name,
-      total: parseFloat(invoice.total),
-      due_date: invoice.due_date,
-      status: invoice.status,
-      items: invoice.items,
-    },
+    invoice: invoicePayload,
   };
 }
 
