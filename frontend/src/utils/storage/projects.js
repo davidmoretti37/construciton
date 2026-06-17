@@ -263,9 +263,14 @@ export const saveProject = async (projectData) => {
     if (!isNewProject) {
       const { data, error } = await supabase
         .from('projects')
+        // Filter by the project's OWNER id, not the current user's id. For a
+        // plain owner projectOwnerId === userId (no behavior change); for a
+        // supervisor it resolves to prof.owner_id so the row (owned by the
+        // owner) actually matches. RLS (projects_owner_write +
+        // supervisor_can_update_projects) is the real authorization gate.
         .update(dbProject)
         .eq('id', projectData.id)
-        .eq('user_id', userId)
+        .eq('user_id', projectOwnerId)
         .select('id, name, client_name, client_phone, client_email, services, ai_responses_enabled, base_contract, contract_amount, extras, income_collected, expenses, spent, actual_progress, status, workers, days_remaining, last_activity, location, start_date, end_date, task_description, estimated_duration, has_phases, working_days, non_working_dates, created_at, updated_at, user_id, assigned_supervisor_id, budget, linked_estimate_id')
         .single();
 

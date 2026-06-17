@@ -615,15 +615,14 @@ export const calculateProjectProgressFromTasks = async (projectId) => {
  */
 export const updateProjectProgressFromTasks = async (projectId) => {
   try {
-    const { progress } = await calculateProjectProgressFromTasks(projectId);
-
-    const { error } = await supabase
-      .from('projects')
-      .update({
-        actual_progress: progress,
-        progress_override: false, // Always use task-based progress
-      })
-      .eq('id', projectId);
+    // Use the SECURITY DEFINER RPC instead of a direct projects.update.
+    // The only projects write policy is owner-only (projects_owner_write), so a
+    // worker's direct update affects 0 rows silently. The RPC recomputes
+    // actual_progress server-side (gated by user_can_access_project) so worker
+    // task completions are reflected on the owner's progress bar.
+    const { error } = await supabase.rpc('recalc_project_progress', {
+      p_project_id: projectId,
+    });
 
     if (error) {
       console.error('Error updating project progress:', error);
@@ -665,9 +664,16 @@ export const completeTask = async (taskId, workerId) => {
       return null;
     }
 
-    // Update project progress after completing task
+    // Update project progress after completing task.
+    // Surface (don't swallow) a progress-sync failure: the worker_task update
+    // genuinely succeeded, but if the cascading project-progress recalc fails
+    // we must not silently report full success.
     if (data?.project_id) {
-      await updateProjectProgressFromTasks(data.project_id);
+      const progressUpdated = await updateProjectProgressFromTasks(data.project_id);
+      if (!progressUpdated) {
+        console.error('completeTask: task marked complete but project progress sync failed', data.project_id);
+        return { ...data, progressSyncFailed: true };
+      }
     }
 
     return data;
