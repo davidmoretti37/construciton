@@ -1060,11 +1060,12 @@ router.patch('/transactions/:txId/match', async (req, res) => {
 
     if (error) throw error;
 
-    // Update the project_transaction back-reference
+    // Update the project_transaction back-reference (scoped to owner)
     await supabaseAdmin
       .from('project_transactions')
       .update({ bank_transaction_id: txId })
-      .eq('id', project_transaction_id);
+      .eq('id', project_transaction_id)
+      .eq('created_by', userId);
 
     logger.info(`Manually matched bank tx ${txId} to project tx ${project_transaction_id}`);
     res.json({ transaction: data });

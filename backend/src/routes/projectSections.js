@@ -210,11 +210,21 @@ router.post('/move-task', async (req, res) => {
 
     const { data: targetPhase, error: tgtErr } = await supabase
       .from('project_phases')
-      .select('id, tasks')
+      .select('id, tasks, project_id')
       .eq('id', target_phase_id)
       .single();
 
     if (tgtErr || !targetPhase) return res.status(404).json({ error: 'Target section not found' });
+
+    // Verify user owns the target project
+    const { data: targetProject } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', targetPhase.project_id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!targetProject) return res.status(403).json({ error: 'Not authorized' });
 
     // Find and remove task from source
     const sourceTasks = sourcePhase.tasks || [];
