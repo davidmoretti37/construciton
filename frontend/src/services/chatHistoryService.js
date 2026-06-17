@@ -25,7 +25,7 @@ export const chatHistoryService = {
     }
 
     const data = await response.json();
-    return data.sessions;
+    return Array.isArray(data.sessions) ? data.sessions : [];
   },
 
   // Get messages for a session
@@ -41,7 +41,7 @@ export const chatHistoryService = {
     }
 
     const data = await response.json();
-    return data.messages;
+    return Array.isArray(data.messages) ? data.messages : [];
   },
 
   // Create new session

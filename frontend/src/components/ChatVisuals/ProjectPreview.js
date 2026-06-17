@@ -144,6 +144,14 @@ export default function ProjectPreview({ data, onAction }) {
     }
   }, [newServiceIndex]);
 
+  // Sync editedData when the data prop changes (status transitions, AI-streamed revisions).
+  // Guard against clobbering in-progress edits.
+  useEffect(() => {
+    if (!isEditing) {
+      setEditedData(normalizeProjectData(data));
+    }
+  }, [data]);
+
   const {
     projectNumber,
     client,
@@ -1385,9 +1393,12 @@ export default function ProjectPreview({ data, onAction }) {
                       const result = await onAction({ type: 'save-project', data: saveData });
                       if (result?.projectId) {
                         setSavedProjectId(result.projectId);
+                      } else {
+                        Alert.alert(t('alerts.error'), t('messages.failedToSave'));
                       }
                     } catch (error) {
                       console.error('Error saving project:', error);
+                      Alert.alert(t('alerts.error'), t('messages.failedToSave'));
                     } finally {
                       setIsSaving(false);
                     }
