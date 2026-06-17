@@ -14,6 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, BorderRadius, FontSizes } from '../constants/theme';
@@ -38,8 +39,15 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   const [selectedProject, setSelectedProject] = useState(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
+  // The owner row the agenda is scoped to. For owners this is their own auth
+  // id; for supervisors it's their PARENT owner's id (set in loadOwnerData).
+  // Threaded into createAdHocDayTask so supervisor-created tasks land on the
+  // same owner the refresh re-queries — otherwise they'd save under the
+  // supervisor's auth id and never reappear.
+  const [agendaOwnerId, setAgendaOwnerId] = useState(null);
 
   // Add-task modal state — single entry point in the top bar (Option A in
   // the UX plan). Opens a modal with project + title + date range so users
@@ -71,9 +79,21 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
   }, []);
 
   // Load data
+  // Drop the active project filter if the selected project is no longer in
+  // the freshly-loaded list (e.g. it was archived/removed since last load),
+  // otherwise filteredTasks silently yields an empty agenda while the filter
+  // dot stays lit.
+  const reconcileSelectedProject = useCallback((nextProjects) => {
+    setSelectedProject((prev) => {
+      if (!prev) return prev;
+      return (nextProjects || []).some((p) => p.id === prev.id) ? prev : null;
+    });
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const userId = await getCurrentUserId();
       if (!userId) return;
 
@@ -106,6 +126,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
           workerProjects = projectData || [];
           setProjects(workerProjects);
         }
+        reconcileSelectedProject(workerProjects);
 
         const start = new Date();
         start.setDate(start.getDate() - 7);
@@ -128,10 +149,11 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       }
     } catch (error) {
       console.error('ScheduleView load error:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [role]);
+  }, [role, reconcileSelectedProject]);
 
   const loadOwnerData = async (userId) => {
     // The same `role="owner"` path is used by both owners and supervisors
@@ -145,6 +167,9 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
       .single();
     const isSupervisor = profile?.role === 'supervisor' && !!profile?.owner_id;
     const ownerId = isSupervisor ? profile.owner_id : userId;
+    // Remember the owner the agenda is scoped to so new tasks are attributed
+    // to the same row the refresh re-queries (critical for supervisors).
+    setAgendaOwnerId(ownerId);
 
     let projectsQuery = supabase
       .from('projects')
@@ -158,6 +183,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     }
     const { data: projectData } = await projectsQuery;
     setProjects(projectData || []);
+    reconcileSelectedProject(projectData || []);
 
     const start = new Date();
     start.setDate(start.getDate() - 7);
@@ -256,9 +282,14 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     setTasks(phaseTasks);
   };
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh on every focus (not just initial mount) so external mutations —
+  // editing project phases, worker schedules, archiving a project — are
+  // picked up when the user returns to this tab while it stays mounted.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   // Only filter left is "which project" — status/time filters were removed
   // in favor of the agenda's own visual grouping (Today / Tomorrow /
@@ -337,17 +368,21 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
     }
     setSavingTask(true);
     try {
-      const created = await createAdHocDayTask(newTaskProjectId, title, newTaskStart, newTaskEnd);
+      // Attribute the task to the agenda's owner row (the parent owner for
+      // supervisors) so it lands where the refresh re-queries it.
+      const created = await createAdHocDayTask(newTaskProjectId, title, newTaskStart, newTaskEnd, agendaOwnerId);
       if (!created) {
         Alert.alert("Couldn't create task", 'Something went wrong. Try again.');
         return;
       }
       setShowAddTask(false);
       await loadData();
+    } catch (err) {
+      Alert.alert("Couldn't create task", 'Something went wrong. Try again.');
     } finally {
       setSavingTask(false);
     }
-  }, [newTaskTitle, newTaskProjectId, newTaskStart, newTaskEnd, loadData]);
+  }, [newTaskTitle, newTaskProjectId, newTaskStart, newTaskEnd, agendaOwnerId, loadData]);
 
   const selectedTaskProject = useMemo(
     () => projects.find((p) => p.id === newTaskProjectId) || null,
@@ -442,8 +477,30 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
         </TouchableOpacity>
       </View>
 
+      {/* Error banner — surfaces load failures that were previously swallowed
+          into console.error, with a Retry that re-runs loadData. */}
+      {loadError && (
+        <View style={[styles.banner, { backgroundColor: Colors.errorBackground || '#FDECEA', borderColor: Colors.error || '#E53935' }]}>
+          <Ionicons name="alert-circle-outline" size={18} color={Colors.error || '#E53935'} />
+          <Text style={[styles.bannerText, { color: Colors.error || '#E53935' }]}>
+            Couldn't load your schedule.
+          </Text>
+          <TouchableOpacity onPress={loadData} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.bannerAction, { color: Colors.error || '#E53935' }]}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* View Content */}
-      {viewMode === 'agenda' ? (
+      {!loadError && projects.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="calendar-outline" size={48} color={Colors.secondaryText} />
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No projects yet</Text>
+          <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+            Create a project to schedule tasks.
+          </Text>
+        </View>
+      ) : viewMode === 'agenda' ? (
         <AgendaView
           tasks={filteredTasks}
           theme={Colors}
@@ -468,6 +525,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
               setDailyChecklist((prev) =>
                 prev.map((c) => (c.template_id === item.template_id ? item : c))
               );
+              Alert.alert("Couldn't update", 'Something went wrong. Try again.');
             }
           }}
           // onAddTaskForDate intentionally omitted — the top-bar "+" button
@@ -498,6 +556,7 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             } catch (err) {
               // Rollback on failure
               setTasks((prev) => prev.map((t) => (t.id === item.id ? item : t)));
+              Alert.alert("Couldn't update", 'Something went wrong. Try again.');
             }
           }}
         />
@@ -720,6 +779,13 @@ export default function ScheduleView({ navigation, role = 'worker', onAddTaskFor
             <FlatList
               data={projects}
               keyExtractor={(item) => item.id}
+              ListEmptyComponent={(
+                <View style={styles.pickerItem}>
+                  <Text style={[styles.pickerItemText, { color: Colors.secondaryText }]}>
+                    No projects yet — create a project first.
+                  </Text>
+                </View>
+              )}
               renderItem={({ item }) => {
                 const isSelected = newTaskProjectId === item.id;
                 return (
@@ -862,6 +928,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.1,
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  bannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  bannerAction: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 80,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   pickerContainer: {
     flex: 1,

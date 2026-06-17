@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,18 @@ export default function EditSupervisorScreen({ navigation, route }) {
   );
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [hydrating, setHydrating] = useState(!!supervisor?.id);
+  const [hydrationFailed, setHydrationFailed] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  // Read inside the async hydration closure so edits made *during* the in-flight
+  // fetch are respected even though the effect captured the initial dirty value.
+  const dirtyRef = useRef(false);
+  const markDirty = () => {
+    if (!dirtyRef.current) {
+      dirtyRef.current = true;
+      setDirty(true);
+    }
+  };
 
   // The `supervisor` route param is often a stub from `get_owner_supervisors`
   // (no payment columns, no can_* columns). Hydrate from profiles on mount so
@@ -57,28 +69,35 @@ export default function EditSupervisorScreen({ navigation, route }) {
         .select('*')
         .eq('id', supervisor.id)
         .single();
-      if (cancelled || error || !data) return;
-      setPaymentType(data.payment_type || 'hourly');
-      setHourlyRate(data.hourly_rate != null ? String(data.hourly_rate) : '');
-      setDailyRate(data.daily_rate != null ? String(data.daily_rate) : '');
-      setWeeklySalary(data.weekly_salary != null ? String(data.weekly_salary) : '');
-      setProjectRate(data.project_rate != null ? String(data.project_rate) : '');
-      setPermissions(
-        SUPERVISOR_PERMISSIONS.reduce(
-          (acc, p) => ({ ...acc, [p.key]: !!data[p.key] }),
-          {}
-        )
-      );
+      if (cancelled) return;
+      if (error || !data) {
+        // Don't let the owner overwrite live payment fields with the stub's
+        // empty/zero values — flag the failure and block Save until reload.
+        setHydrationFailed(true);
+        setHydrating(false);
+        return;
+      }
+      // If the owner already started editing, don't clobber their input with
+      // late-arriving DB values.
+      if (!dirtyRef.current) {
+        setPaymentType(data.payment_type || 'hourly');
+        setHourlyRate(data.hourly_rate != null ? String(data.hourly_rate) : '');
+        setDailyRate(data.daily_rate != null ? String(data.daily_rate) : '');
+        setWeeklySalary(data.weekly_salary != null ? String(data.weekly_salary) : '');
+        setProjectRate(data.project_rate != null ? String(data.project_rate) : '');
+        setPermissions(
+          SUPERVISOR_PERMISSIONS.reduce(
+            (acc, p) => ({ ...acc, [p.key]: !!data[p.key] }),
+            {}
+          )
+        );
+      }
+      setHydrating(false);
     })();
     return () => { cancelled = true; };
   }, [supervisor?.id]);
 
-  const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Error', 'Supervisor name is required.');
-      return;
-    }
-
+  const performSave = async () => {
     try {
       setSaving(true);
 
@@ -100,6 +119,14 @@ export default function EditSupervisorScreen({ navigation, route }) {
 
       const success = await updateSupervisorProfile(supervisor.id, updates);
 
+      // Guard the permissions RPC behind a successful profile write. Running it
+      // after a failed profile write produces an inverse partial save (perms
+      // land but the user is told the whole save failed).
+      if (!success) {
+        Alert.alert('Error', 'Failed to update supervisor. Please try again.');
+        return;
+      }
+
       // The shared backend route silently drops the can_* fields on any
       // pre-deploy server, so always also write permissions through the
       // SECURITY DEFINER RPC. The RPC is idempotent and authoritative.
@@ -114,36 +141,83 @@ export default function EditSupervisorScreen({ navigation, route }) {
       });
       if (permError || (permResult && permResult.success === false)) {
         console.error('Permission update failed:', permError || permResult);
-        Alert.alert('Error', (permResult && permResult.error) || 'Failed to save permissions.');
+        // Profile was already committed above — be honest about the partial
+        // state rather than implying nothing saved. Don't update nav params or
+        // claim success when only half the edit landed.
+        Alert.alert(
+          'Partial save',
+          (permResult && permResult.error) ||
+            'Profile saved, but permissions failed — please retry.'
+        );
         return;
       }
 
-      if (success) {
-        // Set updated params on the existing SupervisorDetail screen before going back
-        const updatedSupervisor = { ...supervisor, ...updates };
-        const state = navigation.getState();
-        const previousRoute = state.routes[state.routes.length - 2];
-        if (previousRoute) {
-          navigation.dispatch({
-            ...CommonActions.setParams({
-              supervisor: updatedSupervisor,
-              updatedAt: Date.now(),
-            }),
-            source: previousRoute.key,
-          });
-        }
-        Alert.alert('Success', 'Supervisor updated successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
-      } else {
-        Alert.alert('Error', 'Failed to update supervisor. Please try again.');
+      // Both writes succeeded — now it's safe to update the previous screen's
+      // params and report success.
+      const updatedSupervisor = { ...supervisor, ...updates };
+      const state = navigation.getState();
+      const previousRoute = state.routes[state.routes.length - 2];
+      if (previousRoute) {
+        navigation.dispatch({
+          ...CommonActions.setParams({
+            supervisor: updatedSupervisor,
+            updatedAt: Date.now(),
+          }),
+          source: previousRoute.key,
+        });
       }
+      Alert.alert('Success', 'Supervisor updated successfully.', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
     } catch (error) {
       console.error('Error updating supervisor:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      Alert.alert('Error', 'Supervisor name is required.');
+      return;
+    }
+
+    // Block saving until live payment data has loaded — otherwise empty rate
+    // fields seeded from the stub would overwrite the supervisor's real rate.
+    if (hydrating) {
+      Alert.alert('Please wait', 'Still loading supervisor details. Try again in a moment.');
+      return;
+    }
+    if (hydrationFailed) {
+      Alert.alert(
+        'Could not load details',
+        "We couldn't load this supervisor's current pay rates. Saving now could overwrite them. Please go back and reopen this screen.",
+      );
+      return;
+    }
+
+    // A blank/unparseable active rate would silently save as 0 via
+    // `parseFloat('') || 0`, zeroing the rate. Validate before saving, and
+    // confirm explicitly when the owner intends a $0 rate.
+    const parsedRate = parseFloat(rateValue);
+    if (rateValue.trim() === '' || Number.isNaN(parsedRate)) {
+      Alert.alert('Invalid rate', `Please enter a valid ${rateLabel.toLowerCase()}.`);
+      return;
+    }
+    if (parsedRate === 0) {
+      Alert.alert(
+        'Save $0 rate?',
+        `This will set the ${rateLabel.toLowerCase()} to $0. Are you sure?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save', style: 'destructive', onPress: () => { performSave(); } },
+        ]
+      );
+      return;
+    }
+
+    performSave();
   };
 
   const handleRemove = () => {
@@ -203,11 +277,11 @@ export default function EditSupervisorScreen({ navigation, route }) {
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Supervisor</Text>
         <TouchableOpacity
-          style={[styles.saveBtn, { backgroundColor: saving ? '#9CA3AF' : '#1E40AF' }]}
+          style={[styles.saveBtn, { backgroundColor: (saving || hydrating || hydrationFailed) ? '#9CA3AF' : '#1E40AF' }]}
           onPress={handleSave}
-          disabled={saving}
+          disabled={saving || hydrating || hydrationFailed}
         >
-          {saving ? (
+          {(saving || hydrating) ? (
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <Text style={styles.saveBtnText}>Save</Text>
@@ -226,6 +300,23 @@ export default function EditSupervisorScreen({ navigation, route }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {hydrating && (
+            <View style={styles.hydrateBanner}>
+              <ActivityIndicator size="small" color="#1E40AF" />
+              <Text style={[styles.hydrateBannerText, { color: Colors.secondaryText }]}>
+                Loading supervisor details…
+              </Text>
+            </View>
+          )}
+          {hydrationFailed && (
+            <View style={styles.warnBanner}>
+              <Ionicons name="warning-outline" size={18} color="#B45309" />
+              <Text style={styles.warnBannerText}>
+                Couldn't load current pay rates. Saving is disabled to avoid overwriting them — go back and reopen this screen.
+              </Text>
+            </View>
+          )}
+
           {/* Supervisor Information */}
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
@@ -239,7 +330,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
               <TextInput
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={name}
-                onChangeText={setName}
+                onChangeText={(v) => { markDirty(); setName(v); }}
                 placeholder="Supervisor name"
                 placeholderTextColor={Colors.secondaryText}
               />
@@ -251,7 +342,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
               <TextInput
                 style={[styles.textInput, { color: Colors.primaryText }]}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(v) => { markDirty(); setPhone(v); }}
                 placeholder="Phone number"
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="phone-pad"
@@ -291,7 +382,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
                       ? { backgroundColor: '#1E40AF', borderColor: '#1E40AF' }
                       : { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }
                   ]}
-                  onPress={() => setPaymentType(key)}
+                  onPress={() => { markDirty(); setPaymentType(key); }}
                 >
                   <Ionicons
                     name={icon}
@@ -315,7 +406,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
               <TextInput
                 style={[styles.rateInput, { color: Colors.primaryText }]}
                 value={rateValue}
-                onChangeText={setRateValue}
+                onChangeText={(v) => { markDirty(); setRateValue(v); }}
                 placeholder="0.00"
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="decimal-pad"
@@ -352,7 +443,7 @@ export default function EditSupervisorScreen({ navigation, route }) {
                 </View>
                 <Switch
                   value={!!permissions[perm.key]}
-                  onValueChange={(v) => setPermissions({ ...permissions, [perm.key]: v })}
+                  onValueChange={(v) => { markDirty(); setPermissions({ ...permissions, [perm.key]: v }); }}
                   trackColor={{ false: '#D1D5DB', true: '#1E40AF' }}
                 />
               </View>
@@ -489,4 +580,21 @@ const styles = StyleSheet.create({
   },
   permLabel: { fontSize: 15, fontWeight: '500' },
   permDescription: { fontSize: 12, marginTop: 2 },
+  hydrateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  hydrateBannerText: { fontSize: 13 },
+  warnBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  warnBannerText: { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 18 },
 });

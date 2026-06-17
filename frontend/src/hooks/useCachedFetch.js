@@ -46,6 +46,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
                 if (mountedRef.current) {
                   setData(fresh);
                   setRefreshing(false);
+                  setError(null);
                 }
                 await AsyncStorage.setItem(`cache:${cacheKey}`, JSON.stringify({ data: fresh, timestamp: Date.now() }));
               } catch (e) {
@@ -64,6 +65,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
         setData(fresh);
         setLoading(false);
         setRefreshing(false);
+        setError(null);
       }
       await AsyncStorage.setItem(`cache:${cacheKey}`, JSON.stringify({ data: fresh, timestamp: Date.now() }));
     } catch (err) {

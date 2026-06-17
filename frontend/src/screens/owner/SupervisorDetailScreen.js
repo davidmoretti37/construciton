@@ -3,7 +3,7 @@
  * Shows supervisor info and their jobs
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -28,6 +28,16 @@ import { SUPERVISOR_PERMISSIONS } from '../../constants/supervisorPermissions';
 import DateRangePicker from '../../components/DateRangePicker';
 import TimeEditModal from '../../components/TimeEditModal';
 import { formatHoursMinutes } from '../../utils/calculations';
+
+// Guarded external-link opener: no-op on falsy urls, surfaces failures
+// (e.g. Linking.openURL(undefined) rejecting, or no app to handle the scheme)
+// instead of throwing an unhandled promise rejection.
+const openExternalUrl = (url) => {
+  if (!url) return;
+  Linking.openURL(url).catch(() => {
+    Alert.alert('Unable to open', 'No app available to handle this link.');
+  });
+};
 
 // Helper function to format pay rate (takes t function for i18n)
 const formatPayRate = (sup, t) => {
@@ -192,6 +202,7 @@ export default function SupervisorDetailScreen() {
     totalWorkers: 0,
     totalRevenue: 0,
   });
+  const [fetchError, setFetchError] = useState(false);
   const [timeRecords, setTimeRecords] = useState([]);
   const [timeStats, setTimeStats] = useState({ weekHours: 0, monthHours: 0, weekEarnings: 0, monthEarnings: 0 });
   const [activeSession, setActiveSession] = useState(null);
@@ -214,6 +225,8 @@ export default function SupervisorDetailScreen() {
   };
 
   const [dateRange, setDateRange] = useState(getDefaultDateRange());
+  // Monotonic id so a slow earlier payment query can't overwrite a newer one.
+  const paymentRequestId = useRef(0);
   const [paymentData, setPaymentData] = useState(null);
   const [loadingPayment, setLoadingPayment] = useState(true);
   const [clockOutLoading, setClockOutLoading] = useState(false);
@@ -238,6 +251,7 @@ export default function SupervisorDetailScreen() {
                 Alert.alert('Success', `${name} has been clocked out. (${formatHoursMinutes(result.hours || 0)})`);
                 setActiveSession(null);
                 fetchSupervisorData();
+                loadPaymentData();
               } else {
                 Alert.alert('Error', result.error || 'Failed to clock out supervisor.');
               }
@@ -267,6 +281,7 @@ export default function SupervisorDetailScreen() {
     }
 
     try {
+      setFetchError(false);
       // Fetch supervisor's projects (both created by AND assigned to)
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
@@ -322,7 +337,10 @@ export default function SupervisorDetailScreen() {
         // Calculate week and month hours
         const now = new Date();
         const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
+        // Monday-based week start, matching getDefaultDateRange so the "This
+        // Week" stat and the default payment period cover the same days.
+        const dow = now.getDay();
+        startOfWeek.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
         startOfWeek.setHours(0, 0, 0, 0);
 
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -361,6 +379,7 @@ export default function SupervisorDetailScreen() {
 
     } catch (error) {
       console.error('Error fetching supervisor data:', error);
+      setFetchError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -370,6 +389,21 @@ export default function SupervisorDetailScreen() {
   useEffect(() => {
     fetchSupervisorData();
   }, [fetchSupervisorData]);
+
+  // Refresh on screen focus so returning here (after reassigning workers, a
+  // remote clock-in/out, or editing time) shows current data. Skip the very
+  // first focus — the mount effects above already perform the initial load.
+  const didInitialFocus = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!didInitialFocus.current) {
+        didInitialFocus.current = true;
+        return;
+      }
+      fetchSupervisorData();
+      loadPaymentData();
+    }, [fetchSupervisorData])
+  );
 
   // Update elapsed time every second for active session
   useEffect(() => {
@@ -400,6 +434,7 @@ export default function SupervisorDetailScreen() {
 
   const loadPaymentData = async () => {
     if (!supervisor?.id) return;
+    const requestId = ++paymentRequestId.current;
     try {
       setLoadingPayment(true);
       const data = await calculateSupervisorPaymentForPeriod(
@@ -408,12 +443,17 @@ export default function SupervisorDetailScreen() {
         dateRange.from,
         dateRange.to
       );
+      // Ignore stale results: a newer request has superseded this one.
+      if (requestId !== paymentRequestId.current) return;
       setPaymentData(data);
     } catch (error) {
       console.error('Error loading payment data:', error);
+      if (requestId !== paymentRequestId.current) return;
       setPaymentData(null);
     } finally {
-      setLoadingPayment(false);
+      if (requestId === paymentRequestId.current) {
+        setLoadingPayment(false);
+      }
     }
   };
 
@@ -424,6 +464,7 @@ export default function SupervisorDetailScreen() {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchSupervisorData();
+    loadPaymentData();
   }, [fetchSupervisorData]);
 
   const handleBack = () => {
@@ -535,7 +576,7 @@ export default function SupervisorDetailScreen() {
               {supervisor?.email ? (
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
-                  onPress={() => Linking.openURL(`mailto:${supervisor.email}`)}
+                  onPress={() => openExternalUrl(`mailto:${supervisor.email}`)}
                 >
                   <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#1E40AF10', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="mail-outline" size={16} color="#1E40AF" />
@@ -546,7 +587,7 @@ export default function SupervisorDetailScreen() {
               {supervisor?.business_phone ? (
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
-                  onPress={() => Linking.openURL(`tel:${supervisor.business_phone}`)}
+                  onPress={() => openExternalUrl(`tel:${supervisor.business_phone}`)}
                 >
                   <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#10B98110', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="call-outline" size={16} color="#10B981" />
@@ -711,11 +752,14 @@ export default function SupervisorDetailScreen() {
                 <TouchableOpacity
                   style={styles.locationButton}
                   onPress={() => {
+                    const lat = activeSession.location_lat;
+                    const lng = activeSession.location_lng;
                     const url = Platform.select({
-                      ios: `maps://maps.apple.com/?ll=${activeSession.location_lat},${activeSession.location_lng}&q=Clock-in Location`,
-                      android: `geo:${activeSession.location_lat},${activeSession.location_lng}?q=${activeSession.location_lat},${activeSession.location_lng}(Clock-in Location)`,
+                      ios: `maps://maps.apple.com/?ll=${lat},${lng}&q=Clock-in Location`,
+                      android: `geo:${lat},${lng}?q=${lat},${lng}(Clock-in Location)`,
+                      default: `https://www.google.com/maps?q=${lat},${lng}`,
                     });
-                    Linking.openURL(url);
+                    openExternalUrl(url);
                   }}
                 >
                   <Ionicons name="location" size={18} color="#8B5CF6" />
@@ -837,7 +881,17 @@ export default function SupervisorDetailScreen() {
             </Text>
           </View>
 
-          {jobs.length === 0 ? (
+          {fetchError && jobs.length === 0 ? (
+            <TouchableOpacity style={{ paddingVertical: 24, alignItems: 'center' }} onPress={onRefresh}>
+              <Ionicons name="alert-circle-outline" size={36} color="#EF4444" />
+              <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
+                {t('common:errors.loadingFailed')}
+              </Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#1E40AF', marginTop: 4 }}>
+                {t('common:buttons.retry')}
+              </Text>
+            </TouchableOpacity>
+          ) : jobs.length === 0 ? (
             <View style={{ paddingVertical: 24, alignItems: 'center' }}>
               <Ionicons name="briefcase-outline" size={36} color={Colors.secondaryText + '60'} />
               <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
@@ -860,7 +914,17 @@ export default function SupervisorDetailScreen() {
             </Text>
           </View>
 
-          {timeRecords.length === 0 ? (
+          {fetchError && timeRecords.length === 0 ? (
+            <TouchableOpacity style={{ paddingVertical: 24, alignItems: 'center' }} onPress={onRefresh}>
+              <Ionicons name="alert-circle-outline" size={36} color="#EF4444" />
+              <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
+                {t('common:errors.loadingFailed')}
+              </Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#1E40AF', marginTop: 4 }}>
+                {t('common:buttons.retry')}
+              </Text>
+            </TouchableOpacity>
+          ) : timeRecords.length === 0 ? (
             <View style={{ paddingVertical: 24, alignItems: 'center' }}>
               <Ionicons name="time-outline" size={36} color={Colors.secondaryText + '60'} />
               <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>

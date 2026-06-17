@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-const CustomCalendar = ({ onDateSelect, selectedStart, selectedEnd, theme }) => {
+const CustomCalendar = ({ onDateSelect = () => {}, selectedStart, selectedEnd, theme = {} }) => {
   const { t } = useTranslation('common');
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -39,7 +39,9 @@ const CustomCalendar = ({ onDateSelect, selectedStart, selectedEnd, theme }) => 
   const isPastDate = (dateString) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const date = new Date(dateString);
+    // Parse YYYY-MM-DD as LOCAL date to avoid UTC off-by-one (today marked as past)
+    const [y, m, d] = dateString.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
     date.setHours(0, 0, 0, 0);
     return date < today;
   };
@@ -82,7 +84,8 @@ const CustomCalendar = ({ onDateSelect, selectedStart, selectedEnd, theme }) => 
             isEnd && styles.rangeEnd,
             isStart && isEnd && styles.singleDay,
           ]}
-          onPress={() => onDateSelect(dateString)}
+          disabled={past}
+          onPress={() => { if (!past) onDateSelect(dateString); }}
         >
           <Text
             style={[

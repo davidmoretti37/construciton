@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
@@ -43,10 +44,19 @@ export default function OwnerDailyReportsScreen({ navigation }) {
     return data || [];
   }, []);
 
-  const { data: reports, loading, refreshing, refresh } = useCachedFetch(
+  const { data: reports, loading, refreshing, error, refresh } = useCachedFetch(
     'owner:dailyReports',
     fetchReports,
     { staleTTL: 15000, maxAge: 3 * 60 * 1000 }
+  );
+
+  // The DailyReportForm only calls navigation.goBack() on success, so a
+  // just-created report is missing until manual pull-to-refresh. Refresh on
+  // focus to pick up newly created reports without a manual gesture.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
   );
 
   const onRefresh = () => {
@@ -89,7 +99,9 @@ export default function OwnerDailyReportsScreen({ navigation }) {
       return t('reports.you');
     }
     if (report.reporter_type === 'supervisor') {
-      return report.profiles?.business_name || t('reports.supervisor');
+      // `daily_reports` has no FK/relation to `profiles`, so the select can't
+      // join the supervisor's business_name. Use the generic label.
+      return t('reports.supervisor');
     }
     return report.workers?.full_name || t('reports.unknownWorker');
   };
@@ -197,6 +209,25 @@ export default function OwnerDailyReportsScreen({ navigation }) {
     </View>
   );
 
+  // Distinct error state so a failed load isn't mistaken for an empty account.
+  const renderErrorState = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="cloud-offline-outline" size={64} color={Colors.border} />
+      <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
+        {t('common:errors.loadingFailed')}
+      </Text>
+      <TouchableOpacity onPress={() => refresh()} activeOpacity={0.7} style={styles.retryButton}>
+        <Ionicons name="refresh" size={16} color={Colors.primaryBlue} />
+        <Text style={[styles.retryText, { color: Colors.primaryBlue }]}>
+          {t('common:buttons.retry')}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderListEmpty = () =>
+    (error && (!reports || reports.length === 0)) ? renderErrorState() : renderEmptyState();
+
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: Colors.background }]}>
@@ -233,7 +264,7 @@ export default function OwnerDailyReportsScreen({ navigation }) {
             tintColor={Colors.primaryBlue}
           />
         }
-        ListEmptyComponent={renderEmptyState}
+        ListEmptyComponent={renderListEmpty}
         showsVerticalScrollIndicator={false}
       />
 
@@ -373,6 +404,19 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.body,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  retryText: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
   },
   fab: {
     position: 'absolute',

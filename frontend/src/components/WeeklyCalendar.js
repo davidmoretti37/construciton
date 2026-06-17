@@ -3,7 +3,20 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
-const WeeklyCalendar = ({ selectedDate, onDateSelect, theme, eventDates = [] }) => {
+// Parse a date value as LOCAL time. Bare YYYY-MM-DD strings are parsed via
+// new Date(y, m-1, d) to avoid being interpreted as UTC midnight (which shifts
+// to the previous day in negative-offset timezones like UTC-3).
+const toLocalDate = (value) => {
+  if (typeof value === 'string') {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (match) {
+      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+  }
+  return new Date(value);
+};
+
+const WeeklyCalendar = ({ selectedDate, onDateSelect = () => {}, theme = {}, eventDates = [] }) => {
   const { t } = useTranslation('common');
   const [weekStart, setWeekStart] = useState(() => getWeekStart(selectedDate || new Date()));
 
@@ -19,7 +32,10 @@ const WeeklyCalendar = ({ selectedDate, onDateSelect, theme, eventDates = [] }) 
 
   // Get Sunday of the week containing the given date
   function getWeekStart(date) {
-    const d = new Date(date);
+    let d = toLocalDate(date);
+    if (isNaN(d.getTime())) {
+      d = new Date();
+    }
     const day = d.getDay();
     d.setDate(d.getDate() - day);
     d.setHours(0, 0, 0, 0);
@@ -84,7 +100,7 @@ const WeeklyCalendar = ({ selectedDate, onDateSelect, theme, eventDates = [] }) 
   // Check if date is selected
   const isSelected = (date) => {
     if (!selectedDate) return false;
-    return formatDateString(date) === formatDateString(new Date(selectedDate));
+    return formatDateString(date) === formatDateString(toLocalDate(selectedDate));
   };
 
   // Check if date has events
