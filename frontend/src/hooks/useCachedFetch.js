@@ -15,6 +15,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
   const [data, setData] = useState(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
                 if (mountedRef.current) {
                   setData(fresh);
                   setRefreshing(false);
+                  setError(null);
                 }
                 await AsyncStorage.setItem(`cache:${cacheKey}`, JSON.stringify({ data: fresh, timestamp: Date.now() }));
               } catch (e) {
@@ -62,12 +64,14 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
         setData(fresh);
         setLoading(false);
         setRefreshing(false);
+        setError(null);
       }
       await AsyncStorage.setItem(`cache:${cacheKey}`, JSON.stringify({ data: fresh, timestamp: Date.now() }));
-    } catch (error) {
+    } catch (err) {
       if (mountedRef.current) {
         setLoading(false);
         setRefreshing(false);
+        setError(err);
       }
     }
   }, [cacheKey, fetchFn, staleTTL, maxAge]);
@@ -108,7 +112,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
     };
   }, [cacheKey]);
 
-  return { data, setData, loading, refreshing, refresh, reload: load, optimisticUpdate };
+  return { data, setData, loading, refreshing, error, refresh, reload: load, optimisticUpdate };
 }
 
 /**

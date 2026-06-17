@@ -23,37 +23,63 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const { t } = useTranslation(['workers', 'common']);
-  const { worker } = route.params;
+  const { worker } = route.params || {};
 
   // Worker info fields
-  const [fullName, setFullName] = useState(worker.full_name || '');
-  const [phone, setPhone] = useState(worker.phone || '');
-  const [email, setEmail] = useState(worker.email || '');
-  const [trade, setTrade] = useState(worker.trade || '');
+  const [fullName, setFullName] = useState(worker?.full_name || '');
+  const [phone, setPhone] = useState(worker?.phone || '');
+  const [email, setEmail] = useState(worker?.email || '');
+  const [trade, setTrade] = useState(worker?.trade || '');
 
   // Payment fields
-  const [paymentType, setPaymentType] = useState(worker.payment_type || 'hourly');
-  const [hourlyRate, setHourlyRate] = useState(worker.hourly_rate?.toString() || '');
-  const [dailyRate, setDailyRate] = useState(worker.daily_rate?.toString() || '');
-  const [weeklySalary, setWeeklySalary] = useState(worker.weekly_salary?.toString() || '');
-  const [projectRate, setProjectRate] = useState(worker.project_rate?.toString() || '');
+  const [paymentType, setPaymentType] = useState(worker?.payment_type || 'hourly');
+  const [hourlyRate, setHourlyRate] = useState(worker?.hourly_rate?.toString() || '');
+  const [dailyRate, setDailyRate] = useState(worker?.daily_rate?.toString() || '');
+  const [weeklySalary, setWeeklySalary] = useState(worker?.weekly_salary?.toString() || '');
+  const [projectRate, setProjectRate] = useState(worker?.project_rate?.toString() || '');
   const [saving, setSaving] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+  // Whether the async owner check has resolved. Owner-only cards (payment,
+  // promote, delete) stay hidden until this is true so an owner never taps
+  // Save before the payment fields render.
+  const [ownerChecked, setOwnerChecked] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const checkOwner = () => {
+    setOwnerChecked(false);
+    // Check if current user is the owner (not supervisor)
+    supabase.auth
+      .getUser()
+      .then(({ data: { user } }) => {
+        if (user) {
+          // If auth uid matches the worker's owner_id, they're the owner
+          setIsOwner(user.id === (worker?.owner_id));
+        }
+      })
+      .catch((error) => {
+        // Transient network/auth-refresh failure. Surface a non-blocking
+        // retry so a legitimate owner isn't silently locked out of the
+        // payment/promote/delete controls.
+        console.error('Error checking owner:', error);
+        Alert.alert(
+          t('common:alerts.error'),
+          t('common:errors.networkError'),
+          [{ text: t('common:buttons.retry'), onPress: checkOwner }]
+        );
+      })
+      .finally(() => {
+        setOwnerChecked(true);
+      });
+  };
 
   useEffect(() => {
-    // Check if current user is the owner (not supervisor)
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        // If auth uid matches the worker's owner_id, they're the owner
-        setIsOwner(user.id === worker.owner_id);
-      }
-    });
+    if (!worker) return;
+    checkOwner();
   }, []);
-  const [deleting, setDeleting] = useState(false);
 
   const handleSave = async () => {
     if (!fullName.trim()) {
-      Alert.alert('Error', 'Worker name is required.');
+      Alert.alert(t('workers:errors.error'), t('workers:errors.nameRequired'));
       return;
     }
 
@@ -65,25 +91,31 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
         phone: phone.trim(),
         email: email.trim(),
         trade: trade.trim(),
-        payment_type: paymentType,
-        hourly_rate: paymentType === 'hourly' ? parseFloat(hourlyRate) || 0 : (worker.hourly_rate || 0),
-        daily_rate: paymentType === 'daily' ? parseFloat(dailyRate) || 0 : (worker.daily_rate || 0),
-        weekly_salary: paymentType === 'weekly' ? parseFloat(weeklySalary) || 0 : (worker.weekly_salary || 0),
-        project_rate: paymentType === 'project_based' ? parseFloat(projectRate) || 0 : (worker.project_rate || 0),
       };
+
+      // Only owners (and only after the owner check has resolved) can see and
+      // edit payment fields, so only they may write them. This matches the UI
+      // gating on the payment card.
+      if (isOwner && ownerChecked) {
+        updates.payment_type = paymentType;
+        updates.hourly_rate = paymentType === 'hourly' ? parseFloat(hourlyRate) || 0 : (worker.hourly_rate || 0);
+        updates.daily_rate = paymentType === 'daily' ? parseFloat(dailyRate) || 0 : (worker.daily_rate || 0);
+        updates.weekly_salary = paymentType === 'weekly' ? parseFloat(weeklySalary) || 0 : (worker.weekly_salary || 0);
+        updates.project_rate = paymentType === 'project_based' ? parseFloat(projectRate) || 0 : (worker.project_rate || 0);
+      }
 
       const success = await updateWorker(worker.id, updates);
 
       if (success) {
-        Alert.alert('Success', 'Worker updated successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() }
+        Alert.alert(t('workers:success.title'), t('workers:success.workerUpdated'), [
+          { text: t('common:buttons.ok'), onPress: () => navigation.goBack() }
         ]);
       } else {
-        Alert.alert('Error', 'Failed to update worker. Please try again.');
+        Alert.alert(t('workers:errors.error'), t('workers:errors.saveFailed'));
       }
     } catch (error) {
       console.error('Error updating worker:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('workers:errors.error'), t('common:errors.general'));
     } finally {
       setSaving(false);
     }
@@ -91,27 +123,27 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete Worker',
+      t('workers:confirmDelete.title'),
       `Are you sure you want to delete ${worker.full_name}? This will remove all their data and cannot be undone.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common:buttons.delete'),
           style: 'destructive',
           onPress: async () => {
             setDeleting(true);
             try {
               const success = await deleteWorker(worker.id);
               if (success) {
-                Alert.alert('Deleted', `${worker.full_name} has been removed.`, [
-                  { text: 'OK', onPress: () => navigation.popToTop() }
+                Alert.alert(t('common:alerts.deleted'), `${worker.full_name} has been removed.`, [
+                  { text: t('common:buttons.ok'), onPress: () => navigation.popToTop() }
                 ]);
               } else {
-                Alert.alert('Error', 'Failed to delete worker.');
+                Alert.alert(t('workers:errors.error'), t('workers:errors.deleteFailed'));
               }
             } catch (error) {
               console.error('Error deleting worker:', error);
-              Alert.alert('Error', 'Something went wrong.');
+              Alert.alert(t('workers:errors.error'), t('common:errors.general'));
             } finally {
               setDeleting(false);
             }
@@ -183,6 +215,30 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
     paymentType === 'daily' ? setDailyRate :
     paymentType === 'weekly' ? setWeeklySalary : setProjectRate;
 
+  // Guard against navigation without a worker param.
+  if (!worker) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Worker</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <View style={styles.centerState}>
+          <Ionicons name="alert-circle-outline" size={40} color={Colors.secondaryText} />
+          <Text style={[styles.centerStateText, { color: Colors.secondaryText }]}>
+            {t('common:status.noData')}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
@@ -226,7 +282,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             </View>
 
             {/* Name */}
-            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Full Name</Text>
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('workers:form.fullName')}</Text>
             <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
               <Ionicons name="person-outline" size={18} color={Colors.secondaryText} />
               <TextInput
@@ -239,7 +295,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             </View>
 
             {/* Phone */}
-            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Phone</Text>
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('workers:form.phone')}</Text>
             <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
               <Ionicons name="call-outline" size={18} color={Colors.secondaryText} />
               <TextInput
@@ -253,7 +309,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             </View>
 
             {/* Email */}
-            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>Email</Text>
+            <Text style={[styles.fieldLabel, { color: Colors.secondaryText }]}>{t('workers:form.email')}</Text>
             <View style={[styles.fieldInput, { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }]}>
               <Ionicons name="mail-outline" size={18} color={Colors.secondaryText} />
               <TextInput
@@ -281,8 +337,22 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
             </View>
           </View>
 
+          {/* Owner check pending — hold a determinate placeholder so owner-only
+              cards don't silently pop in (and so the owner doesn't tap Save
+              before payment fields render). */}
+          {!ownerChecked && (
+          <View style={[styles.card, { backgroundColor: Colors.white }]}>
+            <View style={styles.centerState}>
+              <ActivityIndicator size="small" color={Colors.primaryBlue} />
+              <Text style={[styles.centerStateText, { color: Colors.secondaryText }]}>
+                {t('common:status.loading')}
+              </Text>
+            </View>
+          </View>
+          )}
+
           {/* Payment Type Selection — Owner only */}
-          {isOwner && (
+          {ownerChecked && isOwner && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="wallet-outline" size={20} color={Colors.primaryBlue} />
@@ -339,7 +409,7 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           )}
 
           {/* Promote to Supervisor — Owner only */}
-          {isOwner && (
+          {ownerChecked && isOwner && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="shield-checkmark-outline" size={20} color="#8B5CF6" />
@@ -360,11 +430,11 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           )}
 
           {/* Delete Worker — Owner only */}
-          {isOwner && (
+          {ownerChecked && isOwner && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="warning-outline" size={20} color="#EF4444" />
-              <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>Danger Zone</Text>
+              <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>{t('common:labels.dangerZone')}</Text>
             </View>
             <Text style={[styles.deleteDescription, { color: Colors.secondaryText }]}>
               Permanently delete this worker and all associated data. This action cannot be undone.
@@ -530,5 +600,15 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+  centerState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    gap: 10,
+  },
+  centerStateText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

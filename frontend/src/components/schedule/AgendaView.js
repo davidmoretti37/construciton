@@ -54,7 +54,6 @@ const formatDivider = (startStr, endStr) => {
 export default function AgendaView({
   tasks,
   theme,
-  onTaskPress,
   scrollToDate,
   onAddTaskForDate,
   onToggleComplete,
@@ -156,7 +155,7 @@ export default function AgendaView({
         primary: labels.primary,
         meta: labels.meta,
         isToday,
-        data: dataRows.length > 0 ? dataRows : [{ _empty: true, _date: dateStr }],
+        data: dataRows.length > 0 ? dataRows : [{ _empty: true, _date: dateStr, _key: `empty-${dateStr}` }],
         count: dayTasks.length + checklistRows.length,
       });
     }
@@ -334,10 +333,8 @@ export default function AgendaView({
     const isDone = item.status === 'completed' || item.status === 'done';
 
     return (
-      <TouchableOpacity
+      <View
         style={[styles.taskCard, { backgroundColor: theme.cardBackground || theme.white, borderColor: theme.border }]}
-        onPress={() => onTaskPress?.(item)}
-        activeOpacity={0.7}
       >
         <View style={[styles.statusStripe, { backgroundColor: projectColor }]} />
 
@@ -396,9 +393,9 @@ export default function AgendaView({
             </View>
           )}
         </View>
-      </TouchableOpacity>
+      </View>
     );
-  }, [theme, onTaskPress, onToggleComplete, onToggleDailyChecklistItem]);
+  }, [theme, onToggleComplete, onToggleDailyChecklistItem]);
 
   return (
     <View style={{ flex: 1 }}>

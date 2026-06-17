@@ -32,7 +32,9 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   const initialWorker = route.params?.worker;
   const [worker, setWorker] = useState(initialWorker);
 
-  // Re-fetch worker when screen regains focus (after editing)
+  // Re-fetch worker when screen regains focus (after editing). Refreshing
+  // the worker row alone leaves the payment summary showing amounts computed
+  // from the OLD rate, so re-run the data + payment loads with the new rate.
   useFocusEffect(
     useCallback(() => {
       if (initialWorker?.id) {
@@ -41,7 +43,11 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           .select('*')
           .eq('id', initialWorker.id)
           .single()
-          .then(({ data }) => { if (data) setWorker(data); });
+          .then(({ data }) => {
+            if (data) setWorker(data);
+            loadData();
+            loadPaymentData();
+          });
       }
     }, [initialWorker?.id])
   );
@@ -84,10 +90,14 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   // Supervisors only see payment info when the owner has granted
   // can_pay_workers; can_manage_workers controls whether the in-line
   // edit/clock-out controls show. Owners see everything.
+  // Default to NO permissions so a supervisor without can_pay_workers never
+  // sees payment info (or edit controls) during the brief window before the
+  // async permission lookup resolves. canSeePayment/canEditTime additionally
+  // gate on viewer.loaded so nothing renders until permissions are known.
   const [viewer, setViewer] = useState({
-    isOwner: true,
-    canPay: true,
-    canManage: true,
+    isOwner: false,
+    canPay: false,
+    canManage: false,
     loaded: false,
   });
 
@@ -117,8 +127,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
     })();
   }, []);
 
-  const canSeePayment = viewer.isOwner || viewer.canPay;
-  const canEditTime = viewer.isOwner || viewer.canManage;
+  const canSeePayment = viewer.loaded && (viewer.isOwner || viewer.canPay);
+  const canEditTime = viewer.loaded && (viewer.isOwner || viewer.canManage);
 
   const handleClockOutWorker = () => {
     Alert.alert(
@@ -163,13 +173,13 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
   };
 
   useEffect(() => {
-    loadData();
-  }, [worker.id]);
+    if (worker?.id) loadData();
+  }, [worker?.id]);
 
   // Load payment data when date range changes
   useEffect(() => {
-    loadPaymentData();
-  }, [dateRange, worker.id]);
+    if (worker?.id) loadPaymentData();
+  }, [dateRange, worker?.id]);
 
   // Update elapsed time every second for active session
   useEffect(() => {
@@ -342,6 +352,28 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
     }
   };
 
+  // Navigated without a worker param: bail with a friendly state before any
+  // worker.* dereference below would throw.
+  if (!worker) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('common:buttons.back', 'Back')}</Text>
+          <View style={{ width: 30 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Ionicons name="alert-circle-outline" size={40} color={Colors.secondaryText} />
+          <Text style={{ fontSize: 14, color: Colors.secondaryText, marginTop: 8 }}>
+            {t('common:errors.notFound', 'Not found')}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const statusColor = getStatusColor(worker.status);
   const groupedHistory = groupHistoryByDate(history);
 
@@ -421,7 +453,9 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               {worker.email ? (
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
-                  onPress={() => Linking.openURL(`mailto:${worker.email}`)}
+                  onPress={() => Linking.openURL(`mailto:${worker.email}`).catch(() =>
+                    Alert.alert(t('common:alerts.error', 'Error'), t('common:messages.couldNotOpen', { item: worker.email }))
+                  )}
                 >
                   <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.primaryBlue + '10', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="mail-outline" size={16} color={Colors.primaryBlue} />
@@ -432,7 +466,9 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               {worker.phone ? (
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
-                  onPress={() => Linking.openURL(`tel:${worker.phone}`)}
+                  onPress={() => Linking.openURL(`tel:${worker.phone}`).catch(() =>
+                    Alert.alert(t('common:alerts.error', 'Error'), t('common:messages.couldNotOpen', { item: worker.phone }))
+                  )}
                 >
                   <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#10B981' + '10', alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="call-outline" size={16} color="#10B981" />
@@ -561,8 +597,11 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                     const url = Platform.select({
                       ios: `maps://maps.apple.com/?ll=${lat},${lng}&q=Clock-in Location`,
                       android: `geo:${lat},${lng}?q=${lat},${lng}(Clock-in Location)`,
+                      default: `https://maps.google.com/?q=${lat},${lng}`,
                     });
-                    Linking.openURL(url);
+                    Linking.openURL(url).catch(() =>
+                      Alert.alert(t('common:alerts.error', 'Error'), t('errors.couldNotOpenMaps', 'Could not open maps'))
+                    );
                   }}
                 >
                   <Ionicons name="location" size={18} color="#8B5CF6" />
@@ -830,8 +869,11 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                             const url = Platform.select({
                               ios: `maps://maps.apple.com/?ll=${session.location_lat},${session.location_lng}&q=Clock-in`,
                               android: `geo:${session.location_lat},${session.location_lng}?q=${session.location_lat},${session.location_lng}(Clock-in)`,
+                              default: `https://maps.google.com/?q=${session.location_lat},${session.location_lng}`,
                             });
-                            Linking.openURL(url);
+                            Linking.openURL(url).catch(() =>
+                              Alert.alert(t('common:alerts.error', 'Error'), t('errors.couldNotOpenMaps', 'Could not open maps'))
+                            );
                           }}
                         >
                           <Ionicons name="location-outline" size={13} color="#8B5CF6" />

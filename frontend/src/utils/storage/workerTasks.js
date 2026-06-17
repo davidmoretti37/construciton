@@ -1881,12 +1881,16 @@ export const restoreTasksToSpecificDate = async (projectId, dateToRestore) => {
  * @param {string} title      Task title (1-200 chars)
  * @param {string} startDate  YYYY-MM-DD
  * @param {string} [endDate]  YYYY-MM-DD; defaults to startDate
+ * @param {string} [ownerId]  owner_id to attribute the task to; defaults to
+ *   the current auth user. Supervisors must pass the PARENT owner's id so the
+ *   task lands on the same owner row the agenda is scoped to.
  * @returns {Promise<object|null>} Inserted row or null on error
  */
-export const createAdHocDayTask = async (projectId, title, startDate, endDate = null) => {
+export const createAdHocDayTask = async (projectId, title, startDate, endDate = null, ownerId = null) => {
   try {
     const userId = await getCurrentUserId();
-    if (!userId || !projectId || !title || !startDate) return null;
+    const effectiveOwnerId = ownerId || userId;
+    if (!effectiveOwnerId || !projectId || !title || !startDate) return null;
     const cleanTitle = String(title).trim().slice(0, 200);
     if (!cleanTitle) return null;
     const start = String(startDate);
@@ -1896,7 +1900,7 @@ export const createAdHocDayTask = async (projectId, title, startDate, endDate = 
     const { data, error } = await supabase
       .from('worker_tasks')
       .insert({
-        owner_id: userId,
+        owner_id: effectiveOwnerId,
         project_id: projectId,
         title: cleanTitle,
         start_date: start,
