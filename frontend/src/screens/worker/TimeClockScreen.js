@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +51,7 @@ export default function TimeClockScreen({ navigation }) {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [availableProjects, setAvailableProjects] = useState([]);
+  const [projectsError, setProjectsError] = useState(false);
   const [clockOutNotes, setClockOutNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [recentEntries, setRecentEntries] = useState([]);
@@ -62,10 +64,15 @@ export default function TimeClockScreen({ navigation }) {
   const [showIncompleteTasksModal, setShowIncompleteTasksModal] = useState(false);
   const [pendingOverdueTasks, setPendingOverdueTasks] = useState([]);
 
-  // Load worker data and active session
-  useEffect(() => {
-    loadWorkerData();
-  }, []);
+  // Load worker data and active session on mount and whenever the screen
+  // regains focus. Re-syncing on focus prevents stale session/projects/hours
+  // after navigating away (e.g. owner assigns/unassigns or remotely clocks
+  // the worker), which could otherwise show the wrong Clock In/Out state.
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkerData();
+    }, [])
+  );
 
   // Update elapsed time every second when clocked in
   useEffect(() => {
@@ -137,6 +144,7 @@ export default function TimeClockScreen({ navigation }) {
 
   const loadAssignedProjects = async (wId) => {
     try {
+      setProjectsError(false);
       // Fetch projects
       const { data, error } = await supabase
         .from('project_assignments')
@@ -146,6 +154,7 @@ export default function TimeClockScreen({ navigation }) {
 
       if (error) {
         console.error('Error fetching assigned projects:', error);
+        setProjectsError(true);
         return;
       }
 
@@ -169,6 +178,7 @@ export default function TimeClockScreen({ navigation }) {
       setAvailableProjects(all);
     } catch (error) {
       console.error('Error loading assigned projects:', error);
+      setProjectsError(true);
     }
   };
 
@@ -380,15 +390,31 @@ export default function TimeClockScreen({ navigation }) {
       setActionLoading(true);
       setShowProjectPicker(false);
 
+      // Re-fetch the active session right before inserting so a stale local
+      // state (another device, or a failed clock-out) can't trigger a second
+      // open clock-in row.
+      const existing = await getActiveClockIn(workerId);
+      if (existing) {
+        setActiveSession(existing);
+        Alert.alert(t('alerts.warning'), 'You are already clocked in.');
+        return;
+      }
+
       // Clock in immediately without waiting for location
       const session = await clockIn(workerId, projectId, null, null, servicePlanId);
 
       if (session) {
         setActiveSession(session);
-        Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock in' }));
-
-        // Get location in background and update the record
-        getLocationAndUpdate(session.id);
+        // clockIn() returns an alreadyClockedIn marker if it detected an open
+        // session at insert time (race with another device) — surface that
+        // instead of a misleading success.
+        if (session.alreadyClockedIn) {
+          Alert.alert(t('alerts.warning'), 'You are already clocked in.');
+        } else {
+          Alert.alert(t('alerts.success'), t('messages.savedSuccessfully', { item: 'clock in' }));
+          // Get location in background and update the record
+          getLocationAndUpdate(session.id);
+        }
       } else {
         Alert.alert(t('alerts.error'), t('messages.failedToSave', { item: 'clock in' }));
       }
@@ -410,6 +436,19 @@ export default function TimeClockScreen({ navigation }) {
 
     // If no overdue tasks, proceed with clock out
     await performClockOut();
+  };
+
+  // Compute elapsed time directly from the clock-in timestamp. Used for the
+  // Clock Out modal so the displayed total doesn't drift from the persisted
+  // hours when the 1s interval was paused while backgrounded.
+  const computeElapsed = (clockInString) => {
+    if (!clockInString) return '00:00:00';
+    const diff = new Date() - new Date(clockInString);
+    if (!(diff >= 0)) return '00:00:00';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
   const formatTime = (dateString) => {
@@ -509,7 +548,9 @@ export default function TimeClockScreen({ navigation }) {
               if (activeSession) {
                 setShowClockOutModal(true);
               } else {
-                if (availableProjects.length === 0) {
+                if (projectsError) {
+                  Alert.alert(t('alerts.error'), t('errors.loadingFailed'));
+                } else if (availableProjects.length === 0) {
                   if (!ownerId) {
                     Alert.alert(
                       t('alerts.warning'),
@@ -606,7 +647,24 @@ export default function TimeClockScreen({ navigation }) {
           </View>
 
           <ScrollView style={styles.modalContent}>
-            {availableProjects.map((project) => (
+            {projectsError ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="cloud-offline-outline" size={48} color={Colors.border} />
+                <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>{t('errors.loadingFailed')}</Text>
+                <TouchableOpacity
+                  style={[styles.clockOutCancelButton, { borderColor: Colors.border, paddingHorizontal: 32 }]}
+                  onPress={() => workerId && loadAssignedProjects(workerId)}
+                >
+                  <Text style={[styles.clockOutCancelText, { color: Colors.primaryText }]}>{t('buttons.retry')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : availableProjects.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="briefcase-outline" size={48} color={Colors.border} />
+                <Text style={[styles.emptyStateText, { color: Colors.secondaryText }]}>{t('emptyStates.noProjectsYet')}</Text>
+              </View>
+            ) : (
+              availableProjects.map((project) => (
               <TouchableOpacity
                 key={project.id}
                 style={[styles.projectOption, { backgroundColor: Colors.white }]}
@@ -624,7 +682,8 @@ export default function TimeClockScreen({ navigation }) {
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />
               </TouchableOpacity>
-            ))}
+              ))
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -646,7 +705,7 @@ export default function TimeClockScreen({ navigation }) {
           <ScrollView style={styles.modalContent} contentContainerStyle={{ flexGrow: 1 }}>
             <View style={styles.clockOutSection}>
               <Text style={[styles.clockOutLabel, { color: Colors.secondaryText }]}>Total Time Worked</Text>
-              <Text style={[styles.clockOutTime, { color: Colors.primaryText }]}>{elapsedTime}</Text>
+              <Text style={[styles.clockOutTime, { color: Colors.primaryText }]}>{computeElapsed(activeSession?.clock_in)}</Text>
             </View>
 
             <View style={styles.clockOutSection}>

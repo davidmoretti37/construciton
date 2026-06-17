@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -28,7 +29,7 @@ const workerProjectDetailCache = new Map();
 export default function WorkerProjectDetailScreen({ route, navigation }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { project } = route.params;
+  const { project } = route.params || {};
 
   // Seed useState defaults from the in-memory cache so return visits
   // render the previous snapshot instantly while the background refresh
@@ -53,80 +54,90 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
   const [expenses, setExpenses] = useState(cached?.expenses || []);
   const [loadingExpenses, setLoadingExpenses] = useState(!cached);
 
+  // This worker's workers.id, hoisted to state so task-completion handlers can
+  // attribute completed_by. Resolved inside the loader on each focus.
+  const [workerId, setWorkerId] = useState(null);
+
   // Single parallel fetch — replaces four sequential `useEffect`s that each
   // awaited their own roundtrip. Fires all the supabase calls simultaneously
   // via Promise.allSettled so one slow/failed query doesn't block the others,
   // then caches the snapshot for instant rehydration on next navigation.
-  useEffect(() => {
-    if (!project?.id) return;
-    let cancelled = false;
+  // Re-runs on every focus (via useFocusEffect) so the cached snapshot
+  // revalidates when workers return from detail screens.
+  useFocusEffect(
+    useCallback(() => {
+      if (!project?.id) return;
+      let cancelled = false;
 
-    (async () => {
-      // Resolve this worker's workers.id so daily reports + expenses are
-      // scoped to what THIS worker submitted (not all crew on the project).
-      const userId = await getCurrentUserId();
-      let workerId = null;
-      if (userId) {
-        const { data: w } = await supabase
-          .from('workers')
-          .select('id')
-          .eq('user_id', userId)
-          .maybeSingle();
-        workerId = w?.id || null;
-      }
+      (async () => {
+        // Resolve this worker's workers.id so daily reports + expenses are
+        // scoped to what THIS worker submitted (not all crew on the project).
+        const userId = await getCurrentUserId();
+        let resolvedWorkerId = null;
+        if (userId) {
+          const { data: w } = await supabase
+            .from('workers')
+            .select('id')
+            .eq('user_id', userId)
+            .maybeSingle();
+          resolvedWorkerId = w?.id || null;
+        }
+        if (cancelled) return;
+        setWorkerId(resolvedWorkerId);
 
-      const expensesPromise = workerId
-        ? supabase
-            .from('project_transactions')
-            .select('id, project_id, type, category, subcategory, description, amount, date, worker_id, receipt_url, line_items, notes, created_at')
-            .eq('project_id', project.id)
-            .eq('worker_id', workerId)
-            .eq('type', 'expense')
-            .order('date', { ascending: false })
-            .limit(100)
-            .then(r => r.data || [])
-        : Promise.resolve([]);
+        const expensesPromise = resolvedWorkerId
+          ? supabase
+              .from('project_transactions')
+              .select('id, project_id, type, category, subcategory, description, amount, date, worker_id, receipt_url, line_items, notes, created_at')
+              .eq('project_id', project.id)
+              .eq('worker_id', resolvedWorkerId)
+              .eq('type', 'expense')
+              .order('date', { ascending: false })
+              .limit(100)
+              .then(r => r.data || [])
+          : Promise.resolve([]);
 
-      const [docsRes, phasesRes, progressRes, reportsRes, expensesRes] = await Promise.allSettled([
-        fetchProjectDocuments(project.id, true),
-        fetchProjectPhases(project.id),
-        calculateProjectProgressFromTasks(project.id),
-        fetchDailyReports(project.id, { workerView: true, workerId: workerId || undefined }),
-        expensesPromise,
-      ]);
-      if (cancelled) return;
+        const [docsRes, phasesRes, progressRes, reportsRes, expensesRes] = await Promise.allSettled([
+          fetchProjectDocuments(project.id, true),
+          fetchProjectPhases(project.id),
+          calculateProjectProgressFromTasks(project.id),
+          fetchDailyReports(project.id, { workerView: true, workerId: resolvedWorkerId || undefined }),
+          expensesPromise,
+        ]);
+        if (cancelled) return;
 
-      const freshDocs = docsRes.status === 'fulfilled' ? (docsRes.value || []) : [];
-      const freshPhases = phasesRes.status === 'fulfilled'
-        ? (phasesRes.value || [])
-        : (project.project_phases || []);
-      const freshProgress = progressRes.status === 'fulfilled'
-        ? (progressRes.value?.progress ?? 0)
-        : 0;
-      const freshReports = reportsRes.status === 'fulfilled' ? (reportsRes.value || []) : [];
-      const freshExpenses = expensesRes.status === 'fulfilled' ? (expensesRes.value || []) : [];
+        const freshDocs = docsRes.status === 'fulfilled' ? (docsRes.value || []) : [];
+        const freshPhases = phasesRes.status === 'fulfilled'
+          ? (phasesRes.value || [])
+          : (project.project_phases || []);
+        const freshProgress = progressRes.status === 'fulfilled'
+          ? (progressRes.value?.progress ?? 0)
+          : 0;
+        const freshReports = reportsRes.status === 'fulfilled' ? (reportsRes.value || []) : [];
+        const freshExpenses = expensesRes.status === 'fulfilled' ? (expensesRes.value || []) : [];
 
-      setDocuments(freshDocs);
-      setLoadingDocuments(false);
-      setPhases(freshPhases);
-      setLoadingPhases(false);
-      setOverallProgress(freshProgress);
-      setReports(freshReports);
-      setLoadingReports(false);
-      setExpenses(freshExpenses);
-      setLoadingExpenses(false);
+        setDocuments(freshDocs);
+        setLoadingDocuments(false);
+        setPhases(freshPhases);
+        setLoadingPhases(false);
+        setOverallProgress(freshProgress);
+        setReports(freshReports);
+        setLoadingReports(false);
+        setExpenses(freshExpenses);
+        setLoadingExpenses(false);
 
-      workerProjectDetailCache.set(project.id, {
-        documents: freshDocs,
-        phases: freshPhases,
-        overallProgress: freshProgress,
-        reports: freshReports,
-        expenses: freshExpenses,
-      });
-    })();
+        workerProjectDetailCache.set(project.id, {
+          documents: freshDocs,
+          phases: freshPhases,
+          overallProgress: freshProgress,
+          reports: freshReports,
+          expenses: freshExpenses,
+        });
+      })();
 
-    return () => { cancelled = true; };
-  }, [project?.id]);
+      return () => { cancelled = true; };
+    }, [project?.id])
+  );
 
   // Toggle phase task completion
   const handlePhaseTaskToggle = async (phase, taskItem, taskIndex) => {
@@ -150,7 +161,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
 
     try {
       const success = newCompleted
-        ? await completeTask(taskItem.workerTaskId)
+        ? await completeTask(taskItem.workerTaskId, workerId)
         : await uncompleteTask(taskItem.workerTaskId);
 
       if (!success) {
@@ -240,6 +251,30 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
 
   const successColor = Colors.success || '#10B981';
   const inactiveColor = Colors.secondaryText;
+
+  // Guard against navigation without project params — mirrors the effect's
+  // `if (!project?.id)` guard so render doesn't crash on `project.name`.
+  if (!project?.id) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+            Project
+          </Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.emptyDocuments}>
+          <Ionicons name="alert-circle-outline" size={36} color={Colors.secondaryText} />
+          <Text style={[styles.emptyDocumentsText, { color: Colors.secondaryText }]}>
+            Project not found
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
@@ -610,7 +645,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                       {doc.file_name}
                     </Text>
                     <Text style={[styles.documentDate, { color: Colors.secondaryText }]}>
-                      {new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={Colors.secondaryText} />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -33,6 +35,9 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
   const [report, setReport] = useState(passedReport || null);
   const [loading, setLoading] = useState(!passedReport && !!reportId);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [checklistError, setChecklistError] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [checklistItems, setChecklistItems] = useState([]);
@@ -42,6 +47,15 @@ export default function DailyReportDetailScreen({ navigation, route }) {
     if (!passedReport && reportId) loadReport();
   }, [reportId]);
 
+  // Re-fetch the latest report whenever the screen regains focus so an edit made
+  // elsewhere isn't masked by the snapshot captured at navigation time.
+  useFocusEffect(
+    useCallback(() => {
+      const id = report?.id || reportId;
+      if (id) loadReport(id);
+    }, [report?.id, reportId])
+  );
+
   // Load matching daily checklist entries
   useEffect(() => {
     if (report) loadChecklistData();
@@ -49,45 +63,79 @@ export default function DailyReportDetailScreen({ navigation, route }) {
 
   const loadChecklistData = async () => {
     try {
+      setChecklistError(false);
       const projectId = report.project_id;
       const servicePlanId = report.service_plan_id;
       const reportDate = report.report_date;
       if (!reportDate || (!projectId && !servicePlanId)) return;
 
-      // Find the daily_service_report for this date + parent
+      // daily_service_reports.reporter_id is the AUTH-USER id, but report.worker_id is
+      // the workers-table PK — they are different namespaces. Resolve the author's auth
+      // id from workers.user_id so we scope to the same author (worker reports) and a
+      // sibling worker's report on the same project/date can't bleed into this view.
+      // Owner/supervisor reports have worker_id null -> no extra scope (deterministic
+      // ordering below still prevents non-determinism).
+      let reporterAuthId = null;
+      if (report.worker_id) {
+        const { data: workerRow } = await supabase
+          .from('workers')
+          .select('user_id')
+          .eq('id', report.worker_id)
+          .single();
+        reporterAuthId = workerRow?.user_id || null;
+      }
+
       let query = supabase
         .from('daily_service_reports')
         .select('id')
         .eq('report_date', reportDate);
       if (projectId) query = query.eq('project_id', projectId);
       else query = query.eq('service_plan_id', servicePlanId);
+      if (reporterAuthId) query = query.eq('reporter_id', reporterAuthId);
 
-      const { data: serviceReports } = await query.limit(1);
+      const { data: serviceReports, error: srErr } = await query
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (srErr) throw srErr;
       if (!serviceReports || serviceReports.length === 0) return;
 
-      // Fetch entries for the first matching report
-      const { data: entries } = await supabase
+      // Fetch entries for the matching report
+      const { data: entries, error: entErr } = await supabase
         .from('daily_report_entries')
         .select('*')
         .eq('report_id', serviceReports[0].id)
         .order('sort_order', { ascending: true });
+      if (entErr) throw entErr;
 
       if (entries) {
         setChecklistItems(entries.filter(e => e.entry_type === 'checklist'));
         setLaborItems(entries.filter(e => e.entry_type === 'labor'));
       }
-    } catch (e) { /* not critical */ }
+    } catch (e) {
+      setChecklistError(true);
+    }
   };
 
-  const loadReport = async () => {
+  const loadReport = async (id = reportId) => {
+    if (!id) return;
     try {
       setLoading(true);
-      setReport(await fetchDailyReportById(reportId));
-    } catch (error) {
-      console.error('Error loading report:', error);
+      setLoadError(false);
+      const data = await fetchDailyReportById(id);
+      // fetchDailyReportById returns null both for a missing row and on a
+      // network/permission failure; only overwrite an existing report when we
+      // actually got data, and flag the failure so we can offer a retry.
+      if (data) setReport(data);
+      else if (!report) setLoadError(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadReport(report?.id || reportId);
+    setRefreshing(false);
   };
 
   const formatDate = (dateString) => {
@@ -122,7 +170,19 @@ export default function DailyReportDetailScreen({ navigation, route }) {
         </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={Colors.secondaryText} />
-          <Text style={[{ color: Colors.secondaryText, marginTop: 8 }]}>Report not found</Text>
+          <Text style={[{ color: Colors.secondaryText, marginTop: 8 }]}>
+            {loadError ? "Couldn't load report" : 'Report not found'}
+          </Text>
+          {loadError && (
+            <TouchableOpacity
+              onPress={() => loadReport(reportId)}
+              style={[styles.retryBtn, { borderColor: ACCENT }]}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh-outline" size={16} color={ACCENT} />
+              <Text style={[styles.retryText, { color: ACCENT }]}>Retry</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -159,7 +219,12 @@ export default function DailyReportDetailScreen({ navigation, route }) {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
+      >
 
         {/* Date & Project */}
         <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
@@ -194,6 +259,14 @@ export default function DailyReportDetailScreen({ navigation, route }) {
           <Section icon="construct-outline" title="Work Performed">
             <Text style={[styles.bodyText, { color: Colors.primaryText }]}>{workDone}</Text>
           </Section>
+        )}
+
+        {/* Checklist/crew load failure indicator */}
+        {checklistError && checklistItems.length === 0 && laborItems.length === 0 && (
+          <View style={styles.inlineError}>
+            <Ionicons name="cloud-offline-outline" size={14} color={Colors.secondaryText} />
+            <Text style={[styles.inlineErrorText, { color: Colors.secondaryText }]}>Checklist data couldn't be loaded</Text>
+          </View>
         )}
 
         {/* Daily Checklist */}
@@ -394,4 +467,10 @@ const styles = StyleSheet.create({
 
   // Crew
   crewBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+
+  // Error states
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  retryText: { fontSize: 14, fontWeight: '600' },
+  inlineError: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
+  inlineErrorText: { fontSize: 12 },
 });
