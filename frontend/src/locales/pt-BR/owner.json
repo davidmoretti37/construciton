@@ -207,7 +207,12 @@
     "invoice": "fatura",
     "invoices": "faturas",
     "allCurrent": "Tudo em Dia!",
-    "noOutstanding": "Nenhuma fatura pendente"
+    "noOutstanding": "Nenhuma fatura pendente",
+    "loadFailedTitle": "Não foi possível carregar o relatório",
+    "loadFailedMessage": "Algo deu errado ao carregar o relatório de vencimentos.",
+    "retry": "Tentar Novamente",
+    "exportFailedTitle": "Falha na Exportação",
+    "exportFailedMessage": "Não foi possível exportar o CSV. Tente novamente."
   },
   "tax": {
     "title": "Resumo Fiscal",

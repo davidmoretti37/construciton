@@ -28,7 +28,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -200,6 +200,24 @@ const PendingInviteCard = ({ invite, onCancel, Colors, tOwner }) => (
   </View>
 );
 
+// Per-section error / retry affordance
+const SectionError = ({ onRetry, Colors }) => (
+  <View style={styles.errorSection}>
+    <Ionicons name="cloud-offline-outline" size={22} color={OWNER_COLORS.error} />
+    <Text style={[styles.errorSectionText, { color: Colors.secondaryText }]}>
+      Couldn't load. Check your connection.
+    </Text>
+    <TouchableOpacity
+      onPress={onRetry}
+      style={[styles.retryButton, { borderColor: OWNER_COLORS.primary }]}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="refresh" size={16} color={OWNER_COLORS.primary} />
+      <Text style={[styles.retryButtonText, { color: OWNER_COLORS.primary }]}>Retry</Text>
+    </TouchableOpacity>
+  </View>
+);
+
 export default function OwnerWorkersScreen() {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -266,6 +284,9 @@ export default function OwnerWorkersScreen() {
   const [supervisorsLoading, setSupervisorsLoading] = useState(true);
   const [workersLoading, setWorkersLoading] = useState(true);
   const [subcontractorsLoading, setSubcontractorsLoading] = useState(true);
+  const [supervisorsError, setSupervisorsError] = useState(false);
+  const [workersError, setWorkersError] = useState(false);
+  const [subcontractorsError, setSubcontractorsError] = useState(false);
   // Filter + search for the Team tab
   const [teamFilter, setTeamFilter] = useState('all'); // all|supervisors|workers|subcontractors
   const [searchOpen, setSearchOpen] = useState(false);
@@ -304,6 +325,7 @@ export default function OwnerWorkersScreen() {
     if (!user?.id) return;
 
     try {
+      setSupervisorsError(false);
       const { data: supervisorData, error: rpcError } = await supabase.rpc('get_owner_supervisors', {
         p_owner_id: user.id,
       });
@@ -375,7 +397,7 @@ export default function OwnerWorkersScreen() {
 
       setPendingInvites(inviteData || []);
     } catch (error) {
-      // Supervisor fetch error handled silently
+      setSupervisorsError(true);
     } finally {
       setSupervisorsLoading(false);
       setRefreshing(false);
@@ -386,6 +408,7 @@ export default function OwnerWorkersScreen() {
   const fetchWorkers = useCallback(async () => {
     setWorkersLoading(true);
     try {
+      setWorkersError(false);
       const data = await fetchWorkersForOwner();
       const workerList = data || [];
 
@@ -429,7 +452,7 @@ export default function OwnerWorkersScreen() {
         setWorkers([]);
       }
     } catch (error) {
-      // Worker fetch error handled silently
+      setWorkersError(true);
     } finally {
       setWorkersLoading(false);
     }
@@ -439,6 +462,7 @@ export default function OwnerWorkersScreen() {
   const fetchSubcontractors = useCallback(async () => {
     try {
       setSubcontractorsLoading(true);
+      setSubcontractorsError(false);
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       const apiUrl = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_BACKEND_URL) || 'http://localhost:3000';
@@ -450,9 +474,11 @@ export default function OwnerWorkersScreen() {
         setSubcontractors(json.subs || []);
       } else {
         setSubcontractors([]);
+        setSubcontractorsError(true);
       }
     } catch (e) {
       setSubcontractors([]);
+      setSubcontractorsError(true);
     } finally {
       setSubcontractorsLoading(false);
     }
@@ -465,6 +491,17 @@ export default function OwnerWorkersScreen() {
       fetchSubcontractors();
     }
   }, [activeTab, fetchSupervisors, fetchWorkers, fetchSubcontractors]);
+
+  // Refresh team-tab data whenever the screen regains focus (avoids stale data)
+  useFocusEffect(
+    useCallback(() => {
+      if (activeTab === 'team') {
+        fetchSupervisors();
+        fetchWorkers();
+        fetchSubcontractors();
+      }
+    }, [activeTab, fetchSupervisors, fetchWorkers, fetchSubcontractors])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -894,6 +931,8 @@ export default function OwnerWorkersScreen() {
                     <View style={styles.loadingContainer}>
                       <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
                     </View>
+                  ) : supervisorsError ? (
+                    <SectionError onRetry={fetchSupervisors} Colors={Colors} />
                   ) : filteredSupervisors.length > 0 ? (
                     filteredSupervisors.map((supervisor, index) => (
                       <SupervisorCard
@@ -924,6 +963,8 @@ export default function OwnerWorkersScreen() {
                     <View style={styles.loadingContainer}>
                       <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
                     </View>
+                  ) : workersError ? (
+                    <SectionError onRetry={fetchWorkers} Colors={Colors} />
                   ) : filteredWorkers.length > 0 ? (
                     filteredWorkers.map((worker) => (
                       <WorkerCardHorizontal
@@ -953,6 +994,8 @@ export default function OwnerWorkersScreen() {
                     <View style={styles.loadingContainer}>
                       <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
                     </View>
+                  ) : subcontractorsError ? (
+                    <SectionError onRetry={fetchSubcontractors} Colors={Colors} />
                   ) : filteredSubs.length > 0 ? (
                     filteredSubs.map((sub) => (
                       <TouchableOpacity
@@ -1689,6 +1732,28 @@ const styles = StyleSheet.create({
   emptySectionText: {
     fontSize: FontSizes.body,
     textAlign: 'center',
+  },
+  errorSection: {
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorSectionText: {
+    fontSize: FontSizes.body,
+    textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  retryButtonText: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
   },
   // Subcontractor row styles
   subRow: {

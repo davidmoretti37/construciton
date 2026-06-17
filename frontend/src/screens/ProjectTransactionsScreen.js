@@ -68,7 +68,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     }
   }, [projectId, servicePlanId, isServicePlan]);
 
-  const { data: rawTransactions, loading, refreshing, refresh, optimisticUpdate } = useCachedFetch(
+  const { data: rawTransactions, loading, refreshing, error, refresh, optimisticUpdate } = useCachedFetch(
     `transactions:${entityId}`,
     fetchTransactions,
     { staleTTL: 15000, maxAge: 3 * 60 * 1000 }
@@ -248,6 +248,38 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     );
   }
 
+  // ── Error State (load failed with no data to show) ───────
+  if (error && transactions.length === 0 && !loading && !refreshing) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('owner:transactions.transactionHistory')}</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.emptyState}>
+          <Ionicons name="cloud-offline-outline" size={56} color="#EF4444" />
+          <Text style={[styles.emptyStateText, { color: Colors.primaryText }]}>
+            {t('common:messages.failedToLoad', { item: t('owner:transactions.transactionHistory') })}
+          </Text>
+          <Text style={[styles.emptyStateSubtext, { color: Colors.secondaryText }]}>
+            {t('common:errors.tryAgain')}
+          </Text>
+          <TouchableOpacity
+            onPress={refresh}
+            style={[styles.addButton, { backgroundColor: Colors.primaryBlue, marginTop: 8 }]}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="refresh" size={18} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>{t('common:buttons.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
@@ -270,7 +302,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
 
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
-        {(!transactionType || transactionType !== 'income') && (
+        {typeFilter !== 'income' && (
           <View style={[styles.summaryCard, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('owner:transactions.totalExpenses')}</Text>
             <Text style={[styles.summaryAmount, { color: '#EF4444' }]}>
@@ -278,7 +310,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
             </Text>
           </View>
         )}
-        {(!transactionType || transactionType !== 'expense') && (
+        {typeFilter !== 'expense' && (
           <View style={[styles.summaryCard, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('owner:transactions.totalIncome')}</Text>
             <Text style={[styles.summaryAmount, { color: '#10B981' }]}>
@@ -439,6 +471,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
           <TouchableOpacity
             style={[styles.transactionCard, { backgroundColor: Colors.cardBackground }]}
             onPress={() => handleViewTransaction(transaction)}
+            onLongPress={() => handleDeleteTransaction(transaction)}
             activeOpacity={0.7}
           >
             <View style={styles.transactionLeft}>

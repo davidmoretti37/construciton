@@ -206,7 +206,12 @@
     "invoice": "invoice",
     "invoices": "invoices",
     "allCurrent": "All Caught Up!",
-    "noOutstanding": "No outstanding invoices"
+    "noOutstanding": "No outstanding invoices",
+    "loadFailedTitle": "Couldn't load report",
+    "loadFailedMessage": "Something went wrong loading the aging report.",
+    "retry": "Try Again",
+    "exportFailedTitle": "Export Failed",
+    "exportFailedMessage": "Couldn't export the CSV. Please try again."
   },
   "tax": {
     "title": "Tax Summary",

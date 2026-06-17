@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
@@ -57,6 +58,15 @@ export default function NotificationsScreen({ navigation }) {
     await refreshNotifications();
     setRefreshing(false);
   }, [refreshNotifications]);
+
+  // Refresh on focus so the bell never shows stale data when returning to
+  // this screen. Don't toggle isLoading — RefreshControl / silent refresh own
+  // their own spinners; the skeleton is reserved for the first/full load.
+  useFocusEffect(
+    useCallback(() => {
+      refreshNotifications();
+    }, [refreshNotifications])
+  );
 
   const handleNotificationPress = useCallback(async (notification) => {
     // Mark as read
@@ -390,7 +400,9 @@ export default function NotificationsScreen({ navigation }) {
       </View>
 
       {/* Content */}
-      {isLoading ? (
+      {/* Skeleton only on the first/full load — never on pull-to-refresh or
+          refresh-on-focus, where existing data stays visible. */}
+      {isLoading && notifications.length === 0 ? (
         <View style={{ padding: 16 }}>
           <SkeletonBox width="30%" height={12} borderRadius={4} style={{ marginBottom: 12 }} />
           <SkeletonCard lines={2} showAvatar style={{ marginBottom: 8 }} />

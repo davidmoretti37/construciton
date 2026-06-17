@@ -36,7 +36,7 @@ export default function PnLWidget({ pnl, size, editMode, onPress }) {
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <Text style={styles.label}>THIS MONTH</Text>
+        <Text style={styles.label}>ALL TIME</Text>
         <Text style={styles.revenue}>{fmtK(pnl.revenue)}</Text>
 
         <View style={styles.pills}>

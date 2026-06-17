@@ -61,6 +61,7 @@ export default function FinancialReportScreen() {
   const [projects, setProjects] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [businessInfo, setBusinessInfo] = useState({});
@@ -69,6 +70,7 @@ export default function FinancialReportScreen() {
   const [overheadItems, setOverheadItems] = useState([]);
 
   const loadData = useCallback(async () => {
+    setError(null);
     try {
       const [projectsData, profile] = await Promise.all([
         fetchProjectsForOwner(),
@@ -108,6 +110,7 @@ export default function FinancialReportScreen() {
       processOverdueRecurring().catch(() => {});
     } catch (error) {
       console.error('Error loading financial data:', error);
+      setError(error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -217,6 +220,36 @@ export default function FinancialReportScreen() {
           <SkeletonCard lines={3} />
           <SkeletonCard lines={3} />
         </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (error && !refreshing) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('financial.title')}</Text>
+          <View style={styles.backButton}>
+            <Ionicons name="download-outline" size={22} color={Colors.border} />
+          </View>
+        </View>
+        <View style={styles.scrollContent}>
+          <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]}>
+            <Ionicons name="alert-circle-outline" size={40} color={OWNER_COLORS.error} />
+            <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('common:errors.tryAgain')}</Text>
+            <TouchableOpacity
+              style={[styles.toggleBtn, { backgroundColor: OWNER_COLORS.primary, flex: 0, paddingHorizontal: Spacing.lg }]}
+              onPress={loadData}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh" size={14} color="#FFF" />
+              <Text style={[styles.toggleText, { color: '#FFF' }]}>{t('common:buttons.retry')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </SafeAreaView>
     );
   }

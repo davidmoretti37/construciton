@@ -55,6 +55,7 @@ export default function CompanyOverheadScreen() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
@@ -66,10 +67,12 @@ export default function CompanyOverheadScreen() {
 
   const loadData = useCallback(async () => {
     try {
+      setError(false);
       const data = await fetchRecurringExpenses();
       setItems(data);
     } catch (error) {
       console.error('Error loading overhead:', error);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -198,8 +201,20 @@ export default function CompanyOverheadScreen() {
           </View>
         )}
 
-        {/* Items List */}
-        {items.length === 0 ? (
+        {/* Error state — distinct from empty */}
+        {error && items.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]}>
+            <Ionicons name="cloud-offline-outline" size={48} color="#EF4444" />
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>Couldn't Load Expenses</Text>
+            <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
+              Something went wrong fetching your overhead expenses. Check your connection and try again.
+            </Text>
+            <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: ACCENT }]} onPress={() => { setLoading(true); loadData(); }}>
+              <Ionicons name="refresh" size={18} color="#FFF" />
+              <Text style={styles.emptyBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : items.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]}>
             <Ionicons name="business-outline" size={48} color={Colors.secondaryText} />
             <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>No Overhead Expenses</Text>

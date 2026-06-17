@@ -15,6 +15,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
   const [data, setData] = useState(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
 
   const load = useCallback(async (force = false) => {
     try {
+      if (mountedRef.current) setError(null);
       // Try cache first
       if (!force) {
         const cached = await AsyncStorage.getItem(`cache:${cacheKey}`);
@@ -64,13 +66,15 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
         setRefreshing(false);
       }
       await AsyncStorage.setItem(`cache:${cacheKey}`, JSON.stringify({ data: fresh, timestamp: Date.now() }));
-    } catch (error) {
+    } catch (err) {
       if (mountedRef.current) {
         setLoading(false);
         setRefreshing(false);
+        // Only surface a blocking error when we have no data to show
+        if (data === null) setError(err);
       }
     }
-  }, [cacheKey, fetchFn, staleTTL, maxAge]);
+  }, [cacheKey, fetchFn, staleTTL, maxAge, data]);
 
   // Auto-load on mount and when cacheKey/fetchFn changes
   useEffect(() => {
@@ -108,7 +112,7 @@ export function useCachedFetch(cacheKey, fetchFn, options = {}) {
     };
   }, [cacheKey]);
 
-  return { data, setData, loading, refreshing, refresh, reload: load, optimisticUpdate };
+  return { data, setData, loading, refreshing, error, refresh, reload: load, optimisticUpdate };
 }
 
 /**

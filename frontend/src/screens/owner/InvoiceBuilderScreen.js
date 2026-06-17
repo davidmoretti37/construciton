@@ -78,7 +78,12 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
 
   const [invoiceId, setInvoiceId] = useState(initialId);
   const [bootstrapping, setBootstrapping] = useState(true);
+  // If an initialId was passed but getInvoice returned nothing, the load failed.
+  // Track that so we don't fall through to a blank editable invoice and let
+  // auto-save overwrite the real one. null = no load attempted (new invoice).
+  const [bootstrapLoaded, setBootstrapLoaded] = useState(initialId ? false : null);
   const [saveState, setSaveState] = useState('idle');
+  const [sending, setSending] = useState(false);
   const [status, setStatus] = useState('draft');
   const [invoiceNumber, setInvoiceNumber] = useState(null);
 
@@ -114,6 +119,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
   const [notes, setNotes] = useState(seedDraft?.notes || '');
 
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [showTermsPicker, setShowTermsPicker] = useState(false);
   const [projects, setProjects] = useState([]);
   const [datePickerField, setDatePickerField] = useState(null);
 
@@ -122,6 +128,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
   const total = subtotal + taxAmount;
 
   // ───── Bootstrap ───────────────────────────────────────────────
+  const [bootstrapNonce, setBootstrapNonce] = useState(0);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -129,6 +136,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
         if (initialId) {
           const inv = await getInvoice(initialId);
           if (inv && !cancelled) {
+            setBootstrapLoaded(true);
             setInvoiceId(inv.id);
             setInvoiceNumber(inv.invoice_number ?? null);
             setStatus(inv.status || 'draft');
@@ -177,10 +185,22 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialId]);
+  }, [initialId, bootstrapNonce]);
+
+  const retryBootstrap = useCallback(() => {
+    setBootstrapping(true);
+    setBootstrapLoaded(false);
+    setBootstrapNonce((n) => n + 1);
+  }, []);
+
+  // True when initialId was given but the invoice never loaded (load failure).
+  const bootstrapFailed = !bootstrapping && bootstrapLoaded === false;
 
   // ───── Auto-save ──────────────────────────────────────────────
   const flushSave = useCallback(async () => {
+    // Never write if the requested invoice failed to load — auto-save would
+    // otherwise overwrite the real record with blank/partial data.
+    if (bootstrapLoaded === false) return;
     if (!clientName?.trim()) return;
     if (status !== 'draft') return;
     try {
@@ -237,17 +257,18 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
       console.warn('[Invoice Builder] save failed', e);
       setSaveState('error');
     }
-  }, [invoiceId, clientName, clientEmail, clientPhone, clientAddress, projectId, projectName, items, subtotal, taxRate, taxAmount, total, dueDate, paymentTerms, notes, status]);
+  }, [invoiceId, clientName, clientEmail, clientPhone, clientAddress, projectId, projectName, items, subtotal, taxRate, taxAmount, total, dueDate, paymentTerms, notes, status, bootstrapLoaded]);
 
   const flushSaveRef = useRef(flushSave);
   useEffect(() => { flushSaveRef.current = flushSave; }, [flushSave]);
 
   useEffect(() => {
     if (bootstrapping) return;
+    if (bootstrapLoaded === false) return;
     if (status !== 'draft') return;
     const t = setTimeout(() => { flushSaveRef.current(); }, 2000);
     return () => clearTimeout(t);
-  }, [bootstrapping, status, clientName, clientEmail, clientPhone, clientAddress, projectId, items, taxRate, dueDate, paymentTerms, notes]);
+  }, [bootstrapping, bootstrapLoaded, status, clientName, clientEmail, clientPhone, clientAddress, projectId, items, taxRate, dueDate, paymentTerms, notes]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
@@ -281,6 +302,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
 
   // ───── Send ────────────────────────────────────────────────────
   const handleSend = async () => {
+    if (sending) return;
     if (!clientName?.trim()) {
       Alert.alert('Add a client name'); setExpanded((s) => ({ ...s, basics: true })); return;
     }
@@ -292,6 +314,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
       Alert.alert('Add at least one line item'); setExpanded((s) => ({ ...s, lineItems: true })); return;
     }
     try {
+      setSending(true);
       setSaveState('saving');
       await flushSaveRef.current();
       if (!invoiceId) {
@@ -315,6 +338,8 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
       console.warn('[Invoice Builder] send failed', e);
       setSaveState('error');
       Alert.alert('Send failed', e?.message || 'Please try again.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -324,6 +349,41 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingBox}>
           <ActivityIndicator color={Colors.primaryBlue} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Requested invoice failed to load — don't show a blank editable form (it would
+  // auto-save over the real record). Offer a retry / back instead.
+  if (bootstrapFailed) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
+          </TouchableOpacity>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice</Text>
+          </View>
+          <View style={{ width: 26 }} />
+        </View>
+        <View style={styles.loadingBox}>
+          <Ionicons name="alert-circle-outline" size={40} color={Colors.secondaryText} />
+          <Text style={[styles.reviewValue, { marginTop: 12, textAlign: 'center' }]}>
+            Couldn't load this invoice
+          </Text>
+          <Text style={[styles.reviewSub, { textAlign: 'center', marginBottom: 16 }]}>
+            Check your connection and try again.
+          </Text>
+          <TouchableOpacity
+            style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue, paddingHorizontal: 28 }]}
+            onPress={retryBootstrap}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="refresh" size={18} color="#fff" />
+            <Text style={styles.sendBtnText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -468,13 +528,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
           <Field label="Payment terms" Colors={Colors} styles={styles}>
             <TouchableOpacity
               style={styles.input}
-              onPress={() => {
-                if (readOnly) return;
-                Alert.alert('Payment terms', null, [
-                  ...PAYMENT_TERMS.map((t) => ({ text: t, onPress: () => setPaymentTerms(t) })),
-                  { text: 'Cancel', style: 'cancel' },
-                ]);
-              }}
+              onPress={() => !readOnly && setShowTermsPicker(true)}
               activeOpacity={readOnly ? 1 : 0.7}
             >
               <Text style={styles.inputText}>{paymentTerms}</Text>
@@ -509,12 +563,17 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
           {!readOnly && (
             <>
               <TouchableOpacity
-                style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue }]}
+                style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue }, sending && { opacity: 0.6 }]}
                 onPress={handleSend}
                 activeOpacity={0.85}
+                disabled={sending}
               >
-                <Ionicons name="paper-plane-outline" size={18} color="#fff" />
-                <Text style={styles.sendBtnText}>Send Invoice</Text>
+                {sending ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Ionicons name="paper-plane-outline" size={18} color="#fff" />
+                )}
+                <Text style={styles.sendBtnText}>{sending ? 'Sending…' : 'Send Invoice'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.secondaryBtn, { borderColor: Colors.border }]}
@@ -569,6 +628,35 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
                   No projects yet.
                 </Text>
               }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment terms picker */}
+      <Modal visible={showTermsPicker} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: Colors.surface || Colors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Payment terms</Text>
+              <TouchableOpacity onPress={() => setShowTermsPicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={22} color={Colors.primaryText} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={PAYMENT_TERMS}
+              keyExtractor={(t) => t}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.projectRow}
+                  onPress={() => {
+                    setPaymentTerms(item);
+                    setShowTermsPicker(false);
+                  }}
+                >
+                  <Text style={[styles.projectName, { color: Colors.primaryText }]}>{item}</Text>
+                </TouchableOpacity>
+              )}
             />
           </View>
         </View>

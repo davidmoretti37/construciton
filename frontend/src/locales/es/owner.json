@@ -207,7 +207,12 @@
     "invoice": "factura",
     "invoices": "facturas",
     "allCurrent": "¡Todo al Día!",
-    "noOutstanding": "No hay facturas pendientes"
+    "noOutstanding": "No hay facturas pendientes",
+    "loadFailedTitle": "No se pudo cargar el informe",
+    "loadFailedMessage": "Algo salió mal al cargar el informe de antigüedad.",
+    "retry": "Reintentar",
+    "exportFailedTitle": "Error de Exportación",
+    "exportFailedMessage": "No se pudo exportar el CSV. Inténtalo de nuevo."
   },
   "tax": {
     "title": "Resumen Fiscal",

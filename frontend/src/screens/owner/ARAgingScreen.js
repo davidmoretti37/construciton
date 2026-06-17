@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,14 +51,17 @@ export default function ARAgingScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedClient, setExpandedClient] = useState(null);
+  const [error, setError] = useState(false);
   const autoExpandedRef = React.useRef(false);
 
   const loadData = useCallback(async () => {
     try {
+      setError(false);
       const result = await fetchAgingReport(projectId);
       setData(result);
     } catch (error) {
       console.error('Error loading aging data:', error);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -68,10 +72,10 @@ export default function ARAgingScreen() {
   React.useEffect(() => {
     if (autoExpandedRef.current || !clientFilter || !data?.clients) return;
     const match = data.clients.find(
-      (c) => c.client_name && c.client_name.toLowerCase() === clientFilter.toLowerCase()
+      (c) => c.name && c.name.toLowerCase() === clientFilter.toLowerCase()
     );
     if (match) {
-      setExpandedClient(match.client_name);
+      setExpandedClient(match.name);
       autoExpandedRef.current = true;
     }
   }, [clientFilter, data]);
@@ -89,9 +93,14 @@ export default function ARAgingScreen() {
 
   const handleExportCSV = useCallback(async () => {
     if (!data) return;
-    const allInvoices = data.clients.flatMap((c) => c.invoices);
-    await exportInvoicesCSV(allInvoices, 'ar-aging-report.csv');
-  }, [data]);
+    try {
+      const allInvoices = data.clients.flatMap((c) => c.invoices);
+      await exportInvoicesCSV(allInvoices, 'ar-aging-report.csv');
+    } catch (err) {
+      console.error('Error exporting CSV:', err);
+      Alert.alert(t('aging.exportFailedTitle'), t('aging.exportFailedMessage'));
+    }
+  }, [data, t]);
 
   const bucketLabels = {
     current: t('aging.current'),
@@ -106,6 +115,25 @@ export default function ARAgingScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1E40AF" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+        <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground, margin: Spacing.lg }]}>
+          <Ionicons name="cloud-offline-outline" size={48} color="#EF4444" />
+          <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('aging.loadFailedTitle')}</Text>
+          <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('aging.loadFailedMessage')}</Text>
+          <TouchableOpacity
+            onPress={() => { setLoading(true); loadData(); }}
+            style={[styles.retryBtn, { borderColor: '#1E40AF' }]}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.retryText, { color: '#1E40AF' }]}>{t('aging.retry')}</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -311,4 +339,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: FontSizes.body, fontWeight: '600' },
   emptyText: { fontSize: FontSizes.small, textAlign: 'center' },
+  retryBtn: {
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+  },
+  retryText: { fontSize: FontSizes.small, fontWeight: '600' },
 });
