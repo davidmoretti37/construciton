@@ -36,6 +36,7 @@ export default function ClientDashboardScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
+  const [error, setError] = useState(false);
   const [projectDetail, setProjectDetail] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [summaries, setSummaries] = useState([]);
@@ -44,6 +45,7 @@ export default function ClientDashboardScreen({ navigation }) {
   const [showViewer, setShowViewer] = useState(false);
 
   const loadData = useCallback(async () => {
+    setError(false);
     try {
       const result = await fetchDashboard();
 
@@ -72,6 +74,7 @@ export default function ClientDashboardScreen({ navigation }) {
       setData(result);
     } catch (e) {
       console.error('Dashboard load error:', e);
+      setError(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, [selectedProjectId, setProjects]);
 
@@ -88,6 +91,20 @@ export default function ClientDashboardScreen({ navigation }) {
 
   if (loading && !data) {
     return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={C.amber} /></View>;
+  }
+
+  if (error && !data) {
+    return (
+      <View style={styles.errorContainer}>
+        <View style={styles.emptyIcon}><Ionicons name="cloud-offline-outline" size={48} color={C.textMuted} /></View>
+        <Text style={styles.emptyTitle}>Couldn't load your projects</Text>
+        <Text style={styles.emptySubtext}>Something went wrong. Please check your connection and try again.</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); loadData(); }} activeOpacity={0.8}>
+          <Ionicons name="refresh" size={18} color="#fff" />
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   const projects = data?.projects || [];
@@ -146,7 +163,7 @@ export default function ClientDashboardScreen({ navigation }) {
                   <Ionicons name="alert-circle" size={18} color={C.amberDark} />
                   <Text style={styles.bannerTitle}>Payment Due</Text>
                 </View>
-                <Text style={styles.bannerAmount}>${totalOutstanding.toLocaleString()} — {outstandingInvoices.length} invoice{outstandingInvoices.length !== 1 ? 's' : ''}</Text>
+                <Text style={styles.bannerAmount}>${totalOutstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} — {outstandingInvoices.length} invoice{outstandingInvoices.length !== 1 ? 's' : ''}</Text>
               </View>
               <View style={styles.bannerPayBtn}>
                 <Text style={styles.bannerPayText}>Pay Now</Text>
@@ -317,17 +334,16 @@ export default function ClientDashboardScreen({ navigation }) {
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>SERVICE PLANS</Text>
                   {servicePlans.map((plan) => (
-                    <TouchableOpacity key={plan.id} style={styles.projectCard} activeOpacity={0.7}>
+                    <View key={plan.id} style={styles.projectCard}>
                       <View style={[styles.cardAccent, { backgroundColor: '#059669' }]} />
                       <View style={styles.cardBody}>
                         <View style={styles.cardTop}>
                           <Ionicons name="leaf" size={16} color="#059669" style={{ marginRight: 6 }} />
                           <Text style={styles.projectName} numberOfLines={1}>{plan.name}</Text>
-                          <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
                         </View>
                         <Text style={styles.projectLocation}>{plan.service_type} — {plan.status}</Text>
                       </View>
-                    </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
               )}
@@ -400,6 +416,9 @@ const getStatusColor = (s) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   loadingContainer: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
+  errorContainer: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.amber, paddingVertical: 14, paddingHorizontal: 28, borderRadius: 12, marginTop: 24 },
+  retryText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   scrollContent: { flexGrow: 1 },
   header: { paddingBottom: 24 },
   headerInner: { paddingHorizontal: 20, paddingTop: 8 },

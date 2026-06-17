@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,9 +35,17 @@ const STATUS = {
   unpaid: { bg: C.amberLight, text: C.amberText, label: 'DUE' },
 };
 
+// Safe date formatter — null/undefined/invalid dates render as an em dash
+// instead of epoch (1969/1970) or 'Invalid Date'.
+const fmt = (d) => {
+  const t = d ? new Date(d) : null;
+  return t && !isNaN(t.getTime()) ? t.toLocaleDateString() : '—';
+};
+
 export default function ClientMoneyScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [summary, setSummary] = useState(null);
   const [changeOrders, setChangeOrders] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
@@ -50,6 +59,7 @@ export default function ClientMoneyScreen({ navigation }) {
 
   const loadData = useCallback(async () => {
     try {
+      setError(false);
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
@@ -71,6 +81,7 @@ export default function ClientMoneyScreen({ navigation }) {
       }
     } catch (e) {
       console.error('Money load error:', e);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -94,6 +105,16 @@ export default function ClientMoneyScreen({ navigation }) {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [activeProject?.id, loadData]);
+
+  // When the user returns from the browser checkout (or any backgrounding),
+  // reload so a freshly-paid invoice reflects even if the realtime event was
+  // missed while the app was backgrounded.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') loadData();
+    });
+    return () => sub.remove();
+  }, [loadData]);
 
   const handlePay = async (invoice) => {
     try {
@@ -144,8 +165,11 @@ export default function ClientMoneyScreen({ navigation }) {
         // Fallback to browser checkout
         const result = await payInvoice(invoice.id);
         if (result?.url) {
+          // Open the hosted checkout in the browser. We deliberately do NOT
+          // reload here — the user hasn't paid yet. The status flips via the
+          // realtime invoices subscription (Stripe webhook), and the AppState
+          // 'active' listener reloads when they return to the app.
           await Linking.openURL(result.url);
-          setTimeout(() => loadData(), 2000);
         } else {
           Alert.alert(
             'Payment unavailable',
@@ -165,6 +189,29 @@ export default function ClientMoneyScreen({ navigation }) {
       <View style={styles.container}>
         <ClientHeader title="Money" subtitle={activeProject?.name} navigation={navigation} />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 100 }} />
+      </View>
+    );
+  }
+
+  // A failed load must look distinct from a genuinely empty account, otherwise
+  // the user sees $0 / 'No financial activity yet' and assumes nothing's wrong.
+  if (error && !summary) {
+    return (
+      <View style={styles.container}>
+        <ClientHeader title="Money" subtitle={activeProject?.name} navigation={navigation} />
+        <View style={styles.errorState}>
+          <Ionicons name="cloud-offline-outline" size={48} color={C.textMuted} />
+          <Text style={styles.emptyTitle}>Couldn't load your finances</Text>
+          <Text style={styles.emptySub}>Check your connection and try again.</Text>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => { setLoading(true); loadData(); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="refresh" size={16} color="#fff" />
+            <Text style={styles.payBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -332,7 +379,16 @@ export default function ClientMoneyScreen({ navigation }) {
 
         {/* Change Orders */}
         {changeOrders.filter(co => ['pending_client', 'viewed'].includes(co.status)).length > 0 && (
-          <View style={styles.coBanner}>
+          <TouchableOpacity
+            style={styles.coBanner}
+            activeOpacity={0.7}
+            onPress={() => {
+              const firstPending = changeOrders.find(co => ['pending_client', 'viewed'].includes(co.status));
+              if (firstPending) {
+                navigation.getParent()?.navigate('ClientChangeOrderDetail', { changeOrder: firstPending, project: activeProject });
+              }
+            }}
+          >
             <Ionicons name="alert-circle" size={20} color={C.amberDark} />
             <View style={{ flex: 1 }}>
               <Text style={styles.coBannerTitle}>
@@ -340,7 +396,8 @@ export default function ClientMoneyScreen({ navigation }) {
               </Text>
               <Text style={styles.coBannerSub}>Tap to review and approve</Text>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={18} color={C.amberDark} />
+          </TouchableOpacity>
         )}
 
         {changeOrders.length > 0 && (
@@ -373,7 +430,7 @@ export default function ClientMoneyScreen({ navigation }) {
                     <Text style={[styles.invoiceAmount, { fontSize: 20 }]}>
                       {parseFloat(co.total_amount || 0) >= 0 ? '+' : ''}${Math.abs(parseFloat(co.total_amount || 0)).toLocaleString()}
                     </Text>
-                    <Text style={styles.invoiceDate}>{new Date(co.created_at).toLocaleDateString()}</Text>
+                    <Text style={styles.invoiceDate}>{fmt(co.created_at)}</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -389,7 +446,7 @@ export default function ClientMoneyScreen({ navigation }) {
               const status = STATUS[invoice.status] || STATUS.unpaid;
               const amount = parseFloat(invoice.total || 0);
               const paid = parseFloat(invoice.amount_paid || 0);
-              const due = amount - paid;
+              const due = Math.max(0, amount - paid);
 
               return (
                 <View key={invoice.id} style={[styles.invoiceCard, styles.invoiceCardUnpaid]}>
@@ -403,24 +460,26 @@ export default function ClientMoneyScreen({ navigation }) {
                   <View style={[styles.invoiceRow, { marginTop: 8 }]}>
                     <Text style={styles.invoiceAmount}>${amount.toLocaleString()}</Text>
                     {invoice.due_date && (
-                      <Text style={styles.invoiceDate}>Due {new Date(invoice.due_date).toLocaleDateString()}</Text>
+                      <Text style={styles.invoiceDate}>Due {fmt(invoice.due_date)}</Text>
                     )}
                   </View>
-                  <TouchableOpacity
-                    style={styles.payBtn}
-                    onPress={() => handlePay(invoice)}
-                    disabled={paying === invoice.id}
-                    activeOpacity={0.8}
-                  >
-                    {paying === invoice.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Ionicons name="card-outline" size={16} color="#fff" />
-                        <Text style={styles.payBtnText}>Pay ${due.toLocaleString()}</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+                  {due > 0 && (
+                    <TouchableOpacity
+                      style={styles.payBtn}
+                      onPress={() => handlePay(invoice)}
+                      disabled={paying === invoice.id}
+                      activeOpacity={0.8}
+                    >
+                      {paying === invoice.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="card-outline" size={16} color="#fff" />
+                          <Text style={styles.payBtnText}>Pay ${due.toLocaleString()}</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
@@ -443,7 +502,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 <View style={[styles.invoiceRow, { marginTop: 8 }]}>
                   <Text style={[styles.invoiceAmount, { color: C.textSec }]}>${parseFloat(invoice.total || 0).toLocaleString()}</Text>
                   {invoice.paid_date && (
-                    <Text style={styles.invoiceDate}>Paid {new Date(invoice.paid_date).toLocaleDateString()}</Text>
+                    <Text style={styles.invoiceDate}>Paid {fmt(invoice.paid_date)}</Text>
                   )}
                 </View>
               </View>
@@ -502,7 +561,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activityTitle}>{est.label}</Text>
                   <Text style={styles.activitySub}>
-                    {est.status?.charAt(0).toUpperCase() + est.status?.slice(1)} · {new Date(est.occurred_at).toLocaleDateString()}
+                    {est.status?.charAt(0).toUpperCase() + est.status?.slice(1)} · {fmt(est.occurred_at)}
                   </Text>
                 </View>
                 <Text style={styles.activityAmount}>${(est.amount || 0).toLocaleString()}</Text>
@@ -521,8 +580,8 @@ export default function ClientMoneyScreen({ navigation }) {
               const iconBg = evt.source === 'invoice' ? '#DBEAFE' : '#FEF3C7';
               const iconColor = evt.source === 'invoice' ? '#1E40AF' : C.amberDark;
               const subText = evt.source === 'invoice'
-                ? `${evt.status?.toUpperCase() || ''} · ${new Date(evt.occurred_at).toLocaleDateString()}`
-                : `Change order · ${(evt.raw_status || evt.status || '').replace(/_/g, ' ')} · ${new Date(evt.occurred_at).toLocaleDateString()}`;
+                ? `${evt.status?.toUpperCase() || ''} · ${fmt(evt.occurred_at)}`
+                : `Change order · ${(evt.raw_status || evt.status || '').replace(/_/g, ' ')} · ${fmt(evt.occurred_at)}`;
               return (
                 <View key={evt.id} style={styles.activityRow}>
                   <View style={[styles.activityIcon, { backgroundColor: iconBg }]}>
@@ -612,7 +671,14 @@ const styles = StyleSheet.create({
   // Empty
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 80 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: '#374151', marginTop: 12 },
-  emptySub: { fontSize: 14, color: C.textMuted, marginTop: 4 },
+  emptySub: { fontSize: 14, color: C.textMuted, marginTop: 4, textAlign: 'center' },
+
+  // Error
+  errorState: { alignItems: 'center', justifyContent: 'center', marginTop: 80, paddingHorizontal: 32 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: C.amber, paddingVertical: 13, paddingHorizontal: 28, borderRadius: 12, marginTop: 20,
+  },
 
   // Activity / estimate rows (timeline)
   activityRow: {

@@ -29,6 +29,7 @@ export default function SignDocumentScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [declining, setDeclining] = useState(false);
 
   useEffect(() => {
     if (!token) { setError('Missing signing token'); setLoading(false); return; }
@@ -73,6 +74,7 @@ export default function SignDocumentScreen() {
   };
 
   const handleDecline = async () => {
+    if (submitting || declining) return;
     Alert.alert(
       t('esign.decline_title', 'Decline to sign'),
       t('esign.decline_body', 'Are you sure you want to decline?'),
@@ -82,19 +84,31 @@ export default function SignDocumentScreen() {
           text: t('common.yes', 'Yes'),
           style: 'destructive',
           onPress: async () => {
+            setDeclining(true);
             try {
-              await fetch(`${API_URL}/api/esign/decline/${token}`, {
+              const res = await fetch(`${API_URL}/api/esign/decline/${token}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
               });
+              const json = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(json.error || 'Failed to decline');
               navigation.goBack();
             } catch (err) {
               Alert.alert(t('common.error', 'Error'), err.message);
+            } finally {
+              setDeclining(false);
             }
           },
         },
       ]
+    );
+  };
+
+  const handleEmptySignature = () => {
+    Alert.alert(
+      t('esign.signature_required_title', 'Signature required'),
+      t('esign.signature_required_body', 'Please sign inside the box before confirming.')
     );
   };
 
@@ -150,9 +164,13 @@ export default function SignDocumentScreen() {
         )}
 
         <Text style={[styles.label, { color: Colors.secondaryText }]}>{t('esign.sign_below', 'Sign below')}</Text>
-        <SignaturePad onConfirm={handleConfirm} onCancel={handleDecline} />
+        <SignaturePad onConfirm={handleConfirm} onCancel={handleDecline} onEmpty={handleEmptySignature} />
 
-        <TouchableOpacity onPress={handleDecline} style={styles.declineBtn} disabled={submitting}>
+        <TouchableOpacity
+          onPress={handleDecline}
+          style={[styles.declineBtn, { opacity: (submitting || declining) ? 0.5 : 1 }]}
+          disabled={submitting || declining}
+        >
           <Text style={[styles.declineText, { color: '#DC2626' }]}>{t('esign.decline_to_sign', 'Decline to sign')}</Text>
         </TouchableOpacity>
       </ScrollView>

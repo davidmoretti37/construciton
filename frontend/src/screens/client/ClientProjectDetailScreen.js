@@ -31,9 +31,11 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
   const [project, setProject] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [summaries, setSummaries] = useState([]);
+  const [error, setError] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = useCallback(async () => {
+    setError(false);
     try {
       const [proj, photoData, summaryData] = await Promise.all([
         fetchProject(projectId),
@@ -45,6 +47,7 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
       setSummaries(summaryData || []);
     } catch (e) {
       console.error('Project detail load error:', e);
+      setError(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, [projectId]);
 
@@ -62,6 +65,24 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
 
   if (loading && !project) {
     return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={C.amber} /></View>;
+  }
+
+  if (error && !project) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="cloud-offline-outline" size={40} color={C.textMuted} />
+        <Text style={styles.errorTitle}>Couldn't load project</Text>
+        <Text style={styles.errorSubtext}>Something went wrong. Please try again.</Text>
+        <TouchableOpacity
+          style={styles.retryBtn}
+          onPress={() => { setLoading(true); loadData(); }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="refresh" size={16} color="#fff" />
+          <Text style={styles.retryBtnText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   if (!project) {
@@ -248,7 +269,14 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  loadingContainer: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
+  loadingContainer: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  errorTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginTop: 12 },
+  errorSubtext: { fontSize: 13, color: C.textSec, marginTop: 4, textAlign: 'center' },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: C.amber, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 20,
+  },
+  retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   scrollContent: { flexGrow: 1 },
 
   // Hero

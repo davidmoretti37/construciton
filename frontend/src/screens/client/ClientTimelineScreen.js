@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,6 +46,8 @@ export default function ClientTimelineScreen({ navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
+  const [noProjects, setNoProjects] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [projectName, setProjectName] = useState('');
   const [phases, setPhases] = useState([]);
@@ -56,10 +59,12 @@ export default function ClientTimelineScreen({ navigation }) {
   });
 
   const loadData = useCallback(async (month) => {
+    setError(false);
     try {
       const dashboard = await fetchDashboard();
       const projects = dashboard?.projects || [];
       if (projects.length > 0) {
+        setNoProjects(false);
         setProjects(projects);
         const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
         const pid = activeProject.id;
@@ -76,9 +81,16 @@ export default function ClientTimelineScreen({ navigation }) {
           setPhases(proj?.phases || []);
           setEvents([]);
         }
+      } else {
+        setNoProjects(true);
+        setProjectId(null);
+        setProjectName('');
+        setPhases([]);
+        setEvents([]);
       }
     } catch (e) {
       console.error('Timeline load error:', e);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -86,6 +98,15 @@ export default function ClientTimelineScreen({ navigation }) {
   }, [currentMonth, selectedProjectId, setProjects]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  // Reset the selected day to today when the active project changes, so a
+  // stale selection from a previous project doesn't show 'Nothing scheduled'.
+  useEffect(() => {
+    if (!projectId) return;
+    const now = new Date();
+    setSelectedDate(formatDateString(now.getFullYear(), now.getMonth(), now.getDate()));
+    setCurrentMonth(new Date());
+  }, [projectId]);
 
   const handleMonthChange = useCallback((newMonth) => {
     setCurrentMonth(newMonth);
@@ -155,6 +176,38 @@ export default function ClientTimelineScreen({ navigation }) {
       <View style={[styles.container, { backgroundColor: Colors.background }]}>
         <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
         <ActivityIndicator size="large" color={C.amber} style={{ marginTop: 100 }} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: Colors.background }]}>
+        <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
+        <View style={styles.stateContainer}>
+          <Ionicons name="cloud-offline-outline" size={48} color={C.textMuted} />
+          <Text style={[styles.stateTitle, { color: Colors.primaryText }]}>Couldn't load your timeline</Text>
+          <Text style={[styles.stateText, { color: Colors.secondaryText }]}>Check your connection and try again.</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => { setLoading(true); loadData(); }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (noProjects) {
+    return (
+      <View style={[styles.container, { backgroundColor: Colors.background }]}>
+        <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
+        <View style={styles.stateContainer}>
+          <Ionicons name="calendar-outline" size={48} color={C.textMuted} />
+          <Text style={[styles.stateTitle, { color: Colors.primaryText }]}>No active project yet</Text>
+          <Text style={[styles.stateText, { color: Colors.secondaryText }]}>Your timeline will appear here once a project is assigned to you.</Text>
+        </View>
       </View>
     );
   }
@@ -346,6 +399,12 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: '800' },
   headerSub: { fontSize: 13, marginTop: 2 },
   scrollContent: { paddingBottom: 20 },
+
+  stateContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, marginTop: -40 },
+  stateTitle: { fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' },
+  stateText: { fontSize: 14, marginTop: 6, textAlign: 'center', lineHeight: 20 },
+  retryButton: { marginTop: 20, backgroundColor: C.amber, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
+  retryButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   currentBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
