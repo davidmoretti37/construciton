@@ -12,11 +12,12 @@
  * /api/bid-requests/:id/attachments endpoint used by GC bid packages.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, Image,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,6 +27,12 @@ import { LightColors, DarkColors } from '../../constants/theme';
 import * as api from '../../services/subPortalService';
 
 const SUB_VIOLET = '#8B5CF6';
+
+// Attachments are POSTed inline as base64 (≈+33% over raw bytes). Cap per-file
+// and total pending payload to avoid JS-bridge memory pressure / backend body
+// rejections that would only surface after the proposal was already created.
+const MAX_FILE_BYTES = 8 * 1024 * 1024;        // 8 MB per file
+const MAX_TOTAL_BYTES = 20 * 1024 * 1024;      // 20 MB across all pending files
 
 const TRADES = [
   { key: 'plumbing',     label: 'Plumbing',      icon: 'water' },
@@ -69,6 +76,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
   const [pendingAttachments, setPendingAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const pickerBusyRef = useRef(false);
+  const submittingRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,7 +90,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const tradeLabel = (() => {
     if (trade === 'other' && customTrade.trim()) return customTrade.trim();
@@ -95,20 +103,44 @@ export default function SubProposalCreatorScreen({ navigation }) {
   // ─── Attachments ──────────────────────────────────────────────────
   const addPickedFile = async (asset, mimeFallback) => {
     if (!asset?.uri) return;
+    const assetSize = asset.size || asset.fileSize || 0;
+    if (assetSize > MAX_FILE_BYTES) {
+      Alert.alert(
+        'File too large',
+        `${asset.name || asset.fileName || 'This file'} is ${(assetSize / 1024 / 1024).toFixed(1)} MB. Please attach files under 8 MB.`,
+      );
+      return;
+    }
     try {
       const base64 = await FileSystem.readAsStringAsync(asset.uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       const isImage = (asset.mimeType || mimeFallback || '').startsWith('image/');
-      setPendingAttachments((prev) => [...prev, {
-        localId: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        uri: asset.uri,
-        name: asset.name || asset.fileName || `attachment-${Date.now()}.${isImage ? 'jpg' : 'pdf'}`,
-        mime: asset.mimeType || mimeFallback || 'application/pdf',
-        size: asset.size || asset.fileSize || null,
-        base64,
-        attachment_type: isImage ? 'photo' : 'spec',
-      }]);
+      let overTotal = false;
+      setPendingAttachments((prev) => {
+        // prev is always current here, so the running total stays correct even
+        // across the await loop of a multi-file pick.
+        const usedBytes = prev.reduce((sum, a) => sum + (a.size || 0), 0);
+        if (usedBytes + assetSize > MAX_TOTAL_BYTES) {
+          overTotal = true;
+          return prev;
+        }
+        return [...prev, {
+          localId: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          uri: asset.uri,
+          name: asset.name || asset.fileName || `attachment-${Date.now()}.${isImage ? 'jpg' : 'pdf'}`,
+          mime: asset.mimeType || mimeFallback || 'application/pdf',
+          size: assetSize || null,
+          base64,
+          attachment_type: isImage ? 'photo' : 'spec',
+        }];
+      });
+      if (overTotal) {
+        Alert.alert(
+          'Too many files',
+          'Your attachments exceed the 20 MB total limit. Remove a file before adding more.',
+        );
+      }
     } catch (e) {
       Alert.alert('Could not read file', e.message);
     }
@@ -154,11 +186,15 @@ export default function SubProposalCreatorScreen({ navigation }) {
 
   // ─── Submit ───────────────────────────────────────────────────────
   const handleSend = async () => {
-    const amt = Number(amount);
-    if (!amt || amt <= 0) {
-      Alert.alert('Add an amount', 'Enter your bid amount before sending.');
+    if (submittingRef.current) return;
+    // Strip $, commas, spaces and locale formatting; round to whole cents so the
+    // value we submit is exactly the value we show in the confirmation alert.
+    const amt = Math.round(Number(String(amount).replace(/[^0-9.]/g, '')) * 100) / 100;
+    if (!Number.isFinite(amt) || amt <= 0) {
+      Alert.alert('Add an amount', 'Enter a valid bid amount greater than $0 before sending.');
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const result = await api.sendProposal({
@@ -207,6 +243,7 @@ export default function SubProposalCreatorScreen({ navigation }) {
     } catch (e) {
       Alert.alert('Could not send', e.message || 'Try again');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

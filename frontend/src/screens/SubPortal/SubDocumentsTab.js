@@ -10,6 +10,7 @@ import {
   View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
   ActivityIndicator, Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -117,6 +118,13 @@ export default function SubDocumentsTab({ navigation }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Refetch on focus so a doc uploaded from SubUploadPage appears on return.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const pickerBusyRef = useRef(false);
 

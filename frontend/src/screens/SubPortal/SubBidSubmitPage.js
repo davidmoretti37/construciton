@@ -8,12 +8,13 @@
  * Route params: { bidRequestId }
  */
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, Linking, Platform, Image,
   Modal, FlatList, Dimensions,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -50,6 +51,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
   const [exclusions, setExclusions] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [declining, setDeclining] = useState(false);
 
   // Sub-side attachments (queued, uploaded after bid submit)
@@ -96,7 +98,9 @@ export default function SubBidSubmitPage({ route, navigation }) {
     }
   }, [bidRequestId]);
 
-  useEffect(() => { load(); }, [load]);
+  // Re-fetch on focus so the package, already-submitted banner, and due date
+  // stay fresh if the GC withdraws/closes the request while the screen sits.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const br = pkg?.bid_request;
   const project = pkg?.project;
@@ -238,11 +242,24 @@ export default function SubBidSubmitPage({ route, navigation }) {
     setPendingAttachments((prev) => prev.filter((a) => a.localId !== localId));
 
   const onSubmit = async () => {
-    const amt = Number(amount);
-    if (!amt || amt <= 0) {
+    // Strip $, grouping commas, and spaces so pasted/formatted figures parse.
+    const raw = String(amount).replace(/[$,\s]/g, '');
+    if (!raw) {
       Alert.alert('Add an amount', 'Enter your bid amount before submitting.');
       return;
     }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      Alert.alert('Check the amount', 'Enter a valid number for your bid amount.');
+      return;
+    }
+    // Round to cents — submit the same sanitized value we validated.
+    const amt = Math.round(parsed * 100) / 100;
+
+    // Synchronous guard: setSubmitting is async, so two rapid taps both pass
+    // the disabled flag. The ref blocks the second tap before the await fires.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       await api.submitBid({
@@ -292,6 +309,7 @@ export default function SubBidSubmitPage({ route, navigation }) {
     } catch (e) {
       Alert.alert('Could not submit', e.message || 'Try again');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
