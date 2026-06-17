@@ -11,10 +11,11 @@ import subscriptionService from '../services/subscriptionService';
 import logger from '../utils/logger';
 
 // =====================================================
-// TESTING MODE - Set to true to bypass all paywalls
-// Set back to false before production release!
+// TESTING MODE - bypasses all paywalls when enabled.
+// Production: leave EXPO_PUBLIC_BYPASS_PAYWALL unset (enforcement ON).
+// Dev escape hatch: set EXPO_PUBLIC_BYPASS_PAYWALL=true in .env to bypass.
 // =====================================================
-const TESTING_MODE = true;
+const TESTING_MODE = process.env.EXPO_PUBLIC_BYPASS_PAYWALL === 'true';
 
 // Create context
 const SubscriptionContext = createContext();
