@@ -349,10 +349,10 @@ export default function BankConnectionScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity testID="bankConnection.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('bank.connectedAccounts')}</Text>
+        <Text testID="bankConnection.headerTitle" accessibilityLabel="Connected Accounts" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('bank.connectedAccounts')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -365,6 +365,8 @@ export default function BankConnectionScreen() {
         {/* Action Buttons */}
         <View style={styles.actionSection}>
           <TouchableOpacity
+            testID="bankConnection.connectBankButton"
+            accessibilityLabel="Connect Bank Account"
             style={[styles.connectButton, { backgroundColor: OWNER_COLORS.primary }]}
             onPress={handleConnectBank}
             disabled={connecting}

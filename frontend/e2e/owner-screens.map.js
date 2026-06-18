@@ -103,6 +103,116 @@ module.exports = [
     safeTapTestIds: [],
     reachableFromOwnerTabs: true,
   },
+  {
+    screenKey: 'editBusinessInfo',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.editProfileButton', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['editBusinessInfo.title', 'editBusinessInfo.saveButton'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'estimatesDetail',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.estimatesItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['estimatesDetail.headerTitle', 'estimatesDetail.searchInput'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'invoicesDetail',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.invoicesItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['invoicesDetail.headerTitle', 'invoicesDetail.addInvoiceButton'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'contracts',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.contractsItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['contracts.headerTitle', 'contracts.uploadButton'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'invoiceTemplate',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.invoiceTemplateItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['invoiceTemplate.headerTitle', 'invoiceTemplate.logoPicker'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'bankConnection',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.bankTransactionsItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['bankConnection.headerTitle', 'bankConnection.connectBankButton'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'pictures',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.photosItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['pictures.headerTitle', 'pictures.filterLabel'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'notificationSettings',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.notificationsItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['notificationSettings.headerTitle', 'notificationSettings.allowAllSwitch'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'changeLanguage',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.languageItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['changeLanguage.title', 'changeLanguage.saveButton'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'addService',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.addServiceItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['addService.headerTitle', 'addService.backButton'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'subscriptionSettings',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'scrollTo', id: 'ownerSettings.subscriptionItem', scrollViewId: 'ownerSettings.scrollView' },
+    ],
+    assertTestIds: ['subscriptionSettings.title', 'subscriptionSettings.planName'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
 
   // ── Financial report (via the default PnL dashboard widget) ──
   {
@@ -113,6 +223,94 @@ module.exports = [
     ],
     assertTestIds: ['financialReport.title', 'financialReport.summaryRevenue', 'financialReport.summaryExpenses'],
     safeTapTestIds: ['financialReport.viewProject', 'financialReport.viewCompany'],
+    reachableFromOwnerTabs: true,
+  },
+
+  // ── Workers tab detail screens (Team sub-tab -> first row) ──
+  {
+    screenKey: 'supervisorDetail',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Workers' },
+      { action: 'tap', id: 'ownerWorkers.teamTab' },
+      { action: 'scrollTo', id: 'ownerWorkers.supervisorRow.first', scrollViewId: 'ownerWorkers.scrollView' },
+    ],
+    assertTestIds: ['supervisorDetail.headerTitle', 'supervisorDetail.backButton'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'workerDetailHistory',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Workers' },
+      { action: 'tap', id: 'ownerWorkers.teamTab' },
+      { action: 'scrollTo', id: 'ownerWorkers.workerRow.first', scrollViewId: 'ownerWorkers.scrollView' },
+    ],
+    assertTestIds: ['workerDetailHistory.headerTitle', 'workerDetailHistory.workerName'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  // NOTE: subcontractorDetail is instrumented (subDetail.* + ownerWorkers.subRow.first)
+  // and a sub_organization + sub_engagement are seeded for the QA owner, but the
+  // Workers→Subcontractors list loads from the backend GET /api/subs, which the
+  // release sim build's in-app fetch fails to resolve (it returns 200 via curl
+  // and the URL is bundled, so this is a sim/backend-integration issue, not a
+  // harness defect) — so the sub row never renders to tap. supervisorDetail and
+  // workerDetailHistory use Supabase-direct queries and pass. See e2e/README.md.
+  {
+    screenKey: 'notifications',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Settings' },
+      { action: 'tap', id: 'ownerSettings.notificationBell' },
+    ],
+    assertTestIds: ['notifications.headerTitle'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+
+  // ── Financial sub-reports (via the Financial Report "Reports & Tools" grid) ──
+  {
+    screenKey: 'arAging',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Home' },
+      { action: 'tap', id: 'ownerDashboard.widget.pnl' },
+      { action: 'scrollTo', id: 'financialReport.reportCard.ARAging', scrollViewId: 'financialReport.scrollView' },
+    ],
+    assertTestIds: ['arAging.title', 'arAging.totalOutstanding'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'taxSummary',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Home' },
+      { action: 'tap', id: 'ownerDashboard.widget.pnl' },
+      { action: 'scrollTo', id: 'financialReport.reportCard.TaxSummary', scrollViewId: 'financialReport.scrollView' },
+    ],
+    assertTestIds: ['taxSummary.grossRevenue', 'taxSummary.netProfit'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'payrollSummary',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Home' },
+      { action: 'tap', id: 'ownerDashboard.widget.pnl' },
+      { action: 'scrollTo', id: 'financialReport.reportCard.PayrollSummary', scrollViewId: 'financialReport.scrollView' },
+    ],
+    assertTestIds: ['payrollSummary.title', 'payrollSummary.totalGrossPay'],
+    safeTapTestIds: ['payrollSummary.groupByProjectToggle'],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'contractorPayments',
+    navSteps: [
+      { action: 'tap', id: 'ownerTab.Home' },
+      { action: 'tap', id: 'ownerDashboard.widget.pnl' },
+      { action: 'scrollTo', id: 'financialReport.reportCard.TaxSummary', scrollViewId: 'financialReport.scrollView' },
+      { action: 'scrollTo', id: 'taxSummary.seeAllContractorsButton', scrollViewId: 'taxSummary.scrollView' },
+    ],
+    assertTestIds: ['contractorPayments.title'],
+    safeTapTestIds: [],
     reachableFromOwnerTabs: true,
   },
 

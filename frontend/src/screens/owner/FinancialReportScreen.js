@@ -296,6 +296,7 @@ export default function FinancialReportScreen() {
       </View>
 
       <ScrollView
+        testID="financialReport.scrollView"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

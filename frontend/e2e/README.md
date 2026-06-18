@@ -56,22 +56,36 @@ nav steps from the tabs, the testIDs that prove it rendered, and safe
 (non-destructive) buttons to exercise. `beforeEach` relaunches (session
 persists) to reset to the tabs, so each screen test is independent.
 
-**Covered (reachable via stable, testID-anchored nav):** the 5 bottom tabs
-(dashboard / projects / workers / settings + embedded projects list), project
-detail, project documents, material selections, clients, integrations,
-financial report, and the create/builder forms (manual project, estimate,
-invoice). Plus `owner.test.js` (subscription) and `owner-deep.test.js`
-(company overhead).
+**Covered (31 owner screens, all reachable via stable testID nav):** 5 bottom
+tabs + embedded projects list; project detail + documents; Financial Report and
+its full Reports&Tools grid → AR Aging, Tax Summary, Payroll Summary, Contractor
+Payments; Settings sub-screens (clients, integrations, edit business info,
+estimates detail, invoices detail, contracts, invoice template, bank connection,
+pictures, notification settings, change language, add service, subscription,
+notifications); Team detail screens (supervisor detail, worker detail history);
+create/builder forms (manual project, estimate, invoice). Plus `owner.test.js`
+(subscription) and `owner-deep.test.js` (company overhead). The QA owner is
+seeded with a team (2 workers, 1 supervisor, 1 sub) so the Workers detail
+screens render.
 
-**Known gaps (NOT yet auto-covered, and why):**
-- **Financial cluster** — TaxSummary, ARAging, ContractorPayments,
-  PayrollSummary, BankReconciliation, ClockOuts are reached only through
-  *optional* dashboard widgets (not in `DEFAULT_LAYOUT`) or *data-gated* alerts
-  (e.g. "forgotten clock-outs" needs someone clocked in >10h). To cover them:
-  seed the QA owner's dashboard layout to include those widgets (+ the alert
-  data), or add testIDs to the inner widget cards and drive from there.
-- **ProjectBuilder / ChangeOrderBuilder** — reachable only via the QuickAction
-  FAB menu (no testIDs) / the AI chat flow. Need testIDs on the FAB items.
+**Genuinely gated (7 screens — documented, not faked):**
+- **subcontractorDetail** — instrumented + a sub is seeded, but the
+  Workers→Subcontractors list loads from the backend `GET /api/subs`, whose
+  in-app fetch fails in the release sim build (the endpoint returns 200 via curl
+  and its URL is bundled — a sim/backend-integration issue, not a harness
+  defect). supervisorDetail + workerDetailHistory use Supabase-direct queries
+  and pass.
+- **BankReconciliation** — needs a connected bank or unmatched bank
+  transactions (a data state we don't seed).
+- **ClockOuts** — needs a "forgotten clock-out" (worker clocked in >10h) and for
+  it to be the first dashboard alert; only reached via that alert / a
+  non-default widget.
+- **ProjectBuilder / ChangeOrderBuilder** — reached only via the AI chat flow
+  (FAB "new project"/"new estimate" are `type: 'ai'`), non-deterministic for e2e.
+- **ChangeOrdersList** — needs a `change_order` billing event on the first
+  project + uses a dynamic per-row id.
+- **Material Selections** — its entry link sits below a nested ScrollView at the
+  very bottom of project detail, which traps Detox's whileElement scroll.
 
 ## Extending to other roles
 Repeat the testID pass for worker / client / sub screens, add each role's login

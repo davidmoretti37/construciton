@@ -368,10 +368,10 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
     <SafeAreaView style={[styles.root, { backgroundColor: Colors.background }]}>
       {/* Compact top bar */}
       <View style={[styles.topbar, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity testID="subDetail.backButton" accessibilityLabel="Go back" style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.topbarTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+        <Text testID="subDetail.topbarTitle" accessibilityLabel="Subcontractor name" style={[styles.topbarTitle, { color: Colors.primaryText }]} numberOfLines={1}>
           {sub.legal_name}
         </Text>
         <View style={{ width: 30 }} />

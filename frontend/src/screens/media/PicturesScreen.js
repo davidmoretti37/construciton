@@ -183,7 +183,7 @@ export default function PicturesScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Pictures</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="pictures.headerTitle" accessibilityLabel="Pictures">Pictures</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -194,7 +194,7 @@ export default function PicturesScreen({ navigation }) {
       >
         {/* Project Filter */}
         <View style={styles.filterSection}>
-          <Text style={[styles.filterLabel, { color: Colors.secondaryText }]}>Filter by Project</Text>
+          <Text style={[styles.filterLabel, { color: Colors.secondaryText }]} testID="pictures.filterLabel" accessibilityLabel="Filter by Project">Filter by Project</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
             <TouchableOpacity
               style={[

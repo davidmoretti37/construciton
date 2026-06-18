@@ -51,14 +51,14 @@ const OWNER_COLORS = {
 };
 
 // Supervisor Card Component (no animation)
-const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
+const SupervisorCard = ({ supervisor, onPress, Colors, tOwner, testID }) => {
   const initial = supervisor.business_name?.charAt(0)?.toUpperCase() ||
     supervisor.email?.charAt(0)?.toUpperCase() || 'S';
   const isClockedIn = !!supervisor.clocked_in_project_name;
 
   return (
     <TouchableOpacity
-      testID={`ownerWorkers.row.${supervisor.id}`}
+      testID={testID || `ownerWorkers.row.${supervisor.id}`}
       accessibilityLabel="Supervisor row"
       style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white, borderColor: Colors.border }]}
       onPress={onPress}
@@ -107,7 +107,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
 };
 
 // Worker Card Horizontal (matches SupervisorCard style)
-const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
+const WorkerCardHorizontal = ({ worker, index, onPress, Colors, t }) => {
   const initial = worker.full_name?.charAt(0)?.toUpperCase() || 'W';
   const statusColor = worker.status === 'active' ? OWNER_COLORS.success : '#9CA3AF';
   const isClockedIn = !!worker.clocked_in_project_name;
@@ -123,7 +123,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
 
   return (
     <TouchableOpacity
-      testID={`ownerWorkers.workerRow.${worker.id}`}
+      testID={index === 0 ? 'ownerWorkers.workerRow.first' : `ownerWorkers.workerRow.${worker.id}`}
       accessibilityLabel="Worker row"
       style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white, borderColor: Colors.border }]}
       onPress={onPress}
@@ -904,6 +904,8 @@ export default function OwnerWorkersScreen() {
       {/* Team tab - render supervisors + workers */}
       {activeTab === 'team' && (
         <ScrollView
+        testID="ownerWorkers.scrollView"
+        accessibilityLabel="Workers list"
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -961,6 +963,7 @@ export default function OwnerWorkersScreen() {
                     filteredSupervisors.map((supervisor, index) => (
                       <SupervisorCard
                         key={supervisor.id}
+                        testID={index === 0 ? 'ownerWorkers.supervisorRow.first' : `ownerWorkers.supervisorRow.${supervisor.id}`}
                         supervisor={supervisor}
                         onPress={() => handleSupervisorPress(supervisor)}
                         Colors={Colors}
@@ -990,10 +993,12 @@ export default function OwnerWorkersScreen() {
                   ) : workersError ? (
                     <SectionError onRetry={fetchWorkers} Colors={Colors} />
                   ) : filteredWorkers.length > 0 ? (
-                    filteredWorkers.map((worker) => (
+                    filteredWorkers.map((worker, index) => (
                       <WorkerCardHorizontal
                         key={worker.id}
+                        testID={index === 0 ? 'ownerWorkers.workerRow.first' : `ownerWorkers.workerRow.${worker.id}`}
                         worker={worker}
+                        index={index}
                         onPress={() => navigation.navigate('WorkerDetailHistory', { worker })}
                         Colors={Colors}
                         t={t}
@@ -1021,10 +1026,10 @@ export default function OwnerWorkersScreen() {
                   ) : subcontractorsError ? (
                     <SectionError onRetry={fetchSubcontractors} Colors={Colors} />
                   ) : filteredSubs.length > 0 ? (
-                    filteredSubs.map((sub) => (
+                    filteredSubs.map((sub, index) => (
                       <TouchableOpacity
                         key={sub.id}
-                        testID={`ownerWorkers.subRow.${sub.id}`}
+                        testID={index === 0 ? 'ownerWorkers.subRow.first' : `ownerWorkers.subRow.${sub.id}`}
                         accessibilityLabel="Subcontractor row"
                         onPress={() => navigation.navigate('SubcontractorDetail', { sub_organization_id: sub.id })}
                         style={[styles.subRow, { backgroundColor: Colors.cardBackground || '#fff' }]}
