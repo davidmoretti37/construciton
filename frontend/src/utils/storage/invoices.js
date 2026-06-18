@@ -292,13 +292,13 @@ export const updateInvoicePDF = async (invoiceId, pdfUrl) => {
  */
 export const updateInvoice = async (invoiceId, updates) => {
   try {
-    const userId = await getCurrentUserId();
     const { error } = await supabase
       .from('invoices')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
-        ...(userId ? { updated_by: userId } : {}),
+        // NOTE: invoices has no updated_by column — including it made PostgREST
+        // reject every update, so edits silently failed to persist.
       })
       .eq('id', invoiceId);
 

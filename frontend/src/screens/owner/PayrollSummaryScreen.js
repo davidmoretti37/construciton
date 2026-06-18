@@ -111,17 +111,20 @@ export default function PayrollSummaryScreen() {
 
       // Try to get time clock data for hours
       try {
-        const { data: clockData } = await supabase
-          .from('clock_in_records')
-          .select('worker_id, clock_in_time, clock_out_time')
+        const { data: clockData, error: clockErr } = await supabase
+          .from('time_tracking')
+          .select('worker_id, clock_in, clock_out, hours_worked')
           .in('worker_id', Object.keys(workerMap))
-          .gte('clock_in_time', start)
-          .lte('clock_in_time', end + 'T23:59:59')
-          .not('clock_out_time', 'is', null);
+          .gte('clock_in', start)
+          .lte('clock_in', end + 'T23:59:59')
+          .not('clock_out', 'is', null);
+        if (clockErr) console.warn('[PayrollSummary] time_tracking query failed:', clockErr.message);
 
         const hoursByWorker = {};
         (clockData || []).forEach(r => {
-          const hours = (new Date(r.clock_out_time) - new Date(r.clock_in_time)) / (1000 * 60 * 60);
+          const hours = r.hours_worked != null
+            ? Number(r.hours_worked)
+            : (new Date(r.clock_out) - new Date(r.clock_in)) / (1000 * 60 * 60);
           const name = workerMap[r.worker_id]?.full_name || 'Unknown';
           hoursByWorker[name] = (hoursByWorker[name] || 0) + hours;
         });

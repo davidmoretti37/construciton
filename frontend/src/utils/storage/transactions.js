@@ -382,10 +382,20 @@ export const calculateLaborCostsFromTimeTracking = async (projectId = null, star
       return { totalCost: 0, breakdown: [] };
     }
 
+    // time_tracking has no user_id column — scope to the owner's projects.
+    let ownerProjectIds;
+    if (projectId) {
+      ownerProjectIds = [projectId];
+    } else {
+      const { data: projs } = await supabase.from('projects').select('id').eq('user_id', user.id);
+      ownerProjectIds = (projs || []).map(p => p.id);
+      if (ownerProjectIds.length === 0) return { totalCost: 0, breakdown: [] };
+    }
+
     let query = supabase
-      .from('clock_in_records')
+      .from('time_tracking')
       .select(`
-        id, worker_id, project_id, clock_in_time, clock_out_time,
+        id, worker_id, project_id, clock_in, clock_out, hours_worked,
         workers:worker_id (
           id,
           full_name,
@@ -396,19 +406,15 @@ export const calculateLaborCostsFromTimeTracking = async (projectId = null, star
           name
         )
       `)
-      .eq('user_id', user.id)
-      .not('clock_out_time', 'is', null);
-
-    if (projectId) {
-      query = query.eq('project_id', projectId);
-    }
+      .in('project_id', ownerProjectIds)
+      .not('clock_out', 'is', null);
 
     if (startDate) {
-      query = query.gte('clock_in_time', startDate);
+      query = query.gte('clock_in', startDate);
     }
 
     if (endDate) {
-      query = query.lte('clock_out_time', endDate);
+      query = query.lte('clock_out', endDate);
     }
 
     const { data: records, error } = await query;
@@ -422,9 +428,9 @@ export const calculateLaborCostsFromTimeTracking = async (projectId = null, star
     let totalCost = 0;
 
     records.forEach(record => {
-      const clockIn = new Date(record.clock_in_time);
-      const clockOut = new Date(record.clock_out_time);
-      const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
+      const hoursWorked = record.hours_worked != null
+        ? Number(record.hours_worked)
+        : (new Date(record.clock_out) - new Date(record.clock_in)) / (1000 * 60 * 60);
       const rate = record.workers?.hourly_rate || 0;
       const cost = hoursWorked * rate;
 

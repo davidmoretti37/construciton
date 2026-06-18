@@ -1547,11 +1547,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 const statusLabel = newStatus === 'completed' ? 'completed' : 'paused';
                 supabase
                   .from('project_assignments')
-                  .select('worker_id, workers(profile_id)')
+                  .select('worker_id, workers(user_id)')
                   .eq('project_id', project.id)
                   .then(({ data: pw }) => {
                     if (!pw || pw.length === 0) return;
-                    const recipients = (pw || []).map(w => w.workers?.profile_id).filter(Boolean);
+                    const recipients = (pw || []).map(w => w.workers?.user_id).filter(Boolean);
                     recipients.forEach((userId) => {
                       supabase.functions.invoke('send-push-notification', {
                         body: {
@@ -2826,11 +2826,11 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             try {
               const { data: supProfile } = await supabase
                 .from('profiles')
-                .select('full_name')
+                .select('business_name')
                 .eq('id', newSupervisorId)
                 .single();
-              if (supProfile?.full_name) {
-                setSupervisorName(supProfile.full_name);
+              if (supProfile?.business_name) {
+                setSupervisorName(supProfile.business_name);
               }
             } catch (e) {
               // Keep the placeholder — chip still shows

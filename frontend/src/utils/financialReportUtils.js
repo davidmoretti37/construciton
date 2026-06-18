@@ -29,7 +29,7 @@ export const fetchAllOwnerTransactions = async (projectIds) => {
   try {
     const { data, error } = await supabase
       .from('project_transactions')
-      .select('id, project_id, type, category, subcategory, description, amount, date, payment_method, receipt_url, notes, worker_id')
+      .select('id, project_id, type, category, subcategory, tax_category, description, amount, date, payment_method, receipt_url, notes, worker_id')
       .in('project_id', projectIds)
       .order('date', { ascending: false })
       .limit(5000);
@@ -51,7 +51,7 @@ export const fetchProjectTransactionsForReport = async (projectId) => {
   try {
     const { data, error } = await supabase
       .from('project_transactions')
-      .select('id, project_id, type, category, subcategory, description, amount, date, payment_method, receipt_url, notes, worker_id')
+      .select('id, project_id, type, category, subcategory, tax_category, description, amount, date, payment_method, receipt_url, notes, worker_id')
       .eq('project_id', projectId)
       .order('date', { ascending: true })
       .limit(5000);

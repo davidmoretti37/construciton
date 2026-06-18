@@ -234,7 +234,7 @@ export default function OwnerDashboardScreen() {
         const { data: invoices } = await supabase
           .from('invoices')
           .select('total, amount_paid')
-          .or(`user_id.eq.${user.id},assigned_supervisor_id.eq.${user.id}`)
+          .eq('user_id', user.id)
           .in('status', ['unpaid', 'partial', 'overdue']);
         let overdueAmount = 0;
         (invoices || []).forEach(inv => {
