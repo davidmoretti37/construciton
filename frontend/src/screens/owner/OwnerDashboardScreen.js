@@ -95,6 +95,9 @@ export default function OwnerDashboardScreen() {
     pendingInvites: 0,
   });
   const [reconciliation, setReconciliation] = useState(null);
+  // outstanding = all unpaid (drives the Invoices "OUTSTANDING" tile);
+  // overdue = unpaid AND past due (drives the "N invoices overdue" alert).
+  const [outstandingInvoices, setOutstandingInvoices] = useState({ count: 0, amount: 0 });
   const [overdueInvoices, setOverdueInvoices] = useState({ count: 0, amount: 0 });
   const [cashFlowData, setCashFlowData] = useState([]);
   const [forgottenClockOuts, setForgottenClockOuts] = useState({ workers: [], supervisors: [] });
@@ -229,22 +232,33 @@ export default function OwnerDashboardScreen() {
         setMonthlyOverhead(overhead);
       } catch (e) { /* overhead not critical */ }
 
-      // Overdue invoices: unpaid AND past their due date (an unpaid invoice that
-      // isn't due yet is "current", not overdue — matches the AR aging screen).
+      // Invoices: total OUTSTANDING (all unpaid) drives the tile; OVERDUE
+      // (unpaid AND past due date) drives the alert banner — an unpaid invoice
+      // that isn't due yet is "current", not overdue (matches the AR aging screen).
       try {
         const todayStr = new Date().toISOString().split('T')[0];
         const { data: invoices } = await supabase
           .from('invoices')
-          .select('total, amount_paid')
+          .select('total, amount_paid, due_date')
           .eq('user_id', user.id)
-          .in('status', ['unpaid', 'partial', 'overdue'])
-          .lt('due_date', todayStr);
-        let overdueAmount = 0;
+          .in('status', ['unpaid', 'partial', 'overdue']);
+        let outstandingAmount = 0, outstandingCount = 0;
+        let overdueAmount = 0, overdueCount = 0;
         (invoices || []).forEach(inv => {
-          overdueAmount += (inv.total || 0) - (inv.amount_paid || 0);
+          const due = (inv.total || 0) - (inv.amount_paid || 0);
+          outstandingAmount += due;
+          outstandingCount += 1;
+          if (inv.due_date && inv.due_date < todayStr) {
+            overdueAmount += due;
+            overdueCount += 1;
+          }
         });
-        setOverdueInvoices({ count: (invoices || []).length, amount: overdueAmount });
-      } catch (e) { setOverdueInvoices({ count: 0, amount: 0 }); }
+        setOutstandingInvoices({ count: outstandingCount, amount: outstandingAmount });
+        setOverdueInvoices({ count: overdueCount, amount: overdueAmount });
+      } catch (e) {
+        setOutstandingInvoices({ count: 0, amount: 0 });
+        setOverdueInvoices({ count: 0, amount: 0 });
+      }
 
       // Cash flow — 3 months
       try {
@@ -574,8 +588,8 @@ export default function OwnerDashboardScreen() {
       case 'overdue_invoices':
         return (
           <OverdueInvoicesWidget
-            count={overdueInvoices.count}
-            amount={overdueInvoices.amount}
+            count={outstandingInvoices.count}
+            amount={outstandingInvoices.amount}
             size={item.size}
             editMode={editMode}
             onPress={() => navigation.navigate('ARAging')}
@@ -694,7 +708,7 @@ export default function OwnerDashboardScreen() {
       default:
         return null;
     }
-  }, [pnl, cashFlowData, maxCashFlowVal, totalNet, alerts, stats, transactionCount, reconciliation, editMode, navigation, overdueInvoices, marginHealth, forgottenClockOuts, agingData, payrollSummary, recentReports, pipeline, topActiveProjectsForWidget, topProjectsByContract, activeClockIns]);
+  }, [pnl, cashFlowData, maxCashFlowVal, totalNet, alerts, stats, transactionCount, reconciliation, editMode, navigation, overdueInvoices, outstandingInvoices, marginHealth, forgottenClockOuts, agingData, payrollSummary, recentReports, pipeline, topActiveProjectsForWidget, topProjectsByContract, activeClockIns]);
 
   // ── Sized widget wrapper (view mode) ──
 
