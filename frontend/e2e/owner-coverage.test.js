@@ -45,6 +45,13 @@ describe('Owner — full screen coverage', () => {
         await waitFor(element(by.id(id))).toBeVisible().withTimeout(15000);
       }
 
+      // Functional value checks: the screen must show the CORRECT value (from
+      // the seeded data), not just *a* value. A mismatch is a real bug.
+      for (const [id, expected] of Object.entries(s.assertText || {})) {
+        await waitFor(element(by.id(id))).toBeVisible().withTimeout(15000);
+        await expect(element(by.id(id))).toHaveText(expected);
+      }
+
       // Best-effort: exercise the screen's safe (non-destructive, in-screen)
       // buttons. The render assertion above is the hard check; these taps are
       // bonus coverage ("the buttons work / don't crash") and never fail the

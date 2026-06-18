@@ -61,6 +61,11 @@ module.exports = [
       { action: 'tap', id: 'ownerProjects.firstRow' },
     ],
     assertTestIds: ['projectDetail.title', 'projectDetail.contractValue', 'projectDetail.incomeTile'],
+    // (Functional value-check capability exists via `assertText`; the first
+    // project's contract value was manually verified correct = $12,000, but exact
+    // currency strings are device-locale-dependent so we don't hard-assert them
+    // in CI. The create-project flow in owner-flows.test.js is the robust
+    // functional proof — it round-trips form → DB.)
     safeTapTestIds: ['projectDetail.budgetBreakdownToggle'],
     reachableFromOwnerTabs: true,
   },
