@@ -717,6 +717,8 @@ export default function OwnerDashboardScreen() {
     return (
       <TouchableOpacity
         key={item.id}
+        testID={`ownerDashboard.widget.${item.id}`}
+        accessibilityLabel={`${item.id} widget`}
         style={{ width, height }}
         onLongPress={enterEditMode}
         activeOpacity={0.9}
@@ -762,13 +764,13 @@ export default function OwnerDashboardScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.welcomeText}>{t('dashboardScreen.welcome')}</Text>
-          <Text style={styles.dateText}>
+          <Text testID="ownerDashboard.welcomeText" style={styles.welcomeText}>{t('dashboardScreen.welcome')}</Text>
+          <Text testID="ownerDashboard.dateText" style={styles.dateText}>
             {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={enterEditMode} style={styles.customizeIconBtn}>
+          <TouchableOpacity testID="ownerDashboard.customizeButton" accessibilityLabel="Customize dashboard" onPress={enterEditMode} style={styles.customizeIconBtn}>
             <Ionicons name="grid-outline" size={22} color={Colors.secondaryText} />
           </TouchableOpacity>
           {/* <InboxBell onPress={() => navigation.navigate('Inbox')} /> */}
@@ -779,11 +781,11 @@ export default function OwnerDashboardScreen() {
       {/* ── Edit mode header overlay ── */}
       {editMode && (
         <View style={styles.editHeader}>
-          <TouchableOpacity onPress={handleReset}>
+          <TouchableOpacity testID="ownerDashboard.resetButton" accessibilityLabel="Reset dashboard layout" onPress={handleReset}>
             <Text style={styles.editHeaderReset}>Reset</Text>
           </TouchableOpacity>
-          <Text style={styles.editHeaderTitle}>Editing Dashboard</Text>
-          <TouchableOpacity onPress={exitEditMode}>
+          <Text testID="ownerDashboard.editHeaderTitle" style={styles.editHeaderTitle}>Editing Dashboard</Text>
+          <TouchableOpacity testID="ownerDashboard.doneButton" accessibilityLabel="Done editing" onPress={exitEditMode}>
             <Text style={styles.editHeaderDone}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -807,6 +809,8 @@ export default function OwnerDashboardScreen() {
           footer={
             <View>
               <TouchableOpacity
+                testID="ownerDashboard.addWidgetButton"
+                accessibilityLabel="Add a widget"
                 style={styles.addSlot}
                 onPress={() => setShowAddSheet(true)}
                 activeOpacity={0.85}
@@ -834,6 +838,8 @@ export default function OwnerDashboardScreen() {
           {/* Core stats failed to load — offer a retry */}
           {loadError && (
             <TouchableOpacity
+              testID="ownerDashboard.retryButton"
+              accessibilityLabel="Retry loading dashboard"
               activeOpacity={0.85}
               onPress={() => { setLoading(true); fetchDashboardData(); }}
               style={styles.errorCard}
@@ -849,19 +855,21 @@ export default function OwnerDashboardScreen() {
 
           {/* Company Info Card */}
           <TouchableOpacity
+            testID="ownerDashboard.companyCard"
+            accessibilityLabel="Manage overhead"
             ref={walkthrough?.overheadRef}
             activeOpacity={0.9}
             onPress={() => navigation.navigate('CompanyOverhead')}
             style={styles.companyCard}
           >
             <View style={styles.companyHeader}>
-              <Text style={styles.companyName}>{businessName || 'My Company'}</Text>
+              <Text testID="ownerDashboard.companyName" style={styles.companyName}>{businessName || 'My Company'}</Text>
             </View>
 
             <View style={styles.companyStats}>
               <View style={styles.companyStat}>
                 <Text style={styles.companyStatLabel}>Overhead</Text>
-                <Text style={[styles.companyStatValue, { color: '#FCA5A5' }]}>
+                <Text testID="ownerDashboard.overheadAmount" style={[styles.companyStatValue, { color: '#FCA5A5' }]}>
                   ${Math.round(monthlyOverhead).toLocaleString()}
                 </Text>
                 <Text style={styles.companyStatSuffix}>/month</Text>
@@ -869,7 +877,7 @@ export default function OwnerDashboardScreen() {
               <View style={styles.companyStatDivider} />
               <View style={styles.companyStat}>
                 <Text style={styles.companyStatLabel}>Revenue</Text>
-                <Text style={[styles.companyStatValue, { color: '#6EE7B7' }]}>
+                <Text testID="ownerDashboard.revenueAmount" style={[styles.companyStatValue, { color: '#6EE7B7' }]}>
                   ${Math.round(pnl.revenue).toLocaleString()}
                 </Text>
                 <Text style={styles.companyStatSuffix}>all time</Text>
@@ -877,7 +885,7 @@ export default function OwnerDashboardScreen() {
               <View style={styles.companyStatDivider} />
               <View style={styles.companyStat}>
                 <Text style={styles.companyStatLabel}>Gross Profit</Text>
-                <Text style={[styles.companyStatValue, { color: pnl.profit >= 0 ? '#6EE7B7' : '#FCA5A5' }]}>
+                <Text testID="ownerDashboard.grossProfitAmount" style={[styles.companyStatValue, { color: pnl.profit >= 0 ? '#6EE7B7' : '#FCA5A5' }]}>
                   ${Math.round(pnl.profit).toLocaleString()}
                 </Text>
                 <Text style={styles.companyStatSuffix}>all time</Text>
@@ -896,7 +904,7 @@ export default function OwnerDashboardScreen() {
                   return (
                     <View style={[styles.companyRatioPill, { backgroundColor: bgColor }]}>
                       <View style={[styles.companyRatioDot, { backgroundColor: color }]} />
-                      <Text style={[styles.companyRatioText, { color }]}>
+                      <Text testID="ownerDashboard.overheadRatio" style={[styles.companyRatioText, { color }]}>
                         Overhead {ratio}% — {label}
                       </Text>
                     </View>

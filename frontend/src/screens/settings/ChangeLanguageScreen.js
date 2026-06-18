@@ -100,10 +100,12 @@ export default function ChangeLanguageScreen({ navigation }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
+          testID="changeLanguage.backButton"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('account.language')}</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="changeLanguage.title">{t('account.language')}</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -123,6 +125,8 @@ export default function ChangeLanguageScreen({ navigation }) {
               ]}
               onPress={() => handleSelectLanguage(language.id)}
               activeOpacity={0.7}
+              testID={`changeLanguage.row.${language.id}`}
+              accessibilityLabel={`Select ${language.name}`}
             >
               <Text style={styles.flag}>{language.flag}</Text>
               <View style={styles.languageInfo}>
@@ -146,6 +150,8 @@ export default function ChangeLanguageScreen({ navigation }) {
             style={styles.errorBanner}
             onPress={loadCurrentLanguage}
             activeOpacity={0.7}
+            testID="changeLanguage.errorBanner"
+            accessibilityLabel="Retry loading language"
           >
             <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
             <Text style={[styles.errorText, { color: Colors.error }]}>
@@ -165,6 +171,8 @@ export default function ChangeLanguageScreen({ navigation }) {
           onPress={handleSave}
           activeOpacity={0.8}
           disabled={saving || loadFailed}
+          testID="changeLanguage.saveButton"
+          accessibilityLabel="Save changes"
         >
           {saving ? (
             <ActivityIndicator size="small" color="#fff" />

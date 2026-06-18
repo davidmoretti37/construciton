@@ -235,10 +235,10 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.header, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity testID="projectTransactions.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('owner:transactions.transactionHistory')}</Text>
+          <Text testID="projectTransactions.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('owner:transactions.transactionHistory')}</Text>
           <View style={styles.backButton} />
         </View>
         <View style={styles.loadingContainer}>
@@ -253,10 +253,10 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.header, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity testID="projectTransactions.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('owner:transactions.transactionHistory')}</Text>
+          <Text testID="projectTransactions.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('owner:transactions.transactionHistory')}</Text>
           <View style={styles.backButton} />
         </View>
         <View style={styles.emptyState}>
@@ -268,6 +268,8 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
             {t('common:errors.tryAgain')}
           </Text>
           <TouchableOpacity
+            testID="projectTransactions.retryButton"
+            accessibilityLabel="Retry"
             onPress={refresh}
             style={[styles.addButton, { backgroundColor: Colors.primaryBlue, marginTop: 8 }]}
             activeOpacity={0.85}
@@ -284,13 +286,15 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity testID="projectTransactions.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+        <Text testID="projectTransactions.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
           {subcategoryFilter ? `${entityName} · ${subcategoryFilter}` : entityName}
         </Text>
         <TouchableOpacity
+          testID="projectTransactions.addButton"
+          accessibilityLabel="Add transaction"
           onPress={handleAddTransaction}
           style={[styles.addButton, { backgroundColor: Colors.primaryBlue }]}
           activeOpacity={0.85}
@@ -305,7 +309,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
         {typeFilter !== 'income' && (
           <View style={[styles.summaryCard, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('owner:transactions.totalExpenses')}</Text>
-            <Text style={[styles.summaryAmount, { color: '#EF4444' }]}>
+            <Text testID="projectTransactions.totalExpenses" style={[styles.summaryAmount, { color: '#EF4444' }]}>
               {formatCurrency(totals.expenses)}
             </Text>
           </View>
@@ -313,7 +317,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
         {typeFilter !== 'expense' && (
           <View style={[styles.summaryCard, { backgroundColor: Colors.cardBackground }]}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('owner:transactions.totalIncome')}</Text>
-            <Text style={[styles.summaryAmount, { color: '#10B981' }]}>
+            <Text testID="projectTransactions.totalIncome" style={[styles.summaryAmount, { color: '#10B981' }]}>
               {formatCurrency(totals.income)}
             </Text>
           </View>
@@ -331,6 +335,8 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
             ].map(f => (
               <TouchableOpacity
                 key={f.key}
+                testID={`projectTransactions.typeFilter.${f.key}`}
+                accessibilityLabel={`Filter ${f.label}`}
                 style={[
                   styles.filterPill,
                   { borderColor: Colors.border },
@@ -355,6 +361,8 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
         <View style={styles.filtersSection}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             <TouchableOpacity
+              testID="projectTransactions.categoryFilter.all"
+              accessibilityLabel="All categories"
               style={[
                 styles.categoryPill,
                 { borderColor: Colors.border },
@@ -372,6 +380,8 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
             {availableCategories.map(cat => (
               <TouchableOpacity
                 key={cat}
+                testID={`projectTransactions.categoryFilter.${cat}`}
+                accessibilityLabel={`Filter ${CATEGORY_LABELS[cat] || cat}`}
                 style={[
                   styles.categoryPill,
                   { borderColor: Colors.border },
@@ -397,6 +407,8 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
         <View style={styles.filtersSection}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             <TouchableOpacity
+              testID="projectTransactions.tradeFilter.all"
+              accessibilityLabel="All trades"
               style={[
                 styles.categoryPill,
                 { borderColor: Colors.border },
@@ -416,6 +428,8 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
               return (
                 <TouchableOpacity
                   key={trade.name}
+                  testID={`projectTransactions.tradeFilter.${trade.name}`}
+                  accessibilityLabel={`Filter trade ${trade.name}`}
                   style={[
                     styles.categoryPill,
                     { borderColor: Colors.border },
@@ -469,6 +483,8 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
         )}
         renderItem={({ item: transaction }) => (
           <TouchableOpacity
+            testID={`projectTransactions.row.${transaction.id}`}
+            accessibilityLabel={`Transaction ${transaction.description || ''}`}
             style={[styles.transactionCard, { backgroundColor: Colors.cardBackground }]}
             onPress={() => handleViewTransaction(transaction)}
             onLongPress={() => handleDeleteTransaction(transaction)}
@@ -530,6 +546,7 @@ export default function ProjectTransactionsScreen({ route, navigation }) {
             </View>
             <View style={styles.transactionRight}>
               <Text
+                testID={`projectTransactions.rowAmount.${transaction.id}`}
                 style={[
                   styles.transactionAmount,
                   { color: transaction.type === 'expense' ? '#EF4444' : '#10B981' },

@@ -248,6 +248,8 @@ const SectionHeader = ({ title, icon, sectionKey, expanded, chip, onToggle, Colo
       style={[styles.sectionHeader, { borderBottomColor: expanded ? Colors.border : 'transparent' }]}
       onPress={() => onToggle(sectionKey)}
       activeOpacity={0.7}
+      testID={`projectBuilder.section.${sectionKey}`}
+      accessibilityLabel={`${title} section`}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
         <Ionicons name={icon} size={18} color={Colors.primaryBlue} />
@@ -286,6 +288,8 @@ const ThemedInput = ({
   multiline,
   autoCapitalize,
   Colors,
+  testID,
+  accessibilityLabel,
 }) => {
   const vp = getFieldVisualProps(value, { required, confidence });
   return (
@@ -308,6 +312,8 @@ const ThemedInput = ({
       keyboardType={keyboardType}
       multiline={multiline}
       autoCapitalize={autoCapitalize}
+      testID={testID}
+      accessibilityLabel={accessibilityLabel}
     />
   );
 };
@@ -1509,11 +1515,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()} testID="projectBuilder.backButton" accessibilityLabel="Back">
             <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.primaryBlue }}>Back</Text>
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Configure Project</Text>
+            <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="projectBuilder.title">Configure Project</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               {autoSaveStatus === 'error' && (
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#DC2626', marginRight: 5 }} />
@@ -1534,7 +1540,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   : 'Draft'}
               </Text>
               {autoSaveStatus === 'error' && (
-                <TouchableOpacity onPress={() => flushSaveRef.current?.()} style={{ marginLeft: 6 }}>
+                <TouchableOpacity onPress={() => flushSaveRef.current?.()} style={{ marginLeft: 6 }} testID="projectBuilder.retrySaveButton" accessibilityLabel="Retry save">
                   <Text style={{ color: Colors.primaryBlue, fontSize: 11, fontWeight: '700' }}>Retry</Text>
                 </TouchableOpacity>
               )}
@@ -1570,6 +1576,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   required
                   confidence={aiConfidence.name}
                   Colors={Colors}
+                  testID="projectBuilder.projectNameInput"
+                  accessibilityLabel="Project name"
                 />
 
                 <LabelRow label="Client Name" required confidence={aiConfidence.client} Colors={Colors} />
@@ -1580,6 +1588,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   required
                   confidence={aiConfidence.client}
                   Colors={Colors}
+                  testID="projectBuilder.clientNameInput"
+                  accessibilityLabel="Client name"
                 />
 
                 <LabelRow label="Client Phone" confidence={aiConfidence.clientPhone} Colors={Colors} />
@@ -1590,6 +1600,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   keyboardType="phone-pad"
                   confidence={aiConfidence.clientPhone}
                   Colors={Colors}
+                  testID="projectBuilder.clientPhoneInput"
+                  accessibilityLabel="Client phone"
                 />
 
                 <LabelRow label="Client Email" confidence={aiConfidence.clientEmail} Colors={Colors} />
@@ -1601,6 +1613,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   autoCapitalize="none"
                   confidence={aiConfidence.clientEmail}
                   Colors={Colors}
+                  testID="projectBuilder.clientEmailInput"
+                  accessibilityLabel="Client email"
                 />
 
                 <LabelRow label="Location" confidence={aiConfidence.location} Colors={Colors} />
@@ -1610,6 +1624,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   placeholder="Project site address"
                   confidence={aiConfidence.location}
                   Colors={Colors}
+                  testID="projectBuilder.locationInput"
+                  accessibilityLabel="Location"
                 />
               </View>
             )}
@@ -1634,8 +1650,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     <TouchableOpacity
                       style={[styles.input, { justifyContent: 'center', backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowStartPicker(true)}
+                      testID="projectBuilder.startDateButton"
+                      accessibilityLabel="Select start date"
                     >
-                      <Text style={{ color: startDate ? Colors.primaryText : Colors.placeholderText }}>
+                      <Text style={{ color: startDate ? Colors.primaryText : Colors.placeholderText }} testID="projectBuilder.startDateValue">
                         {startDate ? formatDate(startDate) : 'Select start date'}
                       </Text>
                     </TouchableOpacity>
@@ -1645,8 +1663,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     <TouchableOpacity
                       style={[styles.input, { justifyContent: 'center', backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowEndPicker(true)}
+                      testID="projectBuilder.endDateButton"
+                      accessibilityLabel="Select end date"
                     >
-                      <Text style={{ color: endDate ? Colors.primaryText : Colors.placeholderText }}>
+                      <Text style={{ color: endDate ? Colors.primaryText : Colors.placeholderText }} testID="projectBuilder.endDateValue">
                         {endDate ? formatDate(endDate) : 'Select end date'}
                       </Text>
                     </TouchableOpacity>
@@ -1698,11 +1718,13 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   required
                   confidence={aiConfidence.contractAmount}
                   Colors={Colors}
+                  testID="projectBuilder.contractAmountInput"
+                  accessibilityLabel="Contract amount"
                 />
 
                 {/* Allocation bar */}
                 <View style={[styles.allocBar, { backgroundColor: overAllocated ? '#FEE2E2' : '#EFF6FF', borderColor: overAllocated ? '#DC2626' : Colors.primaryBlue + '30', marginTop: 12 }]}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: overAllocated ? '#DC2626' : Colors.primaryText }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: overAllocated ? '#DC2626' : Colors.primaryText }} testID="projectBuilder.allocationSummary">
                     Allocated ${allocatedTotal.toLocaleString()} / Contract ${contractTotal.toLocaleString()}
                   </Text>
                   <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
@@ -1713,7 +1735,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 </View>
 
                 {phases.map((phase, i) => (
-                  <View key={`phase-${i}`} style={[styles.phaseCard, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}>
+                  <View key={`phase-${i}`} testID={`projectBuilder.phaseRow.${i}`} style={[styles.phaseCard, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                       <TextInput
                         style={[styles.phaseName, { color: Colors.primaryText, flex: 1 }]}
@@ -1721,8 +1743,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         onChangeText={(v) => updatePhase(i, { name: v })}
                         placeholder={`Phase ${i + 1}`}
                         placeholderTextColor={Colors.placeholderText}
+                        testID={`projectBuilder.phaseNameInput.${i}`}
+                        accessibilityLabel={`Phase ${i + 1} name`}
                       />
-                      <TouchableOpacity onPress={() => removePhase(i)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <TouchableOpacity onPress={() => removePhase(i)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} testID={`projectBuilder.phaseRemoveButton.${i}`} accessibilityLabel={`Remove phase ${i + 1}`}>
                         <Ionicons name="trash-outline" size={18} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
@@ -1737,6 +1761,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           placeholder="0"
                           placeholderTextColor={Colors.placeholderText}
                           keyboardType="number-pad"
+                          testID={`projectBuilder.phaseDaysInput.${i}`}
+                          accessibilityLabel={`Phase ${i + 1} days`}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -1757,6 +1783,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           placeholder="0"
                           placeholderTextColor={Colors.placeholderText}
                           keyboardType="decimal-pad"
+                          testID={`projectBuilder.phaseBudgetInput.${i}`}
+                          accessibilityLabel={`Phase ${i + 1} budget`}
                         />
                       </View>
                     </View>
@@ -1766,6 +1794,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       <TouchableOpacity
                         onPress={() => updatePhase(i, { assignedWorkerId: null })}
                         style={[styles.chipButton, { backgroundColor: !phase.assignedWorkerId ? Colors.primaryBlue : Colors.white, borderColor: Colors.border }]}
+                        testID={`projectBuilder.phaseWorkerNone.${i}`}
+                        accessibilityLabel={`Phase ${i + 1} no assigned worker`}
                       >
                         <Text style={{ color: !phase.assignedWorkerId ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>None</Text>
                       </TouchableOpacity>
@@ -1773,6 +1803,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         <TouchableOpacity
                           key={w.id}
                           onPress={() => updatePhase(i, { assignedWorkerId: w.id })}
+                          testID={`projectBuilder.phaseWorker.${i}.${w.id}`}
+                          accessibilityLabel={`Assign ${w.name || w.full_name || 'worker'} to phase ${i + 1}`}
                           style={[
                             styles.chipButton,
                             {
@@ -1798,7 +1830,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     <View style={{ marginTop: 4 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <Text style={[styles.miniLabel, { color: Colors.secondaryText }]}>Tasks</Text>
-                        <TouchableOpacity onPress={() => addTaskToPhase(i)}>
+                        <TouchableOpacity onPress={() => addTaskToPhase(i)} testID={`projectBuilder.phaseAddTaskButton.${i}`} accessibilityLabel={`Add task to phase ${i + 1}`}>
                           <Text style={{ color: Colors.primaryBlue, fontSize: 12, fontWeight: '600' }}>+ Add Task</Text>
                         </TouchableOpacity>
                       </View>
@@ -1810,8 +1842,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             onChangeText={(v) => updateTask(i, ti, v)}
                             placeholder="Task description"
                             placeholderTextColor={Colors.placeholderText}
+                            testID={`projectBuilder.phaseTaskInput.${i}.${ti}`}
+                            accessibilityLabel={`Phase ${i + 1} task ${ti + 1}`}
                           />
-                          <TouchableOpacity onPress={() => removeTask(i, ti)}>
+                          <TouchableOpacity onPress={() => removeTask(i, ti)} testID={`projectBuilder.phaseTaskRemoveButton.${i}.${ti}`} accessibilityLabel={`Remove task ${ti + 1} from phase ${i + 1}`}>
                             <Ionicons name="close-circle" size={20} color="#EF4444" />
                           </TouchableOpacity>
                         </View>
@@ -1823,6 +1857,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 <TouchableOpacity
                   style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]}
                   onPress={handleAddPhase}
+                  testID="projectBuilder.addPhaseButton"
+                  accessibilityLabel="Add phase"
                 >
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
                   <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Phase</Text>
@@ -1867,6 +1903,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     value={billInDraws}
                     onValueChange={setBillInDraws}
                     trackColor={{ false: Colors.border, true: Colors.primaryBlue }}
+                    testID="projectBuilder.billInDrawsSwitch"
+                    accessibilityLabel="Bill this project in draws"
                   />
                 </View>
 
@@ -1885,6 +1923,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         placeholder="10"
                         keyboardType="decimal-pad"
                         Colors={Colors}
+                        testID="projectBuilder.retainageInput"
+                        accessibilityLabel="Retainage percent"
                       />
                     </View>
 
@@ -1910,7 +1950,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             {pctSum > 0 ? `${pctSum.toFixed(1)}% of contract allocated` : 'Fixed-amount draws'}
                             {fixedSum > 0 && pctSum > 0 ? `  •  + $${fixedSum.toLocaleString()} fixed` : ''}
                           </Text>
-                          <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
+                          <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }} testID="projectBuilder.drawsTotal">
                             Total ${dollarTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} across {draws.length} draw{draws.length === 1 ? '' : 's'}
                             {pctSum > 0 && !pctClose ? '  •  % rows should sum to 100' : ''}
                           </Text>
@@ -1930,7 +1970,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       const locked = draw.status && draw.status !== 'pending';
 
                       return (
-                        <View key={`draw-${i}`} style={[styles.phaseCard, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}>
+                        <View key={`draw-${i}`} testID={`projectBuilder.drawRow.${i}`} style={[styles.phaseCard, { borderColor: Colors.border, backgroundColor: Colors.lightGray }]}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                             <Text style={{ color: Colors.secondaryText, fontWeight: '700', marginRight: 8 }}>#{i + 1}</Text>
                             <TextInput
@@ -1940,9 +1980,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               placeholder={`Draw ${i + 1} (e.g. "Foundation complete")`}
                               placeholderTextColor={Colors.placeholderText}
                               editable={!locked}
+                              testID={`projectBuilder.drawDescriptionInput.${i}`}
+                              accessibilityLabel={`Draw ${i + 1} description`}
                             />
                             {!locked && (
-                              <TouchableOpacity onPress={() => removeDraw(i)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                              <TouchableOpacity onPress={() => removeDraw(i)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} testID={`projectBuilder.drawRemoveButton.${i}`} accessibilityLabel={`Remove draw ${i + 1}`}>
                                 <Ionicons name="trash-outline" size={18} color="#EF4444" />
                               </TouchableOpacity>
                             )}
@@ -1951,7 +1993,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           {locked && (
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                               <View style={{ backgroundColor: draw.status === 'paid' ? '#D1FAE5' : '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
-                                <Text style={{ color: draw.status === 'paid' ? '#065F46' : '#92400E', fontSize: 11, fontWeight: '700' }}>
+                                <Text style={{ color: draw.status === 'paid' ? '#065F46' : '#92400E', fontSize: 11, fontWeight: '700' }} testID={`projectBuilder.drawStatus.${i}`}>
                                   {draw.status.toUpperCase()}{draw.invoice_number ? ` • ${draw.invoice_number}` : ''}
                                 </Text>
                               </View>
@@ -1972,6 +2014,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 borderColor: Colors.border,
                                 opacity: locked ? 0.5 : 1,
                               }]}
+                              testID={`projectBuilder.drawModePercent.${i}`}
+                              accessibilityLabel={`Draw ${i + 1} percent of contract mode`}
                             >
                               <Text style={{ color: mode === 'percent' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>% of contract</Text>
                             </TouchableOpacity>
@@ -1986,6 +2030,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 borderColor: Colors.border,
                                 opacity: locked ? 0.5 : 1,
                               }]}
+                              testID={`projectBuilder.drawModeFixed.${i}`}
+                              accessibilityLabel={`Draw ${i + 1} fixed amount mode`}
                             >
                               <Text style={{ color: mode === 'fixed' ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>Fixed $</Text>
                             </TouchableOpacity>
@@ -2007,6 +2053,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 placeholderTextColor={Colors.placeholderText}
                                 keyboardType="decimal-pad"
                                 editable={!locked}
+                                testID={`projectBuilder.drawPercentInput.${i}`}
+                                accessibilityLabel={`Draw ${i + 1} percent of contract`}
                               />
                             </View>
                           ) : (
@@ -2020,6 +2068,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 placeholderTextColor={Colors.placeholderText}
                                 keyboardType="decimal-pad"
                                 editable={!locked}
+                                testID={`projectBuilder.drawFixedInput.${i}`}
+                                accessibilityLabel={`Draw ${i + 1} fixed amount`}
                               />
                             </View>
                           )}
@@ -2073,6 +2123,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                 });
                               }}
                               style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
+                              testID={`projectBuilder.drawTriggerPhase.${i}`}
+                              accessibilityLabel={`Draw ${i + 1} trigger on phase completion`}
                             >
                               <View style={{
                                 width: 18, height: 18, borderRadius: 9, borderWidth: 2,
@@ -2117,6 +2169,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                                             phase_id:
                                               p.id && !String(p.id).startsWith('draft-') ? p.id : null,
                                           })}
+                                          testID={`projectBuilder.drawPhaseChip.${i}.${pIdx}`}
+                                          accessibilityLabel={`Link draw ${i + 1} to phase ${pIdx + 1}`}
                                           style={[styles.chipButton, {
                                             backgroundColor: selected ? Colors.primaryBlue : Colors.lightGray,
                                             borderColor: Colors.border,
@@ -2138,6 +2192,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               disabled={locked}
                               onPress={() => updateDraw(i, { trigger_type: 'project_start', phase_id: null, phase_order_index: null })}
                               style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
+                              testID={`projectBuilder.drawTriggerProjectStart.${i}`}
+                              accessibilityLabel={`Draw ${i + 1} trigger on project start`}
                             >
                               <View style={{
                                 width: 18, height: 18, borderRadius: 9, borderWidth: 2,
@@ -2161,6 +2217,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                               disabled={locked}
                               onPress={() => updateDraw(i, { trigger_type: 'manual', phase_id: null, phase_order_index: null })}
                               style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, gap: 10 }}
+                              testID={`projectBuilder.drawTriggerManual.${i}`}
+                              accessibilityLabel={`Draw ${i + 1} trigger manually`}
                             >
                               <View style={{
                                 width: 18, height: 18, borderRadius: 9, borderWidth: 2,
@@ -2186,6 +2244,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     <TouchableOpacity
                       style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]}
                       onPress={handleAddDraw}
+                      testID="projectBuilder.addDrawButton"
+                      accessibilityLabel="Add draw"
                     >
                       <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
                       <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Draw</Text>
@@ -2214,6 +2274,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   <TouchableOpacity
                     onPress={() => setSelectedSupervisor(null)}
                     style={[styles.chipButton, { backgroundColor: !selectedSupervisor ? Colors.primaryBlue : Colors.white, borderColor: Colors.border }]}
+                    testID="projectBuilder.supervisorManageDirectly"
+                    accessibilityLabel="Manage directly, no supervisor"
                   >
                     <Text style={{ color: !selectedSupervisor ? '#fff' : Colors.primaryText, fontSize: 12, fontWeight: '600' }}>Manage Directly</Text>
                   </TouchableOpacity>
@@ -2221,6 +2283,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     <TouchableOpacity
                       key={s.id}
                       onPress={() => setSelectedSupervisor(s.id)}
+                      testID={`projectBuilder.supervisorChip.${s.id}`}
+                      accessibilityLabel={`Select supervisor ${s.name || s.full_name || ''}`}
                       style={[
                         styles.chipButton,
                         {
@@ -2250,6 +2314,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       <TouchableOpacity
                         key={w.id}
                         onPress={() => toggleWorker(w.id)}
+                        testID={`projectBuilder.workerChip.${w.id}`}
+                        accessibilityLabel={`Toggle worker ${w.name || w.full_name || ''}`}
                         style={[
                           styles.chipButton,
                           {
@@ -2305,6 +2371,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             <TouchableOpacity
                               key={mode}
                               onPress={() => setAiSuggestMode(mode)}
+                              testID={`projectBuilder.aiSuggestMode.${mode}`}
+                              accessibilityLabel={`AI suggest ${mode} mode`}
                               style={{
                                 paddingHorizontal: 10,
                                 paddingVertical: 4,
@@ -2321,6 +2389,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       onPress={handleAISuggestChecklist}
                       style={[styles.aiSuggestBtn, { opacity: aiSuggestLoading ? 0.6 : 1 }]}
                       disabled={aiSuggestLoading}
+                      testID="projectBuilder.aiSuggestButton"
+                      accessibilityLabel="Suggest checklist and labor with AI"
                     >
                       {aiSuggestLoading ? (
                         <ActivityIndicator size="small" color="#7C3AED" />
@@ -2362,14 +2432,16 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         onChangeText={(v) => updateChecklistItem(i, 'title', v)}
                         placeholder="e.g. Site clean at end of day"
                         placeholderTextColor={Colors.placeholderText}
+                        testID={`projectBuilder.checklistItemInput.${i}`}
+                        accessibilityLabel={`Checklist item ${i + 1}`}
                       />
-                      <TouchableOpacity onPress={() => removeChecklistItem(i)}>
+                      <TouchableOpacity onPress={() => removeChecklistItem(i)} testID={`projectBuilder.checklistItemRemoveButton.${i}`} accessibilityLabel={`Remove checklist item ${i + 1}`}>
                         <Ionicons name="close-circle" size={20} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
                   );
                 })}
-                <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addChecklistItem}>
+                <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addChecklistItem} testID="projectBuilder.addChecklistItemButton" accessibilityLabel="Add checklist item">
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
                   <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Checklist Item</Text>
                 </TouchableOpacity>
@@ -2396,6 +2468,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         onChangeText={(v) => updateLaborRole(i, 'role_name', v)}
                         placeholder="Role (e.g. Carpenter)"
                         placeholderTextColor={Colors.placeholderText}
+                        testID={`projectBuilder.laborRoleNameInput.${i}`}
+                        accessibilityLabel={`Labor role ${i + 1} name`}
                       />
                       <TextInput
                         style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
@@ -2404,14 +2478,16 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         placeholder="Qty"
                         placeholderTextColor={Colors.placeholderText}
                         keyboardType="number-pad"
+                        testID={`projectBuilder.laborRoleQtyInput.${i}`}
+                        accessibilityLabel={`Labor role ${i + 1} quantity`}
                       />
-                      <TouchableOpacity onPress={() => removeLaborRole(i)}>
+                      <TouchableOpacity onPress={() => removeLaborRole(i)} testID={`projectBuilder.laborRoleRemoveButton.${i}`} accessibilityLabel={`Remove labor role ${i + 1}`}>
                         <Ionicons name="close-circle" size={20} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
                   );
                 })}
-                <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addLaborRole}>
+                <TouchableOpacity style={[styles.addRowButton, { borderColor: Colors.primaryBlue }]} onPress={addLaborRole} testID="projectBuilder.addLaborRoleButton" accessibilityLabel="Add labor role">
                   <Ionicons name="add-circle-outline" size={18} color={Colors.primaryBlue} />
                   <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Add Labor Role</Text>
                 </TouchableOpacity>
@@ -2452,6 +2528,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   style={[styles.addRowButton, { borderColor: Colors.primaryBlue, opacity: uploadingDoc ? 0.6 : 1 }]}
                   onPress={handleUploadDocument}
                   disabled={uploadingDoc}
+                  testID="projectBuilder.uploadDocumentButton"
+                  accessibilityLabel="Upload document"
                 >
                   {uploadingDoc ? (
                     <ActivityIndicator size="small" color={Colors.primaryBlue} />
@@ -2498,6 +2576,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           key={doc.id}
                           activeOpacity={0.7}
                           onPress={() => handleOpenDocument(doc)}
+                          testID={`projectBuilder.documentRow.${doc.id}`}
+                          accessibilityLabel={`Open document ${doc.file_name}`}
                           style={{
                             flexDirection: 'row',
                             alignItems: 'center',
@@ -2528,6 +2608,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             onPress={() => handleDeleteDocument(doc)}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             style={{ padding: 4 }}
+                            testID={`projectBuilder.documentDeleteButton.${doc.id}`}
+                            accessibilityLabel={`Delete document ${doc.file_name}`}
                           >
                             <Ionicons name="trash-outline" size={18} color="#DC2626" />
                           </TouchableOpacity>
@@ -2575,7 +2657,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primaryText }}>
                         #{linkedEstimate.estimate_number || '—'}
                       </Text>
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }} testID="projectBuilder.linkedEstimateTotal">
                         ${(parseFloat(linkedEstimate.total) || 0).toLocaleString()}
                       </Text>
                     </View>
@@ -2609,7 +2691,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           {linkedEstimate.status || 'draft'}
                         </Text>
                       </View>
-                      <TouchableOpacity onPress={handleUnlinkEstimate}>
+                      <TouchableOpacity onPress={handleUnlinkEstimate} testID="projectBuilder.unlinkEstimateButton" accessibilityLabel="Unlink estimate">
                         <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '600' }}>Unlink</Text>
                       </TouchableOpacity>
                     </View>
@@ -2618,6 +2700,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   <TouchableOpacity
                     style={[styles.addRowButton, { borderColor: Colors.primaryBlue, paddingVertical: 18 }]}
                     onPress={openEstimatePicker}
+                    testID="projectBuilder.linkEstimateButton"
+                    accessibilityLabel="Link an estimate"
                   >
                     <Ionicons name="link-outline" size={20} color={Colors.primaryBlue} />
                     <Text style={{ color: Colors.primaryBlue, fontWeight: '700', fontSize: 14 }}>Link an Estimate</Text>
@@ -2644,7 +2728,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
                   • {name.trim() || '—'} for {client.trim() || '—'}
                 </Text>
-                <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
+                <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }} testID="projectBuilder.reviewContract">
                   • Contract ${contractTotal.toLocaleString()} across {phases.length} phase{phases.length === 1 ? '' : 's'}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
@@ -2668,6 +2752,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
             onPress={runFinalSave}
             disabled={finalSaving}
             activeOpacity={0.85}
+            testID="projectBuilder.createProjectButton"
+            accessibilityLabel="Create project"
           >
             {finalSaving ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -2689,11 +2775,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowStartPicker(false)} activeOpacity={1} />
               <View style={[styles.pickerSheet, { backgroundColor: Colors.white }]}>
                 <View style={styles.pickerHeader}>
-                  <TouchableOpacity onPress={() => setShowStartPicker(false)}>
+                  <TouchableOpacity onPress={() => setShowStartPicker(false)} testID="projectBuilder.startPickerCancel" accessibilityLabel="Cancel start date">
                     <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
                   </TouchableOpacity>
                   <Text style={{ fontWeight: '700', color: Colors.primaryText }}>Start Date</Text>
-                  <TouchableOpacity onPress={() => setShowStartPicker(false)}>
+                  <TouchableOpacity onPress={() => setShowStartPicker(false)} testID="projectBuilder.startPickerDone" accessibilityLabel="Confirm start date">
                     <Text style={{ color: Colors.primaryBlue, fontWeight: '700' }}>Done</Text>
                   </TouchableOpacity>
                 </View>
@@ -2721,7 +2807,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <TouchableOpacity style={{ flex: 1 }} onPress={() => setEstimatePickerVisible(false)} activeOpacity={1} />
               <View style={[styles.pickerSheet, { backgroundColor: Colors.white, maxHeight: '80%' }]}>
                 <View style={styles.pickerHeader}>
-                  <TouchableOpacity onPress={() => setEstimatePickerVisible(false)}>
+                  <TouchableOpacity onPress={() => setEstimatePickerVisible(false)} testID="projectBuilder.estimatePickerCancel" accessibilityLabel="Cancel estimate picker">
                     <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
                   </TouchableOpacity>
                   <Text style={{ fontWeight: '700', color: Colors.primaryText }}>Select Estimate</Text>
@@ -2735,6 +2821,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                     placeholder="Search by client, project, or #"
                     placeholderTextColor={Colors.placeholderText}
                     autoCapitalize="none"
+                    testID="projectBuilder.estimateSearchInput"
+                    accessibilityLabel="Search estimates"
                   />
                 </View>
                 {estimatesLoading ? (
@@ -2764,6 +2852,8 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                       return (
                         <TouchableOpacity
                           onPress={() => handlePickEstimate(item)}
+                          testID={`projectBuilder.estimateRow.${item.id}`}
+                          accessibilityLabel={`Select estimate ${item.estimate_number || item.client_name || ''}`}
                           style={{
                             flexDirection: 'row',
                             paddingHorizontal: 12,
@@ -2809,11 +2899,11 @@ export default function ProjectBuilderScreen({ navigation, route }) {
               <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowEndPicker(false)} activeOpacity={1} />
               <View style={[styles.pickerSheet, { backgroundColor: Colors.white }]}>
                 <View style={styles.pickerHeader}>
-                  <TouchableOpacity onPress={() => setShowEndPicker(false)}>
+                  <TouchableOpacity onPress={() => setShowEndPicker(false)} testID="projectBuilder.endPickerCancel" accessibilityLabel="Cancel end date">
                     <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
                   </TouchableOpacity>
                   <Text style={{ fontWeight: '700', color: Colors.primaryText }}>End Date</Text>
-                  <TouchableOpacity onPress={() => setShowEndPicker(false)}>
+                  <TouchableOpacity onPress={() => setShowEndPicker(false)} testID="projectBuilder.endPickerDone" accessibilityLabel="Confirm end date">
                     <Text style={{ color: Colors.primaryBlue, fontWeight: '700' }}>Done</Text>
                   </TouchableOpacity>
                 </View>

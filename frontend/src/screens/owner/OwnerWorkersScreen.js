@@ -58,6 +58,8 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
 
   return (
     <TouchableOpacity
+      testID={`ownerWorkers.row.${supervisor.id}`}
+      accessibilityLabel="Supervisor row"
       style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white, borderColor: Colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
@@ -72,7 +74,7 @@ const SupervisorCard = ({ supervisor, onPress, Colors, tOwner }) => {
       </LinearGradient>
 
       <View style={styles.cardInfo}>
-        <Text style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
+        <Text testID={`ownerWorkers.supervisorName.${supervisor.id}`} style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
           {supervisor.business_name || supervisor.email?.split('@')[0] || 'Supervisor'}
         </Text>
         {isClockedIn && (
@@ -121,6 +123,8 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
 
   return (
     <TouchableOpacity
+      testID={`ownerWorkers.workerRow.${worker.id}`}
+      accessibilityLabel="Worker row"
       style={[styles.supervisorCard, { backgroundColor: Colors.card || Colors.white, borderColor: Colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
@@ -130,7 +134,7 @@ const WorkerCardHorizontal = ({ worker, onPress, Colors, t }) => {
       </View>
 
       <View style={styles.cardInfo}>
-        <Text style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
+        <Text testID={`ownerWorkers.workerName.${worker.id}`} style={[styles.cardName, { color: Colors.primaryText }]} numberOfLines={1}>
           {worker.full_name || 'Worker'}
         </Text>
         {worker.trade && (
@@ -192,6 +196,8 @@ const PendingInviteCard = ({ invite, onCancel, Colors, tOwner }) => (
     </View>
 
     <TouchableOpacity
+      testID={`ownerWorkers.cancelInvite.${invite.id}`}
+      accessibilityLabel="Cancel invitation"
       onPress={onCancel}
       style={[styles.cancelButton, { backgroundColor: `${OWNER_COLORS.error}10` }]}
     >
@@ -208,6 +214,8 @@ const SectionError = ({ onRetry, Colors }) => (
       Couldn't load. Check your connection.
     </Text>
     <TouchableOpacity
+      testID="ownerWorkers.retryButton"
+      accessibilityLabel="Retry"
       onPress={onRetry}
       style={[styles.retryButton, { borderColor: OWNER_COLORS.primary }]}
       activeOpacity={0.7}
@@ -711,6 +719,8 @@ export default function OwnerWorkersScreen() {
         {/* Tab Bar - 3 tabs */}
         <View style={styles.tabBar}>
           <TouchableOpacity
+            testID="ownerWorkers.scheduleTab"
+            accessibilityLabel="Schedule tab"
             style={[styles.tab, activeTab === 'schedule' && styles.activeTab]}
             onPress={() => setActiveTab('schedule')}
           >
@@ -725,6 +735,8 @@ export default function OwnerWorkersScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            testID="ownerWorkers.reportsTab"
+            accessibilityLabel="Reports tab"
             style={[styles.tab, activeTab === 'reports' && styles.activeTab]}
             onPress={() => setActiveTab('reports')}
           >
@@ -739,6 +751,8 @@ export default function OwnerWorkersScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            testID="ownerWorkers.teamTab"
+            accessibilityLabel="Team tab"
             style={[styles.tab, activeTab === 'team' && styles.activeTab]}
             onPress={() => setActiveTab('team')}
           >
@@ -761,6 +775,8 @@ export default function OwnerWorkersScreen() {
             <View style={[styles.searchBar, { backgroundColor: Colors.cardBackground || '#fff', borderColor: Colors.border }]}>
               <Ionicons name="search-outline" size={18} color={Colors.secondaryText} />
               <TextInput
+                testID="ownerWorkers.searchInput"
+                accessibilityLabel="Search team"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder="Search team..."
@@ -768,13 +784,15 @@ export default function OwnerWorkersScreen() {
                 style={[styles.searchInput, { color: Colors.primaryText }]}
                 autoFocus
               />
-              <TouchableOpacity onPress={() => { setSearchOpen(false); setSearchQuery(''); }}>
+              <TouchableOpacity testID="ownerWorkers.searchCloseButton" accessibilityLabel="Close search" onPress={() => { setSearchOpen(false); setSearchQuery(''); }}>
                 <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
               </TouchableOpacity>
             </View>
           ) : (
             <>
               <TouchableOpacity
+                testID="ownerWorkers.addTeamMemberButton"
+                accessibilityLabel="Add team member"
                 style={styles.addButton}
                 onPress={() => setShowRolePicker(true)}
                 activeOpacity={0.8}
@@ -783,6 +801,8 @@ export default function OwnerWorkersScreen() {
                 <Text style={styles.addButtonText}>Add Team Member</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                testID="ownerWorkers.filterButton"
+                accessibilityLabel="Filter team"
                 onPress={() => setShowFilterMenu(true)}
                 style={[
                   styles.iconBtn,
@@ -798,6 +818,8 @@ export default function OwnerWorkersScreen() {
                 />
               </TouchableOpacity>
               <TouchableOpacity
+                testID="ownerWorkers.searchButton"
+                accessibilityLabel="Search"
                 onPress={() => setSearchOpen(true)}
                 style={[styles.iconBtn, { backgroundColor: Colors.cardBackground || '#fff', borderColor: Colors.border }]}
                 activeOpacity={0.7}
@@ -833,6 +855,8 @@ export default function OwnerWorkersScreen() {
               return (
                 <TouchableOpacity
                   key={opt.key}
+                  testID={`ownerWorkers.filterOption.${opt.key}`}
+                  accessibilityLabel={`Filter ${opt.label}`}
                   style={[
                     styles.filterMenuRow,
                     isActive && { backgroundColor: `${OWNER_COLORS.primary}10` },
@@ -1000,6 +1024,8 @@ export default function OwnerWorkersScreen() {
                     filteredSubs.map((sub) => (
                       <TouchableOpacity
                         key={sub.id}
+                        testID={`ownerWorkers.subRow.${sub.id}`}
+                        accessibilityLabel="Subcontractor row"
                         onPress={() => navigation.navigate('SubcontractorDetail', { sub_organization_id: sub.id })}
                         style={[styles.subRow, { backgroundColor: Colors.cardBackground || '#fff' }]}
                         activeOpacity={0.7}
@@ -1010,7 +1036,7 @@ export default function OwnerWorkersScreen() {
                           </Text>
                         </View>
                         <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={[styles.subName, { color: Colors.primaryText }]}>{sub.legal_name}</Text>
+                          <Text testID={`ownerWorkers.subName.${sub.id}`} style={[styles.subName, { color: Colors.primaryText }]}>{sub.legal_name}</Text>
                           <Text style={[styles.subMeta, { color: Colors.secondaryText }]}>
                             {(sub.trades || []).join(', ') || '—'}
                             {sub.engagements?.length ? ` · ${sub.engagements.length} active job${sub.engagements.length === 1 ? '' : 's'}` : ''}
@@ -1021,6 +1047,8 @@ export default function OwnerWorkersScreen() {
                     ))
                   ) : (
                     <TouchableOpacity
+                      testID="ownerWorkers.addFirstSubcontractorButton"
+                      accessibilityLabel="Add subcontractor"
                       style={[styles.emptySection, { borderColor: '#8B5CF640', borderWidth: 1, borderStyle: 'dashed', borderRadius: 10 }]}
                       onPress={() => navigation.navigate('AddSubcontractor')}
                       activeOpacity={0.7}
@@ -1057,6 +1085,8 @@ export default function OwnerWorkersScreen() {
             </Text>
 
             <TouchableOpacity
+              testID="ownerWorkers.rolePickerSupervisor"
+              accessibilityLabel="Add supervisor"
               style={[styles.roleOption, { backgroundColor: `${OWNER_COLORS.primary}08` }]}
               onPress={() => {
                 setShowRolePicker(false);
@@ -1077,6 +1107,8 @@ export default function OwnerWorkersScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              testID="ownerWorkers.rolePickerWorker"
+              accessibilityLabel="Add worker"
               style={[styles.roleOption, { backgroundColor: `${OWNER_COLORS.success}08` }]}
               onPress={() => {
                 setShowRolePicker(false);
@@ -1097,6 +1129,8 @@ export default function OwnerWorkersScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              testID="ownerWorkers.rolePickerSubcontractor"
+              accessibilityLabel="Add subcontractor"
               style={[styles.roleOption, { backgroundColor: '#8B5CF608' }]}
               onPress={() => {
                 setShowRolePicker(false);
@@ -1117,6 +1151,8 @@ export default function OwnerWorkersScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              testID="ownerWorkers.rolePickerCancel"
+              accessibilityLabel="Cancel"
               style={styles.cancelRoleButton}
               onPress={() => setShowRolePicker(false)}
             >
@@ -1139,13 +1175,15 @@ export default function OwnerWorkersScreen() {
         >
           <SafeAreaView style={styles.modalSafeArea}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+              <TouchableOpacity testID="ownerWorkers.supervisorModalCancel" accessibilityLabel="Cancel" onPress={() => setShowAddModal(false)}>
                 <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
+              <Text testID="ownerWorkers.supervisorModalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>
                 Add Supervisor
               </Text>
               <TouchableOpacity
+                testID="ownerWorkers.supervisorSubmitButton"
+                accessibilityLabel="Send supervisor invite"
                 onPress={handleAddSupervisor}
                 disabled={inviting || !inviteForm.email.trim()}
               >
@@ -1163,6 +1201,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="mail-outline" size={20} color={Colors.secondaryText} />
                   <TextInput
+                    testID="ownerWorkers.supervisorEmailInput"
+                    accessibilityLabel="Supervisor email"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.email}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, email: text })}
@@ -1181,6 +1221,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="person-outline" size={20} color={Colors.secondaryText} />
                   <TextInput
+                    testID="ownerWorkers.supervisorFullNameInput"
+                    accessibilityLabel="Supervisor full name"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.fullName}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, fullName: text })}
@@ -1197,6 +1239,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
                   <TextInput
+                    testID="ownerWorkers.supervisorPhoneInput"
+                    accessibilityLabel="Supervisor phone"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={inviteForm.phone}
                     onChangeText={(text) => setInviteForm({ ...inviteForm, phone: text })}
@@ -1221,6 +1265,8 @@ export default function OwnerWorkersScreen() {
                   ].map((type) => (
                     <TouchableOpacity
                       key={type.key}
+                      testID={`ownerWorkers.supervisorPaymentType.${type.key}`}
+                      accessibilityLabel={`Payment type ${type.label}`}
                       style={[
                         styles.paymentTypeButton,
                         { borderColor: Colors.border },
@@ -1255,6 +1301,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Text style={{ color: Colors.secondaryText, fontSize: 18 }}>$</Text>
                   <TextInput
+                    testID="ownerWorkers.supervisorRateInput"
+                    accessibilityLabel="Supervisor rate"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={
                       inviteForm.paymentType === 'hourly' ? inviteForm.hourlyRate :
@@ -1306,13 +1354,15 @@ export default function OwnerWorkersScreen() {
         >
           <SafeAreaView style={styles.modalSafeArea}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-              <TouchableOpacity onPress={() => setShowAddWorkerModal(false)}>
+              <TouchableOpacity testID="ownerWorkers.workerModalCancel" accessibilityLabel="Cancel" onPress={() => setShowAddWorkerModal(false)}>
                 <Text style={{ color: Colors.secondaryText }}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
+              <Text testID="ownerWorkers.workerModalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>
                 Add Worker
               </Text>
               <TouchableOpacity
+                testID="ownerWorkers.workerSubmitButton"
+                accessibilityLabel="Add worker"
                 onPress={handleAddWorkerSubmit}
                 disabled={addingWorker || !workerForm.name.trim()}
               >
@@ -1330,6 +1380,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="person-outline" size={20} color={Colors.secondaryText} />
                   <TextInput
+                    testID="ownerWorkers.workerNameInput"
+                    accessibilityLabel="Worker full name"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.name}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, name: text })}
@@ -1346,6 +1398,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="mail-outline" size={20} color={Colors.secondaryText} />
                   <TextInput
+                    testID="ownerWorkers.workerEmailInput"
+                    accessibilityLabel="Worker email"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.email}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, email: text })}
@@ -1364,6 +1418,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="call-outline" size={20} color={Colors.secondaryText} />
                   <TextInput
+                    testID="ownerWorkers.workerPhoneInput"
+                    accessibilityLabel="Worker phone"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.phone}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, phone: text })}
@@ -1381,6 +1437,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Ionicons name="construct-outline" size={20} color={Colors.secondaryText} />
                   <TextInput
+                    testID="ownerWorkers.workerTradeInput"
+                    accessibilityLabel="Worker trade"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={workerForm.trade}
                     onChangeText={(text) => setWorkerForm({ ...workerForm, trade: text })}
@@ -1404,6 +1462,8 @@ export default function OwnerWorkersScreen() {
                   ].map((type) => (
                     <TouchableOpacity
                       key={type.key}
+                      testID={`ownerWorkers.workerPaymentType.${type.key}`}
+                      accessibilityLabel={`Payment type ${type.label}`}
                       style={[
                         styles.paymentTypeButton,
                         { borderColor: Colors.border },
@@ -1438,6 +1498,8 @@ export default function OwnerWorkersScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}>
                   <Text style={{ color: Colors.secondaryText, fontSize: 18 }}>$</Text>
                   <TextInput
+                    testID="ownerWorkers.workerRateInput"
+                    accessibilityLabel="Worker rate"
                     style={[styles.input, { color: Colors.primaryText }]}
                     value={
                       workerForm.paymentType === 'hourly' ? workerForm.hourlyRate :

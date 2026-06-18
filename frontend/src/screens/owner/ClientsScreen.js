@@ -64,10 +64,10 @@ export default function ClientsScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity testID="clients.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Clients</Text>
+          <Text testID="clients.headerTitle" style={styles.headerTitle}>Clients</Text>
         </View>
         <ActivityIndicator size="large" color="#3B82F6" style={{ marginTop: 40 }} />
       </SafeAreaView>
@@ -78,11 +78,11 @@ export default function ClientsScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity testID="clients.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Clients</Text>
-        <Text style={styles.headerCount}>{clients.length}</Text>
+        <Text testID="clients.headerTitle" style={styles.headerTitle}>Clients</Text>
+        <Text testID="clients.headerCount" style={styles.headerCount}>{clients.length}</Text>
       </View>
 
       {/* Search */}
@@ -90,6 +90,8 @@ export default function ClientsScreen({ navigation }) {
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={18} color="#9CA3AF" style={{ marginRight: 8 }} />
           <TextInput
+            testID="clients.searchInput"
+            accessibilityLabel="Search clients"
             style={styles.searchInput}
             value={search}
             onChangeText={setSearch}
@@ -97,7 +99,7 @@ export default function ClientsScreen({ navigation }) {
             placeholderTextColor="#9CA3AF"
           />
           {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
+            <TouchableOpacity testID="clients.searchClearButton" accessibilityLabel="Clear search" onPress={() => setSearch('')}>
               <Ionicons name="close-circle" size={18} color="#9CA3AF" />
             </TouchableOpacity>
           )}
@@ -113,13 +115,13 @@ export default function ClientsScreen({ navigation }) {
         {filtered.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="people-outline" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyText}>
+            <Text testID="clients.emptyText" style={styles.emptyText}>
               {search ? 'No clients match your search.' : 'No clients yet. Share a project to add your first client.'}
             </Text>
           </View>
         ) : (
           filtered.map((client) => (
-            <View key={client.id} style={styles.clientCard}>
+            <View key={client.id} testID={`clients.row.${client.id}`} style={styles.clientCard}>
               {/* Client info */}
               <View style={styles.clientHeader}>
                 <View style={styles.avatar}>
@@ -128,13 +130,13 @@ export default function ClientsScreen({ navigation }) {
                   </Text>
                 </View>
                 <View style={styles.clientInfo}>
-                  <Text style={styles.clientName}>{client.full_name}</Text>
-                  <Text style={styles.clientEmail}>{client.email}</Text>
+                  <Text testID={`clients.row.${client.id}.name`} style={styles.clientName}>{client.full_name}</Text>
+                  <Text testID={`clients.row.${client.id}.email`} style={styles.clientEmail}>{client.email}</Text>
                 </View>
                 {client.has_portal_access && (
                   <View style={styles.portalBadge}>
                     <View style={styles.portalDot} />
-                    <Text style={styles.portalText}>Portal</Text>
+                    <Text testID={`clients.row.${client.id}.portalBadge`} style={styles.portalText}>Portal</Text>
                   </View>
                 )}
               </View>
@@ -142,21 +144,21 @@ export default function ClientsScreen({ navigation }) {
               {/* Stats */}
               <View style={styles.statsRow}>
                 <View style={styles.stat}>
-                  <Text style={styles.statValue}>{client.project_count}</Text>
+                  <Text testID={`clients.row.${client.id}.projectCount`} style={styles.statValue}>{client.project_count}</Text>
                   <Text style={styles.statLabel}>Projects</Text>
                 </View>
                 <View style={styles.stat}>
-                  <Text style={styles.statValue}>{client.service_plan_count}</Text>
+                  <Text testID={`clients.row.${client.id}.serviceCount`} style={styles.statValue}>{client.service_plan_count}</Text>
                   <Text style={styles.statLabel}>Services</Text>
                 </View>
                 <View style={styles.stat}>
-                  <Text style={[styles.statValue, { color: '#059669' }]}>
+                  <Text testID={`clients.row.${client.id}.revenue`} style={[styles.statValue, { color: '#059669' }]}>
                     {formatCurrency(client.total_revenue)}
                   </Text>
                   <Text style={styles.statLabel}>Revenue</Text>
                 </View>
                 <View style={styles.stat}>
-                  <Text style={styles.statValue}>{formatCurrency(client.total_contract)}</Text>
+                  <Text testID={`clients.row.${client.id}.contract`} style={styles.statValue}>{formatCurrency(client.total_contract)}</Text>
                   <Text style={styles.statLabel}>Contract</Text>
                 </View>
               </View>
@@ -165,6 +167,8 @@ export default function ClientsScreen({ navigation }) {
               <View style={styles.actionRow}>
                 {client.phone && (
                   <TouchableOpacity
+                    testID={`clients.row.${client.id}.callButton`}
+                    accessibilityLabel="Call client"
                     style={styles.actionBtn}
                     onPress={() => Linking.openURL(`tel:${client.phone}`)}
                   >
@@ -174,6 +178,8 @@ export default function ClientsScreen({ navigation }) {
                 )}
                 {client.email && (
                   <TouchableOpacity
+                    testID={`clients.row.${client.id}.emailButton`}
+                    accessibilityLabel="Email client"
                     style={styles.actionBtn}
                     onPress={() => Linking.openURL(`mailto:${client.email}`)}
                   >
@@ -183,6 +189,8 @@ export default function ClientsScreen({ navigation }) {
                 )}
                 {client.phone && (
                   <TouchableOpacity
+                    testID={`clients.row.${client.id}.textButton`}
+                    accessibilityLabel="Text client"
                     style={styles.actionBtn}
                     onPress={() => Linking.openURL(`sms:${client.phone}`)}
                   >

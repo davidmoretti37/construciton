@@ -1594,7 +1594,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
         <SafeAreaView edges={['top']} style={{ backgroundColor: '#1E3A8A' }} />
         <LinearGradient colors={['#1E3A8A', '#1E3A8A']} style={{ paddingBottom: 40 }}>
           <View style={[styles.header, { borderBottomWidth: 0 }]}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton} testID="projectDetail.closeButton" accessibilityLabel="Close">
               <View style={[styles.closeIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                 <Ionicons name={asScreen ? "chevron-back" : "chevron-down"} size={24} color="#FFFFFF" />
               </View>
@@ -1655,6 +1655,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 }
               }}
               style={styles.closeButton}
+              testID="projectDetail.headerBackButton"
+              accessibilityLabel={isEditing ? 'Cancel editing' : 'Back'}
             >
               <View style={[styles.closeIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                 <Ionicons name={isEditing ? "close" : (asScreen ? "chevron-back" : "chevron-down")} size={24} color="#FFFFFF" />
@@ -1678,6 +1680,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   setIsEditing(true);
                 }}
                 style={styles.editButton}
+                testID="projectDetail.editButton"
+                accessibilityLabel="Edit project"
               >
                 <View style={[styles.editIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                   <Ionicons name="create-outline" size={20} color="#FFFFFF" />
@@ -1689,6 +1693,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 onPress={handleSaveAllChanges}
                 disabled={savingChanges}
                 style={styles.editButton}
+                testID="projectDetail.headerSaveButton"
+                accessibilityLabel="Save changes"
               >
                 <View style={[styles.editIconContainer, { backgroundColor: '#10B981', opacity: savingChanges ? 0.6 : 1 }]}>
                   {savingChanges ? (
@@ -1708,6 +1714,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 onPress={showStatusPicker}
                 disabled={isDemo}
                 activeOpacity={0.7}
+                testID="projectDetail.statusBadge"
+                accessibilityLabel="Change project status"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={{
                   backgroundColor: 'rgba(255,255,255,0.2)',
@@ -1716,7 +1724,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 }}
               >
                 <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>
+                <Text testID="projectDetail.statusText" style={{ fontSize: 12, fontWeight: '600', color: '#FFFFFF', textTransform: 'capitalize' }}>
                   {project.status?.replace(/-/g, ' ') || 'Active'}
                 </Text>
                 {!isDemo && <Ionicons name="chevron-down" size={12} color="#FFFFFF" />}
@@ -1728,6 +1736,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   style={[styles.heroTitle, { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#FFFFFF' }]}
                   value={editedName}
                   onChangeText={setEditedName}
+                  testID="projectDetail.nameInput"
+                  accessibilityLabel="Project name"
                   placeholder="Project name"
                   placeholderTextColor="rgba(255,255,255,0.5)"
                 />
@@ -1738,7 +1748,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 </View>
               </View>
             ) : (
-              <Text style={[styles.heroTitle, { paddingHorizontal: 20 }]} numberOfLines={2}>
+              <Text testID="projectDetail.title" style={[styles.heroTitle, { paddingHorizontal: 20 }]} numberOfLines={2}>
                 {project.name}
               </Text>
             )}
@@ -1746,6 +1756,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   onPress={() => handleAddressPress(project.location)}
                   activeOpacity={0.7}
+                  testID="projectDetail.heroLocationLink"
+                  accessibilityLabel="Open project location"
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginTop: 4 }}
                 >
                   <Ionicons name="location" size={14} color="rgba(255,255,255,0.85)" />
@@ -1777,17 +1789,19 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, minWidth: 120, paddingVertical: 0, paddingHorizontal: 4, borderBottomWidth: 2, borderBottomColor: '#3B82F6' }}
                       value={editedContractAmount}
                       onChangeText={(v) => setEditedContractAmount(String(v).replace(/[^0-9.]/g, ''))}
+                      testID="projectDetail.contractAmountInput"
+                      accessibilityLabel="Contract amount"
                       keyboardType="decimal-pad"
                       placeholder="0"
                       placeholderTextColor="#CBD5E1"
                     />
                   </View>
                 ) : (
-                  <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${contractAmount.toLocaleString()}</Text>
+                  <Text testID="projectDetail.contractValue" style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${contractAmount.toLocaleString()}</Text>
                 )}
               </View>
               {isOwner && (
-                <TouchableOpacity onPress={handleToggleContractVisibility} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={handleToggleContractVisibility} testID="projectDetail.contractVisibilityToggle" accessibilityLabel="Toggle contract visibility" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name={localHideContract ? 'eye-off-outline' : 'eye-outline'} size={18} color={localHideContract ? '#EF4444' : '#94A3B8'} />
                 </TouchableOpacity>
               )}
@@ -1808,10 +1822,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     navigation.navigate('ProjectTransactions', { projectId: project.id, projectName: project.name, fromProjectDetail: true, transactionType: 'income' });
                   }
                 }}
+                testID="projectDetail.incomeTile"
+                accessibilityLabel="View income transactions"
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Income</Text>
                 <Text
+                  testID="projectDetail.incomeAmount"
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
@@ -1835,10 +1852,13 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     navigation.navigate('ProjectTransactions', { projectId: project.id, projectName: project.name, fromProjectDetail: true, transactionType: 'expense' });
                   }
                 }}
+                testID="projectDetail.expensesTile"
+                accessibilityLabel="View expense transactions"
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Expenses</Text>
                 <Text
+                  testID="projectDetail.expensesAmount"
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
@@ -1856,6 +1876,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6 }}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Profit</Text>
                 <Text
+                  testID="projectDetail.profitAmount"
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
@@ -1878,7 +1899,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   <Ionicons name="calendar" size={18} color="#1E40AF" />
                 </View>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Timeline</Text>
-                <Text style={{ fontSize: 22, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>
+                <Text testID="projectDetail.progressPercent" style={{ fontSize: 22, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>
                   {calculatedProgress != null ? `${calculatedProgress}%` : `${project.percent_complete || 0}%`}
                 </Text>
                 <View style={{ height: 4, backgroundColor: '#F1F5F9', borderRadius: 4, marginTop: 8 }}>
@@ -1899,6 +1920,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: financialsExpanded ? 1 : 0, borderBottomColor: '#F1F5F9' }}
                 onPress={() => setFinancialsExpanded(!financialsExpanded)}
+                testID="projectDetail.budgetBreakdownToggle"
+                accessibilityLabel="Toggle budget breakdown"
                 activeOpacity={0.7}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -1919,7 +1942,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     <View style={{ marginBottom: tradeBudgets.length > 0 ? 18 : 0 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
                         <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748B' }}>Overall Budget</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : '#0F172A' }}>
+                        <Text testID="projectDetail.overallBudgetValue" style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : '#0F172A' }}>
                           ${expenses.toLocaleString()} / ${contractAmount.toLocaleString()}
                         </Text>
                       </View>
@@ -1945,7 +1968,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       {contractAmount > 0 && <View style={{ height: 1, backgroundColor: '#F1F5F9', marginBottom: 14 }} />}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>Phases</Text>
-                        <TouchableOpacity onPress={() => setShowBulkShiftModal(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.primaryBlue + '15' }}>
+                        <TouchableOpacity onPress={() => setShowBulkShiftModal(true)} testID="projectDetail.shiftTasksButton" accessibilityLabel="Shift tasks" style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.primaryBlue + '15' }}>
                           <Ionicons name="calendar-outline" size={12} color={Colors.primaryBlue} />
                           <Text style={{ fontSize: 11, fontWeight: '700', color: Colors.primaryBlue }}>{t('buttons.shiftTasks')}</Text>
                         </TouchableOpacity>
@@ -2003,6 +2026,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                           return (
                             <TouchableOpacity
                               key={tb.id}
+                              testID={`projectDetail.tradeRow.${tb.id}`}
+                              accessibilityLabel={`Trade ${tb.trade_name}`}
                               style={{ paddingVertical: 8, marginBottom: idx < orphans.length - 1 ? 4 : 0 }}
                               activeOpacity={0.7}
                               onPress={() => {
@@ -2047,6 +2072,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     <View style={{ marginTop: tradeBudgets.length > 0 ? 12 : 0 }}>
                       <TouchableOpacity
                         onPress={() => setShowAddTrade(true)}
+                        testID="projectDetail.addTradeBudgetButton"
+                        accessibilityLabel="Add trade budget"
                         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed' }}
                       >
                         <Ionicons name="add" size={16} color="#3B82F6" />
@@ -2093,12 +2120,16 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
                     onPress={() => handleStatusChange('completed')}
+                    testID="projectDetail.markCompleteButton"
+                    accessibilityLabel="Mark complete"
                   >
                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Mark Complete</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: Colors.cardBackground, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}
                     onPress={() => handleStatusChange('paused')}
+                    testID="projectDetail.pauseButton"
+                    accessibilityLabel="Pause project"
                   >
                     <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 14 }}>Pause</Text>
                   </TouchableOpacity>
@@ -2109,6 +2140,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: Colors.cardBackground, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}
                     onPress={() => handleStatusChange('active')}
+                    testID="projectDetail.reopenButton"
+                    accessibilityLabel="Reopen project"
                   >
                     <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 14 }}>Reopen</Text>
                   </TouchableOpacity>
@@ -2121,6 +2154,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         navigation.navigate('Chat', { prefill: `Create an invoice for project "${project.name}" with contract amount $${contractAmount}` });
                       }
                     }}
+                    testID="projectDetail.generateInvoiceButton"
+                    accessibilityLabel="Generate invoice"
                   >
                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Generate Invoice</Text>
                   </TouchableOpacity>
@@ -2130,6 +2165,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
                   onPress={() => handleStatusChange('active')}
+                  testID="projectDetail.resumeButton"
+                  accessibilityLabel="Resume project"
                 >
                   <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Resume Project</Text>
                 </TouchableOpacity>
@@ -2182,6 +2219,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   style={styles.detailRow}
                   onPress={() => handleAddressPress(project.location)}
+                  testID="projectDetail.locationRow"
+                  accessibilityLabel="Open project location"
                   activeOpacity={0.7}
                 >
                   <View style={[styles.detailIconBadge, { backgroundColor: Colors.lightGray }]}>
@@ -2198,6 +2237,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   style={styles.detailRow}
                   onPress={() => handlePhonePress(project.clientPhone)}
+                  testID="projectDetail.clientPhoneRow"
+                  accessibilityLabel="Call client"
                   activeOpacity={0.7}
                 >
                   <View style={[styles.detailIconBadge, { backgroundColor: Colors.lightGray }]}>
@@ -2214,6 +2255,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   style={styles.detailRow}
                   onPress={() => Linking.openURL(`mailto:${project.clientEmail}`)}
+                  testID="projectDetail.clientEmailRow"
+                  accessibilityLabel="Email client"
                   activeOpacity={0.7}
                 >
                   <View style={[styles.detailIconBadge, { backgroundColor: Colors.lightGray }]}>
@@ -2241,7 +2284,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="people-outline" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
+              <Text testID="projectDetail.assignedCount" style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
                 Assigned ({workers.length + (supervisorName ? 1 : 0)})
               </Text>
               <View style={styles.assignButtonsRow}>
@@ -2249,6 +2292,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   <TouchableOpacity
                     style={[styles.assignButton, { backgroundColor: '#1E40AF', marginRight: 8 }]}
                     onPress={() => setShowSupervisorAssignment(true)}
+                    testID="projectDetail.assignSupervisorButton"
+                    accessibilityLabel="Assign supervisor"
                   >
                     <Ionicons name="briefcase" size={14} color="#FFFFFF" />
                     <Text style={styles.assignButtonText}>Supervisor</Text>
@@ -2257,6 +2302,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
                   onPress={() => setShowWorkerAssignment(true)}
+                  testID="projectDetail.assignWorkerButton"
+                  accessibilityLabel="Assign worker"
                 >
                   <Ionicons name="person-add" size={14} color="#FFFFFF" />
                   <Text style={styles.assignButtonText}>Worker</Text>
@@ -2268,6 +2315,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             {supervisorName && (
               <TouchableOpacity
                 style={[styles.workerCard, { backgroundColor: Colors.lightGray, borderLeftWidth: 3, borderLeftColor: '#1E40AF' }]}
+                testID="projectDetail.supervisorCard"
+                accessibilityLabel="View supervisor"
                 onPress={() => {
                   const supervisorId = project?.assignedTo || project?.assigned_supervisor_id;
                   if (navigation && supervisorId) {
@@ -2282,7 +2331,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   <Text style={styles.workerAvatarText}>{getInitials(supervisorName)}</Text>
                 </View>
                 <View style={styles.workerCardInfo}>
-                  <Text style={[styles.workerCardName, { color: Colors.primaryText }]} numberOfLines={1}>
+                  <Text testID="projectDetail.supervisorName" style={[styles.workerCardName, { color: Colors.primaryText }]} numberOfLines={1}>
                     {supervisorName}
                   </Text>
                   <Text style={[styles.workerCardRole, { color: '#1E40AF' }]} numberOfLines={1}>
@@ -2317,6 +2366,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     style={{ padding: 6, marginRight: 4 }}
+                    testID="projectDetail.unassignSupervisorButton"
+                    accessibilityLabel="Unassign supervisor"
                   >
                     <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
                   </TouchableOpacity>
@@ -2337,6 +2388,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {workers.map((worker) => (
                   <TouchableOpacity
                     key={worker.id}
+                    testID={`projectDetail.workerRow.${worker.id}`}
+                    accessibilityLabel={`Worker ${worker.full_name}`}
                     style={[styles.workerCard, { backgroundColor: Colors.lightGray }]}
                     onPress={() => {
                       if (navigation) {
@@ -2389,6 +2442,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         style={{ padding: 6, marginRight: 4 }}
+                        testID={`projectDetail.unassignWorkerButton.${worker.id}`}
+                        accessibilityLabel={`Unassign ${worker.full_name}`}
                       >
                         <Ionicons name="close-circle" size={20} color={Colors.secondaryText} />
                       </TouchableOpacity>
@@ -2428,12 +2483,14 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="clipboard-outline" size={20} color={Colors.primaryBlue} />
-              <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
+              <Text testID="projectDetail.dailyReportsCount" style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, flex: 1 }]}>
                 {t('labels.dailyReportsCount', { count: projectReports.length })}
               </Text>
               <TouchableOpacity
                 style={[styles.assignButton, { backgroundColor: Colors.primaryBlue }]}
                 onPress={() => navigation?.navigate('DailyReportForm', { isOwner: true })}
+                testID="projectDetail.addReportButton"
+                accessibilityLabel="Add daily report"
               >
                 <Ionicons name="add" size={16} color="#FFFFFF" />
               </TouchableOpacity>
@@ -2476,6 +2533,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     return (
                       <TouchableOpacity
                         key={report.id || index}
+                        testID={`projectDetail.reportRow.${report.id || index}`}
+                        accessibilityLabel="View daily report"
                         style={[styles.reportCard, { borderColor: Colors.border }]}
                         onPress={() => navigation?.navigate('DailyReportDetail', { report })}
                         activeOpacity={0.7}
@@ -2556,6 +2615,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   style={styles.dateEditRow}
                   onPress={() => setShowStartDatePicker(true)}
+                  testID="projectDetail.startDateButton"
+                  accessibilityLabel="Set start date"
                   activeOpacity={0.7}
                 >
                   <View style={[styles.detailIconBadge, { backgroundColor: '#10B981' + '15' }]}>
@@ -2598,6 +2659,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 <TouchableOpacity
                   style={styles.dateEditRow}
                   onPress={() => setShowEndDatePicker(true)}
+                  testID="projectDetail.endDateButton"
+                  accessibilityLabel="Set end date"
                   activeOpacity={0.7}
                 >
                   <View style={[styles.detailIconBadge, { backgroundColor: '#EF4444' + '15' }]}>
@@ -2767,6 +2830,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <TouchableOpacity
             style={styles.deleteProjectLink}
             onPress={() => navigation?.navigate('ClientVisibility', { projectId: project?.id, projectName: project?.name })}
+            testID="projectDetail.clientPortalSettingsLink"
+            accessibilityLabel="Client portal settings"
             activeOpacity={0.6}
           >
             <Ionicons name="eye-outline" size={14} color={'#6366F1' + '80'} />
@@ -2779,6 +2844,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <TouchableOpacity
             style={styles.deleteProjectLink}
             onPress={() => navigation?.navigate('OwnerSelections', { projectId: project?.id, projectName: project?.name })}
+            testID="projectDetail.materialSelectionsLink"
+            accessibilityLabel="Material selections"
             activeOpacity={0.6}
           >
             <Ionicons name="color-palette-outline" size={14} color={'#6366F1' + '80'} />
@@ -2791,6 +2858,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <TouchableOpacity
             style={styles.deleteProjectLink}
             onPress={handleDeleteProject}
+            testID="projectDetail.deleteProjectLink"
+            accessibilityLabel="Delete project"
             activeOpacity={0.6}
           >
             <Ionicons name="trash-outline" size={14} color={'#EF4444' + '80'} />
@@ -2869,6 +2938,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
             <TouchableOpacity
               style={[styles.visibilityOption, { borderColor: Colors.border }]}
               onPress={() => setNewDocumentVisibleToWorkers(!newDocumentVisibleToWorkers)}
+              testID="projectDetail.documentVisibilityOption"
+              accessibilityLabel="Toggle document visible to workers"
               activeOpacity={0.7}
             >
               <View style={styles.visibilityOptionContent}>
@@ -2901,6 +2972,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               <TouchableOpacity
                 style={[styles.visibilityModalButton, styles.visibilityModalCancelButton, { borderColor: Colors.border }]}
                 onPress={cancelDocumentUpload}
+                testID="projectDetail.documentUploadCancelButton"
+                accessibilityLabel="Cancel document upload"
               >
                 <Text style={[styles.visibilityModalButtonText, { color: Colors.secondaryText }]}>
                   Cancel
@@ -2909,6 +2982,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               <TouchableOpacity
                 style={[styles.visibilityModalButton, styles.visibilityModalConfirmButton, { backgroundColor: Colors.primaryBlue }]}
                 onPress={confirmDocumentUpload}
+                testID="projectDetail.documentUploadConfirmButton"
+                accessibilityLabel="Upload document"
               >
                 <Text style={[styles.visibilityModalButtonText, { color: '#FFFFFF' }]}>
                   Upload
@@ -2933,6 +3008,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <TouchableOpacity
             style={styles.datePickerBackdrop}
             activeOpacity={1}
+            testID="projectDetail.datePickerBackdrop"
+            accessibilityLabel="Dismiss date picker"
             onPress={() => {
               setShowStartDatePicker(false);
               setShowEndDatePicker(false);
@@ -2941,6 +3018,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <View style={[styles.datePickerModalContent, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.datePickerHeader}>
               <TouchableOpacity
+                testID="projectDetail.datePickerCancelButton"
+                accessibilityLabel="Cancel date selection"
                 onPress={() => {
                   setShowStartDatePicker(false);
                   setShowEndDatePicker(false);
@@ -2952,6 +3031,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 {showStartDatePicker ? t('labels.startDate') : t('labels.endDate')}
               </Text>
               <TouchableOpacity
+                testID="projectDetail.datePickerDoneButton"
+                accessibilityLabel="Confirm date selection"
                 onPress={() => {
                   setShowStartDatePicker(false);
                   setShowEndDatePicker(false);
@@ -3035,7 +3116,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
       >
         <SafeAreaView style={[styles.estimateModalContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.estimateModalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setShowEstimateModal(false)}>
+            <TouchableOpacity onPress={() => setShowEstimateModal(false)} testID="projectDetail.estimateModalCloseButton" accessibilityLabel="Close estimate">
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
             <Text style={[styles.estimateModalTitle, { color: Colors.primaryText }]}>Estimate</Text>
@@ -3189,6 +3270,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               }]}
               value={deleteConfirmText}
               onChangeText={setDeleteConfirmText}
+              testID="projectDetail.deleteConfirmInput"
+              accessibilityLabel="Type DELETE to confirm"
               placeholder="Type DELETE"
               placeholderTextColor={Colors.secondaryText + '60'}
               autoCapitalize="characters"
@@ -3198,6 +3281,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               <TouchableOpacity
                 style={[styles.deleteModalCancelBtn, { borderColor: Colors.border }]}
                 onPress={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }}
+                testID="projectDetail.deleteCancelButton"
+                accessibilityLabel="Cancel delete"
                 activeOpacity={0.7}
               >
                 <Text style={[styles.deleteModalCancelText, { color: Colors.primaryText }]}>Cancel</Text>
@@ -3209,6 +3294,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 ]}
                 onPress={confirmDeleteProject}
                 disabled={deleteConfirmText !== 'DELETE'}
+                testID="projectDetail.deleteConfirmButton"
+                accessibilityLabel="Confirm delete project"
                 activeOpacity={0.8}
               >
                 <Text style={[
@@ -3236,6 +3323,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
               setIsEditing(false);
             }}
             disabled={savingChanges}
+            testID="projectDetail.cancelEditButton"
+            accessibilityLabel="Cancel editing"
             style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', opacity: savingChanges ? 0.5 : 1 }}
           >
             <Text style={{ color: '#64748B', fontWeight: '700', fontSize: 15 }}>Cancel</Text>
@@ -3243,6 +3332,8 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
           <TouchableOpacity
             onPress={handleSaveAllChanges}
             disabled={savingChanges}
+            testID="projectDetail.saveChangesButton"
+            accessibilityLabel="Save changes"
             style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, opacity: savingChanges ? 0.6 : 1 }}
           >
             {savingChanges && <ActivityIndicator size="small" color="#FFFFFF" />}

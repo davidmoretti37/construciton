@@ -394,6 +394,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
   // --- Section Header Component ---
   const SectionHeader = ({ title, icon, sectionKey, count }) => (
     <TouchableOpacity
+      testID={`manualProjectCreate.section.${sectionKey}`}
+      accessibilityLabel={`Toggle ${title} section`}
       style={[styles.sectionHeaderRow, { borderBottomColor: expandedSections[sectionKey] ? Colors.border : 'transparent' }]}
       onPress={() => toggleSection(sectionKey)}
       activeOpacity={0.7}
@@ -416,11 +418,11 @@ export default function ManualProjectCreateScreen({ navigation }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity testID="manualProjectCreate.cancelButton" accessibilityLabel="Cancel" onPress={() => navigation.goBack()}>
             <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.primaryBlue }}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>New Project</Text>
-          <TouchableOpacity onPress={handleSave} disabled={saving}>
+          <Text testID="manualProjectCreate.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>New Project</Text>
+          <TouchableOpacity testID="manualProjectCreate.createButton" accessibilityLabel="Create project" onPress={handleSave} disabled={saving}>
             {saving ? (
               <ActivityIndicator size="small" color={Colors.primaryBlue} />
             ) : (
@@ -434,6 +436,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
           {/* ============ PROJECT NAME ============ */}
           <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 8, marginHorizontal: 20 }]}>Project Name *</Text>
           <TextInput
+            testID="manualProjectCreate.nameInput"
+            accessibilityLabel="Project name"
             style={[styles.input, { marginHorizontal: 20, backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={name}
             onChangeText={setName}
@@ -449,6 +453,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
               <View style={styles.sectionBody}>
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Client Name *</Text>
                 <TextInput
+                  testID="manualProjectCreate.clientNameInput"
+                  accessibilityLabel="Client name"
                   style={[styles.input, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                   value={client}
                   onChangeText={setClient}
@@ -457,6 +463,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 />
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone</Text>
                 <TextInput
+                  testID="manualProjectCreate.clientPhoneInput"
+                  accessibilityLabel="Client phone"
                   style={[styles.input, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                   value={clientPhone}
                   onChangeText={setClientPhone}
@@ -466,6 +474,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 />
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Email</Text>
                 <TextInput
+                  testID="manualProjectCreate.clientEmailInput"
+                  accessibilityLabel="Client email"
                   style={[styles.input, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                   value={clientEmail}
                   onChangeText={setClientEmail}
@@ -476,6 +486,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 />
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Location / Address</Text>
                 <TextInput
+                  testID="manualProjectCreate.locationInput"
+                  accessibilityLabel="Location or address"
                   style={[styles.input, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                   value={location}
                   onChangeText={setLocation}
@@ -495,6 +507,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.label, { color: Colors.secondaryText }]}>Start Date</Text>
                     <TouchableOpacity
+                      testID="manualProjectCreate.startDateButton"
+                      accessibilityLabel="Select start date"
                       style={[styles.dateButton, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowStartPicker(true)}
                     >
@@ -508,6 +522,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.label, { color: Colors.secondaryText }]}>End Date</Text>
                     <TouchableOpacity
+                      testID="manualProjectCreate.endDateButton"
+                      accessibilityLabel="Select end date"
                       style={[styles.dateButton, { backgroundColor: Colors.lightGray, borderColor: Colors.border }]}
                       onPress={() => setShowEndPicker(true)}
                     >
@@ -521,7 +537,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
 
                 {startDate && endDate && (
                   <View style={[styles.daysRemaining, { backgroundColor: Colors.primaryBlue + '10' }]}>
-                    <Text style={{ fontSize: 13, color: Colors.primaryBlue, fontWeight: '600' }}>
+                    <Text testID="manualProjectCreate.daysTotal" style={{ fontSize: 13, color: Colors.primaryBlue, fontWeight: '600' }}>
                       {Math.round((endDate - startDate) / (1000 * 60 * 60 * 24))} days total
                     </Text>
                   </View>
@@ -540,6 +556,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
               <View style={styles.sectionBody}>
                 <Text style={[styles.label, { color: Colors.secondaryText }]}>Contract Amount ($)</Text>
                 <TextInput
+                  testID="manualProjectCreate.contractAmountInput"
+                  accessibilityLabel="Contract amount"
                   style={[styles.input, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                   value={contractAmount}
                   onChangeText={setContractAmount}
@@ -551,10 +569,12 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   const total = services.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
                   return total > 0 ? (
                     <TouchableOpacity
+                      testID="manualProjectCreate.useServicesTotalButton"
+                      accessibilityLabel="Use services total as contract amount"
                       style={{ marginTop: 6 }}
                       onPress={() => setContractAmount(total.toFixed(2))}
                     >
-                      <Text style={{ fontSize: 12, color: Colors.primaryBlue }}>
+                      <Text testID="manualProjectCreate.servicesTotal" style={{ fontSize: 12, color: Colors.primaryBlue }}>
                         Services total: ${total.toLocaleString()} — tap to use as contract amount
                       </Text>
                     </TouchableOpacity>
@@ -564,13 +584,15 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 {/* Services / Line Items */}
                 <View style={styles.subSectionHeader}>
                   <Text style={[styles.label, { color: Colors.secondaryText, marginTop: 0 }]}>Services / Line Items</Text>
-                  <TouchableOpacity onPress={handleAddService}>
+                  <TouchableOpacity testID="manualProjectCreate.addServiceButton" accessibilityLabel="Add service" onPress={handleAddService}>
                     <Ionicons name="add-circle" size={24} color={Colors.primaryBlue} />
                   </TouchableOpacity>
                 </View>
                 {services.map((service, index) => (
-                  <View key={index} style={styles.serviceRow}>
+                  <View key={index} testID={`manualProjectCreate.row.service.${index}`} style={styles.serviceRow}>
                     <TextInput
+                      testID={`manualProjectCreate.serviceDescriptionInput.${index}`}
+                      accessibilityLabel="Service description"
                       style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                       value={service.description}
                       onChangeText={(v) => handleUpdateService(index, 'description', v)}
@@ -578,6 +600,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                       placeholderTextColor={Colors.placeholderText}
                     />
                     <TextInput
+                      testID={`manualProjectCreate.serviceAmountInput.${index}`}
+                      accessibilityLabel="Service amount"
                       style={[styles.input, { width: 90, marginLeft: 8, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText, textAlign: 'right' }]}
                       value={service.amount}
                       onChangeText={(v) => handleUpdateService(index, 'amount', v)}
@@ -585,7 +609,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
                       placeholderTextColor={Colors.placeholderText}
                       keyboardType="decimal-pad"
                     />
-                    <TouchableOpacity style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveService(index)}>
+                    <TouchableOpacity testID={`manualProjectCreate.removeServiceButton.${index}`} accessibilityLabel="Remove service" style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveService(index)}>
                       <Ionicons name="close-circle" size={20} color={Colors.errorRed} />
                     </TouchableOpacity>
                   </View>
@@ -604,11 +628,13 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 </Text>
 
                 {phases.map((phase, phaseIdx) => (
-                  <View key={phaseIdx} style={[styles.phaseCard, { borderColor: Colors.border }]}>
+                  <View key={phaseIdx} testID={`manualProjectCreate.row.phase.${phaseIdx}`} style={[styles.phaseCard, { borderColor: Colors.border }]}>
                     <View style={styles.phaseHeader}>
-                      <Text style={[styles.phaseHeaderText, { color: Colors.primaryText }]}>{phase.name}</Text>
+                      <Text testID={`manualProjectCreate.phaseName.${phaseIdx}`} style={[styles.phaseHeaderText, { color: Colors.primaryText }]}>{phase.name}</Text>
                       <View style={styles.phaseHeaderRight}>
                         <TextInput
+                          testID={`manualProjectCreate.phaseDaysInput.${phaseIdx}`}
+                          accessibilityLabel="Phase planned days"
                           style={[styles.dayInput, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                           value={phase.plannedDays ? String(phase.plannedDays) : ''}
                           onChangeText={(v) => handleUpdatePhaseDays(phaseIdx, v)}
@@ -617,6 +643,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                           keyboardType="number-pad"
                         />
                         <TextInput
+                          testID={`manualProjectCreate.phaseBudgetInput.${phaseIdx}`}
+                          accessibilityLabel="Phase budget"
                           style={[styles.budgetInput, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                           value={phase.budget || ''}
                           onChangeText={(v) => handleUpdatePhaseBudget(phaseIdx, v)}
@@ -624,7 +652,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
                           placeholderTextColor={Colors.placeholderText}
                           keyboardType="decimal-pad"
                         />
-                        <TouchableOpacity onPress={() => handleRemovePhase(phaseIdx)}>
+                        <TouchableOpacity testID={`manualProjectCreate.removePhaseButton.${phaseIdx}`} accessibilityLabel="Remove phase" onPress={() => handleRemovePhase(phaseIdx)}>
                           <Ionicons name="close-circle" size={20} color={Colors.errorRed} />
                         </TouchableOpacity>
                       </View>
@@ -632,22 +660,26 @@ export default function ManualProjectCreateScreen({ navigation }) {
 
                     {/* Tasks in this phase */}
                     {phase.tasks.map((task, taskIdx) => (
-                      <View key={taskIdx} style={styles.taskRow}>
+                      <View key={taskIdx} testID={`manualProjectCreate.row.phase.${phaseIdx}.task.${taskIdx}`} style={styles.taskRow}>
                         <View style={[styles.taskBullet, { backgroundColor: Colors.primaryBlue }]} />
                         <TextInput
+                          testID={`manualProjectCreate.taskInput.${phaseIdx}.${taskIdx}`}
+                          accessibilityLabel="Task description"
                           style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText, paddingVertical: 8 }]}
                           value={task.description}
                           onChangeText={(v) => handleUpdateTask(phaseIdx, taskIdx, v)}
                           placeholder="Task description"
                           placeholderTextColor={Colors.placeholderText}
                         />
-                        <TouchableOpacity style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveTask(phaseIdx, taskIdx)}>
+                        <TouchableOpacity testID={`manualProjectCreate.removeTaskButton.${phaseIdx}.${taskIdx}`} accessibilityLabel="Remove task" style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveTask(phaseIdx, taskIdx)}>
                           <Ionicons name="close-circle" size={18} color={Colors.errorRed} />
                         </TouchableOpacity>
                       </View>
                     ))}
 
                     <TouchableOpacity
+                      testID={`manualProjectCreate.addTaskButton.${phaseIdx}`}
+                      accessibilityLabel="Add task"
                       style={styles.addTaskBtn}
                       onPress={() => handleAddTaskToPhase(phaseIdx)}
                     >
@@ -660,6 +692,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 {/* Add Phase Input */}
                 <View style={styles.addPhaseRow}>
                   <TextInput
+                    testID="manualProjectCreate.newPhaseInput"
+                    accessibilityLabel="New phase name"
                     style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                     value={newPhaseName}
                     onChangeText={setNewPhaseName}
@@ -669,6 +703,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                     returnKeyType="done"
                   />
                   <TouchableOpacity
+                    testID="manualProjectCreate.addPhaseButton"
+                    accessibilityLabel="Add phase"
                     style={[styles.addPhaseButton, { backgroundColor: Colors.primaryBlue }]}
                     onPress={handleAddPhase}
                   >
@@ -689,21 +725,25 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 </Text>
 
                 {checklistItems.map((item, index) => (
-                  <View key={index} style={[styles.checklistItem, { borderColor: Colors.border }]}>
+                  <View key={index} testID={`manualProjectCreate.row.checklist.${index}`} style={[styles.checklistItem, { borderColor: Colors.border }]}>
                     <View style={styles.checklistRow}>
                       <TextInput
+                        testID={`manualProjectCreate.checklistTitleInput.${index}`}
+                        accessibilityLabel="Checklist item title"
                         style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText, paddingVertical: 8 }]}
                         value={item.title}
                         onChangeText={(v) => handleUpdateChecklistItem(index, 'title', v)}
                         placeholder="Checklist item"
                         placeholderTextColor={Colors.placeholderText}
                       />
-                      <TouchableOpacity style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveChecklistItem(index)}>
+                      <TouchableOpacity testID={`manualProjectCreate.removeChecklistButton.${index}`} accessibilityLabel="Remove checklist item" style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveChecklistItem(index)}>
                         <Ionicons name="close-circle" size={18} color={Colors.errorRed} />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.checklistOptions}>
                       <TouchableOpacity
+                        testID={`manualProjectCreate.checklistTypeToggle.${index}`}
+                        accessibilityLabel="Toggle checklist item type"
                         style={[styles.typeToggle, { backgroundColor: item.item_type === 'quantity' ? Colors.primaryBlue + '15' : Colors.lightGray }]}
                         onPress={() => handleUpdateChecklistItem(index, 'item_type', item.item_type === 'checkbox' ? 'quantity' : 'checkbox')}
                       >
@@ -715,6 +755,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
 
                       {item.item_type === 'quantity' && (
                         <TextInput
+                          testID={`manualProjectCreate.checklistUnitInput.${index}`}
+                          accessibilityLabel="Checklist quantity unit"
                           style={[styles.unitInput, { backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText }]}
                           value={item.quantity_unit}
                           onChangeText={(v) => handleUpdateChecklistItem(index, 'quantity_unit', v)}
@@ -724,6 +766,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                       )}
 
                       <TouchableOpacity
+                        testID={`manualProjectCreate.checklistPhotoToggle.${index}`}
+                        accessibilityLabel="Toggle checklist photo requirement"
                         style={[styles.typeToggle, { backgroundColor: item.requires_photo ? Colors.warningOrange + '15' : Colors.lightGray }]}
                         onPress={() => handleUpdateChecklistItem(index, 'requires_photo', !item.requires_photo)}
                       >
@@ -734,7 +778,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   </View>
                 ))}
 
-                <TouchableOpacity style={styles.addItemBtn} onPress={handleAddChecklistItem}>
+                <TouchableOpacity testID="manualProjectCreate.addChecklistItemButton" accessibilityLabel="Add checklist item" style={styles.addItemBtn} onPress={handleAddChecklistItem}>
                   <Ionicons name="add-circle" size={20} color={Colors.primaryBlue} />
                   <Text style={{ fontSize: 13, color: Colors.primaryBlue, fontWeight: '500', marginLeft: 6 }}>Add Checklist Item</Text>
                 </TouchableOpacity>
@@ -752,8 +796,10 @@ export default function ManualProjectCreateScreen({ navigation }) {
                 </Text>
 
                 {laborRoles.map((role, index) => (
-                  <View key={index} style={styles.laborRow}>
+                  <View key={index} testID={`manualProjectCreate.row.laborRole.${index}`} style={styles.laborRow}>
                     <TextInput
+                      testID={`manualProjectCreate.laborRoleNameInput.${index}`}
+                      accessibilityLabel="Labor role name"
                       style={[styles.input, { flex: 1, backgroundColor: Colors.lightGray, borderColor: Colors.border, color: Colors.primaryText, paddingVertical: 8 }]}
                       value={role.role_name}
                       onChangeText={(v) => handleUpdateLaborRole(index, 'role_name', v)}
@@ -762,26 +808,30 @@ export default function ManualProjectCreateScreen({ navigation }) {
                     />
                     <View style={styles.qtyControl}>
                       <TouchableOpacity
+                        testID={`manualProjectCreate.laborQtyDecrement.${index}`}
+                        accessibilityLabel="Decrease labor quantity"
                         onPress={() => handleUpdateLaborRole(index, 'default_quantity', Math.max(1, (role.default_quantity || 1) - 1))}
                         style={[styles.qtyBtn, { backgroundColor: Colors.lightGray }]}
                       >
                         <Ionicons name="remove" size={16} color={Colors.primaryText} />
                       </TouchableOpacity>
-                      <Text style={[styles.qtyText, { color: Colors.primaryText }]}>{role.default_quantity || 1}</Text>
+                      <Text testID={`manualProjectCreate.laborQty.${index}`} style={[styles.qtyText, { color: Colors.primaryText }]}>{role.default_quantity || 1}</Text>
                       <TouchableOpacity
+                        testID={`manualProjectCreate.laborQtyIncrement.${index}`}
+                        accessibilityLabel="Increase labor quantity"
                         onPress={() => handleUpdateLaborRole(index, 'default_quantity', (role.default_quantity || 1) + 1)}
                         style={[styles.qtyBtn, { backgroundColor: Colors.lightGray }]}
                       >
                         <Ionicons name="add" size={16} color={Colors.primaryText} />
                       </TouchableOpacity>
                     </View>
-                    <TouchableOpacity style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveLaborRole(index)}>
+                    <TouchableOpacity testID={`manualProjectCreate.removeLaborRoleButton.${index}`} accessibilityLabel="Remove labor role" style={{ marginLeft: 6, padding: 4 }} onPress={() => handleRemoveLaborRole(index)}>
                       <Ionicons name="close-circle" size={18} color={Colors.errorRed} />
                     </TouchableOpacity>
                   </View>
                 ))}
 
-                <TouchableOpacity style={styles.addItemBtn} onPress={handleAddLaborRole}>
+                <TouchableOpacity testID="manualProjectCreate.addLaborRoleButton" accessibilityLabel="Add labor role" style={styles.addItemBtn} onPress={handleAddLaborRole}>
                   <Ionicons name="add-circle" size={20} color={Colors.primaryBlue} />
                   <Text style={{ fontSize: 13, color: Colors.primaryBlue, fontWeight: '500', marginLeft: 6 }}>Add Labor Role</Text>
                 </TouchableOpacity>
@@ -802,6 +852,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                       {supervisors.map((sup) => (
                         <TouchableOpacity
                           key={sup.id}
+                          testID={`manualProjectCreate.row.supervisor.${sup.id}`}
+                          accessibilityLabel="Select supervisor"
                           style={[styles.teamOption, {
                             borderColor: selectedSupervisor === sup.id ? Colors.primaryBlue : Colors.border,
                             backgroundColor: selectedSupervisor === sup.id ? Colors.primaryBlue + '10' : Colors.lightGray,
@@ -838,6 +890,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                         return (
                           <TouchableOpacity
                             key={worker.id}
+                            testID={`manualProjectCreate.row.worker.${worker.id}`}
+                            accessibilityLabel="Toggle worker"
                             style={[styles.teamOption, {
                               borderColor: isSelected ? Colors.primaryBlue : Colors.border,
                               backgroundColor: isSelected ? Colors.primaryBlue + '10' : Colors.lightGray,
@@ -887,6 +941,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                   {['active', 'draft'].map((status) => (
                     <TouchableOpacity
                       key={status}
+                      testID={`manualProjectCreate.statusOption.${status}`}
+                      accessibilityLabel={`Set status ${status}`}
                       style={[styles.statusOption, {
                         borderColor: projectStatus === status ? Colors.primaryBlue : Colors.border,
                         backgroundColor: projectStatus === status ? Colors.primaryBlue + '10' : Colors.lightGray,
@@ -920,6 +976,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
                         </Text>
                       </View>
                       <Switch
+                        testID="manualProjectCreate.aiResponsesSwitch"
+                        accessibilityLabel="Enable AI auto-responses"
                         value={aiResponsesEnabled}
                         onValueChange={setAiResponsesEnabled}
                         trackColor={{ false: Colors.border, true: Colors.primaryBlue + '50' }}
@@ -935,6 +993,8 @@ export default function ManualProjectCreateScreen({ navigation }) {
           {/* ============ DESCRIPTION / SCOPE ============ */}
           <Text style={[styles.label, { color: Colors.secondaryText, marginHorizontal: 20 }]}>Project Description / Scope</Text>
           <TextInput
+            testID="manualProjectCreate.descriptionInput"
+            accessibilityLabel="Project description"
             style={[styles.input, { marginHorizontal: 20, backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText, minHeight: 80, textAlignVertical: 'top' }]}
             value={description}
             onChangeText={setDescription}
@@ -961,7 +1021,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
               style={{ height: 120 }}
             />
             {Platform.OS === 'ios' && (
-              <TouchableOpacity onPress={() => setShowStartPicker(false)} style={styles.datePickerDone}>
+              <TouchableOpacity testID="manualProjectCreate.startDateDoneButton" accessibilityLabel="Done selecting start date" onPress={() => setShowStartPicker(false)} style={styles.datePickerDone}>
                 <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Done</Text>
               </TouchableOpacity>
             )}
@@ -980,7 +1040,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
               style={{ height: 120 }}
             />
             {Platform.OS === 'ios' && (
-              <TouchableOpacity onPress={() => setShowEndPicker(false)} style={styles.datePickerDone}>
+              <TouchableOpacity testID="manualProjectCreate.endDateDoneButton" accessibilityLabel="Done selecting end date" onPress={() => setShowEndPicker(false)} style={styles.datePickerDone}>
                 <Text style={{ color: Colors.primaryBlue, fontWeight: '600' }}>Done</Text>
               </TouchableOpacity>
             )}

@@ -394,17 +394,17 @@ export default function EstimateBuilderScreen({ route, navigation }) {
     <SafeAreaView style={[styles.root, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7} testID="estimateBuilder.backButton" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
+          <Text style={styles.headerTitle} numberOfLines={1} testID="estimateBuilder.headerTitle">
             {estimateNumber || 'New estimate'}
           </Text>
           <SaveIndicator state={saveState} status={status} Colors={Colors} />
         </View>
         <View style={[styles.statusPill, { backgroundColor: pillForStatus(status).bg }]}>
-          <Text style={[styles.statusPillText, { color: pillForStatus(status).fg }]}>
+          <Text style={[styles.statusPillText, { color: pillForStatus(status).fg }]} testID="estimateBuilder.statusPill">
             {status.replace(/_/g, ' ')}
           </Text>
         </View>
@@ -424,6 +424,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               onChangeText={setClientName}
               placeholder="e.g. Smith Family"
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
+              testID="estimateBuilder.clientNameInput"
+              accessibilityLabel="Client name"
             />
           </Field>
           <Field label="Client email" Colors={Colors} styles={styles}>
@@ -435,6 +437,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               keyboardType="email-address"
               autoCapitalize="none"
+              testID="estimateBuilder.clientEmailInput"
+              accessibilityLabel="Client email"
             />
           </Field>
           <Field label="Client phone" Colors={Colors} styles={styles}>
@@ -445,6 +449,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               placeholder="(555) 555-5555"
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               keyboardType="phone-pad"
+              testID="estimateBuilder.clientPhoneInput"
+              accessibilityLabel="Client phone"
             />
           </Field>
           <Field label="Site address" Colors={Colors} styles={styles}>
@@ -454,6 +460,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               onChangeText={setClientAddress}
               placeholder="123 Main St, City, ST"
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
+              testID="estimateBuilder.clientAddressInput"
+              accessibilityLabel="Site address"
             />
           </Field>
           <Field label="Project name" Colors={Colors} styles={styles}>
@@ -463,11 +471,13 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               onChangeText={setProjectName}
               placeholder="e.g. Smith Bath Remodel"
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
+              testID="estimateBuilder.projectNameInput"
+              accessibilityLabel="Project name"
             />
           </Field>
           <Field label="Linked project" Colors={Colors} styles={styles}>
-            <TouchableOpacity style={styles.input} onPress={() => setShowProjectPicker(true)} activeOpacity={0.7}>
-              <Text style={[styles.inputText, !projectId && styles.placeholderText]}>
+            <TouchableOpacity style={styles.input} onPress={() => setShowProjectPicker(true)} activeOpacity={0.7} testID="estimateBuilder.linkedProjectButton" accessibilityLabel="Link a project">
+              <Text style={[styles.inputText, !projectId && styles.placeholderText]} testID="estimateBuilder.linkedProjectValue">
                 {projectId
                   ? (projectsList.find((p) => p.id === projectId)?.name || 'Linked')
                   : 'Tap to link a project'}
@@ -476,13 +486,13 @@ export default function EstimateBuilderScreen({ route, navigation }) {
           </Field>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Field label="Date issued" Colors={Colors} styles={styles} style={{ flex: 1 }}>
-              <TouchableOpacity style={styles.input} onPress={() => setDatePickerField('issued')} activeOpacity={0.7}>
-                <Text style={styles.inputText}>{dateIssued || todayIso()}</Text>
+              <TouchableOpacity style={styles.input} onPress={() => setDatePickerField('issued')} activeOpacity={0.7} testID="estimateBuilder.dateIssuedButton" accessibilityLabel="Date issued">
+                <Text style={styles.inputText} testID="estimateBuilder.dateIssuedValue">{dateIssued || todayIso()}</Text>
               </TouchableOpacity>
             </Field>
             <Field label="Valid until" Colors={Colors} styles={styles} style={{ flex: 1 }}>
-              <TouchableOpacity style={styles.input} onPress={() => setDatePickerField('valid')} activeOpacity={0.7}>
-                <Text style={[styles.inputText, !validUntil && styles.placeholderText]}>
+              <TouchableOpacity style={styles.input} onPress={() => setDatePickerField('valid')} activeOpacity={0.7} testID="estimateBuilder.validUntilButton" accessibilityLabel="Valid until">
+                <Text style={[styles.inputText, !validUntil && styles.placeholderText]} testID="estimateBuilder.validUntilValue">
                   {validUntil || 'Tap to set'}
                 </Text>
               </TouchableOpacity>
@@ -496,6 +506,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               placeholder="Notes only you'll see"
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               multiline
+              testID="estimateBuilder.notesInput"
+              accessibilityLabel="Internal notes"
             />
           </Field>
         </Section>
@@ -519,6 +531,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               marginBottom: 12,
             }}
             activeOpacity={0.7}
+            testID="estimateBuilder.extractFromPhotoButton"
+            accessibilityLabel="Extract line items from photo"
           >
             {extractingFromPhoto ? (
               <ActivityIndicator size="small" color="#1E40AF" />
@@ -546,13 +560,15 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               placeholder="0"
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               keyboardType="decimal-pad"
+              testID="estimateBuilder.taxRateInput"
+              accessibilityLabel="Tax rate"
             />
           </Field>
           <View style={styles.summaryCard}>
-            <SummaryRow label="Subtotal" value={fmt$(subtotal)} Colors={Colors} styles={styles} />
-            <SummaryRow label={`Tax (${Number(taxRate || 0).toFixed(2)}%)`} value={fmt$(taxAmount)} Colors={Colors} styles={styles} />
+            <SummaryRow label="Subtotal" value={fmt$(subtotal)} valueTestID="estimateBuilder.subtotal" Colors={Colors} styles={styles} />
+            <SummaryRow label={`Tax (${Number(taxRate || 0).toFixed(2)}%)`} value={fmt$(taxAmount)} valueTestID="estimateBuilder.taxAmount" Colors={Colors} styles={styles} />
             <View style={styles.summaryDivider} />
-            <SummaryRow label="Total" value={fmt$(total)} bold Colors={Colors} styles={styles} />
+            <SummaryRow label="Total" value={fmt$(total)} valueTestID="estimateBuilder.total" bold Colors={Colors} styles={styles} />
           </View>
         </Section>
 
@@ -570,6 +586,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               placeholder="e.g. 50% deposit, 50% on completion. Net 30."
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               multiline
+              testID="estimateBuilder.paymentTermsInput"
+              accessibilityLabel="Payment terms"
             />
           </Field>
         </Section>
@@ -582,12 +600,12 @@ export default function EstimateBuilderScreen({ route, navigation }) {
         >
           <View style={styles.reviewCard}>
             <Text style={styles.reviewLabel}>Going to</Text>
-            <Text style={styles.reviewValue}>{clientName || '—'}</Text>
-            {clientEmail ? <Text style={styles.reviewSub}>{clientEmail}</Text> : null}
+            <Text style={styles.reviewValue} testID="estimateBuilder.reviewClientName">{clientName || '—'}</Text>
+            {clientEmail ? <Text style={styles.reviewSub} testID="estimateBuilder.reviewClientEmail">{clientEmail}</Text> : null}
             <View style={styles.reviewDivider} />
             <Text style={styles.reviewLabel}>Total</Text>
-            <Text style={styles.reviewAmount}>{fmt$(total)}</Text>
-            <Text style={styles.reviewSub}>{items.length} line item{items.length === 1 ? '' : 's'}</Text>
+            <Text style={styles.reviewAmount} testID="estimateBuilder.reviewTotal">{fmt$(total)}</Text>
+            <Text style={styles.reviewSub} testID="estimateBuilder.reviewItemCount">{items.length} line item{items.length === 1 ? '' : 's'}</Text>
           </View>
 
           <View style={styles.toggleRow}>
@@ -600,6 +618,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
               onValueChange={setSignatureRequired}
               trackColor={{ false: '#D1D5DB', true: Colors.primaryBlue || '#3B82F6' }}
               thumbColor="#fff"
+              testID="estimateBuilder.signatureRequiredSwitch"
+              accessibilityLabel="Require e-signature"
             />
           </View>
 
@@ -608,6 +628,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
             onPress={onSend}
             disabled={sending || status !== 'draft'}
             activeOpacity={0.85}
+            testID="estimateBuilder.sendButton"
+            accessibilityLabel="Send to client"
           >
             {sending ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -624,6 +646,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
             }}
             disabled={saveState.kind === 'saving'}
             activeOpacity={0.85}
+            testID="estimateBuilder.saveDraftButton"
+            accessibilityLabel="Save draft"
           >
             <Ionicons name="checkmark" size={18} color={Colors.primaryText} />
             <Text style={styles.saveBtnText}>Save draft</Text>
@@ -642,7 +666,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
           <View style={[styles.modalSheet, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pick a project</Text>
-              <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
+              <TouchableOpacity onPress={() => setShowProjectPicker(false)} testID="estimateBuilder.projectPickerCloseButton" accessibilityLabel="Close project picker">
                 <Ionicons name="close" size={24} color={Colors.primaryText} />
               </TouchableOpacity>
             </View>
@@ -654,6 +678,8 @@ export default function EstimateBuilderScreen({ route, navigation }) {
                   style={styles.modalRow}
                   onPress={() => { setProjectId(item.id); setProjectName((prev) => prev || item.name || ''); setShowProjectPicker(false); }}
                   activeOpacity={0.7}
+                  testID={`estimateBuilder.projectRow.${item.id || 'none'}`}
+                  accessibilityLabel={`Project ${item.name}`}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.modalRowTitle}>{item.name}</Text>
@@ -678,7 +704,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
                 <Text style={styles.modalTitle}>
                   {datePickerField === 'issued' ? 'Date issued' : 'Valid until'}
                 </Text>
-                <TouchableOpacity onPress={() => setDatePickerField(null)}>
+                <TouchableOpacity onPress={() => setDatePickerField(null)} testID="estimateBuilder.datePickerCloseButton" accessibilityLabel="Close date picker">
                   <Ionicons name="close" size={24} color={Colors.primaryText} />
                 </TouchableOpacity>
               </View>
@@ -703,7 +729,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
                 }}
               />
               {Platform.OS === 'ios' && (
-                <TouchableOpacity onPress={() => setDatePickerField(null)} style={styles.datePickerDone}>
+                <TouchableOpacity onPress={() => setDatePickerField(null)} style={styles.datePickerDone} testID="estimateBuilder.datePickerDoneButton" accessibilityLabel="Done">
                   <Text style={[styles.datePickerDoneText, { color: Colors.primaryBlue }]}>Done</Text>
                 </TouchableOpacity>
               )}
@@ -733,6 +759,8 @@ function Section({ sectionKey, title, icon, expanded, chip, onToggle, children, 
         style={[styles.sectionHeader, expanded && styles.sectionHeaderExpanded]}
         onPress={() => onToggle(sectionKey)}
         activeOpacity={0.7}
+        testID={`estimateBuilder.sectionHeader.${sectionKey}`}
+        accessibilityLabel={title}
       >
         <Ionicons name={icon} size={18} color={Colors.primaryText} />
         <Text style={styles.sectionTitle}>{title}</Text>
@@ -757,13 +785,13 @@ function Field({ label, required, children, Colors, styles, style }) {
   );
 }
 
-function SummaryRow({ label, value, bold, Colors, styles }) {
+function SummaryRow({ label, value, valueTestID, bold, Colors, styles }) {
   return (
     <View style={styles.summaryRow}>
       <Text style={[styles.summaryLabel, bold && { fontWeight: '700', color: Colors.primaryText, fontSize: 15 }]}>
         {label}
       </Text>
-      <Text style={[styles.summaryValue, bold && { fontWeight: '700', fontSize: 17, color: Colors.primaryText }]}>
+      <Text style={[styles.summaryValue, bold && { fontWeight: '700', fontSize: 17, color: Colors.primaryText }]} testID={valueTestID}>
         {value}
       </Text>
     </View>

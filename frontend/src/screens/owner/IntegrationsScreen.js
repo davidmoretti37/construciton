@@ -193,10 +193,10 @@ export default function IntegrationsScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity testID="integrations.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Integrations</Text>
+          <Text testID="integrations.title" style={styles.headerTitle}>Integrations</Text>
         </View>
         <ActivityIndicator size="large" color={Colors.primaryBlue} style={{ marginTop: 60 }} />
       </SafeAreaView>
@@ -206,10 +206,10 @@ export default function IntegrationsScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity testID="integrations.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Integrations</Text>
+        <Text testID="integrations.title" style={styles.headerTitle}>Integrations</Text>
       </View>
 
       <Text style={styles.intro}>
@@ -234,9 +234,9 @@ export default function IntegrationsScreen({ navigation }) {
           );
           if (broken.length === 0) return null;
           return (
-            <View style={styles.warnBanner}>
+            <View testID="integrations.warnBanner" style={styles.warnBanner}>
               <Ionicons name="warning" size={18} color="#92400E" />
-              <Text style={styles.warnBannerText}>
+              <Text testID="integrations.warnBannerText" style={styles.warnBannerText}>
                 {broken.length} integration{broken.length === 1 ? '' : 's'} need attention.
                 Tap <Text style={{ fontWeight: '700' }}>Reconnect</Text> below to restore access.
               </Text>
@@ -257,6 +257,7 @@ export default function IntegrationsScreen({ navigation }) {
           return (
             <View
               key={intg.type}
+              testID={`integrations.row.${intg.type}`}
               style={[
                 styles.card,
                 intg.coming_soon && styles.cardMuted,
@@ -277,14 +278,14 @@ export default function IntegrationsScreen({ navigation }) {
                   />
                 </View>
                 <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle}>{intg.name}</Text>
+                  <Text testID={`integrations.name.${intg.type}`} style={styles.cardTitle}>{intg.name}</Text>
                   <Text style={styles.cardDescription} numberOfLines={3}>{intg.description}</Text>
                   {intg.coming_soon && (
-                    <Text style={styles.comingSoon}>Coming soon</Text>
+                    <Text testID={`integrations.comingSoon.${intg.type}`} style={styles.comingSoon}>Coming soon</Text>
                   )}
                   {isConnected && (
                     <View>
-                      <Text style={styles.statusOk}>
+                      <Text testID={`integrations.statusConnected.${intg.type}`} style={styles.statusOk}>
                         ✓ Connected{intg.connection.connected_at ? ` · ${relativeTime(intg.connection.connected_at)}` : ''}
                       </Text>
                       {lastSynced && (
@@ -296,7 +297,7 @@ export default function IntegrationsScreen({ navigation }) {
                   )}
                   {isExpired && (
                     <View>
-                      <Text style={styles.statusWarn}>
+                      <Text testID={`integrations.statusExpired.${intg.type}`} style={styles.statusWarn}>
                         ⚠ Session expired
                       </Text>
                       <Text style={styles.statusErrorDetail} numberOfLines={2}>
@@ -306,7 +307,7 @@ export default function IntegrationsScreen({ navigation }) {
                   )}
                   {isError && (
                     <View>
-                      <Text style={styles.statusError}>
+                      <Text testID={`integrations.statusError.${intg.type}`} style={styles.statusError}>
                         ⚠ Connection error
                       </Text>
                       <Text style={styles.statusErrorDetail} numberOfLines={3}>
@@ -320,15 +321,15 @@ export default function IntegrationsScreen({ navigation }) {
                     {isBusy ? (
                       <ActivityIndicator size="small" color={Colors.primaryBlue} />
                     ) : needsReconnect ? (
-                      <TouchableOpacity onPress={() => handleConnect(intg)} style={styles.btnReconnect}>
+                      <TouchableOpacity testID={`integrations.reconnectButton.${intg.type}`} accessibilityLabel={`Reconnect ${intg.name}`} onPress={() => handleConnect(intg)} style={styles.btnReconnect}>
                         <Text style={styles.btnReconnectText}>Reconnect</Text>
                       </TouchableOpacity>
                     ) : isConnected ? (
-                      <TouchableOpacity onPress={() => handleDisconnect(intg)} style={styles.btnGhost}>
+                      <TouchableOpacity testID={`integrations.disconnectButton.${intg.type}`} accessibilityLabel={`Disconnect ${intg.name}`} onPress={() => handleDisconnect(intg)} style={styles.btnGhost}>
                         <Text style={styles.btnGhostText}>Disconnect</Text>
                       </TouchableOpacity>
                     ) : (
-                      <TouchableOpacity onPress={() => handleConnect(intg)} style={styles.btnPrimary}>
+                      <TouchableOpacity testID={`integrations.connectButton.${intg.type}`} accessibilityLabel={`Connect ${intg.name}`} onPress={() => handleConnect(intg)} style={styles.btnPrimary}>
                         <Text style={styles.btnPrimaryText}>Connect</Text>
                       </TouchableOpacity>
                     )}

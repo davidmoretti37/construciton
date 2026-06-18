@@ -141,21 +141,21 @@ export default function TaxSummaryScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="taxSummary.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('tax.title')}</Text>
+          <Text testID="taxSummary.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('tax.title')}</Text>
           <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }} numberOfLines={1}>
             {projectId ? (projectName || 'This Project') : 'All Projects'}
           </Text>
         </View>
         {contractorsAboveThreshold > 0 && (
-          <TouchableOpacity onPress={handleExport1099} style={styles.headerBtn} activeOpacity={0.7}>
+          <TouchableOpacity testID="taxSummary.export1099Button" accessibilityLabel="Export 1099 contractors" onPress={handleExport1099} style={styles.headerBtn} activeOpacity={0.7}>
             <Ionicons name="document-text-outline" size={22} color="#EF4444" />
           </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="taxSummary.exportCsvButton" accessibilityLabel="Export CSV" onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="download-outline" size={22} color="#1E40AF" />
         </TouchableOpacity>
       </View>
@@ -171,6 +171,8 @@ export default function TaxSummaryScreen() {
           {years.map(y => (
             <TouchableOpacity
               key={y}
+              testID={`taxSummary.yearPill.${y}`}
+              accessibilityLabel={`Year ${y}`}
               style={[styles.yearPill, selectedYear === y && { backgroundColor: '#1E40AF' }]}
               onPress={() => setSelectedYear(y)}
               activeOpacity={0.7}
@@ -185,15 +187,15 @@ export default function TaxSummaryScreen() {
           <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('tax.annualSummary')}</Text>
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('tax.grossRevenue')}</Text>
-            <Text style={[styles.summaryValue, { color: '#10B981' }]}>{formatCurrency(totalRevenue)}</Text>
+            <Text testID="taxSummary.grossRevenue" style={[styles.summaryValue, { color: '#10B981' }]}>{formatCurrency(totalRevenue)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('tax.totalDeductions')}</Text>
-            <Text style={[styles.summaryValue, { color: '#EF4444' }]}>-{formatCurrency(totalExpenses)}</Text>
+            <Text testID="taxSummary.totalDeductions" style={[styles.summaryValue, { color: '#EF4444' }]}>-{formatCurrency(totalExpenses)}</Text>
           </View>
           <View style={[styles.summaryRow, styles.netRow, { borderTopColor: Colors.border }]}>
             <Text style={[styles.summaryLabel, { color: Colors.primaryText, fontWeight: '700' }]}>{t('tax.netProfit')}</Text>
-            <Text style={[styles.summaryValue, { color: netProfit >= 0 ? '#10B981' : '#EF4444', fontWeight: '700' }]}>
+            <Text testID="taxSummary.netProfit" style={[styles.summaryValue, { color: netProfit >= 0 ? '#10B981' : '#EF4444', fontWeight: '700' }]}>
               {formatCurrency(netProfit)}
             </Text>
           </View>
@@ -209,12 +211,12 @@ export default function TaxSummaryScreen() {
             sortedTaxCats.map(([cat, amount]) => {
               const pct = totalExpenses > 0 ? ((amount / totalExpenses) * 100).toFixed(0) : 0;
               return (
-                <View key={cat} style={styles.taxCatRow}>
+                <View key={cat} testID={`taxSummary.row.${cat}`} style={styles.taxCatRow}>
                   <View style={styles.taxCatInfo}>
                     <Text style={[styles.taxCatLabel, { color: Colors.primaryText }]}>{TAX_CATEGORY_LABELS[cat] || cat}</Text>
                     <Text style={[styles.taxCatPct, { color: Colors.secondaryText }]}>{pct}%</Text>
                   </View>
-                  <Text style={[styles.taxCatAmount, { color: Colors.primaryText }]}>{formatCurrency(amount)}</Text>
+                  <Text testID={`taxSummary.row.${cat}.amount`} style={[styles.taxCatAmount, { color: Colors.primaryText }]}>{formatCurrency(amount)}</Text>
                 </View>
               );
             })
@@ -225,31 +227,31 @@ export default function TaxSummaryScreen() {
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <View style={styles.cardHeaderRow}>
             <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('tax.contractor1099')}</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('ContractorPayments', { year: selectedYear })} activeOpacity={0.7}>
+            <TouchableOpacity testID="taxSummary.seeAllContractorsButton" accessibilityLabel="See all contractors" onPress={() => navigation.navigate('ContractorPayments', { year: selectedYear })} activeOpacity={0.7}>
               <Text style={styles.seeAllText}>{t('tax.seeAll')}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.contractorSummary}>
             <View style={styles.contractorStat}>
-              <Text style={[styles.contractorStatNum, { color: '#EF4444' }]}>{contractorsAboveThreshold}</Text>
+              <Text testID="taxSummary.contractorsAboveThreshold" style={[styles.contractorStatNum, { color: '#EF4444' }]}>{contractorsAboveThreshold}</Text>
               <Text style={[styles.contractorStatLabel, { color: Colors.secondaryText }]}>{t('tax.require1099')}</Text>
             </View>
             <View style={styles.contractorStat}>
-              <Text style={[styles.contractorStatNum, { color: Colors.primaryText }]}>{contractors.length}</Text>
+              <Text testID="taxSummary.totalContractors" style={[styles.contractorStatNum, { color: Colors.primaryText }]}>{contractors.length}</Text>
               <Text style={[styles.contractorStatLabel, { color: Colors.secondaryText }]}>{t('tax.totalContractors')}</Text>
             </View>
           </View>
           {contractors.slice(0, 3).map((c) => (
-            <View key={c.name} style={styles.contractorRow}>
+            <View key={c.name} testID={`taxSummary.contractorRow.${c.name}`} style={styles.contractorRow}>
               <View style={styles.contractorInfo}>
-                <Text style={[styles.contractorName, { color: Colors.primaryText }]} numberOfLines={1}>{c.name}</Text>
+                <Text testID={`taxSummary.contractorRow.${c.name}.name`} style={[styles.contractorName, { color: Colors.primaryText }]} numberOfLines={1}>{c.name}</Text>
                 {c.requires1099 && (
                   <View style={styles.badge1099}>
                     <Text style={styles.badge1099Text}>1099</Text>
                   </View>
                 )}
               </View>
-              <Text style={[styles.contractorAmount, { color: c.requires1099 ? '#EF4444' : Colors.primaryText }]}>
+              <Text testID={`taxSummary.contractorRow.${c.name}.amount`} style={[styles.contractorAmount, { color: c.requires1099 ? '#EF4444' : Colors.primaryText }]}>
                 {formatCurrency(c.totalPaid)}
               </Text>
             </View>

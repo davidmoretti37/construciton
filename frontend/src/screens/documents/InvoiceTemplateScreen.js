@@ -218,12 +218,14 @@ export default function InvoiceTemplateScreen({ navigation }) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <TouchableOpacity
+          testID="invoiceTemplate.backButton"
+          accessibilityLabel="Go back"
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice & Estimate Template</Text>
+        <Text testID="invoiceTemplate.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice & Estimate Template</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -249,6 +251,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
               return (
                 <TouchableOpacity
                   key={style.id}
+                  testID={`invoiceTemplate.styleCard.${style.id}`}
+                  accessibilityLabel={`Select ${style.name} template`}
                   activeOpacity={0.85}
                   onPress={() => setTemplateStyle(style.id)}
                   style={[
@@ -271,6 +275,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
                     {style.tagline}
                   </Text>
                   <TouchableOpacity
+                    testID={`invoiceTemplate.previewStyle.${style.id}`}
+                    accessibilityLabel={`Preview ${style.name} template`}
                     style={[styles.styleCardPreview, { borderColor: Colors.border }]}
                     onPress={() => { setPreviewStyle(style.id); setPreviewIsEstimate(false); }}
                   >
@@ -288,6 +294,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Business Logo</Text>
 
           <TouchableOpacity
+            testID="invoiceTemplate.logoPicker"
+            accessibilityLabel="Upload logo"
             style={[styles.logoContainer, { backgroundColor: Colors.white, borderColor: Colors.border }]}
             onPress={handlePickLogo}
           >
@@ -305,6 +313,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
           {logoUri && (
             <TouchableOpacity
+              testID="invoiceTemplate.removeLogoButton"
+              accessibilityLabel="Remove logo"
               style={[styles.removeButton, { backgroundColor: '#EF4444' + '10' }]}
               onPress={() => setLogoUri(null)}
             >
@@ -319,6 +329,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
           <Text style={[styles.label, { color: Colors.secondaryText }]}>Business Name</Text>
           <TextInput
+            testID="invoiceTemplate.businessNameInput"
+            accessibilityLabel="Business name"
             style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessName}
             onChangeText={setBusinessName}
@@ -328,6 +340,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
           <Text style={[styles.label, { color: Colors.secondaryText }]}>Address</Text>
           <TextInput
+            testID="invoiceTemplate.businessAddressInput"
+            accessibilityLabel="Business address"
             style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessAddress}
             onChangeText={setBusinessAddress}
@@ -339,6 +353,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
           <Text style={[styles.label, { color: Colors.secondaryText }]}>Phone</Text>
           <TextInput
+            testID="invoiceTemplate.businessPhoneInput"
+            accessibilityLabel="Business phone"
             style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessPhone}
             onChangeText={setBusinessPhone}
@@ -349,6 +365,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
           <Text style={[styles.label, { color: Colors.secondaryText }]}>Email</Text>
           <TextInput
+            testID="invoiceTemplate.businessEmailInput"
+            accessibilityLabel="Business email"
             style={[styles.input, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={businessEmail}
             onChangeText={setBusinessEmail}
@@ -367,6 +385,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
             {PAYMENT_TERMS.map((term) => (
               <TouchableOpacity
                 key={term}
+                testID={`invoiceTemplate.paymentTerm.${term}`}
+                accessibilityLabel={`Payment terms ${term}`}
                 style={[
                   styles.termChip,
                   {
@@ -394,6 +414,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
             Thank you message or payment instructions
           </Text>
           <TextInput
+            testID="invoiceTemplate.footerTextInput"
+            accessibilityLabel="Footer text"
             style={[styles.input, styles.multilineInput, { backgroundColor: Colors.white, borderColor: Colors.border, color: Colors.primaryText }]}
             value={footerText}
             onChangeText={setFooterText}
@@ -464,6 +486,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
         }
       ]}>
         <TouchableOpacity
+          testID="invoiceTemplate.saveButton"
+          accessibilityLabel="Save template"
           style={[styles.saveButton, { backgroundColor: Colors.primaryBlue, opacity: saving ? 0.6 : 1 }]}
           onPress={handleSave}
           disabled={saving}
@@ -491,10 +515,10 @@ export default function InvoiceTemplateScreen({ navigation }) {
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
           <View style={[styles.previewModalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setPreviewStyle(null)} style={styles.previewClose}>
+            <TouchableOpacity testID="invoiceTemplate.previewCloseButton" accessibilityLabel="Close preview" onPress={() => setPreviewStyle(null)} style={styles.previewClose}>
               <Ionicons name="close" size={26} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.previewModalTitle, { color: Colors.primaryText }]}>
+            <Text testID="invoiceTemplate.previewModalTitle" style={[styles.previewModalTitle, { color: Colors.primaryText }]}>
               {previewStyle ? (TEMPLATE_STYLES.find((s) => s.id === previewStyle)?.name || '') : ''} preview
             </Text>
             <View style={{ width: 36 }} />
@@ -502,6 +526,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
 
           <View style={[styles.previewToggleRow, { borderBottomColor: Colors.border }]}>
             <TouchableOpacity
+              testID="invoiceTemplate.previewToggleInvoice"
+              accessibilityLabel="Show invoice preview"
               style={[styles.previewToggle, !previewIsEstimate && { backgroundColor: Colors.primaryBlue }]}
               onPress={() => setPreviewIsEstimate(false)}
             >
@@ -510,6 +536,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
+              testID="invoiceTemplate.previewToggleEstimate"
+              accessibilityLabel="Show estimate preview"
               style={[styles.previewToggle, previewIsEstimate && { backgroundColor: Colors.primaryBlue }]}
               onPress={() => setPreviewIsEstimate(true)}
             >
@@ -553,6 +581,8 @@ export default function InvoiceTemplateScreen({ navigation }) {
             { backgroundColor: Colors.background, borderTopColor: Colors.border, paddingBottom: Math.max(insets.bottom + 12, 24) },
           ]}>
             <TouchableOpacity
+              testID="invoiceTemplate.useTemplateButton"
+              accessibilityLabel="Use this template"
               style={[styles.previewUseButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={() => {
                 if (previewStyle) setTemplateStyle(previewStyle);

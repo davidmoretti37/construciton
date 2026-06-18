@@ -166,11 +166,11 @@ export default function CompanyOverheadScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+        <TouchableOpacity testID="companyOverhead.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Company Overhead</Text>
-        <TouchableOpacity onPress={openAdd} style={styles.headerBtn}>
+        <Text testID="companyOverhead.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>Company Overhead</Text>
+        <TouchableOpacity testID="companyOverhead.addButton" accessibilityLabel="Add expense" onPress={openAdd} style={styles.headerBtn}>
           <Ionicons name="add-circle-outline" size={24} color={ACCENT} />
         </TouchableOpacity>
       </View>
@@ -187,15 +187,15 @@ export default function CompanyOverheadScreen() {
             <View style={styles.summaryRow}>
               <View style={styles.summaryItem}>
                 <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Monthly</Text>
-                <Text style={[styles.summaryAmount, { color: '#EF4444' }]}>{formatCurrency(totalMonthly)}</Text>
+                <Text testID="companyOverhead.monthlyTotal" style={[styles.summaryAmount, { color: '#EF4444' }]}>{formatCurrency(totalMonthly)}</Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
               <View style={styles.summaryItem}>
                 <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Annual</Text>
-                <Text style={[styles.summaryAmount, { color: Colors.primaryText }]}>{formatCurrency(totalMonthly * 12)}</Text>
+                <Text testID="companyOverhead.annualTotal" style={[styles.summaryAmount, { color: Colors.primaryText }]}>{formatCurrency(totalMonthly * 12)}</Text>
               </View>
             </View>
-            <Text style={[styles.summaryCount, { color: Colors.secondaryText }]}>
+            <Text testID="companyOverhead.summaryCount" style={[styles.summaryCount, { color: Colors.secondaryText }]}>
               {items.filter(i => i.is_active).length} active · {items.filter(i => !i.is_active).length} paused
             </Text>
           </View>
@@ -209,7 +209,7 @@ export default function CompanyOverheadScreen() {
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
               Something went wrong fetching your overhead expenses. Check your connection and try again.
             </Text>
-            <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: ACCENT }]} onPress={() => { setLoading(true); loadData(); }}>
+            <TouchableOpacity testID="companyOverhead.retryButton" accessibilityLabel="Retry" style={[styles.emptyBtn, { backgroundColor: ACCENT }]} onPress={() => { setLoading(true); loadData(); }}>
               <Ionicons name="refresh" size={18} color="#FFF" />
               <Text style={styles.emptyBtnText}>Retry</Text>
             </TouchableOpacity>
@@ -221,7 +221,7 @@ export default function CompanyOverheadScreen() {
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
               Add your fixed monthly costs like rent, car payments, insurance, subscriptions — anything your business pays regularly.
             </Text>
-            <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: ACCENT }]} onPress={openAdd}>
+            <TouchableOpacity testID="companyOverhead.addFirstButton" accessibilityLabel="Add first expense" style={[styles.emptyBtn, { backgroundColor: ACCENT }]} onPress={openAdd}>
               <Ionicons name="add" size={18} color="#FFF" />
               <Text style={styles.emptyBtnText}>Add First Expense</Text>
             </TouchableOpacity>
@@ -230,13 +230,15 @@ export default function CompanyOverheadScreen() {
           items.map((item) => (
             <TouchableOpacity
               key={item.id}
+              testID={`companyOverhead.row.${item.id}`}
+              accessibilityLabel={`Edit ${item.description}`}
               style={[styles.itemCard, { backgroundColor: Colors.cardBackground }, !item.is_active && styles.itemInactive]}
               onPress={() => openEdit(item)}
               activeOpacity={0.7}
             >
               <View style={styles.itemRow}>
                 <View style={styles.itemInfo}>
-                  <Text style={[styles.itemDesc, { color: item.is_active ? Colors.primaryText : Colors.secondaryText }]} numberOfLines={1}>
+                  <Text testID={`companyOverhead.row.${item.id}.description`} style={[styles.itemDesc, { color: item.is_active ? Colors.primaryText : Colors.secondaryText }]} numberOfLines={1}>
                     {item.description}
                   </Text>
                   <Text style={[styles.itemMeta, { color: Colors.secondaryText }]}>
@@ -245,13 +247,15 @@ export default function CompanyOverheadScreen() {
                   </Text>
                 </View>
                 <View style={styles.itemRight}>
-                  <Text style={[styles.itemAmount, { color: item.is_active ? '#EF4444' : Colors.secondaryText }]}>
+                  <Text testID={`companyOverhead.row.${item.id}.amount`} style={[styles.itemAmount, { color: item.is_active ? '#EF4444' : Colors.secondaryText }]}>
                     {formatCurrency(item.amount)}
                   </Text>
                 </View>
               </View>
               <View style={[styles.itemFooter, { borderTopColor: Colors.border }]}>
                 <TouchableOpacity
+                  testID={`companyOverhead.row.${item.id}.toggleButton`}
+                  accessibilityLabel={item.is_active ? `Pause ${item.description}` : `Resume ${item.description}`}
                   onPress={() => handleToggle(item)}
                   style={styles.itemActionBtn}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -262,6 +266,8 @@ export default function CompanyOverheadScreen() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  testID={`companyOverhead.row.${item.id}.deleteButton`}
+                  accessibilityLabel={`Delete ${item.description}`}
                   onPress={() => handleDelete(item)}
                   style={styles.itemActionBtn}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -281,13 +287,13 @@ export default function CompanyOverheadScreen() {
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => { setShowModal(false); resetForm(); }}>
+            <TouchableOpacity testID="companyOverhead.modalCloseButton" accessibilityLabel="Close" onPress={() => { setShowModal(false); resetForm(); }}>
               <Ionicons name="close" size={24} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>
+            <Text testID="companyOverhead.modalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>
               {editingItem ? 'Edit Expense' : 'Add Expense'}
             </Text>
-            <TouchableOpacity onPress={handleSave} disabled={saving}>
+            <TouchableOpacity testID="companyOverhead.saveButton" accessibilityLabel="Save expense" onPress={handleSave} disabled={saving}>
               <Text style={[styles.saveText, saving && { opacity: 0.4 }]}>{saving ? '...' : 'Save'}</Text>
             </TouchableOpacity>
           </View>
@@ -297,6 +303,8 @@ export default function CompanyOverheadScreen() {
             <View style={styles.formSection}>
               <Text style={[styles.formLabel, { color: Colors.primaryText }]}>Expense Name</Text>
               <TextInput
+                testID="companyOverhead.nameInput"
+                accessibilityLabel="Expense name"
                 style={[styles.formInput, { backgroundColor: Colors.cardBackground, color: Colors.primaryText, borderColor: Colors.border }]}
                 value={formDesc}
                 onChangeText={setFormDesc}
@@ -312,6 +320,8 @@ export default function CompanyOverheadScreen() {
               <View style={[styles.amountRow, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
                 <Text style={[styles.currencySign, { color: Colors.secondaryText }]}>$</Text>
                 <TextInput
+                  testID="companyOverhead.amountInput"
+                  accessibilityLabel="Amount"
                   style={[styles.amountInput, { color: Colors.primaryText }]}
                   value={formAmount}
                   onChangeText={setFormAmount}
@@ -331,6 +341,8 @@ export default function CompanyOverheadScreen() {
                   return (
                     <TouchableOpacity
                       key={f.value}
+                      testID={`companyOverhead.frequency.${f.value}`}
+                      accessibilityLabel={`Frequency ${f.label}`}
                       style={[styles.freqChip, { borderColor: selected ? ACCENT : Colors.border }, selected && { backgroundColor: ACCENT + '08' }]}
                       onPress={() => setFormFrequency(f.value)}
                     >

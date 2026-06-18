@@ -303,17 +303,17 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity testID="changeOrderBuilder.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+          <Text testID="changeOrderBuilder.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>
             {coNumber ? `CO-${String(coNumber).padStart(3, '0')}` : 'New change order'}
           </Text>
           <SaveIndicator state={saveState} readOnly={readOnly} Colors={Colors} />
         </View>
         <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-          <Text style={[styles.statusPillText, { color: pill.fg }]}>{pill.label}</Text>
+          <Text testID="changeOrderBuilder.statusPill" style={[styles.statusPillText, { color: pill.fg }]}>{pill.label}</Text>
         </View>
       </View>
 
@@ -327,17 +327,21 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
         >
           <Field label="Project *" Colors={Colors} styles={styles}>
             <TouchableOpacity
+              testID="changeOrderBuilder.projectPickerButton"
+              accessibilityLabel="Pick a project"
               style={styles.input}
               onPress={() => !readOnly && setShowProjectPicker(true)}
               activeOpacity={readOnly ? 1 : 0.7}
             >
-              <Text style={[styles.inputText, !projectId && styles.placeholderText]}>
+              <Text testID="changeOrderBuilder.projectName" style={[styles.inputText, !projectId && styles.placeholderText]}>
                 {projectName || (projectId ? '(loading project name)' : 'Pick a project')}
               </Text>
             </TouchableOpacity>
           </Field>
           <Field label="Title *" Colors={Colors} styles={styles}>
             <TextInput
+              testID="changeOrderBuilder.titleInput"
+              accessibilityLabel="Title"
               style={styles.input}
               value={title}
               onChangeText={setTitle}
@@ -348,6 +352,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
           </Field>
           <Field label="Justification / description" Colors={Colors} styles={styles}>
             <TextInput
+              testID="changeOrderBuilder.descriptionInput"
+              accessibilityLabel="Justification or description"
               style={[styles.input, styles.multilineInput]}
               value={description}
               onChangeText={setDescription}
@@ -376,6 +382,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
         >
           <Field label="Tax rate (%)" Colors={Colors} styles={styles}>
             <TextInput
+              testID="changeOrderBuilder.taxRateInput"
+              accessibilityLabel="Tax rate percent"
               style={styles.input}
               value={String(taxRate)}
               onChangeText={setTaxRate}
@@ -384,10 +392,10 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
             />
           </Field>
           <View style={{ marginTop: 12 }}>
-            <SummaryRow label="Subtotal"   value={fmt$(subtotal)}  styles={styles} />
-            <SummaryRow label="Tax"        value={fmt$(taxAmount)} styles={styles} />
+            <SummaryRow label="Subtotal"   value={fmt$(subtotal)}  valueTestID="changeOrderBuilder.subtotal"  styles={styles} />
+            <SummaryRow label="Tax"        value={fmt$(taxAmount)} valueTestID="changeOrderBuilder.taxAmount" styles={styles} />
             <View style={styles.divider} />
-            <SummaryRow label="Total"      value={fmt$(total)}     bold styles={styles} />
+            <SummaryRow label="Total"      value={fmt$(total)}     valueTestID="changeOrderBuilder.total" bold styles={styles} />
           </View>
         </Section>
 
@@ -399,6 +407,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
         >
           <Field label="Schedule impact (days)" Colors={Colors} styles={styles}>
             <TextInput
+              testID="changeOrderBuilder.scheduleImpactInput"
+              accessibilityLabel="Schedule impact in days"
               style={styles.input}
               value={String(scheduleImpactDays)}
               onChangeText={setScheduleImpactDays}
@@ -410,6 +420,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
             {BILLING_STRATEGIES.map((opt) => (
               <TouchableOpacity
                 key={opt.key}
+                testID={`changeOrderBuilder.billingStrategy.${opt.key}`}
+                accessibilityLabel={opt.label}
                 style={[styles.radioRow, billingStrategy === opt.key && styles.radioRowActive]}
                 onPress={() => !readOnly && setBillingStrategy(opt.key)}
                 activeOpacity={readOnly ? 1 : 0.7}
@@ -433,16 +445,18 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
         >
           <View style={styles.reviewBlock}>
             <Text style={styles.reviewLabel}>Title</Text>
-            <Text style={styles.reviewValue}>{title || '—'}</Text>
+            <Text testID="changeOrderBuilder.reviewTitle" style={styles.reviewValue}>{title || '—'}</Text>
             <Text style={[styles.reviewLabel, { marginTop: 12 }]}>Project</Text>
-            <Text style={styles.reviewValue}>{projectName || '—'}</Text>
+            <Text testID="changeOrderBuilder.reviewProject" style={styles.reviewValue}>{projectName || '—'}</Text>
             <Text style={[styles.reviewLabel, { marginTop: 12 }]}>Total</Text>
-            <Text style={[styles.reviewValue, { fontSize: 22, fontWeight: '800' }]}>{fmt$(total)}</Text>
-            <Text style={styles.reviewSub}>{items.length} line item{items.length === 1 ? '' : 's'} · {scheduleImpactDays || 0} day impact</Text>
+            <Text testID="changeOrderBuilder.reviewTotal" style={[styles.reviewValue, { fontSize: 22, fontWeight: '800' }]}>{fmt$(total)}</Text>
+            <Text testID="changeOrderBuilder.reviewItemCount" style={styles.reviewSub}>{items.length} line item{items.length === 1 ? '' : 's'} · {scheduleImpactDays || 0} day impact</Text>
           </View>
           <Field label="Require signature on approval" Colors={Colors} styles={styles}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Switch
+                testID="changeOrderBuilder.signatureRequiredSwitch"
+                accessibilityLabel="Require signature on approval"
                 value={signatureRequired}
                 onValueChange={(v) => !readOnly && setSignatureRequired(v)}
                 disabled={readOnly}
@@ -455,6 +469,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
           {!readOnly && (
             <>
               <TouchableOpacity
+                testID="changeOrderBuilder.sendButton"
+                accessibilityLabel="Send to client"
                 style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue }]}
                 onPress={handleSend}
                 activeOpacity={0.85}
@@ -463,6 +479,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
                 <Text style={styles.sendBtnText}>Send to client</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                testID="changeOrderBuilder.saveAndCloseButton"
+                accessibilityLabel="Save and close"
                 style={[styles.sendBtn, styles.secondaryBtn]}
                 onPress={async () => {
                   await flushSaveRef.current();
@@ -484,8 +502,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: Colors.surface || Colors.background }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Pick a project</Text>
-              <TouchableOpacity onPress={() => setShowProjectPicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text testID="changeOrderBuilder.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>Pick a project</Text>
+              <TouchableOpacity testID="changeOrderBuilder.projectPickerClose" accessibilityLabel="Close project picker" onPress={() => setShowProjectPicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={22} color={Colors.primaryText} />
               </TouchableOpacity>
             </View>
@@ -494,6 +512,8 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
               keyExtractor={(p) => p.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
+                  testID={`changeOrderBuilder.row.${item.id}`}
+                  accessibilityLabel={item.name || '(no name)'}
                   style={styles.projectRow}
                   onPress={() => {
                     setProjectId(item.id);
@@ -524,7 +544,7 @@ export default function ChangeOrderBuilderScreen({ route, navigation }) {
 function Section({ sectionKey, title, icon, expanded, chip, onToggle, children, Colors, styles }) {
   return (
     <View style={[styles.section, { borderColor: Colors.border, backgroundColor: Colors.surface || Colors.background }]}>
-      <TouchableOpacity onPress={() => onToggle(sectionKey)} style={styles.sectionHeader} activeOpacity={0.7}>
+      <TouchableOpacity testID={`changeOrderBuilder.section.${sectionKey}`} accessibilityLabel={title} onPress={() => onToggle(sectionKey)} style={styles.sectionHeader} activeOpacity={0.7}>
         <Ionicons name={icon} size={18} color={Colors.secondaryText} />
         <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>{title}</Text>
         <View style={{ flex: 1 }} />
@@ -547,11 +567,11 @@ function Field({ label, children, Colors, styles }) {
   );
 }
 
-function SummaryRow({ label, value, bold, styles }) {
+function SummaryRow({ label, value, bold, valueTestID, styles }) {
   return (
     <View style={styles.summaryRow}>
       <Text style={[styles.summaryLabel, bold && { fontWeight: '700', fontSize: 15 }]}>{label}</Text>
-      <Text style={[styles.summaryValue, bold && { fontWeight: '800', fontSize: 17 }]}>{value}</Text>
+      <Text testID={valueTestID} style={[styles.summaryValue, bold && { fontWeight: '800', fontSize: 17 }]}>{value}</Text>
     </View>
   );
 }

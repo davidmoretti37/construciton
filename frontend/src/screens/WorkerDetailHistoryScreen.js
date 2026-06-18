@@ -358,10 +358,10 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity testID="workerDetailHistory.backButton" accessibilityLabel="Go back" style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('common:buttons.back', 'Back')}</Text>
+          <Text testID="workerDetailHistory.notFoundTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('common:buttons.back', 'Back')}</Text>
           <View style={{ width: 30 }} />
         </View>
         <View style={styles.loadingContainer}>
@@ -392,14 +392,18 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <TouchableOpacity
+          testID="workerDetailHistory.backButton"
+          accessibilityLabel="Go back"
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{worker.full_name}</Text>
+        <Text testID="workerDetailHistory.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{worker.full_name}</Text>
         {canEditTime ? (
           <TouchableOpacity
+            testID="workerDetailHistory.settingsButton"
+            accessibilityLabel="Worker payment settings"
             style={{ padding: 4 }}
             onPress={() => navigation.navigate('EditWorkerPayment', { worker })}
           >
@@ -431,7 +435,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               </Text>
             </View>
             <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={{ fontSize: 20, fontWeight: '700', color: Colors.primaryText, marginBottom: 2 }}>
+              <Text testID="workerDetailHistory.workerName" style={{ fontSize: 20, fontWeight: '700', color: Colors.primaryText, marginBottom: 2 }}>
                 {worker.full_name}
               </Text>
               {worker.trade ? (
@@ -440,7 +444,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                 </Text>
               ) : null}
               <View style={[styles.statusBadge, { backgroundColor: statusColor + '15', alignSelf: 'flex-start', marginBottom: 0 }]}>
-                <Text style={[styles.statusText, { color: statusColor }]}>
+                <Text testID="workerDetailHistory.statusBadge" style={[styles.statusText, { color: statusColor }]}>
                   {worker.status || 'active'}
                 </Text>
               </View>
@@ -452,6 +456,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
             <View style={{ marginBottom: 16 }}>
               {worker.email ? (
                 <TouchableOpacity
+                  testID="workerDetailHistory.emailButton"
+                  accessibilityLabel="Email worker"
                   style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
                   onPress={() => Linking.openURL(`mailto:${worker.email}`).catch(() =>
                     Alert.alert(t('common:alerts.error', 'Error'), t('common:messages.couldNotOpen', { item: worker.email }))
@@ -465,6 +471,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               ) : null}
               {worker.phone ? (
                 <TouchableOpacity
+                  testID="workerDetailHistory.phoneButton"
+                  accessibilityLabel="Call worker"
                   style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
                   onPress={() => Linking.openURL(`tel:${worker.phone}`).catch(() =>
                     Alert.alert(t('common:alerts.error', 'Error'), t('common:messages.couldNotOpen', { item: worker.phone }))
@@ -493,7 +501,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                   {/* Payment Type */}
                   <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
                     <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.type')}</Text>
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                    <Text testID="workerDetailHistory.paymentType" style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
                       {worker.payment_type === 'hourly' ? t('history.hourly') :
                        worker.payment_type === 'daily' ? t('history.daily') :
                        worker.payment_type === 'weekly' ? t('history.weekly') :
@@ -504,7 +512,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                   {/* Rate */}
                   <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
                     <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.rate')}</Text>
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryBlue }}>
+                    <Text testID="workerDetailHistory.rate" style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryBlue }}>
                       {worker.payment_type === 'hourly' && worker.hourly_rate ? `$${Number(worker.hourly_rate).toFixed(2)}${t('workerDetails.perHour')}` :
                        worker.payment_type === 'daily' && worker.daily_rate ? `$${Number(worker.daily_rate).toFixed(2)}${t('workerDetails.perDay')}` :
                        worker.payment_type === 'weekly' && worker.weekly_salary ? `$${Number(worker.weekly_salary).toFixed(2)}${t('workerDetails.perWeek')}` :
@@ -518,7 +526,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               {/* Hours This Week */}
               <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
                 <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.thisWeek')}</Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                <Text testID="workerDetailHistory.weekHours" style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
                   {stats.weekHours}h
                 </Text>
               </View>
@@ -526,7 +534,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               {/* Hours This Month */}
               <View style={{ backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: '45%' }}>
                 <Text style={{ fontSize: 11, color: Colors.secondaryText, marginBottom: 2 }}>{t('history.thisMonth')}</Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
+                <Text testID="workerDetailHistory.monthHours" style={{ fontSize: 15, fontWeight: '600', color: Colors.primaryText }}>
                   {stats.monthHours}h
                 </Text>
               </View>
@@ -543,6 +551,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
           {/* Edit Worker Button — owner or supervisor with can_manage_workers */}
           {canEditTime && (
             <TouchableOpacity
+              testID="workerDetailHistory.editInfoButton"
+              accessibilityLabel="Edit worker info"
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -583,13 +593,15 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               </View>
               <View style={styles.sessionRow}>
                 <Text style={[styles.sessionLabel, { color: Colors.secondaryText }]}>{t('history.elapsedTime')}</Text>
-                <Text style={[styles.sessionValue, { color: '#10B981', fontWeight: '700' }]}>
+                <Text testID="workerDetailHistory.elapsedTime" style={[styles.sessionValue, { color: '#10B981', fontWeight: '700' }]}>
                   {elapsedTime}
                 </Text>
               </View>
               {/* Location Row */}
               {activeSession.location_lat && activeSession.location_lng ? (
                 <TouchableOpacity
+                  testID="workerDetailHistory.viewClockInLocationButton"
+                  accessibilityLabel="View clock-in location"
                   style={[styles.locationButton, { backgroundColor: '#8B5CF6' + '15' }]}
                   onPress={() => {
                     const lat = activeSession.location_lat;
@@ -621,6 +633,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               {/* Clock Out Button — owner or supervisor with can_manage_workers */}
               {canEditTime && (
                 <TouchableOpacity
+                  testID="workerDetailHistory.clockOutButton"
+                  accessibilityLabel="Clock out worker"
                   style={styles.clockOutButton}
                   onPress={handleClockOutWorker}
                   disabled={clockOutLoading}
@@ -663,10 +677,10 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
               <Text style={[styles.totalAmountLabel, { color: Colors.secondaryText }]}>
                 {t('history.totalAmountOwed')}
               </Text>
-              <Text style={[styles.totalAmountValue, { color: Colors.primaryBlue }]}>
+              <Text testID="workerDetailHistory.totalAmount" style={[styles.totalAmountValue, { color: Colors.primaryBlue }]}>
                 ${paymentData.totalAmount.toFixed(2)}
               </Text>
-              <Text style={[styles.totalHoursText, { color: Colors.secondaryText }]}>
+              <Text testID="workerDetailHistory.totalHours" style={[styles.totalHoursText, { color: Colors.secondaryText }]}>
                 {formatHoursMinutes(paymentData.totalHours)} total
               </Text>
             </View>
@@ -680,6 +694,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                 {paymentData.byProject.map((project, index) => (
                   <View
                     key={index}
+                    testID={`workerDetailHistory.projectRow.${index}`}
                     style={[styles.breakdownItem, { borderBottomColor: Colors.border }]}
                   >
                     <View style={styles.breakdownLeft}>
@@ -690,7 +705,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                         {formatHoursMinutes(project.hours)}
                       </Text>
                     </View>
-                    <Text style={[styles.breakdownAmount, { color: Colors.primaryBlue }]}>
+                    <Text testID={`workerDetailHistory.projectRow.${index}.amount`} style={[styles.breakdownAmount, { color: Colors.primaryBlue }]}>
                       ${project.amount.toFixed(2)}
                     </Text>
                   </View>
@@ -709,6 +724,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                   .map((day, index) => (
                   <View
                     key={index}
+                    testID={`workerDetailHistory.dayRow.${index}`}
                     style={[styles.dayBreakdownItem, { borderBottomColor: Colors.border }]}
                   >
                     <View style={styles.dayBreakdownHeader}>
@@ -724,7 +740,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                           {formatHoursMinutes(day.hours)}
                         </Text>
                       </View>
-                      <Text style={[styles.dayBreakdownAmount, { color: Colors.primaryBlue }]}>
+                      <Text testID={`workerDetailHistory.dayRow.${index}.amount`} style={[styles.dayBreakdownAmount, { color: Colors.primaryBlue }]}>
                         ${day.amount.toFixed(2)}
                       </Text>
                     </View>
@@ -821,6 +837,7 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                     .map(session => (
                     <View
                       key={session.id}
+                      testID={`workerDetailHistory.sessionRow.${session.id}`}
                       style={{
                         backgroundColor: Colors.lightGray,
                         borderRadius: 10,
@@ -847,6 +864,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                           {/* Edit button for completed entries — owner or supervisor with can_manage_workers */}
                           {session.clock_out && canEditTime && (
                             <TouchableOpacity
+                              testID={`workerDetailHistory.sessionRow.${session.id}.editButton`}
+                              accessibilityLabel="Edit time record"
                               style={{ padding: 2 }}
                               onPress={() => handleEditTimeRecord(session)}
                             >
@@ -864,6 +883,8 @@ export default function WorkerDetailHistoryScreen({ navigation, route }) {
                       </View>
                       {session.location_lat && session.location_lng && (
                         <TouchableOpacity
+                          testID={`workerDetailHistory.sessionRow.${session.id}.locationButton`}
+                          accessibilityLabel="View session location"
                           style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
                           onPress={() => {
                             const url = Platform.select({

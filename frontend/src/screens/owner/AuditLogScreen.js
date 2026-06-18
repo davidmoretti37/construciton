@@ -131,7 +131,7 @@ export default function AuditLogScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('audit.title')}</Text>
+        <Text style={styles.title} testID="auditLog.title" accessibilityLabel="Audit log title">{t('audit.title')}</Text>
       </View>
 
       <View style={styles.searchBar}>
@@ -142,9 +142,11 @@ export default function AuditLogScreen() {
           placeholderTextColor={Colors.textSecondary}
           value={search}
           onChangeText={setSearch}
+          testID="auditLog.searchInput"
+          accessibilityLabel="Search audit log"
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <TouchableOpacity onPress={() => setSearch('')} testID="auditLog.clearSearchButton" accessibilityLabel="Clear search">
             <Ionicons name="close-circle" size={18} color={Colors.textSecondary} />
           </TouchableOpacity>
         )}
@@ -162,6 +164,7 @@ export default function AuditLogScreen() {
             active={entityFilter === f.id}
             onPress={() => setEntityFilter(f.id)}
             Colors={Colors}
+            testID={`auditLog.entityFilter.${String(f.id)}`}
           />
         ))}
       </ScrollView>
@@ -178,6 +181,7 @@ export default function AuditLogScreen() {
             active={actionFilter === f.id}
             onPress={() => setActionFilter(f.id)}
             Colors={Colors}
+            testID={`auditLog.actionFilter.${String(f.id)}`}
           />
         ))}
         {DATE_RANGES.map((f) => (
@@ -187,6 +191,7 @@ export default function AuditLogScreen() {
             active={dateRange === f.id}
             onPress={() => setDateRange(f.id)}
             Colors={Colors}
+            testID={`auditLog.dateRange.${f.id}`}
           />
         ))}
       </ScrollView>
@@ -197,15 +202,15 @@ export default function AuditLogScreen() {
         </View>
       ) : error ? (
         <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={load} style={styles.retryBtn}>
+          <Text style={styles.errorText} testID="auditLog.errorText" accessibilityLabel="Audit log error">{error}</Text>
+          <TouchableOpacity onPress={load} style={styles.retryBtn} testID="auditLog.retryButton" accessibilityLabel="Retry">
             <Text style={styles.retryText}>{t('buttons.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : filtered.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="time-outline" size={40} color={Colors.textSecondary} />
-          <Text style={styles.emptyText}>{t('audit.empty')}</Text>
+          <Text style={styles.emptyText} testID="auditLog.emptyText" accessibilityLabel="No audit entries">{t('audit.empty')}</Text>
         </View>
       ) : (
         <ScrollView
@@ -226,6 +231,7 @@ export default function AuditLogScreen() {
               onToggle={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
               Colors={Colors}
               t={t}
+              testID={`auditLog.row.${entry.id}`}
             />
           ))}
           <View style={{ height: 40 }} />
@@ -235,7 +241,7 @@ export default function AuditLogScreen() {
   );
 }
 
-function FilterChip({ label, active, onPress, Colors }) {
+function FilterChip({ label, active, onPress, Colors, testID }) {
   return (
     <TouchableOpacity
       style={[
@@ -246,6 +252,8 @@ function FilterChip({ label, active, onPress, Colors }) {
         },
       ]}
       onPress={onPress}
+      testID={testID}
+      accessibilityLabel={label}
     >
       <Text
         style={[
@@ -259,7 +267,7 @@ function FilterChip({ label, active, onPress, Colors }) {
   );
 }
 
-function AuditEntryRow({ entry, expanded, onToggle, Colors, t }) {
+function AuditEntryRow({ entry, expanded, onToggle, Colors, t, testID }) {
   const styles = makeStyles(Colors);
   const headline = formatAuditEntry(entry, t);
   const actor = entry.actor_name || t('audit.system');
@@ -270,20 +278,20 @@ function AuditEntryRow({ entry, expanded, onToggle, Colors, t }) {
       : Colors.text;
 
   return (
-    <TouchableOpacity onPress={onToggle} activeOpacity={0.7} style={styles.entry}>
+    <TouchableOpacity onPress={onToggle} activeOpacity={0.7} style={styles.entry} testID={testID} accessibilityLabel="Audit entry">
       <View style={styles.entryHead}>
         <View style={[styles.actionBadge, { backgroundColor: verbColour + '22', borderColor: verbColour }]}>
-          <Text style={[styles.actionBadgeText, { color: verbColour }]}>
+          <Text style={[styles.actionBadgeText, { color: verbColour }]} testID={`${testID}.action`}>
             {t(`audit.actions.${entry.action}`, { defaultValue: entry.action })}
           </Text>
         </View>
-        <Text style={styles.entityLabel}>
+        <Text style={styles.entityLabel} testID={`${testID}.entityType`}>
           {t(`audit.entityTypes.${entry.entity_type}`, { defaultValue: entry.entity_type })}
         </Text>
         <Text style={styles.when}>{when}</Text>
       </View>
-      <Text style={styles.headline}>{headline}</Text>
-      <Text style={styles.actor}>{t('audit.by', { actor })}</Text>
+      <Text style={styles.headline} testID={`${testID}.headline`}>{headline}</Text>
+      <Text style={styles.actor} testID={`${testID}.actor`}>{t('audit.by', { actor })}</Text>
 
       {expanded && entry.changes && entry.changes.length > 0 && (
         <View style={styles.diff}>

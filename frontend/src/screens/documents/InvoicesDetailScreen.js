@@ -148,21 +148,27 @@ export default function InvoicesDetailScreen({ navigation }) {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          testID="invoicesDetail.backButton"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allInvoices')}</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="invoicesDetail.headerTitle">{t('list.allInvoices')}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => navigation.navigate('InvoiceBuilder')}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            testID="invoicesDetail.addInvoiceButton"
+            accessibilityLabel="Add invoice"
           >
             <Ionicons name="add" size={26} color={Colors.primaryText} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => navigation.navigate('InvoiceTemplate')}
+            testID="invoicesDetail.editTemplateButton"
+            accessibilityLabel="Edit invoice template"
           >
             <Ionicons name="create-outline" size={22} color={Colors.primaryBlue} />
           </TouchableOpacity>
@@ -198,17 +204,19 @@ export default function InvoicesDetailScreen({ navigation }) {
                   activeOpacity={0.7}
                   onPress={() => onOpenSubInvoice(inv)}
                   disabled={!inv.pdf_url}
+                  testID={`invoicesDetail.subInvoiceRow.${inv.id}`}
+                  accessibilityLabel="Subcontractor invoice"
                 >
                   <View style={[styles.subInvIcon, { backgroundColor: pillColor + '15' }]}>
                     <Ionicons name="cash-outline" size={18} color={pillColor} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <View style={styles.subInvTopRow}>
-                      <Text style={[styles.subInvAmount, { color: Colors.primaryText }]}>
+                      <Text style={[styles.subInvAmount, { color: Colors.primaryText }]} testID={`invoicesDetail.subInvoiceAmount.${inv.id}`}>
                         ${total.toLocaleString()}
                       </Text>
                       <View style={[styles.subInvPill, { backgroundColor: pillColor + '15' }]}>
-                        <Text style={[styles.subInvPillText, { color: pillColor }]}>
+                        <Text style={[styles.subInvPillText, { color: pillColor }]} testID={`invoicesDetail.subInvoiceStatus.${inv.id}`}>
                           {status.replace(/_/g, ' ')}
                         </Text>
                       </View>
@@ -228,6 +236,8 @@ export default function InvoicesDetailScreen({ navigation }) {
                         style={styles.markPaidPill}
                         activeOpacity={0.7}
                         onPress={(e) => { e.stopPropagation?.(); onMarkSubInvoicePaid(inv); }}
+                        testID={`invoicesDetail.markPaidButton.${inv.id}`}
+                        accessibilityLabel="Mark invoice paid"
                       >
                         <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
                         <Text style={styles.markPaidPillText}>Mark paid</Text>
@@ -288,10 +298,12 @@ export default function InvoicesDetailScreen({ navigation }) {
                     setShowInvoiceModal(true);
                   }}
                   activeOpacity={0.7}
+                  testID={`invoicesDetail.invoiceRow.${invoice.id}`}
+                  accessibilityLabel="Invoice"
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
-                      <Text style={[styles.clientName, { color: Colors.primaryText }]} numberOfLines={1}>
+                      <Text style={[styles.clientName, { color: Colors.primaryText }]} numberOfLines={1} testID={`invoicesDetail.invoiceClientName.${invoice.id}`}>
                         {clientName || (number ? `Invoice #${number}` : 'Invoice')}
                       </Text>
                       <Text style={[styles.invoiceNumber, { color: Colors.secondaryText }]} numberOfLines={1}>
@@ -304,7 +316,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                         { backgroundColor: getStatusColor(actualStatus) + '20' },
                       ]}
                     >
-                      <Text style={[styles.statusText, { color: getStatusColor(actualStatus) }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(actualStatus) }]} testID={`invoicesDetail.invoiceStatus.${invoice.id}`}>
                         {statusLabel}
                       </Text>
                     </View>
@@ -327,7 +339,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                       )}
                     </View>
                     <View style={styles.amountColumn}>
-                      <Text style={[styles.amount, { color: Colors.primaryText }]}>
+                      <Text style={[styles.amount, { color: Colors.primaryText }]} testID={`invoicesDetail.invoiceAmount.${invoice.id}`}>
                         ${Number(totalAmt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                       {actualStatus === 'partial' && (
@@ -356,10 +368,10 @@ export default function InvoicesDetailScreen({ navigation }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           {/* Modal Header */}
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setShowInvoiceModal(false)}>
+            <TouchableOpacity onPress={() => setShowInvoiceModal(false)} testID="invoicesDetail.modalCloseButton" accessibilityLabel="Close invoice details">
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('list.invoiceDetails')}</Text>
+            <Text style={[styles.modalTitle, { color: Colors.primaryText }]} testID="invoicesDetail.modalTitle">{t('list.invoiceDetails')}</Text>
             <View style={{ width: 28 }} />
           </View>
 

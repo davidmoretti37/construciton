@@ -128,6 +128,8 @@ export default function ARAgingScreen() {
           <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('aging.loadFailedTitle')}</Text>
           <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('aging.loadFailedMessage')}</Text>
           <TouchableOpacity
+            testID="arAging.retryButton"
+            accessibilityLabel="Retry loading aging report"
             onPress={() => { setLoading(true); loadData(); }}
             style={[styles.retryBtn, { borderColor: '#1E40AF' }]}
             activeOpacity={0.7}
@@ -145,16 +147,16 @@ export default function ARAgingScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="arAging.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('aging.title')}</Text>
+          <Text testID="arAging.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('aging.title')}</Text>
           <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }} numberOfLines={1}>
             {projectId ? (projectName || 'This Project') : 'All Projects'}
           </Text>
         </View>
-        <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="arAging.exportButton" accessibilityLabel="Export CSV" onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="download-outline" size={22} color="#1E40AF" />
         </TouchableOpacity>
       </View>
@@ -168,13 +170,13 @@ export default function ARAgingScreen() {
         {/* Total Outstanding */}
         <View style={[styles.totalCard, { backgroundColor: Colors.cardBackground }]}>
           <Text style={[styles.totalLabel, { color: Colors.secondaryText }]}>{t('aging.totalOutstanding')}</Text>
-          <Text style={[styles.totalAmount, { color: Colors.primaryText }]}>{formatCurrency(totals.total)}</Text>
+          <Text testID="arAging.totalOutstanding" style={[styles.totalAmount, { color: Colors.primaryText }]}>{formatCurrency(totals.total)}</Text>
           <View style={styles.bucketRow}>
             {['current', 'days30', 'days60', 'days90', 'over90'].map((bucket) => (
               <View key={bucket} style={styles.bucketItem}>
                 <View style={[styles.bucketDot, { backgroundColor: BUCKET_COLORS[bucket] }]} />
                 <Text style={[styles.bucketLabel, { color: Colors.secondaryText }]}>{bucketLabels[bucket]}</Text>
-                <Text style={[styles.bucketAmount, { color: BUCKET_COLORS[bucket] }]}>{formatCurrency(totals[bucket])}</Text>
+                <Text testID={`arAging.bucketTotal.${bucket}`} style={[styles.bucketAmount, { color: BUCKET_COLORS[bucket] }]}>{formatCurrency(totals[bucket])}</Text>
               </View>
             ))}
           </View>
@@ -204,19 +206,21 @@ export default function ARAgingScreen() {
           clients.map((client) => (
             <TouchableOpacity
               key={client.name}
+              testID={`arAging.clientRow.${client.name}`}
+              accessibilityLabel={`Client ${client.name}`}
               style={[styles.clientCard, { backgroundColor: Colors.cardBackground }]}
               onPress={() => setExpandedClient(expandedClient === client.name ? null : client.name)}
               activeOpacity={0.7}
             >
               <View style={styles.clientHeader}>
                 <View style={styles.clientInfo}>
-                  <Text style={[styles.clientName, { color: Colors.primaryText }]} numberOfLines={1}>{client.name}</Text>
+                  <Text testID={`arAging.clientName.${client.name}`} style={[styles.clientName, { color: Colors.primaryText }]} numberOfLines={1}>{client.name}</Text>
                   <Text style={[styles.clientTotal, { color: Colors.secondaryText }]}>
                     {client.invoices.length} {client.invoices.length === 1 ? t('aging.invoice') : t('aging.invoices')}
                   </Text>
                 </View>
                 <View style={styles.clientRight}>
-                  <Text style={[styles.clientAmount, { color: client.over90 > 0 ? BUCKET_COLORS.over90 : client.days90 > 0 ? BUCKET_COLORS.days90 : Colors.primaryText }]}>
+                  <Text testID={`arAging.clientTotal.${client.name}`} style={[styles.clientAmount, { color: client.over90 > 0 ? BUCKET_COLORS.over90 : client.days90 > 0 ? BUCKET_COLORS.days90 : Colors.primaryText }]}>
                     {formatCurrency(client.total)}
                   </Text>
                   <Ionicons name={expandedClient === client.name ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.secondaryText} />
@@ -239,13 +243,13 @@ export default function ARAgingScreen() {
               {expandedClient === client.name && (
                 <View style={[styles.invoiceList, { borderTopColor: Colors.border }]}>
                   {client.invoices.map((inv) => (
-                    <View key={inv.id} style={styles.invoiceRow}>
+                    <View key={inv.id} testID={`arAging.invoiceRow.${inv.id}`} style={styles.invoiceRow}>
                       <View style={styles.invoiceInfo}>
-                        <Text style={[styles.invoiceNum, { color: Colors.primaryText }]}>#{inv.invoice_number}</Text>
+                        <Text testID={`arAging.invoiceNumber.${inv.id}`} style={[styles.invoiceNum, { color: Colors.primaryText }]}>#{inv.invoice_number}</Text>
                         <Text style={[styles.invoiceProject, { color: Colors.secondaryText }]}>{inv.project_name || ''}</Text>
                       </View>
                       <View style={styles.invoiceRight}>
-                        <Text style={[styles.invoiceAmount, { color: BUCKET_COLORS[inv.bucket] }]}>{formatCurrency(inv.balance)}</Text>
+                        <Text testID={`arAging.invoiceAmount.${inv.id}`} style={[styles.invoiceAmount, { color: BUCKET_COLORS[inv.bucket] }]}>{formatCurrency(inv.balance)}</Text>
                         {inv.daysOverdue > 0 && (
                           <Text style={[styles.invoiceDays, { color: BUCKET_COLORS[inv.bucket] }]}>
                             {inv.daysOverdue}d

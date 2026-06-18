@@ -184,16 +184,16 @@ export default function PayrollSummaryScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="payrollSummary.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('payroll.title')}</Text>
+          <Text testID="payrollSummary.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('payroll.title')}</Text>
           <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }} numberOfLines={1}>
             {projectId ? (projectName || 'This Project') : 'All Projects'}
           </Text>
         </View>
-        <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="payrollSummary.exportButton" accessibilityLabel="Export CSV" onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
           <Ionicons name="download-outline" size={22} color="#1E40AF" />
         </TouchableOpacity>
       </View>
@@ -209,6 +209,8 @@ export default function PayrollSummaryScreen() {
           {PERIODS.filter(p => p !== 'custom').map(p => (
             <TouchableOpacity
               key={p}
+              testID={`payrollSummary.period.${p}`}
+              accessibilityLabel={`Period ${p}`}
               style={[styles.periodPill, period === p && { backgroundColor: '#1E40AF' }]}
               onPress={() => setPeriod(p)}
               activeOpacity={0.7}
@@ -219,6 +221,8 @@ export default function PayrollSummaryScreen() {
             </TouchableOpacity>
           ))}
           <TouchableOpacity
+            testID="payrollSummary.groupByProjectToggle"
+            accessibilityLabel="Group by project"
             style={[styles.groupToggle, groupByProject && { backgroundColor: '#EFF6FF' }]}
             onPress={() => setGroupByProject(!groupByProject)}
             activeOpacity={0.7}
@@ -231,17 +235,17 @@ export default function PayrollSummaryScreen() {
         <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
           <View style={styles.totalsGrid}>
             <View style={styles.totalItem}>
-              <Text style={[styles.totalNum, { color: Colors.primaryText }]}>{totals.workerCount}</Text>
+              <Text testID="payrollSummary.workerCount" style={[styles.totalNum, { color: Colors.primaryText }]}>{totals.workerCount}</Text>
               <Text style={[styles.totalLabel, { color: Colors.secondaryText }]}>{t('payroll.workers')}</Text>
             </View>
             {totals.hours > 0 && (
               <View style={styles.totalItem}>
-                <Text style={[styles.totalNum, { color: '#3B82F6' }]}>{totals.hours.toFixed(1)}</Text>
+                <Text testID="payrollSummary.totalHours" style={[styles.totalNum, { color: '#3B82F6' }]}>{totals.hours.toFixed(1)}</Text>
                 <Text style={[styles.totalLabel, { color: Colors.secondaryText }]}>{t('payroll.hours')}</Text>
               </View>
             )}
             <View style={styles.totalItem}>
-              <Text style={[styles.totalNum, { color: '#EF4444' }]}>{formatCurrency(totals.grossPay)}</Text>
+              <Text testID="payrollSummary.totalGrossPay" style={[styles.totalNum, { color: '#EF4444' }]}>{formatCurrency(totals.grossPay)}</Text>
               <Text style={[styles.totalLabel, { color: Colors.secondaryText }]}>{t('payroll.totalGrossPay')}</Text>
             </View>
           </View>
@@ -256,15 +260,15 @@ export default function PayrollSummaryScreen() {
           </View>
         ) : (
           workers.map((w, i) => (
-            <View key={i} style={[styles.workerCard, { backgroundColor: Colors.cardBackground }]}>
+            <View key={i} testID={`payrollSummary.row.${i}`} style={[styles.workerCard, { backgroundColor: Colors.cardBackground }]}>
               <View style={styles.workerHeader}>
                 <View style={styles.workerInfo}>
-                  <Text style={[styles.workerName, { color: Colors.primaryText }]} numberOfLines={1}>{w.workerName}</Text>
+                  <Text testID={`payrollSummary.row.${i}.name`} style={[styles.workerName, { color: Colors.primaryText }]} numberOfLines={1}>{w.workerName}</Text>
                   {w.trade ? (
                     <Text style={[styles.workerTrade, { color: Colors.secondaryText }]}>{w.trade}</Text>
                   ) : null}
                 </View>
-                <Text style={[styles.workerPay, { color: '#EF4444' }]}>{formatCurrency(w.grossPay)}</Text>
+                <Text testID={`payrollSummary.row.${i}.pay`} style={[styles.workerPay, { color: '#EF4444' }]}>{formatCurrency(w.grossPay)}</Text>
               </View>
               <View style={styles.workerDetails}>
                 {w.hours != null && w.hours > 0 && (

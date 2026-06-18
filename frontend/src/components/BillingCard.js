@@ -108,6 +108,8 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
   return (
     <View>
       <TouchableOpacity
+        testID={`billingCard.row.${event.id}`}
+        accessibilityLabel={`Billing event ${event.label}`}
         style={styles.row}
         onPress={() => onOpen?.(event)}
         activeOpacity={0.7}
@@ -117,13 +119,13 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={styles.rowHeader}>
-            <Text style={styles.rowLabel} numberOfLines={1}>
+            <Text testID={`billingCard.row.${event.id}.label`} style={styles.rowLabel} numberOfLines={1}>
               {event.label}{event.description && event.label !== event.description ? ` — ${event.description}` : ''}
             </Text>
             <StatusPill status={event.raw_status || event.status} />
           </View>
           <View style={styles.rowMeta}>
-            <Text style={styles.amount}>
+            <Text testID={`billingCard.row.${event.id}.amount`} style={styles.amount}>
               {event.amount_due != null && event.source === 'invoice'
                 ? fmt$(event.amount_due > 0 ? event.amount_due : event.amount)
                 : fmt$(event.amount)}
@@ -133,6 +135,8 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
         </View>
         {isAction && event.cta_label && event.action_type ? (
           <TouchableOpacity
+            testID={`billingCard.row.${event.id}.cta`}
+            accessibilityLabel={event.cta_label}
             style={[styles.cta, ctaStyleFor(event.action_type)]}
             onPress={(e) => { e.stopPropagation?.(); onAction?.(event); }}
             activeOpacity={0.7}
@@ -155,6 +159,8 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
           <Text style={styles.acceptedPromptTitle}>Client accepted — how do you want to bill?</Text>
           <View style={styles.acceptedPromptButtons}>
             <TouchableOpacity
+              testID={`billingCard.row.${event.id}.billAll`}
+              accessibilityLabel="Bill it all now"
               style={styles.acceptedBtnSecondary}
               onPress={(e) => { e.stopPropagation?.(); onBillAll?.(event); }}
               activeOpacity={0.7}
@@ -163,6 +169,8 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
               <Text style={styles.acceptedBtnSecondaryText}>Bill it all now</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              testID={`billingCard.row.${event.id}.setUpDraws`}
+              accessibilityLabel="Set up draws"
               style={styles.acceptedBtnPrimary}
               onPress={(e) => { e.stopPropagation?.(); onSetUpDraws?.(event); }}
               activeOpacity={0.7}
@@ -427,8 +435,8 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
           <Ionicons name="cash-outline" size={16} color={C.green} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Billing</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text testID="billingCard.title" style={styles.headerTitle}>Billing</Text>
+          <Text testID="billingCard.contractSubtitle" style={styles.headerSubtitle}>
             Contract {fmt$(rollup.contract_amount)}
             {contractDelta > 0 ? `  (was ${fmt$(rollup.base_contract)})` : ''}
             {' · '}{Math.round(drawnPct)}% drawn
@@ -447,17 +455,17 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
       <View style={styles.statsRow}>
         <View style={styles.stat}>
           <Text style={styles.statLabel}>Drawn</Text>
-          <Text style={styles.statValue}>{fmt$(rollup.drawn_to_date)}</Text>
+          <Text testID="billingCard.drawnAmount" style={styles.statValue}>{fmt$(rollup.drawn_to_date)}</Text>
         </View>
         <View style={styles.statSep} />
         <View style={styles.stat}>
           <Text style={styles.statLabel}>Collected</Text>
-          <Text style={[styles.statValue, { color: C.green }]}>{fmt$(rollup.collected)}</Text>
+          <Text testID="billingCard.collectedAmount" style={[styles.statValue, { color: C.green }]}>{fmt$(rollup.collected)}</Text>
         </View>
         <View style={styles.statSep} />
         <View style={styles.stat}>
           <Text style={styles.statLabel}>Outstanding</Text>
-          <Text style={[styles.statValue, rollup.outstanding > 0 && { color: C.amberDark }]}>
+          <Text testID="billingCard.outstandingAmount" style={[styles.statValue, rollup.outstanding > 0 && { color: C.amberDark }]}>
             {fmt$(rollup.outstanding)}
           </Text>
         </View>
@@ -468,7 +476,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="alert-circle" size={14} color={C.red} />
-            <Text style={[styles.zoneLabel, { color: C.red }]}>Action required ({action.length})</Text>
+            <Text testID="billingCard.actionRequiredLabel" style={[styles.zoneLabel, { color: C.red }]}>Action required ({action.length})</Text>
           </View>
           {action.map((event) => (
             <EventRow
@@ -493,7 +501,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="time-outline" size={14} color={C.textSec} />
-            <Text style={styles.zoneLabel}>Upcoming ({upcoming.length})</Text>
+            <Text testID="billingCard.upcomingLabel" style={styles.zoneLabel}>Upcoming ({upcoming.length})</Text>
           </View>
           {upcoming.map((event) => (
             <EventRow
@@ -515,6 +523,8 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
       {history.length > 0 && (
         <View style={styles.zone}>
           <TouchableOpacity
+            testID="billingCard.historyToggle"
+            accessibilityLabel="Toggle history"
             style={styles.zoneHeader}
             onPress={() => setHistoryExpanded(!historyExpanded)}
             activeOpacity={0.7}
@@ -523,7 +533,7 @@ export default function BillingCard({ project, navigation, onRefresh, onOpenEsti
               name={historyExpanded ? 'chevron-down' : 'chevron-forward'}
               size={14} color={C.textMuted}
             />
-            <Text style={styles.zoneLabel}>History ({history.length})</Text>
+            <Text testID="billingCard.historyLabel" style={styles.zoneLabel}>History ({history.length})</Text>
           </TouchableOpacity>
           {historyExpanded && history.map((event) => (
             <EventRow

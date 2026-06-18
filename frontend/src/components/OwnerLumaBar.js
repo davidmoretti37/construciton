@@ -128,6 +128,8 @@ const NavItem = ({ item, isActive, onPress, Colors }) => {
 
   return (
     <TouchableOpacity
+      testID={`ownerTab.${item.routeName}`}
+      accessibilityLabel={`${item.label || item.routeName} tab`}
       activeOpacity={0.7}
       onPress={onPress}
       style={navItemStyles.navItem}

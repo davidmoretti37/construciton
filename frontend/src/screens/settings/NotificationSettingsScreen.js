@@ -207,14 +207,16 @@ export default function NotificationSettingsScreen({ navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.cardBackground, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} testID="notificationSettings.backButton" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('notifications.title')}</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="notificationSettings.headerTitle">{t('notifications.title')}</Text>
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: Colors.primaryBlue }]}
           onPress={handleSave}
           disabled={saving}
+          testID="notificationSettings.saveButton"
+          accessibilityLabel="Save notification preferences"
         >
           {saving ? (
             <ActivityIndicator size="small" color={Colors.white} />
@@ -247,6 +249,7 @@ export default function NotificationSettingsScreen({ navigation }) {
               value={preferences.push_enabled || preferences.inapp_enabled}
               onToggle={handleMasterToggle}
               Colors={Colors}
+              testID="notificationSettings.allowAllSwitch"
             />
 
             {(preferences.push_enabled || preferences.inapp_enabled) && (
@@ -261,6 +264,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   onToggle={() => handleCategoryToggle('appointment_reminders')}
                   Colors={Colors}
                   indent
+                  testID="notificationSettings.appointmentRemindersSwitch"
                 />
 
                 <View style={[styles.divider, { backgroundColor: Colors.border }]} />
@@ -273,6 +277,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   onToggle={() => handleCategoryToggle('daily_reports')}
                   Colors={Colors}
                   indent
+                  testID="notificationSettings.dailyReportsSwitch"
                 />
 
                 <View style={[styles.divider, { backgroundColor: Colors.border }]} />
@@ -285,6 +290,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   onToggle={() => handleCategoryToggle('project_warnings')}
                   Colors={Colors}
                   indent
+                  testID="notificationSettings.projectWarningsSwitch"
                 />
 
                 <View style={[styles.divider, { backgroundColor: Colors.border }]} />
@@ -297,6 +303,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   onToggle={() => handleCategoryToggle('financial_updates')}
                   Colors={Colors}
                   indent
+                  testID="notificationSettings.financialUpdatesSwitch"
                 />
 
                 <View style={[styles.divider, { backgroundColor: Colors.border }]} />
@@ -309,6 +316,7 @@ export default function NotificationSettingsScreen({ navigation }) {
                   onToggle={() => handleCategoryToggle('worker_updates')}
                   Colors={Colors}
                   indent
+                  testID="notificationSettings.workerUpdatesSwitch"
                 />
               </>
             )}
@@ -326,12 +334,14 @@ export default function NotificationSettingsScreen({ navigation }) {
               <Text style={[styles.sliderLabel, { color: Colors.primaryText }]}>
                 {t('notificationsSettings.remindMeBefore')}
               </Text>
-              <Text style={[styles.sliderValue, { color: Colors.primaryBlue }]}>
+              <Text style={[styles.sliderValue, { color: Colors.primaryBlue }]} testID="notificationSettings.reminderMinutesValue">
                 {formatReminderTime(preferences.appointment_reminder_minutes)}
               </Text>
             </View>
 
             <Slider
+              testID="notificationSettings.reminderSlider"
+              accessibilityLabel="Appointment reminder time"
               style={styles.slider}
               minimumValue={15}
               maximumValue={120}
@@ -358,6 +368,7 @@ export default function NotificationSettingsScreen({ navigation }) {
               value={preferences.appointment_reminder_with_travel}
               onToggle={() => handleToggle('appointment_reminder_with_travel')}
               Colors={Colors}
+              testID="notificationSettings.includeTravelSwitch"
             />
           </View>
         </View>
@@ -382,6 +393,7 @@ export default function NotificationSettingsScreen({ navigation }) {
               value={preferences.quiet_hours_enabled}
               onToggle={() => handleToggle('quiet_hours_enabled')}
               Colors={Colors}
+              testID="notificationSettings.quietHoursSwitch"
             />
 
             {preferences.quiet_hours_enabled && (
@@ -392,10 +404,12 @@ export default function NotificationSettingsScreen({ navigation }) {
                     style={styles.timeItem}
                     onPress={() => setShowTimePicker('start')}
                     activeOpacity={0.7}
+                    testID="notificationSettings.quietHoursStartButton"
+                    accessibilityLabel="Quiet hours start time"
                   >
                     <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{tCommon('labels.from')}</Text>
                     <View style={[styles.timeButton, { backgroundColor: Colors.lightGray }]}>
-                      <Text style={[styles.timeValue, { color: Colors.primaryText }]}>
+                      <Text style={[styles.timeValue, { color: Colors.primaryText }]} testID="notificationSettings.quietHoursStartValue">
                         {formatTimeForDisplay(preferences.quiet_hours_start)}
                       </Text>
                       <Ionicons name="chevron-down" size={16} color={Colors.secondaryText} />
@@ -405,10 +419,12 @@ export default function NotificationSettingsScreen({ navigation }) {
                     style={styles.timeItem}
                     onPress={() => setShowTimePicker('end')}
                     activeOpacity={0.7}
+                    testID="notificationSettings.quietHoursEndButton"
+                    accessibilityLabel="Quiet hours end time"
                   >
                     <Text style={[styles.timeLabel, { color: Colors.secondaryText }]}>{t('notificationsSettings.until')}</Text>
                     <View style={[styles.timeButton, { backgroundColor: Colors.lightGray }]}>
-                      <Text style={[styles.timeValue, { color: Colors.primaryText }]}>
+                      <Text style={[styles.timeValue, { color: Colors.primaryText }]} testID="notificationSettings.quietHoursEndValue">
                         {formatTimeForDisplay(preferences.quiet_hours_end)}
                       </Text>
                       <Ionicons name="chevron-down" size={16} color={Colors.secondaryText} />
@@ -439,16 +455,18 @@ export default function NotificationSettingsScreen({ navigation }) {
               style={styles.timePickerBackdrop}
               activeOpacity={1}
               onPress={() => setShowTimePicker(null)}
+              testID="notificationSettings.timePickerBackdrop"
+              accessibilityLabel="Dismiss time picker"
             />
             <View style={[styles.timePickerModalContent, { backgroundColor: Colors.cardBackground }]}>
               <View style={[styles.timePickerHeader, { borderBottomColor: Colors.border }]}>
-                <TouchableOpacity onPress={() => setShowTimePicker(null)}>
+                <TouchableOpacity onPress={() => setShowTimePicker(null)} testID="notificationSettings.timePickerCancelButton" accessibilityLabel="Cancel time picker">
                   <Text style={[styles.timePickerCancelText, { color: Colors.secondaryText }]}>{tCommon('buttons.cancel')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.timePickerTitle, { color: Colors.primaryText }]}>
+                <Text style={[styles.timePickerTitle, { color: Colors.primaryText }]} testID="notificationSettings.timePickerTitle">
                   {showTimePicker === 'start' ? t('notificationsSettings.startTime') : t('notificationsSettings.endTime')}
                 </Text>
-                <TouchableOpacity onPress={() => setShowTimePicker(null)}>
+                <TouchableOpacity onPress={() => setShowTimePicker(null)} testID="notificationSettings.timePickerDoneButton" accessibilityLabel="Confirm time picker">
                   <Text style={[styles.timePickerDoneText, { color: Colors.primaryBlue }]}>{tCommon('buttons.done')}</Text>
                 </TouchableOpacity>
               </View>
@@ -486,7 +504,7 @@ export default function NotificationSettingsScreen({ navigation }) {
 }
 
 // Helper component for setting rows
-function SettingRow({ icon, iconColor, title, subtitle, value, onToggle, Colors, indent = false }) {
+function SettingRow({ icon, iconColor, title, subtitle, value, onToggle, Colors, indent = false, testID }) {
   return (
     <View style={[styles.settingRow, indent && styles.settingRowIndent]}>
       <View style={[styles.settingIcon, { backgroundColor: iconColor + '20' }]}>
@@ -499,6 +517,8 @@ function SettingRow({ icon, iconColor, title, subtitle, value, onToggle, Colors,
       <Switch
         value={value}
         onValueChange={onToggle}
+        testID={testID}
+        accessibilityLabel={title}
         trackColor={{ false: Colors.border, true: Colors.primaryBlue + '50' }}
         thumbColor={value ? Colors.primaryBlue : Colors.lightGray}
       />

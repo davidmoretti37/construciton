@@ -100,12 +100,14 @@ export default function SubscriptionSettingsScreen({ navigation }) {
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
           <TouchableOpacity
+            testID="subscriptionSettings.backButton"
+            accessibilityLabel="Go back"
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+          <Text testID="subscriptionSettings.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>
             {t('subscriptionSettings.title')}
           </Text>
           <View style={{ width: 24 }} />
@@ -123,12 +125,14 @@ export default function SubscriptionSettingsScreen({ navigation }) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <TouchableOpacity
+          testID="subscriptionSettings.backButton"
+          accessibilityLabel="Go back"
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+        <Text testID="subscriptionSettings.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>
           {t('subscriptionSettings.title')}
         </Text>
         <View style={{ width: 24 }} />
@@ -142,7 +146,7 @@ export default function SubscriptionSettingsScreen({ navigation }) {
               <Text style={[styles.planLabel, { color: Colors.secondaryText }]}>
                 {t('subscriptionSettings.currentPlan')}
               </Text>
-              <Text style={[styles.planName, { color: Colors.primaryText }]}>
+              <Text testID="subscriptionSettings.planName" style={[styles.planName, { color: Colors.primaryText }]}>
                 {getPlanName()}
               </Text>
             </View>
@@ -152,7 +156,7 @@ export default function SubscriptionSettingsScreen({ navigation }) {
                 { backgroundColor: statusBadge.color + '20' },
               ]}
             >
-              <Text style={[styles.statusText, { color: statusBadge.color }]}>
+              <Text testID="subscriptionSettings.statusBadge" style={[styles.statusText, { color: statusBadge.color }]}>
                 {statusBadge.text}
               </Text>
             </View>
@@ -165,7 +169,7 @@ export default function SubscriptionSettingsScreen({ navigation }) {
               {/* Price */}
               <View style={styles.infoRow}>
                 <Ionicons name="card-outline" size={20} color={Colors.secondaryText} />
-                <Text style={[styles.infoText, { color: Colors.primaryText }]}>
+                <Text testID="subscriptionSettings.planPrice" style={[styles.infoText, { color: Colors.primaryText }]}>
                   ${getPlanPrice()}{t('subscriptionSettings.perMonth')}
                 </Text>
               </View>
@@ -173,7 +177,7 @@ export default function SubscriptionSettingsScreen({ navigation }) {
               {/* Project usage */}
               <View style={styles.infoRow}>
                 <Ionicons name="folder-outline" size={20} color={Colors.secondaryText} />
-                <Text style={[styles.infoText, { color: Colors.primaryText }]}>
+                <Text testID="subscriptionSettings.projectsUsed" style={[styles.infoText, { color: Colors.primaryText }]}>
                   {t('subscriptionSettings.projectsUsed', {
                     used: activeProjectCount,
                     total: projectLimit === 999999 ? t('subscriptionSettings.unlimited') : projectLimit
@@ -241,6 +245,8 @@ export default function SubscriptionSettingsScreen({ navigation }) {
           <>
             {/* Manage Billing */}
             <TouchableOpacity
+              testID="subscriptionSettings.manageBillingButton"
+              accessibilityLabel="Manage billing"
               style={[styles.actionButton, { backgroundColor: Colors.cardBackground }]}
               onPress={handleManageSubscription}
               disabled={loading}
@@ -266,6 +272,8 @@ export default function SubscriptionSettingsScreen({ navigation }) {
           <>
             {/* Subscribe button */}
             <TouchableOpacity
+              testID="subscriptionSettings.subscribeButton"
+              accessibilityLabel="Subscribe now"
               style={[styles.subscribeButton, { backgroundColor: Colors.primaryBlue }]}
               onPress={() => navigation.navigate('Paywall')}
               activeOpacity={0.8}

@@ -129,11 +129,11 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
     const opts = Array.isArray(sel.options) ? sel.options : [];
     const picked = sel.selected_option_index != null ? opts[sel.selected_option_index] : null;
     return (
-      <View key={sel.id} style={styles.card}>
+      <View key={sel.id} testID={`ownerSelections.row.${sel.id}`} style={styles.card}>
         <View style={styles.cardHead}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{sel.title}</Text>
+          <Text testID={`ownerSelections.rowTitle.${sel.id}`} style={styles.cardTitle} numberOfLines={1}>{sel.title}</Text>
           <View style={[styles.pill, { backgroundColor: st.bg }]}>
-            <Text style={[styles.pillText, { color: st.text }]}>{st.label}</Text>
+            <Text testID={`ownerSelections.rowStatus.${sel.id}`} style={[styles.pillText, { color: st.text }]}>{st.label}</Text>
           </View>
         </View>
         {sel.description ? <Text style={styles.cardDesc}>{sel.description}</Text> : null}
@@ -149,14 +149,14 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity testID="ownerSelections.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={styles.headerTitle}>Selections</Text>
-            {projectName ? <Text style={styles.headerSub} numberOfLines={1}>{projectName}</Text> : null}
+            <Text testID="ownerSelections.headerTitle" style={styles.headerTitle}>Selections</Text>
+            {projectName ? <Text testID="ownerSelections.headerSubtitle" style={styles.headerSub} numberOfLines={1}>{projectName}</Text> : null}
           </View>
-          <TouchableOpacity onPress={() => setShowForm((s) => !s)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity testID="ownerSelections.toggleFormButton" accessibilityLabel={showForm ? 'Close new selection form' : 'New selection'} onPress={() => setShowForm((s) => !s)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name={showForm ? 'close' : 'add'} size={26} color={C.amber} />
           </TouchableOpacity>
         </View>
@@ -176,6 +176,8 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
               )}
               <Text style={styles.label}>Title</Text>
               <TextInput
+                testID="ownerSelections.titleInput"
+                accessibilityLabel="Selection title"
                 style={styles.input}
                 placeholder='e.g. Kitchen backsplash tile'
                 placeholderTextColor={C.textMuted}
@@ -184,6 +186,8 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
               />
               <Text style={styles.label}>Description (optional)</Text>
               <TextInput
+                testID="ownerSelections.descriptionInput"
+                accessibilityLabel="Selection description"
                 style={[styles.input, styles.inputMulti]}
                 placeholder='Any notes for the client'
                 placeholderTextColor={C.textMuted}
@@ -193,8 +197,10 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
               />
               <Text style={styles.label}>Options</Text>
               {options.map((o, i) => (
-                <View key={i} style={styles.optionRow}>
+                <View key={i} testID={`ownerSelections.optionRow.${i}`} style={styles.optionRow}>
                   <TextInput
+                    testID={`ownerSelections.optionNameInput.${i}`}
+                    accessibilityLabel={`Option ${i + 1} name`}
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
                     placeholder={`Option ${i + 1} name`}
                     placeholderTextColor={C.textMuted}
@@ -202,6 +208,8 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
                     onChangeText={(v) => updateOption(i, 'name', v)}
                   />
                   <TextInput
+                    testID={`ownerSelections.optionPriceInput.${i}`}
+                    accessibilityLabel={`Option ${i + 1} price`}
                     style={[styles.input, styles.priceInput]}
                     placeholder='$'
                     placeholderTextColor={C.textMuted}
@@ -209,17 +217,19 @@ export default function OwnerSelectionsScreen({ route, navigation }) {
                     onChangeText={(v) => updateOption(i, 'price', v.replace(/[^0-9.]/g, ''))}
                     keyboardType='decimal-pad'
                   />
-                  <TouchableOpacity onPress={() => removeOption(i)} disabled={options.length <= 2} style={styles.removeBtn}>
+                  <TouchableOpacity testID={`ownerSelections.removeOptionButton.${i}`} accessibilityLabel={`Remove option ${i + 1}`} onPress={() => removeOption(i)} disabled={options.length <= 2} style={styles.removeBtn}>
                     <Ionicons name="remove-circle-outline" size={22} color={options.length <= 2 ? C.textMuted : C.red || '#EF4444'} />
                   </TouchableOpacity>
                 </View>
               ))}
-              <TouchableOpacity onPress={addOption} style={styles.addOptionBtn}>
+              <TouchableOpacity testID="ownerSelections.addOptionButton" accessibilityLabel="Add option" onPress={addOption} style={styles.addOptionBtn}>
                 <Ionicons name="add" size={18} color={C.amber} />
                 <Text style={styles.addOptionText}>Add option</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="ownerSelections.submitButton"
+                accessibilityLabel="Send to client"
                 style={[styles.createBtn, (submitting || !client?.id) && { opacity: 0.5 }]}
                 onPress={handleCreate}
                 disabled={submitting || !client?.id}

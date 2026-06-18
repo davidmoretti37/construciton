@@ -117,7 +117,7 @@ export default function ClockOutsScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => (
-    <View style={[styles.card, { backgroundColor: Colors.white }]}>
+    <View style={[styles.card, { backgroundColor: Colors.white }]} testID={`clockOuts.row.${item.id}`}>
       <View style={styles.cardLeft}>
         <View style={[styles.avatar, { backgroundColor: item.type === 'supervisor' ? '#8B5CF61A' : '#F59E0B1A' }]}>
           <Ionicons
@@ -127,7 +127,7 @@ export default function ClockOutsScreen({ navigation }) {
           />
         </View>
         <View style={styles.cardInfo}>
-          <Text style={[styles.name, { color: Colors.primaryText }]} numberOfLines={1}>{item.name}</Text>
+          <Text style={[styles.name, { color: Colors.primaryText }]} numberOfLines={1} testID={`clockOuts.row.${item.id}.name`}>{item.name}</Text>
           <Text style={[styles.project, { color: Colors.secondaryText }]} numberOfLines={1}>
             {item.project}
           </Text>
@@ -137,10 +137,12 @@ export default function ClockOutsScreen({ navigation }) {
         </View>
       </View>
       <View style={styles.cardRight}>
-        <Text style={[styles.hours, { color: getHoursColor(item.hours) }]}>{item.hours}h</Text>
+        <Text style={[styles.hours, { color: getHoursColor(item.hours) }]} testID={`clockOuts.row.${item.id}.hours`}>{item.hours}h</Text>
         <TouchableOpacity
           style={styles.clockOutBtn}
           onPress={() => handleRemoteClockOut(item)}
+          testID={`clockOuts.row.${item.id}.clockOutButton`}
+          accessibilityLabel="Clock out worker"
         >
           <Ionicons name="time-outline" size={16} color="#EF4444" />
           <Text style={styles.clockOutText}>Clock Out</Text>
@@ -162,10 +164,10 @@ export default function ClockOutsScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} testID="clockOuts.backButton" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Active Clock-Ins</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="clockOuts.headerTitle">Active Clock-Ins</Text>
         <View style={{ width: 40 }} />
       </View>
 

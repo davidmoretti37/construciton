@@ -259,10 +259,12 @@ export default function EditBusinessInfoScreen({ navigation }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
+          testID="editBusinessInfo.backButton"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('business.info')}</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="editBusinessInfo.title">{t('business.info')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -289,6 +291,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
                 onPress={handlePickLogo}
                 disabled={uploadingLogo}
                 activeOpacity={0.7}
+                testID="editBusinessInfo.logoUploadButton"
+                accessibilityLabel="Upload business logo"
               >
                 {uploadingLogo ? (
                   <ActivityIndicator size="small" color={Colors.primaryBlue} />
@@ -308,7 +312,7 @@ export default function EditBusinessInfoScreen({ navigation }) {
                 )}
               </TouchableOpacity>
               {logoUrl && (
-                <TouchableOpacity onPress={handleRemoveLogo} style={styles.removeLogo}>
+                <TouchableOpacity onPress={handleRemoveLogo} style={styles.removeLogo} testID="editBusinessInfo.removeLogoButton" accessibilityLabel="Remove logo">
                   <Ionicons name="trash-outline" size={14} color="#EF4444" />
                   <Text style={styles.removeLogoText}>Remove logo</Text>
                 </TouchableOpacity>
@@ -331,6 +335,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
                 value={businessName}
                 onChangeText={setBusinessName}
                 autoCapitalize="words"
+                testID="editBusinessInfo.businessNameInput"
+                accessibilityLabel="Business name"
               />
             </View>
 
@@ -350,6 +356,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
+                testID="editBusinessInfo.phoneInput"
+                accessibilityLabel="Phone number"
               />
             </View>
 
@@ -370,6 +378,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                testID="editBusinessInfo.emailInput"
+                accessibilityLabel="Email address"
               />
             </View>
 
@@ -397,6 +407,8 @@ export default function EditBusinessInfoScreen({ navigation }) {
             onPress={handleSave}
             disabled={saving}
             activeOpacity={0.8}
+            testID="editBusinessInfo.saveButton"
+            accessibilityLabel="Save changes"
           >
             {saving ? (
               <ActivityIndicator size="small" color={Colors.white} />

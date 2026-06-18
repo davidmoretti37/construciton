@@ -117,11 +117,11 @@ export default function BillingScreen({ route: navRoute }) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity testID="billing.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Billing</Text>
+            <Text testID="billing.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>Billing</Text>
           </View>
         </View>
         <View style={styles.emptyState}>
@@ -139,12 +139,12 @@ export default function BillingScreen({ route: navRoute }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity testID="billing.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Billing</Text>
-          <Text style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
+          <Text testID="billing.title" style={[styles.headerTitle, { color: Colors.primaryText }]}>Billing</Text>
+          <Text testID="billing.planName" style={[styles.headerSubtitle, { color: Colors.secondaryText }]} numberOfLines={1}>
             {plan?.name}
           </Text>
         </View>
@@ -153,11 +153,11 @@ export default function BillingScreen({ route: navRoute }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Month selector */}
         <View style={styles.monthPicker}>
-          <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthArrow}>
+          <TouchableOpacity testID="billing.prevMonthButton" accessibilityLabel="Previous month" onPress={() => changeMonth(-1)} style={styles.monthArrow}>
             <Ionicons name="chevron-back" size={20} color="#3B82F6" />
           </TouchableOpacity>
-          <Text style={[styles.monthText, { color: Colors.primaryText }]}>{formatMonth(fromDate)}</Text>
-          <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthArrow}>
+          <Text testID="billing.monthLabel" style={[styles.monthText, { color: Colors.primaryText }]}>{formatMonth(fromDate)}</Text>
+          <TouchableOpacity testID="billing.nextMonthButton" accessibilityLabel="Next month" onPress={() => changeMonth(1)} style={styles.monthArrow}>
             <Ionicons name="chevron-forward" size={20} color="#3B82F6" />
           </TouchableOpacity>
         </View>
@@ -171,21 +171,21 @@ export default function BillingScreen({ route: navRoute }) {
               <View style={styles.summaryRow}>
                 <View style={styles.summaryItem}>
                   <Text style={styles.summaryLabel}>Total Visits</Text>
-                  <Text style={styles.summaryValue}>{preview.total_visits}</Text>
+                  <Text testID="billing.totalVisits" style={styles.summaryValue}>{preview.total_visits}</Text>
                 </View>
                 <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
                 <View style={styles.summaryItem}>
                   <Text style={styles.summaryLabel}>
                     {billingCycleLabel[preview.billing_cycle] || 'Rate'}
                   </Text>
-                  <Text style={styles.summaryValue}>
+                  <Text testID="billing.rate" style={styles.summaryValue}>
                     ${preview.rate?.toFixed(2)}
                   </Text>
                 </View>
                 <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
                 <View style={styles.summaryItem}>
                   <Text style={styles.summaryLabel}>Total Due</Text>
-                  <Text style={[styles.summaryValue, { color: '#6EE7B7' }]}>
+                  <Text testID="billing.totalDue" style={[styles.summaryValue, { color: '#6EE7B7' }]}>
                     ${preview.total_amount?.toFixed(2)}
                   </Text>
                 </View>
@@ -197,7 +197,7 @@ export default function BillingScreen({ route: navRoute }) {
               <View style={[styles.section, { backgroundColor: Colors.cardBackground }]}>
                 <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>By Location</Text>
                 {preview.locations.map((loc, i) => (
-                  <View key={i} style={[styles.locationRow, { borderColor: Colors.border }]}>
+                  <View key={i} testID={`billing.row.${loc.location_id ?? i}`} style={[styles.locationRow, { borderColor: Colors.border }]}>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.locationName, { color: Colors.primaryText }]}>
                         {loc.location_name}
@@ -225,6 +225,8 @@ export default function BillingScreen({ route: navRoute }) {
             {/* Create invoice button */}
             {preview.total_visits > 0 && !invoiceCreated && (
               <TouchableOpacity
+                testID="billing.createInvoiceButton"
+                accessibilityLabel="Create invoice"
                 style={[styles.createBtn, creating && { opacity: 0.5 }]}
                 onPress={handleCreateInvoice}
                 disabled={creating}
@@ -247,8 +249,8 @@ export default function BillingScreen({ route: navRoute }) {
               <View style={[styles.successCard, { backgroundColor: '#ECFDF5' }]}>
                 <Ionicons name="checkmark-circle" size={24} color="#059669" />
                 <View>
-                  <Text style={styles.successTitle}>Invoice Created</Text>
-                  <Text style={styles.successDetail}>
+                  <Text testID="billing.successTitle" style={styles.successTitle}>Invoice Created</Text>
+                  <Text testID="billing.invoiceDetail" style={styles.successDetail}>
                     {invoiceCreated.invoice_number} — ${invoiceCreated.total?.toFixed(2)}
                   </Text>
                 </View>
@@ -264,7 +266,7 @@ export default function BillingScreen({ route: navRoute }) {
             <Text style={[styles.emptySubtitle, { color: Colors.secondaryText, textAlign: 'center' }]}>
               Failed to load billing preview
             </Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={loadPreview}>
+            <TouchableOpacity testID="billing.retryButton" accessibilityLabel="Retry" style={styles.retryBtn} onPress={loadPreview}>
               <Ionicons name="refresh" size={18} color="#fff" />
               <Text style={styles.createBtnText}>Retry</Text>
             </TouchableOpacity>

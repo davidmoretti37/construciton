@@ -223,10 +223,12 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            testID="editWorkerPayment.backButton"
+            accessibilityLabel="Go back"
           >
             <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Worker</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="editWorkerPayment.headerTitle">Edit Worker</Text>
           <View style={{ width: 60 }} />
         </View>
         <View style={styles.centerState}>
@@ -246,14 +248,18 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          testID="editWorkerPayment.backButton"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Edit Worker</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="editWorkerPayment.headerTitle">Edit Worker</Text>
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: saving ? '#9CA3AF' : '#1E40AF' }]}
           onPress={handleSave}
           disabled={saving}
+          testID="editWorkerPayment.saveButton"
+          accessibilityLabel="Save worker"
         >
           {saving ? (
             <ActivityIndicator size="small" color="#FFF" />
@@ -291,6 +297,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 onChangeText={setFullName}
                 placeholder="Worker name"
                 placeholderTextColor={Colors.secondaryText}
+                testID="editWorkerPayment.fullNameInput"
+                accessibilityLabel="Full name"
               />
             </View>
 
@@ -305,6 +313,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 placeholder="Phone number"
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="phone-pad"
+                testID="editWorkerPayment.phoneInput"
+                accessibilityLabel="Phone number"
               />
             </View>
 
@@ -320,6 +330,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                testID="editWorkerPayment.emailInput"
+                accessibilityLabel="Email address"
               />
             </View>
 
@@ -333,6 +345,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 onChangeText={setTrade}
                 placeholder="e.g. Carpentry, Electrical, Plumbing"
                 placeholderTextColor={Colors.secondaryText}
+                testID="editWorkerPayment.tradeInput"
+                accessibilityLabel="Trade or specialty"
               />
             </View>
           </View>
@@ -375,6 +389,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                       : { backgroundColor: Colors.lightGray || '#F3F4F6', borderColor: Colors.border }
                   ]}
                   onPress={() => setPaymentType(key)}
+                  testID={`editWorkerPayment.paymentType.${key}`}
+                  accessibilityLabel={`Payment type ${label}`}
                 >
                   <Ionicons
                     name={icon}
@@ -402,6 +418,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
                 placeholder="0.00"
                 placeholderTextColor={Colors.secondaryText}
                 keyboardType="decimal-pad"
+                testID="editWorkerPayment.rateInput"
+                accessibilityLabel="Pay rate"
               />
               <Text style={[styles.rateSuffix, { color: Colors.secondaryText }]}>{rateSuffix}</Text>
             </View>
@@ -422,6 +440,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               style={[styles.deleteButton, { backgroundColor: '#8B5CF6' }]}
               onPress={handlePromoteToSupervisor}
               disabled={saving}
+              testID="editWorkerPayment.promoteButton"
+              accessibilityLabel="Promote to supervisor"
             >
               <Ionicons name="arrow-up-circle-outline" size={18} color="#FFF" />
               <Text style={styles.deleteButtonText}>Promote to Supervisor</Text>
@@ -443,6 +463,8 @@ export default function EditWorkerPaymentScreen({ navigation, route }) {
               style={styles.deleteButton}
               onPress={handleDelete}
               disabled={deleting}
+              testID="editWorkerPayment.deleteButton"
+              accessibilityLabel="Delete worker"
             >
               {deleting ? (
                 <ActivityIndicator size="small" color="#FFF" />

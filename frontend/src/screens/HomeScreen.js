@@ -674,6 +674,8 @@ export default function HomeScreen({ navigation }) {
     return (
       <TouchableOpacity
         key={item.id}
+        testID={`home.widget.${item.id}`}
+        accessibilityLabel={`${item.id} widget`}
         style={{ width, height }}
         onLongPress={enterEditMode}
         activeOpacity={0.9}
@@ -744,7 +746,7 @@ export default function HomeScreen({ navigation }) {
       <View style={[styles.topBar, { backgroundColor: Colors.background, borderBottomColor: Colors.border }]}>
         <View style={styles.topBarLeft} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <TouchableOpacity onPress={enterEditMode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity testID="home.editDashboardButton" accessibilityLabel="Edit dashboard" onPress={enterEditMode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="grid-outline" size={22} color={Colors.secondaryText} />
           </TouchableOpacity>
           <NotificationBell onPress={() => navigation.navigate('Notifications')} />
@@ -756,10 +758,12 @@ export default function HomeScreen({ navigation }) {
 
       {loadError && !loading && (
         <TouchableOpacity
+          testID="home.retryButton"
+          accessibilityLabel="Retry loading data"
           style={{ backgroundColor: '#FF3B30', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' }}
           onPress={() => { setLoadError(false); refreshProjects(); refreshDailyReports(); }}
         >
-          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Failed to load data. Tap to retry.</Text>
+          <Text testID="home.retryText" style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Failed to load data. Tap to retry.</Text>
         </TouchableOpacity>
       )}
 
@@ -772,8 +776,8 @@ export default function HomeScreen({ navigation }) {
       >
         {/* Welcome Header */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>{t('welcome')} 👋</Text>
-          <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
+          <Text testID="home.welcomeText" style={styles.welcomeText}>{t('welcome')} 👋</Text>
+          <Text testID="home.dateText" style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
         </View>
 
         {/* Phase-3 Morning Brief — surfaces the nightly anomaly snapshot */}
@@ -793,12 +797,14 @@ export default function HomeScreen({ navigation }) {
               </Text>
             </View>
             {forgottenClockOuts.workers.map((w) => (
-              <View key={w.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
+              <View key={w.id} testID={`home.forgottenClockOutRow.${w.id}`} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#92400E' }}>{w.worker_name}</Text>
+                  <Text testID={`home.forgottenWorkerName.${w.id}`} style={{ fontSize: 13, fontWeight: '600', color: '#92400E' }}>{w.worker_name}</Text>
                   <Text style={{ fontSize: 12, color: '#B45309' }}>{w.project_name} - {w.hoursElapsed}h</Text>
                 </View>
                 <TouchableOpacity
+                  testID={`home.forgottenClockOutButton.${w.id}`}
+                  accessibilityLabel="Clock out worker"
                   style={{ backgroundColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
                   onPress={() => {
                     Alert.alert(
@@ -841,11 +847,11 @@ export default function HomeScreen({ navigation }) {
         ) : editMode ? (
           <>
             <View style={styles.editBar}>
-              <TouchableOpacity onPress={handleResetLayout}>
+              <TouchableOpacity testID="home.resetLayoutButton" accessibilityLabel="Reset layout" onPress={handleResetLayout}>
                 <Text style={styles.editBarReset}>Reset</Text>
               </TouchableOpacity>
-              <Text style={styles.editBarTitle}>Editing Dashboard</Text>
-              <TouchableOpacity onPress={exitEditMode}>
+              <Text testID="home.editBarTitle" style={styles.editBarTitle}>Editing Dashboard</Text>
+              <TouchableOpacity testID="home.editDoneButton" accessibilityLabel="Done editing" onPress={exitEditMode}>
                 <Text style={styles.editBarDone}>Done</Text>
               </TouchableOpacity>
             </View>
@@ -865,6 +871,8 @@ export default function HomeScreen({ navigation }) {
               footer={
                 <View>
                   <TouchableOpacity
+                    testID="home.addWidgetButton"
+                    accessibilityLabel="Add a widget"
                     style={styles.addSlot}
                     onPress={() => setShowAddSheet(true)}
                     activeOpacity={0.85}
@@ -883,7 +891,7 @@ export default function HomeScreen({ navigation }) {
         ) : (
           <View style={styles.widgetGrid}>
             {activeLayout.length === 0 ? (
-              <TouchableOpacity style={styles.emptyDash} onPress={enterEditMode}>
+              <TouchableOpacity testID="home.emptyDashboardButton" accessibilityLabel="Add widgets to dashboard" style={styles.emptyDash} onPress={enterEditMode}>
                 <Ionicons name="grid-outline" size={28} color={Colors.placeholderText} />
                 <Text style={[styles.emptyDashText, { color: Colors.placeholderText }]}>
                   Tap to add widgets to your dashboard
@@ -922,12 +930,14 @@ export default function HomeScreen({ navigation }) {
           {/* Modal Header */}
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
             <TouchableOpacity
+              testID="home.projectsModalCloseButton"
+              accessibilityLabel="Close"
               onPress={() => setShowProjectsModal(false)}
               style={styles.modalCloseButton}
             >
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{modalTitle}</Text>
+            <Text testID="home.projectsModalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>{modalTitle}</Text>
             <View style={{ width: 28 }} />
           </View>
 
@@ -945,7 +955,7 @@ export default function HomeScreen({ navigation }) {
               </View>
             ) : (
               modalProjects.map((project) => (
-                <View key={project.id}>
+                <View key={project.id} testID={`home.modalProjectRow.${project.id}`}>
                   <ProjectCard
                     data={project}
                     onAction={(action) => {
@@ -984,10 +994,10 @@ export default function HomeScreen({ navigation }) {
       >
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setShowProjectPicker(false)} style={styles.modalCloseButton}>
+            <TouchableOpacity testID="home.projectPickerCloseButton" accessibilityLabel="Close" onPress={() => setShowProjectPicker(false)} style={styles.modalCloseButton}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
+            <Text testID="home.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
             <View style={{ width: 28 }} />
           </View>
           <ScrollView style={{ flex: 1, padding: Spacing.lg }}>
@@ -1002,6 +1012,8 @@ export default function HomeScreen({ navigation }) {
               [...projects, ...servicePlans].map((project) => (
                 <TouchableOpacity
                   key={project.id}
+                  testID={`home.projectPickerRow.${project.id}`}
+                  accessibilityLabel={`Select ${project.name}`}
                   style={[styles.projectPickerItem, { backgroundColor: Colors.cardBackground }]}
                   onPress={() => handleClockIn(project)}
                 >

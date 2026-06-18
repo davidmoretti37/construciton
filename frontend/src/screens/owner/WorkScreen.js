@@ -83,10 +83,12 @@ export default function WorkScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Work</Text>
+        <Text testID="work.title" accessibilityLabel="Work" style={[styles.headerTitle, { color: Colors.primaryText }]}>Work</Text>
         <View style={styles.headerRight}>
           {activeSegment === 0 && (
             <TouchableOpacity
+              testID="work.addProjectButton"
+              accessibilityLabel="Add project"
               style={styles.addProjectBtn}
               onPress={() => navigation.navigate('ManualProjectCreate')}
               activeOpacity={0.7}
@@ -94,13 +96,15 @@ export default function WorkScreen() {
               <Ionicons name="add-circle" size={28} color="#1E40AF" />
             </TouchableOpacity>
           )}
-          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+          <NotificationBell testID="work.notificationBell" accessibilityLabel="Notifications" onPress={() => navigation.navigate('Notifications')} />
         </View>
       </View>
 
       {/* Toggle row with filter */}
       <View style={styles.toggleWrapper}>
         <TouchableOpacity
+          testID="work.filterButton"
+          accessibilityLabel="Toggle filter"
           style={styles.filterBtn}
           onPress={() => setShowFilter(!showFilter)}
           activeOpacity={0.7}
@@ -110,6 +114,8 @@ export default function WorkScreen() {
         {/* Projects pill */}
         <Animated.View style={[styles.pillOuter, projectsStyle]}>
           <TouchableOpacity
+            testID="work.projectsTab"
+            accessibilityLabel="Projects tab"
             style={[
               styles.pill,
               activeSegment === 0 ? styles.pillActive : styles.pillInactive,
@@ -131,6 +137,8 @@ export default function WorkScreen() {
         {/* Services pill */}
         <Animated.View style={[styles.pillOuter, servicesStyle]}>
           <TouchableOpacity
+            testID="work.servicesTab"
+            accessibilityLabel="Services tab"
             style={[
               styles.pill,
               activeSegment === 1 ? styles.pillActive : styles.pillInactive,

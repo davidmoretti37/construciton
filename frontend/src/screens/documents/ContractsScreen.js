@@ -348,10 +348,12 @@ export default function ContractsScreen({ navigation }) {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          testID="contracts.backButton"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Contracts</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="contracts.headerTitle">Contracts</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -361,6 +363,8 @@ export default function ContractsScreen({ navigation }) {
           style={[styles.uploadButton, { backgroundColor: Colors.primaryBlue }]}
           onPress={handleUploadDocument}
           disabled={uploading}
+          testID="contracts.uploadButton"
+          accessibilityLabel="Add contract document"
         >
           {uploading ? (
             <ActivityIndicator color="#fff" size="small" />
@@ -384,7 +388,7 @@ export default function ContractsScreen({ navigation }) {
         {/* Typical Contracts Section (from onboarding) */}
         {typicalContracts.length > 0 && (
           <View style={styles.listSection}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Contract Templates</Text>
+            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]} testID="contracts.templatesSectionTitle">Contract Templates</Text>
             {typicalContracts.map((contract) => {
               const getFileIcon = () => {
                 if (contract.file_mime_type?.includes('pdf')) return 'document-text';
@@ -396,11 +400,14 @@ export default function ContractsScreen({ navigation }) {
                 <View
                   key={contract.id}
                   style={[styles.documentCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+                  testID={`contracts.templateRow.${contract.id}`}
                 >
                   <TouchableOpacity
                     style={styles.documentContent}
                     onPress={() => handleViewContract(contract)}
                     activeOpacity={0.7}
+                    testID={`contracts.templateView.${contract.id}`}
+                    accessibilityLabel="View contract template"
                   >
                     <View style={[styles.documentIcon, { backgroundColor: Colors.primaryBlue + '15' }]}>
                       <Ionicons
@@ -410,7 +417,7 @@ export default function ContractsScreen({ navigation }) {
                       />
                     </View>
                     <View style={styles.documentInfo}>
-                      <Text style={[styles.documentName, { color: Colors.primaryText }]}>
+                      <Text style={[styles.documentName, { color: Colors.primaryText }]} testID={`contracts.templateName.${contract.id}`}>
                         {contract.name}
                       </Text>
                       <Text style={[styles.documentDate, { color: Colors.secondaryText }]}>
@@ -429,7 +436,7 @@ export default function ContractsScreen({ navigation }) {
 
         {/* Contract Documents Section */}
         <View style={styles.listSection}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Uploaded Documents</Text>
+          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]} testID="contracts.documentsSectionTitle">Uploaded Documents</Text>
             {contractDocuments.length === 0 && typicalContracts.length === 0 ? (
               <View style={[styles.emptyState, { backgroundColor: Colors.lightGray }]}>
                 <Ionicons name="cloud-upload-outline" size={48} color={Colors.secondaryText} />
@@ -449,11 +456,14 @@ export default function ContractsScreen({ navigation }) {
                 <View
                   key={doc.id}
                   style={[styles.documentCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
+                  testID={`contracts.documentRow.${doc.id}`}
                 >
                   <TouchableOpacity
                     style={styles.documentContent}
                     onPress={() => handleViewDocument(doc)}
                     activeOpacity={0.7}
+                    testID={`contracts.documentView.${doc.id}`}
+                    accessibilityLabel="View document"
                   >
                     <View style={[styles.documentIcon, { backgroundColor: Colors.primaryBlue + '15' }]}>
                       <Ionicons
@@ -463,7 +473,7 @@ export default function ContractsScreen({ navigation }) {
                       />
                     </View>
                     <View style={styles.documentInfo}>
-                      <Text style={[styles.documentName, { color: Colors.primaryText }]}>
+                      <Text style={[styles.documentName, { color: Colors.primaryText }]} testID={`contracts.documentName.${doc.id}`}>
                         {doc.file_name}
                       </Text>
                       <Text style={[styles.documentDate, { color: Colors.secondaryText }]}>
@@ -482,6 +492,8 @@ export default function ContractsScreen({ navigation }) {
                   <TouchableOpacity
                     style={styles.deleteDocButton}
                     onPress={() => handleDeleteDocument(doc.id, doc.file_path)}
+                    testID={`contracts.documentDelete.${doc.id}`}
+                    accessibilityLabel="Delete document"
                   >
                     <Ionicons name="trash-outline" size={20} color={Colors.error} />
                   </TouchableOpacity>

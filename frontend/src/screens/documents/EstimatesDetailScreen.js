@@ -219,13 +219,17 @@ export default function EstimatesDetailScreen({ navigation, route }) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <TouchableOpacity
+          testID="estimatesDetail.backButton"
+          accessibilityLabel="Go back"
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allEstimates')}</Text>
+        <Text testID="estimatesDetail.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('list.allEstimates')}</Text>
         <TouchableOpacity
+          testID="estimatesDetail.addButton"
+          accessibilityLabel="Add estimate"
           style={styles.backButton}
           onPress={() => navigation.navigate('EstimateBuilder')}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -244,6 +248,8 @@ export default function EstimatesDetailScreen({ navigation, route }) {
           <View style={[styles.searchBar, { backgroundColor: Colors.white, borderColor: Colors.border }]}>
             <Ionicons name="search" size={18} color={Colors.secondaryText} />
             <TextInput
+              testID="estimatesDetail.searchInput"
+              accessibilityLabel="Search estimates"
               style={[styles.searchInput, { color: Colors.primaryText }]}
               placeholder="Search estimates..."
               placeholderTextColor={Colors.secondaryText}
@@ -251,7 +257,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
               onChangeText={setSearchQuery}
             />
             {searchQuery !== '' && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <TouchableOpacity testID="estimatesDetail.clearSearchButton" accessibilityLabel="Clear search" onPress={() => setSearchQuery('')}>
                 <Ionicons name="close-circle" size={18} color={Colors.secondaryText} />
               </TouchableOpacity>
             )}
@@ -269,6 +275,8 @@ export default function EstimatesDetailScreen({ navigation, route }) {
             return (
               <TouchableOpacity
                 key={status}
+                testID={`estimatesDetail.filter.${status.toLowerCase()}`}
+                accessibilityLabel={`Filter ${status}`}
                 style={[
                   styles.filterChip,
                   {
@@ -303,6 +311,8 @@ export default function EstimatesDetailScreen({ navigation, route }) {
             filteredEstimates.map((estimate) => (
               <TouchableOpacity
                 key={estimate.id}
+                testID={`estimatesDetail.row.${estimate.id}`}
+                accessibilityLabel={`Estimate ${estimate.client_name || estimate.clientName || 'No client'}`}
                 style={[styles.estimateCard, { backgroundColor: Colors.white, borderColor: Colors.border }]}
                 onPress={() => {
                   if (estimate.status === 'draft' || !estimate.status) {
@@ -315,7 +325,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
               >
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
-                    <Text style={[styles.clientName, { color: Colors.primaryText }]}>
+                    <Text testID={`estimatesDetail.row.${estimate.id}.clientName`} style={[styles.clientName, { color: Colors.primaryText }]}>
                       {estimate.client_name || estimate.clientName || 'No client'}
                     </Text>
                     <Text style={[styles.projectName, { color: Colors.secondaryText }]}>
@@ -324,6 +334,8 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <TouchableOpacity
+                      testID={`estimatesDetail.row.${estimate.id}.deleteButton`}
+                      accessibilityLabel="Delete estimate"
                       onPress={(e) => {
                         e.stopPropagation();
                         handleDeleteEstimate(estimate.id);
@@ -338,7 +350,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                         { backgroundColor: getStatusColor(estimate.status) + '20' },
                       ]}
                     >
-                      <Text style={[styles.statusText, { color: getStatusColor(estimate.status) }]}>
+                      <Text testID={`estimatesDetail.row.${estimate.id}.status`} style={[styles.statusText, { color: getStatusColor(estimate.status) }]}>
                         {estimate.status ? t(`status.${estimate.status.toLowerCase()}`) : t('status.draft')}
                       </Text>
                     </View>
@@ -352,12 +364,14 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                       {estimate.created_at ? new Date(estimate.created_at).toLocaleDateString() : 'N/A'}
                     </Text>
                   </View>
-                  <Text style={[styles.amount, { color: Colors.primaryText }]}>
+                  <Text testID={`estimatesDetail.row.${estimate.id}.amount`} style={[styles.amount, { color: Colors.primaryText }]}>
                     ${estimate.total?.toLocaleString() || '0'}
                   </Text>
                 </View>
                 {!estimate.project_id && (estimate.status === 'draft' || estimate.status === 'sent') && (
                   <TouchableOpacity
+                    testID={`estimatesDetail.row.${estimate.id}.convertButton`}
+                    accessibilityLabel="Convert to project"
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingTop: 8, paddingBottom: 2 }}
                     onPress={(e) => { e.stopPropagation(); handleConvertToProject(estimate); }}
                   >
@@ -383,10 +397,10 @@ export default function EstimatesDetailScreen({ navigation, route }) {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
           {/* Modal Header */}
           <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-            <TouchableOpacity onPress={() => setShowEstimateModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} style={{ padding: 4 }}>
+            <TouchableOpacity testID="estimatesDetail.modalCloseButton" accessibilityLabel="Close estimate details" onPress={() => setShowEstimateModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} style={{ padding: 4 }}>
               <Ionicons name="close" size={28} color={Colors.primaryText} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('list.estimateDetails')}</Text>
+            <Text testID="estimatesDetail.modalTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('list.estimateDetails')}</Text>
             <View style={{ width: 28 }} />
           </View>
 
@@ -445,6 +459,8 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                 </Text>
                 {signature.signedPdfUrl && (
                   <TouchableOpacity
+                    testID="estimatesDetail.viewSignedPdfButton"
+                    accessibilityLabel="View signed PDF"
                     style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: Colors.primaryBlue, alignSelf: 'flex-start' }}
                     onPress={() => navigation.navigate('DocumentViewer', { url: signature.signedPdfUrl, title: 'Signed Estimate' })}
                   >

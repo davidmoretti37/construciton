@@ -64,13 +64,19 @@ function VisibilityRow({ doc }) {
 function DocRow({ doc, onOpen }) {
   const visual = TYPE_VISUAL[doc.category] || TYPE_VISUAL.other;
   return (
-    <TouchableOpacity style={styles.row} onPress={() => onOpen?.(doc)} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.row}
+      onPress={() => onOpen?.(doc)}
+      activeOpacity={0.7}
+      testID={`documentsCard.row.${doc.id}`}
+      accessibilityLabel={`Document ${doc.title || doc.file_name || 'Untitled'}`}
+    >
       <View style={[styles.iconCircle, { backgroundColor: visual.color + '15' }]}>
         <Ionicons name={visual.icon} size={16} color={visual.color} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={styles.rowHeader}>
-          <Text style={styles.rowLabel} numberOfLines={1}>
+          <Text style={styles.rowLabel} numberOfLines={1} testID={`documentsCard.rowTitle.${doc.id}`}>
             {doc.title || doc.file_name || 'Untitled'}
           </Text>
           {doc.is_important ? (
@@ -183,13 +189,15 @@ export default function DocumentsCard({ projectId, navigation }) {
         style={styles.headerRow}
         activeOpacity={0.7}
         onPress={() => navigation?.navigate?.('ProjectDocuments', { projectId })}
+        testID="documentsCard.headerButton"
+        accessibilityLabel="Open documents"
       >
         <View style={[styles.iconCircle, { backgroundColor: C.violet + '15' }]}>
           <Ionicons name="folder-outline" size={16} color={C.violet} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Documents</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={styles.headerTitle} testID="documentsCard.headerTitle">Documents</Text>
+          <Text style={styles.headerSubtitle} testID="documentsCard.headerSubtitle">
             {total === 0 ? 'No documents yet' : `${total} document${total === 1 ? '' : 's'}`}
             {actionItems.length > 0 ? `  ·  ${actionItems.length} action item${actionItems.length === 1 ? '' : 's'}` : ''}
           </Text>
@@ -202,7 +210,7 @@ export default function DocumentsCard({ projectId, navigation }) {
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="alert-circle" size={14} color={C.red} />
-            <Text style={[styles.zoneLabel, { color: C.red }]}>Action required ({actionItems.length})</Text>
+            <Text style={[styles.zoneLabel, { color: C.red }]} testID="documentsCard.actionRequiredLabel">Action required ({actionItems.length})</Text>
           </View>
           {actionItems.map((doc) => (
             <DocRow key={doc.id} doc={doc} onOpen={handleOpen} />
@@ -215,7 +223,7 @@ export default function DocumentsCard({ projectId, navigation }) {
         <View style={styles.zone}>
           <View style={styles.zoneHeader}>
             <Ionicons name="folder-open-outline" size={14} color={C.textSec} />
-            <Text style={styles.zoneLabel}>Active ({active.length})</Text>
+            <Text style={styles.zoneLabel} testID="documentsCard.activeLabel">Active ({active.length})</Text>
           </View>
           {active.map((doc) => (
             <DocRow key={doc.id} doc={doc} onOpen={handleOpen} />
@@ -230,12 +238,14 @@ export default function DocumentsCard({ projectId, navigation }) {
             style={styles.zoneHeader}
             onPress={() => setHistoryExpanded(!historyExpanded)}
             activeOpacity={0.7}
+            testID="documentsCard.archiveToggle"
+            accessibilityLabel="Toggle archive"
           >
             <Ionicons
               name={historyExpanded ? 'chevron-down' : 'chevron-forward'}
               size={14} color={C.textMuted}
             />
-            <Text style={styles.zoneLabel}>Archive ({history.length})</Text>
+            <Text style={styles.zoneLabel} testID="documentsCard.archiveLabel">Archive ({history.length})</Text>
           </TouchableOpacity>
           {historyExpanded && history.map((doc) => (
             <DocRow key={doc.id} doc={doc} onOpen={handleOpen} />
@@ -254,6 +264,8 @@ export default function DocumentsCard({ projectId, navigation }) {
         style={styles.addBtn}
         activeOpacity={0.7}
         onPress={() => navigation?.navigate?.('ProjectDocuments', { projectId, openAdd: true })}
+        testID="documentsCard.addButton"
+        accessibilityLabel="Add document"
       >
         <Ionicons name="add-circle-outline" size={16} color={C.violet} />
         <Text style={styles.addBtnText}>Add document</Text>

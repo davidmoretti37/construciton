@@ -293,7 +293,7 @@ export default function OwnerSettingsScreen() {
   };
 
   // MenuItem component
-  const MenuItem = ({ icon, iconColor, title, subtitle, onPress, rightElement, isLast }) => (
+  const MenuItem = ({ icon, iconColor, title, subtitle, onPress, rightElement, isLast, testID, accessibilityLabel }) => (
     <TouchableOpacity
       style={[
         styles.menuItem,
@@ -301,6 +301,8 @@ export default function OwnerSettingsScreen() {
       ]}
       onPress={onPress}
       activeOpacity={0.6}
+      testID={testID}
+      accessibilityLabel={accessibilityLabel}
     >
       <View style={[styles.menuIcon, { backgroundColor: iconColor + '15' }]}>
         <Ionicons name={icon} size={20} color={iconColor} />
@@ -327,8 +329,8 @@ export default function OwnerSettingsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Settings</Text>
-        <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="ownerSettings.headerTitle">Settings</Text>
+        <NotificationBell testID="ownerSettings.notificationBell" accessibilityLabel="Notifications" onPress={() => navigation.navigate('Notifications')} />
       </View>
 
       <ScrollView
@@ -347,7 +349,7 @@ export default function OwnerSettingsScreen() {
             </View>
           )}
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: Colors.primaryText }]}>
+            <Text style={[styles.profileName, { color: Colors.primaryText }]} testID="ownerSettings.profileName">
               {userProfile?.business_name || profile?.business_name || profile?.full_name || t('business.info')}
             </Text>
             {(userProfile?.business_phone || profile?.business_phone) ? (
@@ -362,6 +364,8 @@ export default function OwnerSettingsScreen() {
           <TouchableOpacity
             style={[styles.editProfileBtn, { backgroundColor: OWNER_COLORS.primary + '12' }]}
             onPress={() => navigation.navigate('EditBusinessInfo')}
+            testID="ownerSettings.editProfileButton"
+            accessibilityLabel="Edit business info"
           >
             <Ionicons name="pencil" size={16} color={OWNER_COLORS.primary} />
           </TouchableOpacity>
@@ -374,6 +378,8 @@ export default function OwnerSettingsScreen() {
             style={[styles.errorBanner, { backgroundColor: OWNER_COLORS.dangerLight }]}
             onPress={loadData}
             activeOpacity={0.7}
+            testID="ownerSettings.errorBannerRetry"
+            accessibilityLabel="Retry loading settings"
           >
             <Ionicons name="alert-circle-outline" size={20} color={OWNER_COLORS.danger} />
             <Text style={[styles.errorBannerText, { color: OWNER_COLORS.danger }]}>
@@ -391,6 +397,8 @@ export default function OwnerSettingsScreen() {
             style={styles.aiHeader}
             onPress={() => setAiExpanded(!aiExpanded)}
             activeOpacity={0.7}
+            testID="ownerSettings.aiPersonalityToggle"
+            accessibilityLabel="Toggle AI Personality"
           >
             <View style={styles.aiHeaderLeft}>
               <View style={[styles.aiIconBg, { backgroundColor: OWNER_COLORS.accent + '15' }]}>
@@ -431,6 +439,8 @@ export default function OwnerSettingsScreen() {
                   ]}
                   placeholder={t('aiPersonality.aboutYouPlaceholder', "I'm a contractor specializing in...")}
                   placeholderTextColor={Colors.secondaryText + '70'}
+                  testID="ownerSettings.aboutYouInput"
+                  accessibilityLabel="About You"
                   value={aboutYou}
                   onChangeText={handleAboutYouChange}
                   multiline
@@ -458,6 +468,8 @@ export default function OwnerSettingsScreen() {
                   ]}
                   placeholder={t('aiPersonality.responseStylePlaceholder', 'Be brief. Use bullet points...')}
                   placeholderTextColor={Colors.secondaryText + '70'}
+                  testID="ownerSettings.responseStyleInput"
+                  accessibilityLabel="Response Style"
                   value={responseStyle}
                   onChangeText={handleResponseStyleChange}
                   multiline
@@ -485,6 +497,8 @@ export default function OwnerSettingsScreen() {
                   ]}
                   placeholder={t('aiPersonality.projectInstructionsPlaceholder', 'Default checklists, scope of work templates...')}
                   placeholderTextColor={Colors.secondaryText + '70'}
+                  testID="ownerSettings.projectInstructionsInput"
+                  accessibilityLabel="Project Instructions"
                   value={projectInstructions}
                   onChangeText={handleProjectInstructionsChange}
                   multiline
@@ -513,6 +527,8 @@ export default function OwnerSettingsScreen() {
             title={t('items.manageClients', 'Clients')}
             subtitle={t('items.manageClientsSubtitle', 'View and manage your clients')}
             onPress={() => navigation.navigate('Clients')}
+            testID="ownerSettings.clientsItem"
+            accessibilityLabel="Clients"
           />
           {userServices && userServices.length > 0 ? (
             userServices.map((userService) => {
@@ -525,6 +541,8 @@ export default function OwnerSettingsScreen() {
                   iconColor={OWNER_COLORS.success}
                   title={service.name}
                   onPress={() => navigation.navigate('EditService', { serviceId: userService.id })}
+                  testID={`ownerSettings.row.${userService.id}`}
+                  accessibilityLabel={service.name}
                 />
               );
             })
@@ -538,6 +556,8 @@ export default function OwnerSettingsScreen() {
                 : t('items.addFirstService', 'Add a service')
             }
             onPress={() => navigation.navigate('AddService')}
+            testID="ownerSettings.addServiceItem"
+            accessibilityLabel="Add a service"
             isLast
           />
         </View>
@@ -555,24 +575,32 @@ export default function OwnerSettingsScreen() {
             iconColor={OWNER_COLORS.primary}
             title={t('items.pictures', 'Photos')}
             onPress={() => navigation.navigate('Pictures')}
+            testID="ownerSettings.photosItem"
+            accessibilityLabel="Photos"
           />
           <MenuItem
             icon="document-text-outline"
             iconColor={Colors.infoBlue}
             title={t('items.contracts', 'Contracts')}
             onPress={() => navigation.navigate('Contracts')}
+            testID="ownerSettings.contractsItem"
+            accessibilityLabel="Contracts"
           />
           <MenuItem
             icon="calculator-outline"
             iconColor={OWNER_COLORS.success}
             title={t('items.estimates', 'Estimates')}
             onPress={() => navigation.navigate('EstimatesDetail')}
+            testID="ownerSettings.estimatesItem"
+            accessibilityLabel="Estimates"
           />
           <MenuItem
             icon="receipt-outline"
             iconColor={OWNER_COLORS.warning}
             title={t('items.invoices', 'Invoices')}
             onPress={() => navigation.navigate('InvoicesDetail')}
+            testID="ownerSettings.invoicesItem"
+            accessibilityLabel="Invoices"
           />
           <MenuItem
             icon="color-palette-outline"
@@ -580,6 +608,8 @@ export default function OwnerSettingsScreen() {
             title={t('items.invoiceTemplate', 'Invoice & Estimate Template')}
             subtitle={t('items.invoiceTemplateSubtitle', 'Style, logo, and business info — applied to both')}
             onPress={() => navigation.navigate('InvoiceTemplate')}
+            testID="ownerSettings.invoiceTemplateItem"
+            accessibilityLabel="Invoice and Estimate Template"
             isLast
           />
         </View>
@@ -597,6 +627,8 @@ export default function OwnerSettingsScreen() {
             title={t('subscription.title', 'Subscription Plan')}
             subtitle={t('subscription.managePlan', 'Manage your plan')}
             onPress={() => navigation.navigate('SubscriptionSettings')}
+            testID="ownerSettings.subscriptionItem"
+            accessibilityLabel="Subscription Plan"
           />
           <MenuItem
             icon="cash-outline"
@@ -610,6 +642,8 @@ export default function OwnerSettingsScreen() {
                   : t('items.receivePaymentsSubtitle', 'Connect bank to get paid')
             }
             onPress={handleConnectPayments}
+            testID="ownerSettings.receivePaymentsItem"
+            accessibilityLabel="Receive Payments"
           />
           <MenuItem
             icon="card-outline"
@@ -617,6 +651,8 @@ export default function OwnerSettingsScreen() {
             title={t('items.trackTransactions', 'Bank & Transactions')}
             subtitle={t('items.trackTransactionsSubtitle', 'Connect your bank or card')}
             onPress={() => navigation.navigate('BankConnection')}
+            testID="ownerSettings.bankTransactionsItem"
+            accessibilityLabel="Bank and Transactions"
             isLast
           />
         </View>
@@ -632,6 +668,8 @@ export default function OwnerSettingsScreen() {
             title={t('items.integrations', 'Integrations')}
             subtitle={t('items.integrationsSubtitle', 'Connect Gmail, QuickBooks, Calendar, and more')}
             onPress={() => navigation.navigate('Integrations')}
+            testID="ownerSettings.integrationsItem"
+            accessibilityLabel="Integrations"
             isLast
           />
         </View>
@@ -649,6 +687,8 @@ export default function OwnerSettingsScreen() {
             iconColor={OWNER_COLORS.danger}
             title={t('notifications.title', 'Notifications')}
             onPress={() => navigation.navigate('NotificationSettings')}
+            testID="ownerSettings.notificationsItem"
+            accessibilityLabel="Notifications"
           />
           <MenuItem
             icon="language-outline"
@@ -656,6 +696,8 @@ export default function OwnerSettingsScreen() {
             title={t('account.language', 'Language')}
             subtitle={getLanguageDisplay()}
             onPress={() => navigation.navigate('ChangeLanguage')}
+            testID="ownerSettings.languageItem"
+            accessibilityLabel="Language"
           />
           <MenuItem
             icon={isDark ? 'moon' : 'sunny-outline'}
@@ -663,6 +705,8 @@ export default function OwnerSettingsScreen() {
             title={t('preferences.theme', 'Appearance')}
             subtitle={isDark ? t('preferences.dark', 'Dark') : t('preferences.light', 'Light')}
             onPress={toggleTheme}
+            testID="ownerSettings.appearanceItem"
+            accessibilityLabel="Appearance"
             rightElement={
               <View style={[
                 styles.themeToggle,
@@ -694,18 +738,24 @@ export default function OwnerSettingsScreen() {
             title={t('help', 'Help & Support')}
             subtitle={t('support.helpSubtitle', 'Email the team')}
             onPress={() => chooseEmailApp('support@sylkapp.ai')}
+            testID="ownerSettings.helpSupportItem"
+            accessibilityLabel="Help and Support"
           />
           <MenuItem
             icon="document-text-outline"
             iconColor={Colors.infoBlue}
             title={t('terms', 'Terms of Service')}
             onPress={() => handleOpenLink('https://sylkapp.ai/terms')}
+            testID="ownerSettings.termsItem"
+            accessibilityLabel="Terms of Service"
           />
           <MenuItem
             icon="shield-checkmark-outline"
             iconColor={OWNER_COLORS.success}
             title={t('privacy', 'Privacy Policy')}
             onPress={() => handleOpenLink('https://sylkapp.ai/privacy')}
+            testID="ownerSettings.privacyItem"
+            accessibilityLabel="Privacy Policy"
             isLast
           />
         </View>
@@ -715,6 +765,8 @@ export default function OwnerSettingsScreen() {
           style={[styles.logoutBtn, { backgroundColor: OWNER_COLORS.danger + '10' }]}
           onPress={handleLogout}
           activeOpacity={0.7}
+          testID="ownerSettings.logoutButton"
+          accessibilityLabel="Log Out"
         >
           <Ionicons name="log-out-outline" size={20} color={OWNER_COLORS.danger} />
           <Text style={[styles.logoutText, { color: OWNER_COLORS.danger }]}>

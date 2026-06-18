@@ -567,13 +567,15 @@ export default function TransactionEntryScreen({ route, navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity testID="transactionEntry.closeButton" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="close" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
+          <Text testID="transactionEntry.headerTitle" style={styles.headerTitle}>
             {isEditing ? 'Edit Transaction' : 'New Transaction'}
           </Text>
           <TouchableOpacity
+            testID="transactionEntry.saveButton"
+            accessibilityLabel="Save transaction"
             onPress={handleSave}
             style={styles.saveButton}
             disabled={saving}
@@ -594,6 +596,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Project</Text>
               <TouchableOpacity
+                testID="transactionEntry.projectSelector"
+                accessibilityLabel="Select project"
                 style={[styles.projectSelector, !selectedProject && styles.projectSelectorEmpty]}
                 onPress={() => setShowProjectPicker(true)}
               >
@@ -607,7 +611,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
           ) : (
             <View style={styles.projectBadge}>
               <Ionicons name="briefcase" size={14} color={Colors.secondaryText} />
-              <Text style={styles.projectName}>{projectName}</Text>
+              <Text testID="transactionEntry.projectName" style={styles.projectName}>{projectName}</Text>
             </View>
           )}
 
@@ -616,6 +620,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
             <Text style={styles.sectionLabel}>Type</Text>
             <View style={styles.typeContainer}>
               <TouchableOpacity
+                testID="transactionEntry.typeExpense"
+                accessibilityLabel="Expense type"
                 style={[styles.typeButton, type === 'expense' && styles.typeButtonActive]}
                 onPress={() => setType('expense')}
               >
@@ -629,6 +635,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                testID="transactionEntry.typeIncome"
+                accessibilityLabel="Income type"
                 style={[styles.typeButton, type === 'income' && styles.typeButtonActive]}
                 onPress={() => setType('income')}
               >
@@ -652,6 +660,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 {expenseCategories.map((cat) => (
                   <TouchableOpacity
                     key={cat.value}
+                    testID={`transactionEntry.category.${cat.value}`}
+                    accessibilityLabel={`Category ${cat.label}`}
                     style={[
                       styles.categoryButton,
                       category === cat.value && styles.categoryButtonActive,
@@ -702,6 +712,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                   return (
                     <TouchableOpacity
                       key={`phase-${p.id}`}
+                      testID={`transactionEntry.phase.${p.id}`}
+                      accessibilityLabel={`Phase ${p.name}`}
                       style={[
                         styles.categoryButton,
                         isActive && styles.categoryButtonActive,
@@ -729,6 +741,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                   return (
                     <TouchableOpacity
                       key={`trade-${tb.trade_name}`}
+                      testID={`transactionEntry.trade.${tradeKey}`}
+                      accessibilityLabel={`Trade ${tb.trade_name}`}
                       style={[
                         styles.categoryButton,
                         isActive && styles.categoryButtonActive,
@@ -753,6 +767,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 {/* Always-available bucket for expenses that don't map to a phase */}
                 <TouchableOpacity
                   key="phase-overhead"
+                  testID="transactionEntry.phaseOverhead"
+                  accessibilityLabel="Extras or Overhead"
                   style={[
                     styles.categoryButton,
                     subcategory === 'overhead' && styles.categoryButtonActive,
@@ -799,6 +815,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 {TAX_CATEGORIES.map((tc) => (
                   <TouchableOpacity
                     key={tc.value}
+                    testID={`transactionEntry.taxCategory.${tc.value}`}
+                    accessibilityLabel={`Tax category ${tc.label}`}
                     style={[
                       styles.categoryButton,
                       taxCategory === tc.value && styles.categoryButtonActive,
@@ -827,6 +845,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 {INCOME_SUBCATEGORIES.map((sub) => (
                   <TouchableOpacity
                     key={sub.value}
+                    testID={`transactionEntry.incomeType.${sub.value}`}
+                    accessibilityLabel={`Income type ${sub.label}`}
                     style={[
                       styles.categoryButton,
                       subcategory === sub.value && styles.categoryButtonActive,
@@ -855,6 +875,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 {paymentMethods.map((method) => (
                   <TouchableOpacity
                     key={method.value}
+                    testID={`transactionEntry.paymentMethod.${method.value}`}
+                    accessibilityLabel={`Payment method ${method.label}`}
                     style={[
                       styles.categoryButton,
                       paymentMethod === method.value && styles.categoryButtonActive,
@@ -884,6 +906,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Description</Text>
             <TextInput
+              testID="transactionEntry.descriptionInput"
+              accessibilityLabel="Description"
               style={styles.input}
               value={description}
               onChangeText={setDescription}
@@ -898,6 +922,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
             <View style={styles.amountInputContainer}>
               <Text style={styles.currencySymbol}>$</Text>
               <TextInput
+                testID="transactionEntry.amountInput"
+                accessibilityLabel="Amount"
                 style={styles.amountInput}
                 value={amount}
                 onChangeText={setAmount}
@@ -912,10 +938,12 @@ export default function TransactionEntryScreen({ route, navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Date</Text>
             <TouchableOpacity
+              testID="transactionEntry.dateButton"
+              accessibilityLabel="Select date"
               style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text style={{ color: Colors.primaryText, fontSize: 15 }}>
+              <Text testID="transactionEntry.dateValue" style={{ color: Colors.primaryText, fontSize: 15 }}>
                 {new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               </Text>
               <Ionicons name="calendar-outline" size={18} color={Colors.secondaryText} />
@@ -930,7 +958,7 @@ export default function TransactionEntryScreen({ route, navigation }) {
                   style={{ height: 120 }}
                 />
                 {Platform.OS === 'ios' && (
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)} style={{ alignSelf: 'flex-end', padding: 8 }}>
+                  <TouchableOpacity testID="transactionEntry.datePickerDone" accessibilityLabel="Done selecting date" onPress={() => setShowDatePicker(false)} style={{ alignSelf: 'flex-end', padding: 8 }}>
                     <Text style={{ color: '#3B82F6', fontWeight: '600' }}>Done</Text>
                   </TouchableOpacity>
                 )}
@@ -954,11 +982,11 @@ export default function TransactionEntryScreen({ route, navigation }) {
                     </View>
                   ) : (
                     <>
-                      <TouchableOpacity onPress={handlePickReceipt} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <TouchableOpacity testID="transactionEntry.receiptReplaceButton" accessibilityLabel="Replace receipt" onPress={handlePickReceipt} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name="swap-horizontal" size={16} color="#3B82F6" />
                         <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 13 }}>Replace</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setReceiptUri(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <TouchableOpacity testID="transactionEntry.receiptRemoveButton" accessibilityLabel="Remove receipt" onPress={() => setReceiptUri(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Ionicons name="trash-outline" size={16} color="#EF4444" />
                         <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>Remove</Text>
                       </TouchableOpacity>
@@ -968,6 +996,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
               </View>
             ) : (
               <TouchableOpacity
+                testID="transactionEntry.addReceiptButton"
+                accessibilityLabel="Add receipt photo"
                 style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 }]}
                 onPress={handlePickReceipt}
               >
@@ -981,6 +1011,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Notes (Optional)</Text>
             <TextInput
+              testID="transactionEntry.notesInput"
+              accessibilityLabel="Notes"
               style={[styles.input, styles.notesInput]}
               value={notes}
               onChangeText={setNotes}
@@ -1001,10 +1033,10 @@ export default function TransactionEntryScreen({ route, navigation }) {
         >
           <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors.background }]}>
             <View style={[styles.modalHeader, { borderBottomColor: Colors.border }]}>
-              <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
+              <TouchableOpacity testID="transactionEntry.projectPickerClose" accessibilityLabel="Close project picker" onPress={() => setShowProjectPicker(false)}>
                 <Ionicons name="close" size={24} color={Colors.primaryText} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
+              <Text testID="transactionEntry.projectPickerTitle" style={[styles.modalTitle, { color: Colors.primaryText }]}>Select Project</Text>
               <View style={{ width: 24 }} />
             </View>
             {loadingProjects ? (
@@ -1022,6 +1054,8 @@ export default function TransactionEntryScreen({ route, navigation }) {
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
                   <TouchableOpacity
+                    testID={`transactionEntry.row.${item.id}`}
+                    accessibilityLabel={`Project ${item.name}`}
                     style={[
                       styles.projectItem,
                       { borderBottomColor: Colors.border },

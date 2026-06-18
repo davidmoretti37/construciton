@@ -224,11 +224,11 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
 
         {/* Section title row */}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
+          <Text testID="ownerProjects.sectionTitle" style={[styles.sectionTitle, { color: Colors.primaryText }]}>
             {section.title}
           </Text>
           <View style={[styles.sectionBadge, { backgroundColor: `${OWNER_COLORS.primary}12` }]}>
-            <Text style={[styles.sectionBadgeText, { color: OWNER_COLORS.primary }]}>
+            <Text testID="ownerProjects.sectionCount" style={[styles.sectionBadgeText, { color: OWNER_COLORS.primary }]}>
               {section.data.flat().length}
             </Text>
           </View>
@@ -243,6 +243,8 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
       {row.map((project) => (
         <SimpleProjectCard
           key={project.id}
+          testID={`ownerProjects.row.${project.id}`}
+          accessibilityLabel={`Project ${project.name}`}
           project={project}
           onPress={() => handleProjectCardPress(project)}
         />
@@ -268,6 +270,8 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
             {t('loadErrorHint', 'Check your connection and try again')}
           </Text>
           <TouchableOpacity
+            testID="ownerProjects.retryButton"
+            accessibilityLabel="Try again"
             style={[styles.retryButton, { backgroundColor: OWNER_COLORS.primary }]}
             onPress={() => loadProjects()}
             activeOpacity={0.7}
@@ -324,6 +328,8 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
       {!embedded && (
       <View style={[styles.header, { backgroundColor: Colors.white }]}>
         <TouchableOpacity
+          testID="ownerProjects.filterButton"
+          accessibilityLabel="Toggle filters"
           style={styles.filterButton}
           onPress={() => setShowFilterDropdown(!showFilterDropdown)}
           activeOpacity={0.7}
@@ -331,7 +337,7 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
           <Ionicons name="filter" size={20} color={activeFilter !== 'all' ? OWNER_COLORS.primary : Colors.secondaryText} />
           {activeFilter !== 'all' && <View style={[styles.filterDot, { backgroundColor: OWNER_COLORS.primary }]} />}
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+        <Text testID="ownerProjects.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>
           {t('title', 'Projects')}
         </Text>
         <NotificationBell onPress={() => navigation.navigate('Notifications')} />
@@ -346,6 +352,8 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
             return (
               <TouchableOpacity
                 key={filter.key}
+                testID={`ownerProjects.filterOption.${filter.key}`}
+                accessibilityLabel={`Filter ${filter.label}`}
                 style={[
                   styles.filterDropdownItem,
                   isActive && { backgroundColor: OWNER_COLORS.primary + '10' },

@@ -276,16 +276,16 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
     <SafeAreaView style={[styles.root, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="projectDocuments.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Documents</Text>
-          <Text style={styles.headerSub}>
+          <Text testID="projectDocuments.title" style={styles.headerTitle}>Documents</Text>
+          <Text testID="projectDocuments.count" style={styles.headerSub}>
             {docs.length} document{docs.length === 1 ? '' : 's'}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => setAddOpen(true)} style={styles.addIconBtn} activeOpacity={0.7}>
+        <TouchableOpacity testID="projectDocuments.addButton" accessibilityLabel="Add document" onPress={() => setAddOpen(true)} style={styles.addIconBtn} activeOpacity={0.7}>
           <Ionicons name="add-circle" size={28} color={Colors.primaryBlue} />
         </TouchableOpacity>
       </View>
@@ -294,6 +294,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
       <View style={styles.searchRow}>
         <Ionicons name="search-outline" size={18} color={Colors.secondaryText} />
         <TextInput
+          testID="projectDocuments.searchInput"
+          accessibilityLabel="Search documents"
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
@@ -301,7 +303,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
           placeholderTextColor={Colors.placeholder || '#9CA3AF'}
         />
         {search ? (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <TouchableOpacity testID="projectDocuments.searchClearButton" accessibilityLabel="Clear search" onPress={() => setSearch('')}>
             <Ionicons name="close-circle" size={18} color={Colors.secondaryText} />
           </TouchableOpacity>
         ) : null}
@@ -315,6 +317,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
           return (
             <TouchableOpacity
               key={f.key}
+              testID={`projectDocuments.filterChip.${f.key}`}
+              accessibilityLabel={`Filter ${f.label}`}
               onPress={() => setFilter(f.key)}
               style={[styles.chip, isActive && { backgroundColor: Colors.primaryBlue, borderColor: Colors.primaryBlue }]}
               activeOpacity={0.8}
@@ -336,6 +340,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
             <Text style={styles.emptyTitle}>Couldn't load documents</Text>
             <Text style={styles.emptyBody}>Check your connection and try again.</Text>
             <TouchableOpacity
+              testID="projectDocuments.retryButton"
+              accessibilityLabel="Retry loading documents"
               style={styles.retryBtn}
               onPress={() => { setLoading(true); load(); }}
               activeOpacity={0.85}
@@ -362,6 +368,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
             return (
               <TouchableOpacity
                 key={d.id}
+                testID={`projectDocuments.row.${d.id}`}
+                accessibilityLabel={`Document ${d.file_name}`}
                 style={styles.docCard}
                 activeOpacity={0.7}
                 onPress={() => onOpenDoc(d)}
@@ -372,7 +380,7 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <View style={styles.titleRow}>
-                    <Text style={styles.docTitle} numberOfLines={1}>{d.file_name}</Text>
+                    <Text testID={`projectDocuments.rowName.${d.id}`} style={styles.docTitle} numberOfLines={1}>{d.file_name}</Text>
                     {d.is_important && (
                       <View style={styles.importantPill}>
                         <Ionicons name="star" size={10} color="#fff" />
@@ -409,8 +417,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: Colors.cardBackground }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add document</Text>
-              <TouchableOpacity onPress={() => !uploading && setAddOpen(false)}>
+              <Text testID="projectDocuments.modalTitle" style={styles.modalTitle}>Add document</Text>
+              <TouchableOpacity testID="projectDocuments.modalCloseButton" accessibilityLabel="Close" onPress={() => !uploading && setAddOpen(false)}>
                 <Ionicons name="close" size={24} color={Colors.primaryText} />
               </TouchableOpacity>
             </View>
@@ -432,17 +440,17 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
                       <Text style={styles.fileMeta}>{(pickedFile.size / 1024).toFixed(0)} KB</Text>
                     ) : null}
                   </View>
-                  <TouchableOpacity onPress={() => setPickedFile(null)}>
+                  <TouchableOpacity testID="projectDocuments.removeFileButton" accessibilityLabel="Remove file" onPress={() => setPickedFile(null)}>
                     <Ionicons name="close-circle" size={22} color={Colors.secondaryText} />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.pickerRow}>
-                  <TouchableOpacity style={styles.pickerBtn} onPress={onPickFile} activeOpacity={0.7}>
+                  <TouchableOpacity testID="projectDocuments.pickFileButton" accessibilityLabel="Pick PDF or file" style={styles.pickerBtn} onPress={onPickFile} activeOpacity={0.7}>
                     <Ionicons name="document-attach-outline" size={26} color={Colors.primaryText} />
                     <Text style={styles.pickerBtnText}>PDF / file</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.pickerBtn} onPress={onPickPhoto} activeOpacity={0.7}>
+                  <TouchableOpacity testID="projectDocuments.pickPhotoButton" accessibilityLabel="Pick photo" style={styles.pickerBtn} onPress={onPickPhoto} activeOpacity={0.7}>
                     <Ionicons name="images-outline" size={26} color={Colors.primaryText} />
                     <Text style={styles.pickerBtnText}>Photo</Text>
                   </TouchableOpacity>
@@ -452,6 +460,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
               {/* Title */}
               <Text style={styles.fieldLabel}>Title</Text>
               <TextInput
+                testID="projectDocuments.titleInput"
+                accessibilityLabel="Document title"
                 style={styles.input}
                 value={docTitle}
                 onChangeText={setDocTitle}
@@ -467,6 +477,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
                   return (
                     <TouchableOpacity
                       key={c.key}
+                      testID={`projectDocuments.categoryChip.${c.key}`}
+                      accessibilityLabel={`Category ${c.label}`}
                       style={[styles.catChip, isActive && { backgroundColor: Colors.primaryBlue, borderColor: Colors.primaryBlue }]}
                       onPress={() => setDocCategory(c.key)}
                       activeOpacity={0.7}
@@ -481,13 +493,14 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
               {/* Visibility */}
               <Text style={styles.fieldLabel}>Who can see this</Text>
               <Text style={styles.fieldHint}>Owner and supervisors always see all documents.</Text>
-              <CheckRow label="Subcontractors" sub="Subs with active engagements on this project" value={visSubs} onChange={setVisSubs} color="#8B5CF6" Colors={Colors} styles={styles} />
-              <CheckRow label="Workers"        sub="Workers assigned to this project"               value={visWorkers} onChange={setVisWorkers} color="#10B981" Colors={Colors} styles={styles} />
-              <CheckRow label="Client"         sub="Visible in the client portal"                   value={visClients} onChange={setVisClients} color="#1E40AF" Colors={Colors} styles={styles} />
+              <CheckRow testID="projectDocuments.visSubsCheck" label="Subcontractors" sub="Subs with active engagements on this project" value={visSubs} onChange={setVisSubs} color="#8B5CF6" Colors={Colors} styles={styles} />
+              <CheckRow testID="projectDocuments.visWorkersCheck" label="Workers"        sub="Workers assigned to this project"               value={visWorkers} onChange={setVisWorkers} color="#10B981" Colors={Colors} styles={styles} />
+              <CheckRow testID="projectDocuments.visClientsCheck" label="Client"         sub="Visible in the client portal"                   value={visClients} onChange={setVisClients} color="#1E40AF" Colors={Colors} styles={styles} />
 
               {/* Important */}
               <View style={{ marginTop: 14 }}>
                 <CheckRow
+                  testID="projectDocuments.importantCheck"
                   label="Mark as important"
                   sub="Surfaces with a star badge in everyone's list"
                   value={isImportant}
@@ -500,6 +513,8 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
 
               {/* Submit */}
               <TouchableOpacity
+                testID="projectDocuments.uploadButton"
+                accessibilityLabel="Upload document"
                 style={[styles.submitBtn, (uploading || !pickedFile || !docTitle.trim()) && { opacity: 0.5 }]}
                 onPress={onUpload}
                 disabled={uploading || !pickedFile || !docTitle.trim()}
@@ -522,9 +537,9 @@ export default function ProjectDocumentsScreen({ route, navigation }) {
   );
 }
 
-function CheckRow({ label, sub, value, onChange, color, Colors, styles }) {
+function CheckRow({ testID, label, sub, value, onChange, color, Colors, styles }) {
   return (
-    <TouchableOpacity style={styles.checkRow} onPress={() => onChange(!value)} activeOpacity={0.7}>
+    <TouchableOpacity testID={testID} accessibilityLabel={label} style={styles.checkRow} onPress={() => onChange(!value)} activeOpacity={0.7}>
       <View style={[styles.checkBox, value && { backgroundColor: color, borderColor: color }]}>
         {value ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
       </View>

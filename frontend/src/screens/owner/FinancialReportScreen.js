@@ -196,10 +196,10 @@ export default function FinancialReportScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7} testID="financialReport.backButton" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('financial.title')}</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="financialReport.title">{t('financial.title')}</Text>
           <View style={styles.backButton}>
             <Ionicons name="download-outline" size={22} color={Colors.border} />
           </View>
@@ -243,10 +243,10 @@ export default function FinancialReportScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
         <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7} testID="financialReport.backButton" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('financial.title')}</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="financialReport.title">{t('financial.title')}</Text>
           <View style={styles.backButton}>
             <Ionicons name="download-outline" size={22} color={Colors.border} />
           </View>
@@ -259,6 +259,8 @@ export default function FinancialReportScreen() {
               style={[styles.toggleBtn, { backgroundColor: OWNER_COLORS.primary, flex: 0, paddingHorizontal: Spacing.lg }]}
               onPress={loadData}
               activeOpacity={0.7}
+              testID="financialReport.retryButton"
+              accessibilityLabel="Retry"
             >
               <Ionicons name="refresh" size={14} color="#FFF" />
               <Text style={[styles.toggleText, { color: '#FFF' }]}>{t('common:buttons.retry')}</Text>
@@ -273,15 +275,17 @@ export default function FinancialReportScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7} testID="financialReport.backButton" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('financial.title')}</Text>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="financialReport.title">{t('financial.title')}</Text>
         <TouchableOpacity
           onPress={handleExportPDF}
           style={styles.backButton}
           activeOpacity={0.7}
           disabled={exporting}
+          testID="financialReport.exportPdfButton"
+          accessibilityLabel="Export PDF"
         >
           {exporting ? (
             <ActivityIndicator size="small" color={OWNER_COLORS.primary} />
@@ -306,6 +310,8 @@ export default function FinancialReportScreen() {
             style={[styles.toggleBtn, view === 'company' && { backgroundColor: OWNER_COLORS.primary }]}
             onPress={() => setView('company')}
             activeOpacity={0.7}
+            testID="financialReport.viewCompany"
+            accessibilityLabel="Company view"
           >
             <Ionicons name="business" size={14} color={view === 'company' ? '#FFF' : Colors.secondaryText} />
             <Text style={[styles.toggleText, { color: view === 'company' ? '#FFF' : Colors.secondaryText }]}>{t('financial.company')}</Text>
@@ -314,6 +320,8 @@ export default function FinancialReportScreen() {
             style={[styles.toggleBtn, view === 'project' && { backgroundColor: OWNER_COLORS.primary }]}
             onPress={() => setView('project')}
             activeOpacity={0.7}
+            testID="financialReport.viewProject"
+            accessibilityLabel="By project view"
           >
             <Ionicons name="folder" size={14} color={view === 'project' ? '#FFF' : Colors.secondaryText} />
             <Text style={[styles.toggleText, { color: view === 'project' ? '#FFF' : Colors.secondaryText }]}>{t('financial.byProject')}</Text>
@@ -337,17 +345,17 @@ export default function FinancialReportScreen() {
         <View style={[styles.summaryStrip, { backgroundColor: Colors.cardBackground }]}>
           <View style={styles.summaryStat}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Revenue</Text>
-            <Text style={[styles.summaryValue, { color: OWNER_COLORS.success }]}>{formatCurrency(pnl.totalRevenue)}</Text>
+            <Text style={[styles.summaryValue, { color: OWNER_COLORS.success }]} testID="financialReport.summaryRevenue">{formatCurrency(pnl.totalRevenue)}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryStat}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>Expenses</Text>
-            <Text style={[styles.summaryValue, { color: OWNER_COLORS.error }]}>{formatCurrency(pnl.totalCosts)}</Text>
+            <Text style={[styles.summaryValue, { color: OWNER_COLORS.error }]} testID="financialReport.summaryExpenses">{formatCurrency(pnl.totalCosts)}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryStat}>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{monthlyOverhead > 0 ? 'Net Profit' : 'Profit'}</Text>
-            <Text style={[styles.summaryValue, { color: monthlyOverhead > 0 ? netProfitColor : profitColor }]}>
+            <Text style={[styles.summaryValue, { color: monthlyOverhead > 0 ? netProfitColor : profitColor }]} testID="financialReport.summaryProfit">
               {formatCurrency(monthlyOverhead > 0 ? netProfit : pnl.grossProfit)}
             </Text>
           </View>
@@ -362,13 +370,13 @@ export default function FinancialReportScreen() {
               {/* Revenue */}
               <View style={styles.isRow}>
                 <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Revenue</Text>
-                <Text style={[styles.isValue, { color: OWNER_COLORS.success }]}>{formatCurrency(pnl.totalRevenue)}</Text>
+                <Text style={[styles.isValue, { color: OWNER_COLORS.success }]} testID="financialReport.revenue">{formatCurrency(pnl.totalRevenue)}</Text>
               </View>
 
               {/* Project Costs */}
               <View style={styles.isRow}>
                 <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Project Costs</Text>
-                <Text style={[styles.isValue, { color: OWNER_COLORS.error }]}>({formatCurrency(pnl.totalCosts)})</Text>
+                <Text style={[styles.isValue, { color: OWNER_COLORS.error }]} testID="financialReport.projectCosts">({formatCurrency(pnl.totalCosts)})</Text>
               </View>
               {/* Cost breakdown */}
               {Object.entries(pnl.costBreakdown)
@@ -386,11 +394,11 @@ export default function FinancialReportScreen() {
               <View style={[styles.isDivider, { backgroundColor: Colors.border }]} />
               <View style={styles.isRow}>
                 <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>Gross Profit</Text>
-                <Text style={[styles.isBoldValue, { color: profitColor }]}>{formatCurrency(pnl.grossProfit)}</Text>
+                <Text style={[styles.isBoldValue, { color: profitColor }]} testID="financialReport.grossProfit">{formatCurrency(pnl.grossProfit)}</Text>
               </View>
               <View style={styles.isSubRow}>
                 <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>Gross Margin</Text>
-                <Text style={[styles.isSubValue, { color: profitColor }]}>{pnl.grossMargin.toFixed(1)}%</Text>
+                <Text style={[styles.isSubValue, { color: profitColor }]} testID="financialReport.grossMargin">{pnl.grossMargin.toFixed(1)}%</Text>
               </View>
 
               {/* Overhead (if any) */}
@@ -399,7 +407,7 @@ export default function FinancialReportScreen() {
                   <View style={{ height: 8 }} />
                   <View style={styles.isRow}>
                     <Text style={[styles.isLabel, { color: Colors.primaryText }]}>Company Overhead</Text>
-                    <Text style={[styles.isValue, { color: OWNER_COLORS.error }]}>({formatCurrency(periodOverhead)})</Text>
+                    <Text style={[styles.isValue, { color: OWNER_COLORS.error }]} testID="financialReport.companyOverhead">({formatCurrency(periodOverhead)})</Text>
                   </View>
                   {overheadItems.filter(i => i.is_active).map(item => {
                     const amt = parseFloat(item.amount || 0);
@@ -409,7 +417,7 @@ export default function FinancialReportScreen() {
                       : item.frequency === 'annually' ? amt / 12
                       : amt;
                     return (
-                      <View key={item.id} style={styles.isSubRow}>
+                      <View key={item.id} style={styles.isSubRow} testID={`financialReport.overheadRow.${item.id}`}>
                         <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>{item.description}</Text>
                         <Text style={[styles.isSubValue, { color: Colors.secondaryText }]}>{formatCurrency(monthly)}</Text>
                       </View>
@@ -420,11 +428,11 @@ export default function FinancialReportScreen() {
                   <View style={[styles.isDivider, { backgroundColor: Colors.border }]} />
                   <View style={styles.isRow}>
                     <Text style={[styles.isBoldLabel, { color: Colors.primaryText }]}>Net Profit</Text>
-                    <Text style={[styles.isBoldValue, { color: netProfitColor }]}>{formatCurrency(netProfit)}</Text>
+                    <Text style={[styles.isBoldValue, { color: netProfitColor }]} testID="financialReport.netProfit">{formatCurrency(netProfit)}</Text>
                   </View>
                   <View style={styles.isSubRow}>
                     <Text style={[styles.isSubLabel, { color: Colors.secondaryText }]}>Net Margin</Text>
-                    <Text style={[styles.isSubValue, { color: netProfitColor }]}>{netMargin.toFixed(1)}%</Text>
+                    <Text style={[styles.isSubValue, { color: netProfitColor }]} testID="financialReport.netMargin">{netMargin.toFixed(1)}%</Text>
                   </View>
                 </>
               )}
@@ -468,6 +476,7 @@ export default function FinancialReportScreen() {
                     <ProjectPnLCard
                       key={p.id}
                       project={p}
+                      testID={`financialReport.row.${p.id}`}
                       onPress={() => navigation.navigate('ProjectTransactions', { projectId: p.id, projectName: p.name })}
                       onExportPDF={() => handleExportProjectPDF(p)}
                     />
@@ -491,6 +500,8 @@ export default function FinancialReportScreen() {
               style={[styles.reportCard, { backgroundColor: Colors.cardBackground }]}
               onPress={() => navigation.navigate(item.route)}
               activeOpacity={0.7}
+              testID={`financialReport.reportCard.${item.route}`}
+              accessibilityLabel={item.label}
             >
               <View style={[styles.reportIcon, { backgroundColor: item.color + '18' }]}>
                 <Ionicons name={item.icon} size={20} color={item.color} />
@@ -512,6 +523,8 @@ export default function FinancialReportScreen() {
             }
           }}
           activeOpacity={0.7}
+          testID="financialReport.exportCsvButton"
+          accessibilityLabel="Export CSV"
         >
           <Ionicons name="cloud-download-outline" size={20} color="#1E40AF" />
           <View style={styles.exportInfo}>

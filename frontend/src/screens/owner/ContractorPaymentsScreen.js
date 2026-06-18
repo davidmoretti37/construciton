@@ -111,11 +111,11 @@ export default function ContractorPaymentsScreen({ route }) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} activeOpacity={0.7} testID="contractorPayments.backButton" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('tax.contractor1099')}</Text>
-        <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7}>
+        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} testID="contractorPayments.title">{t('tax.contractor1099')}</Text>
+        <TouchableOpacity onPress={handleExportCSV} style={styles.headerBtn} activeOpacity={0.7} testID="contractorPayments.exportCsvButton" accessibilityLabel="Export CSV">
           <Ionicons name="download-outline" size={22} color="#1E40AF" />
         </TouchableOpacity>
       </View>
@@ -143,18 +143,20 @@ export default function ContractorPaymentsScreen({ route }) {
             {above.map((c) => (
               <TouchableOpacity
                 key={c.name}
+                testID={`contractorPayments.row.${c.name}`}
+                accessibilityLabel={`Contractor ${c.name}`}
                 style={[styles.contractorCard, { backgroundColor: Colors.cardBackground, borderLeftColor: '#EF4444' }]}
                 onPress={() => setExpandedContractor(expandedContractor === c.name ? null : c.name)}
                 activeOpacity={0.7}
               >
                 <View style={styles.contractorHeader}>
                   <View style={styles.contractorInfo}>
-                    <Text style={[styles.contractorName, { color: Colors.primaryText }]} numberOfLines={1}>{c.name}</Text>
+                    <Text style={[styles.contractorName, { color: Colors.primaryText }]} numberOfLines={1} testID={`contractorPayments.name.${c.name}`}>{c.name}</Text>
                     <View style={styles.badge1099}>
-                      <Text style={styles.badge1099Text}>1099 REQUIRED</Text>
+                      <Text style={styles.badge1099Text} testID={`contractorPayments.badge1099.${c.name}`}>1099 REQUIRED</Text>
                     </View>
                   </View>
-                  <Text style={[styles.contractorTotal, { color: '#EF4444' }]}>{formatCurrency(c.totalPaid)}</Text>
+                  <Text style={[styles.contractorTotal, { color: '#EF4444' }]} testID={`contractorPayments.total.${c.name}`}>{formatCurrency(c.totalPaid)}</Text>
                 </View>
                 <Text style={[styles.paymentCount, { color: Colors.secondaryText }]}>
                   {c.payments.length} {c.payments.length === 1 ? t('tax.payment') : t('tax.payments')}
@@ -163,12 +165,12 @@ export default function ContractorPaymentsScreen({ route }) {
                 {expandedContractor === c.name && (
                   <View style={[styles.paymentList, { borderTopColor: Colors.border }]}>
                     {c.payments.sort((a, b) => b.date.localeCompare(a.date)).map((p, i) => (
-                      <View key={i} style={styles.paymentRow}>
+                      <View key={i} style={styles.paymentRow} testID={`contractorPayments.payment.${c.name}.${i}`}>
                         <View>
                           <Text style={[styles.paymentDate, { color: Colors.secondaryText }]}>{p.date}</Text>
                           <Text style={[styles.paymentProject, { color: Colors.secondaryText }]}>{p.project}</Text>
                         </View>
-                        <Text style={[styles.paymentAmount, { color: Colors.primaryText }]}>{formatCurrency(p.amount)}</Text>
+                        <Text style={[styles.paymentAmount, { color: Colors.primaryText }]} testID={`contractorPayments.paymentAmount.${c.name}.${i}`}>{formatCurrency(p.amount)}</Text>
                       </View>
                     ))}
                   </View>
@@ -187,13 +189,15 @@ export default function ContractorPaymentsScreen({ route }) {
             {below.map((c) => (
               <TouchableOpacity
                 key={c.name}
+                testID={`contractorPayments.row.${c.name}`}
+                accessibilityLabel={`Contractor ${c.name}`}
                 style={[styles.contractorCard, { backgroundColor: Colors.cardBackground, borderLeftColor: '#10B981' }]}
                 onPress={() => setExpandedContractor(expandedContractor === c.name ? null : c.name)}
                 activeOpacity={0.7}
               >
                 <View style={styles.contractorHeader}>
-                  <Text style={[styles.contractorName, { color: Colors.primaryText }]} numberOfLines={1}>{c.name}</Text>
-                  <Text style={[styles.contractorTotal, { color: Colors.primaryText }]}>{formatCurrency(c.totalPaid)}</Text>
+                  <Text style={[styles.contractorName, { color: Colors.primaryText }]} numberOfLines={1} testID={`contractorPayments.name.${c.name}`}>{c.name}</Text>
+                  <Text style={[styles.contractorTotal, { color: Colors.primaryText }]} testID={`contractorPayments.total.${c.name}`}>{formatCurrency(c.totalPaid)}</Text>
                 </View>
                 <Text style={[styles.paymentCount, { color: Colors.secondaryText }]}>
                   {c.payments.length} {c.payments.length === 1 ? t('tax.payment') : t('tax.payments')}
@@ -203,12 +207,12 @@ export default function ContractorPaymentsScreen({ route }) {
                 {expandedContractor === c.name && (
                   <View style={[styles.paymentList, { borderTopColor: Colors.border }]}>
                     {c.payments.sort((a, b) => b.date.localeCompare(a.date)).map((p, i) => (
-                      <View key={i} style={styles.paymentRow}>
+                      <View key={i} style={styles.paymentRow} testID={`contractorPayments.payment.${c.name}.${i}`}>
                         <View>
                           <Text style={[styles.paymentDate, { color: Colors.secondaryText }]}>{p.date}</Text>
                           <Text style={[styles.paymentProject, { color: Colors.secondaryText }]}>{p.project}</Text>
                         </View>
-                        <Text style={[styles.paymentAmount, { color: Colors.primaryText }]}>{formatCurrency(p.amount)}</Text>
+                        <Text style={[styles.paymentAmount, { color: Colors.primaryText }]} testID={`contractorPayments.paymentAmount.${c.name}.${i}`}>{formatCurrency(p.amount)}</Text>
                       </View>
                     ))}
                   </View>
@@ -219,9 +223,9 @@ export default function ContractorPaymentsScreen({ route }) {
         )}
 
         {contractors.length === 0 && (
-          <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]}>
+          <View style={[styles.emptyCard, { backgroundColor: Colors.cardBackground }]} testID="contractorPayments.emptyState">
             <Ionicons name="people-outline" size={48} color={Colors.secondaryText} />
-            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>{t('tax.noContractors')}</Text>
+            <Text style={[styles.emptyTitle, { color: Colors.primaryText }]} testID="contractorPayments.emptyTitle">{t('tax.noContractors')}</Text>
             <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('tax.noContractorsDesc')}</Text>
           </View>
         )}

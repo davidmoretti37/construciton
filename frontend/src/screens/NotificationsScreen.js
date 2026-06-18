@@ -302,7 +302,10 @@ export default function NotificationsScreen({ navigation }) {
   }, [filteredNotifications]);
 
   const renderSectionHeader = ({ section }) => (
-    <View style={[styles.sectionHeader, { backgroundColor: Colors.background }]}>
+    <View
+      style={[styles.sectionHeader, { backgroundColor: Colors.background }]}
+      testID={`notifications.section.${section.title}`}
+    >
       <Text style={[styles.sectionTitle, { color: Colors.secondaryText }]}>
         {section.title}
       </Text>
@@ -315,13 +318,17 @@ export default function NotificationsScreen({ navigation }) {
       onPress={handleNotificationPress}
       onDelete={handleDelete}
       onAction={handleNotificationAction}
+      testID={`notifications.row.${item.id}`}
     />
   );
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Ionicons name="notifications-off-outline" size={64} color={Colors.secondaryText} />
-      <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
+      <Text
+        style={[styles.emptyTitle, { color: Colors.primaryText }]}
+        testID="notifications.emptyTitle"
+      >
         No notifications
       </Text>
       <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>
@@ -339,11 +346,16 @@ export default function NotificationsScreen({ navigation }) {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          testID="notifications.backButton"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
 
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+        <Text
+          style={[styles.headerTitle, { color: Colors.primaryText }]}
+          testID="notifications.headerTitle"
+        >
           Notifications
         </Text>
 
@@ -352,6 +364,8 @@ export default function NotificationsScreen({ navigation }) {
             <TouchableOpacity
               style={styles.markAllButton}
               onPress={handleMarkAllRead}
+              testID="notifications.markAllReadButton"
+              accessibilityLabel="Mark all read"
             >
               <Text style={[styles.markAllText, { color: Colors.primaryBlue }]}>
                 Mark all read
@@ -362,6 +376,8 @@ export default function NotificationsScreen({ navigation }) {
           <TouchableOpacity
             style={styles.settingsButton}
             onPress={() => navigation.navigate('NotificationSettings')}
+            testID="notifications.settingsButton"
+            accessibilityLabel="Notification settings"
           >
             <Ionicons name="settings-outline" size={22} color={Colors.primaryText} />
           </TouchableOpacity>
@@ -384,6 +400,8 @@ export default function NotificationsScreen({ navigation }) {
                 activeFilter === item.id && { backgroundColor: Colors.primaryBlue + '15' },
               ]}
               onPress={() => setActiveFilter(item.id)}
+              testID={`notifications.filter.${item.id}`}
+              accessibilityLabel={`${item.label} filter`}
             >
               <Text
                 style={[

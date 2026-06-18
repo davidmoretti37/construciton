@@ -156,31 +156,31 @@ export default function BankReconciliationScreen() {
     if (!summary || summary.message) return null;
 
     return (
-      <View style={[styles.summaryCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
+      <View testID="bankReconciliation.summaryCard" style={[styles.summaryCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNumber, { color: OWNER_COLORS.success }]}>
+            <Text testID="bankReconciliation.matchedTotal" style={[styles.summaryNumber, { color: OWNER_COLORS.success }]}>
               {summary.matched_total || 0}
             </Text>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.matched')}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNumber, { color: OWNER_COLORS.danger }]}>
+            <Text testID="bankReconciliation.unmatchedCount" style={[styles.summaryNumber, { color: OWNER_COLORS.danger }]}>
               {summary.unmatched || 0}
             </Text>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.unmatched')}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNumber, { color: OWNER_COLORS.warning }]}>
+            <Text testID="bankReconciliation.suggestedMatches" style={[styles.summaryNumber, { color: OWNER_COLORS.warning }]}>
               {summary.suggested_matches || 0}
             </Text>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.review')}</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: Colors.border }]} />
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNumber, { color: Colors.primaryText }]}>
+            <Text testID="bankReconciliation.totalTransactions" style={[styles.summaryNumber, { color: Colors.primaryText }]}>
               {summary.total_transactions || 0}
             </Text>
             <Text style={[styles.summaryLabel, { color: Colors.secondaryText }]}>{t('reconciliation.total')}</Text>
@@ -190,7 +190,7 @@ export default function BankReconciliationScreen() {
         {summary.unmatched > 0 && (
           <View style={[styles.unmatchedBanner, { backgroundColor: OWNER_COLORS.danger + '10' }]}>
             <Ionicons name="alert-circle" size={16} color={OWNER_COLORS.danger} />
-            <Text style={[styles.unmatchedText, { color: OWNER_COLORS.danger }]}>
+            <Text testID="bankReconciliation.unmatchedTotalAmount" style={[styles.unmatchedText, { color: OWNER_COLORS.danger }]}>
               ${summary.unmatched_total_amount?.toFixed(2) || '0.00'} {t('reconciliation.inUnrecordedExpenses')}
             </Text>
           </View>
@@ -238,7 +238,7 @@ export default function BankReconciliationScreen() {
     const subcategoryLabel = item.subcategory ? getSubcategoryLabel(item.subcategory) : null;
 
     return (
-      <View style={[styles.txCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
+      <View testID={`bankReconciliation.row.${item.id}`} style={[styles.txCard, { backgroundColor: Colors.cardBackground, borderColor: Colors.border }]}>
         <View style={styles.txMain}>
           <View style={styles.txLeft}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -264,7 +264,7 @@ export default function BankReconciliationScreen() {
                 </View>
               )}
             </View>
-            <Text style={[styles.txDescription, { color: Colors.primaryText }]} numberOfLines={1}>
+            <Text testID={`bankReconciliation.row.${item.id}.description`} style={[styles.txDescription, { color: Colors.primaryText }]} numberOfLines={1}>
               {item.merchant_name || item.description}
             </Text>
             {item.bank_account && !accountId && (
@@ -296,12 +296,12 @@ export default function BankReconciliationScreen() {
             )}
           </View>
           <View style={styles.txRight}>
-            <Text style={[styles.txAmount, { color: typeColor }]}>
+            <Text testID={`bankReconciliation.row.${item.id}.amount`} style={[styles.txAmount, { color: typeColor }]}>
               {displayType === 'expense' ? '-' : displayType === 'income' ? '+' : ''}{formatAmount(item.amount)}
             </Text>
             <View style={[styles.txBadge, { backgroundColor: badge.color + '15' }]}>
               <Ionicons name={badge.icon} size={12} color={badge.color} />
-              <Text style={[styles.txBadgeText, { color: badge.color }]}>{badge.label}</Text>
+              <Text testID={`bankReconciliation.row.${item.id}.statusBadge`} style={[styles.txBadgeText, { color: badge.color }]}>{badge.label}</Text>
             </View>
           </View>
         </View>
@@ -316,6 +316,8 @@ export default function BankReconciliationScreen() {
             ].map(opt => (
               <TouchableOpacity
                 key={opt.type}
+                testID={`bankReconciliation.row.${item.id}.classify.${opt.type}`}
+                accessibilityLabel={`Classify as ${opt.label}`}
                 style={[styles.txActionBtn, { backgroundColor: opt.color + '10' }]}
                 onPress={() => handleQuickClassify(item.id, opt.type)}
               >
@@ -324,6 +326,8 @@ export default function BankReconciliationScreen() {
               </TouchableOpacity>
             ))}
             <TouchableOpacity
+              testID={`bankReconciliation.row.${item.id}.registerButton`}
+              accessibilityLabel="Register transaction"
               style={[styles.txActionBtn, { backgroundColor: Colors.border + '50' }]}
               onPress={() => handleIgnore(item.id)}
             >
@@ -337,6 +341,8 @@ export default function BankReconciliationScreen() {
         {!isUnknown && (item.match_status === 'unmatched' || item.match_status === 'suggested_match') && (
           <View style={[styles.txActions, { borderTopColor: Colors.border }]}>
             <TouchableOpacity
+              testID={`bankReconciliation.row.${item.id}.assignProjectButton`}
+              accessibilityLabel="Assign to project"
               style={[styles.txActionBtn, { backgroundColor: OWNER_COLORS.primary + '10' }]}
               onPress={() => handleAssign(item)}
             >
@@ -344,6 +350,8 @@ export default function BankReconciliationScreen() {
               <Text style={[styles.txActionText, { color: OWNER_COLORS.primary }]}>Project</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              testID={`bankReconciliation.row.${item.id}.overheadButton`}
+              accessibilityLabel="Assign to overhead"
               style={[styles.txActionBtn, { backgroundColor: '#F59E0B10' }]}
               onPress={() => navigation.navigate('BankTransactionAssign', { transaction: item, isOverhead: true })}
             >
@@ -351,6 +359,8 @@ export default function BankReconciliationScreen() {
               <Text style={[styles.txActionText, { color: '#F59E0B' }]}>Overhead</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              testID={`bankReconciliation.row.${item.id}.ignoreButton`}
+              accessibilityLabel="Ignore transaction"
               style={[styles.txActionBtn, { backgroundColor: Colors.border + '50' }]}
               onPress={() => handleIgnore(item.id)}
             >
@@ -367,14 +377,14 @@ export default function BankReconciliationScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity testID="bankReconciliation.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{accountName ? accountName.trim() : t('reconciliation.title')}</Text>
+          <Text testID="bankReconciliation.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{accountName ? accountName.trim() : t('reconciliation.title')}</Text>
           {accountName && <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 1 }}>Transactions</Text>}
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('BankConnection')} style={styles.settingsButton}>
+        <TouchableOpacity testID="bankReconciliation.settingsButton" accessibilityLabel="Bank connection settings" onPress={() => navigation.navigate('BankConnection')} style={styles.settingsButton}>
           <Ionicons name="settings-outline" size={22} color={Colors.secondaryText} />
         </TouchableOpacity>
       </View>
@@ -392,6 +402,8 @@ export default function BankReconciliationScreen() {
           contentContainerStyle={styles.filterList}
           renderItem={({ item }) => (
             <TouchableOpacity
+              testID={`bankReconciliation.filterTab.${item.key}`}
+              accessibilityLabel={`Filter ${item.key}`}
               style={[
                 styles.filterTab,
                 activeFilter === item.key && { backgroundColor: OWNER_COLORS.primary },
@@ -427,9 +439,9 @@ export default function BankReconciliationScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
           }
           ListEmptyComponent={
-            <View style={styles.emptyList}>
+            <View testID="bankReconciliation.emptyState" style={styles.emptyList}>
               <Ionicons name="checkmark-circle" size={48} color={OWNER_COLORS.success} />
-              <Text style={[styles.emptyTitle, { color: Colors.primaryText }]}>
+              <Text testID="bankReconciliation.emptyTitle" style={[styles.emptyTitle, { color: Colors.primaryText }]}>
                 {activeFilter === 'unmatched' ? t('reconciliation.allCaughtUp') : t('reconciliation.noTransactions')}
               </Text>
               <Text style={[styles.emptySubtitle, { color: Colors.secondaryText }]}>

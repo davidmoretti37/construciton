@@ -70,14 +70,14 @@ export default function TransactionDetailScreen({ navigation, route }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity testID="transactionDetail.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>
+        <Text testID="transactionDetail.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>
           {isExpense ? 'Expense Details' : 'Income Details'}
         </Text>
         {isOwner ? (
-          <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
+          <TouchableOpacity testID="transactionDetail.editButton" accessibilityLabel="Edit transaction" onPress={handleEdit} style={styles.editButton}>
             <Ionicons name="pencil" size={20} color={Colors.primaryBlue} />
           </TouchableOpacity>
         ) : (
@@ -94,10 +94,10 @@ export default function TransactionDetailScreen({ navigation, route }) {
           <Text style={styles.amountLabel}>
             {isExpense ? 'Expense Amount' : 'Income Amount'}
           </Text>
-          <Text style={styles.amountValue}>
+          <Text testID="transactionDetail.amountValue" style={styles.amountValue}>
             {isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
           </Text>
-          <Text style={styles.amountDate}>{formatDate(transaction.date)}</Text>
+          <Text testID="transactionDetail.amountDate" style={styles.amountDate}>{formatDate(transaction.date)}</Text>
         </View>
 
         {/* Receipt Image */}
@@ -107,6 +107,8 @@ export default function TransactionDetailScreen({ navigation, route }) {
               Receipt
             </Text>
             <TouchableOpacity
+              testID="transactionDetail.receiptImageButton"
+              accessibilityLabel="View receipt full size"
               onPress={() => setShowImageModal(true)}
               activeOpacity={0.9}
             >
@@ -128,7 +130,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
           <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>
             Description
           </Text>
-          <Text style={[styles.descriptionText, { color: Colors.primaryText }]}>
+          <Text testID="transactionDetail.descriptionText" style={[styles.descriptionText, { color: Colors.primaryText }]}>
             {transaction.description || 'No description'}
           </Text>
         </View>
@@ -140,7 +142,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
             <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Category</Text>
             <View style={[styles.categoryBadge, { backgroundColor: categoryConfig.color + '20' }]}>
               <Ionicons name={categoryConfig.icon} size={16} color={categoryConfig.color} />
-              <Text style={[styles.categoryText, { color: categoryConfig.color }]}>
+              <Text testID="transactionDetail.categoryValue" style={[styles.categoryText, { color: categoryConfig.color }]}>
                 {categoryConfig.label}
               </Text>
             </View>
@@ -150,7 +152,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
           <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
             <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Type</Text>
             <View style={[styles.typeBadge, { backgroundColor: isExpense ? '#FEE2E2' : '#D1FAE5' }]}>
-              <Text style={[styles.typeText, { color: isExpense ? '#DC2626' : '#10B981' }]}>
+              <Text testID="transactionDetail.typeValue" style={[styles.typeText, { color: isExpense ? '#DC2626' : '#10B981' }]}>
                 {isExpense ? 'Expense' : 'Income'}
               </Text>
             </View>
@@ -160,7 +162,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
           {transaction.payment_method && (
             <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md }]}>
               <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Payment Method</Text>
-              <Text style={[styles.detailValue, { color: Colors.primaryText }]}>
+              <Text testID="transactionDetail.paymentMethodValue" style={[styles.detailValue, { color: Colors.primaryText }]}>
                 {transaction.payment_method.charAt(0).toUpperCase() + transaction.payment_method.slice(1)}
               </Text>
             </View>
@@ -172,7 +174,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
               <Text style={[styles.detailLabel, { color: Colors.secondaryText }]}>Worker</Text>
               <View style={styles.workerBadge}>
                 <Ionicons name="person" size={16} color={Colors.primaryBlue} />
-                <Text style={[styles.workerText, { color: Colors.primaryText }]}>
+                <Text testID="transactionDetail.workerValue" style={[styles.workerText, { color: Colors.primaryText }]}>
                   {transaction.workers.full_name}
                 </Text>
               </View>
@@ -202,6 +204,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
             {lineItems.map((item, index) => (
               <View
                 key={index}
+                testID={`transactionDetail.row.${item.id ?? index}`}
                 style={[
                   styles.lineItem,
                   index < lineItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: Colors.border }
@@ -217,7 +220,7 @@ export default function TransactionDetailScreen({ navigation, route }) {
                     </Text>
                   )}
                 </View>
-                <Text style={[styles.lineItemTotal, { color: Colors.primaryText }]}>
+                <Text testID={`transactionDetail.row.${item.id ?? index}.total`} style={[styles.lineItemTotal, { color: Colors.primaryText }]}>
                   {formatCurrency(item.total)}
                 </Text>
               </View>
@@ -261,6 +264,8 @@ export default function TransactionDetailScreen({ navigation, route }) {
       >
         <View style={styles.modalContainer}>
           <TouchableOpacity
+            testID="transactionDetail.modalBackground"
+            accessibilityLabel="Dismiss receipt preview"
             style={styles.modalBackground}
             activeOpacity={1}
             onPress={() => setShowImageModal(false)}
@@ -272,6 +277,8 @@ export default function TransactionDetailScreen({ navigation, route }) {
             />
           </TouchableOpacity>
           <TouchableOpacity
+            testID="transactionDetail.modalCloseButton"
+            accessibilityLabel="Close receipt preview"
             style={styles.closeButton}
             onPress={() => setShowImageModal(false)}
           >

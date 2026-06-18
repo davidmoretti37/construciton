@@ -136,20 +136,22 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
     const days = Number(co.schedule_impact_days || 0);
     return (
       <TouchableOpacity
+        testID={`changeOrdersList.row.${co.id}`}
+        accessibilityLabel={`Change order CO-${String(co.co_number || 0).padStart(3, '0')}`}
         style={styles.row}
         onPress={() => handleAction(co)}
         activeOpacity={0.7}
       >
         <View style={{ flex: 1 }}>
           <View style={styles.rowHeader}>
-            <Text style={styles.coNumber}>CO-{String(co.co_number || 0).padStart(3, '0')}</Text>
+            <Text testID={`changeOrdersList.row.${co.id}.number`} style={styles.coNumber}>CO-{String(co.co_number || 0).padStart(3, '0')}</Text>
             <View style={[styles.pill, { backgroundColor: display.bg }]}>
-              <Text style={[styles.pillText, { color: display.text }]}>{display.label}</Text>
+              <Text testID={`changeOrdersList.row.${co.id}.status`} style={[styles.pillText, { color: display.text }]}>{display.label}</Text>
             </View>
           </View>
-          <Text style={styles.coTitle} numberOfLines={2}>{co.title || 'Untitled'}</Text>
+          <Text testID={`changeOrdersList.row.${co.id}.title`} style={styles.coTitle} numberOfLines={2}>{co.title || 'Untitled'}</Text>
           <View style={styles.rowMeta}>
-            <Text style={styles.amount}>{fmt$(co.total_amount)}</Text>
+            <Text testID={`changeOrdersList.row.${co.id}.amount`} style={styles.amount}>{fmt$(co.total_amount)}</Text>
             {days !== 0 && (
               <Text style={styles.days}>
                 {days > 0 ? '+' : ''}{days} day{Math.abs(days) === 1 ? '' : 's'}
@@ -169,10 +171,10 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity testID="changeOrdersList.backButton" accessibilityLabel="Go back" onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Change Orders</Text>
+          <Text testID="changeOrdersList.title" style={styles.headerTitle}>Change Orders</Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -181,12 +183,12 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
       <View style={styles.summary}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Approved total</Text>
-          <Text style={styles.summaryValue}>{fmt$(summary.approvedTotal)}</Text>
+          <Text testID="changeOrdersList.approvedTotal" style={styles.summaryValue}>{fmt$(summary.approvedTotal)}</Text>
         </View>
         <View style={styles.summarySep} />
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Pending</Text>
-          <Text style={[styles.summaryValue, summary.pendingCount > 0 && { color: C.amberDark }]}>
+          <Text testID="changeOrdersList.pendingCount" style={[styles.summaryValue, summary.pendingCount > 0 && { color: C.amberDark }]}>
             {summary.pendingCount}
           </Text>
         </View>
@@ -195,7 +197,7 @@ export default function ChangeOrdersListScreen({ route, navigation }) {
       {/* Tabs */}
       <View style={styles.tabs}>
         {TABS.map((t) => (
-          <TouchableOpacity key={t.key} style={[styles.tab, tab === t.key && styles.tabActive]} onPress={() => setTab(t.key)}>
+          <TouchableOpacity testID={`changeOrdersList.tab.${t.key}`} accessibilityLabel={`${t.label} tab`} key={t.key} style={[styles.tab, tab === t.key && styles.tabActive]} onPress={() => setTab(t.key)}>
             <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
