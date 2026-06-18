@@ -229,13 +229,16 @@ export default function OwnerDashboardScreen() {
         setMonthlyOverhead(overhead);
       } catch (e) { /* overhead not critical */ }
 
-      // Overdue invoices
+      // Overdue invoices: unpaid AND past their due date (an unpaid invoice that
+      // isn't due yet is "current", not overdue — matches the AR aging screen).
       try {
+        const todayStr = new Date().toISOString().split('T')[0];
         const { data: invoices } = await supabase
           .from('invoices')
           .select('total, amount_paid')
           .eq('user_id', user.id)
-          .in('status', ['unpaid', 'partial', 'overdue']);
+          .in('status', ['unpaid', 'partial', 'overdue'])
+          .lt('due_date', todayStr);
         let overdueAmount = 0;
         (invoices || []).forEach(inv => {
           overdueAmount += (inv.total || 0) - (inv.amount_paid || 0);
