@@ -141,9 +141,12 @@ function EventRow({ event, onAction, onOpen, isAction, projectHasInvoice, projec
               {event.cta_label}
             </Text>
           </TouchableOpacity>
-        ) : (
+        ) : (event.source === 'estimate' || event.source === 'change_order') ? (
+          // Only estimate / change-order rows navigate (see handleOpen); show the
+          // chevron only for those so invoice/draw rows don't advertise a tap that
+          // is intentionally a no-op.
           <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-        )}
+        ) : null}
       </TouchableOpacity>
 
       {/* Accepted estimate prompt — owner picks how to bill */}
