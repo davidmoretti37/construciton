@@ -42,6 +42,7 @@ import ContractsScreen from '../screens/documents/ContractsScreen';
 import EstimatesDetailScreen from '../screens/documents/EstimatesDetailScreen';
 import EstimateBuilderScreen from '../screens/owner/EstimateBuilderScreen';
 import ChangeOrderBuilderScreen from '../screens/owner/ChangeOrderBuilderScreen';
+import ChangeOrdersListScreen from '../screens/owner/ChangeOrdersListScreen';
 import InvoiceBuilderScreen from '../screens/owner/InvoiceBuilderScreen';
 import InvoicesDetailScreen from '../screens/documents/InvoicesDetailScreen';
 import InvoiceTemplateScreen from '../screens/documents/InvoiceTemplateScreen';
@@ -270,6 +271,10 @@ export default function OwnerMainNavigator() {
       <Stack.Screen
         name="ChangeOrderBuilder"
         component={ChangeOrderBuilderScreen}
+      />
+      <Stack.Screen
+        name="ChangeOrdersList"
+        component={ChangeOrdersListScreen}
       />
       <Stack.Screen
         name="InvoiceBuilder"
