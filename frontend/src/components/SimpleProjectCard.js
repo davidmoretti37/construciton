@@ -8,7 +8,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Calculate card width: screen width - padding (24*2) - gap (12) divided by 2
 const CARD_WIDTH = (SCREEN_WIDTH - (Spacing.lg * 2) - Spacing.md) / 2;
 
-export default function SimpleProjectCard({ project, onPress }) {
+export default function SimpleProjectCard({ project, onPress, testID, accessibilityLabel }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
   const styles = createStyles(Colors);
@@ -52,6 +52,8 @@ export default function SimpleProjectCard({ project, onPress }) {
 
   return (
     <TouchableOpacity
+      testID={testID}
+      accessibilityLabel={accessibilityLabel}
       style={[
         styles.card,
         { backgroundColor: Colors.navBarBackground },

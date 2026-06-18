@@ -364,7 +364,12 @@ const SpotlightWalkthrough = ({
                 </TouchableOpacity>
               )}
               {!isLastStep && isFirstStep && (
-                <TouchableOpacity onPress={handleSkip} style={styles.skipBtn}>
+                <TouchableOpacity
+                  testID="walkthrough.skipButton"
+                  accessibilityLabel="walkthrough.skipButton"
+                  onPress={handleSkip}
+                  style={styles.skipBtn}
+                >
                   <Text style={styles.skipText}>Skip</Text>
                 </TouchableOpacity>
               )}

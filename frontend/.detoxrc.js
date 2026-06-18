@@ -11,11 +11,13 @@ module.exports = {
     jest: { setupTimeout: 180000 },
   },
   apps: {
-    'ios.debug': {
+    // Release build bundles the JS (no Metro / no Expo dev launcher) -> a
+    // self-contained, deterministic binary for Detox/CI.
+    'ios.release': {
       type: 'ios.app',
-      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/Sylk.app',
+      binaryPath: 'ios/build/Build/Products/Release-iphonesimulator/Sylk.app',
       build:
-        "xcodebuild -workspace ios/Sylk.xcworkspace -scheme Sylk -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO -quiet",
+        "SENTRY_DISABLE_AUTO_UPLOAD=true xcodebuild -workspace ios/Sylk.xcworkspace -scheme Sylk -configuration Release -sdk iphonesimulator -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO -quiet",
     },
   },
   devices: {
@@ -25,9 +27,9 @@ module.exports = {
     },
   },
   configurations: {
-    'ios.sim.debug': {
+    'ios.sim.release': {
       device: 'simulator',
-      app: 'ios.debug',
+      app: 'ios.release',
     },
   },
 };

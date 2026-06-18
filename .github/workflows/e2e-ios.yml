@@ -1,0 +1,105 @@
+name: E2E (iOS · Detox)
+
+# Drives the app by testID in the iOS simulator (owner smoke walk today,
+# growing to full coverage). macOS runners are ~10x the cost of ubuntu and the
+# build is slow, so this is NOT on every push — it runs manually and on pushes
+# to main that touch the app, mirroring the cost-guard precedent of agent-evals.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'frontend/src/**'
+      - 'frontend/e2e/**'
+      - 'frontend/.detoxrc.js'
+      - 'frontend/app.json'
+
+concurrency:
+  group: e2e-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detox-ios:
+    runs-on: macos-14
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The Detox owner spec signs in the seeded QA account, which needs the
+      # app pointed at the real Supabase/back end. Without those secrets the
+      # build is meaningless — skip cleanly (forks, secret-less clones).
+      - name: Guard — required secrets present?
+        id: guard
+        working-directory: .
+        run: |
+          if [ -z "${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::E2E secrets not configured — skipping Detox iOS run."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install JS deps (runs patch-package -> applies Stripe patch)
+        if: steps.guard.outputs.run == 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Install applesimutils (Detox simulator helper)
+        if: steps.guard.outputs.run == 'true'
+        working-directory: .
+        run: |
+          brew tap wix/brew
+          brew install applesimutils
+
+      - name: Pin a concrete runtimeVersion for the bare build (CI-only)
+        if: steps.guard.outputs.run == 'true'
+        # expo prebuild produces a bare project, where runtimeVersion *policies*
+        # are unsupported by the Metro/embed bundler. Rewrite to a literal here
+        # only — the committed app.json keeps { policy: appVersion } for EAS.
+        run: |
+          node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p));j.expo.runtimeVersion='1.0.0';fs.writeFileSync(p,JSON.stringify(j,null,2));"
+
+      - name: Expo prebuild (iOS, native project)
+        if: steps.guard.outputs.run == 'true'
+        run: npx expo prebuild -p ios --no-install
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_BACKEND_URL: ${{ secrets.EXPO_PUBLIC_BACKEND_URL }}
+
+      - name: CocoaPods install
+        if: steps.guard.outputs.run == 'true'
+        run: npx pod-install
+
+      - name: Detox build (release, JS bundled, no signing)
+        if: steps.guard.outputs.run == 'true'
+        run: npm run e2e:build
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_BACKEND_URL: ${{ secrets.EXPO_PUBLIC_BACKEND_URL }}
+
+      - name: Detox test (owner walk by testID)
+        if: steps.guard.outputs.run == 'true'
+        run: npm run e2e:test
+
+      - name: Upload Detox artifacts (screenshots / logs on failure)
+        if: always() && steps.guard.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: detox-artifacts
+          path: frontend/artifacts
+          if-no-files-found: ignore
+          retention-days: 7

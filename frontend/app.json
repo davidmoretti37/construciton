@@ -103,7 +103,8 @@
           "merchantIdentifier": "merchant.com.davidmoretti.constructionmanager",
           "enableGooglePay": true
         }
-      ]
+      ],
+      "@config-plugins/detox"
     ],
     "extra": {
       "eas": {
