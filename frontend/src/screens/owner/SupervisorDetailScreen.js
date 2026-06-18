@@ -85,7 +85,7 @@ const calculateLaborCost = (hours, sup) => {
 
 // Job Card Component
 const JobCard = ({ job, Colors, t }) => {
-  const progressPercent = job.progress || 0;
+  const progressPercent = job.actual_progress ?? job.percent_complete ?? 0;
   const statusColor = job.status === 'active' ? '#059669' : job.status === 'completed' ? '#2563EB' : '#F59E0B';
 
   return (

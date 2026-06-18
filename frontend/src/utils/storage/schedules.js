@@ -1125,7 +1125,7 @@ export const findReplacementWorkers = async (projectId, date, trade = null) => {
     let query = supabase
       .from('workers')
       .select('id, full_name, trade, phone, email, status, payment_type, hourly_rate, daily_rate, weekly_salary, owner_id')
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
       .eq('status', 'active')
       .limit(50);
 

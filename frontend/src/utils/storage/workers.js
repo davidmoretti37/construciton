@@ -669,11 +669,11 @@ export const getPendingInvites = async (workerEmail) => {
         try {
           const { data: owner } = await supabase
             .from('profiles')
-            .select('id, full_name, business_name')
+            .select('id, business_name')
             .eq('id', worker.owner_id)
             .single();
           if (owner) {
-            ownerName = owner.business_name || owner.full_name || null;
+            ownerName = owner.business_name || null;
             companyName = owner.business_name || null;
           }
         } catch (e) {
@@ -1342,7 +1342,7 @@ export const getCompanyHierarchy = async () => {
     // Get owner's profile info
     const { data: ownerProfile } = await supabase
       .from('profiles')
-      .select('id, business_name, business_phone, email')
+      .select('id, business_name, business_phone, business_email')
       .eq('id', context.userId)
       .single();
 
@@ -1404,7 +1404,7 @@ export const getCompanyHierarchy = async () => {
       owner: {
         id: context.userId,
         name: ownerProfile?.business_name || 'Owner',
-        email: ownerProfile?.email,
+        email: ownerProfile?.business_email,
         phone: ownerProfile?.business_phone,
         directWorkerCount: ownerWorkerCount || 0,
         directProjectCount: ownerDirectProjects.length,
