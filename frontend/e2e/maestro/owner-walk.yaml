@@ -1,0 +1,54 @@
+# Owner full-app walk — drives every major owner screen BY testID (reliable, no
+# coordinate guessing). Run: maestro test e2e/maestro/owner-walk.yaml
+# Precondition: QA owner account logged in with the seeded data.
+# Handles the Expo dev-launcher (a release/standalone build skips this).
+appId: com.davidmoretti.constructionmanager
+---
+- launchApp
+# If the Expo dev launcher shows, load the bundle from Metro first.
+- runFlow:
+    when:
+      visible: "Development Build"
+    commands:
+      - tapOn: "http://localhost:8081"
+      - extendedWaitUntil:
+          visible: { id: "ownerTab.Home" }
+          timeout: 90000
+- extendedWaitUntil:
+    visible: { id: "ownerTab.Home" }
+    timeout: 60000
+
+# ── Home dashboard: assert the financial tiles render ──
+- tapOn: { id: "ownerTab.Home" }
+- assertVisible: { id: "ownerDashboard.welcomeText" }
+- assertVisible: { id: "ownerDashboard.revenueAmount" }
+- assertVisible: { id: "ownerDashboard.overheadAmount" }
+- assertVisible: { id: "ownerDashboard.grossProfitAmount" }
+- takeScreenshot: e2e/maestro/shots/01-home
+
+# ── Projects tab ──
+- tapOn: { id: "ownerTab.Projects" }
+- assertVisible: { id: "work.title" }
+- takeScreenshot: e2e/maestro/shots/02-projects
+
+# ── Workers tab ──
+- tapOn: { id: "ownerTab.Workers" }
+- takeScreenshot: e2e/maestro/shots/03-workers
+
+# ── Settings tab → Subscription (scroll-to by id) ──
+- tapOn: { id: "ownerTab.Settings" }
+- assertVisible: { id: "ownerSettings.headerTitle" }
+- scrollUntilVisible:
+    element: { id: "ownerSettings.subscriptionItem" }
+    direction: DOWN
+- tapOn: { id: "ownerSettings.subscriptionItem" }
+- takeScreenshot: e2e/maestro/shots/04-subscription
+- back
+
+# ── Back to Home (wait for the tab bar to settle after the back transition) ──
+- extendedWaitUntil:
+    visible: { id: "ownerTab.Home" }
+    timeout: 20000
+- tapOn: { id: "ownerTab.Home" }
+- assertVisible: { id: "ownerDashboard.welcomeText" }
+- takeScreenshot: e2e/maestro/shots/05-home-again
