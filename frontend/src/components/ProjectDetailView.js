@@ -1770,6 +1770,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
         {/* Scrollable white body — scrolls over the blue header */}
         <ScrollView
+          testID="projectDetail.scrollView"
           style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: -20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}

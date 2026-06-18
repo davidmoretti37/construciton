@@ -50,8 +50,30 @@ Same testIDs, `tapOn: { id }` / `assertVisible: { id }` / `scrollUntilVisible:
 { id }`. Handles the Expo dev launcher. Good for a fast eyeball during dev; the
 only flaky part is dev-client startup (use the Detox release build for CI).
 
-## Extending coverage
-The owner screens are instrumented and the smoke walk drives the tabs +
-Subscription. To grow coverage: add per-screen specs that assert the **seeded
-numbers** (the QA owner has known totals), then repeat the testID pass for the
-worker / client / sub roles and add their funnels to `helpers.js`.
+## Owner coverage (`owner-coverage.test.js`)
+Data-driven from `owner-screens.map.js` — one entry per owner screen with the
+nav steps from the tabs, the testIDs that prove it rendered, and safe
+(non-destructive) buttons to exercise. `beforeEach` relaunches (session
+persists) to reset to the tabs, so each screen test is independent.
+
+**Covered (reachable via stable, testID-anchored nav):** the 5 bottom tabs
+(dashboard / projects / workers / settings + embedded projects list), project
+detail, project documents, material selections, clients, integrations,
+financial report, and the create/builder forms (manual project, estimate,
+invoice). Plus `owner.test.js` (subscription) and `owner-deep.test.js`
+(company overhead).
+
+**Known gaps (NOT yet auto-covered, and why):**
+- **Financial cluster** — TaxSummary, ARAging, ContractorPayments,
+  PayrollSummary, BankReconciliation, ClockOuts are reached only through
+  *optional* dashboard widgets (not in `DEFAULT_LAYOUT`) or *data-gated* alerts
+  (e.g. "forgotten clock-outs" needs someone clocked in >10h). To cover them:
+  seed the QA owner's dashboard layout to include those widgets (+ the alert
+  data), or add testIDs to the inner widget cards and drive from there.
+- **ProjectBuilder / ChangeOrderBuilder** — reachable only via the QuickAction
+  FAB menu (no testIDs) / the AI chat flow. Need testIDs on the FAB items.
+
+## Extending to other roles
+Repeat the testID pass for worker / client / sub screens, add each role's login
+funnel to `helpers.js`, and provision a QA account per role linked to the QA
+owner (the owner account is `claude.qa.user.1781642646@sylkqa.test`).

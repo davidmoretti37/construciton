@@ -115,4 +115,37 @@ async function dismissOverlaysUntilHomeVisible() {
   await waitFor(element(by.id('ownerTab.Home'))).toBeVisible().withTimeout(8000);
 }
 
-module.exports = { loginAsOwner, reachLoginScreen, tapIfVisible, OWNER_EMAIL, OWNER_PASSWORD };
+/**
+ * Run an ordered list of nav steps ({action:'tap'|'scrollTo', id, scrollViewId})
+ * to reach a screen from the owner tabs. Used by the data-driven coverage spec.
+ */
+async function runNavSteps(steps) {
+  for (const step of steps) {
+    if (step.action === 'scrollTo' && step.scrollViewId) {
+      await waitFor(element(by.id(step.id)))
+        .toBeVisible()
+        .whileElement(by.id(step.scrollViewId))
+        .scroll(320, 'down', NaN, 0.5);
+      await element(by.id(step.id)).tap();
+    } else {
+      await waitFor(element(by.id(step.id))).toBeVisible().withTimeout(15000);
+      await element(by.id(step.id)).tap();
+    }
+  }
+}
+
+/** Return to a known root by tapping a bottom tab; the tab bar is hidden on
+ * pushed screens, so callers should go back first. Best-effort. */
+async function resetToTab(tabId = 'ownerTab.Home') {
+  await tapIfVisible(by.id(tabId), 4000);
+}
+
+module.exports = {
+  loginAsOwner,
+  reachLoginScreen,
+  tapIfVisible,
+  runNavSteps,
+  resetToTab,
+  OWNER_EMAIL,
+  OWNER_PASSWORD,
+};
