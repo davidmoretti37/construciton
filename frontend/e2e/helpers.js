@@ -140,12 +140,40 @@ async function resetToTab(tabId = 'ownerTab.Home') {
   await tapIfVisible(by.id(tabId), 4000);
 }
 
+const WORKER_EMAIL = 'qa.worker.maria@sylkqa.test';
+const WORKER_PASSWORD = 'SylkQA-test-2026!';
+
+/** Cold-launch -> worker portal (TimeClock tab). The worker QA account is
+ * role=worker, onboarded, linked to the QA owner with assigned projects/tasks. */
+async function loginAsWorker() {
+  await device.launchApp({
+    newInstance: true,
+    permissions: {
+      microphone: 'YES', camera: 'YES', photos: 'YES', location: 'always', notifications: 'YES',
+    },
+  });
+  await reachLoginScreen();
+  await element(by.id('login.emailInput')).replaceText(WORKER_EMAIL);
+  await element(by.id('login.passwordInput')).replaceText(WORKER_PASSWORD);
+  try { await element(by.id('login.passwordInput')).tapReturnKey(); } catch (e) {}
+  await element(by.id('login.signInButton')).tap();
+
+  // Worker portal mounts on the TimeClock tab.
+  await waitFor(element(by.id('workerTab.TimeClock'))).toExist().withTimeout(60000);
+  // Dismiss any first-time walkthrough if present (best-effort).
+  await tapIfVisible(by.id('walkthrough.skipButton'), 6000);
+  await waitFor(element(by.id('workerTab.TimeClock'))).toBeVisible().withTimeout(20000);
+}
+
 module.exports = {
   loginAsOwner,
+  loginAsWorker,
   reachLoginScreen,
   tapIfVisible,
   runNavSteps,
   resetToTab,
   OWNER_EMAIL,
   OWNER_PASSWORD,
+  WORKER_EMAIL,
+  WORKER_PASSWORD,
 };

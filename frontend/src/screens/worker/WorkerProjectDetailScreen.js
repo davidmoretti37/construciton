@@ -280,10 +280,20 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors.white, borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          testID="workerProjectDetail.backButton"
+          accessibilityLabel="workerProjectDetail.backButton"
+        >
           <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+        <Text
+          style={[styles.headerTitle, { color: Colors.primaryText }]}
+          numberOfLines={1}
+          testID="workerProjectDetail.headerTitle"
+          accessibilityLabel="workerProjectDetail.headerTitle"
+        >
           {project.name}
         </Text>
         <View style={styles.backButton} />
@@ -296,11 +306,17 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
       >
         {/* Project Info Card */}
         <View style={[styles.card, { backgroundColor: Colors.white }]}>
-          <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Project Information</Text>
+          <Text
+            style={[styles.sectionTitle, { color: Colors.primaryText }]}
+            testID="workerProjectDetail.infoSectionTitle"
+            accessibilityLabel="workerProjectDetail.infoSectionTitle"
+          >Project Information</Text>
 
           {project.location && (
             <TouchableOpacity
               style={styles.infoRow}
+              testID="workerProjectDetail.locationButton"
+              accessibilityLabel="workerProjectDetail.locationButton"
               onPress={() => {
                 const address = encodeURIComponent(project.location);
                 const url = Platform.select({
@@ -317,7 +333,11 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
               <Ionicons name="location" size={18} color={Colors.primaryBlue} />
               <View style={styles.infoTextContainer}>
                 <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Location</Text>
-                <Text style={[styles.infoValue, { color: Colors.primaryBlue }]}>{project.location}</Text>
+                <Text
+                  style={[styles.infoValue, { color: Colors.primaryBlue }]}
+                  testID="workerProjectDetail.locationValue"
+                  accessibilityLabel="workerProjectDetail.locationValue"
+                >{project.location}</Text>
               </View>
               <Ionicons name="navigate-outline" size={18} color={Colors.primaryBlue} />
             </TouchableOpacity>
@@ -350,7 +370,11 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
               }]} />
               <View style={styles.infoTextContainer}>
                 <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Status</Text>
-                <Text style={[styles.infoValue, { color: Colors.primaryText }]}>{project.status}</Text>
+                <Text
+                  style={[styles.infoValue, { color: Colors.primaryText }]}
+                  testID="workerProjectDetail.statusValue"
+                  accessibilityLabel="workerProjectDetail.statusValue"
+                >{project.status}</Text>
               </View>
             </View>
           )}
@@ -366,7 +390,11 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
         {/* Phases */}
         {(phases.length > 0 || loadingPhases) && (
           <View style={[styles.card, { backgroundColor: Colors.white }]}>
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText }]}>Phases</Text>
+            <Text
+              style={[styles.sectionTitle, { color: Colors.primaryText }]}
+              testID="workerProjectDetail.phasesSectionTitle"
+              accessibilityLabel="workerProjectDetail.phasesSectionTitle"
+            >Phases</Text>
             {loadingPhases ? (
               <ActivityIndicator size="small" color={Colors.primaryBlue} />
             ) : (
@@ -375,7 +403,11 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                 <View style={styles.overallProgressContainer}>
                   <View style={styles.overallProgressHeader}>
                     <Text style={[styles.overallProgressLabel, { color: Colors.secondaryText }]}>Overall Progress</Text>
-                    <Text style={[styles.overallProgressPercent, { color: Colors.primaryText }]}>{overallProgress}%</Text>
+                    <Text
+                      style={[styles.overallProgressPercent, { color: Colors.primaryText }]}
+                      testID="workerProjectDetail.overallProgressPercent"
+                      accessibilityLabel="workerProjectDetail.overallProgressPercent"
+                    >{overallProgress}%</Text>
                   </View>
                   <View style={[styles.overallProgressBar, { backgroundColor: Colors.border }]}>
                     <View style={[styles.overallProgressFill, { width: `${overallProgress}%`, backgroundColor: '#10B981' }]} />
@@ -395,6 +427,8 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                       activeOpacity={0.7}
                       onPress={() => setExpandedPhases(prev => ({ ...prev, [phase.id]: !prev[phase.id] }))}
                       style={styles.phaseHeader}
+                      testID={`workerProjectDetail.phaseHeader.${index}`}
+                      accessibilityLabel={`workerProjectDetail.phaseHeader.${index}`}
                     >
                       <View style={styles.phaseInfo}>
                         <Text style={[styles.phaseName, { color: Colors.primaryText }]}>{phase.name}</Text>
@@ -607,7 +641,11 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
         <View style={[styles.card, { backgroundColor: Colors.white }]}>
           <View style={styles.documentsHeader}>
             <Ionicons name="folder-outline" size={20} color={Colors.primaryBlue} />
-            <Text style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}>
+            <Text
+              style={[styles.sectionTitle, { color: Colors.primaryText, marginLeft: 8, marginBottom: 0 }]}
+              testID="workerProjectDetail.documentsSectionTitle"
+              accessibilityLabel="workerProjectDetail.documentsSectionTitle"
+            >
               Documents ({documents.length})
             </Text>
           </View>
