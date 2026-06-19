@@ -124,7 +124,7 @@ export default function ProjectCard({ data, onAction }) {
           <View style={styles.phaseHeaderRight}>
             {hasPayment && (
               <Text style={[styles.phasePayment, { color: Colors.primaryBlue }]}>
-                ${phase.payment_amount.toLocaleString()}
+                ${phase.payment_amount.toLocaleString('en-US')}
               </Text>
             )}
             <Text style={[styles.phaseProgress, { color: Colors.secondaryText }]}>
@@ -510,7 +510,7 @@ export default function ProjectCard({ data, onAction }) {
               {extras.length > 0 ? t('financial.totalContractAmount') : t('financial.contractAmount')}
             </Text>
             <Text style={[styles.financialValue, { color: Colors.primaryText }]}>
-              ${(contractAmount || 0).toLocaleString()}
+              ${(contractAmount || 0).toLocaleString('en-US')}
             </Text>
           </View>
         )}
@@ -519,11 +519,11 @@ export default function ProjectCard({ data, onAction }) {
         {extras.length > 0 && (
           <View style={styles.extrasContainer}>
             <Text style={[styles.extrasHeader, { color: Colors.primaryText }]}>
-              • {t('card.baseContract')}: ${baseContract.toLocaleString()}
+              • {t('card.baseContract')}: ${baseContract.toLocaleString('en-US')}
             </Text>
             {extras.map((extra, index) => (
               <Text key={index} style={[styles.extrasItem, { color: Colors.primaryText }]}>
-                • {extra.description || t('card.additionalWork')}: ${(extra.amount || 0).toLocaleString()}
+                • {extra.description || t('card.additionalWork')}: ${(extra.amount || 0).toLocaleString('en-US')}
                 {extra.daysAdded ? ` (+${extra.daysAdded} ${t('card.dayPlural')})` : ''}
               </Text>
             ))}
@@ -537,19 +537,19 @@ export default function ProjectCard({ data, onAction }) {
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                  {t('financial.expenses')} <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: FontSizes.medium }}>${(expenses || 0).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round((expenses / contractAmount) * 100)}%)</Text>
+                  {t('financial.expenses')} <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: FontSizes.medium }}>${(expenses || 0).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round((expenses / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small }]}>
-                  {t('financial.netAvailable')} <Text style={{ color: '#22C55E', fontWeight: '700', fontSize: FontSizes.medium }}>${Math.max(0, (incomeCollected || 0) - (expenses || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(Math.max(0, (incomeCollected - expenses) / contractAmount) * 100)}%)</Text>
+                  {t('financial.netAvailable')} <Text style={{ color: '#22C55E', fontWeight: '700', fontSize: FontSizes.medium }}>${Math.max(0, (incomeCollected || 0) - (expenses || 0)).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(Math.max(0, (incomeCollected - expenses) / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
               <View style={[styles.legendItem, { alignItems: 'center' }]}>
                 <View style={{ width: 8, marginRight: 6 }} />
                 <Text style={[styles.legendText, { color: Colors.primaryText, fontSize: FontSizes.small, flex: 1 }]}>
-                  {t('financial.pending')} <Text style={{ color: '#9CA3AF', fontWeight: '700', fontSize: FontSizes.medium }}>${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString()}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)</Text>
+                  {t('financial.pending')} <Text style={{ color: '#9CA3AF', fontWeight: '700', fontSize: FontSizes.medium }}>${((contractAmount || 0) - (incomeCollected || 0)).toLocaleString('en-US')}</Text> <Text style={{ fontSize: FontSizes.tiny }}>({Math.round(((contractAmount - incomeCollected) / contractAmount) * 100)}%)</Text>
                 </Text>
               </View>
             </View>
@@ -610,7 +610,7 @@ export default function ProjectCard({ data, onAction }) {
                 }
               ]}
             >
-              ${(profit || 0).toLocaleString()} {profit >= 0 ? '✅' : '⚠️'}
+              ${(profit || 0).toLocaleString('en-US')} {profit >= 0 ? '✅' : '⚠️'}
             </Text>
           </View>
         </View>

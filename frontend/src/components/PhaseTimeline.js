@@ -242,7 +242,7 @@ export default function PhaseTimeline({
                     </Text>
                     {(parseFloat(phase.budget) || 0) > 0 && !isEditing && (
                       <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A', marginLeft: 8 }}>
-                        ${Number(phase.budget).toLocaleString()}
+                        ${Number(phase.budget).toLocaleString('en-US')}
                       </Text>
                     )}
                   </View>
@@ -316,7 +316,7 @@ export default function PhaseTimeline({
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Spent</Text>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: isOverBudget ? '#EF4444' : Colors.primaryText }}>
-                    ${phaseSpent.toLocaleString()}{phaseBudget > 0 ? ` of $${phaseBudget.toLocaleString()}` : ''}
+                    ${phaseSpent.toLocaleString('en-US')}{phaseBudget > 0 ? ` of $${phaseBudget.toLocaleString('en-US')}` : ''}
                   </Text>
                 </View>
                 {phaseBudget > 0 && (
@@ -327,8 +327,8 @@ export default function PhaseTimeline({
                 {phaseBudget > 0 && (
                   <Text style={{ fontSize: 11, color: isOverBudget ? '#EF4444' : '#94A3B8', marginTop: 4 }}>
                     {isOverBudget
-                      ? `Over by $${(phaseSpent - phaseBudget).toLocaleString()}`
-                      : `$${(phaseBudget - phaseSpent).toLocaleString()} left · ${spentPct}%`}
+                      ? `Over by $${(phaseSpent - phaseBudget).toLocaleString('en-US')}`
+                      : `$${(phaseBudget - phaseSpent).toLocaleString('en-US')} left · ${spentPct}%`}
                   </Text>
                 )}
               </View>

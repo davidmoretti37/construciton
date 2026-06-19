@@ -145,13 +145,15 @@ export default function AddServiceScreen({ navigation }) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
         <TouchableOpacity
+          testID="addService.backButton"
+          accessibilityLabel="addService.backButton"
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Add Service</Text>
+        <Text testID="addService.headerTitle" accessibilityLabel="addService.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>Add Service</Text>
         <View style={{ width: 40 }} />
       </View>
 

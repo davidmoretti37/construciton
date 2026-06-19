@@ -129,7 +129,7 @@ const JobCard = ({ job, Colors, t }) => {
         <View style={styles.jobStat}>
           <Ionicons name="cash-outline" size={16} color="#059669" />
           <Text style={[styles.jobStatText, { color: Colors.secondaryText }]}>
-            ${job.contract_amount?.toLocaleString() || '0'}
+            ${job.contract_amount?.toLocaleString('en-US') || '0'}
           </Text>
         </View>
         <View style={styles.jobStat}>
@@ -525,10 +525,10 @@ export default function SupervisorDetailScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+        <TouchableOpacity testID="supervisorDetail.backButton" accessibilityLabel="Go back" onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.primaryText} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
+        <Text testID="supervisorDetail.headerTitle" accessibilityLabel="Supervisor name" style={[styles.headerTitle, { color: Colors.primaryText }]} numberOfLines={1}>
           {supervisorName}
         </Text>
         <TouchableOpacity

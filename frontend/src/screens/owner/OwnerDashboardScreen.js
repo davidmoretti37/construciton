@@ -364,7 +364,7 @@ export default function OwnerDashboardScreen() {
     const abs = Math.abs(amount);
     if (abs >= 1000000) return `${amount < 0 ? '-' : ''}$${(abs / 1000000).toFixed(1)}M`;
     if (abs >= 1000) return `${amount < 0 ? '-' : ''}$${(abs / 1000).toFixed(1)}K`;
-    return `${amount < 0 ? '-' : ''}$${Math.round(abs).toLocaleString()}`;
+    return `${amount < 0 ? '-' : ''}$${Math.round(abs).toLocaleString('en-US')}`;
   };
 
   // Alerts
@@ -870,7 +870,7 @@ export default function OwnerDashboardScreen() {
               <View style={styles.companyStat}>
                 <Text style={styles.companyStatLabel}>Overhead</Text>
                 <Text testID="ownerDashboard.overheadAmount" style={[styles.companyStatValue, { color: '#FCA5A5' }]}>
-                  ${Math.round(monthlyOverhead).toLocaleString()}
+                  ${Math.round(monthlyOverhead).toLocaleString('en-US')}
                 </Text>
                 <Text style={styles.companyStatSuffix}>/month</Text>
               </View>
@@ -878,7 +878,7 @@ export default function OwnerDashboardScreen() {
               <View style={styles.companyStat}>
                 <Text style={styles.companyStatLabel}>Revenue</Text>
                 <Text testID="ownerDashboard.revenueAmount" style={[styles.companyStatValue, { color: '#6EE7B7' }]}>
-                  ${Math.round(pnl.revenue).toLocaleString()}
+                  ${Math.round(pnl.revenue).toLocaleString('en-US')}
                 </Text>
                 <Text style={styles.companyStatSuffix}>all time</Text>
               </View>
@@ -886,7 +886,7 @@ export default function OwnerDashboardScreen() {
               <View style={styles.companyStat}>
                 <Text style={styles.companyStatLabel}>Gross Profit</Text>
                 <Text testID="ownerDashboard.grossProfitAmount" style={[styles.companyStatValue, { color: pnl.profit >= 0 ? '#6EE7B7' : '#FCA5A5' }]}>
-                  ${Math.round(pnl.profit).toLocaleString()}
+                  ${Math.round(pnl.profit).toLocaleString('en-US')}
                 </Text>
                 <Text style={styles.companyStatSuffix}>all time</Text>
               </View>

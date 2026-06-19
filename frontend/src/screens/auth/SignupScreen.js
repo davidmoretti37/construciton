@@ -276,7 +276,11 @@ export default function SignupScreen({ navigation, route }) {
             {/* Footer */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>{t('signup.hasAccount')} </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <TouchableOpacity
+                testID="signup.signInLink"
+                accessibilityLabel="signup.signInLink"
+                onPress={() => navigation.navigate('Login')}
+              >
                 <Text style={styles.linkText}>{t('signup.signInLink')}</Text>
               </TouchableOpacity>
             </View>

@@ -96,6 +96,8 @@ export default function LoginScreen({ navigation }) {
               <View style={styles.inputContainer}>
                 <Ionicons name="mail-outline" size={20} color={COLORS.textMuted} />
                 <TextInput
+                  testID="login.emailInput"
+                  accessibilityLabel="login.emailInput"
                   style={styles.input}
                   placeholder={t('login.emailPlaceholder')}
                   placeholderTextColor={COLORS.textMuted}
@@ -115,6 +117,8 @@ export default function LoginScreen({ navigation }) {
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color={COLORS.textMuted} />
                 <TextInput
+                  testID="login.passwordInput"
+                  accessibilityLabel="login.passwordInput"
                   style={styles.input}
                   placeholder={t('login.passwordPlaceholder')}
                   placeholderTextColor={COLORS.textMuted}
@@ -137,6 +141,8 @@ export default function LoginScreen({ navigation }) {
 
             {/* Button */}
             <TouchableOpacity
+              testID="login.signInButton"
+              accessibilityLabel="login.signInButton"
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleLogin}
               disabled={loading}

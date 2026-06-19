@@ -41,10 +41,16 @@ backend/.env
 # typescript
 *.tsbuildinfo
 
-# generated native folders
+# generated native folders (expo prebuild; regenerated, EAS builds remotely)
 /ios
 /android
+frontend/ios/
+frontend/android/
 google-service-account.json
+
+# Detox / e2e artifacts
+frontend/artifacts/
+frontend/e2e/maestro/shots/
 
 # Local agent + tooling state
 .core/

@@ -1770,6 +1770,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
 
         {/* Scrollable white body — scrolls over the blue header */}
         <ScrollView
+          testID="projectDetail.scrollView"
           style={{ flex: 1, backgroundColor: '#F8FAFC', marginTop: -20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
@@ -1797,7 +1798,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                     />
                   </View>
                 ) : (
-                  <Text testID="projectDetail.contractValue" style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${contractAmount.toLocaleString()}</Text>
+                  <Text testID="projectDetail.contractValue" style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${contractAmount.toLocaleString('en-US')}</Text>
                 )}
               </View>
               {isOwner && (
@@ -1834,7 +1835,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   minimumFontScale={0.7}
                   style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginTop: 2 }}
                 >
-                  ${incomeCollected.toLocaleString()}
+                  ${incomeCollected.toLocaleString('en-US')}
                 </Text>
                 <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{contractAmount > 0 ? Math.round((incomeCollected / contractAmount) * 100) : 0}% collected</Text>
               </TouchableOpacity>
@@ -1864,7 +1865,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   minimumFontScale={0.7}
                   style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginTop: 2 }}
                 >
-                  ${expenses.toLocaleString()}
+                  ${expenses.toLocaleString('en-US')}
                 </Text>
                 <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>of contract</Text>
               </TouchableOpacity>
@@ -1882,7 +1883,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                   minimumFontScale={0.7}
                   style={{ fontSize: 17, fontWeight: '700', color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}
                 >
-                  ${Math.abs(profit).toLocaleString()}
+                  ${Math.abs(profit).toLocaleString('en-US')}
                 </Text>
                 <Text style={{ fontSize: 11, color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>{profit >= 0 ? 'Healthy ✓' : 'Review ↗'}</Text>
               </View>
@@ -1943,7 +1944,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
                         <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748B' }}>Overall Budget</Text>
                         <Text testID="projectDetail.overallBudgetValue" style={{ fontSize: 13, fontWeight: '700', color: expenses > contractAmount ? '#EF4444' : '#0F172A' }}>
-                          ${expenses.toLocaleString()} / ${contractAmount.toLocaleString()}
+                          ${expenses.toLocaleString('en-US')} / ${contractAmount.toLocaleString('en-US')}
                         </Text>
                       </View>
                       <View style={{ height: 8, backgroundColor: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
@@ -1955,7 +1956,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                         }} />
                       </View>
                       <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
-                        {Math.round((expenses / contractAmount) * 100)}% used · ${(contractAmount - expenses).toLocaleString()} remaining
+                        {Math.round((expenses / contractAmount) * 100)}% used · ${(contractAmount - expenses).toLocaleString('en-US')} remaining
                       </Text>
                     </View>
                   )}
@@ -2051,7 +2052,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                                 </View>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                   <Text style={{ fontSize: 12, fontWeight: '600', color: isOver ? '#EF4444' : '#64748B' }}>
-                                    ${tb.paid.toLocaleString()} / ${parseFloat(tb.budget_amount).toLocaleString()}
+                                    ${tb.paid.toLocaleString('en-US')} / ${parseFloat(tb.budget_amount).toLocaleString('en-US')}
                                   </Text>
                                   <Ionicons name="chevron-forward" size={12} color="#CBD5E1" />
                                 </View>
@@ -3235,7 +3236,7 @@ export default function ProjectDetailView({ visible, project, onClose, onEdit, o
                 )}
                 <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }}>{estimateSignature.signerName}</Text>
                 <Text style={{ fontSize: 12, color: Colors.secondaryText, marginTop: 4 }}>
-                  Signed {estimateSignature.signedAt ? new Date(estimateSignature.signedAt).toLocaleString() : ''}
+                  Signed {estimateSignature.signedAt ? new Date(estimateSignature.signedAt).toLocaleString('en-US') : ''}
                 </Text>
               </View>
             )}

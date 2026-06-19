@@ -117,6 +117,8 @@ export default function PremiumOnboarding({ navigation }) {
         {/* Skip button */}
         {showSkip && (
           <TouchableOpacity
+            testID="onboarding.skipButton"
+            accessibilityLabel="onboarding.skipButton"
             style={styles.skipButton}
             onPress={handleSkip}
             activeOpacity={0.7}
@@ -127,6 +129,7 @@ export default function PremiumOnboarding({ navigation }) {
 
         {/* Slides */}
         <FlatList
+          testID="onboarding.slides"
           ref={flatListRef}
           data={SLIDES}
           horizontal

@@ -433,7 +433,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                   <View style={styles.infoContent}>
                     <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Allocated</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
-                      ${phase.budget.toLocaleString()}
+                      ${phase.budget.toLocaleString('en-US')}
                     </Text>
                   </View>
                 </View>
@@ -445,7 +445,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                   <View style={styles.infoContent}>
                     <Text style={[styles.infoLabel, { color: Colors.secondaryText }]}>Spent</Text>
                     <Text style={[styles.infoValue, { color: Colors.primaryText }]}>
-                      ${phase.spent.toLocaleString()}
+                      ${phase.spent.toLocaleString('en-US')}
                     </Text>
                   </View>
                 </View>
@@ -464,7 +464,7 @@ export default function PhaseDetailModal({ visible, onClose, phase, onUpdate }) 
                       styles.infoValue,
                       { color: phase.spent <= phase.budget ? '#10B981' : '#EF4444' }
                     ]}>
-                      ${(phase.budget - phase.spent).toLocaleString()}
+                      ${(phase.budget - phase.spent).toLocaleString('en-US')}
                     </Text>
                   </View>
                 </View>

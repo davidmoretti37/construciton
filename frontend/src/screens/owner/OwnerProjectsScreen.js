@@ -238,12 +238,18 @@ export default function OwnerProjectsScreen({ embedded = false, showFilter = fal
   }, [Colors]);
 
   // Render row of cards (2 per row)
-  const renderRow = useCallback(({ item: row }) => (
+  const renderRow = useCallback(({ item: row, index: rowIndex }) => (
     <View style={styles.row}>
-      {row.map((project) => (
+      {row.map((project, colIndex) => (
         <SimpleProjectCard
           key={project.id}
-          testID={`ownerProjects.row.${project.id}`}
+          // Stable alias on the very first card so e2e can open a project
+          // without knowing dynamic ids; all others keep their per-id testID.
+          testID={
+            rowIndex === 0 && colIndex === 0
+              ? 'ownerProjects.firstRow'
+              : `ownerProjects.row.${project.id}`
+          }
           accessibilityLabel={`Project ${project.name}`}
           project={project}
           onPress={() => handleProjectCardPress(project)}

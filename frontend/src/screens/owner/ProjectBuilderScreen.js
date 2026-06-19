@@ -1474,7 +1474,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
     if (mismatch || anyUnbudgeted) {
       const msg = anyUnbudgeted
         ? 'One or more phases have no budget assigned.'
-        : `Phase budgets total $${allocated.toLocaleString()} but the contract is $${contract.toLocaleString()}.`;
+        : `Phase budgets total $${allocated.toLocaleString('en-US')} but the contract is $${contract.toLocaleString('en-US')}.`;
       Alert.alert(
         'Budget Mismatch',
         `${msg}\n\nCreate the project anyway?`,
@@ -1725,7 +1725,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                 {/* Allocation bar */}
                 <View style={[styles.allocBar, { backgroundColor: overAllocated ? '#FEE2E2' : '#EFF6FF', borderColor: overAllocated ? '#DC2626' : Colors.primaryBlue + '30', marginTop: 12 }]}>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: overAllocated ? '#DC2626' : Colors.primaryText }} testID="projectBuilder.allocationSummary">
-                    Allocated ${allocatedTotal.toLocaleString()} / Contract ${contractTotal.toLocaleString()}
+                    Allocated ${allocatedTotal.toLocaleString('en-US')} / Contract ${contractTotal.toLocaleString('en-US')}
                   </Text>
                   <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }}>
                     {contractTotal > 0
@@ -1948,7 +1948,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         }]}>
                           <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primaryText }}>
                             {pctSum > 0 ? `${pctSum.toFixed(1)}% of contract allocated` : 'Fixed-amount draws'}
-                            {fixedSum > 0 && pctSum > 0 ? `  •  + $${fixedSum.toLocaleString()} fixed` : ''}
+                            {fixedSum > 0 && pctSum > 0 ? `  •  + $${fixedSum.toLocaleString('en-US')} fixed` : ''}
                           </Text>
                           <Text style={{ fontSize: 11, color: Colors.secondaryText, marginTop: 2 }} testID="projectBuilder.drawsTotal">
                             Total ${dollarTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} across {draws.length} draw{draws.length === 1 ? '' : 's'}
@@ -2658,7 +2658,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                         #{linkedEstimate.estimate_number || '—'}
                       </Text>
                       <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primaryText }} testID="projectBuilder.linkedEstimateTotal">
-                        ${(parseFloat(linkedEstimate.total) || 0).toLocaleString()}
+                        ${(parseFloat(linkedEstimate.total) || 0).toLocaleString('en-US')}
                       </Text>
                     </View>
                     <Text style={{ fontSize: 13, color: Colors.secondaryText, marginBottom: 4 }}>
@@ -2729,10 +2729,10 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                   • {name.trim() || '—'} for {client.trim() || '—'}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }} testID="projectBuilder.reviewContract">
-                  • Contract ${contractTotal.toLocaleString()} across {phases.length} phase{phases.length === 1 ? '' : 's'}
+                  • Contract ${contractTotal.toLocaleString('en-US')} across {phases.length} phase{phases.length === 1 ? '' : 's'}
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
-                  • Allocated ${allocatedTotal.toLocaleString()} ({contractTotal > 0 ? Math.round((allocatedTotal / contractTotal) * 100) : 0}%)
+                  • Allocated ${allocatedTotal.toLocaleString('en-US')} ({contractTotal > 0 ? Math.round((allocatedTotal / contractTotal) * 100) : 0}%)
                 </Text>
                 <Text style={{ color: Colors.secondaryText, fontSize: 13, marginBottom: 4 }}>
                   • Timeline {startDate ? formatDate(startDate) : '—'} → {endDate ? formatDate(endDate) : '—'}
@@ -2875,7 +2875,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                           </View>
                           <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
                             <Text style={{ color: Colors.primaryText, fontWeight: '700', fontSize: 14 }}>
-                              ${(parseFloat(item.total) || 0).toLocaleString()}
+                              ${(parseFloat(item.total) || 0).toLocaleString('en-US')}
                             </Text>
                             <View style={{ backgroundColor: sc.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 9, marginTop: 4 }}>
                               <Text style={{ color: sc.fg, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>

@@ -184,8 +184,10 @@ const getAppCurrency = () => {
  */
 export const formatCurrency = (amount, currency) => {
   const currencyCode = currency || getAppCurrency();
-  const locale = getAppLocale();
-  return new Intl.NumberFormat(locale, {
+  // Always US number formatting (comma thousands, period decimal) so USD amounts
+  // read consistently regardless of the app/device language — e.g. $56,000.00,
+  // never $56.000 (which reads as $56 in a pt-BR/EU locale). Product decision.
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currencyCode,
     minimumFractionDigits: 2,

@@ -161,6 +161,7 @@ export default function TaxSummaryScreen() {
       </View>
 
       <ScrollView
+        testID="taxSummary.scrollView"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

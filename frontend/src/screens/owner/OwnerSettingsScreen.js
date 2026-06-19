@@ -334,6 +334,7 @@ export default function OwnerSettingsScreen() {
       </View>
 
       <ScrollView
+        testID="ownerSettings.scrollView"
         style={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}

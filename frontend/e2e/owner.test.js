@@ -1,15 +1,18 @@
 /**
  * Owner smoke walk — Detox e2e, driven entirely by testID.
- * Run (once the Detox-instrumented iOS build exists — see e2e/README.md):
- *   detox build -c ios.sim.debug && detox test -c ios.sim.debug
+ * Run (Release build — see e2e/README.md):
+ *   npx detox build -c ios.sim.release && npx detox test -c ios.sim.release
  *
  * Mirrors e2e/maestro/owner-walk.yaml. The same testIDs work in both runners.
+ * loginAsOwner() cold-launches and signs in the seeded QA owner.
  */
 /* eslint-disable no-undef */
 
+const { loginAsOwner } = require('./helpers');
+
 describe('Owner — smoke walk', () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true });
+    await loginAsOwner();
   });
 
   it('dashboard renders the financial tiles', async () => {
@@ -34,10 +37,12 @@ describe('Owner — smoke walk', () => {
 
   it('opens Subscription from Settings', async () => {
     await element(by.id('ownerTab.Settings')).tap();
+    // Start the swipe from the vertical middle (a guaranteed-visible point) —
+    // the default bottom-edge start point is clipped under the home indicator.
     await waitFor(element(by.id('ownerSettings.subscriptionItem')))
       .toBeVisible()
       .whileElement(by.id('ownerSettings.scrollView'))
-      .scroll(400, 'down');
+      .scroll(350, 'down', NaN, 0.5);
     await element(by.id('ownerSettings.subscriptionItem')).tap();
   });
 });

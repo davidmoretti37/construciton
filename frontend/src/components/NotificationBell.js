@@ -13,7 +13,7 @@ import { getColors, LightColors } from '../constants/theme';
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export default function NotificationBell({ onPress, size = 24, color }) {
+export default function NotificationBell({ onPress, size = 24, color, testID, accessibilityLabel }) {
   const { unreadCount } = useNotifications();
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
@@ -41,6 +41,8 @@ export default function NotificationBell({ onPress, size = 24, color }) {
 
   return (
     <AnimatedTouchable
+      testID={testID}
+      accessibilityLabel={accessibilityLabel}
       onPress={handlePress}
       style={[styles.container, animatedStyle]}
       activeOpacity={0.7}

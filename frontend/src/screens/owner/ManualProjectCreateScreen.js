@@ -575,7 +575,7 @@ export default function ManualProjectCreateScreen({ navigation }) {
                       onPress={() => setContractAmount(total.toFixed(2))}
                     >
                       <Text testID="manualProjectCreate.servicesTotal" style={{ fontSize: 12, color: Colors.primaryBlue }}>
-                        Services total: ${total.toLocaleString()} — tap to use as contract amount
+                        Services total: ${total.toLocaleString('en-US')} — tap to use as contract amount
                       </Text>
                     </TouchableOpacity>
                   ) : null;
