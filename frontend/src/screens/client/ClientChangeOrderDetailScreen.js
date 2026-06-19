@@ -40,21 +40,21 @@ const REASON_CHIPS = ['Too expensive', 'Need more info', 'Out of scope', 'Discus
 const fmtSigned = (value) => {
   const n = parseFloat(value);
   const amount = Number.isFinite(n) ? n : 0;
-  return `${amount < 0 ? '-' : '+'}$${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${amount < 0 ? '-' : '+'}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 // Unsigned currency (always positive magnitude, e.g. unit price display).
 const fmtUnsigned = (value) => {
   const n = parseFloat(value);
   const amount = Number.isFinite(n) ? n : 0;
-  return `$${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 // Guard date display so a missing/bad timestamp never renders "Invalid Date".
 const fmtDate = (value) => {
   if (!value) return '—';
   const d = new Date(value);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US');
 };
 
 export default function ClientChangeOrderDetailScreen({ route, navigation }) {
@@ -179,10 +179,21 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.surface }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            testID="clientChangeOrderDetail.backButton"
+            accessibilityLabel="clientChangeOrderDetail.backButton"
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="chevron-back" size={26} color={C.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Change Order</Text>
+          <Text
+            testID="clientChangeOrderDetail.headerTitle"
+            accessibilityLabel="clientChangeOrderDetail.headerTitle"
+            style={styles.headerTitle}
+          >
+            Change Order
+          </Text>
           <View style={{ width: 26 }} />
         </View>
       </SafeAreaView>
@@ -191,12 +202,24 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         {/* Status Badge */}
         <View style={{ alignItems: 'center', marginBottom: 16 }}>
           <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-            <Text style={[styles.statusText, { color: status.text }]}>{status.label}</Text>
+            <Text
+              testID="clientChangeOrderDetail.statusBadge"
+              accessibilityLabel="clientChangeOrderDetail.statusBadge"
+              style={[styles.statusText, { color: status.text }]}
+            >
+              {status.label}
+            </Text>
           </View>
         </View>
 
         {/* Title + Description */}
-        <Text style={styles.title}>{co.title}</Text>
+        <Text
+          testID="clientChangeOrderDetail.title"
+          accessibilityLabel="clientChangeOrderDetail.title"
+          style={styles.title}
+        >
+          {co.title}
+        </Text>
         {co.description && <Text style={styles.description}>{co.description}</Text>}
 
         {/* Expiry Warning */}
@@ -212,7 +235,13 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         {/* Cost Breakdown */}
         <View style={styles.costCard}>
           <Text style={styles.costLabel}>{parseFloat(co.total_amount) < 0 ? 'CREDIT' : 'CHANGE AMOUNT'}</Text>
-          <Text style={styles.costAmount}>{fmtSigned(co.total_amount)}</Text>
+          <Text
+            testID="clientChangeOrderDetail.totalAmount"
+            accessibilityLabel="clientChangeOrderDetail.totalAmount"
+            style={styles.costAmount}
+          >
+            {fmtSigned(co.total_amount)}
+          </Text>
           {scheduleDays !== 0 && (
             <Text style={styles.costDays}>
               {scheduleDays > 0 ? '+' : ''}{scheduleDays} day{Math.abs(scheduleDays) !== 1 ? 's' : ''} to schedule
@@ -246,7 +275,13 @@ export default function ClientChangeOrderDetailScreen({ route, navigation }) {
         {/* Line Items */}
         {lineItems.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>LINE ITEMS</Text>
+            <Text
+              testID="clientChangeOrderDetail.lineItemsHeader"
+              accessibilityLabel="clientChangeOrderDetail.lineItemsHeader"
+              style={styles.sectionLabel}
+            >
+              LINE ITEMS
+            </Text>
             <View style={styles.lineItemsCard}>
               {lineItems.map((item, i) => {
                 const qty = item.quantity != null ? Number(item.quantity) : null;

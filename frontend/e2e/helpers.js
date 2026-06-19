@@ -122,10 +122,23 @@ async function dismissOverlaysUntilHomeVisible() {
 async function runNavSteps(steps) {
   for (const step of steps) {
     if (step.action === 'scrollTo' && step.scrollViewId) {
-      await waitFor(element(by.id(step.id)))
-        .toBeVisible()
-        .whileElement(by.id(step.scrollViewId))
-        .scroll(320, 'down', NaN, 0.5);
+      // Wait for the scroll container to be fully VISIBLE (not just mounted) —
+      // screens that fetch data render a spinner first, and during the push/pop
+      // transition the container is only partially on-screen, which makes a
+      // gesture-based scroll fail with "view is not scrollable at start point".
+      await waitFor(element(by.id(step.scrollViewId))).toBeVisible().withTimeout(20000);
+      // scrollTo('bottom') is more robust than whileElement gesture-scrolling
+      // (no on-screen start point to compute). The target sits near the end of
+      // the list, so jumping to the bottom reveals it.
+      try {
+        await element(by.id(step.scrollViewId)).scrollTo('bottom');
+      } catch (e) {
+        await waitFor(element(by.id(step.id)))
+          .toBeVisible()
+          .whileElement(by.id(step.scrollViewId))
+          .scroll(320, 'down', NaN, 0.5);
+      }
+      await waitFor(element(by.id(step.id))).toBeVisible().withTimeout(8000);
       await element(by.id(step.id)).tap();
     } else {
       await waitFor(element(by.id(step.id))).toBeVisible().withTimeout(15000);
@@ -165,9 +178,48 @@ async function loginAsWorker() {
   await waitFor(element(by.id('workerTab.TimeClock'))).toBeVisible().withTimeout(20000);
 }
 
+const CLIENT_EMAIL = 'qa.client.mike@sylkqa.test';
+const CLIENT_PASSWORD = 'SylkQA-test-2026!';
+
+/** Cold-launch -> client portal (Home tab). The QA client account is
+ * role=client, onboarded, linked (clients.user_id) to "Mike Johnson" who is
+ * tied to the Johnson Kitchen Remodel project via project_clients. */
+async function loginAsClient() {
+  // Force a clean, deterministic logged-OUT state. The client session otherwise
+  // drifts between runs (sometimes persisted-in, sometimes expired-out), which
+  // made state detection flaky. delete:true reinstalls the app → always the
+  // login/onboarding funnel, exactly like the owner/worker portals.
+  await device.launchApp({
+    newInstance: true,
+    delete: true,
+    permissions: {
+      microphone: 'YES', camera: 'YES', photos: 'YES', location: 'always', notifications: 'YES',
+    },
+  });
+
+  // The login/onboarding screens have no infinite animation, so run the funnel +
+  // credential entry with synchronization ON — reliable, same as owner/worker.
+  await reachLoginScreen();
+  await element(by.id('login.emailInput')).replaceText(CLIENT_EMAIL);
+  await element(by.id('login.passwordInput')).replaceText(CLIENT_PASSWORD);
+  try { await element(by.id('login.passwordInput')).tapReturnKey(); } catch (e) {}
+
+  // Signing in enters ClientDashboard, which runs an infinite Animated.loop pulse
+  // (a recurring native-driver display-link timer Detox tracks as "busy"). Disable
+  // sync BEFORE the transition; it persists for the rest of the device session
+  // (including the reloadReactNative resets in beforeEach). waitFor(...) still polls.
+  await device.disableSynchronization();
+  await element(by.id('login.signInButton')).tap();
+
+  await waitFor(element(by.id('clientTab.Home'))).toExist().withTimeout(60000);
+  await tapIfVisible(by.id('walkthrough.skipButton'), 6000);
+  await waitFor(element(by.id('clientTab.Home'))).toBeVisible().withTimeout(20000);
+}
+
 module.exports = {
   loginAsOwner,
   loginAsWorker,
+  loginAsClient,
   reachLoginScreen,
   tapIfVisible,
   runNavSteps,
@@ -176,4 +228,6 @@ module.exports = {
   OWNER_PASSWORD,
   WORKER_EMAIL,
   WORKER_PASSWORD,
+  CLIENT_EMAIL,
+  CLIENT_PASSWORD,
 };

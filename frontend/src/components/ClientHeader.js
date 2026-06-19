@@ -18,7 +18,7 @@ const C = {
   red: '#EF4444',
 };
 
-export default function ClientHeader({ title, subtitle, navigation, gradient = true }) {
+export default function ClientHeader({ title, subtitle, navigation, gradient = true, titleTestID }) {
   // useNotifications returns a default object if no provider is mounted (the
   // context provider is in App.js root). Calling the hook is required by Rules
   // of Hooks; the safety net is the `|| { unreadCount: 0 }` fallback.
@@ -27,7 +27,12 @@ export default function ClientHeader({ title, subtitle, navigation, gradient = t
     <SafeAreaView edges={['top']} style={styles.inner}>
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          <Text
+            style={styles.title}
+            numberOfLines={1}
+            testID={titleTestID}
+            accessibilityLabel={titleTestID}
+          >{title}</Text>
           {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
           <ClientProjectSwitcher light />
         </View>

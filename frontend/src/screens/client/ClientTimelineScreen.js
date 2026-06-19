@@ -217,7 +217,11 @@ export default function ClientTimelineScreen({ navigation }) {
   const hasAnything = dayPhases.length > 0 || dayEvents.length > 0;
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: Colors.background }]}
+      testID="clientTimeline.screen"
+      accessibilityLabel="clientTimeline.screen"
+    >
       <ClientHeader title="Timeline" subtitle={projectName} navigation={navigation} />
       <View style={styles.header}>
         {/* Empty - title moved to ClientHeader, but keep wrapper for spacing */}
@@ -236,7 +240,11 @@ export default function ClientTimelineScreen({ navigation }) {
             <View style={styles.currentDot} />
             <View style={{ flex: 1 }}>
               <Text style={styles.currentLabel}>CURRENT PHASE</Text>
-              <Text style={styles.currentName}>{currentPhase.name}</Text>
+              <Text
+                style={styles.currentName}
+                testID="clientTimeline.currentPhaseName"
+                accessibilityLabel="clientTimeline.currentPhaseName"
+              >{currentPhase.name}</Text>
             </View>
             <Text style={styles.currentPercent}>{currentPhase.completion_percentage || 0}%</Text>
           </View>
@@ -265,7 +273,11 @@ export default function ClientTimelineScreen({ navigation }) {
 
         {/* Selected Day Detail */}
         <View style={styles.daySection}>
-          <Text style={[styles.dayDate, { color: Colors.primaryText }]}>
+          <Text
+            style={[styles.dayDate, { color: Colors.primaryText }]}
+            testID="clientTimeline.selectedDayDate"
+            accessibilityLabel="clientTimeline.selectedDayDate"
+          >
             {selectedDateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </Text>
 
@@ -326,7 +338,11 @@ export default function ClientTimelineScreen({ navigation }) {
         {/* All Phases List */}
         {phases.length > 0 && (
           <View style={styles.allPhasesSection}>
-            <Text style={styles.sectionLabel}>ALL PHASES</Text>
+            <Text
+              style={styles.sectionLabel}
+              testID="clientTimeline.allPhasesLabel"
+              accessibilityLabel="clientTimeline.allPhasesLabel"
+            >ALL PHASES</Text>
             {phases.map((phase, i) => {
               const isActive = phase.status === 'in_progress' || phase.status === 'active';
               const isComplete = phase.status === 'completed';
@@ -344,7 +360,11 @@ export default function ClientTimelineScreen({ navigation }) {
                     <View style={[styles.phaseListLine, isComplete && { backgroundColor: C.green }]} />
                   )}
                   <View style={styles.phaseListContent}>
-                    <Text style={[styles.phaseListName, isActive && { color: C.amber, fontWeight: '700' }]}>{phase.name}</Text>
+                    <Text
+                      style={[styles.phaseListName, isActive && { color: C.amber, fontWeight: '700' }]}
+                      testID={`clientTimeline.phaseListItem.${i}`}
+                      accessibilityLabel={`clientTimeline.phaseListItem.${i}`}
+                    >{phase.name}</Text>
                     {(() => {
                       // Prefer real dates; otherwise fall back to status + task progress
                       if (phase.start_date) {
