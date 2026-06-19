@@ -411,22 +411,22 @@ export default function ServicePlanDetailScreen({ route }) {
         {isOwner && (
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 16, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, marginBottom: 12 }}>
             <Text style={{ fontSize: 11, fontWeight: '500', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>{rateLabel}</Text>
-            <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${rate.toLocaleString()}</Text>
+            <Text style={{ fontSize: 34, fontWeight: '700', color: '#0F172A', letterSpacing: -0.8, marginTop: 4 }}>${rate.toLocaleString('en-US')}</Text>
             <View style={{ height: 1, backgroundColor: '#F1F5F9', marginTop: 16, marginBottom: 16 }} />
             <View style={{ flexDirection: 'row' }}>
               <TouchableOpacity style={{ flex: 1, alignItems: 'center' }} onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'income' })} activeOpacity={0.7}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Income</Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${financials.total_income.toLocaleString()}</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${financials.total_income.toLocaleString('en-US')}</Text>
               </TouchableOpacity>
               <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
               <TouchableOpacity style={{ flex: 1, alignItems: 'center' }} onPress={() => navigation.navigate('ProjectTransactions', { servicePlanId: plan?.id, servicePlanName: plan?.name, filterType: 'expense' })} activeOpacity={0.7}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Expenses</Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${financials.total_expenses.toLocaleString()}</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A', marginTop: 2 }}>${financials.total_expenses.toLocaleString('en-US')}</Text>
               </TouchableOpacity>
               <View style={{ width: 1, backgroundColor: '#F1F5F9', height: 40, alignSelf: 'center' }} />
               <View style={{ flex: 1, alignItems: 'center' }}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.5, textTransform: 'uppercase' }}>Profit</Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>${Math.abs(profit).toLocaleString()}</Text>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>${Math.abs(profit).toLocaleString('en-US')}</Text>
                 <Text style={{ fontSize: 11, color: profit >= 0 ? '#059669' : '#DC2626', marginTop: 2 }}>{profit >= 0 ? 'Healthy ✓' : 'Review ↗'}</Text>
               </View>
             </View>
@@ -828,7 +828,7 @@ export default function ServicePlanDetailScreen({ route }) {
                     <Text style={[styles.estDate, { color: Colors.secondaryText }]}>{new Date(est.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
                   </View>
                 </View>
-                <Text style={[styles.estTotal, { color: Colors.primaryText }]}>${(est.total || 0).toLocaleString()}</Text>
+                <Text style={[styles.estTotal, { color: Colors.primaryText }]}>${(est.total || 0).toLocaleString('en-US')}</Text>
               </View>
             );
           }) : (

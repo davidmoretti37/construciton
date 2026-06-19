@@ -129,7 +129,7 @@ const JobCard = ({ job, Colors, t }) => {
         <View style={styles.jobStat}>
           <Ionicons name="cash-outline" size={16} color="#059669" />
           <Text style={[styles.jobStatText, { color: Colors.secondaryText }]}>
-            ${job.contract_amount?.toLocaleString() || '0'}
+            ${job.contract_amount?.toLocaleString('en-US') || '0'}
           </Text>
         </View>
         <View style={styles.jobStat}>

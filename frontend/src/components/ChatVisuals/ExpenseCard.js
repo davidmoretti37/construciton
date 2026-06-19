@@ -18,7 +18,7 @@ export default function ExpenseCard({ data }) {
   } = data;
 
   const formatCurrency = (amount) => {
-    return `$${amount.toLocaleString()}`;
+    return `$${amount.toLocaleString('en-US')}`;
   };
 
   return (

@@ -40,7 +40,7 @@ const FREQUENCIES = [
 ];
 
 const formatCurrency = (amount) =>
-  `$${Math.round(parseFloat(amount || 0)).toLocaleString()}`;
+  `$${Math.round(parseFloat(amount || 0)).toLocaleString('en-US')}`;
 
 const toMonthly = (amount, frequency) => {
   const f = FREQUENCIES.find(fr => fr.value === frequency);
