@@ -55,6 +55,29 @@ user would actually see. This is the user-experience layer on top of the
 - manualProjectCreate: "Working Days" label appears twice (title-case + all-caps).
 - supervisorDetail: rate shows `$0/hr` (supervisors have no rate field seeded).
 
+## Every-button pass (166 buttons driven, 101 reviewed by agents)
+- **50 buttons directly verified WORKING** from screenshots: estimate/invoice
+  list filters (all/sent/draft/accepted/rejected) apply correctly, section
+  accordions expand, financial report Company/By-Project toggle switches the
+  view, contracts upload opens the source picker, search clear resets, etc.
+- **No genuinely dead buttons found** this pass. The 36 "dead" review verdicts
+  were all traced to TEST ARTIFACTS, not product bugs:
+  - **Tab-state pollution:** tapping `work.servicesTab` switches to the (empty)
+    Services segment, which persists in AsyncStorage — so later Projects-based
+    screens loaded on "No Service Plans Yet", making `ownerProjects` filters look
+    dead and `projectDetail`/`projectDocuments` nav fail. Harness should reset
+    the segment between screens.
+  - **Lingering native alert:** the "Extract from photo" action sheet stayed
+    open and blocked subsequent estimateBuilder taps (the no-relaunch speed
+    trade-off). Spec should dismiss alerts between buttons.
+  - **Modal-not-open / precondition:** `ownerWorkers` payment-type options live
+    inside an Add-Worker modal; `ownerDashboard.addWidgetButton` needs edit mode;
+    `helpSupportItem` opens an external mail app Detox can't capture.
+  - Spot-checked the plausibly-dead ones in code — all wired
+    (`setShowAddSheet`, `toggleTheme`, `chooseEmailApp`, filter handlers).
+- **Real dead button already fixed earlier:** BillingCard chevron (rendered
+  tappable on non-tappable rows).
+
 ## VERIFIED GOOD (sampled)
 financialReport, arAging (totals tie out), integrations, bankConnection,
 changeLanguage, contracts/pictures (clean empty states), notifications,
