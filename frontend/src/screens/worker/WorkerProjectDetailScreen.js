@@ -300,6 +300,7 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
       </View>
 
       <ScrollView
+        testID="workerProjectDetail.scrollView"
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -558,6 +559,8 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
                   return (
                     <TouchableOpacity
                       key={report.id || index}
+                      testID={index === 0 ? 'workerProjectDetail.reportRow.first' : `workerProjectDetail.reportRow.${report.id}`}
+                      accessibilityLabel="Daily report row"
                       style={{ paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, marginBottom: 8 }}
                       onPress={() => navigation?.navigate('DailyReportDetail', { report })}
                       activeOpacity={0.7}
@@ -600,13 +603,15 @@ export default function WorkerProjectDetailScreen({ route, navigation }) {
               <ActivityIndicator size="small" color={Colors.primaryBlue} />
             ) : (
               <ScrollView style={expenses.length > 3 ? { maxHeight: 220 } : undefined} nestedScrollEnabled showsVerticalScrollIndicator={expenses.length > 3}>
-                {expenses.map((exp) => {
+                {expenses.map((exp, index) => {
                   const d = exp.date
                     ? new Date(exp.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                     : '';
                   return (
                     <TouchableOpacity
                       key={exp.id}
+                      testID={index === 0 ? 'workerProjectDetail.expenseRow.first' : `workerProjectDetail.expenseRow.${exp.id}`}
+                      accessibilityLabel="Expense row"
                       style={{ paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, marginBottom: 8 }}
                       onPress={() => navigation?.navigate('ExpenseDetail', { expense: exp })}
                       activeOpacity={0.7}

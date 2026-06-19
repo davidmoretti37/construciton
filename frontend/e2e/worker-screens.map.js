@@ -65,4 +65,34 @@ module.exports = [
     safeTapTestIds: [],
     reachableFromOwnerTabs: true,
   },
+
+  // NOTE: WorkerSchedule is Today's Work's embedded "calendar" view-mode (reached
+  // via todaysWork.calendarToggleButton, which is a todaysWork safe-tap). It
+  // renders correctly (verified) but defaults to the agenda sub-view where the
+  // day-detail selectedDate isn't shown, so it's not asserted as a standalone
+  // screen.
+
+  // ── Detail screens (Project Detail -> seeded report/expense row) ──
+  {
+    screenKey: 'dailyReportDetail',
+    navSteps: [
+      { action: 'tap', id: 'workerTab.WorkerProjects' },
+      { action: 'tap', id: `workerProjects.projectCard.${JOHNSON}` },
+      { action: 'scrollTo', id: 'workerProjectDetail.reportRow.first', scrollViewId: 'workerProjectDetail.scrollView' },
+    ],
+    assertTestIds: ['dailyReportDetail.headerTitle', 'dailyReportDetail.reportDate'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
+  {
+    screenKey: 'expenseDetail',
+    navSteps: [
+      { action: 'tap', id: 'workerTab.WorkerProjects' },
+      { action: 'tap', id: `workerProjects.projectCard.${JOHNSON}` },
+      { action: 'scrollTo', id: 'workerProjectDetail.expenseRow.first', scrollViewId: 'workerProjectDetail.scrollView' },
+    ],
+    assertTestIds: ['expenseDetail.headerTitle', 'expenseDetail.amountValue'],
+    safeTapTestIds: [],
+    reachableFromOwnerTabs: true,
+  },
 ];
