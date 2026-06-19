@@ -45,6 +45,9 @@ describe('Owner — full screen coverage', () => {
         await waitFor(element(by.id(id))).toBeVisible().withTimeout(15000);
       }
 
+      // Capture what a user would actually SEE on this screen, for visual review.
+      try { await device.takeScreenshot(`tour-${s.screenKey}`); } catch (e) {}
+
       // Functional value checks: the screen must show the CORRECT value (from
       // the seeded data), not just *a* value. A mismatch is a real bug.
       for (const [id, expected] of Object.entries(s.assertText || {})) {
