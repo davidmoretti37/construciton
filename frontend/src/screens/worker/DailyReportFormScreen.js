@@ -50,7 +50,7 @@ const DELAY_REASONS = ['Weather', 'Materials', 'Inspection', 'Labor', 'Equipment
 export default function DailyReportFormScreen({ navigation, route }) {
   const { isDark = false } = useTheme() || {};
   const Colors = getColors(isDark) || LightColors;
-  const { t } = useTranslation('common');
+  const { t } = useTranslation('workers');
   const { user, profile } = useAuth();
   const { isOnline } = useNetwork();
 
@@ -297,7 +297,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
         loadChecklistAndRolesForPlan(routeServicePlanId);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to load service plan');
+      Alert.alert(t('common:alerts.error'), t('dailyReportForm.loadServicePlanFailed'));
     } finally { setLoading(false); }
   };
 
@@ -320,7 +320,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
       setAssignedProjects([...(projects || []), ...planItems]);
     } catch (error) {
-      Alert.alert(t('alerts.error'), 'Failed to load projects');
+      Alert.alert(t('common:alerts.error'), t('dailyReportForm.loadProjectsFailed'));
     } finally { setLoading(false); }
   };
 
@@ -343,7 +343,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
       const planItems = (plans || []).map(p => ({ ...p, isServicePlan: true }));
       setAssignedProjects([...(projects || []), ...planItems]);
     } catch (error) {
-      Alert.alert(t('alerts.error'), 'Failed to load projects');
+      Alert.alert(t('common:alerts.error'), t('dailyReportForm.loadProjectsFailed'));
     } finally { setLoading(false); }
   };
 
@@ -360,7 +360,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
       const plans = (assignments.servicePlans || []).map(p => ({ ...p, isServicePlan: true }));
       setAssignedProjects([...projects, ...plans]);
     } catch (error) {
-      Alert.alert(t('alerts.error'), 'Failed to load projects');
+      Alert.alert(t('common:alerts.error'), t('dailyReportForm.loadProjectsFailed'));
     } finally { setLoading(false); }
   };
 
@@ -395,7 +395,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permission needed', 'Photo library access is required'); return; }
+    if (status !== 'granted') { Alert.alert(t('dailyReportForm.permissionNeeded'), t('dailyReportForm.photoLibraryRequired')); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: true, quality: 0.8 });
     if (!result.canceled) {
       const uris = result.assets.map(a => a.uri);
@@ -406,7 +406,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permission needed', 'Camera access is required'); return; }
+    if (status !== 'granted') { Alert.alert(t('dailyReportForm.permissionNeeded'), t('dailyReportForm.cameraRequired')); return; }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
     if (!result.canceled) {
       const uri = result.assets[0].uri;
@@ -421,11 +421,11 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
   const handleSubmit = async () => {
     if (!isOnline) {
-      Alert.alert('Offline', 'Daily reports require an internet connection to submit. Please try again when you are back online.');
+      Alert.alert(t('dailyReportForm.offline'), t('dailyReportForm.offlineMessage'));
       return;
     }
-    if (!isServicePlanMode && !selectedProject) { Alert.alert('Required', 'Select a project or service plan'); return; }
-    if (!workDone.trim()) { Alert.alert('Required', 'Describe what was done today'); return; }
+    if (!isServicePlanMode && !selectedProject) { Alert.alert(t('dailyReportForm.required'), t('dailyReportForm.selectProjectRequired')); return; }
+    if (!workDone.trim()) { Alert.alert(t('dailyReportForm.required'), t('dailyReportForm.describeWorkRequired')); return; }
 
     const parentOwnerId = isServicePlanMode ? servicePlan?.owner_id : (selectedProject.user_id || selectedProject.owner_id || null);
 
@@ -446,11 +446,13 @@ export default function DailyReportFormScreen({ navigation, route }) {
       if (failedPhotos > 0) {
         const proceed = await new Promise((resolve) => {
           Alert.alert(
-            'Photo upload failed',
-            `${failedPhotos} photo${failedPhotos > 1 ? 's' : ''} failed to upload. Submit the report without ${failedPhotos > 1 ? 'them' : 'it'}?`,
+            t('dailyReportForm.photoUploadFailed'),
+            failedPhotos > 1
+              ? t('dailyReportForm.photosUploadFailedBody', { count: failedPhotos })
+              : t('dailyReportForm.photoUploadFailedBody'),
             [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Submit anyway', onPress: () => resolve(true) },
+              { text: t('common:actions.cancel'), style: 'cancel', onPress: () => resolve(false) },
+              { text: t('dailyReportForm.submitAnyway'), onPress: () => resolve(true) },
             ]
           );
         });
@@ -621,10 +623,10 @@ export default function DailyReportFormScreen({ navigation, route }) {
       // tab refreshes with this freshly submitted report.
       await invalidateCacheKey('owner:dailyReports');
 
-      Alert.alert('Success', 'Daily report submitted', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert(t('common:alerts.success'), t('dailyReportForm.reportSubmitted'), [{ text: t('dailyReportForm.ok'), onPress: () => navigation.goBack() }]);
     } catch (error) {
       console.error('Error submitting report:', error);
-      Alert.alert('Error', 'Failed to submit report');
+      Alert.alert(t('common:alerts.error'), t('dailyReportForm.submitFailed'));
     } finally { setSubmitting(false); }
   };
 
@@ -679,7 +681,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={Colors.primaryText} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>Daily Log</Text>
+          <Text style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.dailyLog')}</Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -688,38 +690,38 @@ export default function DailyReportFormScreen({ navigation, route }) {
           {/* Project/Plan Selection */}
           {isServicePlanMode ? (
             <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Service Plan</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.servicePlan')}</Text>
               <View style={[styles.projectChip, { borderColor: ACCENT, backgroundColor: ACCENT + '10', alignSelf: 'flex-start' }]}>
-                <Text style={[styles.projectChipText, { color: ACCENT }]}>{servicePlan?.name || 'Loading...'}</Text>
+                <Text style={[styles.projectChipText, { color: ACCENT }]}>{servicePlan?.name || t('common:status.loading')}</Text>
               </View>
             </View>
           ) : (
             <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Project / Service Plan</Text>
+              <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.projectOrServicePlan')}</Text>
               {assignedProjects.length === 0 ? (
-                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>No projects or service plans available</Text>
+                <Text style={[styles.emptyText, { color: Colors.secondaryText }]}>{t('dailyReportForm.noProjectsAvailable')}</Text>
               ) : (
                 <TouchableOpacity
                   style={[styles.dropdownBtn, { borderColor: Colors.border, backgroundColor: Colors.inputBackground }]}
                   onPress={() => {
                     const labels = assignedProjects.map(p => `${p.isServicePlan ? '🔄 ' : '📋 '}${p.name}`);
-                    labels.push('Cancel');
+                    labels.push(t('common:actions.cancel'));
                     if (Platform.OS === 'ios') {
                       ActionSheetIOS.showActionSheetWithOptions(
-                        { options: labels, cancelButtonIndex: labels.length - 1, title: 'Select Project or Service Plan' },
+                        { options: labels, cancelButtonIndex: labels.length - 1, title: t('dailyReportForm.selectProjectOrPlan') },
                         (idx) => { if (idx < assignedProjects.length) setSelectedProject(assignedProjects[idx]); }
                       );
                     } else {
-                      Alert.alert('Select', '', labels.slice(0, -1).map((label, idx) => ({
+                      Alert.alert(t('dailyReportForm.select'), '', labels.slice(0, -1).map((label, idx) => ({
                         text: label,
                         onPress: () => setSelectedProject(assignedProjects[idx]),
-                      })).concat([{ text: 'Cancel', style: 'cancel' }]));
+                      })).concat([{ text: t('common:actions.cancel'), style: 'cancel' }]));
                     }
                   }}
                 >
                   <Ionicons name={selectedProject?.isServicePlan ? 'refresh-circle-outline' : 'briefcase-outline'} size={18} color={selectedProject ? ACCENT : Colors.secondaryText} />
                   <Text style={[styles.dropdownText, { color: selectedProject ? Colors.primaryText : Colors.placeholderText }]} numberOfLines={1}>
-                    {selectedProject ? selectedProject.name : 'Select a project or service plan...'}
+                    {selectedProject ? selectedProject.name : t('dailyReportForm.selectProjectPlaceholder')}
                   </Text>
                   <Ionicons name="chevron-down" size={18} color={Colors.secondaryText} />
                 </TouchableOpacity>
@@ -743,7 +745,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
               {/* Daily Checklist */}
               {checklistTemplates.length > 0 && (
                 <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-                  <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Daily Checklist</Text>
+                  <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.dailyChecklist')}</Text>
                   {checklistTemplates.map(template => {
                     const log = checklistLogs[template.id] || {};
                     return (
@@ -787,7 +789,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
                 <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <Ionicons name="people-outline" size={18} color="#10B981" />
-                    <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Crew Today</Text>
+                    <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.crewToday')}</Text>
                   </View>
                   {laborRoleTemplates.map(role => (
                     <View key={role.id} style={[styles.laborRoleRow, { borderBottomColor: Colors.border }]}>
@@ -809,12 +811,12 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
               {/* Work Done — always visible, required */}
               <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-                <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Work Performed *</Text>
+                <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.workPerformed')}</Text>
                 <TextInput
                   style={[styles.textArea, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background }]}
                   value={workDone}
                   onChangeText={setWorkDone}
-                  placeholder="What was done on site today..."
+                  placeholder={t('dailyReportForm.workPerformedPlaceholder')}
                   placeholderTextColor={Colors.secondaryText}
                   multiline
                   textAlignVertical="top"
@@ -823,15 +825,15 @@ export default function DailyReportFormScreen({ navigation, route }) {
 
               {/* Photos — always visible */}
               <View style={[styles.card, { backgroundColor: Colors.cardBackground }]}>
-                <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>Photos</Text>
+                <Text style={[styles.cardTitle, { color: Colors.primaryText }]}>{t('dailyReportForm.photos')}</Text>
                 <View style={styles.photoRow}>
                   <TouchableOpacity style={[styles.photoBtn, { backgroundColor: ACCENT }]} onPress={handleTakePhoto}>
                     <Ionicons name="camera" size={18} color="#FFF" />
-                    <Text style={styles.photoBtnText}>Camera</Text>
+                    <Text style={styles.photoBtnText}>{t('dailyReportForm.camera')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.photoBtn, { backgroundColor: ACCENT }]} onPress={handlePickImage}>
                     <Ionicons name="images" size={18} color="#FFF" />
-                    <Text style={styles.photoBtnText}>Gallery</Text>
+                    <Text style={styles.photoBtnText}>{t('dailyReportForm.gallery')}</Text>
                   </TouchableOpacity>
                 </View>
                 {photos.length > 0 && (
@@ -849,10 +851,10 @@ export default function DailyReportFormScreen({ navigation, route }) {
               </View>
 
               {/* Optional Sections */}
-              <Text style={[styles.optionalLabel, { color: Colors.secondaryText }]}>ADDITIONAL DETAILS</Text>
+              <Text style={[styles.optionalLabel, { color: Colors.secondaryText }]}>{t('dailyReportForm.additionalDetails')}</Text>
 
               {/* Weather */}
-              <SectionHeader sectionKey="weather" icon="partly-sunny-outline" title="Weather" />
+              <SectionHeader sectionKey="weather" icon="partly-sunny-outline" title={t('dailyReportForm.weather')} />
               {expanded.weather && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   <View style={styles.weatherRow}>
@@ -868,7 +870,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
                     ))}
                   </View>
                   <View style={styles.tempRow}>
-                    <Text style={[styles.tempLabel, { color: Colors.secondaryText }]}>Temp:</Text>
+                    <Text style={[styles.tempLabel, { color: Colors.secondaryText }]}>{t('dailyReportForm.temp')}</Text>
                     <TextInput
                       style={[styles.tempInput, { color: Colors.primaryText, borderColor: Colors.border }]}
                       value={weather.temp}
@@ -884,14 +886,14 @@ export default function DailyReportFormScreen({ navigation, route }) {
               )}
 
               {/* Manpower */}
-              <SectionHeader sectionKey="manpower" icon="people-outline" title="Manpower" />
+              <SectionHeader sectionKey="manpower" icon="people-outline" title={t('dailyReportForm.manpower')} />
               {expanded.manpower && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   {manpower.map((m, i) => (
                     <View key={i} style={styles.listItemRow}>
-                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={m.name} onChangeText={v => updateListItem(setManpower, i, 'name', v)} placeholder="Name" placeholderTextColor={Colors.secondaryText} />
-                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={m.trade} onChangeText={v => updateListItem(setManpower, i, 'trade', v)} placeholder="Trade" placeholderTextColor={Colors.secondaryText} />
-                      <TextInput style={[styles.listInput, { width: 45, color: Colors.primaryText, borderColor: Colors.border }]} value={String(m.hours || '')} onChangeText={v => updateListItem(setManpower, i, 'hours', v)} placeholder="Hrs" placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
+                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={m.name} onChangeText={v => updateListItem(setManpower, i, 'name', v)} placeholder={t('dailyReportForm.name')} placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={m.trade} onChangeText={v => updateListItem(setManpower, i, 'trade', v)} placeholder={t('dailyReportForm.trade')} placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { width: 45, color: Colors.primaryText, borderColor: Colors.border }]} value={String(m.hours || '')} onChangeText={v => updateListItem(setManpower, i, 'hours', v)} placeholder={t('dailyReportForm.hrs')} placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
                       <TouchableOpacity onPress={() => removeListItem(setManpower, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="close" size={18} color="#EF4444" />
                       </TouchableOpacity>
@@ -899,19 +901,19 @@ export default function DailyReportFormScreen({ navigation, route }) {
                   ))}
                   <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setManpower, { name: '', trade: '', hours: '' })}>
                     <Ionicons name="add" size={16} color={ACCENT} />
-                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Person</Text>
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>{t('dailyReportForm.addPerson')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* Materials */}
-              <SectionHeader sectionKey="materials" icon="cube-outline" title="Materials" />
+              <SectionHeader sectionKey="materials" icon="cube-outline" title={t('dailyReportForm.materials')} />
               {expanded.materials && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   {materials.map((m, i) => (
                     <View key={i} style={styles.listItemRow}>
-                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={m.description} onChangeText={v => updateListItem(setMaterials, i, 'description', v)} placeholder="Material" placeholderTextColor={Colors.secondaryText} />
-                      <TextInput style={[styles.listInput, { width: 50, color: Colors.primaryText, borderColor: Colors.border }]} value={m.quantity} onChangeText={v => updateListItem(setMaterials, i, 'quantity', v)} placeholder="Qty" placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
+                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={m.description} onChangeText={v => updateListItem(setMaterials, i, 'description', v)} placeholder={t('dailyReportForm.material')} placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { width: 50, color: Colors.primaryText, borderColor: Colors.border }]} value={m.quantity} onChangeText={v => updateListItem(setMaterials, i, 'quantity', v)} placeholder={t('dailyReportForm.qty')} placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
                       <TouchableOpacity onPress={() => removeListItem(setMaterials, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="close" size={18} color="#EF4444" />
                       </TouchableOpacity>
@@ -919,19 +921,19 @@ export default function DailyReportFormScreen({ navigation, route }) {
                   ))}
                   <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setMaterials, { description: '', quantity: '' })}>
                     <Ionicons name="add" size={16} color={ACCENT} />
-                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Material</Text>
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>{t('dailyReportForm.addMaterial')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* Equipment */}
-              <SectionHeader sectionKey="equipment" icon="construct-outline" title="Equipment" />
+              <SectionHeader sectionKey="equipment" icon="construct-outline" title={t('dailyReportForm.equipment')} />
               {expanded.equipment && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   {equipment.map((e, i) => (
                     <View key={i} style={styles.listItemRow}>
-                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={e.name} onChangeText={v => updateListItem(setEquipment, i, 'name', v)} placeholder="Equipment" placeholderTextColor={Colors.secondaryText} />
-                      <TextInput style={[styles.listInput, { width: 45, color: Colors.primaryText, borderColor: Colors.border }]} value={String(e.hours || '')} onChangeText={v => updateListItem(setEquipment, i, 'hours', v)} placeholder="Hrs" placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
+                      <TextInput style={[styles.listInput, { flex: 2, color: Colors.primaryText, borderColor: Colors.border }]} value={e.name} onChangeText={v => updateListItem(setEquipment, i, 'name', v)} placeholder={t('dailyReportForm.equipmentName')} placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { width: 45, color: Colors.primaryText, borderColor: Colors.border }]} value={String(e.hours || '')} onChangeText={v => updateListItem(setEquipment, i, 'hours', v)} placeholder={t('dailyReportForm.hrs')} placeholderTextColor={Colors.secondaryText} keyboardType="decimal-pad" />
                       <TouchableOpacity onPress={() => removeListItem(setEquipment, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="close" size={18} color="#EF4444" />
                       </TouchableOpacity>
@@ -939,19 +941,19 @@ export default function DailyReportFormScreen({ navigation, route }) {
                   ))}
                   <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setEquipment, { name: '', hours: '' })}>
                     <Ionicons name="add" size={16} color={ACCENT} />
-                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Equipment</Text>
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>{t('dailyReportForm.addEquipment')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* Delays */}
-              <SectionHeader sectionKey="delays" icon="warning-outline" title="Delays / Issues" />
+              <SectionHeader sectionKey="delays" icon="warning-outline" title={t('dailyReportForm.delaysIssues')} />
               {expanded.delays && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   {delays.map((d, i) => (
                     <View key={i} style={{ gap: 8, marginBottom: 10 }}>
                       <View style={styles.listItemRow}>
-                        <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={d.description} onChangeText={v => updateListItem(setDelays, i, 'description', v)} placeholder="What happened" placeholderTextColor={Colors.secondaryText} />
+                        <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={d.description} onChangeText={v => updateListItem(setDelays, i, 'description', v)} placeholder={t('dailyReportForm.whatHappened')} placeholderTextColor={Colors.secondaryText} />
                         <TouchableOpacity onPress={() => removeListItem(setDelays, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                           <Ionicons name="close" size={18} color="#EF4444" />
                         </TouchableOpacity>
@@ -973,20 +975,20 @@ export default function DailyReportFormScreen({ navigation, route }) {
                   ))}
                   <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setDelays, { description: '', reason: '' })}>
                     <Ionicons name="add" size={16} color={ACCENT} />
-                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Delay</Text>
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>{t('dailyReportForm.addDelay')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* Safety */}
-              <SectionHeader sectionKey="safety" icon="shield-checkmark-outline" title="Safety" />
+              <SectionHeader sectionKey="safety" icon="shield-checkmark-outline" title={t('dailyReportForm.safety')} />
               {expanded.safety && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   <TextInput
                     style={[styles.textArea, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background, minHeight: 60 }]}
                     value={safety}
                     onChangeText={setSafety}
-                    placeholder="Any incidents, observations, or toolbox talks..."
+                    placeholder={t('dailyReportForm.safetyPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     multiline
                     textAlignVertical="top"
@@ -995,13 +997,13 @@ export default function DailyReportFormScreen({ navigation, route }) {
               )}
 
               {/* Visitors */}
-              <SectionHeader sectionKey="visitors" icon="person-add-outline" title="Visitors" />
+              <SectionHeader sectionKey="visitors" icon="person-add-outline" title={t('dailyReportForm.visitors')} />
               {expanded.visitors && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   {visitors.map((v, i) => (
                     <View key={i} style={styles.listItemRow}>
-                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={v.name} onChangeText={val => updateListItem(setVisitors, i, 'name', val)} placeholder="Name" placeholderTextColor={Colors.secondaryText} />
-                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={v.purpose} onChangeText={val => updateListItem(setVisitors, i, 'purpose', val)} placeholder="Purpose" placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={v.name} onChangeText={val => updateListItem(setVisitors, i, 'name', val)} placeholder={t('dailyReportForm.name')} placeholderTextColor={Colors.secondaryText} />
+                      <TextInput style={[styles.listInput, { flex: 1, color: Colors.primaryText, borderColor: Colors.border }]} value={v.purpose} onChangeText={val => updateListItem(setVisitors, i, 'purpose', val)} placeholder={t('dailyReportForm.purpose')} placeholderTextColor={Colors.secondaryText} />
                       <TouchableOpacity onPress={() => removeListItem(setVisitors, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="close" size={18} color="#EF4444" />
                       </TouchableOpacity>
@@ -1009,20 +1011,20 @@ export default function DailyReportFormScreen({ navigation, route }) {
                   ))}
                   <TouchableOpacity style={styles.addBtn} onPress={() => addListItem(setVisitors, { name: '', purpose: '' })}>
                     <Ionicons name="add" size={16} color={ACCENT} />
-                    <Text style={[styles.addBtnText, { color: ACCENT }]}>Add Visitor</Text>
+                    <Text style={[styles.addBtnText, { color: ACCENT }]}>{t('dailyReportForm.addVisitor')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* Tomorrow's Plan */}
-              <SectionHeader sectionKey="tomorrow" icon="calendar-outline" title="Tomorrow's Plan" />
+              <SectionHeader sectionKey="tomorrow" icon="calendar-outline" title={t('dailyReportForm.tomorrowsPlan')} />
               {expanded.tomorrow && (
                 <View style={[styles.expandedCard, { backgroundColor: Colors.cardBackground }]}>
                   <TextInput
                     style={[styles.textArea, { color: Colors.primaryText, borderColor: Colors.border, backgroundColor: Colors.background, minHeight: 60 }]}
                     value={nextDayPlan}
                     onChangeText={setNextDayPlan}
-                    placeholder="What's planned for tomorrow..."
+                    placeholder={t('dailyReportForm.tomorrowPlaceholder')}
                     placeholderTextColor={Colors.secondaryText}
                     multiline
                     textAlignVertical="top"
@@ -1041,7 +1043,7 @@ export default function DailyReportFormScreen({ navigation, route }) {
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={22} color="#FFF" />
-                    <Text style={styles.submitText}>Submit Daily Log</Text>
+                    <Text style={styles.submitText}>{t('dailyReportForm.submitDailyLog')}</Text>
                   </>
                 )}
               </TouchableOpacity>

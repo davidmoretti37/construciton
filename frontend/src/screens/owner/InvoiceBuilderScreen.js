@@ -17,6 +17,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, AppState, Platform, Modal, FlatList,
@@ -71,6 +72,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
   const { isDark } = useTheme();
   const Colors = isDark ? DarkColors : LightColors;
   const styles = makeStyles(Colors);
+  const { t } = useTranslation('owner');
 
   const seedDraft = route?.params?.draft || null;
   const seedProjectId = route?.params?.project_id || null;
@@ -304,21 +306,21 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
   const handleSend = async () => {
     if (sending) return;
     if (!clientName?.trim()) {
-      Alert.alert('Add a client name'); setExpanded((s) => ({ ...s, basics: true })); return;
+      Alert.alert(t('invoiceBuilder.addClientNameTitle')); setExpanded((s) => ({ ...s, basics: true })); return;
     }
     if (!clientEmail?.trim()) {
-      Alert.alert('Client email required', 'Add a client email so we can send the invoice.');
+      Alert.alert(t('invoiceBuilder.clientEmailRequiredTitle'), t('invoiceBuilder.clientEmailRequiredBody'));
       setExpanded((s) => ({ ...s, basics: true })); return;
     }
     if (items.length === 0 || items.every((it) => !it.description?.trim())) {
-      Alert.alert('Add at least one line item'); setExpanded((s) => ({ ...s, lineItems: true })); return;
+      Alert.alert(t('invoiceBuilder.addLineItemTitle')); setExpanded((s) => ({ ...s, lineItems: true })); return;
     }
     try {
       setSending(true);
       setSaveState('saving');
       await flushSaveRef.current();
       if (!invoiceId) {
-        Alert.alert('Save failed', 'Could not save the invoice. Please try again.');
+        Alert.alert(t('invoiceBuilder.saveFailedTitle'), t('invoiceBuilder.saveFailedBody'));
         return;
       }
       const { data: { session } } = await supabase.auth.getSession();
@@ -333,11 +335,16 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
       }
       setStatus('unpaid');
       setSaveState('saved');
-      Alert.alert('Sent', `Invoice ${invoiceNumber ? `#${invoiceNumber}` : ''} sent to ${clientEmail}.`);
+      Alert.alert(
+        t('invoiceBuilder.sentTitle'),
+        invoiceNumber
+          ? t('invoiceBuilder.sentBody', { number: invoiceNumber, email: clientEmail })
+          : t('invoiceBuilder.sentBodyNoNumber', { email: clientEmail })
+      );
     } catch (e) {
       console.warn('[Invoice Builder] send failed', e);
       setSaveState('error');
-      Alert.alert('Send failed', e?.message || 'Please try again.');
+      Alert.alert(t('invoiceBuilder.sendFailedTitle'), e?.message || t('invoiceBuilder.sendFailedBody'));
     } finally {
       setSending(false);
     }
@@ -364,17 +371,17 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
             <Ionicons name="chevron-back" size={26} color={Colors.primaryText} />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text testID="invoiceBuilder.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>Invoice</Text>
+            <Text testID="invoiceBuilder.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>{t('invoiceBuilder.invoice')}</Text>
           </View>
           <View style={{ width: 26 }} />
         </View>
         <View style={styles.loadingBox}>
           <Ionicons name="alert-circle-outline" size={40} color={Colors.secondaryText} />
           <Text style={[styles.reviewValue, { marginTop: 12, textAlign: 'center' }]}>
-            Couldn't load this invoice
+            {t('invoiceBuilder.loadFailedTitle')}
           </Text>
           <Text style={[styles.reviewSub, { textAlign: 'center', marginBottom: 16 }]}>
-            Check your connection and try again.
+            {t('invoiceBuilder.loadFailedSub')}
           </Text>
           <TouchableOpacity
             testID="invoiceBuilder.retryButton"
@@ -384,7 +391,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
             activeOpacity={0.85}
           >
             <Ionicons name="refresh" size={18} color="#fff" />
-            <Text style={styles.sendBtnText}>Retry</Text>
+            <Text style={styles.sendBtnText}>{t('invoiceBuilder.retry')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -405,7 +412,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text testID="invoiceBuilder.headerTitle" style={[styles.headerTitle, { color: Colors.primaryText }]}>
-            {invoiceNumber ? `Invoice #${invoiceNumber}` : 'New invoice'}
+            {invoiceNumber ? t('invoiceBuilder.headerWithNumber', { number: invoiceNumber }) : t('invoiceBuilder.newInvoice')}
           </Text>
           <SaveIndicator state={saveState} readOnly={readOnly} Colors={Colors} />
         </View>
@@ -417,37 +424,37 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 80 }}>
 
         <Section
-          sectionKey="basics" title="Invoice basics" icon="document-text-outline"
+          sectionKey="basics" title={t('invoiceBuilder.sectionBasics')} icon="document-text-outline"
           expanded={!!expanded.basics} chip={sectionChip('basics')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
-          <Field label="Client name *" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.clientNameLabel')} Colors={Colors} styles={styles}>
             <TextInput
               testID="invoiceBuilder.clientNameInput"
               accessibilityLabel="Client name"
               style={styles.input}
               value={clientName}
               onChangeText={setClientName}
-              placeholder="Client or company name"
+              placeholder={t('invoiceBuilder.clientNamePlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               editable={!readOnly}
             />
           </Field>
-          <Field label="Client email *" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.clientEmailLabel')} Colors={Colors} styles={styles}>
             <TextInput
               testID="invoiceBuilder.clientEmailInput"
               accessibilityLabel="Client email"
               style={styles.input}
               value={clientEmail}
               onChangeText={setClientEmail}
-              placeholder="name@example.com"
+              placeholder={t('invoiceBuilder.clientEmailPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               keyboardType="email-address"
               autoCapitalize="none"
               editable={!readOnly}
             />
           </Field>
-          <Field label="Client phone" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.clientPhoneLabel')} Colors={Colors} styles={styles}>
             <TextInput
               testID="invoiceBuilder.clientPhoneInput"
               accessibilityLabel="Client phone"
@@ -460,20 +467,20 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
               editable={!readOnly}
             />
           </Field>
-          <Field label="Client address" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.clientAddressLabel')} Colors={Colors} styles={styles}>
             <TextInput
               testID="invoiceBuilder.clientAddressInput"
               accessibilityLabel="Client address"
               style={[styles.input, styles.multilineInput]}
               value={clientAddress}
               onChangeText={setClientAddress}
-              placeholder="123 Main St, City, State"
+              placeholder={t('invoiceBuilder.clientAddressPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               multiline
               editable={!readOnly}
             />
           </Field>
-          <Field label="Linked project (optional)" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.linkedProjectLabel')} Colors={Colors} styles={styles}>
             <TouchableOpacity
               testID="invoiceBuilder.projectPickerButton"
               accessibilityLabel="Select linked project"
@@ -482,16 +489,16 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
               activeOpacity={readOnly ? 1 : 0.7}
             >
               <Text testID="invoiceBuilder.projectName" style={[styles.inputText, !projectId && styles.placeholderText]}>
-                {projectName || (projectId ? '(loading)' : 'No project — standalone invoice')}
+                {projectName || (projectId ? t('invoiceBuilder.projectLoading') : t('invoiceBuilder.noProjectStandalone'))}
               </Text>
             </TouchableOpacity>
             {projectId && !readOnly && (
               <TouchableOpacity testID="invoiceBuilder.unlinkProjectButton" accessibilityLabel="Unlink project" onPress={() => { setProjectId(null); setProjectName(''); }} style={{ marginTop: 6 }}>
-                <Text style={{ color: Colors.primaryBlue, fontSize: 13 }}>Unlink project</Text>
+                <Text style={{ color: Colors.primaryBlue, fontSize: 13 }}>{t('invoiceBuilder.unlinkProject')}</Text>
               </TouchableOpacity>
             )}
           </Field>
-          <Field label="Due date" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.dueDateLabel')} Colors={Colors} styles={styles}>
             <TouchableOpacity
               testID="invoiceBuilder.dueDateButton"
               accessibilityLabel="Select due date"
@@ -505,7 +512,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
         </Section>
 
         <Section
-          sectionKey="lineItems" title="Line items" icon="list-outline"
+          sectionKey="lineItems" title={t('invoiceBuilder.sectionLineItems')} icon="list-outline"
           expanded={!!expanded.lineItems} chip={sectionChip('lineItems')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
@@ -513,11 +520,11 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
         </Section>
 
         <Section
-          sectionKey="pricing" title="Pricing & tax" icon="calculator-outline"
+          sectionKey="pricing" title={t('invoiceBuilder.sectionPricing')} icon="calculator-outline"
           expanded={!!expanded.pricing} chip={sectionChip('pricing')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
-          <Field label="Tax rate (%)" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.taxRateLabel')} Colors={Colors} styles={styles}>
             <TextInput
               testID="invoiceBuilder.taxRateInput"
               accessibilityLabel="Tax rate"
@@ -529,19 +536,19 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
             />
           </Field>
           <View style={{ marginTop: 12 }}>
-            <SummaryRow label="Subtotal" value={fmt$(subtotal)}  styles={styles} testID="invoiceBuilder.subtotal" />
-            <SummaryRow label="Tax"      value={fmt$(taxAmount)} styles={styles} testID="invoiceBuilder.taxAmount" />
+            <SummaryRow label={t('invoiceBuilder.subtotal')} value={fmt$(subtotal)}  styles={styles} testID="invoiceBuilder.subtotal" />
+            <SummaryRow label={t('invoiceBuilder.tax')}      value={fmt$(taxAmount)} styles={styles} testID="invoiceBuilder.taxAmount" />
             <View style={styles.divider} />
-            <SummaryRow label="Total"    value={fmt$(total)}     bold styles={styles} testID="invoiceBuilder.total" />
+            <SummaryRow label={t('invoiceBuilder.total')}    value={fmt$(total)}     bold styles={styles} testID="invoiceBuilder.total" />
           </View>
         </Section>
 
         <Section
-          sectionKey="terms" title="Terms & notes" icon="reader-outline"
+          sectionKey="terms" title={t('invoiceBuilder.sectionTerms')} icon="reader-outline"
           expanded={!!expanded.terms} chip={sectionChip('terms')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
-          <Field label="Payment terms" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.paymentTermsLabel')} Colors={Colors} styles={styles}>
             <TouchableOpacity
               testID="invoiceBuilder.paymentTermsButton"
               accessibilityLabel="Select payment terms"
@@ -552,14 +559,14 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
               <Text testID="invoiceBuilder.paymentTermsValue" style={styles.inputText}>{paymentTerms}</Text>
             </TouchableOpacity>
           </Field>
-          <Field label="Notes" Colors={Colors} styles={styles}>
+          <Field label={t('invoiceBuilder.notesLabel')} Colors={Colors} styles={styles}>
             <TextInput
               testID="invoiceBuilder.notesInput"
               accessibilityLabel="Notes"
               style={[styles.input, styles.multilineInput]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Any extra info for the client (optional)"
+              placeholder={t('invoiceBuilder.notesPlaceholder')}
               placeholderTextColor={Colors.placeholder || '#9CA3AF'}
               multiline
               editable={!readOnly}
@@ -568,17 +575,17 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
         </Section>
 
         <Section
-          sectionKey="review" title="Review & send" icon="paper-plane-outline"
+          sectionKey="review" title={t('invoiceBuilder.sectionReview')} icon="paper-plane-outline"
           expanded={!!expanded.review} chip={sectionChip('review')} onToggle={toggle}
           Colors={Colors} styles={styles}
         >
           <View style={styles.reviewBlock}>
-            <Text style={styles.reviewLabel}>Bill to</Text>
+            <Text style={styles.reviewLabel}>{t('invoiceBuilder.billTo')}</Text>
             <Text testID="invoiceBuilder.reviewClientName" style={styles.reviewValue}>{clientName || '—'}</Text>
             {clientEmail ? <Text testID="invoiceBuilder.reviewClientEmail" style={[styles.reviewSub, { marginTop: 2 }]}>{clientEmail}</Text> : null}
-            <Text style={[styles.reviewLabel, { marginTop: 12 }]}>Total</Text>
+            <Text style={[styles.reviewLabel, { marginTop: 12 }]}>{t('invoiceBuilder.total')}</Text>
             <Text testID="invoiceBuilder.reviewTotal" style={[styles.reviewValue, { fontSize: 22, fontWeight: '800' }]}>{fmt$(total)}</Text>
-            <Text testID="invoiceBuilder.reviewMeta" style={styles.reviewSub}>{items.length} line item{items.length === 1 ? '' : 's'} · due {dueDate} · {paymentTerms}</Text>
+            <Text testID="invoiceBuilder.reviewMeta" style={styles.reviewSub}>{t('invoiceBuilder.reviewMeta', { items: items.length === 1 ? t('invoiceBuilder.reviewLineItemOne', { count: items.length }) : t('invoiceBuilder.reviewLineItemOther', { count: items.length }), date: dueDate, terms: paymentTerms })}</Text>
           </View>
           {!readOnly && (
             <>
@@ -595,7 +602,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
                 ) : (
                   <Ionicons name="paper-plane-outline" size={18} color="#fff" />
                 )}
-                <Text style={styles.sendBtnText}>{sending ? 'Sending…' : 'Send Invoice'}</Text>
+                <Text style={styles.sendBtnText}>{sending ? t('invoiceBuilder.sending') : t('invoiceBuilder.sendInvoice')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 testID="invoiceBuilder.saveCloseButton"
@@ -607,10 +614,10 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={[styles.secondaryBtnText, { color: Colors.primaryText }]}>Save & Close</Text>
+                <Text style={[styles.secondaryBtnText, { color: Colors.primaryText }]}>{t('invoiceBuilder.saveAndClose')}</Text>
               </TouchableOpacity>
               <Text style={{ marginTop: 10, fontSize: 12, color: Colors.secondaryText, textAlign: 'center' }}>
-                Sending emails the client a payment link. You can also send from the chat preview card.
+                {t('invoiceBuilder.sendHint')}
               </Text>
             </>
           )}
@@ -623,7 +630,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: Colors.surface || Colors.background }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Pick a project</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('invoiceBuilder.pickProject')}</Text>
               <TouchableOpacity testID="invoiceBuilder.projectPickerClose" accessibilityLabel="Close project picker" onPress={() => setShowProjectPicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={22} color={Colors.primaryText} />
               </TouchableOpacity>
@@ -643,7 +650,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
                     setShowProjectPicker(false);
                   }}
                 >
-                  <Text style={[styles.projectName, { color: Colors.primaryText }]}>{item.name || '(no name)'}</Text>
+                  <Text style={[styles.projectName, { color: Colors.primaryText }]}>{item.name || t('invoiceBuilder.noName')}</Text>
                   {item.client_name && (
                     <Text style={[styles.projectMeta, { color: Colors.secondaryText }]}>{item.client_name}</Text>
                   )}
@@ -651,7 +658,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
               )}
               ListEmptyComponent={
                 <Text style={{ padding: 20, color: Colors.secondaryText, textAlign: 'center' }}>
-                  No projects yet.
+                  {t('invoiceBuilder.noProjectsYet')}
                 </Text>
               }
             />
@@ -664,7 +671,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: Colors.surface || Colors.background }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Payment terms</Text>
+              <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('invoiceBuilder.paymentTermsLabel')}</Text>
               <TouchableOpacity testID="invoiceBuilder.termsPickerClose" accessibilityLabel="Close payment terms picker" onPress={() => setShowTermsPicker(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={22} color={Colors.primaryText} />
               </TouchableOpacity>
@@ -696,7 +703,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
           <View style={styles.modalBackdrop}>
             <View style={[styles.modalCard, { backgroundColor: Colors.surface || '#FFFFFF', maxHeight: undefined }]}>
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>Pick due date</Text>
+                <Text style={[styles.modalTitle, { color: Colors.primaryText }]}>{t('invoiceBuilder.pickDueDate')}</Text>
                 <TouchableOpacity testID="invoiceBuilder.datePickerClose" accessibilityLabel="Close date picker" onPress={() => setDatePickerField(null)}>
                   <Ionicons name="close" size={22} color={Colors.primaryText} />
                 </TouchableOpacity>
@@ -720,7 +727,7 @@ export default function InvoiceBuilderScreen({ route, navigation }) {
                   style={[styles.sendBtn, { backgroundColor: Colors.primaryBlue, margin: 12 }]}
                   onPress={() => setDatePickerField(null)}
                 >
-                  <Text style={styles.sendBtnText}>Done</Text>
+                  <Text style={styles.sendBtnText}>{t('common:actions.done')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -768,12 +775,13 @@ function SummaryRow({ label, value, bold, styles, testID }) {
 }
 
 function SaveIndicator({ state, readOnly, Colors }) {
+  const { t } = useTranslation('owner');
   let label = '';
   let color = Colors.secondaryText;
-  if (readOnly) { label = 'Read-only'; }
-  else if (state === 'saving') { label = 'Saving…'; }
-  else if (state === 'saved')  { label = 'Saved'; color = '#10B981'; }
-  else if (state === 'error')  { label = 'Save failed · retrying…'; color = '#DC2626'; }
+  if (readOnly) { label = t('invoiceBuilder.readOnly'); }
+  else if (state === 'saving') { label = t('invoiceBuilder.saving'); }
+  else if (state === 'saved')  { label = t('invoiceBuilder.saved'); color = '#10B981'; }
+  else if (state === 'error')  { label = t('invoiceBuilder.saveFailedRetrying'); color = '#DC2626'; }
   if (!label) return null;
   return <Text style={{ fontSize: 11, color, marginTop: 1 }}>{label}</Text>;
 }
