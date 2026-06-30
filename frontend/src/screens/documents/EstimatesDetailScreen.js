@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchEstimates, updateEstimate } from '../../utils/storage';
@@ -291,7 +292,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                     { color: isActive ? '#fff' : Colors.secondaryText },
                   ]}
                 >
-                  {t(`status.${status.toLowerCase()}`)}
+                  {statusLabel(status)}
                 </Text>
               </TouchableOpacity>
             );
@@ -351,7 +352,7 @@ export default function EstimatesDetailScreen({ navigation, route }) {
                       ]}
                     >
                       <Text testID={`estimatesDetail.row.${estimate.id}.status`} style={[styles.statusText, { color: getStatusColor(estimate.status) }]}>
-                        {estimate.status ? t(`status.${estimate.status.toLowerCase()}`) : t('status.draft')}
+                        {estimate.status ? statusLabel(estimate.status) : statusLabel('draft')}
                       </Text>
                     </View>
                   </View>

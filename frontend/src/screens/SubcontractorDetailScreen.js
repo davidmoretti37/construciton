@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../utils/statusLabel';
 import { useTheme } from '../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../constants/theme';
 import * as api from '../services/subsService';
@@ -825,7 +826,7 @@ export default function SubcontractorDetailScreen({ route, navigation }) {
                         <View style={styles.invTopRow}>
                           <Text style={styles.invAmount}>${total.toLocaleString()}</Text>
                           <View style={[styles.invPill, { backgroundColor: pillColor + '15' }]}>
-                            <Text style={[styles.invPillText, { color: pillColor }]}>{status.replace(/_/g, ' ')}</Text>
+                            <Text style={[styles.invPillText, { color: pillColor }]}>{statusLabel(status)}</Text>
                           </View>
                         </View>
                         <Text style={styles.invMeta} numberOfLines={1}>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Share, TextInput, Alert, Acti
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -601,7 +602,7 @@ export default function EstimatePreview({ data, onAction }) {
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '15', borderColor: getStatusColor() }]}>
               <Ionicons name={getStatusIcon()} size={16} color={getStatusColor()} />
               <Text style={[styles.statusText, { color: getStatusColor() }]}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {statusLabel(status)}
               </Text>
             </View>
           )}

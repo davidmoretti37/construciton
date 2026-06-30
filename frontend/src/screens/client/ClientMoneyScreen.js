@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { statusLabel } from '../../utils/statusLabel';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { fetchDashboard, fetchMoneySummary, fetchChangeOrders, fetchProjectDraws, fetchProjectBilling, fetchProjectEstimates, payInvoice, createPaymentIntent } from '../../services/clientPortalApi';
 import { supabase } from '../../lib/supabase';
@@ -563,7 +564,7 @@ export default function ClientMoneyScreen({ navigation }) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activityTitle}>{est.label}</Text>
                   <Text style={styles.activitySub}>
-                    {est.status?.charAt(0).toUpperCase() + est.status?.slice(1)} · {fmt(est.occurred_at)}
+                    {statusLabel(est.status)} · {fmt(est.occurred_at)}
                   </Text>
                 </View>
                 <Text style={styles.activityAmount}>${(est.amount || 0).toLocaleString()}</Text>

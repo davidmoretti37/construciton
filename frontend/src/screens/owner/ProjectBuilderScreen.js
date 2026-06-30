@@ -43,6 +43,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LightColors, getColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -1993,7 +1994,7 @@ export default function ProjectBuilderScreen({ navigation, route }) {
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                               <View style={{ backgroundColor: draw.status === 'paid' ? '#D1FAE5' : '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                                 <Text style={{ color: draw.status === 'paid' ? '#065F46' : '#92400E', fontSize: 11, fontWeight: '700' }} testID={`projectBuilder.drawStatus.${i}`}>
-                                  {draw.status.toUpperCase()}{draw.invoice_number ? ` • ${draw.invoice_number}` : ''}
+                                  {statusLabel(draw.status, { upper: true })}{draw.invoice_number ? ` • ${draw.invoice_number}` : ''}
                                 </Text>
                               </View>
                             </View>

@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { getColors, LightColors } from '../../constants/theme';
@@ -509,7 +510,7 @@ export default function ServicePlanDetailScreen({ route }) {
                       {phase.status && (
                         <View style={styles.locDetailRow}>
                           <Ionicons name="flag-outline" size={14} color={Colors.secondaryText} />
-                          <Text style={[styles.locDetailText, { color: Colors.secondaryText }]}>{phase.status.replace('_', ' ')}</Text>
+                          <Text style={[styles.locDetailText, { color: Colors.secondaryText }]}>{statusLabel(phase.status)}</Text>
                         </View>
                       )}
                     </View>

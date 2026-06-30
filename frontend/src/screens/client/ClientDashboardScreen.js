@@ -20,6 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { fetchDashboard, fetchProject, fetchProjectPhotos, fetchProjectSummaries } from '../../services/clientPortalApi';
 import { useClientProject } from '../../contexts/ClientProjectContext';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -181,7 +182,7 @@ export default function ClientDashboardScreen({ navigation }) {
                 {projectDetail.status && (
                   <View style={styles.infoChip}>
                     <Ionicons name="flag" size={14} color={C.amber} />
-                    <Text style={styles.infoChipText}>{projectDetail.status.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</Text>
+                    <Text style={styles.infoChipText}>{statusLabel(projectDetail.status)}</Text>
                   </View>
                 )}
                 {projectDetail.location && (
@@ -316,7 +317,7 @@ export default function ClientDashboardScreen({ navigation }) {
                         {project.location && <Text style={styles.projectLocation} numberOfLines={1}>{project.location}</Text>}
                         {project.status && (
                           <View style={[styles.statusBadge, { backgroundColor: getStatusBg(project.status) }]}>
-                            <Text style={[styles.statusText, { color: getStatusColor(project.status) }]}>{project.status.replace(/-/g, ' ').toUpperCase()}</Text>
+                            <Text style={[styles.statusText, { color: getStatusColor(project.status) }]}>{statusLabel(project.status, { upper: true })}</Text>
                           </View>
                         )}
                         {project.percent_complete > 0 && (

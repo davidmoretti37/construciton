@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import { fetchProject, fetchProjectPhotos, fetchProjectSummaries } from '../../services/clientPortalApi';
 
 const { width: SW } = Dimensions.get('window');
@@ -141,7 +142,7 @@ export default function ClientProjectDetailScreen({ route, navigation }) {
               <View style={styles.infoChip}>
                 <Ionicons name="flag" size={14} color={C.amber} />
                 <Text style={styles.infoChipText}>
-                  {project.status.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  {statusLabel(project.status)}
                 </Text>
               </View>
             )}

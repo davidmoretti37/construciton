@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../utils/statusLabel';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 import { Ionicons } from '@expo/vector-icons';
@@ -1249,7 +1250,7 @@ export default function WorkersScreen({ navigation, route, ownerMode = false, ac
 
   const getStatusLabel = (status) => {
     if (!status) return t('status.unknown', 'Unknown');
-    return t(`status.${status}`, status.charAt(0).toUpperCase() + status.slice(1));
+    return statusLabel(status);
   };
 
   const isWorkerActive = (workerId) => {

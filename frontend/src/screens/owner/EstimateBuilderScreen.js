@@ -27,6 +27,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LightColors, DarkColors } from '../../constants/theme';
@@ -408,7 +409,7 @@ export default function EstimateBuilderScreen({ route, navigation }) {
         </View>
         <View style={[styles.statusPill, { backgroundColor: pillForStatus(status).bg }]}>
           <Text style={[styles.statusPillText, { color: pillForStatus(status).fg }]} testID="estimateBuilder.statusPill">
-            {status.replace(/_/g, ' ')}
+            {statusLabel(status)}
           </Text>
         </View>
       </View>

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '../../utils/statusLabel';
 import { getColors, LightColors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchInvoices, deleteInvoice } from '../../utils/storage';
@@ -217,7 +218,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                       </Text>
                       <View style={[styles.subInvPill, { backgroundColor: pillColor + '15' }]}>
                         <Text style={[styles.subInvPillText, { color: pillColor }]} testID={`invoicesDetail.subInvoiceStatus.${inv.id}`}>
-                          {status.replace(/_/g, ' ')}
+                          {statusLabel(status)}
                         </Text>
                       </View>
                     </View>
@@ -278,12 +279,7 @@ export default function InvoicesDetailScreen({ navigation }) {
               const actualStatus = isOverdue(due, status) ? 'overdue' : status;
               const remaining = (totalAmt || 0) - (paid || 0);
 
-              const STATUS_LABELS = { unpaid: 'Unpaid', paid: 'Paid', partial: 'Partial', overdue: 'Overdue', draft: 'Draft' };
-              // Try the i18n key first; if it falls back to the key itself
-              // (missing translation), use the human label so we don't
-              // surface raw "Status.Unpaid" strings in the UI.
-              const i18nLabel = t(`status.${actualStatus}`);
-              const statusLabel = i18nLabel.startsWith('status.') ? (STATUS_LABELS[actualStatus] || 'Unpaid') : i18nLabel;
+              const statusText = statusLabel(actualStatus);
 
               const dueLabel = due
                 ? new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -317,7 +313,7 @@ export default function InvoicesDetailScreen({ navigation }) {
                       ]}
                     >
                       <Text style={[styles.statusText, { color: getStatusColor(actualStatus) }]} testID={`invoicesDetail.invoiceStatus.${invoice.id}`}>
-                        {statusLabel}
+                        {statusText}
                       </Text>
                     </View>
                   </View>
